@@ -67,16 +67,23 @@ For a user-systemd target, run the installed gateway from the uv-tool environmen
 TOOL_DIR="$(uv tool dir)"
 systemd-run --user --unit=sase-gateway \
   --property=Restart=on-failure \
+  --property=Environment="PATH=$HOME/.local/bin:$TOOL_DIR/sase/bin:/usr/bin" \
   "$TOOL_DIR/sase/bin/sase_gateway" \
   --bind 127.0.0.1:7629 \
-  --sase-home "$HOME/.sase"
+  --sase-home "$HOME/.sase" \
+  --agent-bridge-command "$HOME/.local/bin/sase"
 
 systemctl --user status sase-gateway --no-pager
 curl -fsS http://127.0.0.1:7629/api/v1/health
 ```
 
 Use the host's normal unit naming if it already has a permanent service. The important
-properties are loopback bind, the correct SASE home, and restart-on-failure behavior.
+properties are loopback bind, the correct SASE home, restart-on-failure behavior, and an
+`sase` agent-bridge command that systemd can exec. User units do not include
+`~/.local/bin` on `PATH` by default, so pass `--agent-bridge-command` with the absolute
+installed `sase` path (or put that directory on the unit `PATH`). Without it,
+authenticated hello can succeed while remote launch fails with `agent_bridge`
+unavailable.
 
 ### macOS Supervision
 

@@ -3,9 +3,10 @@ from __future__ import annotations
 import copy
 
 from sase.ace.tui.models.fleet_agents import (
+    catalog_next_cursor,
     followed_batch_family_promotions,
     followed_logical_keys,
-    followed_logical_locators,
+    merge_catalog_pages,
     project_fleet_agents,
 )
 from sase.dispatch.follow_store import FollowStoreSnapshot
@@ -169,32 +170,6 @@ def test_project_fleet_agents_maps_pending_attention_onto_local_statuses() -> No
     # lifecycle ("asking") is the fallback signal instead.
     assert by_key["logical-b"].status == "WAITING INPUT"
     assert by_key["logical-b"].fleet_attention is not None
-
-
-def test_followed_logical_locators_reads_active_records_only() -> None:
-    active = {"schema_version": 1, "project": "sase", "agent_id": "active"}
-    pending = {"schema_version": 1, "project": "sase", "agent_id": "pending"}
-    snapshot = FollowStoreSnapshot(
-        schema_version=1,
-        records=(
-            {
-                "schema_version": 1,
-                "state": "active",
-                "logical_key": "active",
-                "logical_locator": active,
-            },
-            {
-                "schema_version": 1,
-                "state": "pending",
-                "logical_key": "pending",
-                "logical_locator": pending,
-            },
-        ),
-        tombstones=(),
-        path="/tmp/follows.json",
-    )
-
-    assert followed_logical_locators(snapshot) == (active,)
 
 
 def test_followed_logical_keys_reads_active_records_only() -> None:
@@ -387,3 +362,264 @@ def test_followed_batch_family_promotions_skip_family_and_dispatch_records() -> 
     )
 
     assert followed_batch_family_promotions(snapshot, response) == ()
+
+
+def _worker_summary(
+    *,
+    installation_id: str,
+    agent_id: str,
+    agent_label: str,
+    status: str = "running",
+    lifecycle: str = "running",
+    revision: int = 3,
+) -> dict[str, object]:
+    logical = fleet_logical_locator(installation_id=installation_id, agent_id=agent_id)
+    logical_key = f"{installation_id}:{agent_id}"
+    return {
+        "schema_version": 1,
+        "logical_locator": logical,
+        "exact_locator": {
+            "schema_version": 1,
+            "logical": logical,
+            "shell_id": f"shell-{agent_id}",
+            "run_id": f"run-{agent_id}",
+            "attempt_id": "attempt-1",
+        },
+        "logical_key": logical_key,
+        "exact_key": f"{logical_key}:run-{agent_id}",
+        "row_kind": "agent_shell",
+        "labels": {
+            "schema_version": 1,
+            "project_label": "sase",
+            "agent_label": agent_label,
+            "family_label": None,
+            "owner_label": "bryan",
+            "alias": None,
+        },
+        "project_name": "sase",
+        "model": "grok-4",
+        "provider": "xai",
+        "status": status,
+        "status_bucket": "running" if status == "running" else "done",
+        "intent": "observe apollo",
+        "observed_at_unix": 1_800_000_000.0,
+        "row_revision": {
+            "schema_version": 1,
+            "logical_key": logical_key,
+            "revision": revision,
+        },
+        "lifecycle": lifecycle,
+        "liveness": "alive" if status == "running" else "dead",
+        "connection_health": "online",
+        "freshness": "fresh",
+        "capabilities": {
+            "schema_version": 1,
+            "resource": ["content.read", "stop"],
+            "host": [],
+            "protocol": ["fleet.v1"],
+        },
+        "content": {
+            "schema_version": 1,
+            "handle_count": 1,
+            "total_byte_len": 24,
+            "kinds": ["output"],
+            "supports_range": True,
+            "supports_growth": True,
+        },
+        "current_instance": status == "running",
+        "dismissable": False,
+        "needs_attention": False,
+        "occupied_runner_slot": False,
+        "container_projected_concrete_agent": False,
+    }
+
+
+def _worker_catalog_response(
+    *summaries: dict[str, object],
+    running: int = 1,
+    next_cursor: str | None = None,
+    status: str = "ok",
+    error: dict[str, object] | None = None,
+) -> dict[str, object]:
+    installation_id = fleet_installation_id("w")
+    return {
+        "schema_version": 1,
+        "operation": "catalog",
+        "configured_hosts": 1,
+        "hosts": [
+            {
+                "schema_version": 1,
+                "alias": "apollo",
+                "provider_ref": "builtin@https",
+                "installation_id": installation_id,
+                "endpoint": "https://apollo.example.test",
+                "status": status,
+                "cached": False,
+                "age_seconds": 0.2,
+                "payload": None
+                if error is not None
+                else {
+                    "schema_version": 1,
+                    "counts": {
+                        "schema_version": 1,
+                        "running": running,
+                        "waiting": 0,
+                        "attention": 0,
+                        "occupied_runner_slots": 0,
+                        "logical_agent_total": len(summaries),
+                    },
+                    "freshness": {
+                        "schema_version": 1,
+                        "freshness": "fresh",
+                        "partial": False,
+                        "refreshed_at_unix": 1_800_000_000.0,
+                        "error": None,
+                    },
+                    "page": {
+                        "schema_version": 1,
+                        "rows": list(summaries),
+                        "limit": 100,
+                        "total_matching_rows": len(summaries),
+                        "next_cursor": next_cursor,
+                        "has_more": next_cursor is not None,
+                    },
+                },
+                "error": error,
+            }
+        ],
+    }
+
+
+def test_project_fleet_agents_reads_worker_catalog_page_rows() -> None:
+    installation_id = fleet_installation_id("w")
+    running = _worker_summary(
+        installation_id=installation_id,
+        agent_id="live",
+        agent_label="apollo-live",
+    )
+    done = _worker_summary(
+        installation_id=installation_id,
+        agent_id="done",
+        agent_label="apollo-done",
+        status="done",
+        lifecycle="terminal",
+        revision=9,
+    )
+    response = _worker_catalog_response(running, done, running=1)
+
+    projection = project_fleet_agents(catalog_response=response, local_agent_count=2)
+
+    assert [row.agent_name for row in projection.fleet_rows] == [
+        "apollo-live",
+        "apollo-done",
+    ]
+    assert projection.fleet_rows[0].llm_provider == "xai"
+    assert projection.fleet_rows[0].fleet_bounded_intent == "observe apollo"
+    assert projection.fleet_rows[0].fleet_origin_installation_id == installation_id
+    assert projection.fleet_rows[0].status == "RUNNING"
+    assert projection.fleet_rows[1].status == "DONE"
+    assert projection.counts["fleet"] == 1
+    assert projection.partial is False
+    assert projection.diagnostics == ()
+
+
+def test_project_fleet_agents_reads_followed_batch_entry_summaries() -> None:
+    installation_id = fleet_installation_id("w")
+    summary = _worker_summary(
+        installation_id=installation_id,
+        agent_id="live",
+        agent_label="apollo-live",
+    )
+    logical_key = str(summary["logical_key"])
+    followed = {
+        "schema_version": 1,
+        "operation": "followed_batch",
+        "configured_hosts": 1,
+        "hosts": [
+            {
+                "schema_version": 1,
+                "alias": "apollo",
+                "installation_id": installation_id,
+                "status": "ok",
+                "payload": {
+                    "schema_version": 1,
+                    "counts": {"running": 1},
+                    "entries": [
+                        {
+                            "schema_version": 1,
+                            "requested_logical_key": logical_key,
+                            "summary": summary,
+                        }
+                    ],
+                },
+            }
+        ],
+    }
+    snapshot = FollowStoreSnapshot(
+        schema_version=1,
+        records=(
+            {
+                "schema_version": 1,
+                "state": "active",
+                "logical_key": logical_key,
+                "logical_locator": summary["logical_locator"],
+            },
+        ),
+        tombstones=(),
+        path="/tmp/follows.json",
+    )
+
+    projection = project_fleet_agents(
+        followed_response=followed,
+        follow_snapshot=snapshot,
+        local_agent_count=0,
+    )
+
+    assert len(projection.focus_rows) == 1
+    assert projection.focus_rows[0].agent_name == "apollo-live"
+    assert projection.focus_rows[0].fleet_followed is True
+    assert projection.counts["focus_remote"] == 1
+
+
+def test_project_fleet_agents_surfaces_host_errors_instead_of_empty_success() -> None:
+    response = _worker_catalog_response(
+        status="invalid",
+        error={
+            "code": "invalid_request",
+            "message": "fleet catalog limit exceeds 100",
+        },
+        running=0,
+    )
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    assert projection.fleet_rows == ()
+    assert projection.partial is True
+    assert projection.diagnostics[0]["code"] == "invalid_request"
+    assert "limit exceeds 100" in str(projection.diagnostics[0]["message"])
+
+
+def test_merge_catalog_pages_keeps_authoritative_counts_and_second_page_rows() -> None:
+    installation_id = fleet_installation_id("w")
+    first_row = _worker_summary(
+        installation_id=installation_id,
+        agent_id="page-one",
+        agent_label="page-one",
+    )
+    second_row = _worker_summary(
+        installation_id=installation_id,
+        agent_id="page-two",
+        agent_label="page-two",
+        status="done",
+        lifecycle="terminal",
+    )
+    first = _worker_catalog_response(first_row, running=1, next_cursor="off:100")
+    second = _worker_catalog_response(second_row, running=1, next_cursor=None)
+
+    merged = merge_catalog_pages(first, second)
+    projection = project_fleet_agents(catalog_response=merged)
+
+    assert [row.agent_name for row in projection.fleet_rows] == ["page-one", "page-two"]
+    assert projection.counts["fleet"] == 1
+    assert catalog_next_cursor(first) == "off:100"
+    assert catalog_next_cursor(second) is None

@@ -208,6 +208,91 @@ async def test_empty_follow_snapshot_skips_hydration_and_reconciliation(
 
 
 @pytest.mark.asyncio
+async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = fleet_summary(agent_id="agent-a")
+    page_one = fleet_host_response(summaries=(summary,))
+    page_one["hosts"][0]["payload"] = {
+        "page": {
+            "rows": [summary],
+            "next_cursor": "off:100",
+            "has_more": True,
+        },
+        "counts": {"running": 1},
+    }
+    page_two_summary = fleet_summary(agent_id="agent-b", status="done")
+    page_two = fleet_host_response(summaries=(page_two_summary,))
+    page_two["hosts"][0]["payload"] = {
+        "page": {
+            "rows": [page_two_summary],
+            "next_cursor": None,
+            "has_more": False,
+        },
+        "counts": {"running": 1},
+    }
+
+    class _PagingFacade(OfflineFleetFacade):
+        async def catalog(
+            self,
+            query: dict[str, Any],
+            *,
+            cache_only: bool = False,
+            timeout_seconds: float | None = None,
+        ) -> dict[str, Any]:
+            self.calls.append("catalog")
+            self.requests.append(
+                {
+                    "operation": "catalog",
+                    "request": dict(query),
+                    "cache_only": cache_only,
+                    "timeout_seconds": timeout_seconds,
+                }
+            )
+            if query.get("cursor") == "off:100":
+                return dict(page_two)
+            return dict(page_one)
+
+    facade = _PagingFacade(
+        summary_response=page_one,
+        followed_response=page_one,
+        attention_response=fleet_attention_response(()),
+    )
+    app = _FleetRefreshHarness(mode="fleet")
+    monkeypatch.setattr(fleet_mod, "load_federation_config", fleet_config)
+    monkeypatch.setattr(
+        fleet_mod,
+        "_load_reconciled_follow_snapshot",
+        lambda: fleet_follow_snapshot(summary["logical_locator"]),
+    )
+    monkeypatch.setattr(fleet_mod, "build_federation_facade", lambda _config: facade)
+
+    await app._run_agents_fleet_refresh(generation=1, source="manual")
+
+    catalog_requests = [
+        item["request"] for item in facade.requests if item["operation"] == "catalog"
+    ]
+    assert catalog_requests[0] == {
+        "schema_version": 1,
+        "limit": 100,
+        "include_terminal": True,
+    }
+    assert catalog_requests[1]["cursor"] == "off:100"
+    assert catalog_requests[1]["limit"] == 100
+    followed_request = next(
+        item["request"]
+        for item in facade.requests
+        if item["operation"] == "followed_batch"
+    )
+    assert "logical_keys" in followed_request
+    assert "logical_locators" not in followed_request
+    assert {row.fleet_logical_key for row in app._agents_fleet_rows} == {
+        summary["logical_key"],
+        page_two_summary["logical_key"],
+    }
+
+
+@pytest.mark.asyncio
 async def test_followed_batch_promotes_singleton_before_attention_and_projection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

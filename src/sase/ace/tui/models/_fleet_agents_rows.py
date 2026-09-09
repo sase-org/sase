@@ -35,11 +35,23 @@ def rows_from_response(
         host_alias = _host_alias(host, host_index)
         origin = mapping(host.get("origin"))
         origin_installation_id = optional_str(
+            host.get("installation_id"),
             host.get("origin_installation_id"),
             origin.get("installation_id"),
             origin.get("id"),
         )
-        host_freshness = optional_str(host.get("freshness"), host.get("status"))
+        payload = mapping(host.get("payload"))
+        payload_freshness = mapping(payload.get("freshness"))
+        host_freshness = optional_str(
+            host.get("freshness")
+            if isinstance(host.get("freshness"), str)
+            else mapping(host.get("freshness")).get("freshness"),
+            payload_freshness.get("freshness"),
+            payload.get("freshness")
+            if isinstance(payload.get("freshness"), str)
+            else None,
+            host.get("status"),
+        )
         host_health = optional_str(
             host.get("connection_health"),
             host.get("health"),
@@ -80,21 +92,42 @@ def _agent_from_summary(
     attention_by_logical_key: Mapping[str, Mapping[str, Any]],
 ) -> Agent:
     content = mapping(summary.get("content"))
+    labels = mapping(summary.get("labels"))
     lifecycle = mapping(summary.get("lifecycle"))
     liveness = mapping(summary.get("liveness"))
     logical_locator = mapping(summary.get("logical_locator"))
     exact_locator = mapping(summary.get("exact_locator"))
     logical_key = optional_str(summary.get("logical_key"))
     exact_key = optional_str(summary.get("exact_key"))
-    agent_name = _agent_name(summary, content, logical_key, exact_key, summary_index)
-    patch_name = _patch_name(summary, content, logical_locator, agent_name)
+    agent_name = _agent_name(
+        summary,
+        content,
+        labels,
+        logical_key,
+        exact_key,
+        summary_index,
+    )
+    patch_name = _patch_name(
+        summary,
+        content,
+        labels,
+        logical_locator,
+        agent_name,
+    )
     raw_suffix_value = raw_suffix(
         host_alias,
         exact_key or logical_key or locator_id(exact_locator or logical_locator),
         summary_index,
     )
     attention = attention_by_logical_key.get(logical_key) if logical_key else None
-    status = _status_from_summary(summary, lifecycle, liveness, attention)
+    status = _status_from_summary(
+        summary,
+        lifecycle,
+        liveness,
+        attention,
+        lifecycle_token=summary.get("lifecycle"),
+        liveness_token=summary.get("liveness"),
+    )
     revision = int_or_none(
         summary.get("revision"),
         lifecycle.get("revision"),
@@ -124,6 +157,7 @@ def _agent_from_summary(
         host_health,
     )
     bounded_intent = optional_str(
+        summary.get("intent"),
         content.get("bounded_intent"),
         content.get("intent"),
         summary.get("bounded_intent"),
@@ -141,8 +175,9 @@ def _agent_from_summary(
         stop_time=stop_time,
         raw_suffix=raw_suffix_value,
         agent_name=agent_name,
-        model=optional_str(content.get("model"), summary.get("model")),
+        model=optional_str(summary.get("model"), content.get("model")),
         llm_provider=optional_str(
+            summary.get("provider"),
             content.get("llm_provider"),
             content.get("provider"),
             summary.get("llm_provider"),
@@ -177,6 +212,7 @@ def _host_alias(host: Mapping[str, Any], host_index: int) -> str:
         host.get("alias"),
         origin.get("alias"),
         origin.get("name"),
+        host.get("installation_id"),
         origin.get("installation_id"),
         host.get("origin_installation_id"),
     )
@@ -188,11 +224,14 @@ def _host_alias(host: Mapping[str, Any], host_index: int) -> str:
 def _agent_name(
     summary: Mapping[str, Any],
     content: Mapping[str, Any],
+    labels: Mapping[str, Any],
     logical_key: str | None,
     exact_key: str | None,
     summary_index: int,
 ) -> str:
     name = optional_str(
+        labels.get("agent_label"),
+        summary.get("agent_label"),
         content.get("agent_name"),
         content.get("name"),
         summary.get("agent_name"),
@@ -209,10 +248,15 @@ def _agent_name(
 def _patch_name(
     summary: Mapping[str, Any],
     content: Mapping[str, Any],
+    labels: Mapping[str, Any],
     logical_locator: Mapping[str, Any],
     agent_name: str,
 ) -> str:
+    project = logical_locator.get("project")
+    project_id = project.get("project_id") if isinstance(project, Mapping) else project
     patch = optional_str(
+        labels.get("project_label"),
+        summary.get("project_name"),
         content.get("patch"),
         content.get("patch_name"),
         content.get("cl_name"),
@@ -220,7 +264,7 @@ def _patch_name(
         summary.get("patch_name"),
         logical_locator.get("patch"),
         logical_locator.get("patch_name"),
-        logical_locator.get("project"),
+        project_id,
     )
     return display_token(patch or agent_name)
 
@@ -230,6 +274,9 @@ def _status_from_summary(
     lifecycle: Mapping[str, Any],
     liveness: Mapping[str, Any],
     attention: Mapping[str, Any] | None = None,
+    *,
+    lifecycle_token: object = None,
+    liveness_token: object = None,
 ) -> str:
     # A correlated, still-pending attention entry is the most specific
     # signal available: it distinguishes a question from a gate the way a
@@ -242,9 +289,11 @@ def _status_from_summary(
             return "WAITING INPUT"
     value = optional_str(
         summary.get("status"),
+        lifecycle_token if isinstance(lifecycle_token, str) else None,
         lifecycle.get("display_status"),
         lifecycle.get("status"),
         lifecycle.get("state"),
+        liveness_token if isinstance(liveness_token, str) else None,
         liveness.get("status"),
         liveness.get("state"),
     )
@@ -271,6 +320,7 @@ def _status_from_summary(
         "done": "DONE",
         "complete": "DONE",
         "completed": "DONE",
+        "terminal": "DONE",
         "stopped": "STOPPED",
         "cancelled": "STOPPED",
         "canceled": "STOPPED",

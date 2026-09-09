@@ -31,9 +31,10 @@ from sase.dispatch.follow_store import (
 
 from ...models.fleet_agents import (
     FleetRowsProjection,
+    catalog_next_cursor,
     followed_batch_family_promotions,
     followed_logical_keys,
-    followed_logical_locators,
+    merge_catalog_pages,
     project_fleet_agents,
 )
 from ...util.pump_tasks import spawn_pump_free_task
@@ -47,7 +48,8 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _AGENTS_SUBTABS: tuple[str, str] = ("focus", "fleet")
-_FLEET_CATALOG_LIMIT = 250
+_FLEET_CATALOG_PAGE_LIMIT = 100
+_FLEET_CATALOG_MAX_PAGES = 3
 
 
 class AgentFleetMixin:
@@ -290,14 +292,14 @@ class AgentFleetMixin:
                         timeout_seconds=timeout,
                     ),
                 )
-                locators = followed_logical_locators(follow_snapshot)
-                if locators:
+                logical_keys = followed_logical_keys(follow_snapshot)
+                if logical_keys:
                     followed_response = await self._fleet_call(
                         "followed_batch",
                         lambda: facade.followed_batch(
                             {
                                 "schema_version": 1,
-                                "logical_locators": list(locators),
+                                "logical_keys": list(logical_keys),
                             },
                             cache_only=False,
                             timeout_seconds=timeout,
@@ -322,16 +324,9 @@ class AgentFleetMixin:
                         ),
                     )
                 if self.current_agents_subtab == "fleet" or source == "manual":
-                    catalog_response = await self._fleet_call(
-                        "catalog",
-                        lambda: facade.catalog(
-                            {
-                                "schema_version": 1,
-                                "limit": _FLEET_CATALOG_LIMIT,
-                            },
-                            cache_only=False,
-                            timeout_seconds=timeout,
-                        ),
+                    catalog_response = await self._fetch_fleet_catalog(
+                        facade,
+                        timeout_seconds=timeout,
                     )
             projection = project_fleet_agents(
                 summary_response=summary_response,
@@ -363,6 +358,56 @@ class AgentFleetMixin:
             if generation == getattr(self, "_agents_fleet_refresh_generation", 0):
                 self._agents_fleet_loading = False
                 self._update_agents_header()
+
+    def _fleet_catalog_request(
+        self,
+        facade: FederationFacade,
+        query: Mapping[str, Any],
+        *,
+        timeout_seconds: float | None,
+    ) -> Callable[[], Awaitable[Mapping[str, Any]]]:
+        async def _catalog_page() -> Mapping[str, Any]:
+            return await facade.catalog(
+                query,
+                cache_only=False,
+                timeout_seconds=timeout_seconds,
+            )
+
+        return _catalog_page
+
+    async def _fetch_fleet_catalog(
+        self,
+        facade: FederationFacade,
+        *,
+        timeout_seconds: float | None,
+    ) -> Mapping[str, Any] | None:
+        merged: Mapping[str, Any] | None = None
+        cursor: str | None = None
+        seen: set[str] = set()
+        for _ in range(_FLEET_CATALOG_MAX_PAGES):
+            query: dict[str, Any] = {
+                "schema_version": 1,
+                "limit": _FLEET_CATALOG_PAGE_LIMIT,
+                "include_terminal": True,
+            }
+            if cursor:
+                query["cursor"] = cursor
+            page = await self._fleet_call(
+                "catalog",
+                self._fleet_catalog_request(
+                    facade,
+                    query,
+                    timeout_seconds=timeout_seconds,
+                ),
+            )
+            if page is None:
+                break
+            merged = merge_catalog_pages(merged, page)
+            cursor = catalog_next_cursor(page)
+            if not cursor or cursor in seen:
+                break
+            seen.add(cursor)
+        return merged
 
     async def _fleet_call(
         self,

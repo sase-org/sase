@@ -61,7 +61,7 @@ def project_context_from_project_value(
         )
     project_file = known_project_file(value)
     if not project_file.is_file():
-        raise MobileAgentBridgeError(f"unknown mobile project context: {value}")
+        return None
     return MobileProjectContext(
         context_id=f"project:{value}",
         mode="project",
@@ -109,9 +109,22 @@ def mobile_prompt_vcs_ref(prompt: str) -> tuple[str, str] | None:
 
 def known_project_file(project: str) -> Path:
     from sase.ace.patch.project_spec_path import preferred_project_spec_path
+    from sase.project_display_names import load_project_ref_display_snapshot
 
-    project_dir = sase_home() / "projects" / project
-    return Path(preferred_project_spec_path(str(project_dir), project))
+    names = [project]
+    resolved = load_project_ref_display_snapshot().project_key_for_ref(project)
+    if isinstance(resolved, str) and resolved and resolved not in names:
+        names.append(resolved)
+    last = Path(
+        preferred_project_spec_path(str(sase_home() / "projects" / project), project)
+    )
+    for name in names:
+        project_dir = sase_home() / "projects" / name
+        path = Path(preferred_project_spec_path(str(project_dir), name))
+        if path.is_file():
+            return path
+        last = path
+    return last
 
 
 @contextmanager

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from ._fleet_agents_payload import host_payloads
+from ._fleet_agents_payload import authoritative_running_count, host_payloads
 
 
 def rust_counts_or_fallback(
@@ -14,10 +14,18 @@ def rust_counts_or_fallback(
     followed_response: Mapping[str, Any] | None,
     fleet_response: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
+    counts = dict(fallback)
+    fleet_running = authoritative_running_count(fleet_response)
+    if fleet_running is not None:
+        counts["fleet"] = fleet_running
+    focus_running = authoritative_running_count(followed_response)
+    if focus_running is not None:
+        counts["focus_remote"] = focus_running
+        counts["focus_total"] = int(fallback.get("local", 0)) + focus_running
     followed_hosts = host_payloads(followed_response) if followed_response else ()
     fleet_hosts = host_payloads(fleet_response) if fleet_response else ()
     if not followed_hosts and not fleet_hosts:
-        return fallback
+        return counts
     try:
         from sase.dispatch.counts import count_focus_and_fleet
 
@@ -30,17 +38,18 @@ def rust_counts_or_fallback(
             }
         )
     except Exception:
-        return fallback
+        return counts
 
-    counts = dict(fallback)
     counts["wire"] = wire
-    focus_running = _nested_count(wire, "focus")
-    fleet_running = _nested_count(wire, "fleet")
-    if focus_running is not None:
-        counts["focus_remote"] = focus_running
-        counts["focus_total"] = int(fallback.get("local", 0)) + focus_running
-    if fleet_running is not None:
-        counts["fleet"] = fleet_running
+    if focus_running is None:
+        rust_focus = _nested_count(wire, "focus")
+        if rust_focus is not None:
+            counts["focus_remote"] = rust_focus
+            counts["focus_total"] = int(fallback.get("local", 0)) + rust_focus
+    if fleet_running is None:
+        rust_fleet = _nested_count(wire, "fleet")
+        if rust_fleet is not None:
+            counts["fleet"] = rust_fleet
     return counts
 
 

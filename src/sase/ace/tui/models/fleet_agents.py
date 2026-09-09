@@ -12,8 +12,11 @@ from ._fleet_agents_counts import rust_counts_or_fallback
 from ._fleet_agents_follow import active_follow_state, dedupe_rows
 from ._fleet_agents_payload import (
     attention_index_by_logical_key,
+    catalog_next_cursor,
     configured_host_count,
     diagnostics_from_response,
+    merge_catalog_pages,
+    response_is_partial,
 )
 from ._fleet_agents_promotion import followed_batch_family_promotions
 from ._fleet_agents_rows import rows_from_response
@@ -97,7 +100,7 @@ def project_fleet_agents(
         diagnostics=tuple(diagnostics),
         configured_host_count=host_count,
         partial=any(
-            bool(response and response.get("partial"))
+            response_is_partial(response)
             for response in (
                 summary_response,
                 catalog_response,
@@ -107,20 +110,6 @@ def project_fleet_agents(
         ),
         counts=counts,
     )
-
-
-def followed_logical_locators(
-    snapshot: FollowStoreSnapshot | None,
-) -> tuple[dict[str, Any], ...]:
-    """Return active logical locators for a followed-batch request."""
-    if snapshot is None:
-        return ()
-    locators: list[dict[str, Any]] = []
-    for record in snapshot.active_records:
-        locator = record.get("logical_locator")
-        if isinstance(locator, Mapping):
-            locators.append(dict(locator))
-    return tuple(locators)
 
 
 def followed_logical_keys(
@@ -139,8 +128,9 @@ def followed_logical_keys(
 
 __all__ = [
     "FleetRowsProjection",
+    "catalog_next_cursor",
     "followed_batch_family_promotions",
     "followed_logical_keys",
-    "followed_logical_locators",
+    "merge_catalog_pages",
     "project_fleet_agents",
 ]
