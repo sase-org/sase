@@ -21,6 +21,14 @@ from sase.bead.design_ref_repair import (
     DesignRefRepairPreview,
     plan_design_ref_repairs,
 )
+from sase.bead.plan_archive_doctor import (
+    PlanArchiveDoctorReport,
+    inspect_plan_archive_health,
+    preview_plan_archive_repairs,
+    render_plan_archive_health_messages,
+    repair_plan_archive,
+    unavailable_plan_archive_report,
+)
 
 
 def handle_bead_sync(args: argparse.Namespace) -> None:
@@ -41,8 +49,13 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
     reference_context = _resolve_doctor_reference_context()
     fix_design_refs = bool(getattr(args, "fix_design_refs", False))
     fix_issue_prefix = bool(getattr(args, "fix_issue_prefix", False))
+    fix_plan_archive = bool(getattr(args, "fix_plan_archive", False))
     fix_projection = bool(getattr(args, "fix_projection", False))
     assume_yes = bool(getattr(args, "yes", False))
+    archive_store = _resolve_doctor_plan_archive_store(
+        materialize=fix_plan_archive,
+    )
+    archive_report: PlanArchiveDoctorReport | None = None
     with get_project() as proj:
         projection_preview: list[dict[str, Any]] = []
         if fix_projection:
@@ -55,6 +68,23 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
             ]
         else:
             messages = proj.doctor(plan_roots, reference_context)
+        if archive_store is not None and hasattr(proj, "list_issues"):
+            try:
+                archive_report = inspect_plan_archive_health(
+                    proj.list_issues(),
+                    archive_store,
+                    plan_roots=plan_roots,
+                )
+            except Exception as exc:  # noqa: BLE001 - doctor reports availability.
+                archive_report = unavailable_plan_archive_report(
+                    exc,
+                    sidecar_root=archive_store.kind_root("plans"),
+                    plan_roots=plan_roots,
+                )
+            messages = _extend_doctor_messages(
+                messages,
+                render_plan_archive_health_messages(archive_report),
+            )
         for msg in messages:
             print(msg)
         preview = (
@@ -70,6 +100,15 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
         _repair_projection(
             projection_preview, plan_roots, reference_context, assume_yes
         )
+
+    if fix_plan_archive:
+        if archive_store is None:
+            archive_report = unavailable_plan_archive_report(
+                RuntimeError("active SDD store could not be resolved"),
+                plan_roots=plan_roots,
+            )
+        assert archive_report is not None
+        _repair_plan_archive(archive_report, archive_store, plan_roots, assume_yes)
 
     if fix_issue_prefix:
         _repair_issue_prefix(assume_yes)
@@ -109,6 +148,61 @@ def handle_bead_doctor(args: argparse.Namespace) -> None:
     print(
         f"✓ Repaired {len(preview.repairs)} bead design reference"
         f"{'' if len(preview.repairs) == 1 else 's'}"
+    )
+
+
+def _extend_doctor_messages(messages: list[str], extra: list[str]) -> list[str]:
+    if not extra:
+        return messages
+    ok_message = "OK: no issues found"
+    if messages == [ok_message]:
+        messages = []
+    messages.extend(extra)
+    return messages
+
+
+def _repair_plan_archive(
+    preview: PlanArchiveDoctorReport,
+    archive_store: Any,
+    plan_roots: tuple[Path, ...],
+    assume_yes: bool,
+) -> None:
+    for line in preview_plan_archive_repairs(preview):
+        print(line)
+    repair_count = len(preview.recoverable_findings)
+    if not repair_count:
+        print("No plan archives can be repaired on this machine.")
+        return
+    if not (assume_yes or _confirm_plan_archive_repair(repair_count)):
+        print("Plan archive repair cancelled; no changes applied.")
+        return
+
+    with get_project() as proj:
+        current = inspect_plan_archive_health(
+            proj.list_issues(),
+            archive_store,
+            plan_roots=plan_roots,
+        )
+    if current != preview:
+        print(
+            "ERROR: plan archive findings changed after the preview; "
+            "no changes applied.",
+            file=sys.stderr,
+        )
+        return
+
+    result = repair_plan_archive(
+        preview,
+        archive_store,
+        primary_root=Path.cwd(),
+    )
+    if not result.repaired:
+        print("No plan archive changes were needed.")
+        return
+    committed = " and committed" if result.committed else ""
+    print(
+        f"✓ Repaired {len(result.repaired)} plan archive"
+        f"{'' if len(result.repaired) == 1 else 's'}{committed}"
     )
 
 
@@ -321,6 +415,52 @@ def _confirm_projection_repair(row_count: int) -> bool:
     return answer.strip().lower() in {"y", "yes"}
 
 
+def _confirm_plan_archive_repair(repair_count: int) -> bool:
+    if not sys.stdin.isatty():
+        return False
+    try:
+        answer = input(
+            f"Archive {repair_count} missing plan"
+            f"{'' if repair_count == 1 else 's'}? [y/N] "
+        )
+    except EOFError:
+        return False
+    return answer.strip().lower() in {"y", "yes"}
+
+
+def _resolve_doctor_plan_archive_store(
+    *,
+    materialize: bool,
+) -> Any | None:
+    try:
+        from sase.bead.cli_location import resolve_beads_location
+        from sase.sdd.store import SddStore
+
+        location = resolve_beads_location(
+            require_existing=True,
+            materialize=materialize,
+        )
+        if location is None:
+            return None
+        if location.store is not None:
+            return location.store
+        if location.storage == "in_tree":
+            return SddStore(
+                storage="in_tree",
+                sdd_dir=location.root / "sdd",
+                repo_root=location.root,
+            )
+        if location.storage == "local":
+            return SddStore(
+                storage="local",
+                sdd_dir=location.root,
+                repo_root=location.root,
+            )
+    except Exception:
+        return None
+    return None
+
+
 def _resolve_doctor_plan_roots() -> tuple[Path, ...]:
     try:
         from sase.sdd.plan_refs import (
@@ -430,6 +570,7 @@ Quick Start:
   sase bead doctor                               Health and reference checks
   sase bead doctor --fix-design-refs             Repair legacy plan links
   sase bead doctor --fix-issue-prefix            Reset a leaked ProjectSpec-key issue prefix
+  sase bead doctor --fix-plan-archive            Archive recoverable missing plans
   sase bead doctor --fix-projection              Repair issues.jsonl drift
   sase bead work <target> [<target> ...]        Launch plan, epic, or task agents in order""")
 

@@ -72,10 +72,25 @@ def test_doctor_parser_accepts_fix_issue_prefix_alias_and_documents_help(
     assert "--fix-issue-prefix" in capsys.readouterr().out
 
 
+def test_doctor_parser_accepts_fix_plan_archive_alias_and_documents_help(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = create_parser()
+    for flag in ("-A", "--fix-plan-archive"):
+        args = parser.parse_args(["bead", "doctor", flag])
+        assert args.fix_plan_archive is True
+
+    with pytest.raises(SystemExit) as excinfo:
+        parser.parse_args(["bead", "doctor", "-h"])
+    assert excinfo.value.code == 0
+    assert "--fix-plan-archive" in capsys.readouterr().out
+
+
 def _doctor_args(**overrides: bool) -> argparse.Namespace:
     defaults = {
         "fix_design_refs": False,
         "fix_issue_prefix": False,
+        "fix_plan_archive": False,
         "fix_projection": False,
         "yes": False,
     }

@@ -155,6 +155,12 @@ def register_bead_doctor_parser(
         ),
     )
     parser.add_argument(
+        "-A",
+        "--fix-plan-archive",
+        action="store_true",
+        help=("Preview and, after confirmation, archive recoverable missing plans"),
+    )
+    parser.add_argument(
         "-P",
         "--fix-projection",
         action="store_true",

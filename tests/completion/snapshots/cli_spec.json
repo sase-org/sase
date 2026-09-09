@@ -6153,7 +6153,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "73c64cad05405261",
+            "description_digest": "9f482599604308e7",
             "hidden": false,
             "mutex_groups": [],
             "name": "doctor",
@@ -6191,6 +6191,18 @@
                 "strings": [
                   "-I",
                   "--fix-issue-prefix"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "fix_plan_archive",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-A",
+                  "--fix-plan-archive"
                 ],
                 "takes_value": false
               },
