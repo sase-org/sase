@@ -13,6 +13,7 @@ from ._fleet_agents_follow import active_follow_state, dedupe_rows
 from ._fleet_agents_payload import (
     attention_index_by_logical_key,
     catalog_next_cursor,
+    catalog_next_cursors_by_host,
     configured_host_count,
     diagnostics_from_response,
     merge_catalog_pages,
@@ -129,6 +130,7 @@ def followed_logical_keys(
 __all__ = [
     "FleetRowsProjection",
     "catalog_next_cursor",
+    "catalog_next_cursors_by_host",
     "followed_batch_family_promotions",
     "followed_logical_keys",
     "merge_catalog_pages",

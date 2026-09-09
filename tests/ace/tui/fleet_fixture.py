@@ -425,6 +425,26 @@ class OfflineFleetFacade:
             self.catalog_response or self.summary_response or fleet_host_response()
         )
 
+    async def catalog_hosts(
+        self,
+        queries: Iterable[Mapping[str, Any]],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append("catalog_hosts")
+        self.requests.append(
+            {
+                "operation": "catalog_hosts",
+                "request": [dict(query) for query in queries],
+                "cache_only": cache_only,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        return dict(
+            self.catalog_response or self.summary_response or fleet_host_response()
+        )
+
     async def followed_batch(
         self,
         request: Mapping[str, Any],
@@ -545,6 +565,27 @@ class ScriptedFleetFacade(OfflineFleetFacade):
             self.catalog_response or self.summary_response or fleet_host_response()
         )
         return await self._scripted("catalog", default)
+
+    async def catalog_hosts(
+        self,
+        queries: Iterable[Mapping[str, Any]],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        self.calls.append("catalog_hosts")
+        self.requests.append(
+            {
+                "operation": "catalog_hosts",
+                "request": [dict(query) for query in queries],
+                "cache_only": cache_only,
+                "timeout_seconds": timeout_seconds,
+            }
+        )
+        default = (
+            self.catalog_response or self.summary_response or fleet_host_response()
+        )
+        return await self._scripted("catalog_hosts", default)
 
     async def followed_batch(
         self,

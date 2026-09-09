@@ -155,6 +155,25 @@ def catalog_next_cursor(response: Mapping[str, Any] | None) -> str | None:
     return None
 
 
+def catalog_next_cursors_by_host(
+    response: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    if response is None:
+        return {}
+    cursors: dict[str, str] = {}
+    for host in host_payloads(response):
+        installation_id = _host_installation_id(host)
+        if installation_id is None:
+            continue
+        page = _catalog_page(host)
+        if page is None or page.get("has_more") is False:
+            continue
+        cursor = page.get("next_cursor")
+        if isinstance(cursor, str) and cursor.strip():
+            cursors[installation_id] = cursor.strip()
+    return cursors
+
+
 def merge_catalog_pages(
     first: Mapping[str, Any] | None,
     second: Mapping[str, Any] | None,
@@ -288,6 +307,21 @@ def _host_merge_key(host: Mapping[str, Any], index: int) -> str:
             if isinstance(value, str) and value.strip():
                 return value.strip()
     return f"remote-{index + 1}"
+
+
+def _host_installation_id(host: Mapping[str, Any]) -> str | None:
+    for value in (
+        host.get("installation_id"),
+        host.get("origin_installation_id"),
+    ):
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    origin = host.get("origin")
+    if isinstance(origin, Mapping):
+        value = origin.get("installation_id")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 def _merge_host_pages(

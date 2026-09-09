@@ -31,7 +31,7 @@ from sase.dispatch.follow_store import (
 
 from ...models.fleet_agents import (
     FleetRowsProjection,
-    catalog_next_cursor,
+    catalog_next_cursors_by_host,
     followed_batch_family_promotions,
     followed_logical_keys,
     merge_catalog_pages,
@@ -49,7 +49,7 @@ log = logging.getLogger(__name__)
 
 _AGENTS_SUBTABS: tuple[str, str] = ("focus", "fleet")
 _FLEET_CATALOG_PAGE_LIMIT = 100
-_FLEET_CATALOG_MAX_PAGES = 3
+_FLEET_CATALOG_MAX_PAGES = 16
 
 
 class AgentFleetMixin:
@@ -375,6 +375,22 @@ class AgentFleetMixin:
 
         return _catalog_page
 
+    def _fleet_catalog_hosts_request(
+        self,
+        facade: FederationFacade,
+        queries: tuple[Mapping[str, Any], ...],
+        *,
+        timeout_seconds: float | None,
+    ) -> Callable[[], Awaitable[Mapping[str, Any]]]:
+        async def _catalog_page() -> Mapping[str, Any]:
+            return await facade.catalog_hosts(
+                queries,
+                cache_only=False,
+                timeout_seconds=timeout_seconds,
+            )
+
+        return _catalog_page
+
     async def _fetch_fleet_catalog(
         self,
         facade: FederationFacade,
@@ -382,31 +398,54 @@ class AgentFleetMixin:
         timeout_seconds: float | None,
     ) -> Mapping[str, Any] | None:
         merged: Mapping[str, Any] | None = None
-        cursor: str | None = None
-        seen: set[str] = set()
-        for _ in range(_FLEET_CATALOG_MAX_PAGES):
-            query: dict[str, Any] = {
-                "schema_version": 1,
-                "limit": _FLEET_CATALOG_PAGE_LIMIT,
-                "include_terminal": True,
-            }
-            if cursor:
+        base_query: dict[str, Any] = {
+            "schema_version": 1,
+            "limit": _FLEET_CATALOG_PAGE_LIMIT,
+            "include_terminal": True,
+        }
+        page = await self._fleet_call(
+            "catalog",
+            self._fleet_catalog_request(
+                facade,
+                base_query,
+                timeout_seconds=timeout_seconds,
+            ),
+        )
+        if page is None:
+            return None
+        merged = merge_catalog_pages(merged, page)
+        cursors = catalog_next_cursors_by_host(page)
+        seen: set[tuple[str, str]] = set()
+        for _ in range(_FLEET_CATALOG_MAX_PAGES - 1):
+            queries = []
+            for installation_id, cursor in sorted(cursors.items()):
+                marker = (installation_id, cursor)
+                if marker in seen:
+                    continue
+                seen.add(marker)
+                query = dict(base_query)
                 query["cursor"] = cursor
+                queries.append(
+                    {
+                        "schema_version": 1,
+                        "installation_id": installation_id,
+                        "query": query,
+                    }
+                )
+            if not queries:
+                break
             page = await self._fleet_call(
                 "catalog",
-                self._fleet_catalog_request(
+                self._fleet_catalog_hosts_request(
                     facade,
-                    query,
+                    tuple(queries),
                     timeout_seconds=timeout_seconds,
                 ),
             )
             if page is None:
                 break
             merged = merge_catalog_pages(merged, page)
-            cursor = catalog_next_cursor(page)
-            if not cursor or cursor in seen:
-                break
-            seen.add(cursor)
+            cursors = catalog_next_cursors_by_host(page)
         return merged
 
     async def _fleet_call(

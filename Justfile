@@ -335,7 +335,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-xe.16.11.7.5(fetch_remote_attention_inventory)" \
+        --epic-symbol "sase-xe.16.11.7.7(fetch_remote_attention_inventory)" \
         --epic-symbol "sase-yy.6(pending_artifact_link_outbox_events)" \
         --epic-symbol "sase-yz.5(collector_health_label)" \
         --epic-symbol "sase-yz.5(collector_health_style)" \

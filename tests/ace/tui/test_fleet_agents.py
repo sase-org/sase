@@ -4,6 +4,7 @@ import copy
 
 from sase.ace.tui.models.fleet_agents import (
     catalog_next_cursor,
+    catalog_next_cursors_by_host,
     followed_batch_family_promotions,
     followed_logical_keys,
     merge_catalog_pages,
@@ -623,3 +624,67 @@ def test_merge_catalog_pages_keeps_authoritative_counts_and_second_page_rows() -
     assert projection.counts["fleet"] == 1
     assert catalog_next_cursor(first) == "off:100"
     assert catalog_next_cursor(second) is None
+
+
+def test_catalog_next_cursors_by_host_keeps_continuations_separate() -> None:
+    first_installation = fleet_installation_id("a")
+    second_installation = fleet_installation_id("b")
+    response = {
+        "schema_version": 1,
+        "operation": "catalog",
+        "hosts": [
+            {
+                "schema_version": 1,
+                "alias": "apollo",
+                "installation_id": first_installation,
+                "status": "ok",
+                "payload": {
+                    "page": {
+                        "schema_version": 1,
+                        "rows": [],
+                        "limit": 100,
+                        "total_matching_rows": 250,
+                        "next_cursor": "a:100",
+                        "has_more": True,
+                    }
+                },
+            },
+            {
+                "schema_version": 1,
+                "alias": "zeus",
+                "origin": {"installation_id": second_installation},
+                "status": "ok",
+                "payload": {
+                    "page": {
+                        "schema_version": 1,
+                        "rows": [],
+                        "limit": 100,
+                        "total_matching_rows": 90,
+                        "next_cursor": None,
+                        "has_more": False,
+                    }
+                },
+            },
+            {
+                "schema_version": 1,
+                "alias": "hera",
+                "installation_id": fleet_installation_id("c"),
+                "status": "ok",
+                "payload": {
+                    "page": {
+                        "schema_version": 1,
+                        "rows": [],
+                        "limit": 100,
+                        "total_matching_rows": 400,
+                        "next_cursor": "c:100",
+                        "has_more": True,
+                    }
+                },
+            },
+        ],
+    }
+
+    assert catalog_next_cursors_by_host(response) == {
+        first_installation: "a:100",
+        fleet_installation_id("c"): "c:100",
+    }

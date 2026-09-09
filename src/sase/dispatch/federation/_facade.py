@@ -68,6 +68,20 @@ class FederationFacade:
             timeout_seconds=timeout_seconds,
         )
 
+    async def catalog_hosts(
+        self,
+        queries: Sequence[Mapping[str, Any]],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self.catalog_hosts_sync,
+            queries,
+            cache_only=cache_only,
+            timeout_seconds=timeout_seconds,
+        )
+
     async def followed_batch(
         self,
         request: Mapping[str, Any],
@@ -202,6 +216,23 @@ class FederationFacade:
         return self._read(
             "catalog",
             {"op": "catalog", "query": dict(query), "cache_only": cache_only},
+            timeout_seconds=timeout_seconds,
+        )
+
+    def catalog_hosts_sync(
+        self,
+        queries: Sequence[Mapping[str, Any]],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        return self._read(
+            "catalog",
+            {
+                "op": "catalog_hosts",
+                "queries": [dict(query) for query in queries],
+                "cache_only": cache_only,
+            },
             timeout_seconds=timeout_seconds,
         )
 

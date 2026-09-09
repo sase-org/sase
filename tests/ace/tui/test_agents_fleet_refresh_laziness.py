@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 import pytest
@@ -253,6 +254,28 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
                 return dict(page_two)
             return dict(page_one)
 
+        async def catalog_hosts(
+            self,
+            queries: Iterable[Mapping[str, Any]],
+            *,
+            cache_only: bool = False,
+            timeout_seconds: float | None = None,
+        ) -> dict[str, Any]:
+            self.calls.append("catalog_hosts")
+            request = [dict(query) for query in queries]
+            self.requests.append(
+                {
+                    "operation": "catalog_hosts",
+                    "request": request,
+                    "cache_only": cache_only,
+                    "timeout_seconds": timeout_seconds,
+                }
+            )
+            query = request[0]["query"] if request else {}
+            if query.get("cursor") == "off:100":
+                return dict(page_two)
+            return dict(page_one)
+
     facade = _PagingFacade(
         summary_response=page_one,
         followed_response=page_one,
@@ -277,8 +300,27 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
         "limit": 100,
         "include_terminal": True,
     }
-    assert catalog_requests[1]["cursor"] == "off:100"
-    assert catalog_requests[1]["limit"] == 100
+    catalog_host_requests = [
+        item["request"]
+        for item in facade.requests
+        if item["operation"] == "catalog_hosts"
+    ]
+    assert catalog_host_requests == [
+        [
+            {
+                "schema_version": 1,
+                "installation_id": summary["logical_locator"]["project"]["origin"][
+                    "installation_id"
+                ],
+                "query": {
+                    "schema_version": 1,
+                    "limit": 100,
+                    "include_terminal": True,
+                    "cursor": "off:100",
+                },
+            }
+        ]
+    ]
     followed_request = next(
         item["request"]
         for item in facade.requests

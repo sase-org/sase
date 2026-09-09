@@ -469,6 +469,90 @@ def test_facade_read_deadline_preserves_healthy_partial_host(
     assert response["diagnostics"][0]["code"] == "host_deadline_exceeded"
 
 
+def test_facade_catalog_hosts_threads_per_host_queries(tmp_path: Path) -> None:
+    calls: list[dict[str, Any]] = []
+
+    class Supervisor:
+        def request(
+            self,
+            operation: Mapping[str, Any],
+            *,
+            timeout_seconds: float,
+            retry: bool = True,
+        ) -> dict[str, Any]:
+            calls.append(
+                {
+                    "operation": dict(operation),
+                    "timeout_seconds": timeout_seconds,
+                    "retry": retry,
+                }
+            )
+            return {
+                "schema_version": federation.FEDERATION_IPC_SCHEMA_VERSION,
+                "operation": "catalog",
+                "hosts": [],
+            }
+
+    config = federation.FederationConfig(
+        worker=federation.FederationWorkerSettings(
+            sase_home=tmp_path,
+            socket_path=tmp_path / "worker.sock",
+        ),
+        hosts=(
+            federation.FederationHostConfig(
+                alias="apollo",
+                plan={"provider_ref": "fleet", "endpoint": "https://apollo.test"},
+                bearer_token="secret-a",
+                origin_installation_id=_installation_id("a"),
+            ),
+        ),
+    )
+    facade = federation.FederationFacade(
+        config,
+        supervisor=cast(federation.FederationWorkerSupervisor, Supervisor()),
+    )
+
+    response = facade.catalog_hosts_sync(
+        (
+            {
+                "schema_version": 1,
+                "installation_id": _installation_id("a"),
+                "query": {
+                    "schema_version": 1,
+                    "limit": 100,
+                    "cursor": "a:100",
+                    "include_terminal": True,
+                },
+            },
+        ),
+        timeout_seconds=0.25,
+    )
+
+    assert response["operation"] == "catalog"
+    assert calls == [
+        {
+            "operation": {
+                "op": "catalog_hosts",
+                "queries": [
+                    {
+                        "schema_version": 1,
+                        "installation_id": _installation_id("a"),
+                        "query": {
+                            "schema_version": 1,
+                            "limit": 100,
+                            "cursor": "a:100",
+                            "include_terminal": True,
+                        },
+                    }
+                ],
+                "cache_only": False,
+            },
+            "timeout_seconds": 0.25,
+            "retry": True,
+        }
+    ]
+
+
 def test_ipc_client_decodes_success_and_error_frames(tmp_path: Path) -> None:
     success_socket = tmp_path / "success.sock"
     success_thread = _serve_one_ipc(
