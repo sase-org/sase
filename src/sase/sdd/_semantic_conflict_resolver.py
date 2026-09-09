@@ -24,6 +24,10 @@ from sase.sdd._artifact_link_conflict_resolver import (
     is_artifact_link_conflict_path,
     resolve_artifact_link_conflicts,
 )
+from sase.sdd._artifact_link_markdown_conflict_resolver import (
+    is_artifact_link_markdown_conflict_path,
+    resolve_artifact_link_markdown_conflicts,
+)
 
 
 @dataclass(frozen=True)
@@ -68,19 +72,22 @@ def _resolve_semantic_conflicts(
 
     bead_conflicts: list[str] = []
     link_conflicts: list[str] = []
+    link_markdown_conflicts: list[str] = []
     unclaimed: list[str] = []
     for path in conflicted:
         if bead_prefix is not None and is_bead_path(path, bead_prefix):
             bead_conflicts.append(path)
         elif is_artifact_link_conflict_path(repo_root, path):
             link_conflicts.append(path)
+        elif is_artifact_link_markdown_conflict_path(repo_root, path):
+            link_markdown_conflicts.append(path)
         else:
             unclaimed.append(path)
 
     if unclaimed:
         prefix = (
             "non-bead conflicts remain: "
-            if not link_conflicts
+            if not link_conflicts and not link_markdown_conflicts
             else "non-semantic conflicts remain: "
         )
         return _SemanticConflictResolution(False, prefix + ", ".join(unclaimed))
@@ -111,6 +118,20 @@ def _resolve_semantic_conflicts(
                 bead_relocations,
             )
         resolved.extend(link_result.resolved_files)
+
+    if link_markdown_conflicts:
+        markdown_result = resolve_artifact_link_markdown_conflicts(
+            repo_root,
+            tuple(link_markdown_conflicts),
+        )
+        if not markdown_result.ok:
+            return _SemanticConflictResolution(
+                False,
+                markdown_result.message,
+                tuple(sorted(dict.fromkeys(resolved))),
+                bead_relocations,
+            )
+        resolved.extend(markdown_result.resolved_files)
 
     message = "resolved semantic conflicts: " + ", ".join(
         sorted(dict.fromkeys(resolved))

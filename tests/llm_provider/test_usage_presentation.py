@@ -8,8 +8,6 @@ from rich.console import Console
 
 from sase.llm_provider.usage import presentation
 from sase.llm_provider.usage.presentation import (
-    collector_health_label,
-    collector_health_style,
     render_usage_plain,
     render_usage_rich,
     reset_label,
@@ -122,10 +120,10 @@ def test_collector_health_helpers_render_compact_unhealthy_state() -> None:
         "failing_since": 1_799_740_800.0,
     }
 
-    assert collector_health_label(health, reason="vendor_drift") == (
+    assert presentation._collector_health_label(health, reason="vendor_drift") == (
         "failing · vendor drift · 5x"
     )
-    assert collector_health_style(health) == "bold #FFAF5F"
+    assert presentation._collector_health_style(health) == "bold #FFAF5F"
 
 
 def test_rich_status_cell_uses_unhealthy_collector_health() -> None:

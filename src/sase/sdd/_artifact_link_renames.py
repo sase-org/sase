@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
@@ -9,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.agents_sync.io import atomic_write_json
+from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_authorize import classify_machine_writable_sidecar_roots
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
@@ -41,6 +44,8 @@ class _ArtifactLinkRenameReport:
     removed_indexes: tuple[Path, ...] = ()
     rewritten_rows: int = 0
     aggregate_changed: bool = False
+    alias_events_queued: int = 0
+    alias_event_errors: tuple[str, ...] = ()
     deferred_refs: int = 0
     skip_diagnostics: tuple[str, ...] = ()
 
@@ -55,6 +60,7 @@ class _ArtifactLinkRenameReport:
             or self.removed_indexes
             or self.rewritten_rows
             or self.aggregate_changed
+            or self.alias_events_queued
         )
 
 
@@ -167,6 +173,7 @@ def _apply_artifact_renames(
     changed_indexes: list[Path] = []
     removed_indexes: list[Path] = []
     rewritten_rows = 0
+    alias_events_queued, alias_event_errors = _queue_alias_events(store, ordered)
     for kind, root in candidate_roots.items():
         if kind not in writable_roots:
             continue
@@ -175,16 +182,15 @@ def _apply_artifact_renames(
         removed_indexes.extend(changed.removed_indexes)
         rewritten_rows += changed.rewritten_rows
 
-    applied = (
-        tuple(
+    if skip_diagnostics and not alias_events_queued:
+        applied = tuple(
             rename
             for rename in ordered
             if kind_of_ref(rename.old_ref) in writable_roots
             or kind_of_ref(rename.new_ref) in writable_roots
         )
-        if skip_diagnostics
-        else ordered
-    )
+    else:
+        applied = ordered
     aggregate_changed = _rewrite_aggregate(store, mapping)
     if changed_indexes or removed_indexes:
         # Sidecar rows are authoritative for document-shaped refs; rebuild before
@@ -197,8 +203,76 @@ def _apply_artifact_renames(
         removed_indexes=tuple(dict.fromkeys(removed_indexes)),
         rewritten_rows=rewritten_rows,
         aggregate_changed=aggregate_changed,
+        alias_events_queued=alias_events_queued,
+        alias_event_errors=alias_event_errors,
         skip_diagnostics=skip_diagnostics,
     )
+
+
+def _queue_alias_events(
+    store: Any,
+    renames: Iterable[_ArtifactLinkRename],
+) -> tuple[int, tuple[str, ...]]:
+    """Queue canonical alias events for the new event-lane reducer."""
+
+    from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_event
+
+    queued = 0
+    errors: list[str] = []
+    for rename in renames:
+        try:
+            append_artifact_link_outbox_event(
+                project_key=str(store.project_key),
+                agent_name=_alias_event_agent_name(),
+                run_id=_alias_event_run_id(),
+                event=_alias_event_for_rename(str(store.project_key), rename),
+            )
+            queued += 1
+        except Exception as exc:  # noqa: BLE001 - keep legacy repair available.
+            errors.append(f"{rename.old_ref} -> {rename.new_ref}: {exc}")
+    return queued, tuple(errors)
+
+
+def _alias_event_for_rename(
+    project_key: str,
+    rename: _ArtifactLinkRename,
+) -> dict[str, Any]:
+    operation_id = _alias_operation_id(project_key, rename)
+    event = {
+        "schema_version": int(
+            require_rust_binding("artifact_link_event_schema_version")()
+        ),
+        "project_key": project_key,
+        "operation_id": operation_id,
+        "created_by": _alias_event_agent_name(),
+        "origin": "migrated",
+        "created_at": "1970-01-01T00:00:00Z",
+        "kind": {
+            "type": "alias",
+            "old_ref": rename.old_ref,
+            "new_ref": rename.new_ref,
+        },
+    }
+    return dict(require_rust_binding("artifact_link_event_canonicalize")(event))
+
+
+def _alias_operation_id(project_key: str, rename: _ArtifactLinkRename) -> str:
+    payload = "\0".join(
+        (project_key, "artifact-link-alias", rename.old_ref, rename.new_ref)
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
+
+
+def _alias_event_agent_name() -> str:
+    return (
+        os.environ.get("SASE_AGENT_NAME")
+        or os.environ.get("SASE_AGENT_ID")
+        or "sase.artifact-link-renames"
+    )
+
+
+def _alias_event_run_id() -> str:
+    return os.environ.get("SASE_AGENT_TIMESTAMP") or os.environ.get("SASE_RUN_ID") or ""
 
 
 @dataclass(frozen=True)

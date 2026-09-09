@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 import sase.sdd._artifact_link_conflict_resolver as resolver_mod
+import sase.sdd._artifact_link_markdown_conflict_resolver as markdown_resolver_mod
 from sase.sdd._artifact_link_conflict_resolver import resolve_artifact_link_conflicts
 from sase.sdd._semantic_conflict_resolver import resolve_semantic_conflicts
 
@@ -291,3 +292,109 @@ def test_unrelated_path_is_not_claimed_by_semantic_chain(tmp_path: Path) -> None
 
     assert result.ok is False
     assert result.message == "non-bead conflicts remain: notes.txt"
+
+
+def test_managed_markdown_conflict_rebuilds_link_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _install_markdown_store(repo, monkeypatch)
+    _build_rebase_conflict(
+        repo,
+        base=_managed_markdown("base managed row"),
+        local=_managed_markdown("local managed row"),
+        upstream=_managed_markdown("upstream managed row"),
+        path="202609/a.md",
+    )
+
+    result = resolve_semantic_conflicts(repo)
+
+    assert result.ok is True, result.message
+    assert result.resolved_files == ("202609/a.md",)
+    assert _git(repo, "diff", "--name-only", "--diff-filter=U").stdout == ""
+    text = (repo / "202609/a.md").read_text(encoding="utf-8")
+    assert "merged citation" in text
+    assert "local managed row" not in text
+    assert "upstream managed row" not in text
+    assert _git(repo, "diff", "--cached", "--name-only").stdout.strip() == (
+        "202609/a.md"
+    )
+
+
+def test_both_added_managed_markdown_conflict_rebuilds_link_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _install_markdown_store(repo, monkeypatch)
+    _build_rebase_conflict(
+        repo,
+        base=None,
+        local=_managed_markdown("local managed row"),
+        upstream=_managed_markdown("upstream managed row"),
+        path="202609/a.md",
+    )
+
+    result = resolve_semantic_conflicts(repo)
+
+    assert result.ok is True, result.message
+    assert result.resolved_files == ("202609/a.md",)
+    assert "merged citation" in (repo / "202609/a.md").read_text(encoding="utf-8")
+
+
+def test_managed_markdown_authored_body_conflict_is_left_unmerged(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _install_markdown_store(repo, monkeypatch)
+    _build_rebase_conflict(
+        repo,
+        base=_managed_markdown("base managed row"),
+        local="# Local title\n\n" + _managed_markdown("local managed row"),
+        upstream="# Upstream title\n\n" + _managed_markdown("upstream managed row"),
+        path="202609/a.md",
+    )
+
+    result = resolve_semantic_conflicts(repo)
+
+    assert result.ok is False
+    assert "authored Markdown conflict remains" in result.message
+    assert _git(repo, "diff", "--name-only", "--diff-filter=U").stdout.strip() == (
+        "202609/a.md"
+    )
+
+
+def _managed_markdown(cell: str) -> str:
+    return (
+        "# A\n\n"
+        "<!-- sase:links:start -->\n\n"
+        "| Relation | Artifact | Why |\n"
+        "| --- | --- | --- |\n"
+        f"| cites | agent:x | {cell} |\n\n"
+        "<!-- sase:links:end -->\n"
+    )
+
+
+def _install_markdown_store(
+    repo: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Store:
+        project_key = "gh_sase-org__sase"
+        sidecar_roots = {"plan": repo}
+        sdd_store = None
+
+        def load_artifact_rows(self, artifact_ref: str) -> tuple[dict[str, Any], ...]:
+            assert artifact_ref == ARTIFACT_REF
+            return (_row("agent:merged", "merged citation", "2026-09-04T00:00:00Z"),)
+
+    monkeypatch.setattr(
+        markdown_resolver_mod,
+        "resolve_artifact_link_store",
+        lambda *, cwd=None: Store(),
+    )

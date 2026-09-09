@@ -1,0 +1,318 @@
+"""Artifact-link event-reader integration tests."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from sase.core.rust import require_rust_binding
+from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_event
+from sase.sdd.artifact_link_store import (
+    ArtifactLinkStore,
+    artifact_link_aggregate_path,
+)
+from tests.sdd._artifact_link_store_helpers import _row, _store
+
+
+PROJECT_KEY = "gh_sase-org__sase"
+
+
+def test_duplicate_endpoint_event_objects_reduce_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    event = _edge_event("a" * 32, description="canonical event row")
+    _write_event(tmp_path / "plans", event)
+    _write_event(tmp_path / "research", event)
+
+    rows = store.load_durable_rows()
+    snapshot = store.artifact_link_event_snapshot(strict=True)
+
+    assert snapshot.durable_event_count == 2
+    assert len(rows) == 1
+    assert rows[0]["description"] == "canonical event row"
+
+
+def test_event_ordering_chooses_newest_edge_put(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    _write_event(
+        tmp_path / "plans",
+        _edge_event(
+            "b" * 32,
+            created_at="2026-09-01T00:00:00Z",
+            description="old description",
+        ),
+    )
+    _write_event(
+        tmp_path / "plans",
+        _edge_event(
+            "c" * 32,
+            created_at="2026-09-02T00:00:00Z",
+            description="new description",
+        ),
+    )
+
+    [row] = store.load_durable_rows()
+
+    assert row["description"] == "new description"
+
+
+def test_pending_event_outbox_entries_are_visible_with_age_stats(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    append_artifact_link_outbox_event(
+        project_key=PROJECT_KEY,
+        agent_name="agent:pending.athena.worker",
+        run_id="run-1",
+        event=_edge_event("d" * 32, target="plan:202608/pending.md"),
+        now=100.0,
+    )
+
+    rows = store.load_durable_rows()
+    snapshot = store.artifact_link_event_snapshot(strict=True, now=200.0)
+
+    assert [row["target_ref"] for row in rows] == ["plan:202608/pending.md"]
+    assert snapshot.pending_event_count == 1
+    assert snapshot.pending_stats.count == 1
+    assert snapshot.pending_stats.oldest_age_seconds == 100.0
+    assert snapshot.pending_stats.p95_age_seconds == 100.0
+
+
+def test_legacy_event_overlap_rejected_before_cutover(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    store.upsert_row(_row(relation="cites"))
+    _write_event(
+        tmp_path / "plans",
+        _edge_event("e" * 32, relation="cites"),
+    )
+
+    with pytest.raises(RuntimeError, match="legacy/event overlap rejected"):
+        store.load_durable_rows()
+
+
+def test_pending_read_events_increment_legacy_rows_without_overlap_rejection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    store.upsert_row(
+        _row(
+            source="agent:reader",
+            relation="read",
+            target="plan:202608/a.md",
+            origin="read",
+            uses=2,
+        )
+    )
+    append_artifact_link_outbox_event(
+        project_key=PROJECT_KEY,
+        agent_name="reader",
+        run_id="run-1",
+        event=_edge_event(
+            "3" * 32,
+            source="agent:reader",
+            relation="read",
+            target="plan:202608/a.md",
+            origin="read",
+            occurrences=1,
+        ),
+    )
+
+    [row] = store.load_durable_rows()
+
+    assert row["uses"] == 3
+
+
+def test_alias_event_reduces_late_old_ref_observation_to_new_ref(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    _write_event(
+        tmp_path / "plans",
+        _alias_event(
+            "f" * 32,
+            old_ref="plan:202608/old.md",
+            new_ref="plan:202608/new.md",
+        ),
+    )
+    _write_event(
+        tmp_path / "plans",
+        _edge_event(
+            "1" * 32,
+            source="agent:reader.athena.worker",
+            target="plan:202608/old.md",
+            relation="read",
+            origin="read",
+            occurrences=3,
+        ),
+    )
+
+    rows = store.load_artifact_rows("plan:202608/new.md")
+
+    assert len(rows) == 1
+    assert rows[0]["target_ref"] == "plan:202608/new.md"
+    assert rows[0]["uses"] == 3
+
+
+def test_projected_rows_do_not_become_durable_store_truth(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    path = artifact_link_aggregate_path(PROJECT_KEY)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "generation": 1,
+                "rows": [_row(origin="projected", created_by="projection")],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert store.load_durable_rows() == ()
+
+
+def test_event_health_reports_orphaned_tombstones(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    _write_event(tmp_path / "plans", _remove_event("2" * 32, observed=("9" * 32,)))
+
+    snapshot = store.artifact_link_event_snapshot(strict=False)
+
+    assert snapshot.orphaned_tombstones
+    assert snapshot.healthy is False
+
+
+def _edge_event(
+    operation_id: str,
+    *,
+    source: str = "plan:202608/a.md",
+    relation: str = "implements",
+    target: str = "plan:202608/b.md",
+    description: str = "event-backed link",
+    origin: str = "manual",
+    created_at: str = "2026-09-09T00:00:00Z",
+    occurrences: int = 1,
+) -> dict[str, object]:
+    edge = {
+        "kind": "directed",
+        "source_ref": source,
+        "relation": relation,
+        "target_ref": target,
+    }
+    kind = (
+        {
+            "type": "observation",
+            "edge": edge,
+            "description": description,
+            "occurrences": occurrences,
+        }
+        if origin == "read"
+        else {
+            "type": "edge-put",
+            "edge": edge,
+            "description": description,
+            "observed_operation_ids": [],
+        }
+    )
+    return _canonicalize_event(
+        {
+            "schema_version": int(
+                require_rust_binding("artifact_link_event_schema_version")()
+            ),
+            "project_key": PROJECT_KEY,
+            "operation_id": operation_id,
+            "created_by": "agent:event.athena.worker",
+            "origin": origin,
+            "created_at": created_at,
+            "kind": kind,
+        }
+    )
+
+
+def _remove_event(
+    operation_id: str,
+    *,
+    observed: tuple[str, ...],
+) -> dict[str, object]:
+    return _canonicalize_event(
+        {
+            "schema_version": int(
+                require_rust_binding("artifact_link_event_schema_version")()
+            ),
+            "project_key": PROJECT_KEY,
+            "operation_id": operation_id,
+            "created_by": "agent:event.athena.worker",
+            "origin": "manual",
+            "created_at": "2026-09-09T00:00:00Z",
+            "kind": {
+                "type": "edge-remove",
+                "edge": {
+                    "kind": "directed",
+                    "source_ref": "plan:202608/a.md",
+                    "relation": "implements",
+                    "target_ref": "plan:202608/b.md",
+                },
+                "observed_operation_ids": list(observed),
+            },
+        }
+    )
+
+
+def _alias_event(
+    operation_id: str,
+    *,
+    old_ref: str,
+    new_ref: str,
+) -> dict[str, object]:
+    return _canonicalize_event(
+        {
+            "schema_version": int(
+                require_rust_binding("artifact_link_event_schema_version")()
+            ),
+            "project_key": PROJECT_KEY,
+            "operation_id": operation_id,
+            "created_by": "agent:event.athena.worker",
+            "origin": "migrated",
+            "created_at": "2026-09-09T00:00:00Z",
+            "kind": {
+                "type": "alias",
+                "old_ref": old_ref,
+                "new_ref": new_ref,
+            },
+        }
+    )
+
+
+def _canonicalize_event(event: dict[str, object]) -> dict[str, object]:
+    return dict(require_rust_binding("artifact_link_event_canonicalize")(event))
+
+
+def _write_event(root: Path, event: dict[str, object]) -> Path:
+    digest = str(require_rust_binding("artifact_link_event_digest")(event))
+    relpath = str(require_rust_binding("artifact_link_event_path_for_digest")(digest))
+    path = root / relpath
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        str(require_rust_binding("artifact_link_event_canonical_json")(event)),
+        encoding="utf-8",
+    )
+    return path

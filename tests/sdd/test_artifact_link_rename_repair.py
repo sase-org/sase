@@ -14,6 +14,7 @@ from sase.sdd._artifact_link_commit import (
     commit_artifact_link_indexes,
 )
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
+from sase.sdd.artifact_link_outbox import _read_artifact_link_outbox_entries
 from sase.sdd._artifact_link_store_support import sidecar_index_path
 from tests.sdd._artifact_link_store_helpers import _store
 from tests.sdd._artifact_link_store_helpers import _row
@@ -111,7 +112,38 @@ def test_repair_applies_renames_resolved_before_deadline_expiry(
     assert [(rename.old_ref, rename.new_ref) for rename in report.renames] == [
         ("plan:202608/old.md", "plan:202608/new.md")
     ]
+    assert report.alias_events_queued == 1
     assert report.deferred_refs == 2
+
+
+def test_rename_repair_queues_stable_alias_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    plans = store.sidecar_roots["plan"]
+    new_path = plans / "202608" / "new.md"
+    new_path.parent.mkdir(parents=True)
+    new_path.write_text("# renamed\n", encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_renames._historical_rename_map",
+        lambda _root, *, kind: {f"{kind}:202608/old.md": f"{kind}:202608/new.md"},
+    )
+
+    first = repair_historical_artifact_renames(store, ("plan:202608/old.md",))
+    second = repair_historical_artifact_renames(store, ("plan:202608/old.md",))
+    entries = _read_artifact_link_outbox_entries("gh_sase-org__sase")
+
+    assert first.alias_events_queued == 1
+    assert second.alias_events_queued == 1
+    assert len(entries) == 2
+    assert entries[0].id == entries[1].id
+    assert entries[0].event is not None
+    assert entries[0].event["kind"] == {
+        "type": "alias",
+        "old_ref": "plan:202608/old.md",
+        "new_ref": "plan:202608/new.md",
+    }
 
 
 def test_commit_artifact_link_indexes_stages_existing_and_deleted_indexes(

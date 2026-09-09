@@ -73,6 +73,16 @@ class _ArtifactLinkPublicationRetryReport:
     details: tuple[ArtifactLinkPublicationRetryDetail, ...] = ()
 
 
+@dataclass(frozen=True)
+class _ArtifactLinkPublicationInspection:
+    """Read-only health snapshot of unpublished publication records."""
+
+    pending: int = 0
+    aged: int = 0
+    diagnostics: tuple[str, ...] = ()
+    details: tuple[ArtifactLinkPublicationRetryDetail, ...] = ()
+
+
 @dataclass
 class _MutableReport:
     attempted: int = 0
@@ -139,6 +149,61 @@ def register_artifact_link_publication_failure(
             diagnostic=f"could not persist artifact-link publication retry state: {exc}",
         )
     return _ArtifactLinkPublicationRegistration(True, record=record)
+
+
+def inspect_artifact_link_publications(
+    project_key: str,
+    *,
+    now: float | None = None,
+) -> _ArtifactLinkPublicationInspection:
+    """Return pending unpublished artifact-link publication records."""
+
+    observed_at = _wall_now(now)
+    path = _artifact_link_publication_state_path(project_key)
+    try:
+        with _state_lock(path):
+            records, _next_role = _read_state_unlocked(path)
+    except Exception as exc:  # noqa: BLE001 - doctor should report, not crash.
+        return _ArtifactLinkPublicationInspection(
+            diagnostics=(
+                f"{project_key}: could not inspect artifact-link publication "
+                f"state: {exc}",
+            )
+        )
+    details: list[ArtifactLinkPublicationRetryDetail] = []
+    diagnostics: list[str] = []
+    aged = 0
+    for record in records.values():
+        try:
+            due = artifact_link_publication_due(record, now=observed_at)
+        except Exception as exc:  # noqa: BLE001 - malformed state is a health issue.
+            diagnostics.append(
+                f"{project_key}: malformed artifact-link publication record: {exc}"
+            )
+            continue
+        is_aged = bool(due.get("aged"))
+        if is_aged:
+            aged += 1
+        details.append(
+            ArtifactLinkPublicationRetryDetail(
+                project_key=str(record.get("project_key") or project_key),
+                role=str(record.get("role") or ""),
+                repo_root=Path(str(record.get("repo_root") or ".")),
+                status="aged" if is_aged else "pending",
+                age_seconds=float(due.get("age_seconds") or 0.0),
+                last_error=_string_or_none(record.get("last_error")),
+                next_due_at=float(
+                    due.get("next_due_at") or record.get("next_due_at") or 0.0
+                ),
+                log_path=_path_or_none(record.get("last_log_path")),
+            )
+        )
+    return _ArtifactLinkPublicationInspection(
+        pending=len(details),
+        aged=aged,
+        diagnostics=tuple(diagnostics),
+        details=tuple(details),
+    )
 
 
 def sweep_artifact_link_publication_retries(
@@ -450,6 +515,7 @@ def _path_or_none(value: object) -> Path | None:
 
 __all__ = [
     "ArtifactLinkPublicationRetryDetail",
+    "inspect_artifact_link_publications",
     "register_artifact_link_publication_failure",
     "sweep_artifact_link_publication_retries",
 ]

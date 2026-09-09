@@ -118,6 +118,32 @@ def test_inspect_fix_reconciles_aggregate(
     assert report.healthy is True
 
 
+def test_inspect_reports_invalid_event_objects_as_unhealthy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    root = tmp_path / "plans"
+    root.mkdir()
+    invalid = root / "link-events" / "v1" / "aa" / "bad.json"
+    invalid.parent.mkdir(parents=True)
+    invalid.write_text("{}\n", encoding="utf-8")
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": root},
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_health.resolve_artifact_link_store",
+        lambda: store,
+    )
+
+    report = inspect_artifact_link_health()
+
+    assert report.healthy is False
+    assert report.event_validation_failures
+    assert "link-events/v1/aa/bad.json" in report.event_validation_failures[0]
+
+
 def test_inspect_fix_repairs_historical_research_rename(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -414,6 +440,13 @@ def test_doctor_reports_link_divergence_counters(
             durable_read_rows=1,
             durable_sidecar_rows=4,
             aggregate_rows=5,
+            outbox_entries=3,
+            outbox_event_entries=2,
+            outbox_oldest_age_seconds=90,
+            outbox_p95_age_seconds=80,
+            event_objects=7,
+            event_pending=2,
+            publication_pending=("gh_sase-org__sase/plans: /tmp/plans (90s)",),
             coverage=_ArtifactLinkCoverageReport(
                 populations=(
                     _ArtifactLinkCoveragePopulation(
@@ -440,6 +473,15 @@ def test_doctor_reports_link_divergence_counters(
     assert "derived: 2, manual: 3" in output
     assert "Rows by relation" in output
     assert "derives-from: 2, related: 3" in output
+    assert "Link event objects" in output
+    assert "7 durable / 2 pending" in output
+    assert "Read-link outbox" in output
+    assert "3 queued / 2 events" in output
+    assert "oldest" in output
+    assert "90s" in output
+    assert "p95" in output
+    assert "80s" in output
+    assert "Artifact-link publications pending" in output
 
 
 def test_curated_peer_keys_treats_derived_origin_as_curated() -> None:

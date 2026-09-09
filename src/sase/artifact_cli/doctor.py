@@ -167,6 +167,30 @@ def _print_report(
             "Rendered block missing links/ JSON in HEAD",
             link_report.missing_head_indexes,
         )
+        table.add_row(
+            "Link event objects",
+            _counter_pair(
+                link_report.event_objects,
+                "durable",
+                link_report.event_pending,
+                "pending",
+            ),
+        )
+        _add_ids(
+            table,
+            "Link event validation failures",
+            link_report.event_validation_failures,
+        )
+        _add_ids(
+            table,
+            "Link event reduction errors",
+            link_report.event_reduction_errors,
+        )
+        _add_ids(
+            table,
+            "Orphaned link-event tombstones",
+            link_report.event_orphaned_tombstones,
+        )
         table.add_row("Recorded reads", str(link_report.read_events))
         table.add_row(
             "Sidecar vs aggregate links",
@@ -202,8 +226,32 @@ def _print_report(
                 "durable",
             ),
         )
-        table.add_row("Read-link outbox", str(link_report.outbox_entries))
+        table.add_row(
+            "Read-link outbox",
+            _outbox_summary(
+                link_report.outbox_entries,
+                link_report.outbox_event_entries,
+                link_report.outbox_oldest_age_seconds,
+                link_report.outbox_p95_age_seconds,
+            ),
+        )
         table.add_row("Read-link outbox dropped", str(link_report.outbox_dropped))
+        _add_ids(
+            table,
+            "Artifact-link publications pending",
+            link_report.publication_pending,
+            healthy=True,
+        )
+        _add_ids(
+            table,
+            "Artifact-link publications aged",
+            link_report.publication_aged,
+        )
+        _add_ids(
+            table,
+            "Artifact-link publication diagnostics",
+            link_report.publication_diagnostics,
+        )
         if link_report.coverage.populations:
             for population in link_report.coverage.populations:
                 table.add_row(
@@ -266,6 +314,20 @@ def _count_markup(value: int, *, healthy: bool) -> str:
 
 def _counter_pair(left: int, left_label: str, right: int, right_label: str) -> str:
     return f"{left} {left_label} / {right} {right_label} (delta {right - left:+d})"
+
+
+def _outbox_summary(
+    entries: int,
+    event_entries: int,
+    oldest_age_seconds: float,
+    p95_age_seconds: float,
+) -> str:
+    if entries <= 0:
+        return "0"
+    return (
+        f"{entries} queued / {event_entries} events; "
+        f"oldest {round(oldest_age_seconds)}s; p95 {round(p95_age_seconds)}s"
+    )
 
 
 def _coverage_fraction(linked: int, total: int) -> str:

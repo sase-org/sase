@@ -8,6 +8,10 @@ from pathlib import Path
 import subprocess
 from typing import Any
 
+from sase.sdd._artifact_link_event_store import (
+    ArtifactLinkEventSnapshot,
+    ArtifactLinkEventStoreAdapter,
+)
 from sase.sdd._artifact_link_store_support import (
     BEAD_KIND,
     kind_of_ref,
@@ -19,6 +23,7 @@ from sase.sdd._artifact_link_store_support import (
 class ArtifactLinkStoreCoreMixin:
     """Predicates over sidecar ownership and bead authority."""
 
+    project_key: str
     sidecar_roots: Mapping[str, Path]
     beads_dir: Path | None
 
@@ -78,6 +83,26 @@ class ArtifactLinkStoreCoreMixin:
                 return True
         return False
 
+    def artifact_link_event_snapshot(
+        self,
+        *,
+        include_pending: bool = True,
+        strict: bool = False,
+        now: float | None = None,
+        exclude_pending_event_ids: Iterable[str] = (),
+    ) -> ArtifactLinkEventSnapshot:
+        """Return the reduced artifact-link event snapshot for this store."""
+
+        return ArtifactLinkEventStoreAdapter(
+            self.project_key,
+            self.sidecar_roots,
+        ).snapshot(
+            include_pending=include_pending,
+            strict=strict,
+            now=now,
+            exclude_pending_event_ids=exclude_pending_event_ids,
+        )
+
     def _authoritative_source_was_consulted_for_pass(
         self,
         stores: Iterable[ArtifactLinkStoreCoreMixin] | None = None,
@@ -107,12 +132,19 @@ class ArtifactLinkStoreCoreMixin:
         """Return whether a missing prior row is proven deleted here."""
 
         active_freshness = freshness or _FreshnessEvidence()
-        return self._bead_endpoint_is_authoritative(
-            row,
-            freshness=active_freshness,
-        ) or self._sidecar_truth_was_consulted(
-            row,
-            freshness=active_freshness,
+        return (
+            self._bead_endpoint_is_authoritative(
+                row,
+                freshness=active_freshness,
+            )
+            or self._sidecar_truth_was_consulted(
+                row,
+                freshness=active_freshness,
+            )
+            or self.artifact_link_event_snapshot(
+                include_pending=True,
+                strict=True,
+            ).covers_row(row)
         )
 
 

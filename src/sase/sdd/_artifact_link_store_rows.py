@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_store_support import (
     BEAD_KIND,
+    artifact_link_row_identity,
     canonicalize_artifact_link_ref,
     is_projected_row,
     kind_of_ref,
@@ -18,6 +19,7 @@ from sase.sdd._artifact_link_store_support import (
     row_touches,
     sidecar_index_path,
     unique_rows,
+    upsert_artifact_link_rows,
     validate_artifact_link_row,
 )
 
@@ -61,10 +63,23 @@ class ArtifactLinkStoreRowsMixin:
     _iter_bead_rows: Callable[[], Iterable[dict[str, Any]]]
     _upsert_aggregate_row: Callable[[Mapping[str, Any]], dict[str, Any]]
     _remove_aggregate_rows: Callable[..., list[dict[str, Any]]]
-    rebuild_aggregate: Callable[[], dict[str, Any]]
     load_aggregate: Callable[[], dict[str, Any]]
+    artifact_link_event_snapshot: Callable[..., Any]
 
-    def upsert_row(self, row: Mapping[str, Any]) -> dict[str, Any]:
+    if TYPE_CHECKING:
+
+        def rebuild_aggregate(
+            self,
+            *,
+            exclude_pending_event_ids: Iterable[str] = (),
+        ) -> dict[str, Any]: ...
+
+    def upsert_row(
+        self,
+        row: Mapping[str, Any],
+        *,
+        exclude_pending_event_ids: Iterable[str] = (),
+    ) -> dict[str, Any]:
         """Write one validated row to sidecar JSON (when owned) and the aggregate."""
 
         validated = validate_artifact_link_row(row)
@@ -82,7 +97,9 @@ class ArtifactLinkStoreRowsMixin:
             beads_changed = str(bead_written.get("kind") or "") != "unchanged"
         elif self._is_aggregate_only(validated):
             outcome = self._upsert_aggregate_row(validated)
-        rebuilt = self.rebuild_aggregate()
+        rebuilt = self.rebuild_aggregate(
+            exclude_pending_event_ids=exclude_pending_event_ids,
+        )
         result: dict[str, Any] = dict(
             outcome
             or {
@@ -155,6 +172,7 @@ class ArtifactLinkStoreRowsMixin:
         artifact_ref: str,
         *,
         bead_owned_rows: Sequence[Mapping[str, Any]] | None = None,
+        exclude_pending_event_ids: Iterable[str] = (),
     ) -> tuple[dict[str, Any], ...]:
         """Return every stored row touching *artifact_ref*.
 
@@ -166,26 +184,124 @@ class ArtifactLinkStoreRowsMixin:
         canonical = canonicalize_artifact_link_ref(artifact_ref)
         if bead_owned_rows is not None and kind_of_ref(canonical) == BEAD_KIND:
             return self._merge_bead_neighborhood(canonical, bead_owned_rows)
+        event_snapshot = self.artifact_link_event_snapshot(
+            include_pending=True,
+            strict=True,
+            exclude_pending_event_ids=exclude_pending_event_ids,
+        )
+        durable_event_rows = tuple(
+            row for row in event_snapshot.durable_rows if row_touches(row, canonical)
+        )
+        event_rows = tuple(
+            row for row in event_snapshot.rows if row_touches(row, canonical)
+        )
         root = self.sidecar_root_for(canonical)
         if root is not None:
             index = read_artifact_link_index(
                 sidecar_index_path(root, canonical),
                 artifact_ref=canonical,
             )
-            return tuple(dict(row) for row in index.get("rows", []))
+            legacy_rows = tuple(dict(row) for row in index.get("rows", []))
+            self._reject_legacy_event_overlap(legacy_rows, durable_event_rows)
+            return _merge_event_rows(legacy_rows, event_rows)
         if self.beads_dir is not None and kind_of_ref(canonical) == BEAD_KIND:
-            return self._load_bead_rows(canonical)
-        return tuple(
+            bead_rows = self._load_bead_rows(canonical)
+            return _merge_event_rows(bead_rows, event_rows)
+        aggregate_rows = tuple(
             dict(row)
             for row in self.load_aggregate().get("rows", [])
             if row_touches(row, canonical) and not is_projected_row(row)
         )
+        return _merge_event_rows(aggregate_rows, event_rows)
 
     def load_durable_rows(self) -> tuple[dict[str, Any], ...]:
-        """Return every row owned by durable sidecar JSON or bead events.
+        """Return every row owned by sidecars, event objects, pending events, or beads.
 
         This is the store-truth read path for callers that need to audit the
         machine-local aggregate rather than trusting it.
         """
 
-        return tuple(unique_rows((*self._iter_sidecar_rows(), *self._iter_bead_rows())))
+        return self._load_store_truth_rows(include_pending=True)
+
+    def _load_store_truth_rows(
+        self,
+        *,
+        include_pending: bool,
+        exclude_pending_event_ids: Iterable[str] = (),
+    ) -> tuple[dict[str, Any], ...]:
+        legacy_rows = tuple(self._iter_sidecar_rows())
+        bead_rows = tuple(self._iter_bead_rows())
+        event_snapshot = self.artifact_link_event_snapshot(
+            include_pending=include_pending,
+            strict=True,
+            exclude_pending_event_ids=exclude_pending_event_ids,
+        )
+        self._reject_legacy_event_overlap(legacy_rows, event_snapshot.durable_rows)
+        event_rows = (
+            event_snapshot.rows if include_pending else event_snapshot.durable_rows
+        )
+        base_rows = (*legacy_rows, *bead_rows)
+        if not include_pending:
+            return tuple(unique_rows((*base_rows, *event_rows)))
+        return _merge_event_rows(base_rows, event_rows)
+
+    def _load_sidecar_truth_rows(
+        self,
+        *,
+        include_pending: bool,
+        exclude_pending_event_ids: Iterable[str] = (),
+    ) -> tuple[dict[str, Any], ...]:
+        legacy_rows = tuple(self._iter_sidecar_rows())
+        event_snapshot = self.artifact_link_event_snapshot(
+            include_pending=include_pending,
+            strict=True,
+            exclude_pending_event_ids=exclude_pending_event_ids,
+        )
+        self._reject_legacy_event_overlap(legacy_rows, event_snapshot.durable_rows)
+        if not include_pending:
+            return tuple(unique_rows((*legacy_rows, *event_snapshot.durable_rows)))
+        return _merge_event_rows(legacy_rows, event_snapshot.rows)
+
+    def _load_event_rows(
+        self,
+        *,
+        include_pending: bool,
+        exclude_pending_event_ids: Iterable[str] = (),
+    ) -> tuple[dict[str, Any], ...]:
+        return tuple(
+            dict(row)
+            for row in self.artifact_link_event_snapshot(
+                include_pending=include_pending,
+                strict=True,
+                exclude_pending_event_ids=exclude_pending_event_ids,
+            ).rows
+        )
+
+    def _reject_legacy_event_overlap(
+        self,
+        legacy_rows: Iterable[Mapping[str, Any]],
+        event_rows: Iterable[Mapping[str, Any]],
+    ) -> None:
+        legacy_identities = {artifact_link_row_identity(row) for row in legacy_rows}
+        event_identities = {artifact_link_row_identity(row) for row in event_rows}
+        overlap = sorted(legacy_identities.intersection(event_identities))
+        if not overlap:
+            return
+        formatted = ", ".join(" ".join(identity) for identity in overlap[:4])
+        if len(overlap) > 4:
+            formatted += f", ... plus {len(overlap) - 4} more"
+        raise RuntimeError(
+            "artifact-link legacy/event overlap rejected before event cutover: "
+            + formatted
+        )
+
+
+def _merge_event_rows(
+    base_rows: Iterable[Mapping[str, Any]],
+    event_rows: Iterable[Mapping[str, Any]],
+) -> tuple[dict[str, Any], ...]:
+    rows = unique_rows(base_rows)
+    for event_row in event_rows:
+        outcome = upsert_artifact_link_rows(rows, event_row)
+        rows = [dict(row) for row in outcome.get("rows", []) if isinstance(row, dict)]
+    return tuple(rows)

@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from sase.core.paths import sase_projects_dir, validate_sase_project_name
 from sase.memory.locks import locked_file
+from sase.sdd._artifact_link_outbox_stats import artifact_link_outbox_age_stats
 from sase.sdd._artifact_link_outbox_types import (
     ARTIFACT_LINK_OUTBOX_DROPPED_FILENAME,
     ARTIFACT_LINK_OUTBOX_FILENAME,
@@ -31,10 +32,14 @@ from sase.sdd.artifact_link_event_publisher import canonical_event as _canonical
 
 @dataclass(frozen=True, slots=True)
 class _ArtifactLinkOutboxStats:
-    """Current queue depth plus cumulative drops."""
+    """Current queue depth, cumulative drops, and queued-event age spread."""
 
     queued: int
     dropped: int
+    event_queued: int = 0
+    oldest_age_seconds: float = 0.0
+    newest_age_seconds: float = 0.0
+    p95_age_seconds: float = 0.0
 
 
 def _artifact_link_outbox_path(project_key: str) -> Path:
@@ -154,12 +159,55 @@ def read_artifact_link_outbox_entries(
     return tuple(entries)
 
 
-def inspect_artifact_link_outbox(project_key: str) -> _ArtifactLinkOutboxStats:
-    """Return doctor-facing outbox queue and drop counts."""
+def pending_artifact_link_outbox_events(
+    project_key: str,
+    *,
+    exclude_operation_ids: Iterable[str] = (),
+) -> tuple[dict[str, Any], ...]:
+    """Return queued schema-v2 events for local pending-link overlays."""
 
+    excluded = _excluded_operation_ids(exclude_operation_ids)
+    return tuple(
+        dict(entry.event)
+        for entry in read_artifact_link_outbox_entries(project_key)
+        if entry.event is not None and entry.id not in excluded
+    )
+
+
+def pending_artifact_link_outbox_event_created_at(
+    project_key: str,
+    *,
+    exclude_operation_ids: Iterable[str] = (),
+) -> tuple[float, ...]:
+    """Return queue timestamps for pending schema-v2 event entries."""
+
+    excluded = _excluded_operation_ids(exclude_operation_ids)
+    return tuple(
+        entry.created_at
+        for entry in read_artifact_link_outbox_entries(project_key)
+        if entry.event is not None and entry.id not in excluded
+    )
+
+
+def inspect_artifact_link_outbox(
+    project_key: str,
+    *,
+    now: float | None = None,
+) -> _ArtifactLinkOutboxStats:
+    """Return doctor-facing outbox queue, drop, and queue-age counts."""
+
+    entries = read_artifact_link_outbox_entries(project_key)
+    age_stats = artifact_link_outbox_age_stats(
+        (entry.created_at for entry in entries),
+        now=now,
+    )
     return _ArtifactLinkOutboxStats(
-        queued=len(read_artifact_link_outbox_entries(project_key)),
+        queued=len(entries),
         dropped=_count_jsonl_rows(_artifact_link_outbox_dropped_path(project_key)),
+        event_queued=sum(1 for entry in entries if entry.event is not None),
+        oldest_age_seconds=age_stats.oldest_age_seconds,
+        newest_age_seconds=age_stats.newest_age_seconds,
+        p95_age_seconds=age_stats.p95_age_seconds,
     )
 
 
@@ -235,6 +283,10 @@ def _read_entries_unlocked(
     return tuple(entries)
 
 
+def _excluded_operation_ids(values: Iterable[str]) -> frozenset[str]:
+    return frozenset(str(value) for value in values if str(value))
+
+
 def _count_jsonl_rows(path: Path) -> int:
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_SH):
         if not path.is_file():
@@ -251,6 +303,8 @@ __all__ = [
     "append_artifact_link_outbox_entry",
     "append_artifact_link_outbox_event",
     "inspect_artifact_link_outbox",
+    "pending_artifact_link_outbox_event_created_at",
+    "pending_artifact_link_outbox_events",
     "read_artifact_link_outbox_entries",
     "rewrite_artifact_link_outbox_without_ids",
 ]

@@ -34,6 +34,8 @@ class ArtifactLinkStoreReconcileMixin:
     _write_merged_aggregate: Callable[[Callable[[], dict[str, Any]]], dict[str, Any]]
     _iter_sidecar_rows: Callable[[], Iterable[dict[str, Any]]]
     _iter_bead_rows: Callable[[], Iterable[dict[str, Any]]]
+    _load_store_truth_rows: Callable[..., tuple[dict[str, Any], ...]]
+    _load_sidecar_truth_rows: Callable[..., tuple[dict[str, Any], ...]]
     _authoritative_source_was_consulted: Callable[[Mapping[str, Any]], bool]
     _authoritative_source_was_consulted_for_pass: Callable[
         [Iterable[ArtifactLinkStore]], Callable[[Mapping[str, Any]], bool]
@@ -58,7 +60,7 @@ class ArtifactLinkStoreReconcileMixin:
         deduped = unique_rows(
             row
             for store in self._iter_reconciliation_stores()
-            for row in self._iter_reconciliation_sidecar_rows(store)
+            for row in self._iter_reconciliation_sidecar_truth_rows(store)
         )
         return tuple(
             row
@@ -82,8 +84,12 @@ class ArtifactLinkStoreReconcileMixin:
         collected: list[dict[str, Any]] = []
         stores = tuple(self._iter_reconciliation_stores())
         for store in stores:
-            collected.extend(self._iter_reconciliation_sidecar_rows(store))
-            collected.extend(self._iter_reconciliation_bead_rows(store))
+            collected.extend(
+                self._iter_reconciliation_store_truth_rows(
+                    store,
+                    include_pending=store._store_identity() == self._store_identity(),
+                )
+            )
         return {
             "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
             "generation": prior["generation"],
@@ -269,6 +275,28 @@ class ArtifactLinkStoreReconcileMixin:
     ) -> Iterable[dict[str, Any]]:
         try:
             yield from store._iter_sidecar_rows()
+        except Exception:  # noqa: BLE001 - sibling clones prove nothing.
+            if store._store_identity() == self._store_identity():
+                raise
+
+    def _iter_reconciliation_sidecar_truth_rows(
+        self,
+        store: ArtifactLinkStore,
+    ) -> Iterable[dict[str, Any]]:
+        try:
+            yield from store._load_sidecar_truth_rows(include_pending=False)
+        except Exception:  # noqa: BLE001 - sibling clones prove nothing.
+            if store._store_identity() == self._store_identity():
+                raise
+
+    def _iter_reconciliation_store_truth_rows(
+        self,
+        store: ArtifactLinkStore,
+        *,
+        include_pending: bool,
+    ) -> Iterable[dict[str, Any]]:
+        try:
+            yield from store._load_store_truth_rows(include_pending=include_pending)
         except Exception:  # noqa: BLE001 - sibling clones prove nothing.
             if store._store_identity() == self._store_identity():
                 raise

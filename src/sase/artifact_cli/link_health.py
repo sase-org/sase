@@ -12,6 +12,10 @@ from sase.artifact_read_log import read_artifact_read_events
 from sase.artifact_links.derive import derive_candidate_links
 from sase.artifact_refs import ArtifactRefContext, launch_artifact_ref_context
 from sase.core.rust import require_rust_binding
+from sase.sdd._artifact_link_publication_retry import (
+    ArtifactLinkPublicationRetryDetail,
+    inspect_artifact_link_publications,
+)
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
 from sase.sdd._artifact_link_projection import safety_body
 from sase.sdd._artifact_link_store_support import (
@@ -83,7 +87,20 @@ class ArtifactLinkHealthReport:
         default_factory=ArtifactLinkIndexDrift
     )
     outbox_entries: int = 0
+    outbox_event_entries: int = 0
     outbox_dropped: int = 0
+    outbox_oldest_age_seconds: float = 0.0
+    outbox_p95_age_seconds: float = 0.0
+    event_objects: int = 0
+    event_pending: int = 0
+    event_pending_oldest_age_seconds: float = 0.0
+    event_pending_p95_age_seconds: float = 0.0
+    event_validation_failures: tuple[str, ...] = ()
+    event_reduction_errors: tuple[str, ...] = ()
+    event_orphaned_tombstones: tuple[str, ...] = ()
+    publication_pending: tuple[str, ...] = ()
+    publication_aged: tuple[str, ...] = ()
+    publication_diagnostics: tuple[str, ...] = ()
     coverage: _ArtifactLinkCoverageReport = field(
         default_factory=_ArtifactLinkCoverageReport
     )
@@ -102,6 +119,11 @@ class ArtifactLinkHealthReport:
                 self.orphaned_companions,
                 self.missing_head_indexes,
                 self.errors,
+                self.event_validation_failures,
+                self.event_reduction_errors,
+                self.event_orphaned_tombstones,
+                self.publication_aged,
+                self.publication_diagnostics,
                 self.aggregate_drift.has_drift,
             )
         )
@@ -115,6 +137,8 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
     except Exception as exc:  # noqa: BLE001 - report the file index too
         return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
 
+    event_health = _event_health_values(store)
+    publication_health = _publication_health_values(store)
     try:
         if fix:
             store.reconcile_aggregate()
@@ -130,7 +154,22 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         durable_rows = store.load_durable_rows()
         sidecar_rows = store.durable_sidecar_rows()
     except Exception as exc:  # noqa: BLE001 - surface unsupported v1/schema errors
-        return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
+        return ArtifactLinkHealthReport(
+            skipped=False,
+            errors=(str(exc),),
+            event_objects=event_health.event_objects,
+            event_pending=event_health.event_pending,
+            event_pending_oldest_age_seconds=(
+                event_health.event_pending_oldest_age_seconds
+            ),
+            event_pending_p95_age_seconds=event_health.event_pending_p95_age_seconds,
+            event_validation_failures=event_health.event_validation_failures,
+            event_reduction_errors=event_health.event_reduction_errors,
+            event_orphaned_tombstones=event_health.event_orphaned_tombstones,
+            publication_pending=publication_health.publication_pending,
+            publication_aged=publication_health.publication_aged,
+            publication_diagnostics=publication_health.publication_diagnostics,
+        )
     resolution_context = launch_artifact_ref_context(is_home_mode=False)
     dangling, unpublished_agents = _dangling_refs(
         rows, store, context=resolution_context
@@ -182,6 +221,8 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
 
     if fix:
         _rebuild_existing_projections(store, rows)
+        event_health = _event_health_values(store)
+        publication_health = _publication_health_values(store)
 
     return ArtifactLinkHealthReport(
         skipped=False,
@@ -200,7 +241,22 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         expected_index_rows=len(expected_rows),
         aggregate_drift=drift,
         outbox_entries=0 if outbox is None else outbox.queued,
+        outbox_event_entries=0 if outbox is None else outbox.event_queued,
         outbox_dropped=0 if outbox is None else outbox.dropped,
+        outbox_oldest_age_seconds=(
+            0.0 if outbox is None else outbox.oldest_age_seconds
+        ),
+        outbox_p95_age_seconds=0.0 if outbox is None else outbox.p95_age_seconds,
+        event_objects=event_health.event_objects,
+        event_pending=event_health.event_pending,
+        event_pending_oldest_age_seconds=event_health.event_pending_oldest_age_seconds,
+        event_pending_p95_age_seconds=event_health.event_pending_p95_age_seconds,
+        event_validation_failures=event_health.event_validation_failures,
+        event_reduction_errors=event_health.event_reduction_errors,
+        event_orphaned_tombstones=event_health.event_orphaned_tombstones,
+        publication_pending=publication_health.publication_pending,
+        publication_aged=publication_health.publication_aged,
+        publication_diagnostics=publication_health.publication_diagnostics,
         coverage=_coverage_report(
             store,
             rows,
@@ -210,6 +266,81 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         rebuilt=fix,
         repaired_renames=repaired_renames,
     )
+
+
+@dataclass(frozen=True)
+class _EventHealthValues:
+    event_objects: int = 0
+    event_pending: int = 0
+    event_pending_oldest_age_seconds: float = 0.0
+    event_pending_p95_age_seconds: float = 0.0
+    event_validation_failures: tuple[str, ...] = ()
+    event_reduction_errors: tuple[str, ...] = ()
+    event_orphaned_tombstones: tuple[str, ...] = ()
+
+
+def _event_health_values(store: ArtifactLinkStore) -> _EventHealthValues:
+    snapshot = getattr(store, "artifact_link_event_snapshot", None)
+    if not callable(snapshot):
+        return _EventHealthValues()
+    try:
+        event_snapshot = snapshot(strict=False)
+    except Exception as exc:  # noqa: BLE001 - event diagnostics should be visible.
+        return _EventHealthValues(event_reduction_errors=(str(exc),))
+    return _EventHealthValues(
+        event_objects=event_snapshot.durable_event_count,
+        event_pending=event_snapshot.pending_event_count,
+        event_pending_oldest_age_seconds=(
+            event_snapshot.pending_stats.oldest_age_seconds
+        ),
+        event_pending_p95_age_seconds=event_snapshot.pending_stats.p95_age_seconds,
+        event_validation_failures=tuple(
+            finding.render() for finding in event_snapshot.validation_findings
+        ),
+        event_reduction_errors=event_snapshot.reduction_errors,
+        event_orphaned_tombstones=event_snapshot.orphaned_tombstones,
+    )
+
+
+@dataclass(frozen=True)
+class _PublicationHealthValues:
+    publication_pending: tuple[str, ...] = ()
+    publication_aged: tuple[str, ...] = ()
+    publication_diagnostics: tuple[str, ...] = ()
+
+
+def _publication_health_values(store: ArtifactLinkStore) -> _PublicationHealthValues:
+    if not isinstance(store, ArtifactLinkStore):
+        return _PublicationHealthValues()
+    try:
+        inspection = inspect_artifact_link_publications(store.project_key)
+    except Exception as exc:  # noqa: BLE001 - doctor should report, not crash.
+        return _PublicationHealthValues(publication_diagnostics=(str(exc),))
+    pending = tuple(
+        _publication_detail_text(detail)
+        for detail in inspection.details
+        if detail.status != "aged"
+    )
+    aged = tuple(
+        _publication_detail_text(detail)
+        for detail in inspection.details
+        if detail.status == "aged"
+    )
+    return _PublicationHealthValues(
+        publication_pending=pending,
+        publication_aged=aged,
+        publication_diagnostics=inspection.diagnostics,
+    )
+
+
+def _publication_detail_text(detail: ArtifactLinkPublicationRetryDetail) -> str:
+    text = (
+        f"{detail.project_key}/{detail.role}: "
+        f"{detail.repo_root} ({round(detail.age_seconds)}s)"
+    )
+    if detail.last_error:
+        text += f" - {detail.last_error}"
+    return text
 
 
 def dangling_and_orphaned_artifact_link_refs(

@@ -24,8 +24,16 @@ def upsert_publishable_entries(
     entries: Iterable[_ArtifactLinkOutboxEntry],
 ) -> list[Path]:
     changed_indexes: list[Path] = []
-    for row in _converged_rows(entries):
-        existing_uses = _existing_uses(store, row)
+    drainable_entries = tuple(entries)
+    pending_exclusions = tuple(
+        entry.id for entry in drainable_entries if entry.event is not None
+    )
+    for row in _converged_rows(drainable_entries):
+        existing_uses = _existing_uses(
+            store,
+            row,
+            exclude_pending_event_ids=pending_exclusions,
+        )
         desired_uses = _row_uses(row)
         if str(row.get("origin") or "") == "read":
             # A queued read row only ever knows this batch's own increment
@@ -37,7 +45,10 @@ def upsert_publishable_entries(
             continue
         delta = dict(row)
         delta["uses"] = desired_uses - existing_uses
-        outcome = store.upsert_row(delta)
+        outcome = store.upsert_row(
+            delta,
+            exclude_pending_event_ids=pending_exclusions,
+        )
         changed_indexes.extend(outcome.get("changed_indexes") or ())
     return list(dict.fromkeys(changed_indexes))
 
@@ -92,11 +103,22 @@ def _converged_legacy_rows(
     return tuple(validate_artifact_link_row(by_key[key]) for key in order)
 
 
-def _existing_uses(store: ArtifactLinkStore, row: Mapping[str, Any]) -> int:
+def _existing_uses(
+    store: ArtifactLinkStore,
+    row: Mapping[str, Any],
+    *,
+    exclude_pending_event_ids: Iterable[str] = (),
+) -> int:
     source, relation, target = _row_key(row)
     candidates = [
-        *store.load_artifact_rows(source),
-        *store.load_artifact_rows(target),
+        *store.load_artifact_rows(
+            source,
+            exclude_pending_event_ids=exclude_pending_event_ids,
+        ),
+        *store.load_artifact_rows(
+            target,
+            exclude_pending_event_ids=exclude_pending_event_ids,
+        ),
     ]
     return max(
         (

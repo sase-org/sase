@@ -33,6 +33,7 @@ class ArtifactLinkStoreAggregateMixin:
     project_key: str
     _iter_sidecar_rows: Callable[[], Iterable[dict[str, Any]]]
     _iter_bead_rows: Callable[[], Iterable[dict[str, Any]]]
+    _load_store_truth_rows: Callable[..., tuple[dict[str, Any], ...]]
     _authoritative_source_was_consulted: Callable[[Mapping[str, Any]], bool]
     _authoritative_source_was_consulted_for_pass: Callable[
         [], Callable[[Mapping[str, Any]], bool]
@@ -46,7 +47,11 @@ class ArtifactLinkStoreAggregateMixin:
         with locked_file(path.with_suffix(".lock"), fcntl.LOCK_SH):
             return read_aggregate_document(path)
 
-    def preview_aggregate(self) -> dict[str, Any]:
+    def preview_aggregate(
+        self,
+        *,
+        exclude_pending_event_ids: Iterable[str] = (),
+    ) -> dict[str, Any]:
         """Return the aggregate a rebuild would write, without writing it.
 
         Scans only this workspace's own sidecars and bead events --
@@ -60,8 +65,12 @@ class ArtifactLinkStoreAggregateMixin:
         """
 
         prior = self.load_aggregate()
-        collected = list(self._iter_sidecar_rows())
-        collected.extend(self._iter_bead_rows())
+        collected = list(
+            self._load_store_truth_rows(
+                include_pending=True,
+                exclude_pending_event_ids=exclude_pending_event_ids,
+            )
+        )
         return {
             "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
             "generation": prior["generation"],
@@ -75,10 +84,18 @@ class ArtifactLinkStoreAggregateMixin:
             ),
         }
 
-    def rebuild_aggregate(self) -> dict[str, Any]:
+    def rebuild_aggregate(
+        self,
+        *,
+        exclude_pending_event_ids: Iterable[str] = (),
+    ) -> dict[str, Any]:
         """Rebuild ``artifact-links.json`` from sidecar JSON plus bead events."""
 
-        return self._write_merged_aggregate(self.preview_aggregate)
+        return self._write_merged_aggregate(
+            lambda: self.preview_aggregate(
+                exclude_pending_event_ids=exclude_pending_event_ids,
+            )
+        )
 
     def _write_merged_aggregate(
         self, compute_preview: Callable[[], dict[str, Any]]

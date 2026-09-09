@@ -408,7 +408,7 @@ def window_status_label(window: Mapping[str, Any]) -> str:
     return _WINDOW_STATE_LABELS.get(state, state.replace("_", " "))
 
 
-def collector_health_label(
+def _collector_health_label(
     health: Mapping[str, Any] | None,
     *,
     reason: Any = None,
@@ -428,7 +428,7 @@ def collector_health_label(
     return " · ".join(parts)
 
 
-def collector_health_style(health: Mapping[str, Any] | None) -> str:
+def _collector_health_style(health: Mapping[str, Any] | None) -> str:
     """Return the Rich style associated with a collector-health block."""
     if health is None:
         return ""
@@ -551,7 +551,7 @@ def applicability_label(value: Any) -> str:
 
 
 def provider_style(provider: Mapping[str, Any]) -> str:
-    health_style = collector_health_style(_provider_collector_health(provider))
+    health_style = _collector_health_style(_provider_collector_health(provider))
     if health_style:
         return health_style
     status = str(provider.get("collection_status") or "")
@@ -564,7 +564,7 @@ def _provider_window_style(
     provider: Mapping[str, Any],
     window: Mapping[str, Any],
 ) -> str:
-    health_style = collector_health_style(_provider_collector_health(provider))
+    health_style = _collector_health_style(_provider_collector_health(provider))
     if health_style:
         return health_style
     return _window_style(window)
@@ -622,7 +622,7 @@ def _unhealthy_collector_health_label(provider: Mapping[str, Any]) -> str | None
     state = str(health.get("state") or "")
     if state not in {"degraded", "failing"}:
         return None
-    return collector_health_label(health, reason=provider.get("collection_reason"))
+    return _collector_health_label(health, reason=provider.get("collection_reason"))
 
 
 def _failure_count(health: Mapping[str, Any]) -> int | None:
@@ -643,8 +643,6 @@ def _string_list(value: Any) -> tuple[str, ...]:
 __all__ = [
     "age_label",
     "applicability_label",
-    "collector_health_label",
-    "collector_health_style",
     "diagnostic_line",
     "duration_label",
     "provider_status_label",

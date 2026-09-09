@@ -9,6 +9,8 @@ from sase.sdd._artifact_link_outbox_io import (
     append_artifact_link_outbox_entry,
     append_artifact_link_outbox_event,
     inspect_artifact_link_outbox,
+    pending_artifact_link_outbox_event_created_at,
+    pending_artifact_link_outbox_events,
 )
 from sase.sdd._artifact_link_outbox_types import (
     ARTIFACT_LINK_OUTBOX_DROPPED_FILENAME,
@@ -24,4 +26,6 @@ __all__ = [
     "append_artifact_link_outbox_entry",
     "drain_artifact_link_outbox",
     "inspect_artifact_link_outbox",
+    "pending_artifact_link_outbox_event_created_at",
+    "pending_artifact_link_outbox_events",
 ]

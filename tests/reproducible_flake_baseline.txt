@@ -423,10 +423,10 @@ tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
 #
 # sase-yq
 tests/pager/test_rendered_link_contract.py::test_kitchen_follow_copy_edit_and_media_for_each_supported_action
-# sase-yp / sase-yz.2: adjacent pager copy-label action node promoted by
-# check-full selection-health during usage collector drift-probe verification.
-# Focused rerun passed; sase-yz.2 recorded a proposed follow-up and corroborated
-# the existing pager flake task on sase-yp.
+# sase-z1 / sase-yp / sase-yz.2: adjacent pager copy-label action node promoted by
+# check-full selection-health during conflict repair and usage collector
+# drift-probe verification. Exact flake task sase-z1 is ready; sase-yz.2 also
+# corroborated related pager flake task sase-yp.
 tests/pager/test_app_actions.py::test_y_then_label_copies_the_links_resolved_path
 #
 # sase-yz.5: check-full selection-health promoted five historical dirty-tree

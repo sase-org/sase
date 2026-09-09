@@ -390,6 +390,12 @@ def _row_identity(row: Mapping[str, Any]) -> tuple[str, ...]:
     return ("undirected", relation, left, right)
 
 
+def artifact_link_row_identity(row: Mapping[str, Any]) -> tuple[str, ...]:
+    """Return the relation-aware identity of one artifact-link row."""
+
+    return _row_identity(row)
+
+
 def unique_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Deduplicate rows by relation-aware identity while preserving order."""
 
