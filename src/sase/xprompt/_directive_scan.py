@@ -234,8 +234,6 @@ def _has_wait_directive(prompt: str) -> bool:
 
 
 def _has_queue_admission_directive(prompt: str) -> bool:
-    if not _queue_directive_enabled():
-        return False
     return _has_protected_directive_match(
         prompt,
         r"(?:^|\s)%(?:queue|q)(?::`?[^`\s]+`?|\()",
@@ -243,19 +241,11 @@ def _has_queue_admission_directive(prompt: str) -> bool:
 
 
 def _has_queue_runners_directive(prompt: str) -> bool:
-    if not _queue_directive_enabled():
-        return False
     return _has_protected_pattern_match(
         prompt,
         r"(?:^|\s)%(?:queue|q)(?::`?[0-9]+`?|\(\s*(?:[0-9]+|runners\s*=)|\([^)]*,\s*runners\s*=)",
         required_substring="%",
     )
-
-
-def _queue_directive_enabled() -> bool:
-    from sase.xprompt.queue_directive import queue_directive_enabled
-
-    return queue_directive_enabled()
 
 
 def _has_protected_directive_match(prompt: str, pattern: str) -> bool:

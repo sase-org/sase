@@ -40,6 +40,7 @@ grammar.
 | `%id:<n>`                | `%i`   | Agent ID; bare auto-name; `%id(parent, suffix)` plan-family child                     |
 | `%clan:<name>`           | `%c`   | Rootless parallel clan; member names must be inside `<clan>.` hood                    |
 | `%wait:<n>`              | `%w`   | Dependency; bare = last named; `%wait(time=5m)` / `#t:5m` time floor                  |
+| `%queue:<n>`             | `%q`   | Runner-queue admission: positional `runners`; `(runners=, priority=/p=)`              |
 | `%final[:ops]`           |        | Repeatable host-owned finalizer selectors; omit = defaults; no keywords               |
 | `%repeat:<k>`            | `%r`   | k serial, auto-wait-chained runs                                                      |
 | `%auto[:plan/tale/epic]` | `%a`   | Auto-approve next plan; `tale`/`epic` commit SDD then launch follow-up                |
@@ -47,6 +48,14 @@ grammar.
 | `%{a \| b}`              | `%alt` | Branch fan-out; `id=value` ids become suffixes; `%alt(...)` also works                |
 
 `%model` is single-value; fan out models with `%{%m:opus | %m:sonnet}`.
+
+`%wait` covers dependencies and time floors only; `runners=`/`priority=` permanently
+moved to `%queue`/`%q` and raise a migration error on `%wait`. `%queue`/`%q` accept a
+non-negative positional `runners` (colon or parenthesized) plus parenthesized
+`runners=`/`priority=`/`p=`; `p` canonicalizes to `priority`. Each canonical field may
+occur once per launch unit across occurrences/aliases; disjoint fields compose, e.g.
+`%w(builder, time=5m) %q(1, p=20)`. Bare/empty `%q` never acquires `%wait`'s
+previous-agent meaning.
 
 `%final` is repeatable. Colon and parenthesized forms accept only selector operations:
 lowercase instance slugs add, `!name` removes, and `none` clears removable defaults.

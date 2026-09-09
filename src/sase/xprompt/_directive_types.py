@@ -147,9 +147,9 @@ class PromptDirectives:
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
         wait_runners: Existing-runner threshold from the
-            %wait(runners=...) keyword.
+            %queue(runners=...) keyword.
         wait_priority: Runner-slot queue priority from the
-            %wait(priority=...) keyword. Lower values start first.
+            %queue(priority=...) keyword. Lower values start first.
         if_code: Structured `%if::` fence body when typed launch units are on.
         proc_code: Structured `%proc` body when typed launch units are on.
         proc_options: Optional `%proc` kwargs (timeout, cwd, workspace, label).

@@ -2069,7 +2069,7 @@ The sase-agent total is followed by an always-visible capacity chip in the form
 occupancy the admission gate uses — `L` is the current effective `max_running_agents`
 limit (temporary override first, configured value second), and `Q` counts every live
 agent parked at the runner-slot admission gate, whether its threshold comes from that
-effective cap or an authored `%wait(runners=N)`. A standalone agent holds one slot. A
+effective cap or an authored `%queue(runners=N)`. A standalone agent holds one slot. A
 live serial family normally shares one slot across its agent and monitor shells.
 Independently launched clan members and live parallel family members each hold their own
 slot. Processless gate shells release runner capacity, even when they retain a workspace
@@ -2103,7 +2103,7 @@ grouping; cycling only changes the current session.
 
 **Queued** holds `QUEUED` agents that have cleared every dependency, bead, and time wait
 and need only runner capacity, whether their threshold comes from the global cap or an
-authored `%wait(runners=N)`. A queued row renders as `QUEUED #3/12`; an explicit runner
+authored `%queue(runners=N)`. A queued row renders as `QUEUED #3/12`; an explicit runner
 threshold keeps its arrow qualifier, such as `QUEUED #4/12 ▶7→0 p20`, so a drain barrier
 cannot be mistaken for a fraction. Implicit-cap rows omit the repeated capacity suffix.
 **Waiting** holds genuinely blocked but self-progressing agents — `WAITING` with a time
@@ -3352,7 +3352,7 @@ persistent edit does not clear a live temporary override. Lowering the effective
 never stops an already-running agent: occupancy may temporarily exceed the cap, and new
 implicit-cap work waits until enough slots drain. Raising the cap lets eligible parked
 agents advance through the existing priority/FIFO gate on their next poll. Launches with
-an explicit `%wait(runners=N)` retain their own initial-admission threshold, while
+an explicit `%queue(runners=N)` retain their own initial-admission threshold, while
 question continuations reacquire against the current effective global cap.
 
 ### Provider routing controls

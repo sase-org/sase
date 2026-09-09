@@ -2762,7 +2762,7 @@ providers. The legacy `changespec` key remains accepted as an alias. The clan pr
 requires a case-sensitive `name_prefix` and checks canonical clan metadata for active
 agents, including waiting members; it never infers clans from dotted names.
 `agent_runners.max` defaults to `0` and inhibits while more than that many agents hold
-runner slots, the same population counted by `%wait(runners=N)` and the ACE
+runner slots, the same population counted by `%queue(runners=N)` and the ACE
 runner-capacity chip. A `STARTING` agent has not yet been admitted and does not count;
 an agent parked on a question has yielded its slot and does not count. `trigger` accepts
 `always`, `git.commits_since`, or `fs`; the git provider requires `project` and
@@ -3266,7 +3266,7 @@ previous value, expiry is enforced at its deadline, and a persistent edit leaves
 active override in force. Lowering the effective value is non-preemptive, so existing
 agents continue and new implicit-cap launches wait for occupancy to drain. Parked
 implicit waiters and question continuations reread the effective cap on each normal
-poll. An explicit `%wait(runners=N)` keeps its own initial-admission threshold and may
+poll. An explicit `%queue(runners=N)` keeps its own initial-admission threshold and may
 be either stricter or looser than the global cap.
 
 ### max_agent_pipe_chain
@@ -3300,7 +3300,7 @@ Source: `src/sase/default_config.yml`, `src/sase/config/core.py`,
 ### runner_slots
 
 Bounded deference for deprioritized runner-slot waiters. Admission sorts eligible
-waiters by lower numeric `%wait(priority=N)` first, but that sort only compares agents
+waiters by lower numeric `%queue(priority=N)` first, but that sort only compares agents
 already parked at the instant a slot frees. Dependency-chained work joins the queue
 seconds after its predecessor exits, so a long-parked deprioritized waiter would
 otherwise reliably win that race against exactly the normal-priority work it was meant
@@ -3344,7 +3344,7 @@ configuration errors do propagate: a bad value here must never strand a runner.
 Bounded deference is not priority aging and not preemption. A running agent is never
 stopped to make room, and a deferred waiter's own priority does not improve while it
 waits. See [Agent waiting for a runner slot](troubleshooting/runner-slots.md) for
-diagnosis, and [`%wait(priority=N)`](xprompt.md#supported-directives) for the directive
+diagnosis, and [`%queue(priority=N)`](xprompt.md#supported-directives) for the directive
 itself.
 
 ### procs

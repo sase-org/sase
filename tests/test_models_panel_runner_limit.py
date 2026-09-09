@@ -145,7 +145,7 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
         assert len(pilot.app.screen.query(".runner-limit-action-row")) == 3
         note = pilot.app.screen.query_one("#runner-limit-action-note", Static).content
         assert "Already-running agents continue" in note
-        assert "%wait(runners=N)" in note
+        assert "%queue(runners=N)" in note
 
 
 async def test_chooser_hides_clear_and_describes_chezmoi() -> None:

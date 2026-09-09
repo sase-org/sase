@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.xprompt.directive_edit import (
     PromptWaitDirective,
     demote_prompt_clan_declaration,
@@ -346,7 +345,7 @@ def test_set_prompt_wait_formats_and_round_trips_bead_only_conditions() -> None:
     assert directives.wait_beads == ["sase-87.1", "sase-87.2"]
 
 
-def test_set_prompt_wait_formats_and_round_trips_mixed_conditions() -> None:
+def test_set_prompt_wait_formats_mixed_conditions_and_ignores_queue_fields() -> None:
     rewritten = set_prompt_wait(
         "%w(bead=old)\nDo work",
         PromptWaitDirective(
@@ -358,16 +357,13 @@ def test_set_prompt_wait_formats_and_round_trips_mixed_conditions() -> None:
     )
 
     assert rewritten == (
-        "%wait(dep, time=5m, runners=0)\n"
-        "%wait(bead=sase-87.1)\n"
-        "%wait(bead=sase-87.2)\n"
-        "Do work"
+        "%wait(dep, time=5m)\n%wait(bead=sase-87.1)\n%wait(bead=sase-87.2)\nDo work"
     )
     _, directives = extract_prompt_directives(rewritten)
     assert directives.wait == ["dep"]
     assert directives.wait_beads == ["sase-87.1", "sase-87.2"]
     assert directives.wait_duration == 300.0
-    assert directives.wait_runners == 0
+    assert directives.wait_runners is None
 
 
 def test_set_prompt_wait_round_trips_tribe_reference() -> None:
@@ -381,18 +377,17 @@ def test_set_prompt_wait_round_trips_tribe_reference() -> None:
     assert directives.wait == ["@epic", "builder"]
 
 
-def test_set_prompt_wait_and_queue_splits_fields_when_queue_flag_is_on() -> None:
-    with override_flags(queue_directive=True):
-        rewritten = set_prompt_wait_and_queue(
-            "%w(old, runners=9, priority=3)\nDo work",
-            PromptWaitDirective(
-                agents=("dep",),
-                time_token="5m",
-                runners=0,
-                priority=20,
-            ),
-        )
-        _, directives = extract_prompt_directives(rewritten)
+def test_set_prompt_wait_and_queue_splits_fields() -> None:
+    rewritten = set_prompt_wait_and_queue(
+        "%w(old, runners=9, priority=3)\nDo work",
+        PromptWaitDirective(
+            agents=("dep",),
+            time_token="5m",
+            runners=0,
+            priority=20,
+        ),
+    )
+    _, directives = extract_prompt_directives(rewritten)
 
     assert rewritten == "%wait(dep, time=5m)\n%queue(runners=0, priority=20)\nDo work"
     assert directives.wait == ["dep"]
@@ -401,24 +396,22 @@ def test_set_prompt_wait_and_queue_splits_fields_when_queue_flag_is_on() -> None
     assert directives.wait_priority == 20
 
 
-def test_set_prompt_wait_preserves_existing_queue_when_flag_is_on() -> None:
-    with override_flags(queue_directive=True):
-        rewritten = set_prompt_wait(
-            "%queue(runners=2, priority=3)\n%wait:old\nDo work",
-            PromptWaitDirective(agents=("dep",)),
-        )
+def test_set_prompt_wait_preserves_existing_queue() -> None:
+    rewritten = set_prompt_wait(
+        "%queue(runners=2, priority=3)\n%wait:old\nDo work",
+        PromptWaitDirective(agents=("dep",)),
+    )
 
     assert rewritten == "%wait(dep)\n%queue(runners=2, priority=3)\nDo work"
 
 
-def test_set_prompt_queue_preserves_existing_wait_when_flag_is_on() -> None:
-    with override_flags(queue_directive=True):
-        rewritten = set_prompt_queue(
-            "%wait(dep, time=5m)\n%q:2\nDo work",
-            runners=3,
-            priority=1,
-        )
-        _, directives = extract_prompt_directives(rewritten)
+def test_set_prompt_queue_preserves_existing_wait() -> None:
+    rewritten = set_prompt_queue(
+        "%wait(dep, time=5m)\n%q:2\nDo work",
+        runners=3,
+        priority=1,
+    )
+    _, directives = extract_prompt_directives(rewritten)
 
     assert rewritten == "%queue(runners=3, priority=1)\n%wait(dep, time=5m)\nDo work"
     assert directives.wait == ["dep"]

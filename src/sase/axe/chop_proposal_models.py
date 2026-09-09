@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from sase.xprompt.directives import has_runner_threshold_directive
-from sase.xprompt.queue_directive import format_queue_directive, queue_directive_enabled
+from sase.xprompt.queue_directive import format_queue_directive
 
 
 @dataclass(frozen=True)
@@ -88,12 +88,9 @@ def scaffolded_prompt(
     if proposal.wait_runners is not None and not has_runner_threshold_directive(
         proposal.prompt
     ):
-        if queue_directive_enabled():
-            directive = format_queue_directive(runners=proposal.wait_runners)
-            if directive is not None:
-                lines.append(directive)
-        else:
-            lines.append(f"%wait(runners={proposal.wait_runners})")
+        directive = format_queue_directive(runners=proposal.wait_runners)
+        if directive is not None:
+            lines.append(directive)
     lines.append(proposal.prompt.strip())
     return "\n".join(lines) + "\n"
 

@@ -32,9 +32,7 @@ from ._directive_values import (
     resolve_wait_agent_args,
     resolve_wait_bead_args,
     resolve_wait_identifier_args,
-    resolve_wait_priority_args,
     resolve_wait_templates,
-    resolve_wait_runners_args,
     resolve_wait_time_args,
 )
 from ._disabled_regions import (
@@ -116,21 +114,11 @@ def extract_prompt_directives(
     )
     wait_beads = resolve_wait_bead_args(collected.wait_bead_args)
     wait_duration, wait_until = resolve_wait_time_args(collected.wait_time_args)
-    wait_runners = resolve_wait_runners_args(collected.wait_runners_args)
-    wait_priority = resolve_wait_priority_args(collected.wait_priority_args)
+    wait_runners: int | None = None
+    wait_priority: int | None = None
     if collected.queue_occurrences:
-        from sase.xprompt.queue_directive import (
-            collect_queue_fields,
-            queue_directive_enabled,
-            queue_directive_flag_key,
-        )
+        from sase.xprompt.queue_directive import collect_queue_fields
 
-        if not queue_directive_enabled():
-            flag = queue_directive_flag_key()
-            raise DirectiveError(
-                f"%queue requires the {flag} feature flag. "
-                f"Enable it with `sase flag enable {flag}`."
-            )
         queue_payload = collect_queue_fields(collected.queue_occurrences)
         queue_errors = queue_payload.get("errors")
         if isinstance(queue_errors, list) and queue_errors:

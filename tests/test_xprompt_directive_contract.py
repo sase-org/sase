@@ -46,7 +46,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "id": ("bead", "clan", "family", "tribe"),
         "model": (),
         "repeat": (),
-        "wait": ("agent", "bead", "priority", "proc", "runners", "time", "unit"),
+        "wait": ("agent", "bead", "proc", "time", "unit"),
         "queue": ("p", "priority", "runners"),
         "if": (),
         "proc": (
@@ -86,7 +86,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
     }
     assert contract["if"]["feature_flag"] == "typed_launch_units"
     assert contract["proc"]["feature_flag"] == "typed_launch_units"
-    assert contract["queue"]["feature_flag"] == "queue_directive"
+    assert contract["queue"].get("feature_flag") is None
     assert contract["queue"]["alias"] == "q"
     assert _suggested_values(contract["queue"]) == ("0", "1")
     assert contract["dispatch"].get("feature_flag") is None

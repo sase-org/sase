@@ -970,7 +970,7 @@ Policy is runner-owned and evaluated before the script:
   `agent_clan.name_prefix` matches canonical clan metadata on active agents only; dotted
   agent names are not treated as clans. `agent_runners.max` defaults to `0` and inhibits
   while more than that many agents hold runner slots, matching the population counted by
-  `%wait(runners=N)` and the ACE runner-capacity chip. A `STARTING` agent has not yet
+  `%queue(runners=N)` and the ACE runner-capacity chip. A `STARTING` agent has not yet
   been admitted and does not count; an agent parked on a question has yielded its slot
   and does not count. A match records a visible `skipped` run naming the guard and
   matching agent.

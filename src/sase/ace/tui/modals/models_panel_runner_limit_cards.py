@@ -80,7 +80,7 @@ class RunnerLimitActionModal(ModalScreen[RunnerLimitAction | None]):
                     )
             yield Static(
                 "Already-running agents continue if the limit is lowered.\n"
-                "Explicit %wait(runners=N) keeps its initial-admission threshold.",
+                "Explicit %queue(runners=N) keeps its initial-admission threshold.",
                 id="runner-limit-action-note",
             )
             yield Static("esc / q: cancel", id="runner-limit-action-footer")

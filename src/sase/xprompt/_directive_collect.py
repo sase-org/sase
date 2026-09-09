@@ -40,8 +40,6 @@ class _CollectedDirectives:
     wait_proc_args: list[str] = field(default_factory=list)
     wait_bead_args: list[str] = field(default_factory=list)
     wait_time_args: list[str] = field(default_factory=list)
-    wait_runners_args: list[str] = field(default_factory=list)
-    wait_priority_args: list[str] = field(default_factory=list)
     queue_occurrences: list[dict[str, Any]] = field(default_factory=list)
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
     clan_tribe_arg: str | None = None
@@ -129,30 +127,19 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         "time",
                         "unit",
                     }
-                    from sase.xprompt.queue_directive import (
-                        queue_directive_enabled,
-                    )
-
-                    queue_enabled = queue_directive_enabled()
-                    if not queue_enabled:
-                        supported_keys = {
-                            *supported_keys,
-                            "priority",
-                            "runners",
-                        }
-                    if "runners" in named_args and queue_enabled:
+                    if "runners" in named_args:
                         raise DirectiveError(
                             "%wait(runners=...) has moved to %queue. "
                             "Use %queue(runners=N) or %q:N, and keep dependencies "
                             "on %wait."
                         )
-                    if "priority" in named_args and queue_enabled:
+                    if "priority" in named_args:
                         raise DirectiveError(
                             "%wait(priority=...) has moved to %queue. "
                             "Use %queue(priority=N) or %q(p=N), and keep "
                             "dependencies on %wait."
                         )
-                    if "p" in named_args and queue_enabled:
+                    if "p" in named_args:
                         raise DirectiveError(
                             "%wait(p=...) is unsupported. Use "
                             "%queue(priority=...) or %q(p=...)."
@@ -162,16 +149,10 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                     )
                     if unknown_keys:
                         keys = ", ".join(f"{key}=" for key in unknown_keys)
-                        if queue_enabled:
-                            raise DirectiveError(
-                                f"Unsupported keyword on %wait: {keys}. "
-                                "Use unit=, agent=, proc=, bead=, or time=. "
-                                "Queue controls belong on %queue."
-                            )
                         raise DirectiveError(
                             f"Unsupported keyword on %wait: {keys}. "
-                            "Only agent=, bead=, priority=, proc=, runners=, "
-                            "time=, and unit= are supported."
+                            "Use unit=, agent=, proc=, bead=, or time=. "
+                            "Queue controls belong on %queue."
                         )
                     if "agent" in named_args:
                         positional_args.append(named_args["agent"])
@@ -183,10 +164,6 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         collected.wait_bead_args.append(named_args["bead"])
                     if "time" in named_args:
                         collected.wait_time_args.append(named_args["time"])
-                    if "runners" in named_args:
-                        collected.wait_runners_args.append(named_args["runners"])
-                    if "priority" in named_args:
-                        collected.wait_priority_args.append(named_args["priority"])
                 if name == "final" and named_args:
                     keys = ", ".join(f"{key}=" for key in sorted(named_args))
                     raise DirectiveError(

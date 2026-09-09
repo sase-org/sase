@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import (
     extract_prompt_directives,
@@ -137,15 +136,10 @@ def test_has_deferred_start_directive_detects_tribe_fork() -> None:
     "directive",
     ["%q:5", "%queue(runners=0)", "%q(p=20)", "%queue(priority=20)"],
 )
-def test_has_deferred_start_directive_detects_queue_when_enabled(
+def test_has_deferred_start_directive_detects_queue(
     directive: str,
 ) -> None:
-    with override_flags(queue_directive=True):
-        assert has_deferred_start_directive(f"{directive}\nDo something") is True
-
-
-def test_has_deferred_start_directive_ignores_queue_when_disabled() -> None:
-    assert has_deferred_start_directive("%q:5\nDo something") is False
+    assert has_deferred_start_directive(f"{directive}\nDo something") is True
 
 
 def test_has_deferred_start_directive_plain_prompt() -> None:
@@ -189,16 +183,14 @@ def test_has_runner_threshold_directive_detects_legacy_live_directive(
     "directive",
     ["%q:0", "%queue(runners=2)", "%q(3, p=20)"],
 )
-def test_has_runner_threshold_directive_detects_queue_when_enabled(
+def test_has_runner_threshold_directive_detects_queue(
     directive: str,
 ) -> None:
-    with override_flags(queue_directive=True):
-        assert has_runner_threshold_directive(f"{directive}\nDo work") is True
+    assert has_runner_threshold_directive(f"{directive}\nDo work") is True
 
 
 def test_has_runner_threshold_directive_ignores_priority_only_queue() -> None:
-    with override_flags(queue_directive=True):
-        assert has_runner_threshold_directive("%q(p=20)\nDo work") is False
+    assert has_runner_threshold_directive("%q(p=20)\nDo work") is False
 
 
 @pytest.mark.parametrize(

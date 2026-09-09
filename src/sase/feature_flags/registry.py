@@ -25,7 +25,6 @@ class FeatureFlag(StrEnum):
     admin_center_flags = "admin_center_flags"
     provider_drain = "provider_drain"
     provider_usage_metrics = "provider_usage_metrics"
-    queue_directive = "queue_directive"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
 
@@ -68,12 +67,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "provider usage hook."
         ),
         bead="sase-yc",
-    ),
-    FeatureFlag.queue_directive: FeatureFlagDefinition(
-        key=FeatureFlag.queue_directive,
-        kind="beta",
-        description="Beta gate for the %queue/%q split from %wait.",
-        bead="sase-yl",
     ),
     FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
         key=FeatureFlag.ref_sync_gesture,

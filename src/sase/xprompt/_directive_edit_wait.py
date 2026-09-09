@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from ._directive_edit_core import format_directive_arg, set_prompt_directive
-from .queue_directive import format_queue_directive, queue_directive_enabled
+from .queue_directive import format_queue_directive
 
 AutoMode = Literal["plan", "tale", "epic"]
 
@@ -46,14 +46,7 @@ def set_prompt_wait(
     wait_spec: PromptWaitDirective | None,
 ) -> str:
     """Return *prompt* with dependency/time ``%wait`` rewritten."""
-    replacement = (
-        _format_wait_directive(
-            wait_spec,
-            include_queue_fields=not queue_directive_enabled(),
-        )
-        if wait_spec
-        else None
-    )
+    replacement = _format_wait_directive(wait_spec) if wait_spec else None
     return set_prompt_directive(
         prompt,
         {"wait"},
@@ -68,13 +61,7 @@ def set_prompt_wait_and_queue(
     wait_spec: PromptWaitDirective | None,
 ) -> str:
     """Return *prompt* with wait and runner-slot queue directives rewritten."""
-    if not queue_directive_enabled():
-        return set_prompt_wait(prompt, wait_spec)
-    wait_replacement = (
-        _format_wait_directive(wait_spec, include_queue_fields=False)
-        if wait_spec
-        else None
-    )
+    wait_replacement = _format_wait_directive(wait_spec) if wait_spec else None
     queue_replacement = (
         format_queue_directive(
             runners=wait_spec.runners,
@@ -103,11 +90,6 @@ def set_prompt_queue(
     priority: int | None,
 ) -> str:
     """Return *prompt* with only the runner-slot queue directive rewritten."""
-    if not queue_directive_enabled():
-        return set_prompt_wait(
-            prompt,
-            PromptWaitDirective(runners=runners, priority=priority),
-        )
     return set_prompt_directive(
         prompt,
         {"queue"},
@@ -119,18 +101,12 @@ def set_prompt_queue(
 
 def _format_wait_directive(
     wait_spec: PromptWaitDirective | None,
-    *,
-    include_queue_fields: bool,
 ) -> str | None:
     if not wait_spec:
         return None
     parts = [format_directive_arg(agent) for agent in wait_spec.agents]
     if wait_spec.time_token:
         parts.append(f"time={wait_spec.time_token}")
-    if include_queue_fields and wait_spec.runners is not None:
-        parts.append(f"runners={wait_spec.runners}")
-    if include_queue_fields and wait_spec.priority is not None:
-        parts.append(f"priority={wait_spec.priority}")
     directives = [f"%wait({', '.join(parts)})"] if parts else []
     directives.extend(
         f"%wait(bead={format_directive_arg(bead)})" for bead in wait_spec.beads

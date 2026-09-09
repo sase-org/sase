@@ -3,7 +3,7 @@
 An agent shown as `QUEUED` is at an admission boundary: it has finished every
 dependency, bead, and time wait and is holding only for runner capacity. Its threshold
 may come from the effective global `max_running_agents` value (configured default: 10)
-or an authored `%wait(runners=N)`. A runner slot is held by one running sase agent: a
+or an authored `%queue(runners=N)`. A runner slot is held by one running sase agent: a
 standalone agent, a live serial family across its agent and monitor shells, or each live
 parallel family member. Independently launched clan members each hold one slot. A
 pending gate shell owns a durable user decision but holds no runner slot.
@@ -15,7 +15,7 @@ first and merged configuration second. `Q` includes both implicit-cap and
 authored-threshold waits.
 
 Admission starts the first waiter whose threshold is satisfied by the current running
-count, ordered by lower numeric `%wait(priority=N)` first and then first-in, first-out
+count, ordered by lower numeric `%queue(priority=N)` first and then first-in, first-out
 within the same priority. Threshold-ineligible waiters are skipped instead of blocking
 later waiters that can run. ACE shows this as a capacity-aware display order: currently
 eligible waiters first, then parked waiters by the threshold that opens soonest, with
@@ -117,7 +117,7 @@ order. If the bounded temporary-state lock or file read is briefly unavailable, 
 implicit launch fails closed for that poll, remains parked, releases the slot lock, and
 retries instead of crashing or silently admitting against configuration alone.
 
-A `%wait(runners=0)` launch is intentionally a drain barrier: it starts only at a true
+A `%queue(runners=0)` launch is intentionally a drain barrier: it starts only at a true
 global lull. Newer immediate slot-participating launches may start while the barrier is
 parked when their own thresholds permit it, keeping the barrier waiting until they also
 finish. The barrier is a drain condition, not an exclusive fence: after it is admitted,

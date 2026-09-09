@@ -305,7 +305,7 @@ class AgentState:
 
     # Runner-slot wait metadata projected from waiting.json. ``wait_runners``
     # is the existing-runner threshold; config-gated waits render the total
-    # cap as threshold + 1, while explicit %wait(runners=N) waits render N.
+    # cap as threshold + 1, while explicit %queue(runners=N) waits render N.
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
     wait_priority: int | None = None

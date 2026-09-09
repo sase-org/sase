@@ -49,7 +49,7 @@ class TestExtractDirectivesMetadata:
         result = run_extract(
             tmp_path,
             env_auto_dismiss=True,
-            prompt="%wait(runners=0)\ndo stuff",
+            prompt="%queue(runners=0)\ndo stuff",
         )
 
         assert result["info"].wait_runners == 0
@@ -59,7 +59,7 @@ class TestExtractDirectivesMetadata:
         result = run_extract(
             tmp_path,
             env_auto_dismiss=True,
-            prompt="%wait(priority=20)\ndo stuff",
+            prompt="%queue(priority=20)\ndo stuff",
         )
 
         assert result["info"].wait_priority == 20

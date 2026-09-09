@@ -205,7 +205,7 @@ def test_inherited_vcs_ref_does_not_split_multiline_clan_directive() -> None:
             "swarm",
             "%clan(swarm.abc, tribe=research,\n"
             "summary=[[RESEARCH PROMPT: {{ prompt }}]]) %id:swarm.abc.cdx\n"
-            "%wait(priority=20) %model:@research_a {{ prompt }} #research"
+            "%queue(priority=20) %model:@research_a {{ prompt }} #research"
             "\n---\nfollow-up {{ prompt }}",
             inputs=[InputArg(name="prompt", type=InputType.TEXT)],
         )
@@ -218,7 +218,7 @@ def test_inherited_vcs_ref_does_not_split_multiline_clan_directive() -> None:
     assert (
         "%clan(swarm.abc, tribe=research,\n"
         "summary=[[RESEARCH PROMPT: review the changes]]) %id:swarm.abc.cdx\n"
-        "%wait(priority=20) %model:@research_a #gh:sase review the changes #research"
+        "%queue(priority=20) %model:@research_a #gh:sase review the changes #research"
     ) == segment
 
 
@@ -230,7 +230,7 @@ def test_inherited_vcs_ref_multiline_clan_directive_parses_cleanly() -> None:
             "swarm",
             "%clan(swarm.abc, tribe=research,\n"
             "summary=[[RESEARCH PROMPT: {{ prompt }}]]) %id:swarm.abc.cdx\n"
-            "%wait(priority=20) %model:@research_a {{ prompt }} #research"
+            "%queue(priority=20) %model:@research_a {{ prompt }} #research"
             "\n---\nfollow-up {{ prompt }}",
             inputs=[InputArg(name="prompt", type=InputType.TEXT)],
         )

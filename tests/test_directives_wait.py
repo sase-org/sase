@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import extract_prompt_directives
 
@@ -215,57 +214,9 @@ def test_wait_time_keyword_combines_with_agent() -> None:
     assert directives.wait_duration == 300.0
 
 
-def test_wait_runners_keyword_sets_threshold() -> None:
-    cleaned, directives = extract_prompt_directives(
-        "%wait(agent_a, runners=0)\nDo work"
-    )
-
-    assert cleaned == "Do work"
-    assert directives.wait == ["agent_a"]
-    assert directives.wait_runners == 0
-
-
-@pytest.mark.parametrize("value", ["-1", "1.5", "many", ""])
-def test_wait_runners_keyword_rejects_non_negative_non_integer(value: str) -> None:
-    with pytest.raises(DirectiveError, match="non-negative integer"):
-        extract_prompt_directives(f"%wait(runners={value})\nDo work")
-
-
-def test_wait_runners_keyword_rejects_multiple_occurrences() -> None:
-    prompt = "%wait(runners=1)\n%wait(runners=2)\nDo work"
-    with pytest.raises(DirectiveError, match="Multiple %wait.*runners"):
-        extract_prompt_directives(prompt)
-
-
 def test_wait_runners_keyword_rejects_duplicate_in_one_directive() -> None:
     prompt = "%wait(runners=1, runners=2)\nDo work"
     with pytest.raises(DirectiveError, match="Duplicate keyword argument 'runners'"):
-        extract_prompt_directives(prompt)
-
-
-@pytest.mark.parametrize(("directive", "value"), [("wait", 0), ("w", 20)])
-def test_wait_priority_keyword_sets_priority(directive: str, value: int) -> None:
-    cleaned, directives = extract_prompt_directives(
-        f"%{directive}(agent_a, priority={value})\nDo work"
-    )
-
-    assert cleaned == "Do work"
-    assert directives.wait == ["agent_a"]
-    assert directives.wait_priority == value
-
-
-@pytest.mark.parametrize("value", ["-1", "1.5", "many", ""])
-def test_wait_priority_keyword_rejects_non_negative_non_integer(value: str) -> None:
-    with pytest.raises(
-        DirectiveError,
-        match=r"%wait\(priority=\.\.\.\).*non-negative integer",
-    ):
-        extract_prompt_directives(f"%wait(priority={value})\nDo work")
-
-
-def test_wait_priority_keyword_rejects_multiple_occurrences() -> None:
-    prompt = "%wait(priority=1)\n%w(priority=2)\nDo work"
-    with pytest.raises(DirectiveError, match="Multiple %wait.*priority"):
         extract_prompt_directives(prompt)
 
 
@@ -275,22 +226,16 @@ def test_wait_priority_keyword_rejects_duplicate_in_one_directive() -> None:
         extract_prompt_directives(prompt)
 
 
-def test_queue_directive_sets_runner_slot_fields_when_enabled() -> None:
-    with override_flags(queue_directive=True):
-        cleaned, directives = extract_prompt_directives(
-            "%wait(builder, time=5m) %q(1, p=20)\nDo work",
-        )
+def test_queue_directive_sets_runner_slot_fields() -> None:
+    cleaned, directives = extract_prompt_directives(
+        "%wait(builder, time=5m) %q(1, p=20)\nDo work",
+    )
 
     assert cleaned == "Do work"
     assert directives.wait == ["builder"]
     assert directives.wait_duration == 300.0
     assert directives.wait_runners == 1
     assert directives.wait_priority == 20
-
-
-def test_queue_directive_rejects_when_flag_is_off() -> None:
-    with pytest.raises(DirectiveError, match="queue_directive"):
-        extract_prompt_directives("%q:5\nDo work")
 
 
 @pytest.mark.parametrize(
@@ -310,22 +255,16 @@ def test_queue_directive_rejects_when_flag_is_off() -> None:
         ),
     ],
 )
-def test_wait_queue_keywords_reject_when_queue_flag_is_on(
+def test_wait_queue_keywords_are_retired(
     prompt: str,
     message: str,
 ) -> None:
-    with (
-        override_flags(queue_directive=True),
-        pytest.raises(DirectiveError, match=message),
-    ):
+    with pytest.raises(DirectiveError, match=message):
         extract_prompt_directives(prompt)
 
 
 def test_queue_directive_duplicate_errors_come_from_shared_contract() -> None:
-    with (
-        override_flags(queue_directive=True),
-        pytest.raises(DirectiveError, match="Duplicate %queue runners assignment"),
-    ):
+    with pytest.raises(DirectiveError, match="Duplicate %queue runners assignment"):
         extract_prompt_directives("%q(5, runners=5)\nDo work")
 
 

@@ -19,7 +19,6 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     typed_launch = definitions[FeatureFlag.typed_launch_units]
     refresh_tokens = definitions[FeatureFlag.ace_refresh_tokens]
     usage_metrics = definitions[FeatureFlag.provider_usage_metrics]
-    queue_directive = definitions[FeatureFlag.queue_directive]
 
     assert flags_pane.kind == "sunset"
     assert flags_pane.default is True
@@ -36,9 +35,6 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     assert usage_metrics.kind == "beta"
     assert usage_metrics.default is False
     assert usage_metrics.bead == "sase-yc"
-    assert queue_directive.kind == "beta"
-    assert queue_directive.default is False
-    assert queue_directive.bead == "sase-yl"
 
 
 def test_consumer_flags_resolve_from_every_layer() -> None:
@@ -50,7 +46,6 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert default.enabled(FeatureFlag.ace_refresh_tokens) is True
     assert default.enabled(FeatureFlag.typed_launch_units) is False
     assert default.enabled(FeatureFlag.provider_usage_metrics) is False
-    assert default.enabled(FeatureFlag.queue_directive) is False
 
     user = resolve_feature_flags(
         definitions=definitions,
@@ -63,7 +58,6 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
                     "ace_refresh_tokens": False,
                     "typed_launch_units": True,
                     "provider_usage_metrics": True,
-                    "queue_directive": True,
                 },
                 detail="user.yml",
             )
@@ -79,8 +73,6 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert user.decision(FeatureFlag.typed_launch_units).source == "user"
     assert user.enabled(FeatureFlag.provider_usage_metrics) is True
     assert user.decision(FeatureFlag.provider_usage_metrics).source == "user"
-    assert user.enabled(FeatureFlag.queue_directive) is True
-    assert user.decision(FeatureFlag.queue_directive).source == "user"
 
     env = resolve_feature_flags(
         definitions=definitions,
@@ -88,7 +80,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
         env_value=(
             '{"admin_center_flags":false,"ref_sync_gesture":false,'
             '"ace_refresh_tokens":false,"typed_launch_units":true,'
-            '"provider_usage_metrics":true,"queue_directive":true}'
+            '"provider_usage_metrics":true}'
         ),
     )
     assert env.enabled(FeatureFlag.admin_center_flags) is False
@@ -101,8 +93,6 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert env.decision(FeatureFlag.typed_launch_units).source == "env"
     assert env.enabled(FeatureFlag.provider_usage_metrics) is True
     assert env.decision(FeatureFlag.provider_usage_metrics).source == "env"
-    assert env.enabled(FeatureFlag.queue_directive) is True
-    assert env.decision(FeatureFlag.queue_directive).source == "env"
 
 
 def test_consumer_flags_both_states_via_override(
@@ -115,7 +105,6 @@ def test_consumer_flags_both_states_via_override(
         ace_refresh_tokens=False,
         typed_launch_units=True,
         provider_usage_metrics=True,
-        queue_directive=True,
     ) as snapshot:
         assert snapshot.enabled(FeatureFlag.admin_center_flags) is False
         assert current_flags().enabled(FeatureFlag.admin_center_flags) is False
@@ -127,8 +116,6 @@ def test_consumer_flags_both_states_via_override(
         assert current_flags().enabled(FeatureFlag.typed_launch_units) is True
         assert snapshot.enabled(FeatureFlag.provider_usage_metrics) is True
         assert current_flags().enabled(FeatureFlag.provider_usage_metrics) is True
-        assert snapshot.enabled(FeatureFlag.queue_directive) is True
-        assert current_flags().enabled(FeatureFlag.queue_directive) is True
 
     restored = current_flags()
     assert restored.enabled(FeatureFlag.admin_center_flags) is True
@@ -136,4 +123,3 @@ def test_consumer_flags_both_states_via_override(
     assert restored.enabled(FeatureFlag.ace_refresh_tokens) is True
     assert restored.enabled(FeatureFlag.typed_launch_units) is False
     assert restored.enabled(FeatureFlag.provider_usage_metrics) is False
-    assert restored.enabled(FeatureFlag.queue_directive) is False

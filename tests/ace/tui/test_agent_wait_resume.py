@@ -128,7 +128,7 @@ def test_apply_wait_run_now_projects_notification_but_keeps_agent_identity(
 
 def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> None:
     (tmp_path / "raw_xprompt.md").write_text(
-        "%wait(priority=20)\nDo work",
+        "%queue(priority=20)\nDo work",
         encoding="utf-8",
     )
     (tmp_path / "agent_meta.json").write_text(
@@ -180,7 +180,7 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
     assert waiting["wait_priority_explicit"] is True
     assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
     assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == (
-        "%wait(runners=0, priority=20)\nDo work"
+        "%queue(runners=0, priority=20)\nDo work"
     )
     assert json.loads((tmp_path / "agent_meta.json").read_text()) == (
         {"wait_runners": 0, "wait_priority": 20}
@@ -195,7 +195,7 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
 
 def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
     (tmp_path / "raw_xprompt.md").write_text(
-        "%wait(runners=0, priority=3)\nDo work", encoding="utf-8"
+        "%queue(runners=0, priority=3)\nDo work", encoding="utf-8"
     )
     (tmp_path / "agent_meta.json").write_text(
         json.dumps({"pid": 100, "wait_runners": 0, "wait_priority": 3}),
@@ -352,7 +352,7 @@ def test_prompt_wait_spec_builds_canonical_forms() -> None:
 
 def test_apply_wait_updates_parked_priority_in_place(tmp_path: Path) -> None:
     (tmp_path / "raw_xprompt.md").write_text(
-        "%wait(runners=0, priority=20)\nDo work",
+        "%queue(runners=0, priority=20)\nDo work",
         encoding="utf-8",
     )
     (tmp_path / "agent_meta.json").write_text(
@@ -401,7 +401,7 @@ def test_apply_wait_updates_parked_priority_in_place(tmp_path: Path) -> None:
         )
 
     assert (tmp_path / "raw_xprompt.md").read_text() == (
-        "%wait(runners=0, priority=2)\nDo work"
+        "%queue(runners=0, priority=2)\nDo work"
     )
     assert json.loads((tmp_path / "agent_meta.json").read_text()) == {
         "wait_runners": 0,

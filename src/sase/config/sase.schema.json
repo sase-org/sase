@@ -4260,11 +4260,6 @@
           "description": "Beta gate for subscription usage probes and the optional provider usage hook.",
           "default": false
         },
-        "queue_directive": {
-          "type": "boolean",
-          "description": "Beta gate for the %queue/%q split from %wait.",
-          "default": false
-        },
         "ref_sync_gesture": {
           "type": "boolean",
           "description": "A second ':' typed immediately after '@<kind>:' with an empty payload is consumed and refreshes that kind's backing sidecar (clone-if-missing or force-pull past the freshness TTL, else a catalog rescan), then reopens the '@' payload menu with newly-arrived rows badged.",

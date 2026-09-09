@@ -14,7 +14,6 @@ from sase.axe.chop_proposals import (
 )
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig
-from sase.feature_flags import override_flags
 from sase.xprompt.directives import (
     extract_prompt_directives,
     has_deferred_start_directive,
@@ -29,7 +28,7 @@ def _proposal_result(*prompts: dict[str, object]) -> dict[str, object]:
     return {"proposed_launches": list(prompts)}
 
 
-def test_prepare_and_preview_inject_lumberjack_wait_runners() -> None:
+def test_prepare_and_preview_inject_queue() -> None:
     prepared = prepare_chop_proposals(
         "audit",
         _proposal_result(
@@ -37,31 +36,14 @@ def test_prepare_and_preview_inject_lumberjack_wait_runners() -> None:
         ),
         lumberjack_wait_runners=0,
     )
-
     prompt = str(proposal_previews(prepared)[0]["prompt"])
+    _, directives = extract_prompt_directives(prompt)
 
     assert prepared[0].wait_runners == 0
-    assert "%wait(runners=0)" in prompt
+    assert "%queue(runners=0)" in prompt
+    assert "%wait(runners" not in prompt
+    assert directives.wait_runners == 0
     assert has_deferred_start_directive(prompt) is True
-
-
-def test_prepare_and_preview_inject_queue_when_enabled() -> None:
-    with override_flags(queue_directive=True):
-        prepared = prepare_chop_proposals(
-            "audit",
-            _proposal_result(
-                {"prompt": "Audit.", "workspace": "git:sase"},
-            ),
-            lumberjack_wait_runners=0,
-        )
-        prompt = str(proposal_previews(prepared)[0]["prompt"])
-        _, directives = extract_prompt_directives(prompt)
-
-        assert prepared[0].wait_runners == 0
-        assert "%queue(runners=0)" in prompt
-        assert "%wait(runners" not in prompt
-        assert directives.wait_runners == 0
-        assert has_deferred_start_directive(prompt) is True
 
 
 def test_absent_lumberjack_wait_runners_leaves_prompt_unchanged() -> None:
@@ -78,63 +60,43 @@ def test_absent_lumberjack_wait_runners_leaves_prompt_unchanged() -> None:
     assert "%wait(runners" not in prompt
 
 
-def test_proposal_wait_runners_overrides_lumberjack_default() -> None:
+def test_queue_runner_threshold_overrides_lumberjack_default() -> None:
     prepared = prepare_chop_proposals(
         "audit",
         _proposal_result(
             {
-                "prompt": "%wait(runners=2)\nAudit.",
+                "prompt": "%q:2\nAudit.",
                 "workspace": "git:sase",
             },
         ),
         lumberjack_wait_runners=0,
     )
-
     prompt = str(proposal_previews(prepared)[0]["prompt"])
+    _, directives = extract_prompt_directives(prompt)
 
-    assert prompt.count("runners=") == 1
-    assert "%wait(runners=2)" in prompt
-
-
-def test_queue_runner_threshold_overrides_lumberjack_default() -> None:
-    with override_flags(queue_directive=True):
-        prepared = prepare_chop_proposals(
-            "audit",
-            _proposal_result(
-                {
-                    "prompt": "%q:2\nAudit.",
-                    "workspace": "git:sase",
-                },
-            ),
-            lumberjack_wait_runners=0,
-        )
-        prompt = str(proposal_previews(prepared)[0]["prompt"])
-        _, directives = extract_prompt_directives(prompt)
-
-        assert "%queue(runners=0)" not in prompt
-        assert "%q:2" in prompt
-        assert directives.wait_runners == 2
+    assert "%queue(runners=0)" not in prompt
+    assert "%q:2" in prompt
+    assert directives.wait_runners == 2
 
 
 def test_queue_priority_only_keeps_lumberjack_threshold() -> None:
-    with override_flags(queue_directive=True):
-        prepared = prepare_chop_proposals(
-            "audit",
-            _proposal_result(
-                {
-                    "prompt": "%q(p=20)\nAudit.",
-                    "workspace": "git:sase",
-                },
-            ),
-            lumberjack_wait_runners=0,
-        )
-        prompt = str(proposal_previews(prepared)[0]["prompt"])
-        _, directives = extract_prompt_directives(prompt)
+    prepared = prepare_chop_proposals(
+        "audit",
+        _proposal_result(
+            {
+                "prompt": "%q(p=20)\nAudit.",
+                "workspace": "git:sase",
+            },
+        ),
+        lumberjack_wait_runners=0,
+    )
+    prompt = str(proposal_previews(prepared)[0]["prompt"])
+    _, directives = extract_prompt_directives(prompt)
 
-        assert "%queue(runners=0)" in prompt
-        assert "%q(p=20)" in prompt
-        assert directives.wait_runners == 0
-        assert directives.wait_priority == 20
+    assert "%queue(runners=0)" in prompt
+    assert "%q(p=20)" in prompt
+    assert directives.wait_runners == 0
+    assert directives.wait_priority == 20
 
 
 def test_fenced_wait_runners_does_not_override_lumberjack_default() -> None:
@@ -152,7 +114,7 @@ def test_fenced_wait_runners_does_not_override_lumberjack_default() -> None:
     prompt = str(proposal_previews(prepared)[0]["prompt"])
 
     assert prompt.count("runners=") == 2
-    assert "%wait(runners=0)" in prompt
+    assert "%queue(runners=0)" in prompt
 
 
 def test_wait_dependency_and_runner_threshold_merge() -> None:
@@ -178,7 +140,7 @@ def test_wait_dependency_and_runner_threshold_merge() -> None:
     _, directives = extract_prompt_directives(prompt)
 
     assert f"%wait:{preview['wait_name']}" in prompt
-    assert "%wait(runners=1)" in prompt
+    assert "%queue(runners=1)" in prompt
     assert directives.wait == [preview["wait_name"]]
     assert directives.wait_runners == 1
 
@@ -229,7 +191,7 @@ def test_clan_batch_injects_threshold_into_every_segment(
 
     segments = captured[0].split("\n---\n")
     assert len(segments) == 2
-    assert all(segment.count("%wait(runners=0)") == 1 for segment in segments)
+    assert all(segment.count("%queue(runners=0)") == 1 for segment in segments)
 
 
 def test_runner_threads_lumberjack_threshold_into_dry_run_preview(
@@ -261,4 +223,4 @@ def test_runner_threads_lumberjack_threshold_into_dry_run_preview(
         )
 
     assert outcome.status == "success"
-    assert "%wait(runners=0)" in str(outcome.proposals[0]["prompt"])
+    assert "%queue(runners=0)" in str(outcome.proposals[0]["prompt"])

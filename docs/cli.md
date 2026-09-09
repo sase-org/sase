@@ -135,7 +135,7 @@ prints one stdout JSON envelope with no progress noise, so shell gates and comma
 substitution both stay predictable.
 
 `sase agent list -j` reports every live runner-slot waiter as `status: "QUEUED"`,
-whether its threshold comes from the global cap or an authored `%wait(runners=N)`. Its
+whether its threshold comes from the global cap or an authored `%queue(runners=N)`. Its
 `runner_slot_queue_position`/`runner_slot_queue_size` rank the same waiters in the
 capacity-aware display order used by ACE: eligible waiters first, then parked waiters by
 nearest-opening threshold, with priority and request FIFO preserved inside each group.

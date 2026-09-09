@@ -228,8 +228,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
-- Lines: 114
-- Approx. tokens: 1711
+- Lines: 123
+- Approx. tokens: 1873
 
 ## Statistics
 
@@ -237,8 +237,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 10
 - Web descriptor notes: 3
-- Total lines: 1095
-- Total approx. tokens: 14074
+- Total lines: 1104
+- Total approx. tokens: 14236
 
 ## Commands
 

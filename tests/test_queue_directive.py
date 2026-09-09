@@ -1,4 +1,4 @@
-"""Both-states coverage for the shared `%queue` / `%q` contract."""
+"""Coverage for the shared `%queue` / `%q` contract."""
 
 from __future__ import annotations
 
@@ -9,20 +9,8 @@ from sase.core.agent_launch_facade import (
     plan_typed_launch_units,
 )
 from sase.core.agent_launch_wire import AgentUnitWire
-from sase.feature_flags import FeatureFlag, override_flags
-from sase.xprompt.queue_directive import (
-    collect_queue_fields,
-    format_queue_directive,
-    launch_feature_flag_keys,
-    queue_directive_enabled,
-    queue_directive_flag_key,
-)
-
-
-def test_queue_directive_flag_is_off_by_default() -> None:
-    assert queue_directive_flag_key() == "queue_directive"
-    assert queue_directive_enabled() is False
-    assert str(FeatureFlag.queue_directive) not in launch_feature_flag_keys()
+from sase.feature_flags import override_flags
+from sase.xprompt.queue_directive import collect_queue_fields, format_queue_directive
 
 
 def test_queue_adapter_collects_and_formats_through_rust() -> None:
@@ -65,23 +53,8 @@ def test_queue_adapter_collects_and_formats_through_rust() -> None:
     assert duplicate["errors"][0]["code"] == "duplicate-queue-field"
 
 
-def test_typed_launch_keeps_wait_queue_fields_when_flag_is_off() -> None:
-    with override_flags(queue_directive=False, typed_launch_units=True):
-        plan = plan_typed_launch_units(
-            "%wait(runners=2, priority=1)\nDo work",
-            selected_project="sase",
-        )
-    agent = plan.units[0].payload
-    assert isinstance(agent, AgentUnitWire)
-    assert agent.wait_runners == 2
-    assert agent.wait_priority == 1
-    rebuilt = agent_unit_dispatch_prompt(agent)
-    assert "%wait(runners=2)" in rebuilt
-    assert "%wait(priority=1)" in rebuilt
-
-
-def test_typed_launch_parses_queue_when_flag_is_on() -> None:
-    with override_flags(queue_directive=True, typed_launch_units=True):
+def test_typed_launch_parses_queue_and_rebuilds_canonical_prompt() -> None:
+    with override_flags(typed_launch_units=True):
         plan = plan_typed_launch_units(
             "%w(builder, time=5m) %q(1, p=20)\nDo work",
             selected_project="sase",
@@ -95,18 +68,15 @@ def test_typed_launch_parses_queue_when_flag_is_on() -> None:
     assert "%wait(runners=" not in rebuilt
 
 
-def test_typed_launch_rejects_queue_syntax_when_flag_is_off() -> None:
-    with (
-        override_flags(queue_directive=False, typed_launch_units=True),
-        pytest.raises(Exception, match="queue_directive"),
-    ):
-        plan_typed_launch_units("%q:5\nDo work", selected_project="sase")
-
-
-def test_typed_launch_rejects_retired_wait_queue_keywords_when_flag_is_on() -> None:
-    with override_flags(queue_directive=True, typed_launch_units=True):
+def test_typed_launch_rejects_retired_wait_queue_keywords() -> None:
+    with override_flags(typed_launch_units=True):
         with pytest.raises(Exception, match="%queue"):
             plan_typed_launch_units(
                 "%wait(runners=5)\nDo work",
+                selected_project="sase",
+            )
+        with pytest.raises(Exception, match="%queue"):
+            plan_typed_launch_units(
+                "%wait(priority=5)\nDo work",
                 selected_project="sase",
             )
