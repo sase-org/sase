@@ -84,7 +84,7 @@ async def test_screenshot_plan_and_capture_paths_follow_through_real_labels(
     loop_thread = threading.current_thread()
     resolve_threads: list[int | None] = []
     real_git = __import__(
-        "sase.pager.resolve", fromlist=["_git_ls_files"]
+        "sase.pager._resolve_path_search", fromlist=["_git_ls_files"]
     )._git_ls_files
 
     def spy_git(directory: Path) -> tuple[str, ...] | None:
@@ -95,7 +95,7 @@ async def test_screenshot_plan_and_capture_paths_follow_through_real_labels(
         resolve_threads.append(threading.current_thread().ident)
         return resolve_link(ref, context=context)
 
-    monkeypatch.setattr("sase.pager.resolve._git_ls_files", spy_git)
+    monkeypatch.setattr("sase.pager._resolve_path_search._git_ls_files", spy_git)
     monkeypatch.setattr("sase.pager.screen.resolve_ref", spy_resolve)
     with forbid_checkout_allocation(monkeypatch):
         document = _screenshot_document(corpus)

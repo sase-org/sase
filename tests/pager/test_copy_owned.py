@@ -52,7 +52,7 @@ def _owned_context(directory: Path) -> LinkResolutionContext:
 
 def _forbid_generic_search(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.pager.resolve._search_existing_path",
+        "sase.pager._resolve_file_paths.search_existing_path",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(
             AssertionError("generic search must not run after an owned lookup")
         ),
@@ -99,7 +99,9 @@ def test_copy_keeps_logical_token_for_owned_outcomes_with_decoy(
             diagnostic=f"{path_text} {failure_category}",
         )
 
-    monkeypatch.setattr("sase.pager.resolve.lookup_owned_source_path", fake_lookup)
+    monkeypatch.setattr(
+        "sase.pager._resolve_file_paths.lookup_owned_source_path", fake_lookup
+    )
 
     copied = copy_text_for_target(
         "src/secret.py",
@@ -124,7 +126,9 @@ def test_copy_uses_owned_file_and_skips_decoy(
         assert path_text == "src/secret.py"
         return _owned_resolution(resolved_path=live)
 
-    monkeypatch.setattr("sase.pager.resolve.lookup_owned_source_path", fake_lookup)
+    monkeypatch.setattr(
+        "sase.pager._resolve_file_paths.lookup_owned_source_path", fake_lookup
+    )
 
     copied = copy_text_for_target(
         "src/secret.py",
@@ -150,7 +154,9 @@ def test_copy_uses_owned_directory_and_skips_decoy(
         assert path_text == "src"
         return _owned_resolution(resolved_path=live)
 
-    monkeypatch.setattr("sase.pager.resolve.lookup_owned_source_path", fake_lookup)
+    monkeypatch.setattr(
+        "sase.pager._resolve_file_paths.lookup_owned_source_path", fake_lookup
+    )
 
     copied = copy_text_for_target(
         "src",
@@ -167,7 +173,7 @@ def test_copy_falls_through_when_owned_lookup_cannot_run(
 ) -> None:
     decoy = _plant_decoy(tmp_path, monkeypatch)
     monkeypatch.setattr(
-        "sase.pager.resolve.lookup_owned_source_path",
+        "sase.pager._resolve_file_paths.lookup_owned_source_path",
         lambda *_args, **_kwargs: None,
     )
 
@@ -240,7 +246,7 @@ def test_directory_listing_freezes_context_known_kinds(
 ) -> None:
     (tmp_path / "a.txt").write_text("a\n", encoding="utf-8")
     monkeypatch.setattr(
-        "sase.pager.resolve.known_kinds_from_link_context",
+        "sase.pager._resolve_common.known_kinds_from_link_context",
         lambda _context: ("designs",),
     )
 

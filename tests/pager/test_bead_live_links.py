@@ -72,7 +72,7 @@ def test_resolve_link_opens_live_bead_without_generated_pages(
         raise AssertionError("bead links should resolve from the live bead store")
 
     monkeypatch.setattr(
-        "sase.pager.resolve.resolve_cli_reference",
+        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
         fail_artifact_page_resolution,
     )
 

@@ -527,7 +527,7 @@ async def test_unresolvable_label_toasts_marks_it_dangling_and_does_not_renaviga
         assert threading.current_thread() is not loop_thread
         return resolve_link(ref, context=context)
 
-    monkeypatch.setattr("sase.pager.resolve._git_ls_files", fake_git)
+    monkeypatch.setattr("sase.pager._resolve_path_search._git_ls_files", fake_git)
     monkeypatch.setattr("sase.pager.screen.resolve_ref", spy_resolve)
     notifications: list[tuple[str, str]] = []
 

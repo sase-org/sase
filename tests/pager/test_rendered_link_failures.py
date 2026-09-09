@@ -106,7 +106,9 @@ async def test_missing_checkout_is_retryable_and_refresh_clears_it(
         )
 
     monkeypatch.setattr("sase.artifact_ref_context.artifact_ref_context", fake_context)
-    monkeypatch.setattr("sase.pager.resolve.artifact_ref_context", fake_context)
+    monkeypatch.setattr(
+        "sase.pager._resolve_artifact_refs.artifact_ref_context", fake_context
+    )
 
     section = document.sections[0]
     context = merge_link_context(
@@ -131,7 +133,7 @@ async def test_missing_checkout_is_retryable_and_refresh_clears_it(
             lambda *_args, **_kwargs: corpus.context,
         )
         monkeypatch.setattr(
-            "sase.pager.resolve.artifact_ref_context",
+            "sase.pager._resolve_artifact_refs.artifact_ref_context",
             lambda *_args, **_kwargs: corpus.context,
         )
         restored = resolve_link(ROUTER, context=context)
@@ -172,7 +174,9 @@ async def test_ambiguous_linked_repos_offer_followable_candidates(
         )
 
     monkeypatch.setattr("sase.artifact_ref_context.artifact_ref_context", fake_context)
-    monkeypatch.setattr("sase.pager.resolve.artifact_ref_context", fake_context)
+    monkeypatch.setattr(
+        "sase.pager._resolve_artifact_refs.artifact_ref_context", fake_context
+    )
     document = document_from_paths([source], cwd=corpus.cwd)
     app = SasePager(document)
     async with app.run_test(size=(80, 24)) as pilot:
@@ -196,7 +200,9 @@ async def test_filtered_plan_ref_stays_visible_with_a_filtered_reason(
         return corpus.filtered_context
 
     monkeypatch.setattr("sase.artifact_ref_context.artifact_ref_context", fake_context)
-    monkeypatch.setattr("sase.pager.resolve.artifact_ref_context", fake_context)
+    monkeypatch.setattr(
+        "sase.pager._resolve_artifact_refs.artifact_ref_context", fake_context
+    )
     document = document_from_paths([source], cwd=corpus.cwd)
     app = SasePager(document)
     notifications = notify_capture(app)

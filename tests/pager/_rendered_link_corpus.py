@@ -526,7 +526,9 @@ def install_inventory(
         return corpus.context_for(Path(workspace_dir))
 
     monkeypatch.setattr("sase.artifact_ref_context.artifact_ref_context", fake_context)
-    monkeypatch.setattr("sase.pager.resolve.artifact_ref_context", fake_context)
+    monkeypatch.setattr(
+        "sase.pager._resolve_artifact_refs.artifact_ref_context", fake_context
+    )
     monkeypatch.chdir(corpus.cwd)
 
 

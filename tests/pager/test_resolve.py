@@ -16,10 +16,12 @@ from sase.artifact_ref_models import (
 from sase.pager.document import PagerOrigin, PagerTargetSpan, target_resolution_ref
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import LinkSpanKind
-from sase.pager.resolve import (
-    LinkTargetKind,
+from sase.pager._resolve_path_search import (
     _capture_bounded_process_output,
     _git_ls_files,
+)
+from sase.pager.resolve import (
+    LinkTargetKind,
     copy_text_for_target,
     resolve_link,
     resolve_ref,
@@ -385,7 +387,9 @@ def test_resolve_ref_uses_a_unique_git_suffix(
         git_calls.append(directory)
         return ("lib/pkg/deep.py",)
 
-    monkeypatch.setattr("sase.pager.resolve._git_ls_files", fake_git_ls_files)
+    monkeypatch.setattr(
+        "sase.pager._resolve_path_search._git_ls_files", fake_git_ls_files
+    )
 
     target = resolve_ref("pkg/deep.py", context=_context(workspace))
 
@@ -400,7 +404,7 @@ def test_resolve_ref_dead_ends_on_an_ambiguous_git_suffix(
     workspace = tmp_path / "ws"
     workspace.mkdir()
     monkeypatch.setattr(
-        "sase.pager.resolve._git_ls_files",
+        "sase.pager._resolve_path_search._git_ls_files",
         lambda _directory: ("lib/pkg/deep.py", "other/pkg/deep.py"),
     )
 
@@ -415,7 +419,7 @@ def test_resolve_ref_does_not_run_git_when_a_direct_probe_hits(
     def fail_git(_directory: Path) -> tuple[str, ...] | None:
         raise AssertionError("git ls-files should not run after a direct hit")
 
-    monkeypatch.setattr("sase.pager.resolve._git_ls_files", fail_git)
+    monkeypatch.setattr("sase.pager._resolve_path_search._git_ls_files", fail_git)
 
     target = resolve_ref("src/foo.py", context=_context(tmp_path))
 
@@ -434,7 +438,9 @@ def test_resolve_ref_caches_git_ls_files_per_anchor(
         git_calls.append(directory)
         return ("lib/pkg/deep.py",)
 
-    monkeypatch.setattr("sase.pager.resolve._git_ls_files", fake_git_ls_files)
+    monkeypatch.setattr(
+        "sase.pager._resolve_path_search._git_ls_files", fake_git_ls_files
+    )
 
     target = resolve_ref("a/pkg/deep.py", context=_context(workspace))
 
@@ -486,10 +492,12 @@ def test_resolve_ref_walks_typed_ref_anchors(
         )
 
     monkeypatch.setattr(
-        "sase.pager.resolve.artifact_ref_context", fake_artifact_ref_context
+        "sase.pager._resolve_artifact_refs.artifact_ref_context",
+        fake_artifact_ref_context,
     )
     monkeypatch.setattr(
-        "sase.pager.resolve.resolve_cli_reference", fake_resolve_cli_reference
+        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
+        fake_resolve_cli_reference,
     )
 
     target = resolve_ref(
@@ -518,7 +526,8 @@ def test_resolve_ref_typed_ref_none_context_keeps_legacy_call(
         raise ValueError("stop")
 
     monkeypatch.setattr(
-        "sase.pager.resolve.resolve_cli_reference", fake_resolve_cli_reference
+        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
+        fake_resolve_cli_reference,
     )
 
     assert resolve_ref("plan:202608/demo.md") is None
@@ -535,7 +544,8 @@ def test_resolve_ref_typed_ref_empty_context_keeps_legacy_call(
         raise ValueError("stop")
 
     monkeypatch.setattr(
-        "sase.pager.resolve.resolve_cli_reference", fake_resolve_cli_reference
+        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
+        fake_resolve_cli_reference,
     )
 
     assert resolve_ref("plan:202608/demo.md", context=LinkResolutionContext()) is None
@@ -569,7 +579,9 @@ def test_missing_path_runs_git_once_per_anchor_across_candidates(
         git_calls.append(directory)
         return ()
 
-    monkeypatch.setattr("sase.pager.resolve._git_ls_files", fake_git_ls_files)
+    monkeypatch.setattr(
+        "sase.pager._resolve_path_search._git_ls_files", fake_git_ls_files
+    )
 
     resolution = resolve_link("a/pkg/deep.py", context=_context(workspace))
 
@@ -640,7 +652,7 @@ def test_git_ls_files_sets_prompt_free_env(
             env=kwargs.get("env"),  # type: ignore[arg-type]
         )
 
-    monkeypatch.setattr("sase.pager.resolve.subprocess.Popen", spy)
+    monkeypatch.setattr("sase.pager._resolve_path_search.subprocess.Popen", spy)
     _git_ls_files(tmp_path)
     env = seen["env"]
     assert isinstance(env, dict)
@@ -651,7 +663,9 @@ def test_git_ls_files_accepts_output_at_the_byte_limit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     payload = b"src/a.py\0"
-    monkeypatch.setattr("sase.pager.resolve._GIT_LS_FILES_MAX_BYTES", len(payload))
+    monkeypatch.setattr(
+        "sase.pager._resolve_path_search._GIT_LS_FILES_MAX_BYTES", len(payload)
+    )
     real_popen = subprocess.Popen
     held: list[subprocess.Popen[bytes]] = []
 
@@ -670,7 +684,7 @@ def test_git_ls_files_accepts_output_at_the_byte_limit(
         held.append(proc)
         return proc
 
-    monkeypatch.setattr("sase.pager.resolve.subprocess.Popen", spy)
+    monkeypatch.setattr("sase.pager._resolve_path_search.subprocess.Popen", spy)
     files = _git_ls_files(tmp_path)
     assert files == ("src/a.py",)
     assert held[0].poll() is not None
@@ -680,7 +694,7 @@ def test_git_ls_files_rejects_overflow_and_reaps(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     payload = b"src/a.py\0extra\0"
-    monkeypatch.setattr("sase.pager.resolve._GIT_LS_FILES_MAX_BYTES", 8)
+    monkeypatch.setattr("sase.pager._resolve_path_search._GIT_LS_FILES_MAX_BYTES", 8)
     real_popen = subprocess.Popen
     held: list[subprocess.Popen[bytes]] = []
 
@@ -699,7 +713,7 @@ def test_git_ls_files_rejects_overflow_and_reaps(
         held.append(proc)
         return proc
 
-    monkeypatch.setattr("sase.pager.resolve.subprocess.Popen", spy)
+    monkeypatch.setattr("sase.pager._resolve_path_search.subprocess.Popen", spy)
     assert _git_ls_files(tmp_path) is None
     assert held[0].poll() is not None
 
@@ -707,7 +721,9 @@ def test_git_ls_files_rejects_overflow_and_reaps(
 def test_git_ls_files_timeout_reaps_the_child(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("sase.pager.resolve._GIT_LS_FILES_TIMEOUT_SECONDS", 0.2)
+    monkeypatch.setattr(
+        "sase.pager._resolve_path_search._GIT_LS_FILES_TIMEOUT_SECONDS", 0.2
+    )
     real_popen = subprocess.Popen
     held: list[subprocess.Popen[bytes]] = []
 
@@ -722,7 +738,7 @@ def test_git_ls_files_timeout_reaps_the_child(
         held.append(proc)
         return proc
 
-    monkeypatch.setattr("sase.pager.resolve.subprocess.Popen", spy)
+    monkeypatch.setattr("sase.pager._resolve_path_search.subprocess.Popen", spy)
     assert _git_ls_files(tmp_path) is None
     assert held[0].poll() is not None
 
@@ -761,7 +777,9 @@ def test_resolve_ref_uses_owned_lookup_instead_of_unrelated_cwd(
         assert context is not None and context.owner is not None
         return _owned_resolution(resolved_path=live)
 
-    monkeypatch.setattr("sase.pager.resolve.lookup_owned_source_path", fake_lookup)
+    monkeypatch.setattr(
+        "sase.pager._resolve_file_paths.lookup_owned_source_path", fake_lookup
+    )
 
     target = resolve_ref(
         "Sources/Router.swift",
@@ -783,7 +801,7 @@ def test_owned_missing_checkout_is_retryable(
     workspace = tmp_path / "ws"
     workspace.mkdir()
     monkeypatch.setattr(
-        "sase.pager.resolve.lookup_owned_source_path",
+        "sase.pager._resolve_file_paths.lookup_owned_source_path",
         lambda _path, **_kwargs: _owned_resolution(
             status="missing_checkout",
             failure_category="missing_checkout",
@@ -823,7 +841,9 @@ def test_owned_failure_does_not_probe_owner_candidate_decoys(
             diagnostic="core-owned lookup says missing",
         )
 
-    monkeypatch.setattr("sase.pager.resolve.lookup_owned_source_path", fake_lookup)
+    monkeypatch.setattr(
+        "sase.pager._resolve_file_paths.lookup_owned_source_path", fake_lookup
+    )
 
     resolution = resolve_link(
         "src/secret.py",
