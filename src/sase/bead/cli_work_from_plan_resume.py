@@ -43,7 +43,13 @@ class _CheckpointAndPublishGraph(Protocol):
 
 
 class _PushStoreAfterLaunch(Protocol):
-    def __call__(self, store: SddStore, *, no_push: bool) -> None: ...
+    def __call__(
+        self,
+        store: SddStore,
+        *,
+        no_push: bool,
+        archived_plan_path: Path | None = None,
+    ) -> None: ...
 
 
 def resume_linked_epic(
@@ -138,18 +144,30 @@ def resume_linked_epic(
             except Exception as rollback_exc:
                 detail += f"; rollback publication also failed: {rollback_exc}"
         elif exc.graph_published and exc.agents_spawned:
-            push_store_after_launch(store, no_push=no_push)
+            push_store_after_launch(
+                store,
+                no_push=no_push,
+                archived_plan_path=archived_path,
+            )
         raise error_with_resume(
             detail,
             archived_path,
             no_push=no_push and not exc.retry_requires_push,
         ) from exc
     except Exception as exc:
-        push_store_after_launch(store, no_push=no_push)
+        push_store_after_launch(
+            store,
+            no_push=no_push,
+            archived_plan_path=archived_path,
+        )
         raise error_with_resume(str(exc), archived_path, no_push=no_push) from exc
 
     if launch_result.launched:
-        push_store_after_launch(store, no_push=no_push)
+        push_store_after_launch(
+            store,
+            no_push=no_push,
+            archived_plan_path=archived_path,
+        )
     result = PlanFileWorkResult(
         archived_plan_path=archived_path,
         authored_phase_ids=authored_phase_ids,

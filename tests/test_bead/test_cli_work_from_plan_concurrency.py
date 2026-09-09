@@ -83,8 +83,9 @@ def test_concurrent_plan_file_launches_serialize_through_terminal_push(
             events.append(("launch", epic_id))
         return True
 
-    def terminal_push(_store: SddStore, *, no_push: bool) -> None:
+    def terminal_push(_store: SddStore, **kwargs: object) -> None:
         nonlocal push_count
+        no_push = kwargs["no_push"]
         assert no_push is False
         with events_lock:
             push_count += 1

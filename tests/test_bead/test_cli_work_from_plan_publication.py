@@ -9,7 +9,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.bead.cli_work_from_plan import PlanFileWorkError, work_from_plan_file
-from sase.bead.project import BeadProject
+from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.sdd.store import SddStore
 from tests.test_bead.cli_work_helpers import FakeLaunchResult
 from tests.test_bead.cli_work_from_plan_helpers import EPIC_PLAN, write_plan_update
@@ -51,11 +51,11 @@ def test_plan_file_publication_uses_split_beads_sidecar(
     assert pushed == [beads]
 
 
-def test_push_store_after_launch_pushes_the_beads_sidecar(
+def test_push_store_after_launch_pushes_plans_and_beads_sidecars(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The launch push must reach the beads sidecar remote, not a queue."""
+    """The launch push must reach sidecar remotes synchronously, not a queue."""
 
     from sase.bead.cli_work_from_plan_store import push_store_after_launch
 
@@ -83,7 +83,66 @@ def test_push_store_after_launch_pushes_the_beads_sidecar(
 
     push_store_after_launch(store, no_push=False)
 
-    assert pushed == [beads]
+    assert pushed == [plans, beads]
+
+
+def test_push_store_after_launch_notifies_when_plans_push_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_work_from_plan_store import push_store_after_launch
+
+    plans = tmp_path / "sase" / "repos" / "plans"
+    beads = tmp_path / "sase" / "repos" / "beads"
+    archived = plans / "202607" / "rollout.md"
+    archived.parent.mkdir(parents=True)
+    archived.write_text("# Plan\n", encoding="utf-8")
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        remote_url="git@example.test:project--plans.git",
+        beads_dir=beads,
+        beads_remote_url="git@example.test:project--beads.git",
+    )
+    pushed: list[Path] = []
+    notified: list[tuple[object, ...]] = []
+    log_path = tmp_path / "sync.log"
+
+    def fake_push(path: Path, **_kwargs: object) -> SimpleNamespace:
+        pushed.append(path)
+        if path == plans:
+            return SimpleNamespace(
+                pushed=False,
+                skipped_no_remote=False,
+                error="git push rejected",
+                log_path=log_path,
+            )
+        return SimpleNamespace(pushed=True, skipped_no_remote=False, error=None)
+
+    def notify(*args: object, **kwargs: object) -> None:
+        notified.append((*args, kwargs))
+
+    monkeypatch.setenv("SASE_AGENT_CL_NAME", "gh_sase-org__sase")
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fake_push)
+    monkeypatch.setattr("sase.notifications.notify_workflow_complete", notify)
+
+    push_store_after_launch(
+        store,
+        no_push=False,
+        archived_plan_path=archived,
+    )
+
+    assert pushed == [plans, beads]
+    assert len(notified) == 1
+    sender, cl_name, success, notes, kwargs = notified[0]
+    assert sender == "plan-archive"
+    assert cl_name == "gh_sase-org__sase"
+    assert success is False
+    assert any("Failed to archive approved plan: rollout.md" in note for note in notes)
+    assert any("git push rejected" in note for note in notes)
+    assert str(log_path) in "\n".join(notes)
+    assert kwargs["extra_files"] == [str(archived)]
 
 
 def test_plan_file_publication_passes_worker_lock_wait(
@@ -254,7 +313,7 @@ def test_plan_file_publishes_graph_before_launch_and_reconciles_afterward(
     )
     monkeypatch.setattr(
         "sase.bead.cli_work_from_plan._push_store_after_launch",
-        lambda _store, *, no_push: events.append(("reconcile", no_push)),
+        lambda _store, **kwargs: events.append(("reconcile", kwargs["no_push"])),
     )
 
     work_from_plan_file(
@@ -278,6 +337,81 @@ def test_plan_file_publishes_graph_before_launch_and_reconciles_afterward(
     reconcile = next(i for i, event in enumerate(events) if event[0] == "reconcile")
     assert graph_commit < graph_push < launch_event < reconcile
     assert events[launch_event] == ("launch", (False, True))
+
+
+def test_plan_file_launch_pushes_split_plans_archive_and_bead_link(
+    project_dir: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.cli_common import _BeadsLocation
+    from sase.sdd.frontmatter import parse_frontmatter
+
+    plans_remote = tmp_path / "plans.git"
+    beads_remote = tmp_path / "beads.git"
+    plans = tmp_path / "plans-sidecar"
+    beads = tmp_path / "beads-sidecar"
+    _init_remote_clone(plans_remote, plans, readme="plans\n")
+    _init_remote_clone(beads_remote, beads, readme=None)
+    with BeadProject.init(beads, beads_dirname=BEADS_DIRNAME_ROOT):
+        pass
+    _git(beads, "add", "-A")
+    _git(beads, "commit", "-m", "Initialize beads sidecar")
+    _git(beads, "push", "-u", "origin", "main")
+
+    store = SddStore(
+        storage="sidecar_repos",
+        sdd_dir=plans,
+        repo_root=plans,
+        remote_url=str(plans_remote),
+        beads_dir=beads,
+        beads_remote_url=str(beads_remote),
+    )
+    location = _BeadsLocation(
+        root=beads,
+        beads_dirname=BEADS_DIRNAME_ROOT,
+        storage=store.storage,
+        store=store,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._resolve_context",
+        lambda *, dry_run: (location, store, project_dir),
+    )
+    monkeypatch.setattr("sase.sdd.files.get_yyyymm", lambda: "202607")
+
+    def launch(project: BeadProject, epic_id: str, **kwargs: object) -> bool:
+        before_agent_launch = kwargs["before_agent_launch"]
+        assert callable(before_agent_launch)
+        project.mark_ready_to_work(epic_id)
+        before_agent_launch(project, epic_id)
+        return True
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        launch,
+    )
+    source = project_dir / "rollout.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+
+    result = work_from_plan_file(
+        str(source),
+        dry_run=False,
+        yes=True,
+        no_push=False,
+        render=False,
+    )
+
+    observer = tmp_path / "plans-observer"
+    _git(tmp_path, "clone", str(plans_remote), str(observer))
+    archived = observer / "202607" / "rollout.md"
+    assert archived.is_file()
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(
+        archived.read_text(encoding="utf-8")
+    )
+    assert frontmatter["bead_id"] == result.epic_id
+    subjects = _git_output(observer, "log", "--format=%s").splitlines()
+    assert "Archive approved plan rollout" in subjects
+    assert "Link approved epic plan to its bead: rollout" in subjects
 
 
 def test_detached_store_no_push_preserves_linked_graph_without_launch(
@@ -588,3 +722,34 @@ def test_git_sidecar_fresh_clone_sees_complete_graph_before_launch(
     )
     # The checkpoint is the launch's only bead commit, so nothing may follow it.
     assert "checkpoint approved epic graph" in commit_subjects[0]
+
+
+def _init_remote_clone(remote: Path, clone: Path, *, readme: str | None) -> None:
+    subprocess.run(
+        ["git", "init", "--bare", "-b", "main", str(remote)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _git(remote.parent, "clone", str(remote), str(clone))
+    configure_git_identity(clone)
+    if readme is None:
+        return
+    (clone / "README.md").write_text(readme, encoding="utf-8")
+    _git(clone, "add", "README.md")
+    _git(clone, "commit", "-m", "Initialize plans sidecar")
+    _git(clone, "push", "-u", "origin", "main")
+
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _git_output(cwd: Path, *args: str) -> str:
+    return _git(cwd, *args).stdout.strip()

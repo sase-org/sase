@@ -529,7 +529,11 @@ def _work_from_plan_file_locked(
                 except Exception as rollback_exc:
                     detail += f"; rollback publication also failed: {rollback_exc}"
             elif exc.graph_published and exc.state_preserved:
-                _push_store_after_launch(store, no_push=no_push)
+                _push_store_after_launch(
+                    store,
+                    no_push=no_push,
+                    archived_plan_path=archived_path,
+                )
         raise _error_with_resume(
             detail,
             archived_path,
@@ -537,7 +541,11 @@ def _work_from_plan_file_locked(
             parent_override=parent,
         ) from exc
 
-    _push_store_after_launch(store, no_push=no_push)
+    _push_store_after_launch(
+        store,
+        no_push=no_push,
+        archived_plan_path=archived_path,
+    )
     from sase.bead.relocation import resolve_created_bead_id
 
     result = _PlanFileWorkResult(

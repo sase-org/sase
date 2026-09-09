@@ -394,7 +394,12 @@ def _plan_commit_store(store: SddStore, *, workspace_dir: Path) -> SddStore:
     return store
 
 
-def push_store_after_launch(store: SddStore, *, no_push: bool) -> None:
+def push_store_after_launch(
+    store: SddStore,
+    *,
+    no_push: bool,
+    archived_plan_path: Path | None = None,
+) -> None:
     if no_push:
         return
     from sase.sdd._commit_store import push_sdd_store_after_commit
@@ -404,12 +409,78 @@ def push_store_after_launch(store: SddStore, *, no_push: bool) -> None:
 
         for target_store, _paths in sdd_commit_targets(
             store,
-            paths=[store.kind_root("beads")],
+            paths=[store.kind_root("plans"), store.kind_root("beads")],
         ):
-            push_sdd_store_after_commit(target_store, push_after_commit=True)
+            try:
+                outcome = push_sdd_store_after_commit(
+                    target_store,
+                    push_after_commit=True,
+                )
+            except Exception as exc:  # noqa: BLE001 - launch stays non-fatal.
+                if _target_store_owns_plans(store, target_store):
+                    _report_plan_launch_publication_failure(
+                        archived_plan_path or store.kind_root("plans"),
+                        exc,
+                    )
+                raise
+            if _target_store_owns_plans(store, target_store):
+                failure = _plan_publication_failure(outcome, target_store.repo_root)
+                if failure is not None:
+                    _report_plan_launch_publication_failure(
+                        archived_plan_path or store.kind_root("plans"),
+                        failure,
+                    )
     except Exception:
         _logger.warning(
             "Failed to synchronize SDD store after approved epic launch",
+            exc_info=True,
+        )
+
+
+def _target_store_owns_plans(source_store: SddStore, target_store: SddStore) -> bool:
+    return target_store.repo_root.expanduser().resolve(
+        strict=False
+    ) == source_store.repo_root_for_kind("plans").expanduser().resolve(strict=False)
+
+
+def _plan_publication_failure(
+    outcome: Any | None, repo_root: Path
+) -> RuntimeError | None:
+    if outcome is None or bool(getattr(outcome, "pushed", False)):
+        return None
+    if bool(getattr(outcome, "skipped_no_remote", False)):
+        return RuntimeError(
+            f"approved epic plan publication failed for {repo_root}: "
+            "the plans store has no push remote"
+        )
+    log_path = getattr(outcome, "log_path", None)
+    log_detail = f" (managed sync log: {log_path})" if log_path is not None else ""
+    if bool(getattr(outcome, "skipped_locked", False)):
+        return RuntimeError(
+            f"approved epic plan publication deferred for {repo_root}: "
+            f"sync worker lock is held{log_detail}"
+        )
+    detail = getattr(outcome, "error", None) or "push was rejected"
+    return RuntimeError(
+        f"approved epic plan publication failed for {repo_root}: {detail}{log_detail}"
+    )
+
+
+def _report_plan_launch_publication_failure(
+    plan_path: Path,
+    error: BaseException,
+) -> None:
+    try:
+        from sase._plan_archive_approval import report_plan_archive_failure
+
+        report_plan_archive_failure(
+            plan_path,
+            {"agent_cl_name": os.environ.get("SASE_AGENT_CL_NAME", "")},
+            error,
+        )
+    except Exception:
+        _logger.debug(
+            "Failed to report approved epic plan publication failure",
             exc_info=True,
         )
 
