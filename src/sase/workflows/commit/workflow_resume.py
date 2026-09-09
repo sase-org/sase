@@ -111,7 +111,18 @@ def resume_commit_workflow(
             )
         else:
             if not ok:
-                print_status(f"finalize_commit failed: {err}", "error")
+                recorded = wf._record_unpushed_commit_marker_if_present(
+                    cp, provider, err
+                )
+                if recorded:
+                    print_status(
+                        f"finalize_commit created local commit {cp.commit_sha} "
+                        f"but failed before publishing it: {err}. Run "
+                        "`sase stitch create --resume` to retry the push.",
+                        "error",
+                    )
+                else:
+                    print_status(f"finalize_commit failed: {err}", "error")
                 VCS_OPERATIONS.labels(
                     provider=provider_name,
                     operation="commit_resume",

@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.finalizers.commit_repair import marker_is_unpushed
 from sase.workflows.commit.commit_tracking import (
     write_result_marker,
     write_unpushed_commit_marker,
@@ -298,6 +299,59 @@ class TestWriteResultMarker:
                 }
             ]
 
+    def test_success_marker_settles_earlier_unpushed_sha_for_same_operation(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            payload = {"message": "fix: bug"}
+            with (
+                patch.dict(
+                    "os.environ",
+                    {
+                        "SASE_ARTIFACTS_DIR": tmpdir,
+                        "SASE_AGENT_TIMESTAMP": "run-1",
+                    },
+                ),
+                patch(
+                    "sase.workflows.commit.commit_tracking._resolve_commit_created_at",
+                    return_value=None,
+                ),
+            ):
+                write_unpushed_commit_marker(
+                    "create_commit",
+                    payload,
+                    cwd="/workspace/sase_7",
+                    result="a" * 40,
+                    commit_sha="a" * 40,
+                    commit_tree="b" * 40,
+                    push_error="refused",
+                    operation_id="op-1",
+                )
+                write_result_marker(
+                    "create_commit",
+                    payload,
+                    None,
+                    "c" * 40,
+                    None,
+                    commit_sha="c" * 40,
+                    commit_tree="d" * 40,
+                    commit_cwd="/workspace/sase_7",
+                    pushed=True,
+                    operation_id="op-1",
+                )
+
+            results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
+            assert len(results) == 2
+            pending = next(item for item in results if item["result"] == "a" * 40)
+            settled = next(item for item in results if item["result"] == "c" * 40)
+            assert pending["settled"] is True
+            assert pending["superseded_by"] == "c" * 40
+            assert pending["pushed"] is False
+            assert settled["pushed"] is True
+            assert "settled" not in settled
+            assert marker_is_unpushed(pending) is False
+            assert marker_is_unpushed(settled) is False
+
     def test_records_unpushed_dispatch_failure_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             payload = {"message": "fix: bug"}
@@ -314,9 +368,7 @@ class TestWriteResultMarker:
                     dispatch_error="git push failed: refused",
                 )
 
-            data = json.loads((Path(tmpdir) / "commit_result.json").read_text())
-            assert data["pushed"] is False
-            assert data["dispatch_error"] == "git push failed: refused"
+            assert not (Path(tmpdir) / "commit_result.json").exists()
             results = json.loads((Path(tmpdir) / "commit_results.json").read_text())
             assert results[0]["pushed"] is False
             assert results[0]["dispatch_error"] == "git push failed: refused"

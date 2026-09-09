@@ -29,6 +29,9 @@ from sase.finalizers.commit_dispatch import (
     preflight_attempt as _preflight_attempt,
 )
 from sase.finalizers.commit_dispatch_types import DeferredRepoOutcome
+from sase.finalizers.commit_checkpoint_recovery import (
+    resume_owned_pending_checkpoint as _resume_owned_pending_checkpoint,
+)
 from sase.finalizers.commit_repair import (
     load_commit_results as _load_commit_results,
     marker_evidence as _marker_evidence,
@@ -377,6 +380,35 @@ def execute_commit_finalizer(
             ),
             invoke_result=invoke_result,
         )
+    checkpoint_recovery = _resume_owned_pending_checkpoint(
+        accepted_repos,
+        decisions=decisions,
+        artifacts=artifacts,
+        context=context,
+        instance_id=instance.instance_id,
+        resume_runner=resume,
+        ledger=ledger,
+        current_result=current_result,
+        repository_decision_id=_repository_decision_id,
+        peek_attempt=_peek_attempt,
+    )
+    resumed_attempt_id = None
+    if checkpoint_recovery is not None:
+        resumed_attempt_id, resume_attempts, resume_evidence = checkpoint_recovery
+        attempts = resume_attempts
+        evidence.extend(resume_evidence)
+        attempt_id = resumed_attempt_id
+        state = prepare_commit_dirty_state(project_dir, artifacts)
+        current_by_id = {
+            _repository_decision_id(repo): repo for repo in state.dirty_state.repos
+        }
+        ordered = _dirty_repos_in_context_order(
+            state.dirty_state,
+            decisions,
+            accepted_context,
+            attempt=_peek_attempt(ledger),
+            ledger=ledger,
+        )
     reject_unproven_reconciliation_transition(
         dirty_before_reconciliation,
         state.dirty_state,
@@ -415,7 +447,7 @@ def execute_commit_finalizer(
             ledger_before=already_clean_ledger_before,
         )
         (
-            resumed_attempt_id,
+            unpushed_attempt_id,
             resume_attempts,
             resume_evidence,
         ) = _resume_unpushed_already_clean_repos(
@@ -428,6 +460,7 @@ def execute_commit_finalizer(
             current_result=current_result,
         )
         if resume_attempts:
+            resumed_attempt_id = unpushed_attempt_id
             attempts = resume_attempts
             evidence.extend(resume_evidence)
             attempt_id = resume_attempts[0].attempt
@@ -440,8 +473,6 @@ def execute_commit_finalizer(
             attempt=_peek_attempt(ledger),
             ledger=ledger,
         )
-    else:
-        resumed_attempt_id = None
 
     if not accepted_repos and state.dirty_state.is_clean:
         _raise_if_unpublished_machine_state(

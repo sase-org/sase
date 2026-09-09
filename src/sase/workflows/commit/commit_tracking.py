@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 
 from sase.core.agent_artifact_index_lifecycle import (
@@ -131,6 +132,49 @@ def _load_commit_results(results_path: str) -> list[dict[str, Any]]:
     return [item for item in data if isinstance(item, dict)]
 
 
+def _marker_identity(marker: Mapping[str, Any]) -> tuple[Any, Any]:
+    return (marker.get("cwd"), marker.get("result"))
+
+
+def _settle_related_commit_markers(
+    results: list[dict[str, Any]],
+    marker: dict[str, Any],
+) -> None:
+    """Mark earlier rows for the same operation as superseded.
+
+    Recovery keys unpushed work by SHA. A rebase rewrites that SHA, so the
+    previous ``pushed: false`` row must stop being eligible while remaining
+    in the ledger for audit.
+    """
+    new_key = _marker_identity(marker)
+    operation_id = marker.get("operation_id")
+    run_id = marker.get("run_id")
+    cwd = marker.get("cwd")
+    new_result = marker.get("result")
+    success = marker.get("pushed") is not False
+    if not success and not operation_id:
+        return
+    for existing in results:
+        if _marker_identity(existing) == new_key:
+            continue
+        related = False
+        existing_op = existing.get("operation_id")
+        if operation_id and existing_op == operation_id:
+            related = True
+        elif (
+            success
+            and existing.get("pushed") is False
+            and existing.get("cwd") == cwd
+            and existing.get("run_id") == run_id
+            and not existing_op
+        ):
+            related = True
+        if not related:
+            continue
+        existing["superseded_by"] = new_result
+        existing["settled"] = True
+
+
 def _upsert_commit_results_marker(
     artifacts_dir: str,
     marker: dict[str, Any],
@@ -138,13 +182,14 @@ def _upsert_commit_results_marker(
     results_path = os.path.join(artifacts_dir, "commit_results.json")
     try:
         results = _load_commit_results(results_path)
-        key = (marker.get("cwd"), marker.get("result"))
+        key = _marker_identity(marker)
         for index, existing in enumerate(results):
-            if (existing.get("cwd"), existing.get("result")) == key:
+            if _marker_identity(existing) == key:
                 results[index] = marker
                 break
         else:
             results.append(marker)
+        _settle_related_commit_markers(results, marker)
 
         with open(results_path, "w", encoding="utf-8") as f:
             json.dump(results, f)
@@ -317,6 +362,7 @@ def write_result_marker(
     commit_cwd: str | os.PathLike[str] | None = None,
     pushed: bool | None = None,
     dispatch_error: str | None = None,
+    operation_id: str | None = None,
 ) -> None:
     """Write commit result to a marker file for xprompt post-steps.
 
@@ -371,19 +417,22 @@ def write_result_marker(
         marker["pushed"] = pushed
     if dispatch_error:
         marker["dispatch_error"] = dispatch_error
+    if operation_id:
+        marker["operation_id"] = operation_id
     committed_at = _resolve_commit_created_at(resolved_cwd, result)
     if committed_at is not None:
         marker["committed_at"] = committed_at
-    marker_path = os.path.join(artifacts_dir, "commit_result.json")
-    with open(marker_path, "w", encoding="utf-8") as f:
-        json.dump(marker, f)
+    if pushed is not False:
+        marker_path = os.path.join(artifacts_dir, "commit_result.json")
+        with open(marker_path, "w", encoding="utf-8") as f:
+            json.dump(marker, f)
+        _persist_primary_commit_metadata(
+            artifacts_dir,
+            diff_path,
+            changespec_name,
+            commit_cwd=resolved_cwd,
+        )
     _upsert_commit_results_marker(artifacts_dir, marker)
-    _persist_primary_commit_metadata(
-        artifacts_dir,
-        diff_path,
-        changespec_name,
-        commit_cwd=resolved_cwd,
-    )
 
 
 def write_unpushed_commit_marker(
@@ -395,6 +444,8 @@ def write_unpushed_commit_marker(
     commit_sha: str,
     commit_tree: str | None = None,
     push_error: str | None = None,
+    operation_id: str | None = None,
+    dispatch_error: str | None = None,
 ) -> None:
     """Record a local commit whose post-commit push failed.
 
@@ -443,6 +494,10 @@ def write_unpushed_commit_marker(
         marker["commit_tree"] = commit_tree
     if push_error:
         marker["push_error"] = push_error
+    if dispatch_error:
+        marker["dispatch_error"] = dispatch_error
+    if operation_id:
+        marker["operation_id"] = operation_id
     committed_at = _resolve_commit_created_at(resolved_cwd, commit_sha)
     if committed_at is not None:
         marker["committed_at"] = committed_at

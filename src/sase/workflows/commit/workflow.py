@@ -16,6 +16,7 @@ from sase.workflows.commit.checkpoint import (
     checkpoint_delete,
     checkpoint_load,
     checkpoint_save,
+    ensure_operation_id,
 )
 from sase.workflows.commit.commit_tracking import (
     append_commits_entry,
@@ -281,7 +282,9 @@ class CommitWorkflow(BaseWorkflow):
             parent_cl_name=self._parent_cl_name,
             primary_revision=primary_revision,
             publication_agent=resolve_local_agent_name(),
+            run_id=os.environ.get("SASE_AGENT_TIMESTAMP", "").strip() or None,
         )
+        ensure_operation_id(cp)
         checkpoint_save(cp)
 
         print_status(f"Dispatching {self._method} to VCS provider...", "progress")
@@ -369,6 +372,7 @@ class CommitWorkflow(BaseWorkflow):
         cp.dispatch_result = head_sha
         cp.pushed = False
         cp.dispatch_error = dispatch_error
+        ensure_operation_id(cp)
         checkpoint_save(cp)
         write_result_marker(
             self._method,
@@ -381,6 +385,7 @@ class CommitWorkflow(BaseWorkflow):
             commit_cwd=cp.cwd,
             pushed=False,
             dispatch_error=dispatch_error,
+            operation_id=cp.operation_id,
         )
         return True
 
@@ -510,6 +515,7 @@ class CommitWorkflow(BaseWorkflow):
                 commit_cwd=cp.cwd,
                 pushed=cp.pushed,
                 dispatch_error=cp.dispatch_error,
+                operation_id=cp.operation_id,
             )
             cp.completed_steps.append("write_result_marker")
             checkpoint_save(cp)
@@ -548,6 +554,7 @@ class CommitWorkflow(BaseWorkflow):
                     commit_cwd=cp.cwd,
                     pushed=cp.pushed,
                     dispatch_error=cp.dispatch_error,
+                    operation_id=cp.operation_id,
                 )
                 cp.completed_steps.append("final_result_marker")
                 checkpoint_save(cp)

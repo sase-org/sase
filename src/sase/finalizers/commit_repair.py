@@ -263,6 +263,8 @@ def marker_matches_repo(marker: Mapping[str, Any], repo: DirtyRepo) -> bool:
 
 
 def marker_is_unpushed(marker: Mapping[str, Any]) -> bool:
+    if marker.get("settled") or marker.get("superseded_by"):
+        return False
     return marker.get("pushed") is False and bool(marker.get("commit_sha"))
 
 

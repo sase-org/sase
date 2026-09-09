@@ -101,6 +101,21 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
     )
 
 
+def test_validate_sase_core_rs_requires_pending_commit_checkpoint_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "pending_commit_checkpoint_wire_schema_version",
+        "decide_pending_commit_checkpoint_recovery",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    assert validator._validate_bindings(module_with_required_bindings(validator))
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_artifact_context_query_bindings() -> None:
     validator = load_validate_sase_core_rs()
     bindings = {

@@ -131,6 +131,42 @@ def test_create_commit_records_unpushed_marker_when_push_refused(
     assert markers[0]["pushed"] is False
 
 
+def test_finalize_commit_records_unpushed_marker_when_push_refused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _origin, seed, worker = _clone_origin(tmp_path)
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+
+    (worker / "data.txt").write_text("local\nthree\n", encoding="utf-8")
+    _git(worker, "add", "data.txt")
+    _git(worker, "commit", "-m", "worker local commit")
+    _git(worker, "remote", "set-url", "origin", str(seed))
+
+    ok, err = BareGitPlugin().vcs_finalize_commit(
+        {"message": "worker local commit"},
+        str(worker),
+    )
+
+    assert ok is False
+    assert err is not None
+    assert "created locally; git push failed" in err
+    assert "refusing to update checked out branch" in err
+    sha = _git(worker, "rev-parse", "HEAD").stdout.strip()
+    tree = _git(worker, "rev-parse", "HEAD^{tree}").stdout.strip()
+    markers = json.loads((artifacts / "commit_results.json").read_text())
+    assert len(markers) == 1
+    assert markers[0]["cwd"] == str(worker)
+    assert markers[0]["result"] == sha
+    assert markers[0]["commit_sha"] == sha
+    assert markers[0]["commit_tree"] == tree
+    assert markers[0]["pushed"] is False
+    assert not (artifacts / "commit_result.json").exists()
+
+
 def test_create_commit_reports_local_sha_when_push_to_checked_out_origin_refused(
     tmp_path: Path,
 ) -> None:

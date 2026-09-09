@@ -595,10 +595,7 @@ class GitCommitDispatchMixin(CommandRunner):
             self._amend_bead_changes(payload, cwd)
         ok, err = self._push_current_branch_with_rebase_retry(cwd)
         if not ok:
-            return (
-                False,
-                self._local_commit_push_failure(cwd, err, prefix="commit"),
-            )
+            return (False, self._format_unpushed_commit_failure(payload, cwd, err))
         VCS_OPERATIONS.labels(
             provider=self._provider_name,
             operation="finalize_commit",

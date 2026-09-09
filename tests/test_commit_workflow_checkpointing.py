@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -188,34 +188,17 @@ def test_run_push_failure_after_local_commit_records_unpushed_marker(
     assert loaded.pushed is False
 
     markers = json.loads((artifacts_dir / "commit_results.json").read_text())
-    assert markers == [
-        {
-            "method": "create_commit",
-            "run_id": artifacts_dir.name,
-            "cwd": ANY,
-            "result": "1" * 40,
-            "commit_result": "1" * 40,
-            "message": "fix: bug\n\nSASE_TYPE=stitch",
-            "name": "",
-            "bead_id": "",
-            "patch_name": None,
-            "changespec_name": None,
-            "commit_patch_name": None,
-            "commit_changespec_name": None,
-            "entry_id": None,
-            "stitch_id": None,
-            "commit_entry_id": None,
-            "diff_path": None,
-            "commit_diff_path": None,
-            "commit_sha": "1" * 40,
-            "commit_tree": "2" * 40,
-            "pushed": False,
-            "dispatch_error": (
-                "commit 1111111111111111111111111111111111111111 "
-                "created locally; git push failed: refused"
-            ),
-        }
-    ]
+    assert len(markers) == 1
+    assert markers[0]["method"] == "create_commit"
+    assert markers[0]["run_id"] == artifacts_dir.name
+    assert markers[0]["result"] == "1" * 40
+    assert markers[0]["commit_sha"] == "1" * 40
+    assert markers[0]["commit_tree"] == "2" * 40
+    assert markers[0]["pushed"] is False
+    assert "git push failed" in markers[0]["dispatch_error"]
+    assert markers[0]["operation_id"]
+    assert loaded.operation_id == markers[0]["operation_id"]
+    assert not (artifacts_dir / "commit_result.json").exists()
 
 
 @patch(_PROVIDER_TARGET)

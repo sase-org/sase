@@ -126,6 +126,46 @@ def test_resume_failed_finalize_returns_failed(
 
 
 @patch(PROVIDER_TARGET)
+def test_resume_push_failure_records_unpushed_marker(
+    mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
+) -> None:
+    provider = make_resume_provider(
+        head_subject="fix: bug",
+        finalize_result=(
+            False,
+            "commit " + "1" * 40 + " created locally; git push failed: refused",
+        ),
+    )
+    provider.revision_id.side_effect = ["1" * 40, "2" * 40]
+    mock_get.return_value = provider
+    save_resume_checkpoint(
+        cwd=str(tmp_path),
+        payload={"message": "fix: bug"},
+        primary_revision="0" * 40,
+        operation_id="op-resume-1",
+    )
+
+    with patch(
+        "sase.workflows.commit.commit_tracking._resolve_commit_created_at",
+        return_value=None,
+    ):
+        assert CommitWorkflow.resume() == RunResult.FAILED
+
+    loaded = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
+    assert loaded is not None
+    assert loaded.pushed is False
+    assert loaded.commit_sha == "1" * 40
+    assert loaded.commit_tree == "2" * 40
+    assert loaded.operation_id == "op-resume-1"
+    markers = json.loads((artifacts_dir / "commit_results.json").read_text())
+    assert len(markers) == 1
+    assert markers[0]["pushed"] is False
+    assert markers[0]["commit_sha"] == "1" * 40
+    assert markers[0]["operation_id"] == "op-resume-1"
+    assert not (artifacts_dir / "commit_result.json").exists()
+
+
+@patch(PROVIDER_TARGET)
 def test_resume_updates_unpushed_marker_after_finalize(
     mock_get: MagicMock, artifacts_dir: Path, tmp_path: Path
 ) -> None:

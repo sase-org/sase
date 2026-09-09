@@ -142,6 +142,8 @@ REQUIRED_BINDINGS = (
     "artifact_link_publication_register_pending",
     "artifact_link_publication_due",
     "artifact_link_publication_mark_attempt",
+    "pending_commit_checkpoint_wire_schema_version",
+    "decide_pending_commit_checkpoint_recovery",
     "artifact_link_ref_parts",
     "artifact_row_index_keys",
     "artifact_row_ref_lookup_keys",

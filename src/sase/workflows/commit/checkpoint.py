@@ -6,6 +6,7 @@ import dataclasses
 import json
 import os
 import time
+import uuid
 from dataclasses import dataclass, field
 
 from sase.core.paths import sase_subdir
@@ -39,8 +40,23 @@ class CommitCheckpoint:
     no_commit_dispatched: bool = False
     cs_name: str | None = None
     entry_id: str | None = None
+    operation_id: str | None = None
+    run_id: str | None = None
     completed_steps: list[str] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
+
+
+def _new_operation_id() -> str:
+    """Return a stable identity for one checkpointed stitch operation."""
+    return uuid.uuid4().hex
+
+
+def ensure_operation_id(cp: CommitCheckpoint) -> str:
+    """Assign and return ``cp.operation_id`` when the checkpoint lacks one."""
+    if cp.operation_id:
+        return cp.operation_id
+    cp.operation_id = _new_operation_id()
+    return cp.operation_id
 
 
 def _get_checkpoint_path() -> str:
