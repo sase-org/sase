@@ -165,6 +165,11 @@ def test_agent_read_appends_artifact_link_outbox_entry(
 
     [entry] = _read_artifact_link_outbox_entries("gh_sase-org__sase")
     assert entry.agent_name == "reader"
+    assert len(entry.id) == 32
+    assert entry.event is not None
+    assert entry.event["operation_id"] == entry.id
+    assert entry.event["kind"]["type"] == "observation"
+    assert entry.row is not None
     assert entry.row["source_ref"] == "agent:reader"
     assert entry.row["relation"] == "read"
     assert entry.row["target_ref"] == "plan:doc.md"

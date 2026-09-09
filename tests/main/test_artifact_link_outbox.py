@@ -13,8 +13,10 @@ from sase.artifact_cli.read import handle_read
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.sdd._artifact_link_ignore import ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN
 from sase.sdd.artifact_link_outbox import (
+    ARTIFACT_LINK_OUTBOX_FILENAME,
     append_artifact_link_outbox_entry,
     drain_artifact_link_outbox,
+    pending_artifact_link_outbox_events,
     _read_artifact_link_outbox_entries,
 )
 from sase.sdd.artifact_link_release_evidence import (
@@ -106,6 +108,15 @@ def _index_rows(repo: Path) -> list[dict[str, object]]:
     return rows
 
 
+def _outbox_lines(home: Path, project_key: str) -> list[dict[str, object]]:
+    path = home / "projects" / project_key / ARTIFACT_LINK_OUTBOX_FILENAME
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
 def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -125,6 +136,15 @@ def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(
     assert handle_read(_read_args()) == 0
     assert handle_read(_read_args()) == 0
     assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
+    pending = pending_artifact_link_outbox_events("gh_sase-org__sase")
+    assert len(pending) == 2
+    operation_ids = {str(event["operation_id"]) for event in pending}
+    assert len(operation_ids) == 2
+    assert all(
+        len(str(event["operation_id"])) == 32
+        and all(char in "0123456789abcdef" for char in str(event["operation_id"]))
+        for event in pending
+    )
     assert _commit_count(repo) == before
     assert not list((repo / "links").rglob("*"))
     assert _run_git(repo, "status", "--porcelain", "--untracked-files=all") == ""
@@ -311,3 +331,95 @@ def test_drain_does_not_release_a_different_run_of_the_same_agent(
     remaining = _read_artifact_link_outbox_entries("gh_sase-org__sase")
     assert len(remaining) == 1
     assert remaining[0].run_id == "run-2"
+
+
+def test_new_outbox_entries_persist_canonical_events(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, home)
+
+    entry = append_artifact_link_outbox_entry(
+        project_key="gh_sase-org__sase",
+        agent_name="reader",
+        run_id="run-1",
+        row=_row(
+            source="agent:reader",
+            relation="read",
+            target="plan:doc.md",
+            origin="read",
+            created_by="reader",
+            created_at="2026-09-09T12:00:00Z",
+        ),
+        now=100.0,
+    )
+
+    assert len(entry.id) == 32
+    assert entry.event is not None
+    assert entry.event["operation_id"] == entry.id
+    assert entry.row is not None
+    assert entry.row["uses"] == 1
+    [stored] = _outbox_lines(home, "gh_sase-org__sase")
+    assert "event" in stored
+    assert "row" not in stored
+    assert stored["id"] == entry.id
+    assert stored["event"] == entry.event
+
+
+def test_legacy_row_only_outbox_entries_still_drain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, home)
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
+    )
+    row = _row(
+        source="agent:reader",
+        relation="read",
+        target="plan:doc.md",
+        origin="read",
+    )
+    path = home / "projects" / "gh_sase-org__sase" / ARTIFACT_LINK_OUTBOX_FILENAME
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "id": "legacy-row",
+                "created_at": 100.0,
+                "project_key": "gh_sase-org__sase",
+                "agent_name": "reader",
+                "run_id": "run-1",
+                "row": row,
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    record_artifact_link_release_evidence(
+        project_key="gh_sase-org__sase",
+        run_id="run-1",
+        agent_id="reader",
+        qualifying_repo_ids=(str(repo),),
+    )
+
+    report = drain_artifact_link_outbox(
+        store=store,
+        agent_name="reader",
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+
+    assert report.drained == 1
+    assert report.committed is True
+    [indexed] = _index_rows(repo)
+    assert indexed["uses"] == 1
+    assert _read_artifact_link_outbox_entries("gh_sase-org__sase") == ()

@@ -1,4 +1,4 @@
-"""Machine-local replay log for artifact-link read rows."""
+"""Machine-local operation journal for artifact-link mutations."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from typing import Any
 from uuid import uuid4
 
 from sase.core.paths import sase_projects_dir, validate_sase_project_name
+from sase.core.rust import require_rust_binding
 from sase.memory.locks import locked_file
 from sase.sdd._artifact_link_authorize import (
     MachineSidecarWritability,
@@ -38,12 +39,17 @@ _DEFAULT_RETENTION_DAYS = 90
 
 @dataclass(frozen=True, slots=True)
 class _ArtifactLinkOutboxEntry:
-    """One queued artifact-link row plus its recording run's identity.
+    """One queued artifact-link operation plus its recording run's identity.
 
     ``run_id`` binds this entry to the specific run that recorded it (see
     ``sase.sdd.artifact_link_release_evidence``): a different run of the same
     agent, or another agent in the same family, must not be able to release
     it merely by publishing something of its own.
+
+    New schema-v2 entries store the canonical event payload. ``row`` is the
+    legacy projection used while old readers still consume ``links/*.json``.
+    Row-only entries are preserved for compatibility with queues written before
+    the operation journal existed.
     """
 
     schema_version: int
@@ -52,22 +58,29 @@ class _ArtifactLinkOutboxEntry:
     project_key: str
     agent_name: str
     run_id: str
-    row: dict[str, Any]
+    row: dict[str, Any] | None = None
+    event: dict[str, Any] | None = None
 
     @property
     def logical_key(self) -> tuple[str, str, str]:
+        if self.row is None:
+            raise RuntimeError("artifact-link outbox entry has no legacy row")
         return _row_key(self.row)
 
     def to_json_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "schema_version": self.schema_version,
             "id": self.id,
             "created_at": self.created_at,
             "project_key": self.project_key,
             "agent_name": self.agent_name,
             "run_id": self.run_id,
-            "row": dict(self.row),
         }
+        if self.event is not None:
+            payload["event"] = dict(self.event)
+        else:
+            payload["row"] = dict(self.row or {})
+        return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,7 +127,7 @@ def append_artifact_link_outbox_entry(
     now: float | None = None,
     entry_id: str | None = None,
 ) -> _ArtifactLinkOutboxEntry:
-    """Append one replayable artifact-link row to the project outbox.
+    """Append one replayable artifact-link event to the project outbox.
 
     *run_id* identifies the specific run that recorded this row (typically
     ``SASE_AGENT_TIMESTAMP``). A blank value is accepted -- it simply means
@@ -122,14 +135,58 @@ def append_artifact_link_outbox_entry(
     pruned by the existing retention policy.
     """
 
+    operation_id = _operation_id(entry_id or uuid4().hex)
+    event = _event_from_row(
+        row,
+        project_key=project_key,
+        operation_id=operation_id,
+    )
+    [legacy_row] = _rows_from_events((event,))
     entry = _ArtifactLinkOutboxEntry(
         schema_version=ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION,
-        id=entry_id or uuid4().hex[:12],
+        id=operation_id,
         created_at=float(time.time() if now is None else now),
         project_key=project_key,
         agent_name=_required_text(agent_name, "agent_name"),
         run_id=str(run_id or ""),
-        row=validate_artifact_link_row(row),
+        row=legacy_row,
+        event=event,
+    )
+    path = _artifact_link_outbox_path(project_key)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
+        with path.open("a", encoding="utf-8") as output_file:
+            json.dump(entry.to_json_dict(), output_file, sort_keys=True)
+            output_file.write("\n")
+            output_file.flush()
+    return entry
+
+
+def append_artifact_link_outbox_event(
+    *,
+    project_key: str,
+    agent_name: str,
+    run_id: str,
+    event: Mapping[str, Any],
+    now: float | None = None,
+) -> _ArtifactLinkOutboxEntry:
+    """Append one canonical event payload to the project outbox."""
+
+    canonical = _canonicalize_event(event)
+    operation_id = _event_operation_id(canonical)
+    event_project = _required_text(canonical.get("project_key"), "project_key")
+    if event_project != project_key:
+        raise ValueError("artifact-link outbox event project mismatch")
+    rows = _rows_from_events((canonical,))
+    entry = _ArtifactLinkOutboxEntry(
+        schema_version=ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION,
+        id=operation_id,
+        created_at=float(time.time() if now is None else now),
+        project_key=project_key,
+        agent_name=_required_text(agent_name, "agent_name"),
+        run_id=str(run_id or ""),
+        row=rows[0] if len(rows) == 1 else None,
+        event=canonical,
     )
     path = _artifact_link_outbox_path(project_key)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -162,6 +219,18 @@ def _read_artifact_link_outbox_entries(
         if entry is not None:
             entries.append(entry)
     return tuple(entries)
+
+
+def pending_artifact_link_outbox_events(
+    project_key: str,
+) -> tuple[dict[str, Any], ...]:
+    """Return queued schema-v2 events for local pending-link overlays."""
+
+    return tuple(
+        dict(entry.event)
+        for entry in _read_artifact_link_outbox_entries(project_key)
+        if entry.event is not None
+    )
 
 
 def inspect_artifact_link_outbox(project_key: str) -> _ArtifactLinkOutboxStats:
@@ -209,7 +278,10 @@ def drain_artifact_link_outbox(
     )
     retained.extend(unauthorized)
 
-    changed_indexes = _upsert_publishable_entries(link_store, writable_entries)
+    legacy_drainable, event_only = _partition_legacy_drainable(writable_entries)
+    retained.extend(event_only)
+
+    changed_indexes = _upsert_publishable_entries(link_store, legacy_drainable)
     if changed_indexes:
         committed = _commit_outbox_indexes(
             link_store,
@@ -228,13 +300,13 @@ def drain_artifact_link_outbox(
 
     _rewrite_without_ids(
         link_store.project_key,
-        drained_ids={entry.id for entry in writable_entries},
+        drained_ids={entry.id for entry in legacy_drainable},
         dropped=stale,
     )
     return _ArtifactLinkOutboxDrainReport(
         queued=len(entries),
-        drained=len(writable_entries),
-        retained=len(entries) - len(writable_entries) - len(stale),
+        drained=len(legacy_drainable),
+        retained=len(entries) - len(legacy_drainable) - len(stale),
         dropped=len(stale),
         committed=committed,
         changed_indexes=tuple(changed_indexes),
@@ -304,10 +376,7 @@ def _partition_machine_writable_entries(
     probes: dict[Path, MachineSidecarWritability] = {}
     for entry in entries:
         blocked = False
-        for ref in (
-            str(entry.row.get("source_ref") or ""),
-            str(entry.row.get("target_ref") or ""),
-        ):
+        for ref in _sidecar_refs(entry):
             root = store.sidecar_root_for(ref)
             if root is None:
                 continue
@@ -333,12 +402,40 @@ def _partition_machine_writable_entries(
     return writable_entries, unauthorized, tuple(dict.fromkeys(diagnostics))
 
 
+def _partition_legacy_drainable(
+    entries: Iterable[_ArtifactLinkOutboxEntry],
+) -> tuple[list[_ArtifactLinkOutboxEntry], list[_ArtifactLinkOutboxEntry]]:
+    drainable: list[_ArtifactLinkOutboxEntry] = []
+    retained: list[_ArtifactLinkOutboxEntry] = []
+    for entry in entries:
+        if _entry_can_drain_to_legacy_index(entry):
+            drainable.append(entry)
+        else:
+            retained.append(entry)
+    return drainable, retained
+
+
+def _entry_can_drain_to_legacy_index(entry: _ArtifactLinkOutboxEntry) -> bool:
+    """Return whether today's legacy index drain can safely publish *entry*."""
+
+    if entry.event is None:
+        return entry.row is not None
+    kind = entry.event.get("kind")
+    if not isinstance(kind, dict):
+        return False
+    return str(kind.get("type") or "") in {
+        "observation",
+        "edge-put",
+        "baseline-import",
+    }
+
+
 def _upsert_publishable_entries(
     store: ArtifactLinkStore,
     entries: Iterable[_ArtifactLinkOutboxEntry],
 ) -> list[Path]:
     changed_indexes: list[Path] = []
-    for row in _converged_rows(store, entries):
+    for row in _converged_rows(entries):
         existing_uses = _existing_uses(store, row)
         desired_uses = _row_uses(row)
         if str(row.get("origin") or "") == "read":
@@ -357,22 +454,40 @@ def _upsert_publishable_entries(
 
 
 def _converged_rows(
-    store: ArtifactLinkStore,
     entries: Iterable[_ArtifactLinkOutboxEntry],
 ) -> tuple[dict[str, Any], ...]:
-    """Combine queued rows sharing one logical edge into one row each.
+    """Return legacy rows that preserve queued operation identity.
 
-    A ``read`` row represents one independent read event every time it is
-    queued -- the immediate store write that used to converge these
-    cumulatively no longer runs before queuing, so two reads must still
-    count twice here, added rather than maxed. Other origins keep the
-    higher observed count, matching the durable store's own convergence
-    rule for non-additive relations.
+    Schema-v2 event entries reduce through the Rust event reducer, so distinct
+    operation ids remain distinct observations and exact duplicate delivery is
+    idempotent. Row-only entries keep the legacy convergence rules for queues
+    written before the operation journal.
     """
+
+    event_entries: list[_ArtifactLinkOutboxEntry] = []
+    legacy_entries: list[_ArtifactLinkOutboxEntry] = []
+    for entry in entries:
+        if entry.event is not None:
+            event_entries.append(entry)
+        else:
+            legacy_entries.append(entry)
+
+    rows: list[dict[str, Any]] = []
+    rows.extend(_rows_from_events(entry.event for entry in event_entries))
+    rows.extend(_converged_legacy_rows(legacy_entries))
+    return tuple(rows)
+
+
+def _converged_legacy_rows(
+    entries: Iterable[_ArtifactLinkOutboxEntry],
+) -> tuple[dict[str, Any], ...]:
+    """Combine row-only legacy entries sharing one logical edge."""
 
     by_key: dict[tuple[str, str, str], dict[str, Any]] = {}
     order: list[tuple[str, str, str]] = []
     for entry in entries:
+        if entry.row is None:
+            continue
         key = entry.logical_key
         if key not in by_key:
             order.append(key)
@@ -525,19 +640,43 @@ def _entry_from_mapping(
     data: Mapping[str, Any],
     project_key: str,
 ) -> _ArtifactLinkOutboxEntry:
-    if data.get("schema_version") != ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION:
-        raise RuntimeError("unsupported artifact-link outbox schema")
+    schema_version = _integer_schema_version(data.get("schema_version"))
     entry_project = _required_text(data.get("project_key"), "project_key")
     if entry_project != project_key:
         raise RuntimeError("artifact-link outbox project mismatch")
     created_at = data.get("created_at")
     if not isinstance(created_at, (int, float)) or isinstance(created_at, bool):
         raise RuntimeError("artifact-link outbox created_at must be a number")
+    raw_event = data.get("event")
+    if isinstance(raw_event, dict):
+        if schema_version != ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION:
+            raise RuntimeError("unsupported artifact-link event outbox schema")
+        event = _canonicalize_event(raw_event)
+        operation_id = _event_operation_id(event)
+        if _required_text(data.get("id"), "id") != operation_id:
+            raise RuntimeError("artifact-link outbox id must match operation_id")
+        event_project = _required_text(event.get("project_key"), "project_key")
+        if event_project != project_key:
+            raise RuntimeError("artifact-link outbox event project mismatch")
+        rows = _rows_from_events((event,))
+        return _ArtifactLinkOutboxEntry(
+            schema_version=schema_version,
+            id=operation_id,
+            created_at=float(created_at),
+            project_key=entry_project,
+            agent_name=_required_text(data.get("agent_name"), "agent_name"),
+            run_id=str(data.get("run_id") or ""),
+            row=rows[0] if len(rows) == 1 else None,
+            event=event,
+        )
+
+    if schema_version not in {1, ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION}:
+        raise RuntimeError("unsupported artifact-link outbox schema")
     row = data.get("row")
     if not isinstance(row, dict):
         raise RuntimeError("artifact-link outbox row must be an object")
     return _ArtifactLinkOutboxEntry(
-        schema_version=ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION,
+        schema_version=schema_version,
         id=_required_text(data.get("id"), "id"),
         created_at=float(created_at),
         project_key=entry_project,
@@ -630,12 +769,143 @@ def _row_key(row: Mapping[str, Any]) -> tuple[str, str, str]:
     )
 
 
+def _sidecar_refs(entry: _ArtifactLinkOutboxEntry) -> tuple[str, ...]:
+    if entry.row is not None:
+        return (
+            str(entry.row.get("source_ref") or ""),
+            str(entry.row.get("target_ref") or ""),
+        )
+    event = entry.event
+    if event is None:
+        return ()
+    kind = event.get("kind")
+    if not isinstance(kind, dict):
+        return ()
+    event_type = str(kind.get("type") or "")
+    if event_type in {"observation", "edge-put", "edge-remove"}:
+        edge = kind.get("edge")
+        if not isinstance(edge, dict):
+            return ()
+        edge_kind = str(edge.get("kind") or "")
+        if edge_kind == "directed":
+            return (
+                str(edge.get("source_ref") or ""),
+                str(edge.get("target_ref") or ""),
+            )
+        if edge_kind == "undirected":
+            return (
+                str(edge.get("left_ref") or ""),
+                str(edge.get("right_ref") or ""),
+            )
+    if event_type == "alias":
+        return (
+            str(kind.get("old_ref") or ""),
+            str(kind.get("new_ref") or ""),
+        )
+    if event_type == "baseline-import":
+        refs: list[str] = []
+        rows = kind.get("rows")
+        if isinstance(rows, list):
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                refs.append(str(row.get("source_ref") or ""))
+                refs.append(str(row.get("target_ref") or ""))
+        return tuple(refs)
+    return ()
+
+
 def _row_uses(row: Mapping[str, Any]) -> int:
     try:
         uses = int(row.get("uses") or 0)
     except (TypeError, ValueError):
         return 0
     return max(0, uses)
+
+
+def _event_from_row(
+    row: Mapping[str, Any],
+    *,
+    project_key: str,
+    operation_id: str,
+) -> dict[str, Any]:
+    canonical_row = validate_artifact_link_row(row)
+    origin = str(canonical_row.get("origin") or "")
+    edge = {
+        "kind": "directed",
+        "source_ref": str(canonical_row.get("source_ref") or ""),
+        "relation": str(canonical_row.get("relation") or ""),
+        "target_ref": str(canonical_row.get("target_ref") or ""),
+    }
+    if origin in {"read", "prompt_ref"}:
+        kind = {
+            "type": "observation",
+            "edge": edge,
+            "description": str(canonical_row.get("description") or ""),
+            "occurrences": _row_uses(canonical_row),
+        }
+    else:
+        kind = {
+            "type": "edge-put",
+            "edge": edge,
+            "description": str(canonical_row.get("description") or ""),
+            "observed_operation_ids": [],
+        }
+    event = {
+        "schema_version": int(
+            require_rust_binding("artifact_link_event_schema_version")()
+        ),
+        "project_key": project_key,
+        "operation_id": operation_id,
+        "created_by": str(canonical_row.get("created_by") or ""),
+        "origin": origin,
+        "created_at": str(canonical_row.get("created_at") or ""),
+        "kind": kind,
+    }
+    return _canonicalize_event(event)
+
+
+def _canonicalize_event(event: Mapping[str, Any]) -> dict[str, Any]:
+    return dict(require_rust_binding("artifact_link_event_canonicalize")(dict(event)))
+
+
+def _rows_from_events(
+    events: Iterable[Mapping[str, Any] | None],
+) -> tuple[dict[str, Any], ...]:
+    canonical_events = [dict(event) for event in events if event is not None]
+    if not canonical_events:
+        return ()
+    reduction = require_rust_binding("artifact_link_events_reduce")(
+        canonical_events,
+        [],
+    )
+    if not isinstance(reduction, Mapping):
+        raise RuntimeError("sase_core_rs returned malformed link-event reduction")
+    rows = reduction.get("rows")
+    if not isinstance(rows, list):
+        raise RuntimeError("sase_core_rs returned malformed link-event rows")
+    return tuple(
+        validate_artifact_link_row(row) for row in rows if isinstance(row, dict)
+    )
+
+
+def _operation_id(value: object) -> str:
+    text = _required_text(value, "operation_id")
+    if len(text) != 32 or any(char not in "0123456789abcdef" for char in text):
+        raise ValueError(
+            "artifact-link outbox operation_id must be 32 lowercase hex characters"
+        )
+    return text
+
+
+def _event_operation_id(event: Mapping[str, Any]) -> str:
+    return _operation_id(event.get("operation_id"))
+
+
+def _integer_schema_version(value: object) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise RuntimeError("artifact-link outbox schema_version must be an integer")
+    return value
 
 
 def _required_text(value: object, field: str) -> str:
@@ -648,7 +918,9 @@ __all__ = [
     "ARTIFACT_LINK_OUTBOX_DROPPED_FILENAME",
     "ARTIFACT_LINK_OUTBOX_FILENAME",
     "ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION",
+    "append_artifact_link_outbox_event",
     "append_artifact_link_outbox_entry",
     "drain_artifact_link_outbox",
     "inspect_artifact_link_outbox",
+    "pending_artifact_link_outbox_events",
 ]
