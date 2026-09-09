@@ -20,10 +20,11 @@ class TestWriteResultMarker:
         with tempfile.TemporaryDirectory() as tmpdir:
             payload = {"message": "fix: bug", "name": "feat-x"}
             with patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}):
-                write_result_marker(
+                written = write_result_marker(
                     "create_commit", payload, None, "abc123", "proj_feat_1"
                 )
 
+            assert written is True
             marker_path = Path(tmpdir) / "commit_result.json"
             assert marker_path.exists()
             data = json.loads(marker_path.read_text())
@@ -219,8 +220,31 @@ class TestWriteResultMarker:
     def test_skips_when_no_artifacts_dir(self) -> None:
         payload = {"message": "test"}
         with patch.dict("os.environ", {}, clear=True):
-            # Should not raise
-            write_result_marker("create_commit", payload, None, "abc", None)
+            assert (
+                write_result_marker("create_commit", payload, None, "abc", None)
+                is False
+            )
+
+    def test_unpushed_marker_returns_false_when_results_upsert_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with (
+                patch.dict("os.environ", {"SASE_ARTIFACTS_DIR": tmpdir}),
+                patch(
+                    "sase.workflows.commit.commit_tracking._upsert_commit_results_marker",
+                    return_value=False,
+                ),
+            ):
+                written = write_unpushed_commit_marker(
+                    "create_commit",
+                    {"message": "fix: bug"},
+                    cwd="/workspace/sase_7",
+                    result="a" * 40,
+                    commit_sha="a" * 40,
+                    commit_tree="b" * 40,
+                    push_error="refused",
+                )
+
+            assert written is False
 
     def test_records_commit_sha_and_tree_when_provided(self) -> None:
         """The run-owned ledger fields are additive: absent unless resolved."""

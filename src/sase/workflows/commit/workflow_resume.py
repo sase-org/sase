@@ -114,11 +114,11 @@ def resume_commit_workflow(
                 recorded = wf._record_unpushed_commit_marker_if_present(
                     cp, provider, err
                 )
-                if recorded:
+                if recorded is not None:
                     print_status(
                         f"finalize_commit created local commit {cp.commit_sha} "
-                        f"but failed before publishing it: {err}. Run "
-                        "`sase stitch create --resume` to retry the push.",
+                        f"but failed before publishing it: {err}."
+                        f"{_unpushed_persistence_detail(recorded)}",
                         "error",
                     )
                 else:
@@ -331,3 +331,24 @@ def _changespec_name_in_project_file(project_file: str, cl_name: str) -> bool:
     except OSError:
         return False
     return False
+
+
+def _unpushed_persistence_detail(recorded: object) -> str:
+    durable = bool(getattr(recorded, "durable", False))
+    failures = [str(item) for item in getattr(recorded, "failure_details", [])]
+    if durable:
+        if not failures:
+            return " Run `sase stitch create --resume` to retry the push."
+        return (
+            " Recovery evidence was partially recorded; "
+            + "; ".join(failures)
+            + ". Run `sase stitch create --resume` to retry from the durable "
+            "checkpoint or marker."
+        )
+    detail = "; ".join(failures) or "unknown persistence failure"
+    return (
+        " Automatic recovery evidence could not be recorded: "
+        + detail
+        + ". The local commit remains in the repository; inspect it manually "
+        "before retrying."
+    )

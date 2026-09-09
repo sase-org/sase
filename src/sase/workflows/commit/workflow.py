@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from dataclasses import dataclass
 
 from sase.output import print_status
 from sase.ace.deltas import refresh_deltas_after_commits_change
@@ -76,6 +77,45 @@ from sase.workflows.commit.workflow_types import (
 _logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class _UnpushedCommitPersistence:
+    commit_sha: str
+    checkpoint_path: str | None
+    marker_written: bool
+
+    @property
+    def durable(self) -> bool:
+        return bool(self.checkpoint_path) or self.marker_written
+
+    @property
+    def failure_details(self) -> list[str]:
+        details: list[str] = []
+        if not self.checkpoint_path:
+            details.append("commit_state.json checkpoint write failed")
+        if not self.marker_written:
+            details.append("commit_results.json unpushed marker write failed")
+        return details
+
+
+def _unpushed_persistence_detail(record: _UnpushedCommitPersistence) -> str:
+    if record.durable:
+        missing = record.failure_details
+        if not missing:
+            return " Run `sase stitch create --resume` to retry the push."
+        return (
+            " Recovery evidence was partially recorded; "
+            + "; ".join(missing)
+            + ". Run `sase stitch create --resume` to retry from the durable "
+            "checkpoint or marker."
+        )
+    return (
+        " Automatic recovery evidence could not be recorded: "
+        + "; ".join(record.failure_details)
+        + ". The local commit remains in the repository; inspect it manually "
+        "before retrying."
+    )
+
+
 class CommitWorkflow(BaseWorkflow):
     """A workflow that dispatches commit operations to VCS provider hooks."""
 
@@ -144,14 +184,16 @@ class CommitWorkflow(BaseWorkflow):
             provider_lookup_error = exc
         else:
             if _is_conflict_state(provider, cwd):
-                checkpoint_save(
-                    CommitCheckpoint(
-                        method=self._method,
-                        payload=self._payload,
-                        cwd=cwd,
-                        no_commit_dispatched=True,
-                    )
+                cp = CommitCheckpoint(
+                    method=self._method,
+                    payload=self._payload,
+                    cwd=cwd,
+                    no_commit_dispatched=True,
+                    publication_agent=resolve_local_agent_name(),
+                    run_id=os.environ.get("SASE_AGENT_TIMESTAMP", "").strip() or None,
                 )
+                ensure_operation_id(cp)
+                checkpoint_save(cp)
                 _log_commit_failed(self._method, "sync_conflict")
                 VCS_OPERATIONS.labels(
                     provider=getattr(provider, "_provider_name", "unknown"),
@@ -308,11 +350,14 @@ class CommitWorkflow(BaseWorkflow):
                 )
                 return RunResult.CONFLICT
             failure_reason = _classify_dispatch_failure(result)
-            if self._record_unpushed_commit_marker_if_present(cp, provider, result):
+            unpushed = self._record_unpushed_commit_marker_if_present(
+                cp, provider, result
+            )
+            if unpushed is not None:
+                detail = _unpushed_persistence_detail(unpushed)
                 print_status(
                     f"{self._method} created local commit {cp.commit_sha} "
-                    f"but failed before publishing it: {result}. Run "
-                    "`sase stitch create --resume` to retry the push.",
+                    f"but failed before publishing it: {result}.{detail}",
                     "error",
                 )
                 _log_commit_failed(self._method, failure_reason)
@@ -356,16 +401,16 @@ class CommitWorkflow(BaseWorkflow):
         cp: CommitCheckpoint,
         provider: object,
         dispatch_error: str | None,
-    ) -> bool:
+    ) -> _UnpushedCommitPersistence | None:
         """Persist recoverable local commits when dispatch failed during push."""
         if self._method not in ("create_commit", "create_pull_request"):
-            return False
+            return None
         if _classify_dispatch_failure(dispatch_error) != "push_failed":
-            return False
+            return None
 
         head_sha = resolve_head_commit_sha(provider, cp.cwd)
         if not head_sha or head_sha == cp.primary_revision:
-            return False
+            return None
 
         cp.commit_sha = head_sha
         cp.commit_tree = resolve_head_tree_id(provider, cp.cwd)
@@ -373,8 +418,8 @@ class CommitWorkflow(BaseWorkflow):
         cp.pushed = False
         cp.dispatch_error = dispatch_error
         ensure_operation_id(cp)
-        checkpoint_save(cp)
-        write_result_marker(
+        checkpoint_path = checkpoint_save(cp)
+        marker_written = write_result_marker(
             self._method,
             self._payload,
             self._diff_path,
@@ -387,7 +432,11 @@ class CommitWorkflow(BaseWorkflow):
             dispatch_error=dispatch_error,
             operation_id=cp.operation_id,
         )
-        return True
+        return _UnpushedCommitPersistence(
+            commit_sha=head_sha,
+            checkpoint_path=checkpoint_path,
+            marker_written=marker_written,
+        )
 
     def _run_file_hooks(self, cp: CommitCheckpoint, provider: object) -> None:
         """Capture a committed revision once without gating the workflow."""

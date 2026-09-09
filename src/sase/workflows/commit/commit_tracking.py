@@ -178,7 +178,7 @@ def _settle_related_commit_markers(
 def _upsert_commit_results_marker(
     artifacts_dir: str,
     marker: dict[str, Any],
-) -> None:
+) -> bool:
     results_path = os.path.join(artifacts_dir, "commit_results.json")
     try:
         results = _load_commit_results(results_path)
@@ -194,7 +194,8 @@ def _upsert_commit_results_marker(
         with open(results_path, "w", encoding="utf-8") as f:
             json.dump(results, f)
     except (TypeError, OSError):
-        return
+        return False
+    return True
 
 
 def agent_workspace_dir(artifacts_dir: str) -> str | None:
@@ -363,7 +364,7 @@ def write_result_marker(
     pushed: bool | None = None,
     dispatch_error: str | None = None,
     operation_id: str | None = None,
-) -> None:
+) -> bool:
     """Write commit result to a marker file for xprompt post-steps.
 
     ``commit_sha``/``commit_tree`` are the run-owned ledger fields: unlike
@@ -377,7 +378,7 @@ def write_result_marker(
     """
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
-        return
+        return False
 
     run_id = os.environ.get("SASE_AGENT_TIMESTAMP", "").strip()
     if not run_id:
@@ -422,17 +423,22 @@ def write_result_marker(
     committed_at = _resolve_commit_created_at(resolved_cwd, result)
     if committed_at is not None:
         marker["committed_at"] = committed_at
+    marker_file_written = True
     if pushed is not False:
         marker_path = os.path.join(artifacts_dir, "commit_result.json")
-        with open(marker_path, "w", encoding="utf-8") as f:
-            json.dump(marker, f)
-        _persist_primary_commit_metadata(
-            artifacts_dir,
-            diff_path,
-            changespec_name,
-            commit_cwd=resolved_cwd,
-        )
-    _upsert_commit_results_marker(artifacts_dir, marker)
+        try:
+            with open(marker_path, "w", encoding="utf-8") as f:
+                json.dump(marker, f)
+        except OSError:
+            marker_file_written = False
+        else:
+            _persist_primary_commit_metadata(
+                artifacts_dir,
+                diff_path,
+                changespec_name,
+                commit_cwd=resolved_cwd,
+            )
+    return _upsert_commit_results_marker(artifacts_dir, marker) and marker_file_written
 
 
 def write_unpushed_commit_marker(
@@ -446,7 +452,7 @@ def write_unpushed_commit_marker(
     push_error: str | None = None,
     operation_id: str | None = None,
     dispatch_error: str | None = None,
-) -> None:
+) -> bool:
     """Record a local commit whose post-commit push failed.
 
     This intentionally writes only the multi-repository ledger. The ordinary
@@ -454,9 +460,9 @@ def write_unpushed_commit_marker(
     """
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:
-        return
+        return False
     if not os.path.isdir(artifacts_dir):
-        return
+        return False
 
     run_id = os.environ.get("SASE_AGENT_TIMESTAMP", "").strip()
     if not run_id:
@@ -501,5 +507,8 @@ def write_unpushed_commit_marker(
     committed_at = _resolve_commit_created_at(resolved_cwd, commit_sha)
     if committed_at is not None:
         marker["committed_at"] = committed_at
-    _upsert_commit_results_marker(artifacts_dir, marker)
+    written = _upsert_commit_results_marker(artifacts_dir, marker)
+    if not written:
+        return False
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
+    return True

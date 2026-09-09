@@ -382,11 +382,12 @@ def test_pending_checkpoint_resumes_before_clean_acceptance(
     prepare_agent_env(monkeypatch, artifacts, repo)
     patch_commit_state(monkeypatch, repo, dirty)
     calls: list[str] = []
-    message = "fix(final): reconcile commit declaration"
+    message = "fix(final): reconcile commit declaration\n\nbody"
+    checkpoint_message = f"{message}\n\nSASE_TYPE=stitch\nSASE_AGENT=agent-1"
     checkpoint_save(
         CommitCheckpoint(
             method="create_commit",
-            payload={"message": message},
+            payload={"message": checkpoint_message},
             cwd=str(repo),
             completed_steps=["dispatch", "file_hooks"],
             commit_sha="c" * 40,
@@ -394,6 +395,7 @@ def test_pending_checkpoint_resumes_before_clean_acceptance(
             pushed=True,
             operation_id="op-hook-1",
             run_id="run-1",
+            publication_agent="agent-1",
         ),
         str(artifacts / "commit_state.json"),
     )
@@ -440,3 +442,155 @@ def test_pending_checkpoint_resumes_before_clean_acceptance(
     )
     assert aggregate["status"] == "success"
     assert "dirty_work_discarded" not in json.dumps(aggregate)
+
+
+def test_pending_checkpoint_refuses_foreign_run_before_resume(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    dirty = {"value": True}
+    prepare_agent_env(monkeypatch, artifacts, repo)
+    patch_commit_state(monkeypatch, repo, dirty)
+    message = "fix(final): reconcile commit declaration"
+    checkpoint_save(
+        CommitCheckpoint(
+            method="create_commit",
+            payload={"message": message},
+            cwd=str(repo),
+            completed_steps=["dispatch", "file_hooks"],
+            commit_sha="c" * 40,
+            commit_tree="d" * 40,
+            pushed=True,
+            operation_id="op-hook-1",
+            run_id="run-2",
+            publication_agent="agent-1",
+        ),
+        str(artifacts / "commit_state.json"),
+    )
+    resume = MagicMock()
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+
+    persist_and_submit_commit(artifacts, message=message)
+    with pytest.raises(BuiltinCommitFinalizerError, match="different run"):
+        run_finalizers(
+            provider=MagicMock(),
+            original_prompt="do work",
+            invoke_result=InvokeResult(content="done"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+        )
+
+    resume.assert_not_called()
+    aggregate = json.loads(
+        (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
+    )
+    assert aggregate["status"] == "failed"
+    assert "checkpoint_run_mismatch" in json.dumps(aggregate)
+
+
+def test_pending_checkpoint_refuses_foreign_agent_before_resume(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    dirty = {"value": True}
+    prepare_agent_env(monkeypatch, artifacts, repo)
+    patch_commit_state(monkeypatch, repo, dirty)
+    message = "fix(final): reconcile commit declaration"
+    checkpoint_save(
+        CommitCheckpoint(
+            method="create_commit",
+            payload={"message": message},
+            cwd=str(repo),
+            completed_steps=["dispatch", "file_hooks"],
+            commit_sha="c" * 40,
+            commit_tree="d" * 40,
+            pushed=True,
+            operation_id="op-hook-1",
+            run_id="run-1",
+            publication_agent="agent-2",
+        ),
+        str(artifacts / "commit_state.json"),
+    )
+    resume = MagicMock()
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+
+    persist_and_submit_commit(artifacts, message=message)
+    with pytest.raises(BuiltinCommitFinalizerError, match="different agent"):
+        run_finalizers(
+            provider=MagicMock(),
+            original_prompt="do work",
+            invoke_result=InvokeResult(content="done"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+        )
+
+    resume.assert_not_called()
+    aggregate = json.loads(
+        (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
+    )
+    assert aggregate["status"] == "failed"
+    assert "checkpoint_agent_mismatch" in json.dumps(aggregate)
+
+
+def test_pending_checkpoint_refuses_same_subject_different_body(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    dirty = {"value": True}
+    prepare_agent_env(monkeypatch, artifacts, repo)
+    patch_commit_state(monkeypatch, repo, dirty)
+    subject = "fix(final): reconcile commit declaration"
+    checkpoint_message = f"{subject}\n\nold body"
+    accepted_message = f"{subject}\n\nnew body"
+    checkpoint_save(
+        CommitCheckpoint(
+            method="create_commit",
+            payload={"message": checkpoint_message},
+            cwd=str(repo),
+            completed_steps=["dispatch", "file_hooks"],
+            commit_sha="c" * 40,
+            commit_tree="d" * 40,
+            pushed=True,
+            operation_id="op-hook-1",
+            run_id="run-1",
+            publication_agent="agent-1",
+        ),
+        str(artifacts / "commit_state.json"),
+    )
+    resume = MagicMock()
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_resume", resume)
+
+    persist_and_submit_commit(artifacts, message=accepted_message)
+    with pytest.raises(BuiltinCommitFinalizerError, match="accepted work"):
+        run_finalizers(
+            provider=MagicMock(),
+            original_prompt="do work",
+            invoke_result=InvokeResult(content="done"),
+            model_tier="large",
+            suppress_output=True,
+            model_override=None,
+            artifacts_dir=str(artifacts),
+        )
+
+    resume.assert_not_called()
+    aggregate = json.loads(
+        (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
+    )
+    assert aggregate["status"] == "failed"
+    assert "checkpoint_payload_mismatch" in json.dumps(aggregate)

@@ -85,10 +85,14 @@ def test_run_reconciles_managed_origin_before_provider_lookup(
 
 @patch(_PROVIDER_TARGET)
 def test_run_refuses_pre_existing_conflict_before_hooks_and_dispatch(
-    mock_get: MagicMock, artifacts_dir: Path
+    mock_get: MagicMock,
+    artifacts_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     provider = make_provider(dispatch_result=(True, "abc123"), is_conflict=True)
     mock_get.return_value = provider
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent-1")
 
     wf = CommitWorkflow({"message": "fix: bug"}, "create_commit")
 
@@ -110,6 +114,9 @@ def test_run_refuses_pre_existing_conflict_before_hooks_and_dispatch(
     assert loaded is not None
     assert loaded.no_commit_dispatched is True
     assert loaded.completed_steps == []
+    assert loaded.operation_id
+    assert loaded.run_id == "run-1"
+    assert loaded.publication_agent == "agent-1"
 
 
 @patch(_PROVIDER_TARGET)
@@ -199,6 +206,139 @@ def test_run_push_failure_after_local_commit_records_unpushed_marker(
     assert markers[0]["operation_id"]
     assert loaded.operation_id == markers[0]["operation_id"]
     assert not (artifacts_dir / "commit_result.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_run_push_failure_reports_checkpoint_write_failure_but_keeps_marker(
+    mock_get: MagicMock, artifacts_dir: Path
+) -> None:
+    provider = make_provider(
+        dispatch_result=(
+            False,
+            "commit 1111111111111111111111111111111111111111 "
+            "created locally; git push failed: refused",
+        ),
+        is_conflict=False,
+    )
+    provider.revision_id.side_effect = [
+        "0" * 40,
+        "1" * 40,
+        "2" * 40,
+    ]
+    mock_get.return_value = provider
+    real_save = checkpoint.checkpoint_save
+
+    def save_until_unpushed(
+        cp: checkpoint.CommitCheckpoint, path: str | None = None
+    ) -> str | None:
+        if cp.pushed is False:
+            return None
+        return real_save(cp, path)
+
+    with (
+        patch(
+            "sase.workflows.commit.commit_tracking._resolve_commit_created_at",
+            return_value=None,
+        ),
+        patch(
+            "sase.workflows.commit.workflow.checkpoint_save",
+            side_effect=save_until_unpushed,
+        ),
+        patch("sase.workflows.commit.workflow.print_status") as status,
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.FAILED
+        )
+
+    message = " ".join(str(call.args[0]) for call in status.call_args_list)
+    assert "Recovery evidence was partially recorded" in message
+    assert "commit_state.json checkpoint write failed" in message
+    markers = json.loads((artifacts_dir / "commit_results.json").read_text())
+    assert markers[0]["pushed"] is False
+    stale = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
+    assert stale is not None
+    assert stale.commit_sha is None
+
+
+@patch(_PROVIDER_TARGET)
+def test_run_push_failure_reports_marker_write_failure_but_keeps_checkpoint(
+    mock_get: MagicMock, artifacts_dir: Path
+) -> None:
+    provider = make_provider(
+        dispatch_result=(
+            False,
+            "commit 1111111111111111111111111111111111111111 "
+            "created locally; git push failed: refused",
+        ),
+        is_conflict=False,
+    )
+    provider.revision_id.side_effect = [
+        "0" * 40,
+        "1" * 40,
+        "2" * 40,
+    ]
+    mock_get.return_value = provider
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.write_result_marker",
+            return_value=False,
+        ),
+        patch("sase.workflows.commit.workflow.print_status") as status,
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.FAILED
+        )
+
+    message = " ".join(str(call.args[0]) for call in status.call_args_list)
+    assert "Recovery evidence was partially recorded" in message
+    assert "commit_results.json unpushed marker write failed" in message
+    loaded = checkpoint.checkpoint_load(str(artifacts_dir / "commit_state.json"))
+    assert loaded is not None
+    assert loaded.commit_sha == "1" * 40
+    assert loaded.pushed is False
+    assert not (artifacts_dir / "commit_results.json").exists()
+
+
+@patch(_PROVIDER_TARGET)
+def test_run_push_failure_reports_when_no_durable_recovery_evidence_written(
+    mock_get: MagicMock, artifacts_dir: Path
+) -> None:
+    provider = make_provider(
+        dispatch_result=(
+            False,
+            "commit 1111111111111111111111111111111111111111 "
+            "created locally; git push failed: refused",
+        ),
+        is_conflict=False,
+    )
+    provider.revision_id.side_effect = [
+        "0" * 40,
+        "1" * 40,
+        "2" * 40,
+    ]
+    mock_get.return_value = provider
+
+    with (
+        patch(
+            "sase.workflows.commit.workflow.checkpoint_save",
+            return_value=None,
+        ),
+        patch(
+            "sase.workflows.commit.workflow.write_result_marker",
+            return_value=False,
+        ),
+        patch("sase.workflows.commit.workflow.print_status") as status,
+    ):
+        assert CommitWorkflow({"message": "fix: bug"}, "create_commit").run() == (
+            RunResult.FAILED
+        )
+
+    message = " ".join(str(call.args[0]) for call in status.call_args_list)
+    assert "Automatic recovery evidence could not be recorded" in message
+    assert "local commit remains" in message
+    assert not (artifacts_dir / "commit_state.json").exists()
+    assert not (artifacts_dir / "commit_results.json").exists()
 
 
 @patch(_PROVIDER_TARGET)
