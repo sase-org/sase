@@ -25,9 +25,11 @@ from sase.dispatch.credentials import (
     LocalCredentialStore,
 )
 from sase.dispatch.models import CredentialRecord, MachineRecord
+from sase.dispatch.provider_runtime import (
+    DispatchProviderExecutionError,
+    run_dispatch_provider_operation,
+)
 from sase.dispatch.providers import (
-    _DispatchProviderExecutionError,
-    _run_dispatch_provider_operation,
     connection_plan_for_machine,
     collect_dispatch_providers,
     discover_dispatch_candidates,
@@ -403,7 +405,7 @@ def test_discover_failure_isolated_to_selected_provider() -> None:
         del request, timeout_seconds
         provider_ref = str(provider.provider_ref)
         if provider_ref == LAB_REF:
-            raise _DispatchProviderExecutionError("boom")
+            raise DispatchProviderExecutionError("boom")
         assert operation == "discover"
         return _ok_result(
             provider_ref,
@@ -509,8 +511,8 @@ def test_run_dispatch_provider_operation_reports_timeout(
         "sase.dispatch.provider_runtime.run_bounded_subprocess", run_timeout
     )
 
-    with pytest.raises(_DispatchProviderExecutionError, match="timed out"):
-        _run_dispatch_provider_operation(
+    with pytest.raises(DispatchProviderExecutionError, match="timed out"):
+        run_dispatch_provider_operation(
             provider,
             "discover",
             {"config": {}, "provider_ref": LAB_REF},
@@ -668,7 +670,7 @@ def test_discover_reports_provider_hook_exception() -> None:
         timeout_seconds: float,
     ) -> Mapping[str, Any]:
         del provider, operation, request, timeout_seconds
-        raise _DispatchProviderExecutionError("boom")
+        raise DispatchProviderExecutionError("boom")
 
     result = discover_dispatch_result(
         config=_lab_config(enabled=True),

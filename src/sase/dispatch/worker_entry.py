@@ -11,13 +11,13 @@ from typing import Any
 
 import pluggy
 
-from sase.dispatch.provider_protocol import DISPATCH_PROVIDER_PROTOCOL_VERSION
-from sase.dispatch.providers import (
+from sase.dispatch.provider_hooks import (
     DISPATCH_ENTRY_POINT_GROUP,
     DispatchProviderHookSpec,
     iter_mapping_specs,
-    provider_ref_key,
 )
+from sase.dispatch.provider_protocol import DISPATCH_PROVIDER_PROTOCOL_VERSION
+from sase.dispatch.provider_runtime import provider_ref_key
 from sase.plugins.qualified_id import PluginQualifiedIdError, parse_plugin_qualified_id
 from sase.version._utils import metadata_value, normalize_distribution_name
 
