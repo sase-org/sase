@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,6 +9,8 @@ import subprocess
 from typing import TYPE_CHECKING, Literal
 
 from sase.sdd._artifact_link_files import (
+    is_canonical_artifact_link_event,
+    is_canonical_artifact_link_event_location,
     is_canonical_artifact_link_index,
     is_canonical_artifact_link_index_location,
 )
@@ -60,6 +61,19 @@ class _ArtifactLinkPublicationContext:
     remote_url: str
 
 
+@dataclass
+class _ArtifactLinkCommitGroup:
+    """Valid artifact-link paths owned by one sidecar repository."""
+
+    indexes: list[Path]
+    events: list[Path]
+    extra_paths: list[Path]
+    needs_lock_ignore: bool = False
+
+    def paths(self) -> list[Path]:
+        return list(dict.fromkeys((*self.indexes, *self.events, *self.extra_paths)))
+
+
 def commit_artifact_link_indexes(
     index_paths: Iterable[Path],
     *,
@@ -80,24 +94,35 @@ def commit_artifact_link_indexes(
     lock-ignore rule is installed and included in the same commit.
     """
 
-    grouped = _group_valid_indexes(index_paths, store=store, repo_roots=repo_roots)
+    grouped = _group_valid_artifact_link_paths(
+        index_paths,
+        store=store,
+        repo_roots=repo_roots,
+    )
     if extra_paths_by_root:
         for root, extra in extra_paths_by_root.items():
             resolved = root.expanduser().resolve(strict=False)
-            grouped[resolved].extend(extra)
+            group = grouped.setdefault(
+                resolved,
+                _ArtifactLinkCommitGroup(indexes=[], events=[], extra_paths=[]),
+            )
+            group.extra_paths.extend(extra)
+            group.needs_lock_ignore = True
     if not grouped:
         return _ArtifactLinkCommitResult(committed=False)
 
     commit_paths: list[Path] = []
     committed_roots: list[Path] = []
-    for root, indexes in grouped.items():
-        gitignore = ensure_artifact_link_lock_gitignore(root)
-        unique_indexes = list(dict.fromkeys(indexes))
-        if gitignore is not None:
-            unique_indexes.append(gitignore)
-        if not unique_indexes:
+    for root, group in grouped.items():
+        unique_paths = group.paths()
+        if group.needs_lock_ignore:
+            gitignore = ensure_artifact_link_lock_gitignore(root)
+            if gitignore is not None:
+                unique_paths.append(gitignore)
+        unique_paths = list(dict.fromkeys(unique_paths))
+        if not unique_paths:
             continue
-        commit_paths.extend(unique_indexes)
+        commit_paths.extend(unique_paths)
         committed_roots.append(root)
 
     if not commit_paths:
@@ -120,6 +145,7 @@ def commit_artifact_link_indexes(
             committed_roots,
             contexts=contexts,
             register_retry=mutation_origin == "machine",
+            description=message,
         )
     return _ArtifactLinkCommitResult(
         committed=committed,
@@ -158,7 +184,7 @@ def persist_artifact_link_graph_mutation(
                 diagnostic=result.publication_error,
             )
     if beads_changed:
-        _commit_bead_link_events(
+        commit_bead_link_events(
             link_store,
             artifacts_dir=artifacts_dir,
             mutation_origin=mutation_origin,
@@ -182,26 +208,37 @@ def _ensure_artifact_link_commit_published(
     )
 
 
-def _group_valid_indexes(
+def _group_valid_artifact_link_paths(
     index_paths: Iterable[Path],
     *,
     store: SddStore | None,
     repo_roots: Sequence[Path],
-) -> dict[Path, list[Path]]:
+) -> dict[Path, _ArtifactLinkCommitGroup]:
     roots = _candidate_repo_roots(store=store, repo_roots=repo_roots)
-    grouped: dict[Path, list[Path]] = defaultdict(list)
+    grouped: dict[Path, _ArtifactLinkCommitGroup] = {}
     for raw in index_paths:
         path = Path(raw)
         owner = _owning_root(path, roots)
         if owner is None:
             continue
+        group = grouped.setdefault(
+            owner,
+            _ArtifactLinkCommitGroup(indexes=[], events=[], extra_paths=[]),
+        )
         if path.exists():
-            valid = is_canonical_artifact_link_index(path, owner)
+            if is_canonical_artifact_link_index(path, owner):
+                group.indexes.append(path.expanduser().resolve(strict=False))
+                group.needs_lock_ignore = True
+            elif is_canonical_artifact_link_event(path, owner):
+                group.events.append(path.expanduser().resolve(strict=False))
         else:
-            valid = is_canonical_artifact_link_index_location(path, owner)
-        if not valid:
-            continue
-        grouped[owner].append(path.expanduser().resolve(strict=False))
+            if is_canonical_artifact_link_index_location(path, owner):
+                group.indexes.append(path.expanduser().resolve(strict=False))
+                group.needs_lock_ignore = True
+            elif is_canonical_artifact_link_event_location(path, owner):
+                group.events.append(path.expanduser().resolve(strict=False))
+        if not group.paths() and not group.needs_lock_ignore:
+            grouped.pop(owner, None)
     return grouped
 
 
@@ -291,12 +328,14 @@ def _commit_paths(
     return committed_any
 
 
-def _commit_bead_link_events(
+def commit_bead_link_events(
     link_store: ArtifactLinkStore,
     *,
     artifacts_dir: str | Path | None,
     mutation_origin: str = "user",
 ) -> None:
+    """Commit and publish bead event-stream updates made by link mutations."""
+
     beads_dir = link_store.beads_dir
     if beads_dir is None:
         return
@@ -341,12 +380,13 @@ def _publication_error_for_roots(
     *,
     contexts: Mapping[Path, _ArtifactLinkPublicationContext] | None = None,
     register_retry: bool = False,
+    description: str = ARTIFACT_LINK_COMMIT_MESSAGE,
 ) -> str | None:
     errors: list[str] = []
     for root in repo_roots:
         error = _ensure_artifact_link_commit_published(
             root,
-            description=ARTIFACT_LINK_COMMIT_MESSAGE,
+            description=description,
             publication_context=(contexts or {}).get(
                 root.expanduser().resolve(strict=False)
             ),

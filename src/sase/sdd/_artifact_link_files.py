@@ -1,4 +1,4 @@
-"""Repository-file contract for durable artifact-link indexes and lock sentinels."""
+"""Repository-file contract for durable artifact-link files."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     sidecar_index_path,
@@ -20,6 +21,7 @@ class ArtifactLinkRepoFileKind(StrEnum):
     """Classification of one path relative to a document sidecar root."""
 
     INDEX = "index"
+    EVENT = "event"
     LOCK = "lock"
     REJECTED = "rejected"
     OTHER = "other"
@@ -36,15 +38,23 @@ def classify_artifact_link_repo_file(
 ) -> ArtifactLinkRepoFileKind:
     """Classify *path* against the artifact-link repository-file contract.
 
-    Only canonical ``links/**/*.json`` indexes and their empty regular-file
-    lock siblings are recognized. Malformed, mismatched, symlinked, nonempty,
-    or unpaired candidates are rejected instead of auto-committed or hidden.
+    Only canonical ``links/**/*.json`` indexes, their empty regular-file lock
+    siblings, and canonical immutable ``link-events/v1/**/*.json`` objects are
+    recognized. Malformed, mismatched, symlinked, nonempty, or unpaired
+    candidates are rejected instead of auto-committed or hidden.
     """
 
     located = _absolute_in_repo(path, repo_root)
     if located is None:
         return ArtifactLinkRepoFileKind.OTHER
     absolute, relative = located
+    if relative.parts[:2] == ("link-events", "v1"):
+        if name := relative.name:
+            if name.endswith(".json"):
+                if _is_canonical_event(absolute, relative):
+                    return ArtifactLinkRepoFileKind.EVENT
+                return ArtifactLinkRepoFileKind.REJECTED
+        return ArtifactLinkRepoFileKind.OTHER
     if relative.parts[:1] != (REFERENCED_BY_LINKS_DIR,):
         return ArtifactLinkRepoFileKind.OTHER
     name = relative.name
@@ -88,6 +98,28 @@ def is_canonical_artifact_link_index_location(path: Path, repo_root: Path) -> bo
     except (TypeError, ValueError, RuntimeError):
         return False
     return expected == relative.as_posix()
+
+
+def is_canonical_artifact_link_event(path: Path, repo_root: Path) -> bool:
+    """Return whether *path* is a valid immutable artifact-link event object."""
+
+    located = _absolute_in_repo(path, repo_root)
+    if located is None:
+        return False
+    absolute, relative = located
+    return _is_canonical_event(absolute, relative)
+
+
+def is_canonical_artifact_link_event_location(path: Path, repo_root: Path) -> bool:
+    """Return whether *path* is a canonical immutable event-object location."""
+
+    located = _absolute_in_repo(path, repo_root)
+    if located is None:
+        return False
+    absolute, relative = located
+    if absolute.is_symlink():
+        return False
+    return _is_canonical_event_relative_path(relative)
 
 
 def _absolute_in_repo(path: Path, repo_root: Path) -> tuple[Path, Path] | None:
@@ -154,6 +186,45 @@ def _is_canonical_lock(path: Path, repo_root: Path) -> bool:
     return _is_canonical_index(path.with_suffix(".json"), repo_root)
 
 
+def _is_canonical_event(path: Path, relative: Path) -> bool:
+    if path.is_symlink() or not path.is_file():
+        return False
+    try:
+        payload = path.read_bytes()
+    except OSError:
+        return False
+    try:
+        require_rust_binding("artifact_link_event_validate_bytes")(
+            payload,
+            relative.as_posix(),
+        )
+    except (TypeError, ValueError, RuntimeError):
+        return False
+    return True
+
+
+def _is_canonical_event_relative_path(relative: Path) -> bool:
+    if relative.parts[:2] != ("link-events", "v1"):
+        return False
+    if len(relative.parts) != 4 or not relative.name.endswith(".json"):
+        return False
+    digest = relative.name[: -len(".json")]
+    if not _is_sha256(digest):
+        return False
+    try:
+        expected = require_rust_binding("artifact_link_event_validate_path")(
+            relative.as_posix(),
+            digest,
+        )
+    except (TypeError, ValueError, RuntimeError):
+        return False
+    return expected == relative.as_posix()
+
+
+def _is_sha256(value: str) -> bool:
+    return len(value) == 64 and all(char in "0123456789abcdef" for char in value)
+
+
 def _read_index_object(path: Path) -> dict[str, Any] | None:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -166,6 +237,8 @@ __all__ = [
     "ArtifactLinkRepoFileKind",
     "artifact_link_lock_path",
     "classify_artifact_link_repo_file",
+    "is_canonical_artifact_link_event",
+    "is_canonical_artifact_link_event_location",
     "is_canonical_artifact_link_index",
     "is_canonical_artifact_link_index_location",
 ]

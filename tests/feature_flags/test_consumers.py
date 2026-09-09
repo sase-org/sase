@@ -18,6 +18,7 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     ref_sync = definitions[FeatureFlag.ref_sync_gesture]
     typed_launch = definitions[FeatureFlag.typed_launch_units]
     refresh_tokens = definitions[FeatureFlag.ace_refresh_tokens]
+    link_events = definitions[FeatureFlag.link_events]
 
     assert flags_pane.kind == "sunset"
     assert flags_pane.default is True
@@ -31,6 +32,9 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     assert typed_launch.kind == "beta"
     assert typed_launch.default is False
     assert typed_launch.bead == "sase-s7"
+    assert link_events.kind == "beta"
+    assert link_events.default is False
+    assert link_events.bead == "sase-z0"
 
 
 def test_consumer_flags_resolve_from_every_layer() -> None:
@@ -41,6 +45,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert default.enabled(FeatureFlag.ref_sync_gesture) is True
     assert default.enabled(FeatureFlag.ace_refresh_tokens) is True
     assert default.enabled(FeatureFlag.typed_launch_units) is False
+    assert default.enabled(FeatureFlag.link_events) is False
 
     user = resolve_feature_flags(
         definitions=definitions,
@@ -52,6 +57,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
                     "ref_sync_gesture": False,
                     "ace_refresh_tokens": False,
                     "typed_launch_units": True,
+                    "link_events": True,
                 },
                 detail="user.yml",
             )
@@ -65,13 +71,16 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert user.decision(FeatureFlag.ace_refresh_tokens).source == "user"
     assert user.enabled(FeatureFlag.typed_launch_units) is True
     assert user.decision(FeatureFlag.typed_launch_units).source == "user"
+    assert user.enabled(FeatureFlag.link_events) is True
+    assert user.decision(FeatureFlag.link_events).source == "user"
 
     env = resolve_feature_flags(
         definitions=definitions,
         layers=[],
         env_value=(
             '{"admin_center_flags":false,"ref_sync_gesture":false,'
-            '"ace_refresh_tokens":false,"typed_launch_units":true}'
+            '"ace_refresh_tokens":false,"typed_launch_units":true,'
+            '"link_events":true}'
         ),
     )
     assert env.enabled(FeatureFlag.admin_center_flags) is False
@@ -82,6 +91,8 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert env.decision(FeatureFlag.ace_refresh_tokens).source == "env"
     assert env.enabled(FeatureFlag.typed_launch_units) is True
     assert env.decision(FeatureFlag.typed_launch_units).source == "env"
+    assert env.enabled(FeatureFlag.link_events) is True
+    assert env.decision(FeatureFlag.link_events).source == "env"
 
 
 def test_consumer_flags_both_states_via_override(
@@ -93,6 +104,7 @@ def test_consumer_flags_both_states_via_override(
         ref_sync_gesture=False,
         ace_refresh_tokens=False,
         typed_launch_units=True,
+        link_events=True,
     ) as snapshot:
         assert snapshot.enabled(FeatureFlag.admin_center_flags) is False
         assert current_flags().enabled(FeatureFlag.admin_center_flags) is False
@@ -102,9 +114,12 @@ def test_consumer_flags_both_states_via_override(
         assert current_flags().enabled(FeatureFlag.ace_refresh_tokens) is False
         assert snapshot.enabled(FeatureFlag.typed_launch_units) is True
         assert current_flags().enabled(FeatureFlag.typed_launch_units) is True
+        assert snapshot.enabled(FeatureFlag.link_events) is True
+        assert current_flags().enabled(FeatureFlag.link_events) is True
 
     restored = current_flags()
     assert restored.enabled(FeatureFlag.admin_center_flags) is True
     assert restored.enabled(FeatureFlag.ref_sync_gesture) is True
     assert restored.enabled(FeatureFlag.ace_refresh_tokens) is True
     assert restored.enabled(FeatureFlag.typed_launch_units) is False
+    assert restored.enabled(FeatureFlag.link_events) is False

@@ -275,6 +275,14 @@ def _auto_commit_artifact_link_indexes_if_possible(
 ) -> tuple[DirtyState, bool, str | None]:
     """Commit machine-owned artifact-link indexes left by implicit reads."""
 
+    try:
+        from sase.sdd.artifact_link_event_flags import artifact_link_events_enabled
+
+        if artifact_link_events_enabled():
+            return dirty_state, False, None
+    except Exception:
+        pass
+
     indexes, lock_only_roots = _artifact_link_dirty_candidates(dirty_state)
     if not indexes and not lock_only_roots:
         return dirty_state, False, None

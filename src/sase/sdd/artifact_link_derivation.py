@@ -32,8 +32,14 @@ from sase.sdd._artifact_link_commit import (
     persist_artifact_link_graph_mutation,
 )
 from sase.sdd._artifact_link_store_support import (
+    is_projected_row,
     kind_of_ref,
     validate_artifact_link_row,
+)
+from sase.sdd.artifact_link_event_flags import artifact_link_events_enabled
+from sase.sdd.artifact_link_event_publisher import (
+    observation_or_put_event_from_row,
+    stable_artifact_link_operation_id,
 )
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
@@ -119,6 +125,14 @@ def persist_derived_link_candidates(
 
     if not candidates:
         return _ArtifactLinkDerivationOutcome()
+    if artifact_link_events_enabled():
+        return _persist_derived_link_candidates_as_events(
+            store,
+            candidates,
+            created_by=created_by,
+            artifacts_dir=artifacts_dir,
+            mutation_origin=mutation_origin,
+        )
 
     now = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     changed_indexes: list[Path] = []
@@ -208,6 +222,103 @@ def persist_derived_link_candidates(
 
     return _ArtifactLinkDerivationOutcome(
         candidates=len(candidates), persisted=persisted, errors=tuple(errors)
+    )
+
+
+def _persist_derived_link_candidates_as_events(
+    store: ArtifactLinkStore,
+    candidates: Sequence[DerivedLinkCandidate],
+    *,
+    created_by: str,
+    artifacts_dir: str | Path | None,
+    mutation_origin: str,
+) -> _ArtifactLinkDerivationOutcome:
+    now = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    errors: list[str] = []
+    queued_ids: set[str] = set()
+    for candidate in candidates:
+        row = {
+            "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
+            "source_ref": candidate.source_ref,
+            "relation": candidate.relation,
+            "target_ref": candidate.target_ref,
+            "description": candidate.description,
+            "origin": candidate.origin,
+            "created_by": created_by,
+            "created_at": now,
+            "uses": 1,
+        }
+        try:
+            validated = validate_artifact_link_row(row)
+            operation_id = stable_artifact_link_operation_id(
+                "derived",
+                store.project_key,
+                validated["source_ref"],
+                validated["relation"],
+                validated["target_ref"],
+                validated["description"],
+                validated["origin"],
+                created_by,
+            )
+            event = observation_or_put_event_from_row(
+                validated,
+                project_key=store.project_key,
+                operation_id=operation_id,
+            )
+            from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_event
+
+            append_artifact_link_outbox_event(
+                project_key=store.project_key,
+                agent_name="sase",
+                run_id="machine",
+                event=event,
+            )
+            queued_ids.add(operation_id)
+        except (RuntimeError, TypeError, ValueError) as exc:
+            errors.append(
+                f"{candidate.source_ref} {candidate.relation} "
+                f"{candidate.target_ref}: {exc}"
+            )
+
+    if queued_ids:
+        try:
+            from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
+
+            report = drain_artifact_link_outbox(
+                store=store,
+                agent_name="sase",
+                push_after_commit="async",
+            )
+            errors.extend(report.skip_diagnostics)
+            if report.publication_error:
+                errors.append(report.publication_error)
+        except Exception as exc:  # noqa: BLE001 - derivation remains best-effort.
+            errors.append(str(exc))
+
+    durable_keys = _stored_link_keys(store)
+    persisted = sum(
+        1 for candidate in candidates if _candidate_key(candidate) in durable_keys
+    )
+    return _ArtifactLinkDerivationOutcome(
+        candidates=len(candidates),
+        persisted=persisted,
+        errors=tuple(errors),
+    )
+
+
+def _candidate_key(candidate: DerivedLinkCandidate) -> tuple[str, str, str]:
+    return (candidate.source_ref, candidate.relation, candidate.target_ref)
+
+
+def _stored_link_keys(store: ArtifactLinkStore) -> frozenset[tuple[str, str, str]]:
+    return frozenset(
+        (
+            str(row.get("source_ref") or ""),
+            str(row.get("relation") or ""),
+            str(row.get("target_ref") or ""),
+        )
+        for row in store.load_aggregate().get("rows", [])
+        if not is_projected_row(row)
     )
 
 

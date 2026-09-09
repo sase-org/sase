@@ -9,6 +9,7 @@ import json
 import os
 import sys
 from typing import Any
+from uuid import uuid4
 
 from rich.console import Console
 from rich.panel import Panel
@@ -18,7 +19,16 @@ from sase.agent.identity import discover_agent_identity
 from sase.core.rust import require_rust_binding
 from sase.core.time import format_local
 from sase.sdd._artifact_link_store_support import unique_rows
+from sase.sdd._artifact_link_store_support import is_projected_row, pair_matches
 from sase.sdd._artifact_link_store_support import row_touches
+from sase.sdd.artifact_link_event_flags import artifact_link_events_enabled
+from sase.sdd.artifact_link_event_publisher import (
+    active_operation_ids_for_row,
+    edge_put_event_from_row,
+    edge_remove_event,
+    publish_artifact_link_events,
+    rows_from_events,
+)
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     ArtifactLinkStore,
@@ -27,6 +37,7 @@ from sase.sdd.artifact_link_store import (
     resolve_artifact_link_store,
 )
 
+_DEFAULT_RESOLVE_ARTIFACT_LINK_STORE = resolve_artifact_link_store
 
 _CLI_ORIGIN = "manual"
 
@@ -81,6 +92,8 @@ def add_artifact_link(
         "created_at": _created_at(),
         "uses": 1,
     }
+    if artifact_link_events_enabled():
+        return _add_artifact_link_event(store, row)
     outcome = store.upsert_row(row)
     _persist_link_mutation(
         store,
@@ -196,6 +209,13 @@ def remove_artifact_link(
             require_rust_binding("artifact_relation_lookup")(str(relation))["slug"]
         )
     store = _store()
+    if artifact_link_events_enabled():
+        return _remove_artifact_link_event(
+            store,
+            source_ref=source_ref,
+            target_ref=target_ref,
+            relation=relation,
+        )
     removed = store.remove_rows(
         source_ref,
         target_ref,
@@ -213,8 +233,109 @@ def remove_artifact_link(
     }
 
 
+def _add_artifact_link_event(
+    store: ArtifactLinkStore,
+    row: Mapping[str, Any],
+) -> dict[str, Any]:
+    observed = active_operation_ids_for_row(store, row)
+    event = edge_put_event_from_row(
+        row,
+        project_key=store.project_key,
+        operation_id=uuid4().hex,
+        observed_operation_ids=observed,
+    )
+    report = publish_artifact_link_events(
+        store,
+        (event,),
+        push_after_commit=None,
+        mutation_origin="user",
+    )
+    if report.publication_error:
+        raise RuntimeError(report.publication_error)
+    if report.published != 1:
+        diagnostic = (
+            "\n".join(report.skip_diagnostics) or "artifact-link event was not durable"
+        )
+        raise RuntimeError(diagnostic)
+    rows = rows_from_events((event,))
+    stored = dict(rows[0]) if rows else dict(row)
+    return {
+        "kind": "added",
+        "row": stored,
+        "rows": tuple(dict(item) for item in rows),
+        "changed_indexes": (),
+        "event_paths": report.event_paths,
+        "beads_changed": report.beads_changed,
+    }
+
+
+def _remove_artifact_link_event(
+    store: ArtifactLinkStore,
+    *,
+    source_ref: str,
+    target_ref: str,
+    relation: str | None,
+) -> dict[str, Any]:
+    source = canonicalize_artifact_link_ref(source_ref)
+    target = canonicalize_artifact_link_ref(target_ref)
+    matching = [
+        dict(row)
+        for row in store.load_aggregate().get("rows", [])
+        if pair_matches(row, source=source, target=target, relation=relation)
+    ]
+    if matching and all(is_projected_row(row) for row in matching):
+        rule_ids = sorted({str(row.get("created_by") or "") for row in matching})
+        raise ValueError(
+            f"{source} <-> {target} is recomputed by {', '.join(rule_ids)}, not "
+            "stored -- deleting it here would not stop the next rebuild from "
+            "putting it straight back"
+        )
+    stored_matching = [row for row in matching if not is_projected_row(row)]
+    if not stored_matching:
+        return {"rows": (), "changed_indexes": (), "beads_changed": False}
+    created_by = _created_by()
+    created_at = _created_at()
+    events = tuple(
+        edge_remove_event(
+            project_key=store.project_key,
+            operation_id=uuid4().hex,
+            source_ref=str(row.get("source_ref") or ""),
+            relation=str(row.get("relation") or ""),
+            target_ref=str(row.get("target_ref") or ""),
+            created_by=created_by,
+            origin=_CLI_ORIGIN,
+            created_at=created_at,
+            observed_operation_ids=active_operation_ids_for_row(store, row),
+        )
+        for row in stored_matching
+    )
+    report = publish_artifact_link_events(
+        store,
+        events,
+        push_after_commit=None,
+        mutation_origin="user",
+    )
+    if report.publication_error:
+        raise RuntimeError(report.publication_error)
+    if report.published != len(events):
+        diagnostic = (
+            "\n".join(report.skip_diagnostics) or "artifact-link event was not durable"
+        )
+        raise RuntimeError(diagnostic)
+    return {
+        "rows": tuple(stored_matching),
+        "changed_indexes": (),
+        "event_paths": report.event_paths,
+        "beads_changed": report.beads_changed,
+    }
+
+
 def _store() -> ArtifactLinkStore:
-    return resolve_artifact_link_store()
+    if resolve_artifact_link_store is not _DEFAULT_RESOLVE_ARTIFACT_LINK_STORE:
+        return resolve_artifact_link_store()
+    from sase.sdd import artifact_link_store as artifact_link_store_module
+
+    return artifact_link_store_module.resolve_artifact_link_store()
 
 
 def _persist_link_mutation(

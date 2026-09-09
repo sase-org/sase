@@ -11,6 +11,7 @@ import pytest
 
 from sase.artifact_cli.read import handle_read
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.feature_flags import override_flags
 from sase.sdd._artifact_link_ignore import ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN
 from sase.sdd.artifact_link_outbox import (
     ARTIFACT_LINK_OUTBOX_FILENAME,
@@ -422,4 +423,89 @@ def test_legacy_row_only_outbox_entries_still_drain(
     assert report.committed is True
     [indexed] = _index_rows(repo)
     assert indexed["uses"] == 1
+    assert _read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
+
+
+def test_enabled_drain_publishes_event_objects_without_legacy_indexes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    doc = _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
+    )
+    _patch_read_context(monkeypatch, doc=doc, store=store, run_id="run-1")
+    before = _commit_count(repo)
+    assert handle_read(_read_args()) == 0
+    assert handle_read(_read_args()) == 0
+    record_artifact_link_release_evidence(
+        project_key="gh_sase-org__sase",
+        run_id="run-1",
+        agent_id="reader",
+        qualifying_repo_ids=(str(repo),),
+    )
+
+    with override_flags(link_events=True):
+        report = drain_artifact_link_outbox(
+            store=store,
+            agent_name="reader",
+            drop_stale_terminal=False,
+            push_after_commit=False,
+        )
+
+    assert report.drained == 2
+    assert report.committed is True
+    assert len(report.event_paths) == 2
+    assert all(
+        path.relative_to(repo).parts[:2] == ("link-events", "v1")
+        for path in report.event_paths
+    )
+    assert not list((repo / "links").rglob("*"))
+    assert _commit_count(repo) == before + 1
+    assert _read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
+    [row] = store.load_aggregate()["rows"]
+    assert row["uses"] == 2
+    assert _run_git(repo, "status", "--porcelain", "--untracked-files=all") == ""
+
+
+def test_enabled_drain_allows_trusted_machine_derived_events_without_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
+    )
+    append_artifact_link_outbox_entry(
+        project_key="gh_sase-org__sase",
+        agent_name="sase",
+        run_id="machine",
+        row=_row(
+            source="plan:doc.md",
+            relation="implements",
+            target="bead:sase-yy.4",
+            origin="derived",
+            created_by="sase",
+        ),
+    )
+
+    with override_flags(link_events=True):
+        report = drain_artifact_link_outbox(
+            store=store,
+            agent_name="sase",
+            drop_stale_terminal=False,
+            push_after_commit=False,
+        )
+
+    assert report.drained == 1
+    assert len(report.event_paths) == 1
+    assert not list((repo / "links").rglob("*"))
     assert _read_artifact_link_outbox_entries("gh_sase-org__sase") == ()

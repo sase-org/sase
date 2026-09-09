@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import os
+from pathlib import Path
 
 from sase.output import print_status
 from sase.workflows.commit.checkpoint import CommitCheckpoint
@@ -241,7 +242,22 @@ def _drain_artifact_link_outbox_for_agent(
         from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
 
         _record_real_change_release_evidence(cp)
+        store = None
+        from sase.sdd.artifact_link_event_flags import artifact_link_events_enabled
+
+        if artifact_link_events_enabled():
+            from sase.sdd.artifact_link_store import (
+                resolve_artifact_link_store,
+                resolve_machine_artifact_link_store,
+            )
+
+            current_store = resolve_artifact_link_store(cwd=Path(cp.cwd))
+            store = resolve_machine_artifact_link_store(
+                current_store.project_key,
+                Path(cp.cwd),
+            )
         drain_artifact_link_outbox(
+            store=store,
             agent_name=cp.publication_agent,
             drop_stale_terminal=False,
             push_after_commit="async",

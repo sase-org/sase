@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import os
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
 from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_projection import preview_link_rows
@@ -14,6 +15,12 @@ from sase.sdd._artifact_link_refresh import preview_artifact_link_projection_fil
 from sase.sdd._artifact_link_store_support import (
     kind_of_ref,
     validate_artifact_link_row,
+)
+from sase.sdd.artifact_link_event_flags import artifact_link_events_enabled
+from sase.sdd.artifact_link_event_publisher import (
+    active_operation_ids_for_row,
+    edge_put_event_from_row,
+    publish_artifact_link_events,
 )
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
@@ -144,17 +151,20 @@ def publish_plan_artifact_link_inlet(
 
     changed_indexes: list[Path] = []
     beads_changed = False
-    for row in rows:
-        outcome = link_store.upsert_row(row)
-        changed_indexes.extend(
-            Path(path) for path in outcome.get("changed_indexes") or ()
+    if artifact_link_events_enabled():
+        _persist_link_events(link_store, rows)
+    else:
+        for row in rows:
+            outcome = link_store.upsert_row(row)
+            changed_indexes.extend(
+                Path(path) for path in outcome.get("changed_indexes") or ()
+            )
+            beads_changed = beads_changed or bool(outcome.get("beads_changed"))
+        _persist_link_mutation(
+            link_store,
+            changed_indexes=tuple(dict.fromkeys(changed_indexes)),
+            beads_changed=beads_changed,
         )
-        beads_changed = beads_changed or bool(outcome.get("beads_changed"))
-    _persist_link_mutation(
-        link_store,
-        changed_indexes=tuple(dict.fromkeys(changed_indexes)),
-        beads_changed=beads_changed,
-    )
     if updated != current:
         document.parent.mkdir(parents=True, exist_ok=True)
         document.write_text(updated, encoding="utf-8")
@@ -306,6 +316,37 @@ def _persist_link_mutation(
         )
     except ArtifactLinkPersistError as exc:
         raise ArtifactLinkFrontmatterInletError(exc.diagnostic) from exc
+
+
+def _persist_link_events(
+    store: ArtifactLinkStore,
+    rows: tuple[dict[str, Any], ...],
+) -> None:
+    try:
+        events = tuple(
+            edge_put_event_from_row(
+                row,
+                project_key=store.project_key,
+                operation_id=uuid4().hex,
+                observed_operation_ids=active_operation_ids_for_row(store, row),
+            )
+            for row in rows
+        )
+        report = publish_artifact_link_events(
+            store,
+            events,
+            push_after_commit=None,
+            mutation_origin="user",
+        )
+    except (RuntimeError, TypeError, ValueError) as exc:
+        raise ArtifactLinkFrontmatterInletError(str(exc)) from exc
+    if report.publication_error:
+        raise ArtifactLinkFrontmatterInletError(report.publication_error)
+    if report.published != len(events):
+        diagnostic = (
+            "\n".join(report.skip_diagnostics) or "artifact-link event was not durable"
+        )
+        raise ArtifactLinkFrontmatterInletError(diagnostic)
 
 
 def _created_by() -> str:

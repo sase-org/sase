@@ -13,7 +13,6 @@ from typing import Any
 from uuid import uuid4
 
 from sase.core.paths import sase_projects_dir, validate_sase_project_name
-from sase.core.rust import require_rust_binding
 from sase.memory.locks import locked_file
 from sase.sdd._artifact_link_authorize import (
     MachineSidecarWritability,
@@ -24,6 +23,13 @@ from sase.sdd._artifact_link_store_support import (
     kind_of_ref,
     sidecar_index_path,
     validate_artifact_link_row,
+)
+from sase.sdd.artifact_link_event_flags import artifact_link_events_enabled
+from sase.sdd.artifact_link_event_publisher import (
+    canonical_event as _canonical_event,
+    observation_or_put_event_from_row,
+    publish_artifact_link_events,
+    rows_from_events as _event_rows_from_events,
 )
 from sase.sdd.artifact_link_store import ArtifactLinkStore, resolve_artifact_link_store
 
@@ -101,6 +107,8 @@ class _ArtifactLinkOutboxDrainReport:
     dropped: int = 0
     committed: bool = False
     changed_indexes: tuple[Path, ...] = ()
+    event_paths: tuple[Path, ...] = ()
+    publication_error: str | None = None
     skip_diagnostics: tuple[str, ...] = ()
 
 
@@ -278,7 +286,29 @@ def drain_artifact_link_outbox(
     )
     retained.extend(unauthorized)
 
-    legacy_drainable, event_only = _partition_legacy_drainable(writable_entries)
+    event_drainable: list[_ArtifactLinkOutboxEntry] = []
+    if artifact_link_events_enabled():
+        event_drainable, legacy_candidates = _partition_event_drainable(
+            writable_entries
+        )
+        event_report = publish_artifact_link_events(
+            link_store,
+            (entry.event for entry in event_drainable if entry.event is not None),
+            push_after_commit=push_after_commit,  # type: ignore[arg-type]
+            mutation_origin="machine",
+        )
+        published_event_ids = set(event_report.published_operation_ids)
+        retained.extend(
+            entry for entry in event_drainable if entry.id not in published_event_ids
+        )
+        event_skip_diagnostics = event_report.skip_diagnostics
+    else:
+        legacy_candidates = writable_entries
+        event_report = None
+        published_event_ids = set()
+        event_skip_diagnostics = ()
+
+    legacy_drainable, event_only = _partition_legacy_drainable(legacy_candidates)
     retained.extend(event_only)
 
     changed_indexes = _upsert_publishable_entries(link_store, legacy_drainable)
@@ -293,24 +323,34 @@ def drain_artifact_link_outbox(
                 queued=len(entries),
                 retained=len(entries),
                 changed_indexes=tuple(changed_indexes),
-                skip_diagnostics=skip_diagnostics,
+                event_paths=() if event_report is None else event_report.event_paths,
+                publication_error=None
+                if event_report is None
+                else event_report.publication_error,
+                skip_diagnostics=(*skip_diagnostics, *event_skip_diagnostics),
             )
     else:
         committed = False
 
     _rewrite_without_ids(
         link_store.project_key,
-        drained_ids={entry.id for entry in legacy_drainable},
+        drained_ids={entry.id for entry in legacy_drainable} | published_event_ids,
         dropped=stale,
     )
+    event_paths = () if event_report is None else event_report.event_paths
+    publication_error = None if event_report is None else event_report.publication_error
     return _ArtifactLinkOutboxDrainReport(
         queued=len(entries),
-        drained=len(legacy_drainable),
-        retained=len(entries) - len(legacy_drainable) - len(stale),
+        drained=len(legacy_drainable) + len(published_event_ids),
+        retained=(
+            len(entries) - len(legacy_drainable) - len(published_event_ids) - len(stale)
+        ),
         dropped=len(stale),
-        committed=committed,
+        committed=committed or bool(event_report and event_report.committed),
         changed_indexes=tuple(changed_indexes),
-        skip_diagnostics=skip_diagnostics,
+        event_paths=event_paths,
+        publication_error=publication_error,
+        skip_diagnostics=(*skip_diagnostics, *event_skip_diagnostics),
     )
 
 
@@ -409,6 +449,19 @@ def _partition_legacy_drainable(
     retained: list[_ArtifactLinkOutboxEntry] = []
     for entry in entries:
         if _entry_can_drain_to_legacy_index(entry):
+            drainable.append(entry)
+        else:
+            retained.append(entry)
+    return drainable, retained
+
+
+def _partition_event_drainable(
+    entries: Iterable[_ArtifactLinkOutboxEntry],
+) -> tuple[list[_ArtifactLinkOutboxEntry], list[_ArtifactLinkOutboxEntry]]:
+    drainable: list[_ArtifactLinkOutboxEntry] = []
+    retained: list[_ArtifactLinkOutboxEntry] = []
+    for entry in entries:
+        if entry.event is not None:
             drainable.append(entry)
         else:
             retained.append(entry)
@@ -707,6 +760,9 @@ def _entry_is_eligible(entry: _ArtifactLinkOutboxEntry) -> bool:
     sibling run's real commit.
     """
 
+    if _entry_is_trusted_machine_event(entry):
+        return True
+
     from sase.sdd.artifact_link_release_evidence import (
         artifact_link_run_has_release_evidence,
     )
@@ -719,6 +775,16 @@ def _entry_is_eligible(entry: _ArtifactLinkOutboxEntry) -> bool:
         )
     except Exception:  # noqa: BLE001 - unresolved evidence stays queued.
         return False
+
+
+def _entry_is_trusted_machine_event(entry: _ArtifactLinkOutboxEntry) -> bool:
+    event = entry.event
+    if event is None:
+        return False
+    origin = str(event.get("origin") or "")
+    if origin not in {"derived", "migrated"}:
+        return False
+    return entry.agent_name in {"sase", "machine", "artifact_link_backfill"}
 
 
 def _terminal_cutoff() -> float | None:
@@ -829,64 +895,21 @@ def _event_from_row(
     project_key: str,
     operation_id: str,
 ) -> dict[str, Any]:
-    canonical_row = validate_artifact_link_row(row)
-    origin = str(canonical_row.get("origin") or "")
-    edge = {
-        "kind": "directed",
-        "source_ref": str(canonical_row.get("source_ref") or ""),
-        "relation": str(canonical_row.get("relation") or ""),
-        "target_ref": str(canonical_row.get("target_ref") or ""),
-    }
-    if origin in {"read", "prompt_ref"}:
-        kind = {
-            "type": "observation",
-            "edge": edge,
-            "description": str(canonical_row.get("description") or ""),
-            "occurrences": _row_uses(canonical_row),
-        }
-    else:
-        kind = {
-            "type": "edge-put",
-            "edge": edge,
-            "description": str(canonical_row.get("description") or ""),
-            "observed_operation_ids": [],
-        }
-    event = {
-        "schema_version": int(
-            require_rust_binding("artifact_link_event_schema_version")()
-        ),
-        "project_key": project_key,
-        "operation_id": operation_id,
-        "created_by": str(canonical_row.get("created_by") or ""),
-        "origin": origin,
-        "created_at": str(canonical_row.get("created_at") or ""),
-        "kind": kind,
-    }
-    return _canonicalize_event(event)
+    return observation_or_put_event_from_row(
+        row,
+        project_key=project_key,
+        operation_id=operation_id,
+    )
 
 
 def _canonicalize_event(event: Mapping[str, Any]) -> dict[str, Any]:
-    return dict(require_rust_binding("artifact_link_event_canonicalize")(dict(event)))
+    return _canonical_event(event)
 
 
 def _rows_from_events(
     events: Iterable[Mapping[str, Any] | None],
 ) -> tuple[dict[str, Any], ...]:
-    canonical_events = [dict(event) for event in events if event is not None]
-    if not canonical_events:
-        return ()
-    reduction = require_rust_binding("artifact_link_events_reduce")(
-        canonical_events,
-        [],
-    )
-    if not isinstance(reduction, Mapping):
-        raise RuntimeError("sase_core_rs returned malformed link-event reduction")
-    rows = reduction.get("rows")
-    if not isinstance(rows, list):
-        raise RuntimeError("sase_core_rs returned malformed link-event rows")
-    return tuple(
-        validate_artifact_link_row(row) for row in rows if isinstance(row, dict)
-    )
+    return _event_rows_from_events(events)
 
 
 def _operation_id(value: object) -> str:

@@ -171,40 +171,16 @@ def _attach_reference_to_bead(bead_id: str, reference: str) -> int:
     ``sase artifact link add`` uses instead of adding to it.
     """
 
-    from datetime import UTC, datetime
-
-    from sase.sdd._artifact_link_commit import (
-        ArtifactLinkPersistError,
-        persist_artifact_link_graph_mutation,
-    )
-    from sase.sdd.artifact_link_store import (
-        ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-        resolve_artifact_link_store,
-    )
-
-    created_by = _resolved_created_by()
-    row = {
-        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-        "source_ref": reference,
-        "relation": "related",
-        "target_ref": f"bead:{bead_id}",
-        "description": "attached via sase artifact create --bead",
-        "origin": "manual",
-        "created_by": created_by,
-        "created_at": datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "uses": 1,
-    }
     try:
-        store = resolve_artifact_link_store()
-        outcome = store.upsert_row(row)
-        persist_artifact_link_graph_mutation(
-            store,
-            changed_indexes=tuple(
-                Path(path) for path in outcome.get("changed_indexes") or ()
-            ),
-            beads_changed=bool(outcome.get("beads_changed")),
+        from sase.artifact_cli.link_ops import add_artifact_link
+
+        add_artifact_link(
+            source_ref=reference,
+            relation="related",
+            target_ref=f"bead:{bead_id}",
+            why="attached via sase artifact create --bead",
         )
-    except (RuntimeError, TypeError, ValueError, ArtifactLinkPersistError) as exc:
+    except (RuntimeError, TypeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     return 0

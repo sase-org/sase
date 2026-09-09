@@ -9,8 +9,14 @@ from sase.sdd._artifact_link_files import (
     ArtifactLinkRepoFileKind,
     artifact_link_lock_path,
     classify_artifact_link_repo_file,
+    is_canonical_artifact_link_event,
+    is_canonical_artifact_link_event_location,
     is_canonical_artifact_link_index,
     is_canonical_artifact_link_index_location,
+)
+from sase.sdd.artifact_link_event_publisher import (
+    _canonical_artifact_link_event_object,
+    observation_or_put_event_from_row,
 )
 from sase.sdd.artifact_link_store import ARTIFACT_LINK_ROW_SCHEMA_VERSION
 
@@ -51,6 +57,19 @@ def _write_index(
         "rows": rows if rows is not None else [_row(target=artifact_ref)],
     }
     path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def _write_event(repo: Path) -> Path:
+    event = observation_or_put_event_from_row(
+        _row(),
+        project_key="gh_sase-org__sase",
+        operation_id="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    )
+    event_object = _canonical_artifact_link_event_object(event)
+    path = repo / event_object.relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(event_object.payload)
     return path
 
 
@@ -217,6 +236,48 @@ def test_nonempty_and_unpaired_locks_are_rejected(tmp_path: Path) -> None:
     )
     assert (
         classify_artifact_link_repo_file(unpaired, repo)
+        is ArtifactLinkRepoFileKind.REJECTED
+    )
+
+
+def test_valid_canonical_event_object_is_recognized(tmp_path: Path) -> None:
+    repo = tmp_path / "plans"
+    repo.mkdir()
+    event_path = _write_event(repo)
+
+    assert (
+        classify_artifact_link_repo_file(event_path, repo)
+        is ArtifactLinkRepoFileKind.EVENT
+    )
+    assert is_canonical_artifact_link_event(event_path, repo)
+
+
+def test_missing_event_location_is_recognized_from_digest(tmp_path: Path) -> None:
+    repo = tmp_path / "plans"
+    repo.mkdir()
+    event_path = _write_event(repo)
+    event_path.unlink()
+
+    assert is_canonical_artifact_link_event_location(event_path, repo)
+    assert not is_canonical_artifact_link_event(event_path, repo)
+
+
+def test_malformed_and_symlink_event_objects_are_rejected(tmp_path: Path) -> None:
+    repo = tmp_path / "plans"
+    repo.mkdir()
+    event_path = _write_event(repo)
+    event_path.write_text('{"not":"canonical"}\n', encoding="utf-8")
+    link = event_path.with_name(
+        "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.json"
+    )
+    link.symlink_to(event_path)
+
+    assert (
+        classify_artifact_link_repo_file(event_path, repo)
+        is ArtifactLinkRepoFileKind.REJECTED
+    )
+    assert (
+        classify_artifact_link_repo_file(link, repo)
         is ArtifactLinkRepoFileKind.REJECTED
     )
 

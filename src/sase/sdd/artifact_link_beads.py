@@ -48,6 +48,7 @@ def add_bead_endpoint_link(
     direction: str = "out",
     uses: int = 1,
     now: str | None = None,
+    operation_id: str | None = None,
 ) -> dict[str, Any]:
     """Write one LinkAdded event.
 
@@ -70,6 +71,7 @@ def add_bead_endpoint_link(
         direction=direction,
         uses=uses,
         now=now,
+        operation_id=operation_id,
     )
     return outcome
 
@@ -82,6 +84,7 @@ def remove_bead_endpoint_link(
     relation: str | None,
     direction: str = "out",
     now: str | None = None,
+    operation_id: str | None = None,
 ) -> dict[str, Any]:
     """Write LinkRemoved events."""
     from sase.core import bead_mutation_facade as rust_beads
@@ -93,6 +96,7 @@ def remove_bead_endpoint_link(
         relation=relation,
         direction=direction,
         now=now,
+        operation_id=operation_id,
     )
     return outcome
 
