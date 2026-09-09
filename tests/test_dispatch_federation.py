@@ -54,6 +54,12 @@ def test_empty_remote_hosts_keep_facade_disabled_without_rust_binding(
         "disabled": True,
         "hosts": [],
     }
+    assert facade.attention_inventory_sync({"schema_version": 1}) == {
+        "schema_version": federation.FEDERATION_IPC_SCHEMA_VERSION,
+        "operation": "attention_inventory",
+        "disabled": True,
+        "hosts": [],
+    }
     with pytest.raises(
         federation.FederationWorkerUnavailable,
         match="no configured dispatch machines are available",

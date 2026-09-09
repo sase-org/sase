@@ -91,6 +91,28 @@ def fetch_remote_attention(
     )
 
 
+def fetch_remote_attention_inventory(
+    *,
+    cursor: str | None = None,
+    limit: int | None = None,
+    cache_only: bool = False,
+    timeout_seconds: float | None = None,
+) -> dict[str, Any]:
+    """Fetch a bounded fleet-wide page of pending owner-side attention."""
+
+    config = load_federation_config()
+    request: dict[str, Any] = {"schema_version": _FLEET_SCHEMA_VERSION}
+    if cursor is not None:
+        request["cursor"] = cursor
+    if limit is not None:
+        request["limit"] = limit
+    return build_federation_facade(config).attention_inventory_sync(
+        request,
+        cache_only=cache_only,
+        timeout_seconds=timeout_seconds or config.worker.request_timeout_seconds,
+    )
+
+
 def submit_remote_attention_answer(
     alias: str,
     intent: Mapping[str, Any],
@@ -335,5 +357,6 @@ __all__ = [
     "RemoteAttentionResult",
     "RemoteDispatchAttentionError",
     "fetch_remote_attention",
+    "fetch_remote_attention_inventory",
     "submit_remote_attention_answer",
 ]

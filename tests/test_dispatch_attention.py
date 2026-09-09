@@ -359,3 +359,48 @@ def test_fetch_remote_attention_skips_read_when_no_logical_keys() -> None:
     result = attention.fetch_remote_attention([])
     assert result["disabled"] is True
     assert result["hosts"] == []
+
+
+def test_fetch_remote_attention_inventory_builds_fleet_wide_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[dict[str, Any], dict[str, Any]]] = []
+
+    class Worker:
+        request_timeout_seconds = 7.0
+
+    class Config:
+        worker = Worker()
+
+    config = Config()
+
+    class Facade:
+        def __init__(self, source_config: Config) -> None:
+            assert source_config is config
+
+        def attention_inventory_sync(
+            self, request: dict[str, Any], **kwargs: Any
+        ) -> dict[str, Any]:
+            calls.append((request, kwargs))
+            return {
+                "schema_version": 1,
+                "operation": "attention_inventory",
+                "hosts": [],
+            }
+
+    monkeypatch.setattr(attention, "load_federation_config", lambda: config)
+    monkeypatch.setattr(attention, "build_federation_facade", Facade)
+
+    result = attention.fetch_remote_attention_inventory(
+        cursor="off:1",
+        limit=10,
+        cache_only=True,
+    )
+
+    assert result["operation"] == "attention_inventory"
+    assert calls == [
+        (
+            {"schema_version": 1, "cursor": "off:1", "limit": 10},
+            {"cache_only": True, "timeout_seconds": 7.0},
+        )
+    ]

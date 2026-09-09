@@ -138,6 +138,20 @@ class FederationFacade:
             timeout_seconds=timeout_seconds,
         )
 
+    async def attention_inventory(
+        self,
+        request: Mapping[str, Any],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        return await asyncio.to_thread(
+            self.attention_inventory_sync,
+            request,
+            cache_only=cache_only,
+            timeout_seconds=timeout_seconds,
+        )
+
     async def launch(
         self,
         target: str,
@@ -266,6 +280,23 @@ class FederationFacade:
             "attention",
             {
                 "op": "attention",
+                "request": dict(request),
+                "cache_only": cache_only,
+            },
+            timeout_seconds=timeout_seconds,
+        )
+
+    def attention_inventory_sync(
+        self,
+        request: Mapping[str, Any],
+        *,
+        cache_only: bool = False,
+        timeout_seconds: float | None = None,
+    ) -> dict[str, Any]:
+        return self._read(
+            "attention_inventory",
+            {
+                "op": "attention_inventory",
                 "request": dict(request),
                 "cache_only": cache_only,
             },
