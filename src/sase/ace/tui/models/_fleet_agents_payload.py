@@ -118,10 +118,7 @@ def response_is_partial(response: Mapping[str, Any] | None) -> bool:
         return False
     if bool(response.get("partial")):
         return True
-    return any(
-        _host_is_unhealthy(host) or _host_payload_is_partial(host)
-        for host in host_payloads(response)
-    )
+    return any(_host_is_unhealthy(host) for host in host_payloads(response))
 
 
 def authoritative_running_count(response: Mapping[str, Any] | None) -> int | None:
@@ -247,16 +244,6 @@ def _host_is_unhealthy(host: Mapping[str, Any]) -> bool:
     status = host.get("status")
     if isinstance(status, str) and status.strip():
         return status.strip().casefold() not in _OK_HOST_STATUSES
-    return False
-
-
-def _host_payload_is_partial(host: Mapping[str, Any]) -> bool:
-    payload = host.get("payload")
-    if not isinstance(payload, Mapping):
-        return False
-    freshness = payload.get("freshness")
-    if isinstance(freshness, Mapping):
-        return bool(freshness.get("partial"))
     return False
 
 
