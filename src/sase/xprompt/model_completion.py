@@ -43,6 +43,7 @@ from sase.xprompt._model_completion_routing import (
     overlay_live_model_completion_entries,
 )
 from sase.xprompt._model_completion_wire import (
+    filter_explicit_model_shortcut_entries,
     filter_model_alias_shortcut_entries,
     filter_model_completion_entries,
     model_completion_entry_to_wire,
@@ -167,6 +168,7 @@ __all__ = [
     "MODEL_COMPLETION_ENTRY_WIRE_FIELDS",
     "ModelCompletionEntry",
     "build_model_completion_catalog",
+    "filter_explicit_model_shortcut_entries",
     "filter_model_alias_shortcut_entries",
     "filter_model_completion_entries",
     "model_completion_entry_wire_rows",

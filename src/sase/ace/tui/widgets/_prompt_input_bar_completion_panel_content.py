@@ -22,6 +22,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_history_word_completion_row,
     append_jinja_completion_row,
     append_model_completion_row,
+    append_model_shortcut_completion_row,
     append_placeholder_completion_row,
     append_prompt_word_completion_row,
     append_vcs_project_completion_row,
@@ -151,11 +152,7 @@ def _row_layout(
         ),
         vcs_ref=_max_label_width(visible, vcs_ref_label_width, kinds.vcs_ref),
         vcs_repo=_max_label_width(visible, vcs_repo_label_width, kinds.vcs_repo),
-        model=(
-            model_completion_column_widths(visible)
-            if kinds.model or kinds.model_alias
-            else (0, 0)
-        ),
+        model=(model_completion_column_widths(visible) if kinds.model else (0, 0)),
         finalizer=(
             finalizer_completion_column_widths(visible) if kinds.finalizer else (0, 0)
         ),
@@ -221,6 +218,18 @@ def _append_candidate_row(
     elif kinds.model_alias:
         if isinstance(candidate.metadata, ModelCompletionMetadata):
             append_model_completion_row(
+                content,
+                candidate,
+                is_selected,
+                layout.model,
+                match_query=token,
+                available_width=max(0, inner_width - 2),
+            )
+        else:
+            content.append(candidate.display, style="dim")
+    elif kinds.model_explicit:
+        if isinstance(candidate.metadata, ModelCompletionMetadata):
+            append_model_shortcut_completion_row(
                 content,
                 candidate,
                 is_selected,

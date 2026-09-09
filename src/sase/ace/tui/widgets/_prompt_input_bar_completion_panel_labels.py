@@ -63,6 +63,8 @@ def completion_panel_title(
         return "wait targets"
     if kinds.model_alias:
         return "model aliases"
+    if kinds.model_explicit:
+        return "explicit models"
     if kinds.model:
         if scoped_title := _model_completion_provider_scope_title(token, rows):
             return scoped_title
@@ -163,6 +165,7 @@ def model_completion_subtitle(
     inner_width: int,
     *,
     alias_shortcut: bool = False,
+    explicit_shortcut: bool = False,
 ) -> Text:
     """Return the contextual subtitle for an enriched model menu."""
     if not 0 <= selected_index < len(rows):
@@ -172,6 +175,8 @@ def model_completion_subtitle(
         return Text()
     if alias_shortcut:
         return _model_alias_completion_subtitle(metadata, inner_width)
+    if explicit_shortcut:
+        return _model_explicit_completion_subtitle(metadata, inner_width)
     elif metadata.kind == "model":
         subtitle = "[@] model aliases"
     elif metadata.kind == "provider":
@@ -217,6 +222,48 @@ def _model_alias_completion_subtitle(
     preview.append(separator)
     preview.append_text(description)
     return preview
+
+
+def _model_explicit_completion_subtitle(
+    metadata: ModelCompletionMetadata,
+    inner_width: int,
+) -> Text:
+    preview = Text(f"Enter → %m:{metadata.value}", no_wrap=True, overflow="ellipsis")
+    details = _model_explicit_completion_details(metadata)
+    if inner_width <= 0:
+        if details:
+            preview.append(f" · {details}")
+        return preview
+    if preview.cell_len >= inner_width:
+        preview.truncate(inner_width, overflow="ellipsis")
+        return preview
+    if not details:
+        return preview
+
+    separator = " · "
+    remaining = inner_width - preview.cell_len
+    separator_width = cell_len(separator)
+    if remaining <= separator_width:
+        return preview
+
+    detail_text = Text(details, no_wrap=True, overflow="ellipsis")
+    detail_text.truncate(remaining - separator_width, overflow="ellipsis")
+    preview.append(separator)
+    preview.append_text(detail_text)
+    return preview
+
+
+def _model_explicit_completion_details(metadata: ModelCompletionMetadata) -> str:
+    provider = metadata.provider_display or metadata.description or metadata.provider
+    if metadata.short_alias:
+        provider = (
+            f"{provider} ({metadata.short_alias})" if provider else metadata.short_alias
+        )
+    if metadata.provenance in {"priority", "backup", "soft"}:
+        return (
+            f"{provider} · {metadata.provenance}" if provider else metadata.provenance
+        )
+    return provider
 
 
 def agent_completion_subtitle(

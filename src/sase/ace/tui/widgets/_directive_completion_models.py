@@ -16,6 +16,7 @@ from sase.llm_provider.provider_priority_peek import peek_provider_routing_conte
 from sase.llm_provider.temporary_override import peek_active_alias_overrides
 from sase.xprompt.model_completion import (
     ModelCompletionEntry,
+    filter_explicit_model_shortcut_entries,
     filter_model_alias_shortcut_entries,
     filter_model_completion_entries,
 )
@@ -107,6 +108,16 @@ def build_model_alias_shortcut_candidates(
     """Build ``*alias`` rows from an already-warm model catalog."""
     alias_entries = filter_model_alias_shortcut_entries(entries, partial)
     candidates = [_model_entry_completion_candidate(entry) for entry in alias_entries]
+    return candidates, ""
+
+
+def build_explicit_model_shortcut_candidates(
+    partial: str,
+    entries: Sequence[ModelCompletionEntry],
+) -> tuple[list[CompletionCandidate], str]:
+    """Build ``**model`` rows from an already-warm model catalog."""
+    model_entries = filter_explicit_model_shortcut_entries(entries, partial)
+    candidates = [_model_entry_completion_candidate(entry) for entry in model_entries]
     return candidates, ""
 
 

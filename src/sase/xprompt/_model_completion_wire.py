@@ -44,6 +44,25 @@ def filter_model_alias_shortcut_entries(
     return [_model_completion_entry_from_wire(row) for row in payload]
 
 
+def filter_explicit_model_shortcut_entries(
+    entries: Sequence[ModelCompletionEntry],
+    query: str,
+) -> list[ModelCompletionEntry]:
+    """Return concrete model catalog rows a ``**query`` shortcut may expand to.
+
+    The Rust helper sees the full model catalog before filtering out provider
+    and alias rows, so provider-scoped queries such as ``codex/gpt`` keep the
+    same semantics as the xprompt LSP.
+    """
+    binding = require_rust_binding("filter_explicit_model_shortcut_entries")
+    payload: Any = binding(model_completion_entry_wire_rows(entries), query)
+    if not isinstance(payload, list):
+        raise TypeError(
+            "filter_explicit_model_shortcut_entries returned a non-list payload"
+        )
+    return [_model_completion_entry_from_wire(row) for row in payload]
+
+
 def model_completion_entry_wire_rows(
     entries: Sequence[ModelCompletionEntry],
 ) -> list[dict[str, object]]:
@@ -87,6 +106,7 @@ def _str_list(value: object) -> list[str]:
 
 
 __all__ = [
+    "filter_explicit_model_shortcut_entries",
     "filter_model_alias_shortcut_entries",
     "filter_model_completion_entries",
     "model_completion_entry_to_wire",

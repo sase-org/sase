@@ -5669,22 +5669,25 @@ token under the cursor:
   bead rows come from ACE's warmed snapshots rather than synchronous prompt-bar
   bead-store reads; if a dynamic refresh is unavailable, static directive names,
   aliases, keyword rows, and fixed values remain available.
-- **Model alias shortcut**: When the cursor is on a `*alias` token at the start of a
-  logical line or immediately after a literal ASCII space, completion opens the
-  alias-only model menu. For example, typing `*la` can select `@large`; accepting it
-  rewrites the whole star token, including any same-token suffix to the right of the
-  cursor, to `%m:@large`. If the token already has a following ASCII space, ACE reuses
-  it and leaves the cursor after that space; before a tab it inserts no extra space;
-  before a newline or prompt end it appends one ASCII space. `Enter` and `Ctrl+L` accept
-  the highlighted alias and never submit the prompt while the alias menu is open. No
-  matches dismiss the panel and leave the literal `*query` text intact, so an unknown
-  star token submits as ordinary prose. The shortcut does not fire inside inline code,
+- **Model shortcuts**: When the cursor is on a `*alias` or `**model` token at the start
+  of a logical line or immediately after a literal ASCII space, completion opens a model
+  shortcut menu. `*alias` lists alias rows only; for example, typing `*la` can select
+  `@large` and rewrite the whole token to `%m:@large`. `**model` lists concrete model
+  rows only; for example, typing `**gpt` can select `gpt-5.6-sol` and rewrite the token
+  to `%m:gpt-5.6-sol`, while provider-qualified input such as `**codex/g` narrows to
+  that provider. The second star switches an open alias shortcut panel into the explicit
+  model panel. If the token already has a following ASCII space, ACE reuses it and
+  leaves the cursor after that space; before a tab it inserts no extra space; before a
+  newline or prompt end it appends one ASCII space. `Enter` and `Ctrl+L` accept the
+  highlighted row and never submit the prompt while either shortcut menu is open. No
+  matches dismiss the panel and leave the literal query text intact, so unknown star
+  tokens submit as ordinary prose. These shortcuts do not fire inside inline code,
   fenced code, frontmatter, placeholder/directive contexts, escaped stars, Markdown
-  emphasis, or path-like tokens such as `path/*`. The xprompt LSP uses this same shared
-  filter and edit plan; see
-  [Star model-alias shortcut](editor.md#star-model-alias-shortcut).
-  `ace.prompt_completion.auto_directive_menu` only controls whether ACE auto-opens this
-  menu and does not govern an external editor's `*` trigger.
+  emphasis, completed `**bold**` emphasis, or path-like tokens such as `path/*`. The
+  xprompt LSP uses the same shared filter and edit plans; see
+  [Star model shortcuts](editor.md#star-model-shortcuts).
+  `ace.prompt_completion.auto_directive_menu` only controls whether ACE auto-opens these
+  menus and does not govern an external editor's `*` trigger.
 - **`@` reference completion**: A bare `@` opens the artifact-kind menu before a `:`
   appears. Local file rows such as `@src/` and `@Justfile` from the prompt-selected base
   directory stay hidden while the typed text prefix-matches an artifact kind; the panel
@@ -6200,7 +6203,7 @@ the filesystem while typing; enable it with
 automatically while typing matching `#name`, `#!name`, or `/skill` tokens; disable that
 xprompt auto-open behavior with `ace.prompt_completion.auto_xprompt_menu: false`. The
 directive menu likewise opens automatically while typing matching `%` directive tokens,
-fixed values such as `%model:`, and `*alias` model-alias shortcuts; disable it with
+fixed values such as `%model:`, and `*alias` / `**model` shortcuts; disable it with
 `ace.prompt_completion.auto_directive_menu: false`. That setting is ACE-only and does
 not change xprompt LSP trigger characters in an external editor. The xprompt/skill
 auto-menu opens only once at least one identifier character follows its marker, so bare
@@ -6221,8 +6224,8 @@ join automatic results after the prefix is non-empty, while manual `Ctrl+T` can 
 them from a bare `<`. Manual `Ctrl+T` inserts a lone match in the highest-priority
 placeholder source group outright; automatic completion only opens the menu, even for
 one match. Manual `Ctrl+T` completion still supports file paths, xprompt names,
-directives, skills, `*alias` model shortcuts, `@` references, project/Patch tags, VCS
-ref roots, VCS repository refs, prompt-local prose words, placeholders, and enabled
+directives, skills, `*alias` / `**model` shortcuts, `@` references, project/Patch tags,
+VCS ref roots, VCS repository refs, prompt-local prose words, placeholders, and enabled
 history words regardless of the automatic settings. Live suggestions pause while the
 manual completion panel is open, while snippet tabstops are active, in NORMAL mode, and
 during feedback prompts.

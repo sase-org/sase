@@ -17,10 +17,18 @@ from sase.ace.tui.widgets.file_completion import (
     completion_scroll_offset,
 )
 from sase.ace.tui.widgets.model_alias_completion import (
+    MODEL_ALIAS_COMPLETION_KIND,
     ModelAliasShortcutContext,
     build_loading_model_alias_placeholder,
     build_model_alias_completion_candidates,
     build_unavailable_model_alias_placeholder,
+)
+from sase.ace.tui.widgets.model_explicit_completion import (
+    MODEL_EXPLICIT_COMPLETION_KIND,
+    ModelExplicitShortcutContext,
+    build_loading_model_explicit_placeholder,
+    build_model_explicit_completion_candidates,
+    build_unavailable_model_explicit_placeholder,
 )
 from sase.ace.tui.widgets.prompt_word_completion import (
     WordCompletionResult,
@@ -102,7 +110,7 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         _model_completion_catalog_loaded: bool
         _model_completion_catalog_available: bool
         _model_completion_catalog_inflight: bool
-        _model_completion_catalog_request: tuple[str | None, str, int, str] | None
+        _model_completion_catalog_request: tuple[str, str | None, str, int, str] | None
         _vim_mode: str
         _artifact_ref_bug_projection: (
             tuple[object, str | None, tuple[ArtifactRefBugCandidate, ...]] | None
@@ -539,18 +547,46 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         if state == "warm" and entries is not None:
             return build_model_alias_completion_candidates(context, entries)
         if state == "unavailable" and retry_unavailable:
-            self._remember_model_completion_catalog_request()
+            self._remember_model_completion_catalog_request(MODEL_ALIAS_COMPLETION_KIND)
             self._schedule_model_completion_catalog_load(force=True)
             return [build_loading_model_alias_placeholder()]
         if state == "loading":
-            self._remember_model_completion_catalog_request()
+            self._remember_model_completion_catalog_request(MODEL_ALIAS_COMPLETION_KIND)
             self._schedule_model_completion_catalog_load()
             return [build_loading_model_alias_placeholder()]
         return [build_unavailable_model_alias_placeholder()]
 
-    def _remember_model_completion_catalog_request(self) -> None:
-        """Record the prompt state that asked a worker to warm model aliases."""
+    def _model_explicit_completion_rows(
+        self,
+        context: ModelExplicitShortcutContext,
+        *,
+        retry_unavailable: bool = False,
+    ) -> list[CompletionCandidate]:
+        """Build shortcut rows, scheduling a cold catalog load when needed."""
+        state, entries = self._model_completion_catalog_state()
+        if state == "warm" and entries is not None:
+            return build_model_explicit_completion_candidates(context, entries)
+        if state == "unavailable" and retry_unavailable:
+            self._remember_model_completion_catalog_request(
+                MODEL_EXPLICIT_COMPLETION_KIND
+            )
+            self._schedule_model_completion_catalog_load(force=True)
+            return [build_loading_model_explicit_placeholder()]
+        if state == "loading":
+            self._remember_model_completion_catalog_request(
+                MODEL_EXPLICIT_COMPLETION_KIND
+            )
+            self._schedule_model_completion_catalog_load()
+            return [build_loading_model_explicit_placeholder()]
+        return [build_unavailable_model_explicit_placeholder()]
+
+    def _remember_model_completion_catalog_request(
+        self,
+        completion_kind: str,
+    ) -> None:
+        """Record the prompt state that asked a worker to warm model rows."""
         self._model_completion_catalog_request = (
+            completion_kind,
             self.id,
             self.text,
             self._absolute_offset(self.cursor_location),

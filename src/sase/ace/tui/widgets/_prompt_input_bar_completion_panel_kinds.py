@@ -28,6 +28,9 @@ from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
 )
 from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
+from sase.ace.tui.widgets.model_explicit_completion import (
+    MODEL_EXPLICIT_COMPLETION_KIND,
+)
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
 )
@@ -50,6 +53,7 @@ class CompletionPanelKinds:
     finalizer: bool
     model: bool
     model_alias: bool
+    model_explicit: bool
     history: bool
     arg_completion: bool
     xprompt_arg_agent: bool
@@ -71,6 +75,7 @@ class CompletionPanelKinds:
         """Return the provider flags for *completion_kind* over *rows*."""
         is_directive_arg = completion_kind == "directive_arg"
         is_model_alias = completion_kind == MODEL_ALIAS_COMPLETION_KIND
+        is_model_explicit = completion_kind == MODEL_EXPLICIT_COMPLETION_KIND
         return cls(
             kind=completion_kind,
             xprompt=completion_kind == "xprompt",
@@ -82,12 +87,13 @@ class CompletionPanelKinds:
             and any(_is_bead_row(candidate) for candidate in rows),
             finalizer=is_directive_arg
             and any(_is_finalizer_row(candidate) for candidate in rows),
-            model=(is_directive_arg or is_model_alias)
+            model=(is_directive_arg or is_model_alias or is_model_explicit)
             and any(
                 isinstance(candidate.metadata, ModelCompletionMetadata)
                 for candidate in rows
             ),
             model_alias=is_model_alias,
+            model_explicit=is_model_explicit,
             history=completion_kind == "file_history",
             arg_completion=completion_kind in ("xprompt_arg_name", "xprompt_arg_value"),
             xprompt_arg_agent=completion_kind == "xprompt_arg_agent",

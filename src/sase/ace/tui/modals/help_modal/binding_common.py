@@ -42,7 +42,7 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("@", "Artifact kinds; Ctrl+T files"),
         ("%model: / %auto: / %effort:", "Auto-open directive values"),
         ("%model:@", "Model aliases only"),
-        ("*alias", "Shortcut to %m:@alias"),
+        ("*alias / **model", "Shortcut to %m alias/model"),
         ("%wait: / #fork:", "Complete agents, procs, @tribes"),
         ("#@ Ctrl+I", "Inline-expand xprompt"),
         ("#@ Ctrl+O", "Edit definition here (target)"),

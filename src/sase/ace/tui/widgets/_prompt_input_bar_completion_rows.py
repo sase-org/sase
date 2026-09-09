@@ -23,6 +23,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows_directives import (
     append_directive_completion_row,
     append_finalizer_completion_row,
     append_model_completion_row,
+    append_model_shortcut_completion_row,
     finalizer_completion_column_widths,
     model_completion_column_widths,
 )
@@ -52,6 +53,7 @@ __all__ = [
     "append_history_word_completion_row",
     "append_jinja_completion_row",
     "append_model_completion_row",
+    "append_model_shortcut_completion_row",
     "append_placeholder_completion_row",
     "append_prompt_word_completion_row",
     "append_vcs_project_completion_row",

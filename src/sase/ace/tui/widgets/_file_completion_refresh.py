@@ -21,6 +21,9 @@ from sase.ace.tui.widgets.file_completion import (
 )
 from sase.ace.tui.widgets.jinja_completion import build_jinja_completion_result
 from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
+from sase.ace.tui.widgets.model_explicit_completion import (
+    MODEL_EXPLICIT_COMPLETION_KIND,
+)
 from sase.ace.tui.widgets.history_word_completion import (
     HISTORY_WORD_COMPLETION_KIND,
     HistoryWordCompletionPlaceholder,
@@ -48,6 +51,13 @@ from sase.ace.tui.widgets.vcs_repo_completion import (
     vcs_repo_completion_candidates,
 )
 from sase.ace.tui.widgets.xprompt_completion import is_xprompt_like_token
+
+_MODEL_SHORTCUT_COMPLETION_KINDS = frozenset(
+    {
+        MODEL_ALIAS_COMPLETION_KIND,
+        MODEL_EXPLICIT_COMPLETION_KIND,
+    }
+)
 
 
 class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
@@ -126,17 +136,8 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
             self._update_file_completion_panel(placeholder_result.prefix)
             return
 
-        if self._completion_kind == MODEL_ALIAS_COMPLETION_KIND:
-            alias_context = self._get_model_alias_completion_context()
-            if alias_context is None:
-                self._clear_file_completion()
-                return
-            candidates = self._model_alias_completion_rows(alias_context)
-            if not candidates:
-                self._clear_file_completion()
-                return
-            self._replace_completion_candidates_preserving_selection(candidates)
-            self._update_file_completion_panel(alias_context.query)
+        if self._completion_kind in _MODEL_SHORTCUT_COMPLETION_KINDS:
+            self._refresh_model_shortcut_completion()
             return
 
         if self._completion_kind == "jinja":
@@ -380,6 +381,36 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         self._replace_completion_candidates_preserving_selection(result.candidates)
         self._update_file_completion_panel(result.prefix)
 
+    def _refresh_model_shortcut_completion(self) -> None:
+        """Refresh an active star-shortcut menu, including kind transitions."""
+        previous_kind = self._completion_kind
+        alias_context = self._get_model_alias_completion_context()
+        if alias_context is not None:
+            completion_kind = MODEL_ALIAS_COMPLETION_KIND
+            token = alias_context.query
+            candidates = self._model_alias_completion_rows(alias_context)
+        else:
+            explicit_context = self._get_model_explicit_completion_context()
+            if explicit_context is None:
+                self._clear_file_completion()
+                return
+            completion_kind = MODEL_EXPLICIT_COMPLETION_KIND
+            token = explicit_context.query
+            candidates = self._model_explicit_completion_rows(explicit_context)
+
+        if not candidates:
+            self._clear_file_completion()
+            return
+
+        if completion_kind == previous_kind:
+            self._replace_completion_candidates_preserving_selection(candidates)
+        else:
+            self._completion_kind = completion_kind
+            self._file_completion_candidates = candidates
+            self._file_completion_index = 0
+            self._completion_selection_moved = False
+        self._update_file_completion_panel(token)
+
     def _refresh_history_word_completion(
         self,
         words: list[str] | None = None,
@@ -484,6 +515,8 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         if self._get_xprompt_arg_completion_context() is not None:
             return True
         if self._get_model_alias_completion_context() is not None:
+            return True
+        if self._get_model_explicit_completion_context() is not None:
             return True
 
         directive_ctx = self._get_directive_token_context()

@@ -257,6 +257,100 @@ def append_model_completion_row(
         content.append_text(state)
 
 
+def append_model_shortcut_completion_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    is_selected: bool,
+    widths: tuple[int, int],
+    *,
+    match_query: str,
+    available_width: int,
+) -> None:
+    """Append a compact ``**model`` row with the typed prefix highlighted."""
+    metadata = candidate.metadata
+    if not isinstance(metadata, ModelCompletionMetadata) or metadata.kind != "model":
+        content.append(candidate.display, style="dim")
+        return
+
+    name_width, provider_width = widths
+    name_style = "bold magenta" if is_selected else "magenta"
+    provider = _model_completion_target_text(metadata)
+    provider.truncate(provider_width, overflow="ellipsis", pad=True)
+    hint = _model_shortcut_hint_text(metadata, match_query)
+    state = _model_routing_state_text(metadata)
+    pieces: list[Text] = [provider]
+    if hint:
+        pieces.append(hint)
+    if state:
+        pieces.append(state)
+
+    if available_width > 0:
+        detail_width = _model_shortcut_detail_width(pieces)
+        while pieces and name_width + detail_width > available_width:
+            pieces.pop()
+            detail_width = _model_shortcut_detail_width(pieces)
+        name_width = max(1, min(name_width, available_width - detail_width))
+
+    name = _model_shortcut_name_text(
+        candidate.display,
+        name_style,
+        match_query=match_query,
+    )
+    name.truncate(name_width, overflow="ellipsis", pad=True)
+    content.append_text(name)
+    for piece in pieces:
+        content.append("  ")
+        content.append_text(piece)
+
+
+def _model_shortcut_detail_width(pieces: list[Text]) -> int:
+    """Return the cell width consumed by explicit-model detail columns."""
+    return sum(2 + piece.cell_len for piece in pieces)
+
+
+def _model_shortcut_name_text(
+    display: str,
+    style: str,
+    *,
+    match_query: str,
+) -> Text:
+    """Return a model label with the typed canonical prefix highlighted."""
+    if not match_query or not display.casefold().startswith(match_query.casefold()):
+        return Text(display, style=style)
+    text = Text(no_wrap=True, overflow="ellipsis")
+    append_highlighted(
+        text,
+        display,
+        [(0, len(match_query))],
+        base_style=style,
+    )
+    return text
+
+
+def _model_shortcut_hint_text(
+    metadata: ModelCompletionMetadata,
+    match_query: str,
+) -> Text:
+    """Return the short-name hint, highlighting only when the hint matched."""
+    if not metadata.short_alias:
+        return Text("")
+    style = "dim"
+    query = match_query
+    _provider, separator, scoped_query = match_query.partition("/")
+    if separator:
+        query = scoped_query
+    if query and metadata.short_alias.casefold().startswith(query.casefold()):
+        text = Text(no_wrap=True, overflow="ellipsis")
+        append_highlighted(
+            text,
+            metadata.short_alias,
+            [(0, len(query))],
+            base_style=style,
+        )
+        return text
+    return Text(metadata.short_alias, style=style)
+
+
 def _append_model_alias_shortcut_row(
     content: Text,
     candidate: CompletionCandidate,

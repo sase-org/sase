@@ -48,6 +48,9 @@ from sase.ace.tui.widgets.file_completion import (
 from sase.ace.tui.widgets.model_alias_completion import (
     MODEL_ALIAS_MODE_SUBTITLE,
 )
+from sase.ace.tui.widgets.model_explicit_completion import (
+    MODEL_EXPLICIT_MODE_SUBTITLE,
+)
 from sase.ace.tui.widgets.prompt_completion import PromptSoftCompletion
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     ActiveXPromptArgHint,
@@ -205,6 +208,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
                 selected_index,
                 max(0, panel.size.width - 2),
                 alias_shortcut=kinds.model_alias,
+                explicit_shortcut=kinds.model_explicit,
             )
         elif kinds.finalizer:
             panel.border_subtitle = finalizer_completion_subtitle(
@@ -226,10 +230,18 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._completion_visible = True
         self._completion_panel_kind = "completion"
         self._completion_line_count = _reserved_panel_rows(_content_line_count(content))
+        shortcut_subtitle = ""
         if kinds.model_alias and kinds.model:
-            self._subtitle_base = MODEL_ALIAS_MODE_SUBTITLE
-            self.border_subtitle = self._render_subtitle(MODEL_ALIAS_MODE_SUBTITLE)
-        elif self._subtitle_base == MODEL_ALIAS_MODE_SUBTITLE:
+            shortcut_subtitle = MODEL_ALIAS_MODE_SUBTITLE
+        elif kinds.model_explicit and kinds.model:
+            shortcut_subtitle = MODEL_EXPLICIT_MODE_SUBTITLE
+        if shortcut_subtitle:
+            self._subtitle_base = shortcut_subtitle
+            self.border_subtitle = self._render_subtitle(shortcut_subtitle)
+        elif self._subtitle_base in {
+            MODEL_ALIAS_MODE_SUBTITLE,
+            MODEL_EXPLICIT_MODE_SUBTITLE,
+        }:
             self._subtitle_base = self._mode_subtitle
             self.border_subtitle = self._render_subtitle(self._mode_subtitle)
         self._update_height()
@@ -248,7 +260,10 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._completion_visible = False
         self._completion_panel_kind = None
         self._completion_line_count = 0
-        if self._subtitle_base == MODEL_ALIAS_MODE_SUBTITLE:
+        if self._subtitle_base in {
+            MODEL_ALIAS_MODE_SUBTITLE,
+            MODEL_EXPLICIT_MODE_SUBTITLE,
+        }:
             self._subtitle_base = self._mode_subtitle
             self.border_subtitle = self._render_subtitle(self._mode_subtitle)
         self._update_height()

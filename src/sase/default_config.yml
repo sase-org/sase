@@ -307,7 +307,7 @@ ace:
     debounce_ms: 90
     auto_file_paths: false
     auto_xprompt_menu: true
-    # Also controls automatic *alias model shortcut menus; manual Ctrl+T still works.
+    # Also controls automatic *alias and **model shortcut menus; manual Ctrl+T still works.
     auto_directive_menu: true
     auto_artifact_menu: true
     max_auto_rows: 1

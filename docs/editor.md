@@ -68,7 +68,7 @@ The xprompt language server is focused on prompt and xprompt editing:
 | VCS repositories      | Completes repository names after namespace slashes such as `#gh:owner/` through the owning workspace provider.                                                                                                                                                                                                                                                                                                                                         |
 | Argument assistance   | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.                                                                                                                                                                                                                                                                                                                             |
 | Directive completion  | Completes the shared [directive matrix](xprompt.md#directive-completion-matrix): directive names and aliases, fixed values, `%model:` catalog rows and provider drill-down, parenthesized `%model(..., alias=...)` keys, and `%id` / `%clan` / `%wait(...)` keyword rows and values. `%if` / `%proc` recipes and `type: code` assistance appear only when the `typed_launch_units` beta flag is enabled; they are hidden and rejected while it is off. |
-| Model alias shortcut  | Completes `*alias` at prompt/line start or after an ASCII space into canonical `%m:@alias`, using the same shared Rust alias-only filter and edit plan as ACE. `*` is an LSP trigger character; manual completion also works inside a valid star token. See [Star model-alias shortcut](#star-model-alias-shortcut).                                                                                                                                   |
+| Model shortcuts       | Completes `*alias` and `**model` at prompt/line start or after an ASCII space into canonical `%m:` values, using the same shared Rust filters and edit plans as ACE. `*` is an LSP trigger character; manual completion also works inside a valid star token. See [Star model shortcuts](#star-model-shortcuts).                                                                                                                                       |
 | Artifact references   | Fuzzy-completes bare `@` and `@query` tokens as canonical artifact kinds, adding local paths on a kind-prefix miss or manual completion request, then completes local payloads after `@kind:`, including local stitch references.                                                                                                                                                                                                                      |
 | File completion       | Completes path-like tokens and recent file-history entries; `@`-prefixed local paths appear automatically when no artifact kind prefix-matches, or on manual invocation.                                                                                                                                                                                                                                                                               |
 | Snippets              | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                                                                                                                                                                                                                                                                                                          |
@@ -96,36 +96,38 @@ model keyword values omit a self-reference such as `@medium` while completing
 values still complete if the helper bridge cannot refresh dynamic catalogs; model,
 agent, bead, repository, and artifact inventories degrade independently.
 
-### Star model-alias shortcut
+### Star model shortcuts
 
-Typing `*` in an eligible prompt document requests model-alias completion through the
-same Rust contract ACE uses. A valid star token sits at prompt offset zero, at the start
-of a logical line, or immediately after an ASCII space, with the caret after the star.
-Escaped or embedded stars, Markdown emphasis, paths, inline and fenced code, disabled
-prompt regions, frontmatter, Jinja, placeholders, and directive-owned input stay
-ordinary text.
+Typing `*` in an eligible prompt document requests model shortcut completion through the
+same Rust contracts ACE uses. A valid star token sits at prompt offset zero, at the
+start of a logical line, or immediately after an ASCII space, with the caret after the
+star. Escaped or embedded stars, completed Markdown `**bold**` emphasis, paths, inline
+and fenced code, disabled prompt regions, frontmatter, Jinja, placeholders, and
+directive-owned input stay ordinary text.
 
-The menu lists only effective `implicit_alias` and `user_alias` rows from the
+The `*alias` menu lists only effective `implicit_alias` and `user_alias` rows from the
 launcher-materialized model catalog, in canonical catalog order, with case-insensitive
-prefix matching. Concrete models and provider rows never appear here; they remain on
-`%model:` / `%m:` completion. Accepting `@large` replaces the whole `*query` token —
-including any suffix to the right of a mid-token caret — with `%m:@large`. At prompt or
-line end the expansion appends one ASCII space; before a tab it appends none; before an
-existing ASCII space it consumes and reinserts that first space so later whitespace is
-preserved and the caret lands after the first space.
+prefix matching. Accepting `@large` replaces the whole `*query` token, including any
+suffix to the right of a mid-token caret, with `%m:@large`. The `**model` menu lists
+concrete model rows only, including provider-qualified matches such as `**codex/g`;
+accepting `gpt-5.6-sol` replaces the whole `**query` token with `%m:gpt-5.6-sol`.
 
-A valid star context with no aliases or no matches returns an empty incomplete
-completion list instead of falling through to prose, file, or snippet rows. Missing or
-malformed catalogs do the same. The list is `isIncomplete` with `filterText` set to the
-typed `*query` prefix so clients re-request as the query changes instead of dropping
-`@large` because the source text is `*la`. The catalog is a launch-time snapshot:
-restart the LSP after config or plugin changes. Manual editor completion also works
-while the caret is in a valid star token.
+At prompt or line end the expansion appends one ASCII space; before a tab it appends
+none; before an existing ASCII space it consumes and reinserts that first space so later
+whitespace is preserved and the caret lands after the first space.
+
+A valid shortcut context with no matching rows returns an empty incomplete completion
+list instead of falling through to prose, file, or snippet rows. Missing or malformed
+catalogs do the same. The list is `isIncomplete` with `filterText` set to the typed star
+prefix so clients re-request as the query changes instead of dropping the row because
+the source text differs from the inserted `%m:` value. The catalog is a launch-time
+snapshot: restart the LSP after config or plugin changes. Manual editor completion also
+works while the caret is in a valid star token.
 
 `ace.prompt_completion.auto_directive_menu` remains an ACE prompt-bar setting and does
-not govern an editor client's trigger policy. The ACE prompt input uses this same
-shortcut; see [Prompt Input](ace.md#prompt-input) and
-[Star model-alias shortcut](xprompt.md#star-model-alias-shortcut).
+not govern an editor client's trigger policy. The ACE prompt input uses these same
+shortcuts; see [Prompt Input](ace.md#prompt-input) and
+[Star model shortcuts](xprompt.md#star-model-shortcuts).
 
 Artifact assistance is local-only. Before a `:` appears, `@` completion withholds local
 file rows whenever the query prefix-matches an artifact kind (including bare `@`), and

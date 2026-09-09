@@ -1,11 +1,11 @@
-"""ACE PNG visual snapshots for the enriched ``%model`` completion menu (sase-ao.5).
+"""ACE PNG visual snapshots for enriched model completion menus.
 
 Pins how ``PromptInputBar`` renders the four-column ``%model`` grid: concrete
 model rows above alias rows, each alias showing its kind badge, resolved
-``PROVIDER(model)`` target, and provenance state, plus the contextual panel
-title/subtitle. Provider and model values are fixed fakes (as the Models-panel
-fixtures do) so the goldens never depend on installed provider CLIs. Goldens live
-in ``tests/ace/tui/visual/snapshots/png/``.
+``PROVIDER(model)`` target, and provenance state, plus the ``*alias`` and
+``**model`` shortcut panels. Provider and model values are fixed fakes (as the
+Models-panel fixtures do) so the goldens never depend on installed provider CLIs.
+Goldens live in ``tests/ace/tui/visual/snapshots/png/``.
 """
 
 from __future__ import annotations
@@ -16,6 +16,9 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
+from sase.ace.tui.widgets.model_explicit_completion import (
+    MODEL_EXPLICIT_COMPLETION_KIND,
+)
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -331,6 +334,43 @@ async def test_model_alias_completion_full_menu_png_snapshot(
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+async def test_model_explicit_completion_full_menu_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = "textual-light"
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, "**")
+
+        bar.show_file_completions(
+            "",
+            _MODEL_ROWS,
+            selected_index=0,
+            completion_kind=MODEL_EXPLICIT_COMPLETION_KIND,
+        )
+        await wait_for_state(
+            page,
+            lambda: (
+                bar._completion_visible and bar._completion_panel_kind == "completion"
+            ),
+            description="explicit model shortcut completion visibility",
+        )
+        await wait_for_svg_contains(page, "Enter → %m:claude-fable-5")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_model_explicit_completion_full_light_120x40",
+            title="ACE prompt input — double-star model completion, light theme",
+        )
 
 
 async def test_model_alias_completion_filtered_preview_png_snapshot(

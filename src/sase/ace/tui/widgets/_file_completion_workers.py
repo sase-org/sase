@@ -25,6 +25,9 @@ from sase.ace.tui.widgets._file_completion_workers_directives import (
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
+from sase.ace.tui.widgets.model_explicit_completion import (
+    MODEL_EXPLICIT_COMPLETION_KIND,
+)
 from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     vcs_repo_completion_candidates,
@@ -71,7 +74,7 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
         _model_completion_catalog_loaded: bool
         _model_completion_catalog_available: bool
         _model_completion_catalog_inflight: bool
-        _model_completion_catalog_request: tuple[str | None, str, int, str] | None
+        _model_completion_catalog_request: tuple[str, str | None, str, int, str] | None
         _vim_mode: str
 
         def _clear_file_completion(
@@ -125,13 +128,17 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
         self,
         result: ModelCompletionCatalogWorkerResult,
     ) -> None:
-        """Record catalog availability and refresh a matching open alias menu."""
+        """Record catalog availability and refresh a matching open star menu."""
         request_current = self._model_completion_catalog_request_is_current()
         self._model_completion_catalog_loaded = True
         self._model_completion_catalog_available = result.available
         if (
             not self._file_completion_active
-            or self._completion_kind != MODEL_ALIAS_COMPLETION_KIND
+            or self._completion_kind
+            not in {
+                MODEL_ALIAS_COMPLETION_KIND,
+                MODEL_EXPLICIT_COMPLETION_KIND,
+            }
             or not request_current
         ):
             return
@@ -144,7 +151,9 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
         if request is None or not self.is_mounted:
             return False
 
-        pane_id, text, cursor_offset, vim_mode = request
+        completion_kind, pane_id, text, cursor_offset, vim_mode = request
+        if completion_kind != self._completion_kind:
+            return False
         if pane_id != self.id:
             return False
         if text != self.text:

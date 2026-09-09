@@ -28,6 +28,10 @@ from sase.ace.tui.widgets.model_alias_completion import (
     ModelAliasShortcutContext,
     detect_model_alias_completion_context,
 )
+from sase.ace.tui.widgets.model_explicit_completion import (
+    ModelExplicitShortcutContext,
+    detect_model_explicit_completion_context,
+)
 from sase.ace.tui.widgets.prompt_completion_root import (
     resolve_prompt_completion_base_dir,
 )
@@ -190,6 +194,15 @@ class FileCompletionContextMixin(_MixinBase):
     ) -> ModelAliasShortcutContext | None:
         """Return the shared-core ``*alias`` context at the current cursor."""
         return detect_model_alias_completion_context(self.text, self.cursor_location)
+
+    def _get_model_explicit_completion_context(
+        self,
+    ) -> ModelExplicitShortcutContext | None:
+        """Return the shared-core ``**model`` context at the current cursor."""
+        return detect_model_explicit_completion_context(
+            self.text,
+            self.cursor_location,
+        )
 
     def _replace_token_text(self, row: int, start: int, end: int, token: str) -> None:
         """Replace token range and put cursor at token end."""
