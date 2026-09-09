@@ -143,12 +143,21 @@ def maybe_dispatch_launch(
             raise RemoteDispatchLaunchError(
                 f"remote dispatch {decision} for {scan.target}: {reason}"
             )
-        source_status = "settled" if receipt.get("state") == "settled" else "accepted"
+        source_status = _source_status_from_receipt(receipt)
         update_dispatch_launch_intent(
             operation_key,
             status=source_status,
             receipt=receipt,
         )
+        if source_status == "failed":
+            message = _failed_receipt_message(scan.target, receipt, reason)
+            update_dispatch_launch_intent(
+                operation_key,
+                status="failed",
+                receipt=receipt,
+                error=message,
+            )
+            raise RemoteDispatchLaunchError(message)
         if intent["follow"]:
             _activate_receipt_follow(
                 provisional_follow,
@@ -413,6 +422,26 @@ def _launch_receipt_from_response(
     decision = str(payload.get("decision") or "")
     reason = str(payload.get("reason") or "")
     return dict(receipt), decision, reason
+
+
+def _source_status_from_receipt(receipt: Mapping[str, Any]) -> str:
+    state = receipt.get("state")
+    if state == "settled":
+        return "settled"
+    if state == "failed":
+        return "failed"
+    return "accepted"
+
+
+def _failed_receipt_message(
+    target: str,
+    receipt: Mapping[str, Any],
+    reason: str,
+) -> str:
+    message = _optional_string(receipt.get("message")) or _optional_string(reason)
+    if message is None:
+        message = "launch failed"
+    return f"remote dispatch failed for {target}: {message}"
 
 
 def _run_launch_payload(

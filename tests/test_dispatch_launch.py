@@ -236,3 +236,73 @@ def test_launch_lost_reply_reconciles_under_the_same_key(
     # same operation key and never mints a fresh launch key.
     assert keys[0] == keys[1]
     assert '"status": "settled"' in intent_store.read_text(encoding="utf-8")
+
+
+def test_launch_failed_receipt_records_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    machine = _machine()
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setattr(launch, "load_dispatch_config", lambda: _config(machine))
+    monkeypatch.setattr(launch, "require_rust_binding", _rust_binding)
+
+    class Facade:
+        def launch_sync(
+            self,
+            target: str,
+            request: dict[str, Any],
+            *,
+            timeout_seconds: float,
+        ) -> dict[str, Any]:
+            del timeout_seconds
+            return {
+                "schema_version": 1,
+                "operation": "launch",
+                "hosts": [
+                    {
+                        "target": target,
+                        "payload": {
+                            "schema_version": 1,
+                            "decision": "return_original_receipt",
+                            "reason": "same_scoped_key_and_payload",
+                            "receipt": {
+                                "schema_version": 1,
+                                "key": request["key"],
+                                "payload_fingerprint": request["payload_fingerprint"],
+                                "target_installation_id": (
+                                    machine.pinned_installation_id
+                                ),
+                                "accepted_at_unix_ms": 10,
+                                "acceptance_expires_at_unix_ms": 20,
+                                "state": "failed",
+                                "logical_locator": None,
+                                "instance_locator": None,
+                                "message": (
+                                    "launch_failed: agent_bridge:launch-text:"
+                                    "invalid-request"
+                                ),
+                            },
+                        },
+                    }
+                ],
+            }
+
+    monkeypatch.setattr(launch, "build_federation_facade", Facade)
+
+    with pytest.raises(
+        launch.RemoteDispatchLaunchError,
+        match=(
+            "remote dispatch failed for apollo: "
+            "launch_failed: agent_bridge:launch-text:invalid-request"
+        ),
+    ):
+        launch.maybe_dispatch_launch(
+            "%dispatch:apollo do remote work",
+            payload={"project": "sase", "patch_ref": "patch-123", "follow": True},
+        )
+
+    intent_store = tmp_path / ".sase" / "fleet" / "dispatch_launch_intents.json"
+    text = intent_store.read_text(encoding="utf-8")
+    assert '"status": "failed"' in text
+    assert '"state": "failed"' in text
