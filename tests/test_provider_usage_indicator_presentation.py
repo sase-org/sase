@@ -8,10 +8,11 @@ from rich.cells import cell_len
 
 from sase.ace.tui.widgets._provider_usage_indicator import (
     build_usage_indicator_segment,
+    usage_indicator_tooltip_lines,
     usage_indicator_presentations,
 )
 from sase.llm_provider.usage.hints import CapacityHint, indicator_usage_items
-from tests._usage_view_helpers import usage_provider, usage_window
+from tests._usage_view_helpers import FROZEN_NOW, usage_provider, usage_window
 
 
 def _constraint(window: dict[str, object], attention: str) -> dict[str, object]:
@@ -196,12 +197,19 @@ def test_compact_subpercent_remaining_uses_core_left_label() -> None:
     assert segment.plain.strip() == "! GROK <1% left · wk/all"
 
 
-def test_collection_problem_keeps_question_marker_and_usage_label() -> None:
+def test_collection_problem_uses_warning_marker_and_failing_label() -> None:
     codex = usage_provider(
         "codex",
         used_percent=None,
         remaining_percent=None,
         collection_status="error",
+        collection_reason="vendor_drift",
+        collector_health={
+            "state": "failing",
+            "consecutive_failures": 5,
+            "failing_since": FROZEN_NOW - 172_800.0,
+            "last_success_at": FROZEN_NOW - 259_200.0,
+        },
         attention={
             "kind": "collection_problem",
             "provider": "codex",
@@ -210,9 +218,17 @@ def test_collection_problem_keeps_question_marker_and_usage_label() -> None:
         windows=[],
     )
 
-    segment = build_usage_indicator_segment(_presentations(codex))
+    presentations = _presentations(codex)
+    segment = build_usage_indicator_segment(presentations)
+    tooltip_lines = usage_indicator_tooltip_lines(presentations, now=FROZEN_NOW)
 
-    assert segment.plain.strip() == "? CODEX usage"
+    assert segment.plain.strip() == "⚠ CODEX usage failing"
+    assert tooltip_lines == (
+        "CODEX - collection problem · usage failing",
+        "collector health: failing · vendor drift · 5x",
+        "failing since: 2d ago",
+        "last success: 3d ago",
+    )
 
 
 def test_missing_window_uses_original_hint_without_fabricating_scope() -> None:

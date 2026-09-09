@@ -15,10 +15,9 @@ from sase.feature_flags import override_flags
 from sase.sdd._artifact_link_ignore import ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN
 from sase.sdd.artifact_link_outbox import (
     ARTIFACT_LINK_OUTBOX_FILENAME,
+    _read_artifact_link_outbox_entries,
     append_artifact_link_outbox_entry,
     drain_artifact_link_outbox,
-    pending_artifact_link_outbox_events,
-    _read_artifact_link_outbox_entries,
 )
 from sase.sdd.artifact_link_release_evidence import (
     record_artifact_link_release_evidence,
@@ -137,7 +136,11 @@ def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(
     assert handle_read(_read_args()) == 0
     assert handle_read(_read_args()) == 0
     assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
-    pending = pending_artifact_link_outbox_events("gh_sase-org__sase")
+    pending = tuple(
+        entry.event
+        for entry in _read_artifact_link_outbox_entries("gh_sase-org__sase")
+        if entry.event is not None
+    )
     assert len(pending) == 2
     operation_ids = {str(event["operation_id"]) for event in pending}
     assert len(operation_ids) == 2

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -11,9 +12,10 @@ from typing import Any
 from rich.text import Text
 
 from sase.llm_provider.usage.hints import CapacityHint
+from sase.llm_provider.usage.presentation import collector_health_label, duration_label
 from sase.llm_provider.usage.store import provider_usage_format_remaining_text
 
-from ._override_pill import PROVIDER_USAGE_PALETTE
+from ._override_pill import PROVIDER_USAGE_FAILING_PALETTE, PROVIDER_USAGE_PALETTE
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9_.:@+=%-]+")
 _INCLUDED_ALLOWANCE_WORDS = frozenset({"included", "allowance"})
@@ -51,6 +53,8 @@ class _UsageIndicatorPresentation:
     window_scope: str | None
     freshness: str | None
     reset_passed: bool
+    collection_reason: str | None
+    collector_health: Mapping[str, Any] | None
 
     @property
     def normal_label(self) -> str:
@@ -72,6 +76,17 @@ class _UsageIndicatorPresentation:
         return (
             f"{self.provider.upper()} - {self.kind.replace('_', ' ')} · "
             + " · ".join(details)
+        )
+
+    def tooltip_lines(self, *, now: float | None = None) -> tuple[str, ...]:
+        """Return full-disclosure tooltip lines for this usage item."""
+        return (
+            self.tooltip_line,
+            *_collector_health_tooltip_lines(
+                self.collector_health,
+                reason=self.collection_reason,
+                now=now,
+            ),
         )
 
 
@@ -124,9 +139,14 @@ def build_usage_indicator_segment(
 
 def usage_indicator_tooltip_lines(
     presentations: Sequence[_UsageIndicatorPresentation],
+    *,
+    now: float | None = None,
 ) -> tuple[str, ...]:
     """Return full usage-disclosure lines for the indicator tooltip."""
-    return tuple(item.tooltip_line for item in presentations)
+    lines: list[str] = []
+    for item in presentations:
+        lines.extend(item.tooltip_lines(now=now))
+    return tuple(lines)
 
 
 def _usage_indicator_candidates(
@@ -136,6 +156,7 @@ def _usage_indicator_candidates(
 ) -> tuple[_UsageIndicatorCandidate, ...]:
     leading = " " if leading_space else ""
     marker = presentations[0].marker
+    palette = _usage_palette(presentations[0])
     provider = presentations[0].provider.upper()
     total = len(presentations)
     additional = total - 1
@@ -148,6 +169,7 @@ def _usage_indicator_candidates(
                 presentations[0],
                 additional=additional,
                 leading=leading,
+                palette=palette,
             ),
         ),
         _UsageIndicatorCandidate(
@@ -157,15 +179,20 @@ def _usage_indicator_candidates(
                 provider,
                 additional=additional,
                 leading=leading,
+                palette=palette,
             ),
         ),
         _UsageIndicatorCandidate(
             "total",
-            _total_count_candidate(marker, total=total, leading=leading),
+            _total_count_candidate(
+                marker, total=total, leading=leading, palette=palette
+            ),
         ),
         _UsageIndicatorCandidate(
             "micro",
-            _micro_count_candidate(marker, total=total, leading=leading),
+            _micro_count_candidate(
+                marker, total=total, leading=leading, palette=palette
+            ),
         ),
     )
 
@@ -189,25 +216,26 @@ def _normal_candidate(
     *,
     additional: int,
     leading: str,
+    palette: Any,
 ) -> Text:
-    text = Text(leading, style=PROVIDER_USAGE_PALETTE.base_style)
-    text.append(marker, style=PROVIDER_USAGE_PALETTE.base_style)
-    text.append(" ", style=PROVIDER_USAGE_PALETTE.secondary_style)
-    text.append(provider, style=PROVIDER_USAGE_PALETTE.base_style)
-    text.append(" ", style=PROVIDER_USAGE_PALETTE.secondary_style)
-    if presentation.remaining and presentation.window_scope:
-        _append_remaining(text, presentation.remaining)
-        text.append(" · ", style=PROVIDER_USAGE_PALETTE.secondary_style)
-        text.append(
-            presentation.window_scope, style=PROVIDER_USAGE_PALETTE.secondary_style
-        )
+    text = Text(leading, style=palette.base_style)
+    text.append(marker, style=palette.base_style)
+    text.append(" ", style=palette.secondary_style)
+    text.append(provider, style=palette.base_style)
+    text.append(" ", style=palette.secondary_style)
+    if (
+        presentation.kind != "collection_problem"
+        and presentation.remaining
+        and presentation.window_scope
+    ):
+        _append_remaining(text, presentation.remaining, palette=palette)
+        text.append(" · ", style=palette.secondary_style)
+        text.append(presentation.window_scope, style=palette.secondary_style)
     else:
-        text.append(
-            presentation.original_label, style=PROVIDER_USAGE_PALETTE.secondary_style
-        )
+        text.append(presentation.original_label, style=palette.secondary_style)
     if additional:
-        text.append(f" +{additional}", style=PROVIDER_USAGE_PALETTE.secondary_style)
-    text.append(" ", style=PROVIDER_USAGE_PALETTE.secondary_style)
+        text.append(f" +{additional}", style=palette.secondary_style)
+    text.append(" ", style=palette.secondary_style)
     return text
 
 
@@ -217,41 +245,54 @@ def _provider_disclosure_candidate(
     *,
     additional: int,
     leading: str,
+    palette: Any,
 ) -> Text:
-    text = Text(leading, style=PROVIDER_USAGE_PALETTE.base_style)
-    text.append(marker, style=PROVIDER_USAGE_PALETTE.base_style)
-    text.append(" ", style=PROVIDER_USAGE_PALETTE.secondary_style)
-    text.append(provider, style=PROVIDER_USAGE_PALETTE.base_style)
+    text = Text(leading, style=palette.base_style)
+    text.append(marker, style=palette.base_style)
+    text.append(" ", style=palette.secondary_style)
+    text.append(provider, style=palette.base_style)
     if additional:
-        text.append(f" +{additional}", style=PROVIDER_USAGE_PALETTE.secondary_style)
-    text.append(" ", style=PROVIDER_USAGE_PALETTE.secondary_style)
+        text.append(f" +{additional}", style=palette.secondary_style)
+    text.append(" ", style=palette.secondary_style)
     return text
 
 
-def _total_count_candidate(marker: str, *, total: int, leading: str) -> Text:
-    text = Text(leading, style=PROVIDER_USAGE_PALETTE.base_style)
-    text.append(marker, style=PROVIDER_USAGE_PALETTE.base_style)
-    text.append(" usage ", style=PROVIDER_USAGE_PALETTE.secondary_style)
-    text.append(str(total), style=PROVIDER_USAGE_PALETTE.secondary_style)
-    text.append(" ", style=PROVIDER_USAGE_PALETTE.secondary_style)
+def _total_count_candidate(
+    marker: str,
+    *,
+    total: int,
+    leading: str,
+    palette: Any,
+) -> Text:
+    text = Text(leading, style=palette.base_style)
+    text.append(marker, style=palette.base_style)
+    text.append(" usage ", style=palette.secondary_style)
+    text.append(str(total), style=palette.secondary_style)
+    text.append(" ", style=palette.secondary_style)
     return text
 
 
-def _micro_count_candidate(marker: str, *, total: int, leading: str) -> Text:
-    text = Text(leading, style=PROVIDER_USAGE_PALETTE.base_style)
-    text.append(marker, style=PROVIDER_USAGE_PALETTE.base_style)
-    text.append(str(total), style=PROVIDER_USAGE_PALETTE.secondary_style)
-    text.append(" ", style=PROVIDER_USAGE_PALETTE.secondary_style)
+def _micro_count_candidate(
+    marker: str,
+    *,
+    total: int,
+    leading: str,
+    palette: Any,
+) -> Text:
+    text = Text(leading, style=palette.base_style)
+    text.append(marker, style=palette.base_style)
+    text.append(str(total), style=palette.secondary_style)
+    text.append(" ", style=palette.secondary_style)
     return text
 
 
-def _append_remaining(text: Text, remaining: str) -> None:
+def _append_remaining(text: Text, remaining: str, *, palette: Any) -> None:
     if remaining.endswith(" left"):
         value = remaining[: -len(" left")]
-        text.append(value, style=PROVIDER_USAGE_PALETTE.base_style)
-        text.append(" left", style=PROVIDER_USAGE_PALETTE.secondary_style)
+        text.append(value, style=palette.base_style)
+        text.append(" left", style=palette.secondary_style)
         return
-    text.append(remaining, style=PROVIDER_USAGE_PALETTE.base_style)
+    text.append(remaining, style=palette.base_style)
 
 
 def _presentation_from_hint(
@@ -271,7 +312,61 @@ def _presentation_from_hint(
         window_scope=_window_scope_token(hint, window),
         freshness=_optional_text(window.get("freshness")) if window else None,
         reset_passed=bool(window and window.get("reset_passed") is True),
+        collection_reason=(
+            _optional_text(provider.get("collection_reason")) if provider else None
+        ),
+        collector_health=_collector_health(provider),
     )
+
+
+def _usage_palette(presentation: _UsageIndicatorPresentation) -> Any:
+    if presentation.kind == "collection_problem":
+        return PROVIDER_USAGE_FAILING_PALETTE
+    return PROVIDER_USAGE_PALETTE
+
+
+def _collector_health_tooltip_lines(
+    health: Mapping[str, Any] | None,
+    *,
+    reason: str | None,
+    now: float | None,
+) -> tuple[str, ...]:
+    if health is None:
+        return ()
+    state = health.get("state")
+    if state not in {"degraded", "failing"}:
+        return ()
+    lines: list[str] = []
+    label = collector_health_label(health, reason=reason)
+    if label is not None:
+        lines.append(f"collector health: {label}")
+    since = _relative_age(health.get("failing_since"), now=now)
+    if since is not None:
+        lines.append(f"failing since: {since} ago")
+    last_success = _relative_age(health.get("last_success_at"), now=now)
+    lines.append(
+        f"last success: {last_success} ago"
+        if last_success is not None
+        else "last success: unknown"
+    )
+    return tuple(lines)
+
+
+def _collector_health(
+    provider: Mapping[str, Any] | None,
+) -> Mapping[str, Any] | None:
+    if provider is None:
+        return None
+    health = provider.get("collector_health")
+    return health if isinstance(health, Mapping) else None
+
+
+def _relative_age(value: object, *, now: float | None) -> str | None:
+    timestamp = _optional_float(value)
+    if timestamp is None:
+        return None
+    clock = time.time() if now is None else float(now)
+    return duration_label(max(clock - timestamp, 0.0))
 
 
 def _window_scope_token(

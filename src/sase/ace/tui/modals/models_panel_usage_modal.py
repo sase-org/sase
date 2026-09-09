@@ -45,6 +45,7 @@ _STARTED_REFRESH_STATUSES = frozenset(
 _FOOTER_TEXT = (
     "[green]enter[/green]=Details  "
     "[green]u[/green]=Update usage  "
+    "[bold #FFAF5F]⚠[/bold #FFAF5F]=Collector failing  "
     "[dim]tab[/dim]=Focus  "
     "[dim]j/k[/dim]=Navigate  "
     "[dim]esc[/dim]=Close"

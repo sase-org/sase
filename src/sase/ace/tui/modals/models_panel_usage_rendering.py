@@ -15,7 +15,9 @@ from rich.text import Text
 from sase.llm_provider.usage.presentation import (
     age_label,
     applicability_label,
+    collector_health_style,
     diagnostic_line,
+    duration_label,
     provider_status_label,
     provider_style,
     reset_label,
@@ -44,7 +46,7 @@ _PROVIDER_ATTENTION_STYLES: Mapping[str, str] = {
     "rejected": "bold red",
     "very_low": "bold red",
     "low": "yellow",
-    "collection_problem": "yellow",
+    "collection_problem": "bold #FFAF5F",
 }
 
 
@@ -119,6 +121,7 @@ def provider_summary_text(
             text.append(f" ({freshness})", style="dim")
     else:
         text.append(provider_status_label(provider), style=style or "dim")
+    _append_collector_failure_badge(text, provider)
     if updating:
         text.append("  Updating…", style="italic dim")
     return text
@@ -137,6 +140,13 @@ def provider_detail_header(provider: Mapping[str, Any], *, now: float) -> Text:
     last_full = provider.get("last_full_observation_at")
     parts.append(f"Last observed: {timestamp_label(last_full, now)}")
     text = Text(" · ".join(parts))
+    collector_detail = _collector_health_detail(provider, now=now)
+    if collector_detail is not None:
+        text.append("\n")
+        text.append(
+            collector_detail,
+            style=collector_health_style(_provider_collector_health(provider)),
+        )
     diagnostic = provider.get("diagnostic")
     if isinstance(diagnostic, str) and diagnostic:
         text.append("\n")
@@ -189,6 +199,72 @@ def window_detail_row(
         state,
         str(window.get("source") or "unknown"),
     )
+
+
+def _append_collector_failure_badge(text: Text, provider: Mapping[str, Any]) -> None:
+    health = _provider_collector_health(provider)
+    if _collector_health_state(health) != "failing":
+        return
+    text.append(" ⚠ failing", style=collector_health_style(health) or "bold #FFAF5F")
+
+
+def _collector_health_detail(
+    provider: Mapping[str, Any],
+    *,
+    now: float,
+) -> str | None:
+    health = _provider_collector_health(provider)
+    state = _collector_health_state(health)
+    if state not in {"degraded", "failing"} or health is None:
+        return None
+    parts: list[str] = []
+    failures = _collector_failure_count(health)
+    if failures is not None:
+        noun = "failure" if failures == 1 else "failures"
+        parts.append(f"{failures} {noun}")
+    since = _relative_age(health.get("failing_since"), now=now)
+    if since is not None:
+        parts.append(f"since {since}")
+    last_success = _relative_age(health.get("last_success_at"), now=now)
+    parts.append(
+        f"last success {last_success} ago"
+        if last_success is not None
+        else "last success unknown"
+    )
+    suffix = f" — {' · '.join(parts)}" if parts else ""
+    return f"Collector: {state.replace('_', ' ')}{suffix}"
+
+
+def _provider_collector_health(
+    provider: Mapping[str, Any],
+) -> Mapping[str, Any] | None:
+    health = provider.get("collector_health")
+    return health if isinstance(health, Mapping) else None
+
+
+def _collector_health_state(health: Mapping[str, Any] | None) -> str:
+    if health is None:
+        return ""
+    state = health.get("state")
+    return state if isinstance(state, str) else ""
+
+
+def _collector_failure_count(health: Mapping[str, Any]) -> int | None:
+    failures = health.get("consecutive_failures")
+    if isinstance(failures, bool) or not isinstance(failures, int | float):
+        return None
+    return max(int(failures), 0)
+
+
+def _relative_age(value: Any, *, now: float) -> str | None:
+    timestamp = (
+        value
+        if isinstance(value, int | float) and not isinstance(value, bool)
+        else None
+    )
+    if timestamp is None:
+        return None
+    return duration_label(max(now - float(timestamp), 0.0))
 
 
 __all__ = [

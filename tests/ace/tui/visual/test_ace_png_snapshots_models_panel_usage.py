@@ -59,7 +59,14 @@ def _snapshot() -> ProviderUsageViewSnapshot:
         account_mode=None,
         used_percent=100.0,
         remaining_percent=0.0,
+        collection_reason="vendor_drift",
         collection_status="ok",
+        collector_health={
+            "state": "failing",
+            "consecutive_failures": 5,
+            "failing_since": FROZEN_NOW - 172_800.0,
+            "last_success_at": FROZEN_NOW - 259_200.0,
+        },
         scope={"kind": "account"},
         windows=[
             usage_window(
@@ -72,7 +79,7 @@ def _snapshot() -> ProviderUsageViewSnapshot:
                 resets_at=FROZEN_NOW + 3_600.0,
             )
         ],
-        attention={"kind": "rejected"},
+        attention={"kind": "collection_problem"},
     )
     return usage_view_snapshot(codex, grok, captured_at=FROZEN_NOW)
 

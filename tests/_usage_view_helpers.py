@@ -61,6 +61,7 @@ def usage_provider(
     scope: Mapping[str, Any] | None = None,
     windows: list[dict[str, Any]] | None = None,
     known_constraints: list[dict[str, Any]] | None = None,
+    collector_health: Mapping[str, Any] | None = None,
     last_attempt_at: float | None = FROZEN_NOW,
     last_full_observation_at: float | None = FROZEN_NOW,
 ) -> dict[str, Any]:
@@ -84,6 +85,7 @@ def usage_provider(
         "collection_status": collection_status,
         "completeness": "complete",
         "context_ref": f"{name}:default:1",
+        "collector_health": collector_health,
         "diagnostic": diagnostic,
         "known_constraints": (
             known_constraints if known_constraints is not None else []

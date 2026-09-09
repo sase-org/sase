@@ -229,18 +229,6 @@ def _read_artifact_link_outbox_entries(
     return tuple(entries)
 
 
-def pending_artifact_link_outbox_events(
-    project_key: str,
-) -> tuple[dict[str, Any], ...]:
-    """Return queued schema-v2 events for local pending-link overlays."""
-
-    return tuple(
-        dict(entry.event)
-        for entry in _read_artifact_link_outbox_entries(project_key)
-        if entry.event is not None
-    )
-
-
 def inspect_artifact_link_outbox(project_key: str) -> _ArtifactLinkOutboxStats:
     """Return doctor-facing outbox queue and drop counts."""
 
@@ -945,5 +933,4 @@ __all__ = [
     "append_artifact_link_outbox_entry",
     "drain_artifact_link_outbox",
     "inspect_artifact_link_outbox",
-    "pending_artifact_link_outbox_events",
 ]

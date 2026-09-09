@@ -15,8 +15,8 @@ from sase.llm_provider.usage.store import (
 _ATTENTION_RANK: Mapping[str, int] = {
     "rejected": 4,
     "very_low": 3,
-    "low": 2,
-    "collection_problem": 1,
+    "collection_problem": 2,
+    "low": 1,
     "unknown": 1,
     "none": 0,
 }
@@ -56,7 +56,7 @@ def provider_header_capacity_hint(provider: Mapping[str, Any]) -> CapacityHint |
     name = _provider_name(provider)
     attention = _attention_kind(provider)
     if attention == "collection_problem":
-        return CapacityHint(kind="collection_problem", label="usage", provider=name)
+        return _collection_problem_hint(name)
     for constraint, window in _iter_constraints(provider):
         if not _is_shared_or_unknown(window.get("applicability")):
             continue
@@ -111,7 +111,7 @@ def member_capacity_hint(
             name, constraint, window, unknown=match == "unknown"
         )
     if _attention_kind(provider) == "collection_problem":
-        return CapacityHint(kind="collection_problem", label="usage", provider=name)
+        return _collection_problem_hint(name)
     for window in _windows(provider):
         if _window_match(window.get("applicability"), model_id) == "unknown":
             return _unknown_window_hint(name, window)
@@ -203,13 +203,17 @@ def model_id_from_target(target: str) -> str:
 
 def capacity_hint_marker(kind: str | None) -> str:
     """Return the colorless capacity glyph; unknown uses a question mark."""
-    return "?" if kind in {"unknown", "collection_problem"} else "!"
+    if kind == "collection_problem":
+        return "⚠"
+    return "?" if kind == "unknown" else "!"
 
 
 def capacity_hint_style(kind: str | None) -> str:
     """Return a color that still leaves the glyph and words as the meaning."""
     if kind in {"rejected", "very_low"}:
         return "bold #FF5F5F"
+    if kind == "collection_problem":
+        return "bold #FFAF5F"
     if kind == "low":
         return "#FFAF00"
     return "#FFD75F"
@@ -225,7 +229,7 @@ def _attention_hint(
     if kind == "none":
         return None
     if kind == "collection_problem":
-        return CapacityHint(kind="collection_problem", label="usage", provider=name)
+        return _collection_problem_hint(name)
     window_key = _attention_window_key(provider)
     window = _window_by_key(_windows(provider), window_key)
     if window is None:
@@ -449,8 +453,16 @@ def _hint_sort_key(hint: CapacityHint | None) -> tuple[int, str]:
 
 def _kind_fallback_label(kind: str) -> str:
     if kind == "collection_problem":
-        return "usage"
+        return "usage failing"
     return "usage unknown" if kind == "unknown" else kind.replace("_", " ")
+
+
+def _collection_problem_hint(provider: str) -> CapacityHint:
+    return CapacityHint(
+        kind="collection_problem",
+        label="usage failing",
+        provider=provider,
+    )
 
 
 def _optional_text(value: object) -> str | None:

@@ -6,7 +6,7 @@ from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-from textual.widgets import DataTable, OptionList
+from textual.widgets import DataTable, OptionList, Static
 from textual.worker import WorkerState
 
 import sase.ace.tui.modals.models_panel_usage_modal as usage_modal
@@ -55,6 +55,8 @@ async def test_usage_modal_first_paint_uses_cached_snapshot() -> None:
 
         option_list = modal.query_one("#provider-usage-list", OptionList)
         assert [str(o.id) for o in option_list.options] == ["codex"]
+        footer = modal.query_one("#provider-usage-footer", Static)
+        assert "⚠=Collector failing" in footer.render().plain
 
 
 async def test_usage_modal_loads_in_background_when_no_snapshot_given() -> None:

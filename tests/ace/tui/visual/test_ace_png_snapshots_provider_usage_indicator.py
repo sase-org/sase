@@ -147,12 +147,9 @@ async def test_top_bar_usage_attention_narrow_png_snapshot(
 
     usage_items = (
         CapacityHint(
-            kind="rejected",
-            label="0% left · Week · all",
+            kind="collection_problem",
+            label="usage failing",
             provider="grok",
-            window_key="weekly",
-            scope="Week · all",
-            remaining_percent=0.0,
         ),
         CapacityHint(
             kind="low",

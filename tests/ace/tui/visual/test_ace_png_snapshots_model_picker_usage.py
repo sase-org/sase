@@ -15,14 +15,21 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 from tests.llm_provider.test_usage_hints import (
     _claude_model_specific_low,
-    _codex_unknown_scope,
 )
+from tests._usage_view_helpers import usage_provider
 
 pytestmark = pytest.mark.visual
 
 
 def _providers() -> tuple[dict[str, object], ...]:
-    return (_claude_model_specific_low(), _codex_unknown_scope())
+    return (
+        _claude_model_specific_low(),
+        usage_provider(
+            "codex",
+            attention={"kind": "collection_problem", "provider": "codex"},
+            collector_health={"state": "failing", "consecutive_failures": 3},
+        ),
+    )
 
 
 async def test_model_picker_usage_hints_png_snapshot(

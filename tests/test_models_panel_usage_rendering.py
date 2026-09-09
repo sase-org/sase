@@ -62,6 +62,40 @@ def test_provider_attention_style_prefers_rejected_over_low() -> None:
     assert _provider_attention_style(healthy) == ""
 
 
+def test_provider_summary_text_appends_failing_collector_badge() -> None:
+    provider = usage_provider(
+        "codex",
+        used_percent=87.5,
+        remaining_percent=12.5,
+        collector_health={
+            "state": "failing",
+            "consecutive_failures": 5,
+            "failing_since": FROZEN_NOW - 172_800.0,
+            "last_success_at": FROZEN_NOW - 259_200.0,
+        },
+        attention={"kind": "collection_problem"},
+    )
+
+    text = provider_summary_text(provider).plain
+
+    assert "% left" in text
+    assert "⚠ failing" in text
+
+
+def test_provider_summary_text_keeps_degraded_collector_off_row_badge() -> None:
+    provider = usage_provider(
+        "codex",
+        collector_health={
+            "state": "degraded",
+            "consecutive_failures": 2,
+            "failing_since": FROZEN_NOW - 120.0,
+            "last_success_at": FROZEN_NOW - 600.0,
+        },
+    )
+
+    assert "⚠ failing" not in provider_summary_text(provider).plain
+
+
 def test_provider_detail_header_includes_plan_mode_and_diagnostic() -> None:
     provider = usage_provider(
         "codex", plan="Plus", account_mode="chatgpt", diagnostic="cache warning"
@@ -71,6 +105,24 @@ def test_provider_detail_header_includes_plan_mode_and_diagnostic() -> None:
     assert "Plan: Plus" in text
     assert "Mode: chatgpt" in text
     assert "cache warning" in text
+
+
+def test_provider_detail_header_includes_unhealthy_collector_line() -> None:
+    provider = usage_provider(
+        "codex",
+        collection_reason="vendor_drift",
+        collector_health={
+            "state": "failing",
+            "consecutive_failures": 5,
+            "failing_since": FROZEN_NOW - 172_800.0,
+            "last_success_at": FROZEN_NOW - 259_200.0,
+        },
+    )
+
+    text = provider_detail_header(provider, now=FROZEN_NOW).plain
+
+    assert "Status: failing · vendor drift · 5x" in text
+    assert "Collector: failing — 5 failures · since 2d · last success 3d ago" in text
 
 
 def test_window_detail_row_reports_remaining_and_reset() -> None:

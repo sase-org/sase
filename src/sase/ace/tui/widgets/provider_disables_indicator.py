@@ -37,7 +37,6 @@ from ._override_pill import (
     PROVIDER_DISABLE_PALETTE,
     PROVIDER_PRIORITY_PALETTE,
     PROVIDER_SOFT_DISABLE_PALETTE,
-    PROVIDER_USAGE_PALETTE,
     build_override_pill,
     format_pill_remaining,
     format_remaining_until,
@@ -449,7 +448,8 @@ class ProviderDisablesIndicator(Static):
             has_disables = True
         usage_lines = list(
             usage_indicator_tooltip_lines(
-                usage_indicator_presentations(usage_items, usage_providers)
+                usage_indicator_presentations(usage_items, usage_providers),
+                now=now,
             )
         )
         if not lines and not usage_lines:
@@ -483,8 +483,8 @@ class ProviderDisablesIndicator(Static):
                     *usage_lines,
                     "Notation: wk/mo/5h are windows; all is account-wide; "
                     "scope? means the provider did not expose exact applicability.",
-                    "+N counts additional attention providers; !N/?N is the total "
-                    "when space is tight.",
+                    "+N counts additional attention providers; !N/⚠N/?N is the "
+                    "total when space is tight.",
                     "Click to open this provider's Providers · Usage view.",
                     "The Usage command is also reachable from the command palette.",
                 )

@@ -28,6 +28,7 @@ from sase.llm_provider.provider_priority import (
     provider_availability_facts,
     provider_routing_context_from_parts,
 )
+from tests._usage_view_helpers import FROZEN_NOW, usage_provider
 
 _MODULE = "sase.ace.tui.widgets.provider_disables_indicator"
 
@@ -448,6 +449,37 @@ def test_usage_tooltip_lists_attention_items() -> None:
     assert "Usage attention:" in tooltip
     assert "GROK - rejected · 0% left · Week · all" in tooltip
     assert "Providers · Usage" in tooltip
+
+
+def test_usage_tooltip_lists_failing_collector_health_lines() -> None:
+    provider = usage_provider(
+        "codex",
+        collection_reason="vendor_drift",
+        collector_health={
+            "state": "failing",
+            "consecutive_failures": 5,
+            "failing_since": FROZEN_NOW - 172_800.0,
+            "last_success_at": FROZEN_NOW - 259_200.0,
+        },
+    )
+    tooltip = ProviderDisablesIndicator._build_tooltip(
+        {},
+        usage_items=(
+            CapacityHint(
+                kind="collection_problem",
+                label="usage failing",
+                provider="codex",
+            ),
+        ),
+        usage_providers=(provider,),
+        now=FROZEN_NOW,
+    )
+
+    assert tooltip is not None
+    assert "CODEX - collection problem · usage failing" in tooltip
+    assert "collector health: failing · vendor drift · 5x" in tooltip
+    assert "failing since: 2d ago" in tooltip
+    assert "last success: 3d ago" in tooltip
 
 
 async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None:

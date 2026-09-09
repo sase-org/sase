@@ -13,6 +13,7 @@ from tests.llm_provider.test_usage_hints import (
     _claude_shared_rejected_and_model_healthy,
     _codex_unknown_scope,
 )
+from tests._usage_view_helpers import usage_provider
 from tests._models_panel_helpers import make_alias_view
 
 
@@ -53,6 +54,28 @@ def test_picker_unknown_scope_stays_on_the_provider_header() -> None:
     assert header.capacity_label is not None
     assert "scope unknown" in header.capacity_label
     assert model.capacity_label is None
+
+
+def test_picker_collection_problem_uses_failing_warning_identity() -> None:
+    rows = build_model_rows(
+        usage_providers=(
+            usage_provider(
+                "codex",
+                attention={"kind": "collection_problem", "provider": "codex"},
+                collector_health={"state": "failing", "consecutive_failures": 3},
+            ),
+        )
+    )
+    header = next(row for row in rows if row.option_id == "__header_codex__")
+
+    assert header.capacity_severity == "collection_problem"
+    assert header.capacity_label == "usage failing"
+    option = next(
+        option
+        for option in rows_to_options([header])
+        if option is not None and option.id == "__header_codex__"
+    )
+    assert "⚠ usage failing" in str(option.prompt)
 
 
 def test_picker_capacity_coexists_with_model_advisory() -> None:
