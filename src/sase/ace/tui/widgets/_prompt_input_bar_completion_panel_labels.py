@@ -171,9 +171,7 @@ def model_completion_subtitle(
     if not isinstance(metadata, ModelCompletionMetadata):
         return Text()
     if alias_shortcut:
-        subtitle = f"Enter -> %m:{metadata.value}"
-        if metadata.description:
-            subtitle = f"{subtitle} · {metadata.description}"
+        return _model_alias_completion_subtitle(metadata, inner_width)
     elif metadata.kind == "model":
         subtitle = "[@] model aliases"
     elif metadata.kind == "provider":
@@ -191,6 +189,34 @@ def model_completion_subtitle(
         return text
     text.truncate(inner_width, overflow="ellipsis")
     return text
+
+
+def _model_alias_completion_subtitle(
+    metadata: ModelCompletionMetadata,
+    inner_width: int,
+) -> Text:
+    preview = Text(f"Enter → %m:{metadata.value}", no_wrap=True, overflow="ellipsis")
+    if inner_width <= 0:
+        if metadata.description:
+            preview.append(f" · {metadata.description}")
+        return preview
+    if preview.cell_len >= inner_width:
+        preview.truncate(inner_width, overflow="ellipsis")
+        return preview
+    if not metadata.description:
+        return preview
+
+    separator = " · "
+    remaining = inner_width - preview.cell_len
+    separator_width = cell_len(separator)
+    if remaining <= separator_width:
+        return preview
+
+    description = Text(metadata.description, no_wrap=True, overflow="ellipsis")
+    description.truncate(remaining - separator_width, overflow="ellipsis")
+    preview.append(separator)
+    preview.append_text(description)
+    return preview
 
 
 def agent_completion_subtitle(

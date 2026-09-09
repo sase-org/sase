@@ -159,6 +159,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         content = build_completion_panel_content(
             kinds,
             visible,
+            token=token,
             total=total,
             selected_index=selected_index,
             scroll_offset=scroll_offset,
@@ -225,7 +226,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self._completion_visible = True
         self._completion_panel_kind = "completion"
         self._completion_line_count = _reserved_panel_rows(_content_line_count(content))
-        if kinds.model_alias:
+        if kinds.model_alias and kinds.model:
             self._subtitle_base = MODEL_ALIAS_MODE_SUBTITLE
             self.border_subtitle = self._render_subtitle(MODEL_ALIAS_MODE_SUBTITLE)
         elif self._subtitle_base == MODEL_ALIAS_MODE_SUBTITLE:

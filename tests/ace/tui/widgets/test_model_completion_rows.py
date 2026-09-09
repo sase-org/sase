@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from rich.text import Text
 
+from sase.ace.tui.widgets._completion_match_highlight import MATCH_STYLE
 from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_model_completion_row,
     model_completion_column_widths,
@@ -66,6 +67,8 @@ def _render(
     *,
     selected: bool = False,
     widths: tuple[int, int] | None = None,
+    match_query: str = "",
+    available_width: int = 0,
 ) -> Text:
     text = Text()
     append_model_completion_row(
@@ -73,6 +76,8 @@ def _render(
         candidate,
         selected,
         widths or model_completion_column_widths([candidate]),
+        match_query=match_query,
+        available_width=available_width,
     )
     return text
 
@@ -244,3 +249,36 @@ def test_model_completion_row_ellipsizes_overlong_name() -> None:
 
     assert "…" in text.plain[:30]
     assert "custom" in text.plain
+
+
+def test_model_alias_shortcut_row_highlights_typed_prefix() -> None:
+    candidate = _candidate("@medium", alias_kind="user")
+
+    text = _render(candidate, selected=True, match_query="me")
+
+    assert text.plain.startswith("@medium")
+    assert any(
+        span.start == 1
+        and span.end == 3
+        and str(span.style).lower() == MATCH_STYLE.lower()
+        for span in text.spans
+    )
+
+
+def test_model_alias_shortcut_row_drops_optional_columns_before_name() -> None:
+    candidate = _candidate(
+        "@observability_super_router_alias_with_extra_segments",
+        alias_kind="user",
+        target_provider="codex",
+        target_model="gpt-5.6-sol",
+        provenance="configured",
+        pool_available=2,
+        pool_total=4,
+    )
+
+    text = _render(candidate, match_query="observability", available_width=24)
+
+    assert text.plain.startswith("@observability")
+    assert "…" in text.plain
+    assert "CODEX" not in text.plain
+    assert "configured" not in text.plain

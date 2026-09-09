@@ -15,6 +15,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.directive_completion import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
+from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -24,6 +25,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_svg_contains,
     wait_for_visual_idle,
 )
+from tests.ace.tui.visual._ace_prompt_png_snapshot_helpers import mount_prompt_bar
+from tests.ace.tui.visual._ace_prompt_png_snapshot_prompts import TWO_PANE_PROMPT
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
@@ -180,19 +183,29 @@ _SCOPED_CLAUDE_ROWS = [
     ),
 ]
 
-
-async def _mount_prompt_bar(page: AcePage, initial_value: str) -> PromptInputBar:
-    await page.app.mount(
-        PromptInputBar(initial_value=initial_value, id="prompt-input-bar")
-    )
-    bar = page.app.query_one("#prompt-input-bar", PromptInputBar)
-    await wait_for_state(
-        page,
-        lambda: bar.active_text_area().has_focus,
-        description="model-completion prompt-bar focus",
-    )
-    await wait_for_visual_idle(page)
-    return bar
+_LONG_ALIAS_ROWS = [
+    _alias_row(
+        "@observability_super_router_alias_with_extra_segments",
+        kind="user_alias",
+        alias_kind="user",
+        target_provider="codex",
+        target_model="gpt-5.6-sol",
+        provenance="configured",
+        pool_available=2,
+        pool_total=4,
+        description=("Long operational routing alias for incident sweeps and traces."),
+    ),
+    _alias_row(
+        "@observability_backup",
+        kind="user_alias",
+        alias_kind="user",
+        target_provider="claude",
+        target_model="opus",
+        target_effort="high",
+        provenance="backup",
+        description="Fallback alias with a shorter target.",
+    ),
+]
 
 
 async def test_model_completion_mixed_menu_png_snapshot(
@@ -206,7 +219,7 @@ async def test_model_completion_mixed_menu_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await _mount_prompt_bar(page, "%model:")
+        bar = await mount_prompt_bar(page, "%model:")
 
         # A model row is highlighted so the `[@] model aliases` gate hint shows.
         bar.show_file_completions(
@@ -243,7 +256,7 @@ async def test_model_completion_alias_only_menu_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await _mount_prompt_bar(page, "%model:@")
+        bar = await mount_prompt_bar(page, "%model:@")
 
         # An alias row is highlighted so its description subtitle shows.
         bar.show_file_completions(
@@ -269,6 +282,146 @@ async def test_model_completion_alias_only_menu_png_snapshot(
         )
 
 
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "prompt_model_alias_completion_full_dark_120x40",
+            "ACE prompt input — star alias completion full menu, dark theme",
+        ),
+        (
+            "textual-light",
+            "prompt_model_alias_completion_full_light_120x40",
+            "ACE prompt input — star alias completion full menu, light theme",
+        ),
+    ],
+)
+async def test_model_alias_completion_full_menu_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, "*")
+
+        bar.show_file_completions(
+            "",
+            _ALIAS_ROWS,
+            selected_index=0,
+            completion_kind=MODEL_ALIAS_COMPLETION_KIND,
+        )
+        await wait_for_state(
+            page,
+            lambda: (
+                bar._completion_visible and bar._completion_panel_kind == "completion"
+            ),
+            description="star alias completion full-menu visibility",
+        )
+        await wait_for_svg_contains(page, "Enter → %m:@large")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
+async def test_model_alias_completion_filtered_preview_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = "textual-light"
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, "Route *sc")
+
+        bar.show_file_completions(
+            "sc",
+            [_ALIAS_ROWS[3]],
+            selected_index=0,
+            completion_kind=MODEL_ALIAS_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "@scout")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_model_alias_completion_filtered_light_120x40",
+            title="ACE prompt input — filtered star alias completion, light theme",
+        )
+
+
+async def test_model_alias_completion_narrow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches(), size=(70, 24)) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, "Explain *observability")
+
+        bar.show_file_completions(
+            "observability",
+            _LONG_ALIAS_ROWS,
+            selected_index=0,
+            completion_kind=MODEL_ALIAS_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "Enter → %m:@observability")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_model_alias_completion_narrow_70x24",
+            title="ACE prompt input — narrow star alias completion",
+        )
+
+
+async def test_model_alias_completion_stacked_pane_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = "textual-light"
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, TWO_PANE_PROMPT)
+
+        bar.show_file_completions(
+            "la",
+            [_ALIAS_ROWS[0]],
+            selected_index=0,
+            completion_kind=MODEL_ALIAS_COMPLETION_KIND,
+        )
+        await wait_for_svg_contains(page, "Enter → %m:@large")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_model_alias_completion_stack_light_120x40",
+            title="ACE prompt stack — star alias completion, light theme",
+        )
+
+
 async def test_model_completion_provider_scoped_menu_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -280,7 +433,7 @@ async def test_model_completion_provider_scoped_menu_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await _mount_prompt_bar(page, "%model:claude/")
+        bar = await mount_prompt_bar(page, "%model:claude/")
 
         bar.show_file_completions(
             "claude/",

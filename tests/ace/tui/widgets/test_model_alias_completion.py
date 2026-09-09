@@ -196,7 +196,7 @@ async def test_star_alias_auto_opens_and_enter_expands_without_submit() -> None:
         assert ta._completion_kind == MODEL_ALIAS_COMPLETION_KIND
         assert panel.border_title == "model aliases"
         assert [c.insertion for c in ta._file_completion_candidates] == ["@large"]
-        assert "Enter -> %m:@large" in str(panel.border_subtitle)
+        assert "Enter → %m:@large · Large model" in str(panel.border_subtitle)
         assert bar._subtitle_base == MODEL_ALIAS_MODE_SUBTITLE
 
         await pilot.press("enter")
@@ -288,6 +288,18 @@ async def test_star_alias_ctrl_l_accepts_selection_without_submit_or_newline() -
         assert ta._file_completion_active is False
 
 
+async def test_star_alias_subtitle_omits_missing_description() -> None:
+    app = ModelAliasCompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("*")
+        await pilot.press("s")
+
+        panel = bar.query_one("#prompt-completion", Static)
+        assert str(panel.border_subtitle) == "Enter → %m:@small"
+
+
 async def test_star_alias_accept_replaces_whole_token_from_mid_token_cursor() -> None:
     app = ModelAliasCompletionTestApp()
     async with app.run_test() as pilot:
@@ -372,6 +384,7 @@ async def test_unknown_star_alias_stays_literal_and_can_submit() -> None:
 async def test_loading_model_alias_row_is_not_selectable() -> None:
     app = ModelAliasCompletionTestApp(entries=None)
     async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptInputBar).active_text_area()
         ta.load_text("*")
         ta.cursor_location = (0, 1)
@@ -381,6 +394,8 @@ async def test_loading_model_alias_row_is_not_selectable() -> None:
 
         load.assert_called_once_with()
         assert is_model_alias_completion_placeholder(ta._file_completion_candidates[0])
+        assert ta._file_completion_candidates[0].display == "Loading model aliases…"
+        assert bar._subtitle_base != MODEL_ALIAS_MODE_SUBTITLE
 
         await pilot.press("enter")
 
@@ -402,6 +417,9 @@ async def test_cold_model_alias_catalog_shows_loading_without_blocking_keys() ->
             assert ta._completion_kind == MODEL_ALIAS_COMPLETION_KIND
             assert is_model_alias_completion_placeholder(
                 ta._file_completion_candidates[0]
+            )
+            assert ta._file_completion_candidates[0].display == (
+                "Loading model aliases…"
             )
 
             await pilot.press("x")
@@ -493,7 +511,7 @@ async def test_model_alias_catalog_failure_can_retry_from_unavailable_row() -> N
 
             retry.assert_called_once_with(force=True)
             assert ta._file_completion_candidates[0].display == (
-                "Loading model aliases..."
+                "Loading model aliases…"
             )
 
 
@@ -516,7 +534,7 @@ async def test_model_alias_catalog_cache_miss_after_loaded_reschedules() -> None
 
             load.assert_called_once_with()
             assert ta._file_completion_candidates[0].display == (
-                "Loading model aliases..."
+                "Loading model aliases…"
             )
 
 

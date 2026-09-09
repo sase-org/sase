@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rich.cells import cell_len
 from rich.text import Text
 
 from sase.ace.tui.model_alias_styles import (
@@ -24,6 +25,7 @@ from sase.ace.tui.widgets.directive_completion import (
     MachineCompletionMetadata,
     ModelCompletionMetadata,
 )
+from sase.ace.tui.widgets._completion_match_highlight import append_highlighted
 from sase.bead_status_presentation import bead_status_presentation
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
@@ -178,6 +180,9 @@ def append_model_completion_row(
     candidate: CompletionCandidate,
     is_selected: bool,
     widths: tuple[int, int],
+    *,
+    match_query: str = "",
+    available_width: int = 0,
 ) -> None:
     """Append one model or alias in the shared four-column grid."""
     metadata = candidate.metadata
@@ -198,6 +203,21 @@ def append_model_completion_row(
         )
         if metadata.description:
             content.append(f"  {metadata.description}", style="dim")
+        return
+
+    if (match_query or available_width > 0) and metadata.kind in {
+        "implicit_alias",
+        "user_alias",
+    }:
+        _append_model_alias_shortcut_row(
+            content,
+            candidate,
+            metadata,
+            is_selected,
+            widths,
+            match_query=match_query,
+            available_width=available_width,
+        )
         return
 
     name_width, target_width = widths
@@ -235,6 +255,93 @@ def append_model_completion_row(
     if state:
         content.append("  ")
         content.append_text(state)
+
+
+def _append_model_alias_shortcut_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    metadata: ModelCompletionMetadata,
+    is_selected: bool,
+    widths: tuple[int, int],
+    *,
+    match_query: str,
+    available_width: int,
+) -> None:
+    """Append a width-aware ``*alias`` row with the typed prefix highlighted."""
+    name_width, target_width = widths
+    kind_style = MODEL_ALIAS_KIND_STYLES.get(metadata.alias_kind, "bold magenta")
+    name_style = _selected_style(kind_style, is_selected)
+    kind_label = alias_kind_label(metadata.alias_kind)
+    target = _model_completion_target_text(metadata)
+    target.truncate(target_width, overflow="ellipsis", pad=True)
+    state = alias_state_text(
+        metadata.provenance,
+        metadata.reference,
+        metadata.reference_effort,
+        metadata.pool_available,
+        metadata.pool_total,
+    )
+
+    kind = Text(kind_label, style=kind_style)
+    kind.truncate(_MODEL_KIND_CELL, overflow="ellipsis", pad=True)
+    pieces = [
+        ("kind", kind),
+        ("target", target),
+    ]
+    if state:
+        pieces.append(("state", state))
+
+    if available_width > 0:
+        detail_width = _model_alias_detail_width(pieces)
+        if name_width + detail_width > available_width:
+            detail_width = _model_alias_detail_width(pieces[:1])
+            if name_width + detail_width > available_width:
+                pieces = []
+                detail_width = 0
+            else:
+                pieces = pieces[:1]
+        name_width = max(1, min(name_width, available_width - detail_width))
+
+    name = _model_alias_name_text(
+        candidate.display,
+        name_style,
+        match_query=match_query,
+    )
+    name.truncate(name_width, overflow="ellipsis", pad=True)
+    content.append_text(name)
+    for _kind, piece in pieces:
+        content.append("  ")
+        content.append_text(piece)
+
+
+def _model_alias_detail_width(pieces: list[tuple[str, Text]]) -> int:
+    """Return the cell width consumed by model-alias detail columns."""
+    return sum(2 + piece.cell_len for _kind, piece in pieces)
+
+
+def _model_alias_name_text(
+    display: str,
+    style: str,
+    *,
+    match_query: str,
+) -> Text:
+    """Return an alias label with the typed post-``@`` prefix highlighted."""
+    query = match_query.lstrip("@")
+    label_start = 1 if display.startswith("@") else 0
+    label = display[label_start:]
+    if not query or not label.casefold().startswith(query.casefold()):
+        return Text(display, style=style)
+
+    text = Text(no_wrap=True, overflow="ellipsis")
+    if label_start:
+        text.append(display[:label_start], style=style)
+    append_highlighted(
+        text,
+        label,
+        [(0, len(query))],
+        base_style=style,
+    )
+    return text
 
 
 def _append_provider_completion_row(

@@ -119,6 +119,33 @@ async def test_custom_alias_without_description_shows_config_hint() -> None:
         )
 
 
+async def test_star_alias_shortcut_subtitle_prioritizes_expansion_preview() -> None:
+    app = CompletionTestApp()
+    async with app.run_test(size=(32, 24)):
+        bar = app.query_one(PromptInputBar)
+        panel = bar.query_one("#prompt-completion", Static)
+        rows = [
+            _candidate(
+                "@observability_super_router_alias_with_extra_segments",
+                kind="user_alias",
+                alias_kind="user",
+                description="Long operational routing alias for incident sweeps.",
+            )
+        ]
+
+        bar.show_file_completions(
+            "observability",
+            rows,
+            selected_index=0,
+            completion_kind="model_alias",
+        )
+
+        assert panel.border_title == "model aliases"
+        subtitle = str(panel.border_subtitle)
+        assert subtitle.startswith("Enter → %m:@observ")
+        assert "Long operational" not in subtitle
+
+
 async def test_provider_scoped_model_panel_uses_provider_title() -> None:
     app = CompletionTestApp()
     async with app.run_test():

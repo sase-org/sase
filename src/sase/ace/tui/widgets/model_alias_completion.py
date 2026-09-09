@@ -99,7 +99,7 @@ def build_model_alias_completion_candidates(
 
 def build_loading_model_alias_placeholder() -> CompletionCandidate:
     """Return the cold-catalog loading row."""
-    message = "Loading model aliases..."
+    message = "Loading model aliases…"
     return CompletionCandidate(
         display=message,
         insertion="",

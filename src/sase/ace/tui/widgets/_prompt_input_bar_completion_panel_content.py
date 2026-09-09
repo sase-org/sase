@@ -66,6 +66,7 @@ def build_completion_panel_content(
     kinds: CompletionPanelKinds,
     visible: list[CompletionCandidate],
     *,
+    token: str = "",
     total: int,
     selected_index: int,
     scroll_offset: int,
@@ -119,6 +120,7 @@ def build_completion_panel_content(
             is_selected,
             kinds=kinds,
             layout=layout,
+            token=token,
             inner_width=inner_width,
             word_ranking_signals=word_ranking_signals,
             placeholder_ranking_signals=placeholder_ranking_signals,
@@ -206,6 +208,7 @@ def _append_candidate_row(
     *,
     kinds: CompletionPanelKinds,
     layout: _RowLayout,
+    token: str,
     inner_width: int,
     word_ranking_signals: bool = True,
     placeholder_ranking_signals: bool = True,
@@ -222,6 +225,8 @@ def _append_candidate_row(
                 candidate,
                 is_selected,
                 layout.model,
+                match_query=token,
+                available_width=max(0, inner_width - 2),
             )
         else:
             content.append(candidate.display, style="dim")
