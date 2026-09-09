@@ -229,7 +229,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "directory."
         ),
     ),
-    "src/sase/workspace_provider/utils.py:ensure_git_clone_at": DirOpReview(
+    "src/sase/workspace_provider/_utils_checkout.py:ensure_git_clone_at": DirOpReview(
         exemption=(
             "Workspace checkout directory under a managed root, not an agent "
             "artifact directory."

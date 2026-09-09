@@ -11,8 +11,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.running_field import ClaimResult, WorkspaceClaimError
+from sase.workspace_provider._utils_git import remote_points_at_path
 from sase.workspace_provider.utils import (
-    _remote_points_at_path,
     ensure_git_clone_at,
     ensure_workspace_checkout,
     get_default_branch,
@@ -84,10 +84,8 @@ class TestRemotePathMatching:
         checkout.mkdir()
         symlink.symlink_to(primary, target_is_directory=True)
 
-        assert _remote_points_at_path(
-            "../primary-link", str(primary), cwd=str(checkout)
-        )
-        assert _remote_points_at_path(
+        assert remote_points_at_path("../primary-link", str(primary), cwd=str(checkout))
+        assert remote_points_at_path(
             f"file://{symlink}", str(primary), cwd=str(checkout)
         )
 
@@ -116,7 +114,7 @@ class TestManagedOriginReconciliation:
 
         with (
             patch(
-                "sase.workspace_provider.utils._managed_origin_reconciliation_decision"
+                "sase.workspace_provider._utils_origin._managed_origin_reconciliation_decision"
             ) as decide,
             pytest.raises(RuntimeError, match="workspace registry is missing"),
         ):
@@ -166,8 +164,8 @@ class TestSetWorkspaceDir:
             assert set_workspace_dir(gp, "/repo/")
             assert os.path.exists(gp)
 
-    @patch("sase.workspace_provider.utils.write_patch_atomic")
-    @patch("sase.workspace_provider.utils.patch_lock")
+    @patch("sase.workspace_provider._utils_checkout.write_patch_atomic")
+    @patch("sase.workspace_provider._utils_checkout.patch_lock")
     def test_updates_existing(
         self, mock_lock: MagicMock, mock_write: MagicMock, tmp_path: Path
     ) -> None:
@@ -185,8 +183,8 @@ class TestSetWorkspaceDir:
             assert "/old/" not in written
             os.unlink(f.name)
 
-    @patch("sase.workspace_provider.utils.write_patch_atomic")
-    @patch("sase.workspace_provider.utils.patch_lock")
+    @patch("sase.workspace_provider._utils_checkout.write_patch_atomic")
+    @patch("sase.workspace_provider._utils_checkout.patch_lock")
     def test_inserts_before_running(
         self, mock_lock: MagicMock, mock_write: MagicMock, tmp_path: Path
     ) -> None:
