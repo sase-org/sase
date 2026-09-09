@@ -10,7 +10,6 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Mapping
-from pathlib import Path
 from typing import Any
 
 from sase.llm_provider.usage.config import get_usage_metrics_settings
@@ -19,7 +18,6 @@ from sase.llm_provider.usage.store import load_provider_usage, provider_usage_st
 _PEEK_STAT_FLOOR_SECONDS = 0.5
 
 _peek_lock = threading.Lock()
-_peek_path: Path | None = None
 _peek_token: tuple[int, int] | None = None
 _peek_deadline = 0.0
 _peek_providers: tuple[Mapping[str, Any], ...] = ()
@@ -41,7 +39,7 @@ def cached_usage_peek() -> tuple[tuple[Mapping[str, Any], ...], frozenset[str]]:
 
 def usage_peek_change_token() -> tuple[int, int] | None:
     """Return a stat-only change token, checking filesystem metadata on a floor."""
-    global _peek_deadline, _peek_path, _peek_token  # noqa: PLW0603
+    global _peek_deadline, _peek_token  # noqa: PLW0603
 
     current_monotonic = time.monotonic()
     with _peek_lock:
@@ -52,11 +50,9 @@ def usage_peek_change_token() -> tuple[int, int] | None:
             path = provider_usage_state_path()
             stat = path.stat()
         except OSError:
-            _peek_path = None
             _peek_token = None
             return None
         token = (stat.st_mtime_ns, stat.st_size)
-        _peek_path = path
         if token != _peek_token:
             _peek_token = token
         return _peek_token
@@ -104,11 +100,10 @@ def refresh_usage_peek_cache(
 
 def _clear_usage_peek_cache() -> None:
     """Drop cached providers. Tests use this after planting state."""
-    global _peek_deadline, _peek_eligible, _peek_path, _peek_providers  # noqa: PLW0603
+    global _peek_deadline, _peek_eligible, _peek_providers  # noqa: PLW0603
     global _peek_token  # noqa: PLW0603
 
     with _peek_lock:
-        _peek_path = None
         _peek_token = None
         _peek_deadline = 0.0
         _peek_providers = ()
