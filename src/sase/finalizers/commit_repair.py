@@ -42,8 +42,8 @@ from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
 
-_CONFLICT_PROMPT_FILENAME = "conflict_repair_prompt.md"
-_CONFLICT_RESPONSE_FILENAME = "conflict_repair_response.md"
+_CONFLICT_PROMPT_STEM = "conflict_repair_prompt"
+_CONFLICT_RESPONSE_STEM = "conflict_repair_response"
 _ARTIFACT_LABEL_RE = re.compile(r"[^A-Za-z0-9._-]+")
 _MAX_STREAM_CHARS = 4000
 
@@ -109,7 +109,7 @@ def resolve_commit_conflict(
 ) -> _ConflictRepairResult:
     """Run the one-shot conflict-repair turn and resume the same stitch."""
 
-    if _conflict_repair_spent(context.artifacts_dir):
+    if _conflict_repair_spent(context.artifacts_dir, repo):
         raise BuiltinCommitFinalizerError(
             f"commit finalizer hit a second unresolved conflict in {repo.name}",
             result=failed_result(
@@ -147,7 +147,7 @@ def resolve_commit_conflict(
         return _ConflictRepairResult(invoke_result=current_result)
     resumed = resume_runner(repo, context)
     record_stitch_artifacts(
-        context, "commit", attempt_id, resumed, label="conflict-repair"
+        context, "commit", attempt_id, resumed, label=f"{repo.name}-conflict-repair"
     )
     if resumed.timed_out or resumed.stdout_truncated or resumed.stderr_truncated:
         code = "stitch_timeout" if resumed.timed_out else "stitch_output_cap"
@@ -350,7 +350,7 @@ def record_stitch_artifacts(
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance_id)
     if artifact_dir is None:
         return
-    safe_label = _ARTIFACT_LABEL_RE.sub("_", label).strip("._") or "stitch"
+    safe_label = _artifact_label(label)
     prefix = f"attempt-{attempt}.{safe_label}"
     try:
         write_text_artifact(
@@ -461,7 +461,7 @@ def load_latest_stitch_attempt(
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance_id)
     if artifact_dir is None:
         return None
-    safe_label = _ARTIFACT_LABEL_RE.sub("_", label).strip("._") or "stitch"
+    safe_label = _artifact_label(label)
     pattern = re.compile(rf"^attempt-(\d+)\.{re.escape(safe_label)}\.inputs\.json$")
     best_attempt = -1
     best_path: Path | None = None
@@ -535,11 +535,21 @@ def _write_message_file(repo_path: str, message: str) -> Path:
     return path
 
 
-def _conflict_repair_spent(artifacts_dir: str | None) -> bool:
+def _artifact_label(label: str) -> str:
+    return _ARTIFACT_LABEL_RE.sub("_", label).strip("._") or "stitch"
+
+
+def _conflict_repair_filename(stem: str, repo: DirtyRepo) -> str:
+    return f"{stem}.{_artifact_label(repo.name)}.md"
+
+
+def _conflict_repair_spent(artifacts_dir: str | None, repo: DirtyRepo) -> bool:
     artifact_dir = instance_artifact_dir(artifacts_dir, "commit")
     if artifact_dir is None:
         return False
-    return (artifact_dir / _CONFLICT_PROMPT_FILENAME).is_file()
+    return (
+        artifact_dir / _conflict_repair_filename(_CONFLICT_PROMPT_STEM, repo)
+    ).is_file()
 
 
 def _run_conflict_repair_turn(
@@ -559,10 +569,11 @@ def _run_conflict_repair_turn(
         "not a message from the user.\n\n"
         f"Target repository: {repo.name}\n"
         f"Target checkout path: {repo.path}\n\n"
-        "This is the single conflict-repair turn. Operate from the checkout holding "
-        "the paused operation; use an explicit working directory for commands instead "
-        "of changing the provider process's global working directory. Use the existing "
-        "`/sase_repo` access workflow when it is required for this checkout.\n\n"
+        "This is the single conflict-repair turn for this repository during this "
+        "run. Operate from the checkout holding the paused operation; use an explicit "
+        "working directory for commands instead of changing the provider process's "
+        "global working directory. Use the existing `/sase_repo` access workflow when "
+        "it is required for this checkout.\n\n"
         "Inspect the live unmerged files with the VCS, resolve their semantics, stage "
         "the resolved files, and review the staged result before continuing. Verify "
         "the integrated content affected by the repair, including relevant "
@@ -609,7 +620,10 @@ def _run_conflict_repair_turn(
     )
     artifact_dir = instance_artifact_dir(artifacts_dir, "commit")
     if artifact_dir is not None:
-        write_text_artifact(artifact_dir / _CONFLICT_PROMPT_FILENAME, prompt)
+        write_text_artifact(
+            artifact_dir / _conflict_repair_filename(_CONFLICT_PROMPT_STEM, repo),
+            prompt,
+        )
     with finalizer_owned_turn():
         follow_up = provider.invoke(
             prompt,
@@ -620,7 +634,7 @@ def _run_conflict_repair_turn(
         )
     if artifact_dir is not None:
         write_text_artifact(
-            artifact_dir / _CONFLICT_RESPONSE_FILENAME,
+            artifact_dir / _conflict_repair_filename(_CONFLICT_RESPONSE_STEM, repo),
             follow_up.content,
         )
     return InvokeResult(

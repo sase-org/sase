@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.finalizers.commit_repair import _run_conflict_repair_turn
+from sase.finalizers.commit_repair import _artifact_label, _run_conflict_repair_turn
 from sase.finalizers.owned_turn import SASE_FINALIZER_OWNED_TURN_ENV
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
@@ -34,10 +34,12 @@ def _capture_conflict_repair_prompt(
     )
 
     prompt = provider.invoke.call_args.args[0]
+    artifact_dir = artifacts_dir / "finalizers" / "commit"
     saved_prompt = (
-        artifacts_dir / "finalizers" / "commit" / "conflict_repair_prompt.md"
+        artifact_dir / f"conflict_repair_prompt.{_artifact_label(repo.name)}.md"
     ).read_text(encoding="utf-8")
     assert saved_prompt == prompt
+    assert not (artifact_dir / "conflict_repair_prompt.md").exists()
     return prompt
 
 
@@ -76,6 +78,7 @@ def test_conflict_repair_prompt_scopes_verification_to_target_repository(
     assert f"paused operation in {name}" in prompt
     assert f"fresh commit in {name}" in prompt
     assert "automated host instruction, not a message from the user" in prompt
+    assert "single conflict-repair turn for this repository during this run" in prompt
 
     assert "old dirty file snapshot" in prompt
     assert "target repository's applicable instructions" in prompt
