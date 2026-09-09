@@ -16,7 +16,9 @@ import time
 
 MODE = os.environ.get("SASE_CODEX_APP_SERVER_MODE", "multi_bucket")
 PIDFILE = os.environ.get("SASE_CODEX_APP_SERVER_PIDFILE")
+REQUEST_LOG = os.environ.get("SASE_CODEX_APP_SERVER_REQUEST_LOG")
 SECRET_CANARY = "token=SECRET_CANARY_CODEX"
+_UNIT_PARAMS_ERROR = "Invalid request: invalid type: map, expected unit"
 
 _MULTI_BUCKET_RESULT = {
     "rateLimits": {
@@ -119,7 +121,16 @@ def _read_request() -> dict[str, object]:
     payload = json.loads(line)
     if not isinstance(payload, dict):
         raise SystemExit(1)
+    _record_request(payload)
     return payload
+
+
+def _record_request(payload: dict[str, object]) -> None:
+    if not REQUEST_LOG:
+        return
+    with open(REQUEST_LOG, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, sort_keys=True))
+        handle.write("\n")
 
 
 def _write(payload: dict[str, object]) -> None:
@@ -140,6 +151,10 @@ def _respond_error(request: dict[str, object], code: int, message: str) -> None:
             "error": {"code": code, "message": message},
         }
     )
+
+
+def _has_non_empty_params(request: dict[str, object]) -> bool:
+    return "params" in request and request.get("params") not in (None, {})
 
 
 def _handshake() -> None:
@@ -171,6 +186,18 @@ def main() -> int:
         _respond_ok(account_read, {"authMode": "chatgpt"})
 
     rate_limits = _read_request()  # account/rateLimits/read
+    if MODE == "legacy_params_required":
+        if not _has_non_empty_params(rate_limits):
+            _respond_error(rate_limits, -32600, _UNIT_PARAMS_ERROR)
+            rate_limits = _read_request()  # account/rateLimits/read retry
+        if rate_limits.get("params") == {"excludeResetCreditDetails": True}:
+            _respond_ok(rate_limits, _MULTI_BUCKET_RESULT)
+        else:
+            _respond_error(rate_limits, -32602, "legacy params required")
+        return 0
+    if _has_non_empty_params(rate_limits):
+        _respond_error(rate_limits, -32600, _UNIT_PARAMS_ERROR)
+        return 0
 
     if MODE == "unauthenticated":
         _respond_error(rate_limits, 1, "Not logged in. Please sign in.")
@@ -180,6 +207,13 @@ def main() -> int:
         return 0
     if MODE == "malformed":
         _respond_ok(rate_limits, {"unexpected": True})
+        return 0
+    if MODE == "rate_limits_rpc_error":
+        _respond_error(
+            rate_limits,
+            -32042,
+            "Vendor drift details\nsecond line should stay out of diagnostics",
+        )
         return 0
     if MODE == "null_fields":
         _respond_ok(rate_limits, _NULL_FIELDS_RESULT)

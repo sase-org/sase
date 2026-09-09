@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -96,6 +97,36 @@ def test_secret_canary_exception_is_not_in_observation(
     assert SECRET_CANARY not in caplog.text
     diagnostic = result.observation.get("diagnostic") or ""
     assert "token=" not in diagnostic
+
+
+def test_empty_worker_stdout_carries_bounded_stderr_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
+    caplog.set_level(logging.WARNING, logger="sase.llm_provider.usage.probe")
+    context = default_probe_context("synth", deadline_seconds=20)
+
+    result = run_usage_probe(
+        context,
+        isolate=True,
+        plugin_spec=SYNTHETIC_PLUGIN_SPEC,
+        env={SYNTHETIC_MODE_ENV: "stderr_crash"},
+    )
+
+    assert result.observation is not None
+    assert result.observation["outcome"] == "error"
+    assert result.observation["reason_code"] == "probe_failed"
+    diagnostic = result.observation.get("diagnostic") or ""
+    assert "usage probe worker stderr" in diagnostic
+    assert "worker crashed before stdout" in diagnostic
+    assert SECRET_CANARY not in diagnostic
+    assert "token=" not in diagnostic
+    assert "\n" not in diagnostic
+    assert len(diagnostic) <= 200
+    assert "usage probe worker stderr for provider 'synth'" in caplog.text
+    assert SECRET_CANARY not in caplog.text
+    assert "token=" not in caplog.text
 
 
 def test_descendant_processes_are_reaped(

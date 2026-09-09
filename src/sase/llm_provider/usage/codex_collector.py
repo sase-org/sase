@@ -20,6 +20,7 @@ from .transport import JsonLineSession, JsonLineTransportError
 from .types import (
     UsageProbeContext,
     UsageReasonCode,
+    bounded_probe_diagnostic,
     validate_observation,
     validated_status_observation,
 )
@@ -27,6 +28,10 @@ from .types import (
 _INITIALIZE_ID = 1
 _ACCOUNT_READ_ID = 2
 _RATE_LIMITS_ID = 3
+_RATE_LIMITS_LEGACY_ID = 4
+_RATE_LIMITS_METHOD = "account/rateLimits/read"
+_INVALID_REQUEST_CODE = -32600
+_INVALID_PARAMS_CODE = -32602
 _METHOD_NOT_FOUND_CODE = -32601
 
 _UNAUTHENTICATED_MARKERS = (
@@ -109,13 +114,9 @@ def _collect_with_session(
         }
     )
     init_response = session.read_response(_INITIALIZE_ID)
-    if _rpc_error(init_response) is not None:
-        return validated_status_observation(
-            context,
-            now=context.request_started_at,
-            outcome="error",
-            reason_code="probe_failed",
-        )
+    init_error = _rpc_error(init_response)
+    if init_error is not None:
+        return _observation_from_error(context, "initialize", init_error)
     session.send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
 
     if _probe_auth_mode(session) == "api":
@@ -130,17 +131,27 @@ def _collect_with_session(
         {
             "jsonrpc": "2.0",
             "id": _RATE_LIMITS_ID,
-            "method": "account/rateLimits/read",
-            # Documented as suppressing background reset-credit detail; never
-            # set supportsLunaReserve (opt-in only for Reserve-applying
-            # clients per the vendor type comment).
-            "params": {"excludeResetCreditDetails": True},
+            "method": _RATE_LIMITS_METHOD,
+            # codex-cli 0.153.4 declares this method's params as unit and
+            # rejects non-empty maps; reset-credit details are small enough to
+            # keep inside the transport bounds and are ignored by the parser.
         }
     )
     response = session.read_response(_RATE_LIMITS_ID)
     error = _rpc_error(response)
+    if error is not None and _should_retry_with_legacy_rate_limit_params(error):
+        session.send(
+            {
+                "jsonrpc": "2.0",
+                "id": _RATE_LIMITS_LEGACY_ID,
+                "method": _RATE_LIMITS_METHOD,
+                "params": {"excludeResetCreditDetails": True},
+            }
+        )
+        response = session.read_response(_RATE_LIMITS_LEGACY_ID)
+        error = _rpc_error(response)
     if error is not None:
-        return _observation_from_error(context, error)
+        return _observation_from_error(context, _RATE_LIMITS_METHOD, error)
     result = response.get("result")
     if not isinstance(result, dict):
         return validated_status_observation(
@@ -199,16 +210,18 @@ def _rpc_error(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
 
 
 def _observation_from_error(
-    context: UsageProbeContext, error: Mapping[str, Any]
+    context: UsageProbeContext, method: str, error: Mapping[str, Any]
 ) -> dict[str, Any]:
     code = error.get("code")
     message = str(error.get("message") or "").lower()
+    diagnostic = _rpc_error_diagnostic(method, error)
     if code == _METHOD_NOT_FOUND_CODE:
         return validated_status_observation(
             context,
             now=context.request_started_at,
             outcome="unsupported",
             reason_code="unsupported_cli_version",
+            diagnostic=diagnostic,
         )
     if any(marker in message for marker in _UNAUTHENTICATED_MARKERS):
         return validated_status_observation(
@@ -216,13 +229,26 @@ def _observation_from_error(
             now=context.request_started_at,
             outcome="unauthenticated",
             reason_code="logged_out",
+            diagnostic=diagnostic,
         )
     return validated_status_observation(
         context,
         now=context.request_started_at,
         outcome="error",
         reason_code="probe_failed",
+        diagnostic=diagnostic,
     )
+
+
+def _should_retry_with_legacy_rate_limit_params(error: Mapping[str, Any]) -> bool:
+    return error.get("code") in {_INVALID_REQUEST_CODE, _INVALID_PARAMS_CODE}
+
+
+def _rpc_error_diagnostic(method: str, error: Mapping[str, Any]) -> str:
+    code = error.get("code")
+    message = str(error.get("message") or "").strip()
+    suffix = f": {message}" if message else ""
+    return bounded_probe_diagnostic(f"app-server {method} error {code}{suffix}")
 
 
 def _observation_from_rate_limits(

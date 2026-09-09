@@ -13,6 +13,7 @@ from packaging.version import InvalidVersion, Version
 
 _COMMAND_TIMEOUT_FLOOR_SECONDS = 0.05
 _VERSION_RE = re.compile(r"(\d+(?:\.\d+){1,3})")
+CLAUDE_USAGE_PROBE_BUDGET_USD = "0.01"
 
 
 @dataclass(frozen=True)
@@ -58,7 +59,7 @@ def print_help_supports_zero_cost_probe(help_text: str) -> bool:
 
 
 def usage_probe_argv(executable: str) -> tuple[str, ...]:
-    """Build the guarded zero-budget Claude ``/usage`` argv."""
+    """Build the guarded one-cent-capped Claude ``/usage`` argv."""
     return (
         executable,
         "-p",
@@ -69,7 +70,7 @@ def usage_probe_argv(executable: str) -> tuple[str, ...]:
         "--permission-prompts",
         "none",
         "--max-budget-usd",
-        "0",
+        CLAUDE_USAGE_PROBE_BUDGET_USD,
         "/usage",
     )
 

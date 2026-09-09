@@ -18,6 +18,7 @@ from sase.llm_provider.usage.claude import (
     collect_claude_usage,
 )
 from sase.llm_provider.usage._claude_support import (
+    CLAUDE_USAGE_PROBE_BUDGET_USD,
     ClaudeCommandResult,
     parse_claude_reset_timestamp,
 )
@@ -32,6 +33,27 @@ OBSERVED_AT = datetime(
     0,
     tzinfo=ZoneInfo("America/New_York"),
 ).timestamp()
+_ZERO_BUDGET_ERROR = (
+    "error: option '--max-budget-usd <amount>' argument '0' is invalid. "
+    "--max-budget-usd must be a positive number greater than 0"
+)
+
+
+def _usage_tail(
+    budget: str = CLAUDE_USAGE_PROBE_BUDGET_USD,
+) -> tuple[str, ...]:
+    return (
+        "-p",
+        "--output-format",
+        "json",
+        "--safe-mode",
+        "--no-session-persistence",
+        "--permission-prompts",
+        "none",
+        "--max-budget-usd",
+        budget,
+        "/usage",
+    )
 
 
 class FakeClaudeRunner:
@@ -53,6 +75,8 @@ class FakeClaudeRunner:
         del cwd, deadline_at
         tail = tuple(argv[1:])
         self.calls.append(tail)
+        if tail == _usage_tail("0"):
+            return ClaudeCommandResult(1, "", _ZERO_BUDGET_ERROR)
         if tail not in self.responses:
             raise AssertionError(f"unexpected Claude command: {tail!r}")
         return self.responses[tail]
@@ -105,23 +129,12 @@ def _runner(
                 ),
                 "",
             ),
-            (
-                "-p",
-                "--output-format",
-                "json",
-                "--safe-mode",
-                "--no-session-persistence",
-                "--permission-prompts",
-                "none",
-                "--max-budget-usd",
-                "0",
-                "/usage",
-            ): ClaudeCommandResult(0, json.dumps(payload), ""),
+            _usage_tail(): ClaudeCommandResult(0, json.dumps(payload), ""),
         }
     )
 
 
-def test_claude_usage_probe_parses_all_windows_and_zero_cost_argv() -> None:
+def test_claude_usage_probe_parses_all_windows_and_one_cent_cap_argv() -> None:
     usage_text = "\n".join(
         [
             "You are currently using your Claude Max subscription.",
@@ -170,7 +183,10 @@ def test_claude_usage_probe_parses_all_windows_and_zero_cost_argv() -> None:
     assert usage_call[:2] == ("-p", "--output-format")
     assert "--safe-mode" in usage_call
     assert "--no-session-persistence" in usage_call
-    assert usage_call[usage_call.index("--max-budget-usd") + 1] == "0"
+    assert (
+        usage_call[usage_call.index("--max-budget-usd") + 1]
+        == CLAUDE_USAGE_PROBE_BUDGET_USD
+    )
     assert "private@example.com" not in str(observation)
 
 
@@ -243,6 +259,31 @@ def test_claude_usage_probe_requires_zero_turn_zero_cost_markers() -> None:
     assert observation["outcome"] == "error"
     assert observation["reason_code"] == "probe_failed"
     assert "zero-turn zero-cost" in str(observation["diagnostic"])
+
+
+def test_claude_usage_probe_reports_nonzero_exit_diagnostic() -> None:
+    runner = _runner(
+        usage_text="Current session: 10% used - resets Sep 7, 6:30pm",
+    )
+    runner.responses[_usage_tail()] = ClaudeCommandResult(
+        1,
+        "",
+        _ZERO_BUDGET_ERROR + "\nignored continuation",
+    )
+
+    observation = collect_claude_usage(
+        _context(),
+        runner=runner,
+        clock=lambda: OBSERVED_AT,
+    )
+
+    assert observation["outcome"] == "error"
+    assert observation["reason_code"] == "probe_failed"
+    diagnostic = observation["diagnostic"]
+    assert "claude /usage exited 1" in diagnostic
+    assert "--max-budget-usd" in diagnostic
+    assert "\n" not in diagnostic
+    assert len(diagnostic) <= 200
 
 
 def test_claude_reset_parser_handles_time_date_year_rollover_and_iso() -> None:

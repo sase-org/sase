@@ -43,6 +43,7 @@ from sase.llm_provider.usage.store import (
 )
 from sase.llm_provider.usage.types import (
     UsageProbeContext,
+    bounded_probe_diagnostic,
     observation_schema_version,
     validate_observation,
 )
@@ -123,6 +124,7 @@ def collect_claude_usage(
             now=clock(),
             outcome="error",
             reason_code="probe_failed",
+            diagnostic=bounded_probe_diagnostic("claude /usage failed before exit"),
         )
     if not isinstance(usage_result, ClaudeCommandResult):
         return status_observation(
@@ -130,6 +132,9 @@ def collect_claude_usage(
             now=clock(),
             outcome="error",
             reason_code="probe_failed",
+            diagnostic=bounded_probe_diagnostic(
+                "claude /usage returned an unexpected command result"
+            ),
         )
     if usage_result.returncode != 0:
         status_from_text = status_from_auth_text(
@@ -155,6 +160,7 @@ def collect_claude_usage(
             now=clock(),
             outcome="error",
             reason_code="probe_failed",
+            diagnostic=_claude_usage_exit_diagnostic(usage_result),
         )
 
     return _observation_from_usage_stdout(
@@ -512,6 +518,20 @@ def _observation_from_usage_stdout(
             outcome="error",
             reason_code="malformed_payload",
         )
+
+
+def _claude_usage_exit_diagnostic(result: ClaudeCommandResult) -> str:
+    detail = _first_nonempty_line(result.stderr) or _first_nonempty_line(result.stdout)
+    suffix = f": {detail}" if detail else ""
+    return bounded_probe_diagnostic(f"claude /usage exited {result.returncode}{suffix}")
+
+
+def _first_nonempty_line(text: str) -> str:
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
 
 
 class _PassiveUsageSink:

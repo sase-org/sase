@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import time
 from typing import Any
 
@@ -44,6 +45,10 @@ class _SyntheticUsageProvider:
             return None
         if mode == "secret":
             raise RuntimeError(SECRET_CANARY)
+        if mode == "stderr_crash":
+            sys.stderr.write(SECRET_CANARY + " worker crashed before stdout\n")
+            sys.stderr.flush()
+            os._exit(3)
         if mode == "none":
             return None
         if mode == "descendants":

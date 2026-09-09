@@ -10,6 +10,7 @@ from ._claude_support_auth import (
     status_from_auth_text,
 )
 from ._claude_support_command import (
+    CLAUDE_USAGE_PROBE_BUDGET_USD,
     ClaudeCommandResult,
     ClaudeCommandRunner,
     extract_version,
@@ -34,6 +35,7 @@ __all__ = [
     "ClaudeAuthInfo",
     "ClaudeCommandResult",
     "ClaudeCommandRunner",
+    "CLAUDE_USAGE_PROBE_BUDGET_USD",
     "auth_info_from_result",
     "event_window",
     "extract_plan",

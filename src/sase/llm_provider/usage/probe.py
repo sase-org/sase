@@ -23,6 +23,7 @@ from sase.llm_provider.usage.transport import (
 from sase.llm_provider.usage.types import (
     UsageProbeContext,
     UsageProbeResult,
+    bounded_probe_diagnostic,
     observation_schema_version,
     validate_observation,
     validated_status_observation,
@@ -250,7 +251,7 @@ def _run_isolated(
     finally:
         if tmp_cwd is not None:
             tmp_cwd.cleanup()
-    _log_worker_stderr(context.provider, stderr)
+    _log_worker_stderr(context.provider, stderr, stdout=stdout)
     if overflow == "timeout":
         return UsageProbeResult(
             observation=validated_status_observation(
@@ -271,20 +272,24 @@ def _run_isolated(
             )
         )
     return UsageProbeResult(
-        observation=_observation_from_worker_stdout(context, stdout, now=now)
+        observation=_observation_from_worker_stdout(
+            context, stdout, stderr=stderr, now=now
+        )
     )
 
 
 def _observation_from_worker_stdout(
-    context: UsageProbeContext, stdout: bytes, *, now: float
+    context: UsageProbeContext, stdout: bytes, *, stderr: bytes = b"", now: float
 ) -> dict[str, Any]:
     clock = max(time.time(), now)
     if not stdout.strip():
+        diagnostic = _worker_stderr_diagnostic(stderr)
         return validated_status_observation(
             context,
             now=clock,
             outcome="error",
             reason_code="probe_failed",
+            diagnostic=diagnostic,
         )
     try:
         decoded = json.loads(stdout.decode("utf-8"))
@@ -330,9 +335,36 @@ def _bind_observation(
     return payload
 
 
-def _log_worker_stderr(provider: str, stderr: bytes) -> None:
+def _worker_stderr_diagnostic(stderr: bytes) -> str | None:
+    if not stderr:
+        return None
+    snippet = _first_nonempty_stderr_line(stderr)
+    if not snippet:
+        return None
+    return bounded_probe_diagnostic(f"usage probe worker stderr: {snippet}")
+
+
+def _first_nonempty_stderr_line(stderr: bytes) -> str:
+    text = stderr.decode("utf-8", errors="replace")
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
+
+
+def _log_worker_stderr(provider: str, stderr: bytes, *, stdout: bytes) -> None:
     if not stderr:
         return
+    if not stdout.strip():
+        diagnostic = _worker_stderr_diagnostic(stderr)
+        if diagnostic:
+            log.warning(
+                "usage probe worker stderr for provider %r: %s",
+                provider,
+                diagnostic,
+            )
+            return
     log.debug(
         "usage probe worker stderr for provider %r (%s bytes)",
         provider,

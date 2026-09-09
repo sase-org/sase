@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -34,6 +35,14 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
+def _read_jsonl(path: Path) -> list[dict[str, object]]:
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line
+    ]
+
+
 def _context(
     *,
     mode: str,
@@ -64,8 +73,10 @@ def test_codex_capabilities_are_probe_only() -> None:
 
 
 def test_multi_bucket_handshake_collects_account_and_unknown_windows(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    request_log = tmp_path / "requests.jsonl"
+    monkeypatch.setenv("SASE_CODEX_APP_SERVER_REQUEST_LOG", str(request_log))
     context = _context(mode="multi_bucket", monkeypatch=monkeypatch)
     observation = collect_codex_usage(context)
     validate_observation(observation, now=context.request_started_at)
@@ -92,6 +103,35 @@ def test_multi_bucket_handshake_collects_account_and_unknown_windows(
         "vendor_id": "codex_bengalfox",
     }
     assert by_key["codex_bengalfox:primary"]["label"] == "GPT-5.3-Codex-Spark"
+    rate_limit_requests = [
+        request
+        for request in _read_jsonl(request_log)
+        if request.get("method") == "account/rateLimits/read"
+    ]
+    assert len(rate_limit_requests) == 1
+    assert "params" not in rate_limit_requests[0]
+
+
+def test_rate_limits_retries_with_legacy_params_when_paramless_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    request_log = tmp_path / "requests.jsonl"
+    monkeypatch.setenv("SASE_CODEX_APP_SERVER_REQUEST_LOG", str(request_log))
+    context = _context(mode="legacy_params_required", monkeypatch=monkeypatch)
+
+    observation = collect_codex_usage(context)
+
+    validate_observation(observation, now=context.request_started_at)
+    assert observation["outcome"] == "ok"
+    assert observation["windows"]
+    rate_limit_requests = [
+        request
+        for request in _read_jsonl(request_log)
+        if request.get("method") == "account/rateLimits/read"
+    ]
+    assert len(rate_limit_requests) == 2
+    assert "params" not in rate_limit_requests[0]
+    assert rate_limit_requests[1]["params"] == {"excludeResetCreditDetails": True}
 
 
 def test_legacy_single_bucket_without_by_limit_id(
@@ -176,6 +216,22 @@ def test_malformed_rate_limits_result_is_error(
     observation = collect_codex_usage(context)
     assert observation["outcome"] == "error"
     assert observation["reason_code"] == "malformed_payload"
+
+
+def test_rate_limits_rpc_error_carries_bounded_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(mode="rate_limits_rpc_error", monkeypatch=monkeypatch)
+
+    observation = collect_codex_usage(context)
+
+    assert observation["outcome"] == "error"
+    assert observation["reason_code"] == "probe_failed"
+    diagnostic = observation["diagnostic"]
+    assert "app-server account/rateLimits/read error -32042" in diagnostic
+    assert "Vendor drift details" in diagnostic
+    assert "\n" not in diagnostic
+    assert len(diagnostic) <= 200
 
 
 def test_notify_then_reply_skips_unrelated_notification(

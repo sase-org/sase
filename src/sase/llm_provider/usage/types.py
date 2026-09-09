@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Literal
 from collections.abc import Mapping
+import re
+from typing import Any, Literal
 
 from sase.core.rust import require_rust_binding
 
@@ -46,6 +47,15 @@ _DIAGNOSTIC_BY_REASON: dict[str, str] = {
     "config_disabled": "subscription usage collection is disabled",
     "provider_disabled": "subscription usage collection is disabled for this provider",
 }
+_DIAGNOSTIC_MAX_LENGTH = 200
+_AUTH_HEADER_RE = re.compile(
+    r"(?i)\b(authorization\s*[:=]\s*)(bearer|basic)\s+([A-Za-z0-9._~+/=-]+)"
+)
+_SECRET_ASSIGNMENT_RE = re.compile(
+    r"(?i)\b([A-Z0-9_.-]*(?:API[_-]?KEY|TOKEN|SECRET|PASSWORD|PASSWD|"
+    r"CREDENTIAL|COOKIE)[A-Z0-9_.-]*)\s*([:=])\s*([\"']?)([^\"'\s,;]+)"
+)
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
 @dataclass(frozen=True)
@@ -170,6 +180,19 @@ def validated_status_observation(
         ),
         now=max(float(now), float(context.request_started_at)),
     )
+
+
+def bounded_probe_diagnostic(
+    text: object, *, max_length: int = _DIAGNOSTIC_MAX_LENGTH
+) -> str:
+    """Return a single-line, redacted diagnostic within the observation bound."""
+    rendered = str(text)
+    rendered = _AUTH_HEADER_RE.sub("[REDACTED]", rendered)
+    rendered = _SECRET_ASSIGNMENT_RE.sub("[REDACTED]", rendered)
+    rendered = _WHITESPACE_RE.sub(" ", rendered).strip()
+    if len(rendered) <= max_length:
+        return rendered
+    return f"{rendered[: max_length - 3]}..."
 
 
 def _optional_str(value: object) -> str | None:
