@@ -116,3 +116,52 @@ def test_model_completion_provider_scope_is_case_insensitive(
             entries, "Claude/"
         )
     ] == ["claude/claude-fable-5", "claude/opus"]
+
+
+def test_filter_model_alias_shortcut_entries_is_alias_only_and_case_insensitive() -> (
+    None
+):
+    entries = [
+        model_completion.ModelCompletionEntry(
+            value="@large",
+            display="@large",
+            kind="user_alias",
+        ),
+        model_completion.ModelCompletionEntry(
+            value="@launch",
+            display="@launch",
+            kind="implicit_alias",
+        ),
+        model_completion.ModelCompletionEntry(
+            value="large-model",
+            display="large-model",
+            kind="model",
+            provider="codex",
+            aliases=("large",),
+        ),
+        model_completion.ModelCompletionEntry(
+            value="@scout",
+            display="@scout",
+            kind="user_alias",
+        ),
+        model_completion.ModelCompletionEntry(
+            value="claude/",
+            display="claude/",
+            kind="provider",
+            provider="claude",
+        ),
+    ]
+
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_alias_shortcut_entries(entries, "")
+    ] == ["@large", "@launch", "@scout"]
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_alias_shortcut_entries(entries, "la")
+    ] == ["@large", "@launch"]
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_alias_shortcut_entries(entries, "LA")
+    ] == ["@large", "@launch"]
+    assert model_completion.filter_model_alias_shortcut_entries(entries, "nope") == []

@@ -35,6 +35,15 @@ class LspSurfaceRow(SurfaceRow):
     raw: dict[str, Any] | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class LspCompletionList:
+    """Raw LSP completion list plus normalized surface rows."""
+
+    is_incomplete: bool
+    items: list[LspSurfaceRow]
+    raw: Any = None
+
+
 def _surface_rows(rows: Iterable[SurfaceRow]) -> list[SurfaceRow]:
     return [
         SurfaceRow(
@@ -77,14 +86,21 @@ class LspSession:
         finalizer_catalog: dict[str, Any]
         | Sequence[Mapping[str, object]]
         | None = None,
+        model_catalog: Mapping[str, Any] | None = None,
+        model_catalog_text: str | None = None,
+        omit_model_catalog: bool = False,
     ) -> None:
         self._tmp_path = tmp_path
         self._helper = helper
         self._finalizer_catalog = finalizer_catalog
+        self._model_catalog = model_catalog
+        self._model_catalog_text = model_catalog_text
+        self._omit_model_catalog = omit_model_catalog
         self._proc: subprocess.Popen[bytes] | None = None
         self._version = 0
         self._opened = False
         self._uri = "file:///tmp/sase_directive_parity.md"
+        self.initialize_result: dict[str, Any] = {}
 
     def __enter__(self) -> LspSession:
         binary = Path(sys.executable).with_name("sase-xprompt-lsp")
@@ -93,7 +109,12 @@ class LspSession:
 
         helper = self._helper or _write_helper(self._tmp_path)
         model_catalog = self._tmp_path / "model_catalog.json"
-        model_catalog.write_text(json.dumps(_model_catalog_payload()), encoding="utf-8")
+        if not self._omit_model_catalog:
+            if self._model_catalog_text is not None:
+                model_catalog.write_text(self._model_catalog_text, encoding="utf-8")
+            else:
+                payload = self._model_catalog or _model_catalog_payload()
+                model_catalog.write_text(json.dumps(payload), encoding="utf-8")
         machine_catalog = self._tmp_path / "machine_catalog.json"
         machine_catalog.write_text(
             json.dumps(_machine_catalog_payload()),
@@ -108,7 +129,10 @@ class LspSession:
         env["SASE_MOBILE_HELPER_BRIDGE_COMMAND"] = shlex.join(
             [sys.executable, str(helper)]
         )
-        env["SASE_XPROMPT_MODEL_CATALOG"] = str(model_catalog)
+        if self._omit_model_catalog:
+            env.pop("SASE_XPROMPT_MODEL_CATALOG", None)
+        else:
+            env["SASE_XPROMPT_MODEL_CATALOG"] = str(model_catalog)
         env["SASE_XPROMPT_MACHINE_CATALOG"] = str(machine_catalog)
         env["SASE_PARITY_FINALIZER_CATALOG"] = str(finalizer_catalog)
         _apply_typed_launch_units_flag(env)
@@ -136,9 +160,24 @@ class LspSession:
                 },
             }
         )
-        self._read_response(1)
+        initialize = self._read_response(1)
+        result = initialize.get("result")
+        self.initialize_result = result if isinstance(result, dict) else {}
         self._send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
         return self
+
+    @property
+    def trigger_characters(self) -> list[str]:
+        capabilities = self.initialize_result.get("capabilities")
+        if not isinstance(capabilities, dict):
+            return []
+        provider = capabilities.get("completionProvider")
+        if not isinstance(provider, dict):
+            return []
+        triggers = provider.get("triggerCharacters")
+        if not isinstance(triggers, list):
+            return []
+        return [str(item) for item in triggers]
 
     def __exit__(self, *_exc: object) -> None:
         proc = self._proc
@@ -165,8 +204,21 @@ class LspSession:
         assert proc.returncode == 0, stderr.decode(errors="replace")
 
     def complete(
-        self, text: str, *, character: int | None = None
+        self,
+        text: str,
+        *,
+        character: int | None = None,
+        cursor: tuple[int, int] | None = None,
     ) -> list[LspSurfaceRow]:
+        return self.complete_list(text, character=character, cursor=cursor).items
+
+    def complete_list(
+        self,
+        text: str,
+        *,
+        character: int | None = None,
+        cursor: tuple[int, int] | None = None,
+    ) -> LspCompletionList:
         self._version += 1
         method = "textDocument/didChange" if self._opened else "textDocument/didOpen"
         params: dict[str, Any]
@@ -194,12 +246,9 @@ class LspSession:
                 "method": "textDocument/completion",
                 "params": {
                     "textDocument": {"uri": self._uri},
-                    "position": {
-                        "line": 0,
-                        "character": _utf16_len(
-                            text if character is None else text[:character]
-                        ),
-                    },
+                    "position": _completion_position(
+                        text, character=character, cursor=cursor
+                    ),
                 },
             }
         )
@@ -207,11 +256,19 @@ class LspSession:
         result = response.get("result")
         if isinstance(result, list):
             items = result
+            is_incomplete = False
         elif isinstance(result, dict):
-            items = result.get("items", [])
+            raw_items = result.get("items", [])
+            items = raw_items if isinstance(raw_items, list) else []
+            is_incomplete = bool(result.get("isIncomplete"))
         else:
             items = []
-        return [_lsp_surface_row(item) for item in items if isinstance(item, dict)]
+            is_incomplete = False
+        return LspCompletionList(
+            is_incomplete=is_incomplete,
+            items=[_lsp_surface_row(item) for item in items if isinstance(item, dict)],
+            raw=result,
+        )
 
     def _send(self, payload: dict[str, Any]) -> None:
         assert self._proc is not None
@@ -344,3 +401,42 @@ def _wait_readable(fd: int) -> bool:
 
 def _utf16_len(text: str) -> int:
     return len(text.encode("utf-16-le")) // 2
+
+
+def _completion_position(
+    text: str,
+    *,
+    character: int | None = None,
+    cursor: tuple[int, int] | None = None,
+) -> dict[str, int]:
+    """Return an LSP UTF-16 position for *text*.
+
+    ``character`` keeps the historical line-0 prefix contract used by existing
+    directive-parity tests. ``cursor`` is an ACE-style ``(row, column)`` pair
+    counted in Python characters on that line.
+    """
+    if cursor is not None:
+        row, column = cursor
+        lines = text.split("\n")
+        line = lines[row] if 0 <= row < len(lines) else ""
+        column = max(0, min(column, len(line)))
+        return {"line": row, "character": _utf16_len(line[:column])}
+    return {
+        "line": 0,
+        "character": _utf16_len(text if character is None else text[:character]),
+    }
+
+
+def apply_lsp_text_edit(text: str, text_edit: Mapping[str, Any]) -> tuple[str, int]:
+    """Apply one LSP ``textEdit`` and return ``(new_text, caret_python_offset)``."""
+    from sase.ace.tui.util.editor_offsets import editor_range_to_offsets
+
+    offsets = editor_range_to_offsets(
+        text,
+        text_edit.get("range"),
+        allow_empty=True,
+    )
+    assert offsets is not None
+    start, end = offsets
+    replacement = str(text_edit.get("newText") or "")
+    return f"{text[:start]}{replacement}{text[end:]}", start + len(replacement)

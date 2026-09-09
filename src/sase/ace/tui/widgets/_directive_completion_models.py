@@ -14,10 +14,13 @@ from sase.ace.tui.widgets._directive_completion_types import (
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 from sase.llm_provider.temporary_override import peek_active_alias_overrides
-from sase.xprompt.model_completion import filter_model_completion_entries
+from sase.xprompt.model_completion import (
+    ModelCompletionEntry,
+    filter_model_alias_shortcut_entries,
+    filter_model_completion_entries,
+)
 
 ModelCatalogBuilder = Callable[..., list[Any]]
-_MODEL_ALIAS_ENTRY_KINDS = frozenset({"implicit_alias", "user_alias"})
 
 
 class _ModelEntryDisplay(Protocol):
@@ -99,14 +102,10 @@ def _build_model_arg_completion_candidates(
 
 def build_model_alias_shortcut_candidates(
     partial: str,
-    entries: Sequence[Any],
+    entries: Sequence[ModelCompletionEntry],
 ) -> tuple[list[CompletionCandidate], str]:
     """Build ``*alias`` rows from an already-warm model catalog."""
-    alias_entries = [
-        entry
-        for entry in filter_model_completion_entries(list(entries), f"@{partial}")
-        if entry.kind in _MODEL_ALIAS_ENTRY_KINDS
-    ]
+    alias_entries = filter_model_alias_shortcut_entries(entries, partial)
     candidates = [_model_entry_completion_candidate(entry) for entry in alias_entries]
     return candidates, ""
 

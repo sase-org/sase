@@ -5673,7 +5673,11 @@ token under the cursor:
   matches dismiss the panel and leave the literal `*query` text intact, so an unknown
   star token submits as ordinary prose. The shortcut does not fire inside inline code,
   fenced code, frontmatter, placeholder/directive contexts, escaped stars, Markdown
-  emphasis, or path-like tokens such as `path/*`.
+  emphasis, or path-like tokens such as `path/*`. The xprompt LSP uses this same shared
+  filter and edit plan; see
+  [Star model-alias shortcut](editor.md#star-model-alias-shortcut).
+  `ace.prompt_completion.auto_directive_menu` only controls whether ACE auto-opens this
+  menu and does not govern an external editor's `*` trigger.
 - **`@` reference completion**: A bare `@` opens the artifact-kind menu before a `:`
   appears. Local file rows such as `@src/` and `@Justfile` from the prompt-selected base
   directory stay hidden while the typed text prefix-matches an artifact kind; the panel
@@ -6190,12 +6194,13 @@ automatically while typing matching `#name`, `#!name`, or `/skill` tokens; disab
 xprompt auto-open behavior with `ace.prompt_completion.auto_xprompt_menu: false`. The
 directive menu likewise opens automatically while typing matching `%` directive tokens,
 fixed values such as `%model:`, and `*alias` model-alias shortcuts; disable it with
-`ace.prompt_completion.auto_directive_menu: false`. The xprompt/skill auto-menu opens
-only once at least one identifier character follows its marker, so bare `#` and `/` stay
-quiet. Directive completion opens from a valid bare `%`, and no automatic menu ever
-auto-accepts a single match. The grouped `@` reference menu opens from a bare `@`,
-narrowed artifact/file queries such as `@pl` or `@src/`, and syntactically valid
-`@kind:` payload contexts; disable automatic opening with
+`ace.prompt_completion.auto_directive_menu: false`. That setting is ACE-only and does
+not change xprompt LSP trigger characters in an external editor. The xprompt/skill
+auto-menu opens only once at least one identifier character follows its marker, so bare
+`#` and `/` stay quiet. Directive completion opens from a valid bare `%`, and no
+automatic menu ever auto-accepts a single match. The grouped `@` reference menu opens
+from a bare `@`, narrowed artifact/file queries such as `@pl` or `@src/`, and
+syntactically valid `@kind:` payload contexts; disable automatic opening with
 `ace.prompt_completion.auto_artifact_menu: false`. On an un-narrowed bare-`@` menu,
 `Enter` still submits the prompt and dismisses the menu until you type a query character
 or move the selection. The project/Patch picker opens when `+` completes a token at

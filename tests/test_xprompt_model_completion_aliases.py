@@ -243,6 +243,19 @@ def test_model_completion_catalog_uses_effective_merged_aliases_for_shortcut(
     assert by_value["@writer"].reference_effort == "high"
     assert resolve_model_alias("@writer") == "codex/gpt-5.6-sol"
 
+    payload_entries = model_completion.model_completion_catalog_payload()["entries"]
+    assert isinstance(payload_entries, list)
+    payload_values = [
+        row["value"]
+        for row in payload_entries
+        if isinstance(row, dict) and row.get("kind") in {"implicit_alias", "user_alias"}
+    ]
+    assert payload_values == insertions
+    assert [
+        entry.value
+        for entry in model_completion.filter_model_alias_shortcut_entries(entries, "")
+    ] == insertions
+
 
 def test_model_completion_override_overlay_rewrites_only_alias_target(
     monkeypatch: pytest.MonkeyPatch,

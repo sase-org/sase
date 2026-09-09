@@ -342,27 +342,49 @@ async def test_star_alias_accept_preserves_context_and_undo_redo() -> None:
         assert ta._file_completion_active is False
 
 
-def test_star_alias_edit_plan_preserves_crlf_and_tab_spacing() -> None:
-    text = "Title\r\nUse *la\ttail"
-    context = detect_model_alias_completion_context(text, (1, len("Use *la")))
-
+@pytest.mark.parametrize(
+    ("text", "cursor", "expected_text", "expected_replacement"),
+    [
+        ("Use *la", (0, 7), "Use %m:@large ", "%m:@large "),
+        ("Use *la now", (0, 7), "Use %m:@large now", "%m:@large "),
+        ("Use *la   now", (0, 7), "Use %m:@large   now", "%m:@large "),
+        ("Use *la\tnow", (0, 7), "Use %m:@large\tnow", "%m:@large"),
+        ("Use *la\nnow", (0, 7), "Use %m:@large \nnow", "%m:@large "),
+        ("Explain *laX later", (0, 11), "Explain %m:@large later", "%m:@large "),
+        (
+            "Title\r\nUse *la\ttail",
+            (1, len("Use *la")),
+            "Title\r\nUse %m:@large\ttail",
+            "%m:@large",
+        ),
+        ("🙂 *la\r\nnext", (0, 5), "🙂 %m:@large \r\nnext", "%m:@large "),
+    ],
+)
+def test_star_alias_edit_plan_is_cursor_complete(
+    text: str,
+    cursor: tuple[int, int],
+    expected_text: str,
+    expected_replacement: str,
+) -> None:
+    context = detect_model_alias_completion_context(text, cursor)
     assert context is not None
     candidates = build_model_alias_completion_candidates(context, _alias_entries())
     planned = plan_model_alias_completion_edit(
         text,
-        (1, len("Use *la")),
+        cursor,
         _alias_entries(),
         candidates[0],
     )
 
     assert planned is not None
-    assert planned.replacement == "%m:@large"
-    assert (
+    assert planned.replacement == expected_replacement
+    applied = (
         f"{text[: planned.replacement_start]}"
         f"{planned.replacement}"
         f"{text[planned.replacement_end :]}"
-    ) == "Title\r\nUse %m:@large\ttail"
-    assert planned.caret_offset == len("Title\r\nUse %m:@large")
+    )
+    assert applied == expected_text
+    assert planned.caret_offset == planned.replacement_start + len(planned.replacement)
 
 
 async def test_unknown_star_alias_stays_literal_and_can_submit() -> None:
