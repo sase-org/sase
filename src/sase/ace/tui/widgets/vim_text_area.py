@@ -40,6 +40,8 @@ _MODE_TITLES = {
     "visual_line": "[V-LINE]",
 }
 
+INSERT_NORMAL_MODE_KEYS = ("escape", "ctrl+right_square_bracket")
+
 
 class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
     """A ``TextArea`` with vim normal/visual modes and readline insert keys.
@@ -144,13 +146,14 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         Keys the vim layer consumes are stopped. Unconsumed printable keys are
         also swallowed in NORMAL/VISUAL mode; only non-printable keys bubble so
         host-level bindings (confirm, cancel, etc.) keep working. In INSERT mode
-        this is a thin passthrough to ``TextArea`` (with ``Escape`` dropping into
-        NORMAL mode), matching the prompt widget's behavior.
+        this is a thin passthrough to ``TextArea`` (with ``Escape`` / ``Ctrl+]``
+        dropping into NORMAL mode), matching the prompt widget's behavior.
 
-        ``Escape`` is two-stage: INSERT -> NORMAL, then a NORMAL-mode ``Escape``
-        with a pending count/operator/prefix clears it. A NORMAL-mode ``Escape``
-        with nothing pending is left unconsumed so a host (e.g. a modal) can act
-        on it -- typically to back out.
+        ``Escape`` is two-stage: INSERT -> NORMAL, then a NORMAL-mode
+        ``Escape`` with a pending count/operator/prefix clears it. ``Ctrl+]``
+        is INSERT-only here; NORMAL mode keeps its jump-to-definition binding.
+        A NORMAL-mode ``Escape`` with nothing pending is left unconsumed so a
+        host (e.g. a modal) can act on it -- typically to back out.
 
         Textual invokes every ``_on_key`` in the MRO (until one calls
         ``prevent_default``), so a subclass that runs its own vim dispatch first
@@ -183,7 +186,7 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
             self._swallow_unhandled_vim_key(event)
             return
 
-        if event.key == "escape":
+        if event.key in INSERT_NORMAL_MODE_KEYS:
             event.stop()
             event.prevent_default()
             self._enter_normal_mode()

@@ -326,6 +326,28 @@ async def test_normal_ctrl_g_escape_cancels_prefix_and_stays_normal_mode() -> No
         assert bar.active_text_area()._vim_mode == "normal"
 
 
+async def test_insert_ctrl_g_ctrl_right_square_bracket_enters_normal_mode() -> None:
+    app = GPrefixHintApp("solo draft")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        panel = hint_panel(bar)
+
+        await pilot.press("ctrl+g")
+        await pilot.pause()
+        assert not panel.has_class("hidden")
+
+        await pilot.press("ctrl+right_square_bracket")
+        await pilot.pause()
+
+        text_area = bar.active_text_area()
+        assert panel.has_class("hidden")
+        assert bar._g_prefix_hints_visible is False
+        assert text_area._insert_g_prefix_pending is False
+        assert text_area._vim_mode == "normal"
+
+
 async def test_normal_unknown_ctrl_g_key_hides_hints_without_side_effects() -> None:
     app = GPrefixHintApp("solo draft", stash_exists=True)
 

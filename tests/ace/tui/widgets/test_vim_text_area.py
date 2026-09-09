@@ -48,6 +48,20 @@ async def test_insert_escape_enters_normal_mode() -> None:
         assert page.mode == "normal"
 
 
+async def test_insert_ctrl_right_square_bracket_enters_normal_mode() -> None:
+    async with VimEditorPage("hi", cursor=(0, 0), mode="insert") as page:
+        assert page.mode == "insert"
+        await page.press("ctrl+right_square_bracket")
+        assert page.mode == "normal"
+
+
+async def test_insert_ctrl_right_square_bracket_followed_by_normal_key() -> None:
+    async with VimEditorPage("abc", cursor=(0, 0), mode="insert") as page:
+        await page.press("ctrl+right_square_bracket", "x")
+        assert page.mode == "normal"
+        assert page.text == "bc"
+
+
 async def test_mode_shown_on_border_title() -> None:
     async with VimEditorPage("hi", cursor=(0, 0), mode="insert") as page:
         page.ta._update_vim_mode_display()

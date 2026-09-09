@@ -54,6 +54,7 @@ class PromptTextAreaKeyGPrefixMixin(_MixinBase):
 
         def _clear_insert_g_prefix(self) -> None: ...
         def _clear_normal_g_prefix(self) -> None: ...
+        def _enter_normal_mode(self) -> None: ...
         def _find_prompt_bar(self) -> Any: ...
         def _show_insert_g_prefix_hints(self) -> None: ...
         def _show_normal_g_prefix_hints(self) -> None: ...
@@ -74,6 +75,11 @@ class PromptTextAreaKeyGPrefixMixin(_MixinBase):
 
         if event.key == "escape":
             self._clear_insert_g_prefix()
+            return True
+
+        if event.key == "ctrl+right_square_bracket":
+            self._clear_insert_g_prefix()
+            self._enter_normal_mode()
             return True
 
         key = _resolve_g_prefix_second_key(event)

@@ -5269,7 +5269,7 @@ separator cannot fit both the readout and the `agent N` label.
 | `Tab`                        | Expand a snippet or advance its tabstop; otherwise indent a bullet or nest an ordered item under a preceding marker                      |
 | `Shift+Tab`                  | Retreat to the previous snippet tabstop; otherwise dedent a bullet or unnest an ordered item into its enclosing run                      |
 | `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                                          |
-| `Escape`                     | Switch to vim NORMAL mode                                                                                                                |
+| `Escape` / `Ctrl+]`          | Switch to vim NORMAL mode; `Ctrl+]` is the race-free alternative when typing following NORMAL commands quickly                           |
 
 In prompt INSERT mode, ACE auto-pairs safe openers for `()`, `[]`, `{}`, `<>`, single
 quotes, double quotes, and backticks. Typing the matching closer over an auto-inserted
@@ -6304,9 +6304,10 @@ separator-normalization behavior for prompt buffers.
 
 ### NORMAL Mode
 
-Press `Escape` in INSERT mode to enter vim-style NORMAL mode. The border title shows
-`[NORMAL]` and line numbers switch to relative numbering (current line shows absolute,
-others show offset).
+Press `Escape` or `Ctrl+]` in INSERT mode to enter vim-style NORMAL mode. `Ctrl+]` is
+equivalent but avoids the terminal escape-sequence ambiguity that can swallow fast
+following keys after `Escape` / `Ctrl+[`. The border title shows `[NORMAL]` and line
+numbers switch to relative numbering (current line shows absolute, others show offset).
 
 #### Motions
 

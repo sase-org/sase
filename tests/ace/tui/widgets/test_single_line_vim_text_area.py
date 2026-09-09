@@ -120,6 +120,14 @@ async def test_typing_replaces_and_stays_single_line() -> None:
         assert "\n" not in page.text
 
 
+async def test_ctrl_right_square_bracket_enters_normal_mode_from_insert() -> None:
+    async with VimEditorPage(
+        "value", cursor=(0, 0), mode="insert", widget_cls=SingleLineVimTextArea
+    ) as page:
+        await page.press("ctrl+right_square_bracket")
+        assert page.mode == "normal"
+
+
 async def test_placeholder_renders_in_insert_and_normal_mode() -> None:
     app = _PlaceholderApp()
     async with app.run_test(size=(40, 8)) as pilot:

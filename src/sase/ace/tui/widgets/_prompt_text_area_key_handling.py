@@ -26,6 +26,7 @@ from sase.ace.tui.widgets._prompt_text_area_key_g_prefix import (
 from sase.ace.tui.widgets._prompt_text_area_key_pairing import (
     PromptTextAreaKeyPairingMixin,
 )
+from sase.ace.tui.widgets.vim_text_area import INSERT_NORMAL_MODE_KEYS
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
@@ -288,12 +289,12 @@ class PromptTextAreaKeyHandlingMixin(
                 event.prevent_default()
             return
 
-        # INSERT mode: Escape dismisses any active completion UI and enters
-        # NORMAL mode. ``_enter_normal_mode`` already clears manual completion,
-        # soft completion, and xprompt arg hints, so an open completion menu and
-        # the no-completion path both land in NORMAL mode through the same
-        # transition helper -- matching plain insert-mode ``Escape``.
-        if event.key == "escape":
+        # INSERT mode: Escape / Ctrl+] dismiss any active completion UI and
+        # enter NORMAL mode. ``_enter_normal_mode`` already clears manual
+        # completion, soft completion, and xprompt arg hints, so an open
+        # completion menu and the no-completion path both land in NORMAL mode
+        # through the same transition helper.
+        if event.key in INSERT_NORMAL_MODE_KEYS:
             event.stop()
             event.prevent_default()
             self._enter_normal_mode()

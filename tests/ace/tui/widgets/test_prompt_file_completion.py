@@ -156,6 +156,30 @@ class TestPromptFileCompletion:
             # insert-mode Escape.
             assert ta._vim_mode == "normal"
 
+    async def test_ctrl_right_square_bracket_dismisses_completion_panel_and_enters_normal_mode(
+        self,
+        tmp_path: Path,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("HOME", str(tmp_path))
+        create_entries(tmp_path)
+        app = CompletionTestApp()
+        async with app.run_test() as pilot:
+            bar = app.query_one(PromptInputBar)
+            ta = app.query_one(PromptTextArea)
+            ta.load_text("~/")
+            ta.cursor_location = (0, 2)
+            with patch.object(
+                type(ta), "_ace_app", new_callable=lambda: property(lambda _s: app)
+            ):
+                await pilot.press("ctrl+t")
+                assert ta._file_completion_active is True
+                await pilot.press("ctrl+right_square_bracket")
+            assert ta._file_completion_active is False
+            assert bar._completion_visible is False
+            assert ta.text == "~/"
+            assert ta._vim_mode == "normal"
+
     async def test_non_path_tab_still_expands_snippet(self) -> None:
         app = CompletionTestApp(snippets={"foo": "BAR"})
         async with app.run_test() as pilot:
