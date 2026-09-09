@@ -5,6 +5,8 @@ from __future__ import annotations
 from sase.llm_provider.usage import presentation
 from sase.llm_provider.usage.presentation import (
     render_usage_plain,
+    reset_label,
+    timestamp_label,
     usage_snapshot_json_payload,
 )
 from sase.llm_provider.usage.store import ProviderUsageStoreDiagnostic
@@ -101,3 +103,28 @@ def test_json_payload_filters_and_reports_missing_requested_providers() -> None:
     assert [item["provider"] for item in payload["providers"]] == ["codex"]
     assert payload["requested_providers"] == ["codex", "grok"]
     assert payload["missing_providers"] == ["grok"]
+
+
+def test_verbose_reset_label_omits_relative_age_for_a_future_timestamp() -> None:
+    now = 1_800_000_000.0
+    label = reset_label(
+        {"resets_at": now + 3_600.0, "reset_passed": False},
+        now,
+        verbose=True,
+    )
+
+    assert label == "in 1h (2027-01-15 04:00:00 EST)"
+    assert "ago" not in label
+
+
+def test_past_observed_at_timestamp_keeps_relative_age_suffix() -> None:
+    now = 1_800_000_000.0
+    observed_at = 1_799_999_970.0
+
+    assert timestamp_label(observed_at, now) == "2027-01-15 02:59:30 EST (30s ago)"
+
+    text = render_usage_plain(_snapshot(_codex_provider()), verbose=True, now=now)
+
+    assert 'observed_at="2027-01-15 02:59:30 EST (30s ago)"' in text
+    assert 'resets_at="2027-01-15 05:00:00 EST"' in text
+    assert "05:00:00 EST (0s ago)" not in text

@@ -455,7 +455,9 @@ def timestamp_label(value: Any, now: float) -> str:
     absolute = format_local(timestamp, "%Y-%m-%d %H:%M:%S %Z", default="unknown")
     if absolute == "unknown":
         return "unknown"
-    return f"{absolute} ({duration_label(max(now - timestamp, 0.0))} ago)"
+    if timestamp > now:
+        return absolute
+    return f"{absolute} ({duration_label(now - timestamp)} ago)"
 
 
 def duration_label(seconds: float) -> str:

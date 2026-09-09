@@ -420,3 +420,6 @@ tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
 # rather than adding live baseline suppressions.
 # fixed-at: 2026-09-08T22:11:29Z tests/llm_provider/test_grok_usage_probe.py::test_grok_usage_probe_reaps_descendant_processes
 # fixed-at: 2026-09-08T22:11:29Z tests/test_check_sase_core_rs_bindings_tool.py::test_dev_extension_exposes_every_collected_name
+#
+# sase-yq
+tests/pager/test_rendered_link_contract.py::test_kitchen_follow_copy_edit_and_media_for_each_supported_action

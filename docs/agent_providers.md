@@ -291,6 +291,32 @@ If a provider CLI lives at a non-standard path, point SASE at it with the provid
 (model mapping, per-provider environment variables, retry/fallback behavior), see the
 [LLM provider reference](llms.md).
 
+## Subscription Usage
+
+Subscription usage is a machine-local view of included provider allowance windows — for
+example, the remaining share of a session or weekly plan window, which models share it,
+when that window resets, and when SASE last observed it. It is separate from per-agent
+token usage and from [usage-limit auto-disable](llms.md#usage-limit-auto-disable): a low
+observation does not itself disable routing.
+
+Inspect the cache without provider I/O via `sase usage` / `sase usage list`. Use
+`sase usage refresh` to submit or join bounded durable probes; foreground mode waits and
+then renders the updated cache.
+
+```bash
+sase usage
+sase usage list -p codex --verbose
+sase usage refresh
+```
+
+ACE exposes the same cache from Launch Control: press `u`, or choose **Open Providers ·
+Usage** from the command palette. See [Providers · Usage](ace.md#providers--usage).
+
+Observations are dated best-effort readings from each provider's own CLI, not guarantees
+of remaining capacity. Collection is on by default; opt out with
+`llm_provider.usage_metrics.enabled: false`. See
+[Subscription Usage](llms.md#subscription-usage).
+
 ## Inventory and Updates
 
 `sase agent-cli` is the inventory, install, and update surface for independently
