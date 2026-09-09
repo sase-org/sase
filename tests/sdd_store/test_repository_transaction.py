@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import subprocess
 
 import pytest
 
+from sase.bead.model import IssueType
+from sase.bead.project import BeadProject
 from sase.sdd._git import run_sdd_git
 from sase.sdd._integration_marker import integration_is_fresh
 from sase.sdd._repository_transaction import (
@@ -27,6 +30,9 @@ from tests.sdd_store._repository_transaction_helpers import (
     snapshot as _snapshot,
 )
 
+LINK_PATH = "links/202609/a.md.json"
+ARTIFACT_REF = "plan:202609/a.md"
+
 
 def _enable_ambient_rerere(
     tmp_path: Path,
@@ -46,6 +52,89 @@ def _rr_cache_files(repo: Path) -> tuple[Path, ...]:
     if not rr_cache.exists():
         return ()
     return tuple(path for path in rr_cache.rglob("*") if path.is_file())
+
+
+def _link_row(source: str, description: str, created_at: str) -> dict[str, object]:
+    return {
+        "schema_version": 2,
+        "source_ref": source,
+        "relation": "cites",
+        "target_ref": ARTIFACT_REF,
+        "description": description,
+        "origin": "manual",
+        "created_by": source,
+        "created_at": created_at,
+        "uses": 1,
+    }
+
+
+def _link_index_text(rows: list[dict[str, object]]) -> str:
+    return (
+        json.dumps(
+            {"schema_version": 2, "artifact_ref": ARTIFACT_REF, "rows": rows},
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def _link_sources(repo: Path) -> list[str]:
+    payload = json.loads((repo / LINK_PATH).read_text(encoding="utf-8"))
+    return [str(row["source_ref"]) for row in payload["rows"]]
+
+
+def _write_link_index(repo: Path, rows: list[dict[str, object]]) -> None:
+    path = repo / LINK_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_link_index_text(rows), encoding="utf-8")
+
+
+def _build_mixed_link_and_bead_clones(tmp_path: Path) -> tuple[Path, str]:
+    remote = tmp_path / "mixed.git"
+    seed = tmp_path / "seed"
+    left = tmp_path / "left"
+    right = tmp_path / "right"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    with BeadProject.init(seed, beads_dirname="beads") as project:
+        issue_id = project.create("Contested", IssueType.PLAN).id
+    base_row = _link_row("agent:base", "base citation", "2026-09-01T00:00:00Z")
+    _write_link_index(seed, [base_row])
+    commit_all(seed, "seed")
+    git(["push", "-u", "origin", "main"], seed)
+    clone(remote, left)
+    clone(remote, right)
+
+    with BeadProject(left, beads_dirname="beads") as project:
+        project.update(issue_id, design="local design")
+    _write_link_index(
+        left,
+        [
+            base_row,
+            _link_row("agent:local", "local citation", "2026-09-03T00:00:00Z"),
+        ],
+    )
+    commit_all(left, "local change")
+
+    with BeadProject(right, beads_dirname="beads") as project:
+        project.update(issue_id, notes="upstream note")
+    _write_link_index(
+        right,
+        [
+            base_row,
+            _link_row(
+                "agent:upstream",
+                "upstream citation",
+                "2026-09-02T00:00:00Z",
+            ),
+        ],
+    )
+    commit_all(right, "remote change")
+    git(["push"], right)
+    return left, issue_id
 
 
 def test_sdd_git_runner_disables_ambient_rerere(
@@ -355,3 +444,83 @@ def test_machine_managed_recovery_snapshots_dirty_index_and_untracked_files(
     )
     assert outcome.recovery_ref in git(["stash", "list"], clone_dir).stdout
     require_sdd_repository_health(clone_dir)
+
+
+def test_artifact_link_index_conflict_repairs_during_integration(
+    tmp_path: Path,
+) -> None:
+    base_row = _link_row("agent:base", "base citation", "2026-09-01T00:00:00Z")
+    _remote, left, _right = _build_diverged_clones(
+        tmp_path,
+        relative_path=LINK_PATH,
+        base=_link_index_text([base_row]),
+        local=_link_index_text(
+            [
+                base_row,
+                _link_row("agent:local", "local citation", "2026-09-03T00:00:00Z"),
+            ]
+        ),
+        remote_text=_link_index_text(
+            [
+                base_row,
+                _link_row(
+                    "agent:upstream",
+                    "upstream citation",
+                    "2026-09-02T00:00:00Z",
+                ),
+            ]
+        ),
+    )
+
+    outcome = integrate_sdd_repository(left, beads_dir=left / "beads")
+
+    assert outcome.status is SddIntegrationStatus.REPAIRED_SEMANTIC_CONFLICTS
+    assert outcome.succeeded is True
+    assert outcome.resolved_files == (LINK_PATH,)
+    assert _link_sources(left) == ["agent:base", "agent:upstream", "agent:local"]
+    assert git(["status", "--porcelain"], left).stdout == ""
+    require_sdd_repository_health(left)
+
+
+def test_mixed_bead_and_artifact_link_conflicts_repair_together(
+    tmp_path: Path,
+) -> None:
+    left, issue_id = _build_mixed_link_and_bead_clones(tmp_path)
+
+    outcome = integrate_sdd_repository(left, beads_dir=left / "beads")
+
+    assert outcome.status is SddIntegrationStatus.REPAIRED_SEMANTIC_CONFLICTS
+    assert LINK_PATH in outcome.resolved_files
+    assert any(
+        path.endswith(f"events/streams/{issue_id}.jsonl")
+        for path in outcome.resolved_files
+    )
+    assert _link_sources(left) == ["agent:base", "agent:upstream", "agent:local"]
+    with BeadProject(left, beads_dirname="beads") as project:
+        issue = project.show(issue_id)
+    assert issue.design == "local design"
+    assert [note.text for note in issue.notes] == ["upstream note"]
+    assert git(["status", "--porcelain"], left).stdout == ""
+    require_sdd_repository_health(left)
+
+
+def test_ambiguous_artifact_link_conflict_aborts_to_starting_state(
+    tmp_path: Path,
+) -> None:
+    base_row = _link_row("agent:base", "base citation", "2026-09-01T00:00:00Z")
+    _remote, left, _right = _build_diverged_clones(
+        tmp_path,
+        relative_path=LINK_PATH,
+        base=_link_index_text([base_row]),
+        local=_link_index_text([dict(base_row, description="local edit")]),
+        remote_text=_link_index_text([dict(base_row, description="upstream edit")]),
+    )
+    starting = _snapshot(left)
+
+    outcome = integrate_sdd_repository(left, beads_dir=left / "beads")
+
+    assert outcome.status is SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS
+    assert outcome.restored is True
+    assert "ambiguous artifact-link index merge keys" in (outcome.error or "")
+    assert _snapshot(left) == starting
+    require_sdd_repository_health(left)

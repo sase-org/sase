@@ -144,11 +144,11 @@ def test_concurrent_claim_soak_preserves_commits_without_recovery(
         assert not concurrent_materialized.wait(0.2)
         allow_continue.set()
 
-        assert integration.result(timeout=20.0)
-        assert all(claim.result(timeout=20.0) for claim in claims)
+    assert integration.result(timeout=20.0)
+    assert all(claim.result(timeout=20.0) for claim in claims)
 
     assert outcomes
-    assert outcomes[0].status is SddIntegrationStatus.REPAIRED_BEAD_CONFLICTS
+    assert outcomes[0].status is SddIntegrationStatus.REPAIRED_SEMANTIC_CONFLICTS
     assert outcomes[0].status is not SddIntegrationStatus.UNRECOVERABLE
     assert axe_errors == []
     assert (

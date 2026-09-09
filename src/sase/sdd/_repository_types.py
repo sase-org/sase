@@ -18,6 +18,7 @@ class SddIntegrationStatus(StrEnum):
     SUCCESS = "success"
     REMOTE_UNAVAILABLE = "remote_unavailable_but_healthy"
     REPAIRED_BEAD_CONFLICTS = "repaired_bead_conflicts"
+    REPAIRED_SEMANTIC_CONFLICTS = "repaired_semantic_conflicts"
     ABORTED_UNSUPPORTED_CONFLICTS = "aborted_unsupported_conflicts"
     LOCAL_CHANGES = "local_changes_preserved"
     LOCK_UNAVAILABLE = "store_write_lock_unavailable"
@@ -92,6 +93,7 @@ class SddIntegrationOutcome:
         return self.status in {
             SddIntegrationStatus.SUCCESS,
             SddIntegrationStatus.REPAIRED_BEAD_CONFLICTS,
+            SddIntegrationStatus.REPAIRED_SEMANTIC_CONFLICTS,
             SddIntegrationStatus.RECOVERED,
         }
 

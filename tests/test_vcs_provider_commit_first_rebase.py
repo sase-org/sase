@@ -5,10 +5,14 @@ from __future__ import annotations
 import json
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from sase.vcs_provider.plugins.bare_git import BareGitPlugin
+
+LINK_PATH = "links/202609/a.md.json"
+ARTIFACT_REF = "plan:202609/a.md"
 
 
 def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -26,7 +30,51 @@ def _configure_user(cwd: Path) -> None:
     _git(cwd, "config", "user.name", "Test User")
 
 
-def _clone_origin(tmp_path: Path) -> tuple[Path, Path, Path]:
+def _link_row(source: str, description: str, created_at: str) -> dict[str, Any]:
+    return {
+        "schema_version": 2,
+        "source_ref": source,
+        "relation": "cites",
+        "target_ref": ARTIFACT_REF,
+        "description": description,
+        "origin": "manual",
+        "created_by": source,
+        "created_at": created_at,
+        "uses": 1,
+    }
+
+
+def _link_index(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"schema_version": 2, "artifact_ref": ARTIFACT_REF, "rows": rows}
+
+
+def _link_index_text(rows: list[dict[str, Any]]) -> str:
+    return (
+        json.dumps(
+            _link_index(rows),
+            allow_nan=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def _write_link_index(repo: Path, rows: list[dict[str, Any]]) -> None:
+    path = repo / LINK_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_link_index_text(rows), encoding="utf-8")
+
+
+def _read_link_index(repo: Path) -> dict[str, Any]:
+    return json.loads((repo / LINK_PATH).read_text(encoding="utf-8"))
+
+
+def _clone_origin(
+    tmp_path: Path,
+    *,
+    link_rows: list[dict[str, Any]] | None = None,
+) -> tuple[Path, Path, Path]:
     origin = tmp_path / "origin.git"
     seed = tmp_path / "seed"
     clone = tmp_path / "worker"
@@ -34,7 +82,11 @@ def _clone_origin(tmp_path: Path) -> tuple[Path, Path, Path]:
     _git(tmp_path, "clone", str(origin), str(seed))
     _configure_user(seed)
     (seed / "data.txt").write_text("one\nthree\n", encoding="utf-8")
+    if link_rows is not None:
+        _write_link_index(seed, link_rows)
     _git(seed, "add", "data.txt")
+    if link_rows is not None:
+        _git(seed, "add", LINK_PATH)
     _git(seed, "commit", "-m", "base")
     _git(seed, "push", "origin", "master")
     _git(tmp_path, "clone", str(origin), str(clone))
@@ -70,6 +122,50 @@ def test_create_commit_rebases_clean_upstream_movement_first_try(
     assert (worker / "peer.txt").read_text(encoding="utf-8") == "peer\n"
 
 
+def test_create_commit_resolves_artifact_link_add_add_rebase_conflict(
+    tmp_path: Path,
+) -> None:
+    origin, _seed, worker = _clone_origin(tmp_path)
+    peer = tmp_path / "peer"
+    _git(tmp_path, "clone", str(origin), str(peer))
+    _configure_user(peer)
+
+    local_row = _link_row(
+        "agent:local",
+        "local citation",
+        "2026-09-03T00:00:00Z",
+    )
+    upstream_row = _link_row(
+        "agent:upstream",
+        "upstream citation",
+        "2026-09-02T00:00:00Z",
+    )
+    _write_link_index(worker, [local_row])
+    _write_link_index(peer, [upstream_row])
+    _git(peer, "add", LINK_PATH)
+    _git(peer, "commit", "-m", "peer artifact link")
+    _git(peer, "push", "origin", "master")
+
+    ok, err = BareGitPlugin().vcs_create_commit(
+        {"message": "worker artifact link", "files": [LINK_PATH]},
+        str(worker),
+    )
+
+    assert ok is True, err
+    _git(worker, "fetch", "origin", "master")
+    assert _git(worker, "status", "--short", "--branch").stdout.strip() == (
+        "## master...origin/master"
+    )
+    assert _git(worker, "diff", "--name-only", "--diff-filter=U").stdout == ""
+    assert not (worker / ".git/rebase-merge").is_dir()
+    assert not (worker / ".git/rebase-apply").is_dir()
+    merged = _read_link_index(worker)
+    assert [row["source_ref"] for row in merged["rows"]] == [
+        "agent:upstream",
+        "agent:local",
+    ]
+
+
 def test_create_commit_leaves_genuine_rebase_conflict_resumable(tmp_path: Path) -> None:
     origin, _seed, worker = _clone_origin(tmp_path)
     peer = tmp_path / "peer"
@@ -94,6 +190,40 @@ def test_create_commit_leaves_genuine_rebase_conflict_resumable(tmp_path: Path) 
     ).is_dir()
     assert _git(worker, "diff", "--name-only", "--diff-filter=U").stdout.strip() == (
         "data.txt"
+    )
+
+
+def test_create_commit_leaves_ambiguous_artifact_link_rebase_conflict_resumable(
+    tmp_path: Path,
+) -> None:
+    base_row = _link_row(
+        "agent:base",
+        "base citation",
+        "2026-09-01T00:00:00Z",
+    )
+    origin, _seed, worker = _clone_origin(tmp_path, link_rows=[base_row])
+    peer = tmp_path / "peer"
+    _git(tmp_path, "clone", str(origin), str(peer))
+    _configure_user(peer)
+
+    _write_link_index(worker, [dict(base_row, description="local edit")])
+    _write_link_index(peer, [dict(base_row, description="upstream edit")])
+    _git(peer, "add", LINK_PATH)
+    _git(peer, "commit", "-m", "peer artifact link edit")
+    _git(peer, "push", "origin", "master")
+
+    ok, err = BareGitPlugin().vcs_create_commit(
+        {"message": "worker artifact link edit", "files": [LINK_PATH]},
+        str(worker),
+    )
+
+    assert ok is False
+    assert err is not None and f"Conflicted files: {LINK_PATH}" in err
+    assert (worker / ".git/rebase-merge").is_dir() or (
+        worker / ".git/rebase-apply"
+    ).is_dir()
+    assert _git(worker, "diff", "--name-only", "--diff-filter=U").stdout.strip() == (
+        LINK_PATH
     )
 
 

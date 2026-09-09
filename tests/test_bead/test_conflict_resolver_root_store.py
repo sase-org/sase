@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.bead.conflict_resolver import resolve_bead_conflicts
+from sase.bead.conflict_resolver import (
+    _resolve_bead_conflicts_from_cwd as resolve_bead_conflicts,
+)
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead_pages.paths import bead_page_path
 

@@ -52,14 +52,17 @@ from .conflict_resolver_streams import (
 
 
 @dataclass(frozen=True)
-class _BeadConflictResolution:
+class BeadConflictResolution:
     ok: bool
     message: str
     resolved_files: tuple[str, ...] = ()
     bead_relocations: tuple[BeadIdRelocation, ...] = ()
 
 
-def resolve_bead_conflicts(
+_BeadConflictResolution = BeadConflictResolution
+
+
+def _resolve_bead_conflicts_from_cwd(
     cwd: str | Path = ".",
     *,
     beads_dir: str | Path | None = None,
@@ -69,6 +72,23 @@ def resolve_bead_conflicts(
     except _GitProbeFailure as error:
         # Reporting a failed probe as success is what let an unresolved or
         # unstaged conflict reach ``git rebase --continue``.
+        return _BeadConflictResolution(False, str(error))
+
+
+def resolve_bead_conflicts_for_paths(
+    cwd: str | Path,
+    paths: tuple[str, ...],
+    *,
+    beads_dir: str | Path | None = None,
+) -> _BeadConflictResolution:
+    """Resolve preclaimed bead conflicts without rediscovering every path."""
+
+    try:
+        repo_root = _git_repo_root(Path(cwd))
+        if repo_root is None:
+            return _BeadConflictResolution(False, "not inside a git repository")
+        return _resolve_bead_conflict_paths(repo_root, list(paths), beads_dir)
+    except _GitProbeFailure as error:
         return _BeadConflictResolution(False, str(error))
 
 
@@ -83,6 +103,14 @@ def _resolve_bead_conflicts(
     conflicted = _conflicted_files(repo_root)
     if not conflicted:
         return _BeadConflictResolution(True, "no conflicted bead files")
+    return _resolve_bead_conflict_paths(repo_root, conflicted, beads_dir)
+
+
+def _resolve_bead_conflict_paths(
+    repo_root: Path,
+    conflicted: list[str],
+    beads_dir: str | Path | None,
+) -> _BeadConflictResolution:
     resolved_beads_dir = resolve_beads_dir(repo_root, beads_dir)
     if resolved_beads_dir is None:
         return _BeadConflictResolution(
@@ -278,14 +306,15 @@ def handle_resolve_conflicts_command() -> int:
             beads_dir = location.beads_dir
     except Exception:
         pass
-    result = resolve_bead_conflicts(cwd, beads_dir=beads_dir)
+    result = _resolve_bead_conflicts_from_cwd(cwd, beads_dir=beads_dir)
     stream = sys.stdout if result.ok else sys.stderr
     print(result.message, file=stream)
     return 0 if result.ok else 1
 
 
 __all__ = [
+    "BeadConflictResolution",
     "handle_resolve_conflicts_command",
     "resolve_beads_dir",
-    "resolve_bead_conflicts",
+    "resolve_bead_conflicts_for_paths",
 ]

@@ -203,8 +203,8 @@ def _repair_or_abort_rebase(
     op_prefix: str,
     event_logger: EventLogger | None,
 ) -> SddIntegrationOutcome:
-    from sase.bead.conflict_resolver import resolve_bead_conflicts
     from sase.bead.relocation import compose_bead_relocations
+    from sase.sdd._semantic_conflict_resolver import resolve_semantic_conflicts
 
     resolved: list[str] = []
     bead_relocations: tuple[BeadIdRelocation, ...] = ()
@@ -233,11 +233,9 @@ def _repair_or_abort_rebase(
                 op_prefix=op_prefix,
             )
         try:
-            resolution = resolve_bead_conflicts(repo_root, beads_dir=beads_dir)
+            resolution = resolve_semantic_conflicts(repo_root, beads_dir=beads_dir)
         except Exception as exc:  # noqa: BLE001 - rollback owns the error
-            message = (
-                f"semantic bead conflict resolution failed: {safe_git_error_text(exc)}"
-            )
+            message = f"semantic conflict resolution failed: {safe_git_error_text(exc)}"
             _emit_resolution(event_logger, False, message, (), ())
             return _abort_and_verify(
                 repo_root,
@@ -282,6 +280,7 @@ def _repair_or_abort_rebase(
                 upstream_present=True,
                 integrated=True,
                 repaired=True,
+                semantic_repaired=True,
                 resolved_files=tuple(sorted(dict.fromkeys(resolved))),
                 bead_relocations=bead_relocations,
                 op_prefix=op_prefix,
@@ -308,6 +307,7 @@ def _successful_integration(
     upstream_present: bool,
     integrated: bool,
     repaired: bool,
+    semantic_repaired: bool = False,
     resolved_files: tuple[str, ...],
     bead_relocations: tuple[BeadIdRelocation, ...] = (),
     op_prefix: str,
@@ -396,7 +396,9 @@ def _successful_integration(
         )
     return SddIntegrationOutcome(
         (
-            SddIntegrationStatus.REPAIRED_BEAD_CONFLICTS
+            SddIntegrationStatus.REPAIRED_SEMANTIC_CONFLICTS
+            if semantic_repaired
+            else SddIntegrationStatus.REPAIRED_BEAD_CONFLICTS
             if repaired
             else SddIntegrationStatus.SUCCESS
         ),

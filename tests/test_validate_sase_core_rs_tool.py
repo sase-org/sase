@@ -62,6 +62,7 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
         "artifact_link_canonicalize",
         "artifact_link_validate_row",
         "artifact_link_upsert_row",
+        "artifact_link_merge_indexes",
         "artifact_relations_builtins",
         "artifact_relation_lookup",
         "artifact_relation_label",

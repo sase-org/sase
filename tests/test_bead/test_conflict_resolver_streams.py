@@ -10,7 +10,9 @@ import pytest
 
 from sase.bead import conflict_resolver_git
 from sase.bead._stream_integrity import prepare_event_streams_for_commit
-from sase.bead.conflict_resolver import resolve_bead_conflicts
+from sase.bead.conflict_resolver import (
+    _resolve_bead_conflicts_from_cwd as resolve_bead_conflicts,
+)
 from sase.bead.model import IssueType
 from sase.bead.project import BEADS_DIRNAME, BeadProject
 from sase.core import bead_mutation_facade

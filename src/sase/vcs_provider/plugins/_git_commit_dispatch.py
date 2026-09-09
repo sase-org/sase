@@ -14,7 +14,7 @@ from sase.vcs_provider._command_runner import CommandRunner
 from sase.vcs_provider._hookspec import hookimpl
 from sase.vcs_provider._types import CommandOutput
 
-_BEAD_REBASE_CONTINUE_LIMIT = 20
+_SEMANTIC_REBASE_CONTINUE_LIMIT = 20
 _PUSH_REBASE_RETRY_LIMIT = 3
 
 
@@ -191,22 +191,24 @@ class GitCommitDispatchMixin(CommandRunner):
         )
         if rebase.success:
             return (True, None)
-        if self._continue_rebase_resolving_beads(cwd):
+        if self._continue_rebase_resolving_semantic_conflicts(cwd):
             return (True, None)
         return (
             False,
             self._format_rebase_conflict(cwd, default_branch, rebase),
         )
 
-    def _continue_rebase_resolving_beads(self, cwd: str) -> bool:
-        for _ in range(_BEAD_REBASE_CONTINUE_LIMIT):
+    def _continue_rebase_resolving_semantic_conflicts(self, cwd: str) -> bool:
+        for _ in range(_SEMANTIC_REBASE_CONTINUE_LIMIT):
             conflicted = self._conflicted_files(cwd)
-            if not conflicted or not self._all_bead_conflicts(conflicted):
+            if not conflicted:
                 return False
             try:
-                from sase.bead.conflict_resolver import resolve_bead_conflicts
+                from sase.sdd._semantic_conflict_resolver import (
+                    resolve_semantic_conflicts,
+                )
 
-                result = resolve_bead_conflicts(cwd)
+                result = resolve_semantic_conflicts(cwd)
             except Exception:
                 return False
             if not result.ok:
@@ -225,10 +227,6 @@ class GitCommitDispatchMixin(CommandRunner):
         if not out.success:
             return []
         return [line.strip() for line in out.stdout.splitlines() if line.strip()]
-
-    def _all_bead_conflicts(self, files: list[str]) -> bool:
-        prefix = f"{BEADS_DIRNAME}/"
-        return bool(files) and all(path.startswith(prefix) for path in files)
 
     def _format_rebase_conflict(
         self, cwd: str, default_branch: str, rebase_out: object

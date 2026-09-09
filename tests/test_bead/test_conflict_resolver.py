@@ -9,7 +9,10 @@ from pathlib import Path
 import pytest
 
 from sase.bead import conflict_resolver_git
-from sase.bead.conflict_resolver import _git_add, resolve_bead_conflicts
+from sase.bead.conflict_resolver import (
+    _git_add,
+    _resolve_bead_conflicts_from_cwd as resolve_bead_conflicts,
+)
 from sase.bead.project import BEADS_DIRNAME
 
 from .conflict_resolver_test_helpers import (
