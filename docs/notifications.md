@@ -37,6 +37,7 @@ relative age (`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS` /
 | `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                                               |
 | `g` / `G`           | Jump the detail pane to the top / bottom of its contents                    |
 | `[` / `]`           | Switch notification tabs                                                    |
+| `+`                 | Cycle newest-first through the selected row's `+1` evidence, then default   |
 | `R`                 | Mark every unread notification in the **active tab** read (confirms first)  |
 | `S`                 | Toggle the active tab between sectioned and newest-first rows               |
 | `Esc` / `q`         | Close modal                                                                 |
@@ -77,6 +78,22 @@ parsed — a deleted directory, a corrupted `request.json`, a legacy bundle layo
 card degrades to `▲ Gate details unavailable` rather than going blank; press `d` to open
 Gate Debug and see exactly why. Every other notification, including attachment-less
 ones, gets a compact summary card instead of an empty pane.
+
+### `+1` Evidence
+
+A sender can append corroborating evidence to an existing notification without creating
+a duplicate row. The list renders a `[+N]` badge after the title; the count includes
+older evidence dropped by bounded retention. The default detail card adds a
+`+1 EVIDENCE` block with each retained sender, age, and note. Report cards also show the
+total and latest retained evidence age in their provenance line.
+
+Press `+` to replace the detail pane with the newest retained `+1`, then walk backward
+through older entries. One more press after the oldest entry wraps to the normal detail
+pane. Changing rows or tabs also resets the cycle. A row with no retained evidence shows
+a status hint and leaves the pane unchanged.
+
+Appending a `+1` is deliberately evidence-only: it does not change the notification's
+read, dismissed, muted, or snoozed state, activity ordering, or delivery cursors.
 
 ### Tabs and Ordering
 
@@ -634,23 +651,26 @@ recognize produces an "Unsupported notification action" warning.
 
 Each notification contains:
 
-| Field           | Type         | Description                                                                                                                                                                                                         |
-| --------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`            | string       | UUID4 unique identifier                                                                                                                                                                                             |
-| `timestamp`     | string       | ISO-8601 creation timestamp; immutable, and never rewritten by a snooze or resurface                                                                                                                                |
-| `sender`        | string       | Source identifier (e.g., "plan", "sync", "axe")                                                                                                                                                                     |
-| `icon`          | string\|null | Optional single emoji or display glyph                                                                                                                                                                              |
-| `notes`         | list[string] | Human-readable message lines                                                                                                                                                                                        |
-| `files`         | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                                                                                |
-| `tags`          | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                                                                             |
-| `action`        | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `TaskTriage`, `BeadStaleCleanup`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational                   |
-| `action_data`   | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`                                                                                                               |
-| `read`          | bool         | Whether the notification has been read                                                                                                                                                                              |
-| `dismissed`     | bool         | Whether the notification has been dismissed                                                                                                                                                                         |
-| `silent`        | bool         | Silent notifications are stored but hidden from the TUI                                                                                                                                                             |
-| `muted`         | bool         | Muted notifications appear under `Muted` (or `Snoozed`, with a wake time set) and are excluded from the arrival bell and toasts; the indicator counts them separately (see [Top-Bar Indicator](#top-bar-indicator)) |
-| `snooze_until`  | string\|null | Canonical UTC RFC-3339 instant at which a snoozed notification automatically un-mutes; `null` once expired or cancelled                                                                                             |
-| `resurfaced_at` | string\|null | UTC instant stamped when a snooze expired; drives activity ordering and delivery cursors. `null` for rows that never resurfaced                                                                                     |
+| Field               | Type         | Description                                                                                                                                                                                                         |
+| ------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                | string       | UUID4 unique identifier                                                                                                                                                                                             |
+| `timestamp`         | string       | ISO-8601 creation timestamp; immutable, and never rewritten by a snooze or resurface                                                                                                                                |
+| `sender`            | string       | Source identifier (e.g., "plan", "sync", "axe")                                                                                                                                                                     |
+| `icon`              | string\|null | Optional single emoji or display glyph                                                                                                                                                                              |
+| `notes`             | list[string] | Human-readable message lines                                                                                                                                                                                        |
+| `files`             | list[string] | Associated file paths (e.g., plan files, error digest files, generated agent images)                                                                                                                                |
+| `tags`              | list[string] | Optional normalized labels for filtering and modal tabs                                                                                                                                                             |
+| `action`            | string\|null | Action type: `HITL`, `PlanApproval`, `EpicApproval`, `TaskTriage`, `BeadStaleCleanup`, `UserQuestion`, `LaunchApproval`, `ViewReport`, etc. `null` means the notification is purely informational                   |
+| `action_data`       | dict         | String identifiers and owned paths for the typed action; rich gate definitions stay in `request.json`                                                                                                               |
+| `read`              | bool         | Whether the notification has been read                                                                                                                                                                              |
+| `dismissed`         | bool         | Whether the notification has been dismissed                                                                                                                                                                         |
+| `silent`            | bool         | Silent notifications are stored but hidden from the TUI                                                                                                                                                             |
+| `muted`             | bool         | Muted notifications appear under `Muted` (or `Snoozed`, with a wake time set) and are excluded from the arrival bell and toasts; the indicator counts them separately (see [Top-Bar Indicator](#top-bar-indicator)) |
+| `snooze_until`      | string\|null | Canonical UTC RFC-3339 instant at which a snoozed notification automatically un-mutes; `null` once expired or cancelled                                                                                             |
+| `resurfaced_at`     | string\|null | UTC instant stamped when a snooze expired; drives activity ordering and delivery cursors. `null` for rows that never resurfaced                                                                                     |
+| `dedup_key`         | string\|null | Optional sender-scoped key used to append evidence instead of creating another row                                                                                                                                  |
+| `plus_ones`         | list[object] | Retained corroboration entries, each containing `timestamp`, `sender`, and `note`                                                                                                                                   |
+| `plus_ones_dropped` | int          | Number of older corroboration entries omitted by bounded retention; included in the displayed and JSON `plus_one_count`                                                                                             |
 
 ## Silent Notifications
 
@@ -778,6 +798,8 @@ echo '{"sender": "test", "icon": "👋", "notes": ["Hello"], "tags": ["review"]}
 echo '{"sender": "audit", "notes": ["Background result"], "silent": true}' | sase notify create
 sase notify create -s my_sender < notification.json
 sase notify create -s my_sender --tag review --tag handoff < notification.json
+sase notify +1 6f8a2 "same failure reproduced on macOS" -s ci_watch
+sase notify +1 -k ci/sase-main "failure reproduced again" -s ci_watch
 ```
 
 Raw creation validates and preserves the optional single-glyph JSON `icon`, the optional
@@ -785,6 +807,20 @@ Raw creation validates and preserves the optional single-glyph JSON `icon`, the 
 rejects registered privileged actions (`PlanApproval`, `EpicApproval`, `TaskTriage`,
 `BeadSnooze`, `FlagTriage`, `BeadStaleCleanup`, `UserQuestion`, `LaunchApproval`,
 `CustomGate`, and `HITL`) because a raw row has no trusted command bundle.
+
+`sase notify +1 [ID] NOTE` accepts an exact notification ID or unique prefix. With
+`-k/--dedup-key`, it instead selects the newest row matching the resolved sender and
+key; pass `-s/--sender` explicitly when producer identity matters. Otherwise the sender
+is the current SASE agent identity, falling back to the OS user. An ID miss exits
+non-zero; a dedup-key miss emits `{"action":"no_match"}` and exits zero so producers can
+decide to create a fresh row.
+
+Producers can make that decision atomically with `sase notify create -k KEY -p NOTE`.
+When no `(sender, key)` row exists, SASE creates the input notification with that key;
+when one exists, it appends `NOTE` and does not create a duplicate.
+`-S/--supersedes OLD_KEY` retires matching old-key rows by appending a superseding `+1`
+and dismissing them. The same three values can be supplied as JSON `dedup_key`,
+`plus_one_note`, and `supersedes` fields.
 
 The first-class gate API reads a versioned gate specification from stdin:
 

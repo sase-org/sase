@@ -25,6 +25,7 @@ sections, environment variables, and CLI flags.
   - [finalizers](#finalizers)
   - [commit.message](#commitmessage)
   - [repos](#repos)
+  - [dispatch](#dispatch)
   - [vcs_provider](#vcs_provider)
   - [vcs_repo_completion](#vcs_repo_completion)
   - [vcs_ref_completion](#vcs_ref_completion)
@@ -1180,6 +1181,25 @@ The [Artifacts pane brief](ace.md#pane-description-brief) cycles with
 `cycle_artifacts_description`, default `D`. It shares that key with the Agents-only
 `toggle_attempt_view`; see the shared-key allowlist below.
 
+Remote Agents actions are also app-level fields. They intentionally ship as `unbound`:
+the command palette exposes them contextually, and a configured key becomes active only
+when the Agents tab and selected remote row support that action.
+
+| Field                         | Default   | Action                                                       |
+| ----------------------------- | --------- | ------------------------------------------------------------ |
+| `cycle_agents_subtab`         | `unbound` | Cycle Focus → Fleet.                                         |
+| `cycle_agents_subtab_reverse` | `unbound` | Cycle Fleet → Focus.                                         |
+| `toggle_agent_follow`         | `unbound` | Follow or unfollow the selected remote row.                  |
+| `view_agent_in_focus`         | `unbound` | Switch a followed Fleet row into Focus.                      |
+| `connect_agent_machine`       | `unbound` | Show the selected row's machine alias and connection health. |
+| `setup_agent_machine`         | `unbound` | Show enrollment guidance when no machine is configured.      |
+| `retry_remote_agent`          | `unbound` | Retry the selected row on its owning host.                   |
+| `view_remote_agent_content`   | `unbound` | Fetch bounded remote chat, output, or diff content.          |
+| `answer_remote_attention`     | `unbound` | Answer a pending remote question or approve a pending gate.  |
+
+Remote stop and fork reuse the ordinary `kill_agent` and `edit_hooks` actions when the
+row advertises those capabilities. See [Focus and Fleet](ace.md#focus-and-fleet).
+
 **`modes`** — Prefix-key mode definitions. Built-in modes (`fold_mode`, `copy_mode`,
 `leader_mode`, `bang_mode`) can be reconfigured, and custom modes can be added. Each
 mode has:
@@ -2243,6 +2263,70 @@ commit-finalizer enforcement, ACE file and commit deltas, and revert. Agents mus
 `/sase_repo` before reading or modifying any external repo and must use the path printed
 by the skill rather than locating or cloning the repo themselves. External repos are
 workspace-local and do not create project registry records.
+
+### dispatch
+
+Configures remote-machine discovery, enrollment records, gateway deadlines, and the
+local federation worker. Ordinary config loading is pure: it reads and validates this
+section but never discovers peers or contacts a gateway. Use `sase machine discover`,
+`init`, or `status` for explicit network work. See the
+[Remote Dispatch Runbook](remote_dispatch.md) for the supported setup flow.
+
+```yaml
+dispatch:
+  providers:
+    builtin@https:
+      enabled: true
+    builtin@tailnet:
+      enabled: true
+  machines: {}
+  discovery:
+    enabled_providers: [builtin@tailnet]
+  request_timeout_seconds: 5
+  status_cache_seconds: 60
+  federation_worker:
+    enabled: true
+    command: ""
+    sase_home: ""
+    run_root: ""
+    socket_path: ""
+    idle_timeout_seconds: 300
+    startup_timeout_seconds: 5
+    request_timeout_seconds: 5
+    max_frame_bytes: 1048576
+  remote_hosts: []
+```
+
+| Field                                                | Type         | Default             | Description                                                                                                         |
+| ---------------------------------------------------- | ------------ | ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `dispatch.providers.<ref>.enabled`                   | bool         | provider-defined    | Enable one provider for explicit dispatch operations. Built-in HTTPS and tailnet providers ship enabled.            |
+| `dispatch.machines`                                  | map          | `{}`                | Viewer-local enrolled aliases. Prefer `sase machine init`, `add`, `repair`, `rename`, and `remove` over hand edits. |
+| `dispatch.discovery.enabled_providers`               | list[string] | `[builtin@tailnet]` | Provider refs queried by explicit discovery.                                                                        |
+| `dispatch.request_timeout_seconds`                   | number       | `5`                 | Positive default deadline for fleet gateway calls.                                                                  |
+| `dispatch.status_cache_seconds`                      | number       | `60`                | Freshness window reserved for dispatch status caches.                                                               |
+| `dispatch.federation_worker.enabled`                 | bool         | `true`              | Allow the local worker to start when enrolled machines exist.                                                       |
+| `dispatch.federation_worker.command`                 | string       | `""`                | Worker argv override, parsed without a shell; empty discovers the packaged or linked-development worker.            |
+| `dispatch.federation_worker.sase_home`               | string       | `""`                | State root passed to the worker; empty uses the runtime default.                                                    |
+| `dispatch.federation_worker.run_root`                | string       | `""`                | Host-local runtime directory; empty derives it from SASE home and host identity.                                    |
+| `dispatch.federation_worker.socket_path`             | string       | `""`                | Unix-socket override; empty derives it from the runtime directory.                                                  |
+| `dispatch.federation_worker.idle_timeout_seconds`    | number       | `300`               | Positive idle time before an unused worker may exit.                                                                |
+| `dispatch.federation_worker.startup_timeout_seconds` | number       | `5`                 | Positive deadline for a newly spawned worker to answer IPC health.                                                  |
+| `dispatch.federation_worker.request_timeout_seconds` | number       | `5`                 | Positive default deadline for worker facade calls.                                                                  |
+| `dispatch.federation_worker.max_frame_bytes`         | int          | `1048576`           | Maximum IPC request or response frame size; minimum 128 bytes.                                                      |
+| `dispatch.remote_hosts`                              | list         | `[]`                | Deprecated legacy federation fallback. New configurations use `dispatch.machines`.                                  |
+
+Machine aliases are 1–64 characters and may contain ASCII letters, digits, `_`, `.`, and
+`-`. Each machine record stores a dispatch provider ref, HTTPS endpoint, opaque
+credential reference, and pinned `sase_inst_v1_...` installation identity. Optional
+fields select `gateway`, `tunnel`, or `direct` connection kind; TLS trust mode
+(`system_roots`, `pinned_ca`, or `pinned_server_name`); and quarantine state. Tokens do
+not belong in YAML: `credential_ref` points into the protected local credential store.
+
+Enrollment commands write those records and keep the installation pin authoritative. A
+quarantined alias cannot receive launches or lifecycle mutations until repaired.
+
+Source: `src/sase/dispatch/config.py`, `src/sase/dispatch/models.py`,
+`src/sase/config/sase.schema.json`
 
 ### vcs_provider
 
@@ -4711,6 +4795,30 @@ Advanced deploy controls stay on explicit subcommands such as
 | `-M, --enable-project-memory` | flag   | -       | Mark the repository with `is_sase_managed: true` before initialization.                  |
 | `-y, --yes`                   | flag   | -       | Run needed initializers without generic prompts; cannot approve GitHub sidecar creation. |
 
+### `sase machine`
+
+With no subcommand, `sase machine` defaults to the offline `sase machine list`.
+Bootstrap bundles contain live single-use secrets: enrollment reads them from
+`-B/--bootstrap-file`, piped stdin, or a hidden prompt, never from a secret-bearing
+command-line option.
+
+| Form                                      | Flags                                               | Description                                                                                |
+| ----------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `sase machine` / `machine list`           | `-j/--json`                                         | List configured aliases without provider or gateway I/O.                                   |
+| `sase machine discover`                   | `-j/--json`, `-p/--provider`, `-t/--timeout`        | Query configured or repeatably selected discovery providers.                               |
+| `sase machine bootstrap`                  | `-e/--expires`, `-j/--json`, `-s/--scope`           | On the target, issue a scoped single-use bundle to stdout.                                 |
+| `sase machine init`                       | `-B/--bootstrap-file`, `-c/--check`, `-j`, `-t`     | Canonically discover, enroll, reload, and verify; `--check` is offline.                    |
+| `sase machine add ALIAS [ENDPOINT]`       | `-B`, `-c/--candidate`, `-j`, `-p/--provider`, `-t` | Enroll a named HTTPS endpoint or discovered candidate.                                     |
+| `sase machine status [ALIAS ...]`         | `-j/--json`, `-t/--timeout`                         | Run authenticated hello checks; no aliases means all configured aliases.                   |
+| `sase machine repair ALIAS`               | `-B/--bootstrap-file`, `-j/--json`, `-t/--timeout`  | Rotate a quarantined or mismatched enrollment with a fresh bundle.                         |
+| `sase machine rename OLD NEW`             | `-j/--json`                                         | Rename the viewer-local alias without changing gateway identity or credentials.            |
+| `sase machine remove ALIAS`               | `-j/--json`, `-y/--yes`                             | Remove local config and its credential reference, confirming unless `--yes`.               |
+| `sase machine agent {stop,retry,fork}`    | action-specific arguments, `-j`, `-t`               | Submit a journaled remote lifecycle mutation; ACE supplies revision-safe durable sidecars. |
+| `sase machine attention {answer,approve}` | action-specific arguments, `-j`, `-t`               | Answer a remote question or approve a gate through the same durable operation path.        |
+
+See the [Remote Dispatch Runbook](remote_dispatch.md) for gateway supervision, Tailscale
+Serve, enrollment, launch constraints, and ACE Focus/Fleet operation.
+
 ### `sase memory agent-docs`
 
 With no subcommand, `sase memory agent-docs` defaults to `sase memory agent-docs list`.
@@ -5453,6 +5561,24 @@ uv-tool venv when pulled `sase-core` commits change.
 | ------ | -------------------------------------------------------------------------------- | ---------- | ------------------- |
 | `name` | `xprompts-dir`, `xprompts-schema`, `xprompts-collection-schema`, `config-schema` | (required) | Which path to print |
 
+### `sase usage`
+
+Bare `sase usage` defaults to `sase usage list`. Listing is strictly offline: it reads
+the cached subscription-usage store and never starts AXE, logs in, or calls a provider
+CLI/API. Output is Rich on an interactive color terminal and automatically becomes plain
+for redirected output, `NO_COLOR`, or a dumb terminal.
+
+| Form                 | Flags                                                          | Description                                                                                    |
+| -------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `sase usage list`    | `-j/--json`, `-P/--plain`, `-p/--provider`, `-v/--verbose`     | Render cached observations; provider filters are repeatable.                                   |
+| `sase usage refresh` | `-b/--background`, `-j`, `-P`, `-p/--provider`, `-v/--verbose` | Submit or join bounded durable refreshes; foreground waits and then renders the updated cache. |
+
+`--json` and `--plain` are mutually exclusive. Background mode returns after submission
+and renders the receipt instead of the cache. Unknown providers are usage errors.
+Collection requires the `provider_usage_metrics` beta flag and
+`llm_provider.usage_metrics.enabled`; see
+[Subscription Usage](llms.md#subscription-usage).
+
 ### `sase notify`
 
 With no subcommand, `sase notify` defaults to the compact `sase notify list` view. Use
@@ -5460,18 +5586,25 @@ With no subcommand, `sase notify` defaults to the compact `sase notify list` vie
 filtering form. Use `sase notify create` to write a raw, non-privileged notification
 from stdin JSON. Use `sase gate create` and `sase gate wait` for command-backed gates.
 
-| Form                 | Flags                                                                                         | Description                                                 |
-| -------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `sase notify`        | `-s/--sender`, `-t/--tag`                                                                     | Shortcut for `sase notify list` with default compact output |
-| `sase notify create` | `-s/--sender`, `-t/--tag`                                                                     | Create a raw notification from stdin JSON                   |
-| `sase notify list`   | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` emits the stable JSON shape |
-| `sase notify show`   | `-i/--id`, `-f/--format` (`markdown` or `json`)                                               | Show one notification by id; defaults to markdown           |
+| Form                       | Flags                                                                                         | Description                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `sase notify`              | `-s/--sender`, `-t/--tag`                                                                     | Shortcut for `sase notify list` with default compact output                   |
+| `sase notify +1 [ID] NOTE` | `-k/--dedup-key`, `-s/--sender`                                                               | Append corroboration by exact/unique ID prefix or sender-scoped dedup key     |
+| `sase notify create`       | `-k/--dedup-key`, `-p/--plus-one-note`, `-S/--supersedes`, `-s/--sender`, `-t/--tag`          | Create a raw notification or atomically append to a matching deduplicated row |
+| `sase notify list`         | `-j/--json`, `-l/--limit`, `-q/--query`, `-t/--tag`, `-s/--sender`, `-u/--unread`, `-a/--all` | List recent notifications; `-j` includes `plus_ones`, count, and `dedup_key`  |
+| `sase notify show`         | `-i/--id`, `-f/--format` (`markdown` or `json`)                                               | Show one notification by id; defaults to markdown                             |
 
 Raw creation accepts JSON `icon`, `tags`, and `silent` fields plus repeatable
 `-t/--tag`; icons must be one emoji or display glyph, and CLI tags are appended to JSON
 tags, then normalized and deduplicated. Raw creation cannot create a registered
 privileged gate action. The query form, `sase notify list -q`, also matches tags, and
 `sase notify list --tag <tag>` filters to notifications with that exact normalized tag.
+
+`notify +1` never changes read, dismissed, muted, snoozed, ordering, or delivery state.
+When `notify create` uses a dedup key, `--plus-one-note` is required: it is appended on
+a match, while a miss creates the row. `--supersedes` identifies an old sender-scoped
+key to annotate and dismiss when the replacement is created. See
+[Notification `+1` Evidence](notifications.md#1-evidence).
 
 ### `sase plan`
 

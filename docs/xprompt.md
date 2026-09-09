@@ -70,6 +70,7 @@ resolver order.
 - [Config-Based XPrompts](#config-based-xprompts)
 - [Local Configuration Files](#local-configuration-files)
 - [Directives](#directives)
+  - [Remote Dispatch](#remote-dispatch)
   - [Launch-Scoped Model Alias Overrides](#launch-scoped-model-alias-overrides)
 - [Command Substitution](#command-substitution)
 - [Protected Content](#protected-content)
@@ -1563,6 +1564,7 @@ are extracted and stripped from the prompt before further processing.
 | `%clan`             | `%c`  | Declare a new named, rootless parallel agent clan                     |
 | `%wait`             | `%w`  | Wait for agents, closed beads, and/or a time floor                    |
 | `%queue`            | `%q`  | Set the runner-queue admission threshold and/or priority              |
+| `%dispatch`         |       | Launch on one enrolled remote machine                                 |
 | `%if`               |       | Attach a beta condition to a typed launch unit                        |
 | `%proc`             |       | Define and natively dispatch a beta stand-alone process unit          |
 | `%final`            |       | Select configured finalizer instances for this launch                 |
@@ -1598,6 +1600,7 @@ enabled. Retired `%name` / `%n` and `%tribe` / `%t` forms are not completed.
 | `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                   | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                        |
 | `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                     | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, and `time=` suggests `5m` and `1430`.                                                    |
 | `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)` | Colon form completes only the positional non-negative-integer `runners` value, suggesting `0` and `1`. Parenthesized form adds `runners=`, `priority=`, and `p=`; `priority=` and `p=` conflict with each other, `priority=`/`p=` suggest `10` and `1`, and `runners=` suggests `0` and `1`. |
+| `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                           | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                    |
 | `%if`               | `%if::`; full Bash and Python fence recipes                 | No argument rows; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                           |
 | `%proc`             | `%proc(...)`, `%proc::`; Bash/Python recipes                | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                        |
 | `%hide` / `%h`      | Bare flag and plus form                                     | No argument rows.                                                                                                                                                                                                                                                                            |
@@ -1782,6 +1785,7 @@ Directives use the same argument syntax as xprompt references:
 %e:xhigh                     # Same, using alias
 %effort:%{medium | high | xhigh} # Fan out directive values
 %model:opus@xhigh            # Model + reasoning-effort suffix (alias: %m:opus@xhigh)
+%dispatch:apollo             # Launch on the enrolled machine alias "apollo"
 %{%m:opus@xhigh | %m:sonnet@low} # Per-branch effort via fan-out
 %id:reviewer               # Short-form
 %i:reviewer                  # Same, using alias
@@ -1914,6 +1918,29 @@ reference such as `%model:@#agy_flash` — SASE records the expanded bare alias 
 `agent_meta.json` and renders it after the resolved model as `← @<alias>`. Concrete
 values such as `%model:claude/opus` and literal values such as ``%model:`@text``` do not
 get this chip. The chip is the alias named at launch, not the alias's current target.
+
+### Remote Dispatch
+
+`%dispatch:<alias>` and `%dispatch(<alias>)` route one launch to an enrolled,
+non-quarantined remote machine. The directive accepts exactly one machine alias, has no
+short alias, and may appear only once. `local` is reserved: omit `%dispatch` for an
+ordinary local launch.
+
+The source strips only `%dispatch`; the target receives and processes the remaining
+prompt and launch directives. V1 remote launch cannot be combined with `%wait`,
+`%queue`, or `%clan`, and it rejects local-only run payloads such as resolved launch
+units, collected inputs, attachments, files, and images. The remaining prompt must be
+non-empty.
+
+Project context must be reproducible on the target. A Patch or explicit revision can
+provide that evidence. Without one, the source directory must be a clean Git checkout
+whose current branch has an upstream and whose `HEAD` is not ahead of it. Dispatch
+requests are durable and idempotent; if acceptance is uncertain, retrying the same
+request does not intentionally create a second remote launch.
+
+ACE and the xprompt LSP complete configured machine aliases after `%dispatch:`. See the
+[Remote Dispatch Runbook](remote_dispatch.md) for gateway setup, enrollment, status, and
+remote-agent controls.
 
 ### Launch-Scoped Model Alias Overrides
 

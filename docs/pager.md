@@ -47,6 +47,13 @@ starting an unusable app.
 `bead:<id>` inputs and followed bead links read the live bead store for the owning
 project; they do not require generated Markdown pages under `pages/`.
 
+Interactive section bodies have an editor-style line-number gutter. Numbers restart at 1
+for each section and appear only on the first visual row of a wrapped logical line;
+continuation rows keep an empty gutter cell. The digit column is sized once from the
+largest section, so moving between sections does not shift the document. Following a
+target with a `:line` suffix scrolls to that logical line and accents its gutter number.
+Plain and redirected output does not include the gutter.
+
 ## Syntax highlighting
 
 Recognized source files, Markdown documents, and diffs pick up a muted language overlay

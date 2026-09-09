@@ -31,6 +31,7 @@ preprocessing, invocation, and postprocessing.
 - [Temporary Model Overrides](#temporary-model-overrides)
 - [Temporary Provider Disables](#temporary-provider-disables)
 - [Temporary Provider Priority](#temporary-provider-priority)
+- [Subscription Usage](#subscription-usage)
 - [Usage-Limit Auto-Disable](#usage-limit-auto-disable)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
@@ -1041,9 +1042,9 @@ in the same environment as sase to make its `sase_llm` entry point available.
 
 ### Subscription usage extension
 
-Subscription-capacity collection is an optional plugin capability. A fourth provider
-implements the same hooks; SASE core, the refresh service, CLI, and widgets must not
-branch on provider name.
+Subscription-capacity collection is an optional plugin capability. Provider packages
+implement the same hooks; SASE core, the refresh service, CLI, and widgets do not branch
+on provider name.
 
 | Hook                       | I/O           | Cached           | Default when omitted                                 |
 | -------------------------- | ------------- | ---------------- | ---------------------------------------------------- |
@@ -2090,6 +2091,64 @@ Public provider-priority helpers:
 | `resolve_provider_routing_context(routing_context=None, provider_disables=None, now=None)` | Normalize explicit or freshly captured routing inputs.           |
 | `classify_provider_availability(context, facts)`                                           | Classify one provider against a captured routing context.        |
 | `peek_active_provider_priority(now=None)`                                                  | Read-only display snapshot for high-frequency TUI paths.         |
+
+## Subscription Usage
+
+Subscription usage is a machine-local view of provider allowance windows — for example,
+the remaining share of a session or weekly plan window. It is separate from per-agent
+[token usage](#token-usage-tracking) and from
+[usage-limit auto-disable](#usage-limit-auto-disable): collecting a low observation does
+not itself disable routing.
+
+The feature is beta and needs both controls:
+
+```bash
+sase flag enable provider_usage_metrics
+```
+
+```yaml
+llm_provider:
+  usage_metrics:
+    enabled: true
+```
+
+Claude, Codex, and Grok currently ship collectors. Claude can also persist fenced
+rate-limit events from its normal stream; Codex and Grok are probe-only. Other provider
+plugins remain fully usable when they do not implement usage hooks. Per-provider
+collection can be disabled with
+`llm_provider.usage_metrics.providers.<name>.enabled: false`; routing-disabled providers
+still collect when otherwise eligible because their reset information remains useful.
+
+Use `sase usage` or `sase usage list` to inspect the cache without provider I/O:
+
+```bash
+sase usage
+sase usage list -p codex --verbose
+sase usage list --json
+```
+
+Use `sase usage refresh` to submit or join bounded durable probe work. Foreground mode
+waits for the operations and then prints the refreshed cache; `--background` returns the
+submission receipt immediately. Provider filters are repeatable. `--plain` provides
+stable line-oriented text, while redirected output also becomes plain automatically.
+
+ACE exposes the same cache from Launch Control: press `u`, or choose **Open Providers ·
+Usage** from the command palette. The modal never probes on first paint. Press its own
+`u` to update, close it without cancelling durable work, and reopen to reattach. AXE
+submits due refreshes on its checks cadence; when AXE is absent, ACE can request due
+work after first paint and while open. Coalescing prevents those callers from
+duplicating a live provider probe.
+
+Each provider summary reports remaining capacity, scope, freshness, and collection
+status. Details preserve every observed window with its reset, age, applicability,
+state, and source. The cache can therefore distinguish no observation, stale data,
+unsupported collection, authentication failure, and a real low-capacity window rather
+than collapsing them into one percentage.
+
+Configuration controls refresh cadence (minimum 60 seconds) and warning/critical
+thresholds as percentages used; UI copy converts those to percentage left. See
+[`llm_provider.usage_metrics`](configuration.md#llm_providerusage_metrics) and the
+[`sase usage` flags](configuration.md#sase-usage).
 
 ## Usage-Limit Auto-Disable
 

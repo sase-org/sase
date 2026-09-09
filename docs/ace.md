@@ -1128,6 +1128,33 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 
 ## Keybindings: Agents Tab
 
+### Focus and Fleet
+
+When at least one remote machine is enrolled, the Agents header shows a two-tab **Focus
+/ Fleet** strip with row counts and a loading, host, issue, or partial status. It stays
+hidden in an entirely local setup.
+
+- **Focus** is the default. It combines local agents with only the remote rows you have
+  explicitly followed, keeping normal day-to-day navigation small.
+- **Fleet** loads a bounded catalog of up to 250 remote rows across enrolled machines.
+  Switching to it forces a remote refresh; failures remain visible as diagnostics rather
+  than hiding healthy hosts.
+- Follow state is durable and keyed by a logical remote locator. When a stand-alone row
+  becomes a family, ACE reconciles the follow to the promoted family identity.
+
+Click the strip to switch modes, or use **Agents: next/previous Focus/Fleet mode** from
+the command palette. On a Fleet row, the palette offers follow/unfollow and, once
+followed, **View followed remote row in Focus**. It also exposes machine status, retry,
+bounded remote content, and pending question/gate handling when the row carries the
+matching capability. The normal `x` stop and `F` fork actions work on capable remote
+rows; actions that require local files, tmux, or local Patch state stay unavailable.
+
+All dedicated Focus/Fleet actions ship unbound. Configure their `ace.keymaps.app` fields
+if you want direct keys; see the [configuration reference](configuration.md#acekeymaps).
+Remote mutations are durable requests, optimistically annotate the row while in flight,
+and refresh Fleet after they settle. Setup and recovery commands are covered by the
+[Remote Dispatch Runbook](remote_dispatch.md).
+
 ### Navigation
 
 | Key                       | Action                                                                                                                                                      |
@@ -3270,11 +3297,33 @@ Navigation, and jump hints, skip headers, spacer rows, and the empty-custom hint
 | `e`                   | **Edit** — change the persistent configured value                                                                   |
 | `r`                   | **Reset** — unset an alias/model setting or the big-epic threshold                                                  |
 | `p`                   | **Providers** — disable, prioritize, or re-enable registered providers for future routing                           |
+| `u`                   | **Usage** — inspect cached provider subscription usage and request a bounded update                                 |
 | `t`                   | **tmux Agent** — launch an interactive agent CLI in a new tmux window                                               |
 | `H`                   | **History** — view recorded prior runs for the highlighted alias, alias-backed launch setting, or bucket            |
 | `Ctrl+E`              | **Effort** — persistently edit, temporarily override, or clear the global default effort                            |
 | `Ctrl+R`              | **Limit** — persistently edit, temporarily override, or clear the global runner limit                               |
 | `Esc` / `q`           | Close the panel                                                                                                     |
+
+### Providers · Usage
+
+Press `u` in Launch Control to open the read-only **Providers · Usage** view. The same
+view is available from the global command palette as **Open Providers · Usage**, with
+search aliases including usage, quota, limits, capacity, subscription, and providers.
+
+The first paint reads only the local usage cache. Each provider row shows remaining
+capacity or collection status, applicable account scope, freshness, and an **Updating…**
+marker when a durable refresh is live. Select a provider for its plan, account mode,
+collection status, last observation, and per-window remaining percentage, reset, age,
+state, and source. The layout drops the meter and combines detail columns as the
+terminal narrows.
+
+Press `u` inside the view to submit or join bounded refresh work for eligible providers.
+The modal stays responsive, reattaches to an in-flight refresh when reopened, reloads
+the cache as operations settle, and reports partial failures by provider. `Enter`
+focuses the detail table, `Tab` moves focus, `j`/`k` navigate, and `Esc`/`q` closes.
+Collection requires the `provider_usage_metrics` beta flag plus
+`llm_provider.usage_metrics.enabled`; see
+[Subscription Usage](llms.md#subscription-usage).
 
 On `big epic starts at`, `Enter` and `e` open a focused positive-integer editor, and `r`
 previews a reset. The input accepts an unsigned base-10 whole number with minimum `1`

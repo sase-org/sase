@@ -167,6 +167,24 @@ command's recovery text. Retry a failed local apply when the credential is alrea
 stored; issue a fresh target bundle and run `sase machine repair TARGET` when the target
 credential needs to rotate.
 
+The machine command group is deliberately split between offline inventory, explicit
+network work, and local mutations:
+
+| Command                          | Behavior                                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `sase machine` / `list`          | Read configured aliases only; never contacts a provider or gateway.                              |
+| `sase machine discover`          | Query configured discovery providers explicitly; `-p` is repeatable.                             |
+| `sase machine bootstrap`         | Issue a target-local, single-use bundle; the secret is written only to stdout.                   |
+| `sase machine init`              | Discover, select, enroll, reload config, and require an authenticated hello before success.      |
+| `sase machine add`               | Enroll a named endpoint or discovered candidate from a protected bootstrap input.                |
+| `sase machine status`            | Run bounded authenticated hello checks for selected aliases, or every alias when none are given. |
+| `sase machine repair`            | Rotate a quarantined or mismatched enrollment with a fresh one-time bundle.                      |
+| `sase machine rename` / `remove` | Change viewer-local alias state; removal also deletes the local credential reference.            |
+
+`--bootstrap-file` is available on enrollment and repair commands. Without it, SASE
+reads a piped bundle or uses a hidden interactive prompt; bootstrap secrets are never
+accepted as command-line values.
+
 ## Launch And Operate
 
 After status is healthy, launch remote agents by adding a dispatch selector to a normal
@@ -176,10 +194,32 @@ launch prompt:
 sase run "%dispatch:apollo summarize the current project state; do not change files"
 ```
 
+The equivalent parenthesized form is `%dispatch(apollo)`. Exactly one selector is
+allowed, and `%dispatch:local` is reserved — omit the directive for a local launch. V1
+remote launch does not combine with `%wait`, `%queue`, or `%clan`. The controller strips
+only the dispatch selector, so other launch directives are processed on the target.
+
+Remote launch carries portable project evidence rather than the controller's local
+paths. When no Patch or explicit revision is available, the controller requires a clean
+Git checkout, an upstream branch, and a `HEAD` that is already published. Local-only
+payloads — collected inputs, resolved launch units, attachments, files, and images — are
+rejected before submission. A submitted request is durable and idempotent; an
+acceptance-uncertain response can be retried without intentionally duplicating the
+launch.
+
 ACE consumes the same fleet records. `sase ace --tmux` prints the tmux target for the
-session; from there, the Agents tab shows enrolled machines and remote row counts, Focus
-can follow a remote row, and remote lifecycle actions are sent through
-`sase machine agent` and `sase machine attention` durable requests.
+session. Once a machine is enrolled, the Agents tab gains a **Focus / Fleet** strip:
+
+- **Focus** keeps local agents plus the remote rows you explicitly follow.
+- **Fleet** loads the bounded remote catalog across enrolled machines. Follow or
+  unfollow a row from the command palette, then use **View followed remote row in
+  Focus** to return to the quieter view.
+- Remote stop, retry, fork, bounded content, machine status, and pending question/gate
+  actions appear only when the selected row advertises the matching capability.
+
+Those operations are journaled through `sase machine agent` and
+`sase machine attention`. The Focus/Fleet actions ship unbound, so use the ACE command
+palette or configure the corresponding `ace.keymaps.app` fields.
 
 To prove restart resilience, restart the target gateway service, then rerun:
 
