@@ -46,6 +46,15 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
         "artifact_link_publication_register_pending",
         "artifact_link_publication_due",
         "artifact_link_publication_mark_attempt",
+        "artifact_link_event_schema_version",
+        "artifact_link_event_canonicalize",
+        "artifact_link_event_canonical_json",
+        "artifact_link_event_digest",
+        "artifact_link_event_path_for_digest",
+        "artifact_link_event_validate_path",
+        "artifact_link_event_validate_bytes",
+        "artifact_link_event_resolve_aliases",
+        "artifact_link_events_reduce",
         "artifact_link_ref_parts",
         "artifact_row_index_keys",
         "artifact_row_ref_lookup_keys",
@@ -74,6 +83,7 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
     assert validator._validate_artifact_link_schema(
         SimpleNamespace(
             artifact_link_row_schema_version=lambda: 2,
+            artifact_link_event_schema_version=lambda: 1,
             artifact_row_resolution_wire_schema_version=lambda: 1,
             artifact_link_publication_state_wire_schema_version=lambda: 1,
         )
@@ -81,6 +91,7 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
     assert not validator._validate_artifact_link_schema(
         SimpleNamespace(
             artifact_link_row_schema_version=lambda: 1,
+            artifact_link_event_schema_version=lambda: 1,
             artifact_row_resolution_wire_schema_version=lambda: 1,
             artifact_link_publication_state_wire_schema_version=lambda: 1,
         )
@@ -88,6 +99,15 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
     assert not validator._validate_artifact_link_schema(
         SimpleNamespace(
             artifact_link_row_schema_version=lambda: 2,
+            artifact_link_event_schema_version=lambda: 2,
+            artifact_row_resolution_wire_schema_version=lambda: 1,
+            artifact_link_publication_state_wire_schema_version=lambda: 1,
+        )
+    )
+    assert not validator._validate_artifact_link_schema(
+        SimpleNamespace(
+            artifact_link_row_schema_version=lambda: 2,
+            artifact_link_event_schema_version=lambda: 1,
             artifact_row_resolution_wire_schema_version=lambda: 2,
             artifact_link_publication_state_wire_schema_version=lambda: 1,
         )
@@ -95,10 +115,59 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
     assert not validator._validate_artifact_link_schema(
         SimpleNamespace(
             artifact_link_row_schema_version=lambda: 2,
+            artifact_link_event_schema_version=lambda: 1,
             artifact_row_resolution_wire_schema_version=lambda: 1,
             artifact_link_publication_state_wire_schema_version=lambda: 2,
         )
     )
+
+
+def test_validate_sase_core_rs_probes_artifact_link_event_contract() -> None:
+    validator = load_validate_sase_core_rs()
+    digest = "a" * 64
+    path = f"link-events/v1/{digest[:2]}/{digest}.json"
+    good = SimpleNamespace(
+        artifact_link_event_canonicalize=lambda event: event,
+        artifact_link_event_canonical_json=lambda event: "{}\n",
+        artifact_link_event_digest=lambda event: digest,
+        artifact_link_event_path_for_digest=lambda value: path,
+        artifact_link_event_validate_path=lambda value, expected: value,
+        artifact_link_event_validate_bytes=lambda payload, value: {
+            "digest": digest,
+            "path": value,
+        },
+        artifact_link_event_resolve_aliases=lambda aliases, refs: {
+            "resolved_refs": {
+                "plan:202609/old.md": "plan:202609/new.md",
+            }
+        },
+        artifact_link_events_reduce=lambda events, aliases: {
+            "rows": [
+                {
+                    "target_ref": "plan:202609/new.md",
+                    "description": "updated description",
+                    "uses": 2,
+                }
+            ]
+        },
+    )
+    assert validator._validate_artifact_link_event_contract(good)
+
+    stale = SimpleNamespace(
+        **{
+            **good.__dict__,
+            "artifact_link_events_reduce": lambda events, aliases: {
+                "rows": [
+                    {
+                        "target_ref": "plan:202609/old.md",
+                        "description": "stale",
+                        "uses": 4,
+                    }
+                ]
+            },
+        }
+    )
+    assert not validator._validate_artifact_link_event_contract(stale)
 
 
 def test_validate_sase_core_rs_requires_machine_setup_bindings() -> None:

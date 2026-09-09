@@ -142,6 +142,15 @@ REQUIRED_BINDINGS = (
     "artifact_link_publication_register_pending",
     "artifact_link_publication_due",
     "artifact_link_publication_mark_attempt",
+    "artifact_link_event_schema_version",
+    "artifact_link_event_canonicalize",
+    "artifact_link_event_canonical_json",
+    "artifact_link_event_digest",
+    "artifact_link_event_path_for_digest",
+    "artifact_link_event_validate_path",
+    "artifact_link_event_validate_bytes",
+    "artifact_link_event_resolve_aliases",
+    "artifact_link_events_reduce",
     "pending_commit_checkpoint_wire_schema_version",
     "decide_pending_commit_checkpoint_recovery",
     "artifact_link_ref_parts",
@@ -350,6 +359,7 @@ def _validate_artifact_ref_schemas(module: ModuleType) -> bool:
 def _validate_artifact_link_schema(module: ModuleType) -> bool:
     expected = {
         "artifact_link_row_schema_version": 2,
+        "artifact_link_event_schema_version": 1,
         "artifact_row_resolution_wire_schema_version": 1,
         "artifact_link_publication_state_wire_schema_version": 1,
     }
@@ -367,6 +377,144 @@ def _validate_artifact_link_schema(module: ModuleType) -> bool:
                 f"got {actual_version}, expected {expected_version}"
             )
             valid = False
+    return valid
+
+
+def _validate_artifact_link_event_contract(module: ModuleType) -> bool:
+    """Probe immutable link-event behavior beyond binding names.
+
+    Version metadata cannot distinguish an installed wheel that exports the
+    new names but still lacks canonical bytes/path or reducer semantics. This
+    probe exercises the smallest behavior the SASE checkout relies on while
+    the event store remains behind later integration phases.
+    """
+
+    observation_id = "a" * 32
+    put_id = "b" * 32
+    event = {
+        "schema_version": 1,
+        "project_key": "gh_acme__widget",
+        "operation_id": observation_id,
+        "created_by": "agent:reader",
+        "origin": "read",
+        "created_at": "2026-09-09T12:00:00Z",
+        "kind": {
+            "type": "observation",
+            "edge": {
+                "kind": "directed",
+                "source_ref": "agent:reader",
+                "relation": "read",
+                "target_ref": "plan:202609/old.md",
+            },
+            "description": "read the artifact",
+            "occurrences": 2,
+        },
+    }
+    put = {
+        "schema_version": 1,
+        "project_key": "gh_acme__widget",
+        "operation_id": put_id,
+        "created_by": "agent:writer",
+        "origin": "manual",
+        "created_at": "2026-09-09T12:01:00Z",
+        "kind": {
+            "type": "edge-put",
+            "edge": {
+                "kind": "directed",
+                "source_ref": "agent:reader",
+                "relation": "read",
+                "target_ref": "plan:202609/old.md",
+            },
+            "description": "updated description",
+            "observed_operation_ids": [observation_id],
+        },
+    }
+    aliases = [
+        {
+            "old_ref": "plan:202609/old.md",
+            "new_ref": "plan:202609/new.md",
+        }
+    ]
+
+    try:
+        canonical = module.artifact_link_event_canonicalize(event)
+        canonical_json = module.artifact_link_event_canonical_json(event)
+        digest = module.artifact_link_event_digest(event)
+        path = module.artifact_link_event_path_for_digest(digest)
+        validated_path = module.artifact_link_event_validate_path(path, digest)
+        bytes_result = module.artifact_link_event_validate_bytes(
+            canonical_json.encode("utf-8"), path
+        )
+        resolved = module.artifact_link_event_resolve_aliases(
+            aliases, ["plan:202609/old.md"]
+        )
+        reduction = module.artifact_link_events_reduce(
+            [put, event, event], aliases
+        )
+    except Exception as exc:
+        _error(f"artifact-link event contract probe failed: {exc}")
+        return False
+
+    valid = True
+    canonical_kind = canonical.get("kind") if isinstance(canonical, dict) else None
+    canonical_edge = (
+        canonical_kind.get("edge") if isinstance(canonical_kind, dict) else None
+    )
+    if (
+        not isinstance(canonical, dict)
+        or canonical.get("schema_version") != 1
+        or not isinstance(canonical_edge, dict)
+        or canonical_edge.get("target_ref") != "plan:202609/old.md"
+    ):
+        _error(f"artifact-link event canonicalize probe returned {canonical!r}")
+        valid = False
+    if (
+        not isinstance(canonical_json, str)
+        or not canonical_json.endswith("\n")
+        or "\n\n" in canonical_json
+    ):
+        _error("artifact-link event canonical JSON probe returned stale bytes")
+        valid = False
+    if (
+        not isinstance(digest, str)
+        or len(digest) != 64
+        or any(ch not in "0123456789abcdef" for ch in digest)
+    ):
+        _error(f"artifact-link event digest probe returned {digest!r}")
+        valid = False
+    if validated_path != path or not path.endswith(f"{digest}.json"):
+        _error(
+            "artifact-link event path probe returned stale path: "
+            f"path={path!r} validated={validated_path!r}"
+        )
+        valid = False
+    if (
+        not isinstance(bytes_result, dict)
+        or bytes_result.get("digest") != digest
+        or bytes_result.get("path") != path
+    ):
+        _error(
+            "artifact-link event byte validation probe returned stale payload: "
+            f"{bytes_result!r}"
+        )
+        valid = False
+    if (
+        not isinstance(resolved, dict)
+        or resolved.get("resolved_refs", {}).get("plan:202609/old.md")
+        != "plan:202609/new.md"
+    ):
+        _error(f"artifact-link event alias probe returned {resolved!r}")
+        valid = False
+    rows = reduction.get("rows") if isinstance(reduction, dict) else None
+    row = rows[0] if isinstance(rows, list) and rows else None
+    if (
+        not isinstance(row, dict)
+        or row.get("target_ref") != "plan:202609/new.md"
+        or row.get("description") != "updated description"
+        or row.get("uses") != 2
+    ):
+        _error(f"artifact-link event reducer probe returned {reduction!r}")
+        valid = False
     return valid
 
 
@@ -1831,6 +1979,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_artifact_ref_schemas(module):
         return 1
     if not _validate_artifact_link_schema(module):
+        return 1
+    if not _validate_artifact_link_event_contract(module):
         return 1
     if not _validate_vcs_log_wire_schema(module):
         return 1

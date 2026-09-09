@@ -106,6 +106,15 @@ def test_required_bindings_include_pre_facade_contracts(tool: ModuleType) -> Non
         "migration_tree_digest",
         "migration_wire_schema_version",
         "federation_worker_main",
+        "artifact_link_event_schema_version",
+        "artifact_link_event_canonicalize",
+        "artifact_link_event_canonical_json",
+        "artifact_link_event_digest",
+        "artifact_link_event_path_for_digest",
+        "artifact_link_event_validate_path",
+        "artifact_link_event_validate_bytes",
+        "artifact_link_event_resolve_aliases",
+        "artifact_link_events_reduce",
     }
     assert expected <= set(tool.REQUIRED_BINDINGS)
 
