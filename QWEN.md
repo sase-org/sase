@@ -112,8 +112,9 @@ memory files directly.
    `src/sase/xprompts/skills/` and deployed to managed locations (my chezmoi repo, for
    example).
 3. **`sase/memory/lint_and_test.md`** - If you changed any file tracked by git in the
-   sase repo (excluding file changes in the separate repos the sase/repos/ directory),
-   you MUST read this note before you finish your turn. Verification is NOT optional.
+   sase repo (excluding file changes in the separate repos contained in the sase/repos/
+   directory), you MUST read this note before you finish your turn. Verification is NOT
+   optional.
 4. **`sase/memory/sase_artifacts.md`** - Read before creating, consuming, resolving,
    linking, or managing retention for SASE artifact references and indexed files.
 5. **`sase/memory/sase_beads.md`** - Read before creating, updating, closing, or
