@@ -19,7 +19,10 @@ from sase.testing.usage_synthetic import (
     SYNTHETIC_PLUGIN_SPEC,
     _SyntheticUsageProvider,
 )
-from sase.llm_provider.usage.types import observation_schema_version
+from sase.llm_provider.usage.types import (
+    observation_schema_version,
+    validated_status_observation,
+)
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
@@ -102,6 +105,18 @@ def test_per_provider_disable_does_not_hard_code_names(
     )
     assert collection_skip_reason("fourth") == "provider_disabled"
     assert collection_skip_reason("synth") is None
+
+
+def test_vendor_drift_status_observation_uses_default_diagnostic() -> None:
+    now = 1_800_000_000.0
+    observation = validated_status_observation(
+        default_probe_context("synth", now=now),
+        now=now,
+        outcome="error",
+        reason_code="vendor_drift",
+    )
+    assert observation["reason_code"] == "vendor_drift"
+    assert observation["diagnostic"] == "provider CLI request shape changed"
 
 
 def test_passive_observation_validates_when_collection_is_enabled(

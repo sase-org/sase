@@ -27,6 +27,7 @@ UsageReasonCode = Literal[
     "malformed_payload",
     "deadline_exceeded",
     "probe_failed",
+    "vendor_drift",
 ]
 UsageCompleteness = Literal["complete", "partial"]
 UsageSource = Literal["probe", "stream_event"]
@@ -43,6 +44,7 @@ _DIAGNOSTIC_BY_REASON: dict[str, str] = {
     "malformed_payload": "usage probe payload was malformed",
     "deadline_exceeded": "usage probe exceeded its deadline",
     "probe_failed": "usage probe failed",
+    "vendor_drift": "provider CLI request shape changed",
     "unsupported": "provider does not collect subscription usage",
     "config_disabled": "subscription usage collection is disabled",
     "provider_disabled": "subscription usage collection is disabled for this provider",
