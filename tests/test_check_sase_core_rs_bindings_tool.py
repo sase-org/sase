@@ -116,6 +116,9 @@ def test_required_bindings_include_pre_facade_contracts(tool: ModuleType) -> Non
         "artifact_link_event_validate_bytes",
         "artifact_link_event_resolve_aliases",
         "artifact_link_events_reduce",
+        "fleet_count_focus_and_fleet",
+        "fleet_normalize_federation_response",
+        "fleet_count_focus_and_fleet_from_federation",
     }
     assert expected <= set(tool.REQUIRED_BINDINGS)
 

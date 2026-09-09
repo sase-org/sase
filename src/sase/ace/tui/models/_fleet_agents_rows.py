@@ -60,6 +60,7 @@ def rows_from_response(
         observed_at = float_or_none(
             host.get("observed_at_unix"),
             host.get("observed_at"),
+            payload_freshness.get("refreshed_at_unix"),
         )
         for summary_index, summary in enumerate(summary_payloads(host)):
             agent = _agent_from_summary(
