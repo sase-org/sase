@@ -2,12 +2,8 @@
 type: reference
 parent: AGENTS.md
 description: |-
-  IMPORTANT: if you changed ANY file in the sase repo, you MUST read this note before
-  you finish your turn. Verification is not optional here and the lanes are not
-  interchangeable: this note covers the `just` command surface, the two-speed rule that
-  makes `just check` the agent default and `just check-full` a monitor-only landing
-  gate, the `just install` prerequisite for ephemeral workspace clones, and the PNG
-  snapshot suite.
+  If you changed any file tracked by git in the sase repo (excluding file changes in the separate repos the sase/repos/
+  directory), you MUST read this note before you finish your turn. Verification is NOT optional.
 ---
 
 # Linting And Testing
