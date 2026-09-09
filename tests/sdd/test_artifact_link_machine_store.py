@@ -12,6 +12,7 @@ from sase.sdd.artifact_link_store import (
     machine_document_sidecar_roots,
     resolve_machine_artifact_link_store,
 )
+from sase.sdd._store_types import SddMaterializationError
 from sase.sdd.store import write_sdd_store_record
 from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
 
@@ -244,6 +245,82 @@ class TestMaterializationAndIntegration:
         )
         assert any("research: hidden clone unavailable" in item for item in diagnostics)
         assert {call["fresh"] for call in calls} == {False}
+
+    def test_lazy_root_discovery_preserves_mismatched_unpublished_hidden_clone(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+        old_remote = _seeded_remote(tmp_path, "old-plans")
+        new_remote = _seeded_remote(tmp_path, "new-plans")
+        primary = _sidecar_repos_primary(tmp_path, roles={"plans": new_remote})
+        hidden_plans = Path(hidden_sidecar_clone_dir("acme_widget", "plans"))
+        clone(old_remote, hidden_plans)
+        (hidden_plans / "local.md").write_text("local only\n", encoding="utf-8")
+        commit_all(hidden_plans, "local unpublished")
+        unpublished_head = git(["rev-parse", "HEAD"], hidden_plans).stdout.strip()
+
+        roots, diagnostics = machine_document_sidecar_roots("acme_widget", primary)
+
+        assert roots == ()
+        assert any(
+            "plans: hidden clone remote mismatch" in item for item in diagnostics
+        )
+        assert git(["remote", "get-url", "origin"], hidden_plans).stdout.strip() == str(
+            old_remote
+        )
+        assert (
+            git(["rev-parse", "HEAD"], hidden_plans).stdout.strip() == unpublished_head
+        )
+        assert (hidden_plans / "local.md").read_text(encoding="utf-8") == "local only\n"
+
+    def test_machine_store_resolution_refuses_unpublished_hidden_plans_clone(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+        plans_remote = _seeded_remote(tmp_path, "plans")
+        primary = _sidecar_repos_primary(tmp_path, roles={"plans": plans_remote})
+        roots, diagnostics = machine_document_sidecar_roots("acme_widget", primary)
+        assert diagnostics == ()
+        assert len(roots) == 1
+        hidden_plans = roots[0].repo_root
+        (hidden_plans / "local.md").write_text("local only\n", encoding="utf-8")
+        commit_all(hidden_plans, "local unpublished")
+        unpublished_head = git(["rev-parse", "HEAD"], hidden_plans).stdout.strip()
+
+        with pytest.raises(SddMaterializationError, match="unpublished commits"):
+            resolve_machine_artifact_link_store("acme_widget", primary)
+
+        assert (
+            git(["rev-parse", "HEAD"], hidden_plans).stdout.strip() == unpublished_head
+        )
+        assert (hidden_plans / "local.md").read_text(encoding="utf-8") == "local only\n"
+
+    def test_machine_store_resolution_skips_unpublished_custom_role(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+        plans_remote = _seeded_remote(tmp_path, "plans")
+        research_remote = _seeded_remote(tmp_path, "research")
+        primary = _sidecar_repos_primary(
+            tmp_path, roles={"plans": plans_remote, "research": research_remote}
+        )
+        roots, diagnostics = machine_document_sidecar_roots("acme_widget", primary)
+        assert diagnostics == ()
+        hidden_by_role = {root.role: root.repo_root for root in roots}
+        hidden_research = hidden_by_role["research"]
+        (hidden_research / "local.md").write_text("local only\n", encoding="utf-8")
+        commit_all(hidden_research, "local unpublished")
+        unpublished_head = git(["rev-parse", "HEAD"], hidden_research).stdout.strip()
+
+        store = resolve_machine_artifact_link_store("acme_widget", primary)
+
+        assert store.sidecar_roots["plan"] == hidden_by_role["plans"]
+        assert "research" not in store.sidecar_roots
+        assert store.sdd_store is not None
+        assert "unpublished commits" in store.sdd_store.unresolved_sidecars["research"]
+        assert git(["rev-parse", "HEAD"], hidden_research).stdout.strip() == (
+            unpublished_head
+        )
 
 
 class TestNonSplitStorageFallsBackUnchanged:

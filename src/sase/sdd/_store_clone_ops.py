@@ -42,6 +42,7 @@ def clone_sdd_store(
     *,
     reference_repo: Path | None = None,
     strict: bool = False,
+    deadline: float | None = None,
 ) -> bool:
     if is_http_git_remote(remote_url):
         return handle_failed_sdd_clone(
@@ -65,13 +66,21 @@ def clone_sdd_store(
     timeout_retries_without_reference = 0
 
     for attempt in range(len(_REMOTE_CLONE_RETRY_DELAYS) + 1):
+        timeout = _deadline_timeout(network_git_timeout(), deadline)
+        if timeout <= 0.0:
+            return handle_failed_sdd_clone(
+                workspace_sdd,
+                f"deadline expired before cloning SDD store {remote_url} into "
+                f"{workspace_sdd}",
+                strict=strict,
+            )
         try:
             # Clone builds a fresh checkout with no existing index.lock to recover.
             result = run_sdd_git(
                 clone_args,
                 cwd=workspace_sdd.parent,
                 op="sdd.clone.remote",
-                timeout=network_git_timeout(),
+                timeout=timeout,
                 check=False,
                 capture_output=True,
                 text=True,
@@ -139,7 +148,13 @@ def clone_sdd_store(
             len(_REMOTE_CLONE_RETRY_DELAYS) + 1,
             detail,
         )
-        time.sleep(delay)
+        if not _sleep_before_retry(delay, deadline):
+            return handle_failed_sdd_clone(
+                workspace_sdd,
+                f"deadline expired before retrying SDD clone {remote_url} into "
+                f"{workspace_sdd}",
+                strict=strict,
+            )
 
     raise AssertionError("remote clone retry loop did not return")
 
@@ -216,7 +231,9 @@ def handle_failed_sdd_clone(
     return False
 
 
-def clone_sdd_store_from_primary(primary_sdd: Path, workspace_sdd: Path) -> bool:
+def clone_sdd_store_from_primary(
+    primary_sdd: Path, workspace_sdd: Path, *, deadline: float | None = None
+) -> bool:
     if not (primary_sdd / ".git").is_dir():
         return False
     if _paths_same_file(primary_sdd, workspace_sdd):
@@ -229,12 +246,15 @@ def clone_sdd_store_from_primary(primary_sdd: Path, workspace_sdd: Path) -> bool
     )
 
     try:
+        timeout = _deadline_timeout(network_git_timeout(), deadline)
+        if timeout <= 0.0:
+            return False
         # Clone builds a fresh checkout with no existing index.lock to recover.
         result = run_sdd_git(
             ["clone", str(primary_sdd), str(workspace_sdd)],
             cwd=workspace_sdd.parent,
             op="sdd.clone.primary",
-            timeout=network_git_timeout(),
+            timeout=timeout,
             check=False,
             capture_output=True,
             text=True,
@@ -267,7 +287,7 @@ def clone_sdd_store_from_primary(primary_sdd: Path, workspace_sdd: Path) -> bool
 
 
 def fast_forward_workspace_clone_from_primary(
-    workspace_sdd: Path, primary_sdd: Path
+    workspace_sdd: Path, primary_sdd: Path, *, deadline: float | None = None
 ) -> None:
     """Best-effort fast-forward a workspace store clone from the primary store.
 
@@ -284,11 +304,14 @@ def fast_forward_workspace_clone_from_primary(
     from sase.sdd._git_contention import run_sdd_git_write
 
     try:
+        timeout = _deadline_timeout(network_git_timeout(), deadline)
+        if timeout <= 0.0:
+            return
         result = run_sdd_git_write(
             ["pull", "--ff-only", str(primary_sdd)],
             cwd=workspace_sdd,
             op="sdd.clone.fast_forward",
-            timeout=network_git_timeout(),
+            timeout=timeout,
             check=False,
             capture_output=True,
             text=True,
@@ -316,3 +339,20 @@ def fast_forward_workspace_clone_from_primary(
             primary_sdd,
             detail or f"git pull exited {result.returncode}",
         )
+
+
+def _deadline_timeout(default: float, deadline: float | None) -> float:
+    if deadline is None:
+        return max(0.0, default)
+    return min(max(0.0, default), max(0.0, deadline - time.monotonic()))
+
+
+def _sleep_before_retry(delay: float, deadline: float | None) -> bool:
+    wait = max(0.0, delay)
+    if deadline is not None:
+        remaining = max(0.0, deadline - time.monotonic())
+        if remaining <= 0.0:
+            return False
+        wait = min(wait, remaining)
+    time.sleep(wait)
+    return deadline is None or time.monotonic() < deadline

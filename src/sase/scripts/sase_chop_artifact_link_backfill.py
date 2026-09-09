@@ -297,7 +297,7 @@ def _run_project(
 
     publication_started = time.monotonic()
     roots, root_diagnostics = machine_document_sidecar_roots(
-        project_key, Path(workspace_dir)
+        project_key, Path(workspace_dir), deadline=chop_deadline
     )
     totals.warnings.extend(f"{project_key}: {item}" for item in root_diagnostics)
     if roots and time.monotonic() < chop_deadline:
@@ -320,7 +320,9 @@ def _run_project(
     elapsed["publication_retry"] = time.monotonic() - publication_started
 
     try:
-        store = resolve_machine_artifact_link_store(project_key, Path(workspace_dir))
+        store = resolve_machine_artifact_link_store(
+            project_key, Path(workspace_dir), deadline=chop_deadline
+        )
     except Exception as exc:  # noqa: BLE001 - one broken project cannot stall the rest.
         totals.failed_projects += 1
         totals.warnings.append(f"{project_key}: could not resolve link store: {exc}")

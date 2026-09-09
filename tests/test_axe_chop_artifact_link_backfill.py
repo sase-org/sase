@@ -175,7 +175,7 @@ def test_runs_every_job_and_aggregates_totals(
     monkeypatch.setattr(
         backfill_chop,
         "resolve_machine_artifact_link_store",
-        lambda project_key, primary_checkout: object(),
+        lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -219,14 +219,15 @@ def test_publication_retry_runs_before_store_resolution_and_reports_counts(
     project = _project(tmp_path, name="widget")
     order: list[str] = []
     monkeypatch.setattr(backfill_chop, "_enabled_project_records", lambda: [project])
-    monkeypatch.setattr(
-        backfill_chop,
-        "machine_document_sidecar_roots",
-        lambda project_key, primary_checkout: (
-            order.append(f"roots:{project_key}") or (object(),),
-            ("plans: diagnostic",),
-        ),
-    )
+
+    def _roots(
+        project_key: str, primary_checkout: Path, **kwargs: object
+    ) -> tuple[tuple[object, ...], tuple[str, ...]]:
+        order.append(f"roots:{project_key}")
+        assert kwargs["deadline"] is not None
+        return (object(),), ("plans: diagnostic",)
+
+    monkeypatch.setattr(backfill_chop, "machine_document_sidecar_roots", _roots)
 
     def _sweep(roots: object, **kwargs: object) -> SimpleNamespace:
         order.append("retry")
@@ -243,8 +244,9 @@ def test_publication_retry_runs_before_store_resolution_and_reports_counts(
             details=(),
         )
 
-    def _resolve(project_key: str, primary_checkout: Path) -> object:
+    def _resolve(project_key: str, primary_checkout: Path, **kwargs: object) -> object:
         order.append("resolve")
+        assert kwargs["deadline"] is not None
         return object()
 
     monkeypatch.setattr(
@@ -319,7 +321,8 @@ def test_resolves_the_machine_store_with_the_project_key_and_primary_checkout(
     monkeypatch.setattr(backfill_chop, "_enabled_project_records", lambda: [project])
     calls: list[tuple[str, Path]] = []
 
-    def _resolve(project_key: str, primary_checkout: Path) -> object:
+    def _resolve(project_key: str, primary_checkout: Path, **kwargs: object) -> object:
+        assert kwargs["deadline"] is not None
         calls.append((project_key, primary_checkout))
         return object()
 
@@ -354,7 +357,7 @@ def test_a_broken_project_is_recorded_and_does_not_stop_the_sweep(
         lambda: [_project(tmp_path, name="broken"), _project(tmp_path, name="ok")],
     )
 
-    def _resolve(project_key: str, primary_checkout: Path) -> object:
+    def _resolve(project_key: str, primary_checkout: Path, **_kwargs: object) -> object:
         if Path(primary_checkout).name == "broken":
             raise RuntimeError("no project here")
         return object()
@@ -391,7 +394,7 @@ def test_checkpoint_survives_across_ticks(
     monkeypatch.setattr(
         backfill_chop,
         "resolve_machine_artifact_link_store",
-        lambda project_key, primary_checkout: object(),
+        lambda project_key, primary_checkout, **_kwargs: object(),
     )
     seen_already_swept: list[frozenset[str]] = []
 
@@ -433,7 +436,7 @@ def test_later_jobs_defer_after_sweep_budget(
     monkeypatch.setattr(
         backfill_chop,
         "resolve_machine_artifact_link_store",
-        lambda project_key, primary_checkout: object(),
+        lambda project_key, primary_checkout, **_kwargs: object(),
     )
     now = [0.0]
     monkeypatch.setattr(backfill_chop.time, "monotonic", lambda: now[0])
@@ -484,7 +487,7 @@ def test_chop_stops_starting_projects_past_the_chop_budget(
     monkeypatch.setattr(
         backfill_chop,
         "resolve_machine_artifact_link_store",
-        lambda project_key, primary_checkout: object(),
+        lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -530,7 +533,7 @@ def test_per_project_progress_is_logged(
     monkeypatch.setattr(
         backfill_chop,
         "resolve_machine_artifact_link_store",
-        lambda project_key, primary_checkout: object(),
+        lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -567,7 +570,7 @@ def test_chop_passes_budget_through_and_warns_on_deferred_refs(
     monkeypatch.setattr(
         backfill_chop,
         "resolve_machine_artifact_link_store",
-        lambda project_key, primary_checkout: object(),
+        lambda project_key, primary_checkout, **_kwargs: object(),
     )
     monkeypatch.setattr(
         backfill_chop,

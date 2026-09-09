@@ -61,6 +61,7 @@ def ensure_sidecar_sdd_clone(
     reference_repo: Path | None = None,
     strict: bool = False,
     fresh: bool = False,
+    deadline: float | None = None,
 ) -> None:
     """Ensure a split-store sidecar clone exists and tracks its real remote.
 
@@ -77,7 +78,10 @@ def ensure_sidecar_sdd_clone(
             if not matching:
                 if strict:
                     _replace_workspace_sdd_clone(
-                        clone_dir, clone_dir.with_name(".missing-primary"), remote_url
+                        clone_dir,
+                        clone_dir.with_name(".missing-primary"),
+                        remote_url,
+                        deadline=deadline,
                     )
                     return
                 _logger.warning(
@@ -93,14 +97,18 @@ def ensure_sidecar_sdd_clone(
                 raise SddMaterializationError(
                     f"could not normalize SDD sidecar origin at {clone_dir}"
                 )
-            _pull_sdd_clone(clone_dir, strict=strict, fresh=fresh)
+            _pull_sdd_clone(clone_dir, strict=strict, fresh=fresh, deadline=deadline)
             return
 
+        clone_kwargs = {}
+        if deadline is not None:
+            clone_kwargs["deadline"] = deadline
         cloned = _clone_sdd_store(
             remote_url,
             clone_dir,
             reference_repo=reference_repo,
             strict=strict,
+            **clone_kwargs,
         )
         if not cloned and strict:
             raise SddMaterializationError(
@@ -257,16 +265,24 @@ def _replace_workspace_sdd_clone(
     workspace_sdd: Path,
     primary_sdd: Path,
     remote_url: str | None,
+    *,
+    deadline: float | None = None,
 ) -> None:
     """Atomically replace legacy workspace content after primary adoption."""
 
     temp = workspace_sdd.with_name(f".sdd.clone-{uuid.uuid4().hex}")
     backup = workspace_sdd.with_name(f".sdd.recovery-{uuid.uuid4().hex}")
-    cloned = _clone_sdd_store_from_primary(primary_sdd, temp)
+    if deadline is not None:
+        cloned = _clone_sdd_store_from_primary(primary_sdd, temp, deadline=deadline)
+    else:
+        cloned = _clone_sdd_store_from_primary(primary_sdd, temp)
     if cloned and remote_url:
         _set_sdd_origin(temp, remote_url)
     if not cloned and remote_url:
-        cloned = _clone_sdd_store(remote_url, temp)
+        if deadline is not None:
+            cloned = _clone_sdd_store(remote_url, temp, deadline=deadline)
+        else:
+            cloned = _clone_sdd_store(remote_url, temp)
     if not cloned:
         shutil.rmtree(temp, ignore_errors=True)
         raise SddMaterializationError(

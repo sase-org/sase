@@ -372,27 +372,47 @@ def _unpublished_sidecar_error(
         push_bead_work_launch,
     )
 
-    if not _has_tracking_upstream(repo_root):
+    missing_upstream = _tracking_upstream(repo_root) is None
+    if (
+        missing_upstream
+        and publication_context is None
+        and not _has_push_remote(repo_root)
+    ):
         return None
-    if head_is_published(repo_root):
+    if not missing_upstream and head_is_published(repo_root):
         return None
     outcome = None
-    try:
-        outcome = push_bead_work_launch(
-            repo_root,
-            worker_lock_wait=MUTATION_PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
-        )
-    except Exception:
-        pass
-    if head_is_published(repo_root):
+    if not missing_upstream:
+        try:
+            outcome = push_bead_work_launch(
+                repo_root,
+                worker_lock_wait=MUTATION_PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
+            )
+        except Exception:
+            pass
+    if not missing_upstream and head_is_published(repo_root):
         return None
     subject = description or "artifact-link mutation"
-    unpushed = _unpushed_commit_count(repo_root)
+    unpushed = (
+        "unknown (sidecar repository has no tracking upstream)"
+        if missing_upstream
+        else str(_unpushed_commit_count(repo_root))
+    )
     retry_note = _record_publication_retry_note(
         repo_root,
         publication_context=publication_context,
         outcome=outcome,
         enabled=register_retry,
+    )
+    upstream_note = (
+        "\n  publication diagnostic: sidecar repository has no tracking upstream"
+        if missing_upstream
+        else ""
+    )
+    remediation = (
+        f"git -C {repo_root} push -u <remote> HEAD"
+        if missing_upstream
+        else f"git -C {repo_root} push"
     )
     return (
         f"ERROR: {subject} was committed locally but NOT published.\n"
@@ -400,7 +420,8 @@ def _unpublished_sidecar_error(
         f"  sidecar repository: {repo_root}\n"
         "  This mutation is durable on this machine but invisible to other "
         "machines until published.\n"
-        f"  Remediation: git -C {repo_root} push"
+        f"  Remediation: {remediation}"
+        f"{upstream_note}"
         f"{retry_note}"
     )
 
@@ -469,7 +490,7 @@ def _record_publication_retry_note(
     return ""
 
 
-def _has_tracking_upstream(repo_root: Path) -> bool:
+def _tracking_upstream(repo_root: Path) -> str | None:
     result = subprocess.run(
         [
             "git",
@@ -478,6 +499,19 @@ def _has_tracking_upstream(repo_root: Path) -> bool:
             "--symbolic-full-name",
             "@{upstream}",
         ],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _has_push_remote(repo_root: Path) -> bool:
+    result = subprocess.run(
+        ["git", "remote"],
         cwd=repo_root,
         capture_output=True,
         text=True,

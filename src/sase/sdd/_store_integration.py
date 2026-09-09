@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 import logging
+import os
 from pathlib import Path
+import subprocess
 import time
 from typing import TYPE_CHECKING
 
@@ -12,6 +14,7 @@ from sase.sdd._store_types import SddMaterializationError
 
 if TYPE_CHECKING:
     from sase.sdd._repository_recovery_markers import FailedIntegrationCooldown
+    from sase.sdd._repository_types import LockFactory
 
 _logger = logging.getLogger(__name__)
 
@@ -22,7 +25,11 @@ def pull_sdd_clone(
     strict: bool = False,
     fresh: bool = False,
     clock: Callable[[], float] | None = None,
+    deadline: float | None = None,
 ) -> bool:
+    if _deadline_expired(deadline):
+        return False
+
     from sase.sdd._repository_recovery_git import machine_recovery_cooldown_seconds
     from sase.sdd._repository_recovery_markers import (
         admit_failed_integration_cooldown,
@@ -68,10 +75,14 @@ def pull_sdd_clone(
         integrate_machine_managed_sdd_repository,
     )
 
+    git_runner = _git_runner_for_deadline(deadline)
+    lock_factory = _lock_factory_for_deadline(deadline)
     outcome = integrate_machine_managed_sdd_repository(
         workspace_sdd,
         beads_dir=(workspace_sdd / "beads"),
         op_prefix="sdd.clone",
+        git_runner=git_runner,
+        lock_factory=lock_factory,
     )
     if outcome.succeeded:
         clear_failed_integration_marker(workspace_sdd)
@@ -239,3 +250,67 @@ def _append_recovery_error(
             workspace_sdd,
             exc_info=True,
         )
+
+
+def _git_runner_for_deadline(
+    deadline: float | None,
+) -> Callable[..., subprocess.CompletedProcess[str]] | None:
+    if deadline is None:
+        return None
+
+    from sase.sdd._git import network_git_timeout
+    from sase.sdd._git_contention import run_sdd_git_write
+
+    def _run(
+        repo_root: Path,
+        args: list[str],
+        *,
+        op: str,
+        network: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        timeout = _deadline_timeout(
+            deadline,
+            network_git_timeout() if network else None,
+        )
+        if timeout <= 0.0:
+            return subprocess.CompletedProcess(
+                ["git", *args],
+                returncode=124,
+                stdout="",
+                stderr="deadline expired before git operation",
+            )
+        return run_sdd_git_write(
+            args,
+            cwd=repo_root,
+            op=op,
+            timeout=timeout,
+            check=False,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+
+    return _run
+
+
+def _lock_factory_for_deadline(deadline: float | None) -> LockFactory | None:
+    if deadline is None:
+        return None
+    from sase.sdd._git_contention import store_git_write_lock_factory
+
+    return store_git_write_lock_factory(
+        op="sdd.clone.transaction",
+        mutates_worktree=True,
+        timeout=_deadline_timeout(deadline),
+    )
+
+
+def _deadline_expired(deadline: float | None) -> bool:
+    return deadline is not None and time.monotonic() >= deadline
+
+
+def _deadline_timeout(deadline: float | None, cap: float | None = None) -> float:
+    if deadline is None:
+        return 0.0 if cap is None else max(0.0, cap)
+    remaining = max(0.0, deadline - time.monotonic())
+    return remaining if cap is None else min(max(0.0, cap), remaining)
