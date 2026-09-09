@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
 
 from rich.text import Text
+from textual.events import Resize
 from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
@@ -41,10 +42,15 @@ from ._override_pill import (
     format_pill_remaining,
     format_remaining_until,
 )
+from ._provider_usage_indicator import (
+    build_usage_indicator_segment,
+    usage_indicator_presentations,
+    usage_indicator_tooltip_lines,
+)
 
 _ACTIVE_STYLE = PROVIDER_DISABLE_PALETTE.base_style
 _USAGE_PEEK_WORKER_GROUP = "provider-usage-peek"
-_COMPACT_USAGE_WIDTH = 120
+_TOP_BAR_TAB_MIN_WIDTH = 1
 
 
 class ProviderDisablesIndicator(Static):
@@ -52,21 +58,26 @@ class ProviderDisablesIndicator(Static):
 
     def __init__(self, **kwargs: Any) -> None:
         self._usage_items: tuple[CapacityHint, ...] = ()
+        self._usage_providers: tuple[Mapping[str, Any], ...] = ()
         self._usage_open_provider: str | None = None
         self._usage_peek_in_flight = False
         self._usage_peek_loaded = False
         self._usage_peek_token: tuple[int, int] | None = None
         self._pending_usage_token: tuple[int, int] | None = None
+        self._usage_layout_refresh_scheduled = False
         context = self._active_provider_routing_context()
         priority_state = self._priority_availability(context)
         self._sync_usage_items()
+        initial_content = self._build_content(
+            context.provider_disables,
+            priority=context.priority,
+            priority_availability=priority_state,
+            usage_items=self._usage_items,
+            usage_providers=self._usage_providers,
+        )
+        self._content_signature = _text_signature(initial_content)
         super().__init__(
-            self._build_content(
-                context.provider_disables,
-                priority=context.priority,
-                priority_availability=priority_state,
-                usage_items=self._usage_items,
-            ),
+            initial_content,
             **kwargs,
         )
         self.tooltip = self._build_tooltip(
@@ -74,6 +85,7 @@ class ProviderDisablesIndicator(Static):
             priority=context.priority,
             priority_availability=priority_state,
             usage_items=self._usage_items,
+            usage_providers=self._usage_providers,
         )
 
     @property
@@ -86,6 +98,10 @@ class ProviderDisablesIndicator(Static):
         self._apply_content()
         self._schedule_usage_peek_if_needed()
         self.set_interval(30.0, self.refresh)
+
+    def on_resize(self, _event: Resize) -> None:
+        """Re-evaluate usage disclosure when top-bar geometry changes."""
+        self._schedule_layout_reflow()
 
     def refresh(self, *args: Any, **kwargs: Any) -> Any:
         """Rebuild content on a bare refresh, preserving Widget.refresh kwargs."""
@@ -124,6 +140,7 @@ class ProviderDisablesIndicator(Static):
             priority=context.priority,
             priority_availability=self._priority_availability(context),
             usage_items=self._usage_items,
+            usage_providers=self._usage_providers,
             now=now,
         )
 
@@ -132,32 +149,56 @@ class ProviderDisablesIndicator(Static):
         context = self._active_provider_routing_context(now=now)
         priority_state = self._priority_availability(context)
         self._sync_usage_items()
-        width = self._terminal_width()
-        self.update(
-            self._build_content(
-                context.provider_disables,
-                priority=context.priority,
-                priority_availability=priority_state,
-                usage_items=self._usage_items,
-                width=width,
-                now=now,
-            )
+        routing = self._build_routing_content(
+            context.provider_disables,
+            priority=context.priority,
+            priority_availability=priority_state,
+            now=now,
         )
-        self.tooltip = self._build_tooltip(
+        content = self._append_usage_content(
+            routing,
+            self._usage_items,
+            usage_providers=self._usage_providers,
+            usage_budget=self._usage_segment_budget(routing),
+        )
+        tooltip = self._build_tooltip(
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
             usage_items=self._usage_items,
+            usage_providers=self._usage_providers,
             now=now,
         )
+        self._replace_content(content, tooltip)
 
     def _sync_usage_items(self) -> None:
         """Copy the memory-only usage peek into the indicator's display fields."""
         providers, eligible = cached_usage_peek()
         items = indicator_usage_items(providers, eligible)
         item, _count = indicator_usage_attention(providers, eligible)
+        self._usage_providers = providers
         self._usage_items = items
         self._usage_open_provider = None if item is None else item.provider
+
+    def _schedule_layout_reflow(self) -> None:
+        """Coalesce geometry-only usage disclosure updates."""
+        if self._usage_layout_refresh_scheduled or not self.is_mounted:
+            return
+        self._usage_layout_refresh_scheduled = True
+        self.call_after_refresh(self._apply_scheduled_layout_reflow)
+
+    def _apply_scheduled_layout_reflow(self) -> None:
+        self._usage_layout_refresh_scheduled = False
+        self._apply_content()
+
+    def _replace_content(self, content: Text, tooltip: str | None) -> None:
+        """Update the widget only when the selected rendering actually changed."""
+        signature = _text_signature(content)
+        if signature != self._content_signature:
+            self.update(content)
+            self._content_signature = signature
+        if self.tooltip != tooltip:
+            self.tooltip = tooltip
 
     def _schedule_usage_peek_if_needed(self) -> None:
         """Load usage snapshots off the UI thread when the change token drifts."""
@@ -175,13 +216,23 @@ class ProviderDisablesIndicator(Static):
             group=_USAGE_PEEK_WORKER_GROUP,
         )
 
-    def _terminal_width(self) -> int | None:
-        """Return the attached app width, or ``None`` before mount."""
+    def _usage_segment_budget(self, routing: Text) -> int | None:
+        """Return the local terminal-cell budget for the usage segment."""
+        if not self.is_mounted or self.parent is None:
+            return None
+        parent = cast(Any, self.parent)
         try:
-            width = self.app.size.width
+            total = int(parent.region.width)
         except Exception:
             return None
-        return int(width) if width else None
+        if total <= 0:
+            return None
+        used = routing.cell_len + _TOP_BAR_TAB_MIN_WIDTH
+        for child in getattr(parent, "children", ()):
+            if child is self or child.id == "tab-bar":
+                continue
+            used += _rendered_cell_width(child)
+        return max(0, total - used)
 
     @staticmethod
     def _active_provider_routing_context(
@@ -198,10 +249,36 @@ class ProviderDisablesIndicator(Static):
         priority: TemporaryProviderPriority | None = None,
         priority_availability: ProviderAvailability | None = None,
         usage_items: Sequence[CapacityHint] = (),
+        usage_providers: Sequence[Mapping[str, Any]] = (),
         width: int | None = None,
+        usage_budget: int | None = None,
         now: float | None = None,
     ) -> Text:
         """Build the pill for routing state plus quiet usage attention."""
+        routing = ProviderDisablesIndicator._build_routing_content(
+            disables,
+            priority=priority,
+            priority_availability=priority_availability,
+            now=now,
+        )
+        if usage_budget is None and width is not None:
+            usage_budget = max(0, width - routing.cell_len)
+        return ProviderDisablesIndicator._append_usage_content(
+            routing,
+            usage_items,
+            usage_providers=usage_providers,
+            usage_budget=usage_budget,
+        )
+
+    @staticmethod
+    def _build_routing_content(
+        disables: dict[str, TemporaryProviderDisable],
+        *,
+        priority: TemporaryProviderPriority | None = None,
+        priority_availability: ProviderAvailability | None = None,
+        now: float | None = None,
+    ) -> Text:
+        """Build only the routing-state portion of the indicator pill."""
         disable_pill = ProviderDisablesIndicator._build_disable_content(
             disables,
             now=now,
@@ -216,12 +293,7 @@ class ProviderDisablesIndicator(Static):
             now=now,
             disable_count=disable_count,
         )
-        routing = priority_pill or disable_pill
-        return ProviderDisablesIndicator._append_usage_content(
-            routing,
-            usage_items,
-            width=width,
-        )
+        return priority_pill or disable_pill
 
     @staticmethod
     def _active_disable_count(
@@ -312,28 +384,20 @@ class ProviderDisablesIndicator(Static):
         routing: Text,
         usage_items: Sequence[CapacityHint] = (),
         *,
-        width: int | None = None,
+        usage_providers: Sequence[Mapping[str, Any]] = (),
+        usage_budget: int | None = None,
     ) -> Text:
         """Append quiet usage attention without replacing a routing pill."""
         if not usage_items:
             return routing
-        count = len(usage_items)
-        compact = width is not None and width < _COMPACT_USAGE_WIDTH
-        if compact:
-            trailing = f"usage +{count}" if count > 1 else "usage"
-        else:
-            item = usage_items[0]
-            trailing = item.label
-            if item.provider:
-                trailing = f"{item.provider.upper()} {trailing}"
-            if count > 1:
-                trailing = f"{trailing} +{count - 1}"
-        combined = routing.copy() if routing.plain else Text()
-        combined.append(" !", style=PROVIDER_USAGE_PALETTE.base_style)
-        combined.append(
-            f" {trailing} ",
-            style=PROVIDER_USAGE_PALETTE.secondary_style,
+        presentations = usage_indicator_presentations(usage_items, usage_providers)
+        usage = build_usage_indicator_segment(
+            presentations,
+            budget=usage_budget,
+            leading_space=not bool(routing.plain),
         )
+        combined = routing.copy() if routing.plain else Text()
+        combined.append_text(usage)
         return combined
 
     @staticmethod
@@ -343,6 +407,7 @@ class ProviderDisablesIndicator(Static):
         priority: TemporaryProviderPriority | None = None,
         priority_availability: ProviderAvailability | None = None,
         usage_items: Sequence[CapacityHint] = (),
+        usage_providers: Sequence[Mapping[str, Any]] = (),
         now: float | None = None,
     ) -> str | None:
         """Build sorted long-form details for provider routing state."""
@@ -382,10 +447,11 @@ class ProviderDisablesIndicator(Static):
             mode = "soft" if disable.is_soft else "hard"
             lines.append(f"{provider.upper()} - {mode} · {provenance}, {remaining}")
             has_disables = True
-        usage_lines = [
-            (f"{item.provider.upper()} - {item.kind.replace('_', ' ')} · {item.label}")
-            for item in usage_items
-        ]
+        usage_lines = list(
+            usage_indicator_tooltip_lines(
+                usage_indicator_presentations(usage_items, usage_providers)
+            )
+        )
         if not lines and not usage_lines:
             return None
         parts: list[str] = []
@@ -413,7 +479,12 @@ class ProviderDisablesIndicator(Static):
             parts.extend(
                 (
                     "Usage attention:",
+                    "Included subscription allowance readings from provider CLIs.",
                     *usage_lines,
+                    "Notation: wk/mo/5h are windows; all is account-wide; "
+                    "scope? means the provider did not expose exact applicability.",
+                    "+N counts additional attention providers; !N/?N is the total "
+                    "when space is tight.",
                     "Click to open this provider's Providers · Usage view.",
                     "The Usage command is also reachable from the command palette.",
                 )
@@ -483,6 +554,31 @@ class ProviderDisablesIndicator(Static):
         if label == "unavailable":
             return PROVIDER_DISABLE_PALETTE
         return PROVIDER_PRIORITY_PALETTE
+
+
+def _rendered_cell_width(widget: Any) -> int:
+    """Measure a top-bar sibling from its in-memory renderable."""
+    try:
+        renderable = widget.render()
+    except Exception:
+        try:
+            return max(0, int(widget.region.width))
+        except Exception:
+            return 0
+    if isinstance(renderable, Text):
+        return renderable.cell_len
+    plain = getattr(renderable, "plain", None)
+    if isinstance(plain, str):
+        return Text(plain).cell_len
+    return Text(str(renderable)).cell_len
+
+
+def _text_signature(text: Text) -> tuple[str, tuple[tuple[int, int, str], ...]]:
+    """Return a stable equality key for Rich text content and styles."""
+    return (
+        text.plain,
+        tuple((span.start, span.end, str(span.style)) for span in text.spans),
+    )
 
 
 __all__ = ["ProviderDisablesIndicator"]

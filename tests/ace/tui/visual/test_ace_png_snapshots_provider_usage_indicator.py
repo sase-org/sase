@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshot: top-bar indicators plus usage attention at 60 columns."""
+"""ACE TUI PNG snapshot: top-bar indicators plus usage attention."""
 
 from __future__ import annotations
 
@@ -187,7 +187,7 @@ async def test_top_bar_usage_attention_narrow_png_snapshot(
             ProviderDisablesIndicator._build_content(
                 {"claude": _disable("claude")},
                 usage_items=usage_items,
-                width=80,
+                usage_budget=3,
                 now=100.0,
             )
         )
@@ -198,5 +198,5 @@ async def test_top_bar_usage_attention_narrow_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "top_bar_usage_attention_80x24",
-            title="ACE top bar with routing pills and usage attention at 80 columns",
+            title="ACE top bar with crowded usage count disclosure at 80 columns",
         )

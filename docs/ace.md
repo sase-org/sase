@@ -3317,6 +3317,13 @@ collection status, last observation, and per-window remaining percentage, reset,
 state, and source. The layout drops the meter and combines detail columns as the
 terminal narrows.
 
+When an included allowance needs attention, the top bar shows the leading provider in a
+compact form such as `! GROK 14% left · wk/all +2`. `wk`, `mo`, `5h`, and `session` name
+the allowance window; `all` means account-wide, and `scope?` means the provider did not
+expose exact applicability. `+N` counts additional providers needing attention. In very
+tight space ACE may show `!3` or `?3`, where the number is the total attention count;
+hover or open Providers · Usage for the full labels and per-window details.
+
 Press `u` inside the view to submit or join bounded refresh work for eligible providers.
 The modal stays responsive, reattaches to an in-flight refresh when reopened, reloads
 the cache as operations settle, and reports partial failures by provider. `Enter`

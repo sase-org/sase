@@ -409,16 +409,18 @@ def _usage_items() -> tuple[CapacityHint, CapacityHint]:
     )
 
 
-def test_usage_attention_renders_count_beside_disable_at_narrow_width() -> None:
+def test_usage_attention_renders_micro_total_beside_disable_when_budget_is_tiny() -> (
+    None
+):
     text = ProviderDisablesIndicator._build_content(
         {"claude": _disable(expires_at=None)},
         usage_items=_usage_items(),
-        width=80,
+        usage_budget=3,
         now=100.0,
     )
 
     assert "CLAUDE off ∞" in text.plain
-    assert "usage +2" in text.plain
+    assert "!2" in text.plain
 
 
 def test_priority_pill_does_not_suppress_usage_attention() -> None:
@@ -431,7 +433,7 @@ def test_priority_pill_does_not_suppress_usage_attention() -> None:
     )
 
     assert "CODEX ★ priority 1h2m" in text.plain
-    assert "usage" in text.plain
+    assert "GROK" in text.plain
 
 
 def test_usage_tooltip_lists_attention_items() -> None:
