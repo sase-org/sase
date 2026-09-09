@@ -146,10 +146,11 @@ short TTL, so issue the bundle immediately before running init.
 
 ## Enroll From The Controller
 
-From the controller, run discovery and then initialize with the bundle file:
+From the controller, initialize with the bundle file. Canonical init discovers, selects,
+enrolls, deploys, and verifies; `sase machine discover` remains available as an explicit
+inspection command:
 
 ```bash
-sase machine discover -j
 sase machine init -B /path/to/bootstrap.json
 sase machine list -j
 sase machine status TARGET -j
@@ -158,14 +159,19 @@ sase doctor -D -C dispatch
 
 `sase machine init --check` and `sase init --check --json` are offline checks; they do
 not discover peers or talk to gateways. Explicit `sase machine init` performs discovery,
-shows already enrolled machines beside new candidates, writes the machine record and
-credential, deploys the chezmoi-managed overlay when configured, reloads config, and
-runs an authenticated hello before declaring success.
+preserves diagnostics from failed providers beside candidates from working ones, shows
+already enrolled machines beside new candidates, writes the machine record and
+credential, deploys the chezmoi-managed overlay through a tracked apply when configured,
+reloads config, and runs an authenticated hello before declaring success. Direct
+`sase machine add` and `sase machine repair` share that same activation path.
 
 If enrollment partially succeeds after the target consumes the bootstrap, follow the
 command's recovery text. Retry a failed local apply when the credential is already
 stored; issue a fresh target bundle and run `sase machine repair TARGET` when the target
-credential needs to rotate.
+credential needs to rotate. Repair keeps the still-applied credential until replacement
+activation succeeds. A submitted chezmoi apply whose outcome cannot be observed is
+reported in progress by proc identity and is never followed by an untracked second
+apply.
 
 The machine command group is deliberately split between offline inventory, explicit
 network work, and local mutations:
@@ -176,9 +182,9 @@ network work, and local mutations:
 | `sase machine discover`          | Query configured discovery providers explicitly; `-p` is repeatable.                             |
 | `sase machine bootstrap`         | Issue a target-local, single-use bundle; the secret is written only to stdout.                   |
 | `sase machine init`              | Interactively discover, select, enroll, reload config, and require an authenticated hello.       |
-| `sase machine add`               | Enroll a named endpoint or discovered candidate from a protected bootstrap input.                |
+| `sase machine add`               | Enroll a named endpoint or discovered candidate, then share init's deploy/hello activation.      |
 | `sase machine status`            | Run bounded authenticated hello checks for selected aliases, or every alias when none are given. |
-| `sase machine repair`            | Rotate a quarantined or mismatched enrollment with a fresh one-time bundle.                      |
+| `sase machine repair`            | Rotate a quarantined or mismatched enrollment with a fresh one-time bundle and activate it.      |
 | `sase machine rename` / `remove` | Change viewer-local alias state; removal also deletes the local credential reference.            |
 
 `--bootstrap-file` is available on `init`, `add`, and `repair`. The `init` workflow

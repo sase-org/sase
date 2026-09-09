@@ -14,6 +14,7 @@ from typing import Any, TextIO
 from sase.core.time import format_local
 from sase.dispatch.config import load_dispatch_config
 from sase.dispatch.fleet_client import FleetGatewayError
+from sase.dispatch.machine_init import MachineInitService
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.models import (
     BootstrapIssueResult,
@@ -106,12 +107,7 @@ def _handle_add(args: argparse.Namespace, service: MachineService) -> int:
         bundle_text=read_enrollment_bundle(args),
         timeout_seconds=getattr(args, "timeout", None),
     )
-    if getattr(args, "json", False):
-        print(machine_json_document({"result": enrollment_result_row(result)}))
-    else:
-        state = "quarantined" if result.quarantined else "enrolled"
-        print(f"{args.alias}: {state} as {result.machine_selector or 'remote machine'}")
-    return 0 if not result.quarantined else 1
+    return _activate_and_report(args, service, result, success_verb="enrolled")
 
 
 def _handle_discover(args: argparse.Namespace, service: MachineService) -> int:
@@ -208,17 +204,73 @@ def _handle_rename(args: argparse.Namespace, service: MachineService) -> int:
 
 
 def _handle_repair(args: argparse.Namespace, service: MachineService) -> int:
+    existing = load_dispatch_config().machine_by_alias().get(args.alias)
+    previous_ref = existing.credential_ref if existing is not None else ""
     result = service.repair_machine(
         alias=args.alias,
         bundle_text=read_enrollment_bundle(args),
         timeout_seconds=getattr(args, "timeout", None),
     )
+    code = _activate_and_report(args, service, result, success_verb="repaired")
+    if (
+        code == 0
+        and not result.quarantined
+        and previous_ref
+        and previous_ref != result.credential_ref
+    ):
+        service.credential_store.delete(previous_ref)
+    return code
+
+
+def _activate_and_report(
+    args: argparse.Namespace,
+    service: MachineService,
+    result: EnrollmentResult,
+    *,
+    success_verb: str,
+) -> int:
+    activation = MachineInitService(machine_service=service).activate(
+        alias=result.alias,
+        expected=result,
+        timeout_seconds=getattr(args, "timeout", None),
+    )
+    activated = activation.ok and not result.quarantined
     if getattr(args, "json", False):
-        print(machine_json_document({"result": enrollment_result_row(result)}))
+        print(
+            machine_json_document(
+                {
+                    "result": enrollment_result_row(result),
+                    "recovery": (
+                        [activation.recovery_message]
+                        if activation.recovery_message
+                        else []
+                    ),
+                    "errors": list(activation.errors),
+                    "activated": activated,
+                    "chezmoi_proc_id": activation.proc_id or None,
+                    "chezmoi_in_progress": activation.in_progress,
+                }
+            )
+        )
     else:
-        state = "quarantined" if result.quarantined else "repaired"
-        print(f"{args.alias}: {state}")
-    return 0 if not result.quarantined else 1
+        for message in activation.errors:
+            print(f"error: {message}", file=sys.stderr)
+        if activation.recovery_message:
+            print(activation.recovery_message, file=sys.stderr)
+        if result.quarantined:
+            print(
+                f"{result.alias}: quarantined as "
+                f"{result.machine_selector or 'remote machine'}"
+            )
+        elif activation.ok:
+            if success_verb == "repaired":
+                print(f"{result.alias}: repaired")
+            else:
+                print(
+                    f"{result.alias}: {success_verb} as "
+                    f"{result.machine_selector or 'remote machine'}"
+                )
+    return 0 if activated else 1
 
 
 def _handle_status(args: argparse.Namespace, service: MachineService) -> int:

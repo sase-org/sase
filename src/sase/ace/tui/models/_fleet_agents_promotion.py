@@ -5,12 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from sase.core.rust import require_rust_binding
 from sase.dispatch.follow_store import FollowStoreSnapshot
 
 from ._fleet_agents_payload import host_payloads, summary_payloads
-from ._fleet_agents_scalars import locator_id, mapping, optional_str
-
-PromotionIdentity = tuple[str, str, str]
+from ._fleet_agents_scalars import mapping, optional_str
 
 
 def followed_batch_family_promotions(
@@ -25,56 +24,94 @@ def followed_batch_family_promotions(
     ):
         return ()
 
-    family_locators = _family_locators_by_identity(followed_response)
-    if not family_locators:
+    records = [
+        record
+        for record in (_follow_record_wire(item) for item in snapshot.active_records)
+        if record is not None
+    ]
+    observations = _observation_locators(followed_response)
+    if not records or not observations:
         return ()
-
-    promotions: list[dict[str, Any]] = []
-    promoted_sources: set[str] = set()
-    for record in snapshot.active_records:
-        if record.get("created_by") != "explicit":
-            continue
-        source = mapping(record.get("logical_locator"))
-        if not source or _locator_family_id(source):
-            continue
-        source_identity = _promotion_identity(source)
-        if source_identity is None:
-            continue
-        matches = family_locators.get(source_identity)
-        if matches is None or len(matches) != 1:
-            continue
-        target = next(iter(matches.values()))
-        source_id = locator_id(source)
-        if source_id in promoted_sources or source_id == locator_id(target):
-            continue
-        promotions.append(
+    try:
+        result = require_rust_binding("fleet_followed_batch_family_promotions")(
             {
                 "schema_version": 1,
-                "from": dict(source),
-                "to": dict(target),
+                "records": records,
+                "observations": observations,
             }
         )
-        promoted_sources.add(source_id)
-    return tuple(promotions)
+    except ValueError:
+        return ()
+    promotions = result.get("promotions") if isinstance(result, Mapping) else None
+    if not isinstance(promotions, list):
+        return ()
+    return tuple(item for item in promotions if isinstance(item, dict))
 
 
-def _family_locators_by_identity(
-    response: Mapping[str, Any],
-) -> dict[PromotionIdentity, dict[str, dict[str, Any]]]:
-    locators: dict[PromotionIdentity, dict[str, dict[str, Any]]] = {}
+def _observation_locators(response: Mapping[str, Any]) -> list[dict[str, Any]]:
+    locators: list[dict[str, Any]] = []
+    seen: set[str] = set()
     for host in host_payloads(response):
         for summary in summary_payloads(host):
-            locator = mapping(summary.get("logical_locator"))
-            if not locator or not _locator_family_id(locator):
+            locator = _locator_wire(mapping(summary.get("logical_locator")))
+            if locator is None:
                 continue
-            identity = _promotion_identity(locator)
-            if identity is None:
+            key = (
+                locator["project"]["origin"]["installation_id"],
+                locator["project"]["project_id"],
+                locator["agent_id"],
+                locator.get("family_id") or "",
+            )
+            encoded = "|".join(key)
+            if encoded in seen:
                 continue
-            locators.setdefault(identity, {})[locator_id(locator)] = dict(locator)
+            seen.add(encoded)
+            locators.append(locator)
     return locators
 
 
-def _promotion_identity(locator: Mapping[str, Any]) -> PromotionIdentity | None:
+def _follow_record_wire(record: Mapping[str, Any]) -> dict[str, Any] | None:
+    locator = _locator_wire(mapping(record.get("logical_locator")))
+    created_by = optional_str(record.get("created_by"))
+    state = optional_str(record.get("state"))
+    created_at = record.get("created_at_unix")
+    updated_at = record.get("updated_at_unix")
+    if (
+        locator is None
+        or created_by not in {"explicit", "dispatch"}
+        or state not in {"pending", "active"}
+        or not isinstance(created_at, (int, float))
+        or isinstance(created_at, bool)
+        or not isinstance(updated_at, (int, float))
+        or isinstance(updated_at, bool)
+    ):
+        return None
+    try:
+        logical_key = str(require_rust_binding("fleet_logical_locator_key")(locator))
+    except (TypeError, ValueError):
+        return None
+    activated = record.get("activated_at_unix")
+    if isinstance(activated, bool) or (
+        activated is not None and not isinstance(activated, (int, float))
+    ):
+        activated = None
+    operation_key = record.get("operation_key")
+    if operation_key is not None and not isinstance(operation_key, Mapping):
+        operation_key = None
+    return {
+        "schema_version": 1,
+        "logical_locator": locator,
+        "logical_key": logical_key,
+        "created_by": created_by,
+        "state": state,
+        "created_at_unix": float(created_at),
+        "updated_at_unix": float(updated_at),
+        "activated_at_unix": None if activated is None else float(activated),
+        "operation_key": None if operation_key is None else dict(operation_key),
+    }
+
+
+def _locator_wire(locator: Mapping[str, Any]) -> dict[str, Any] | None:
     project = mapping(locator.get("project"))
     origin = mapping(project.get("origin"))
     installation_id = optional_str(
@@ -86,8 +123,17 @@ def _promotion_identity(locator: Mapping[str, Any]) -> PromotionIdentity | None:
     agent_id = optional_str(locator.get("agent_id"))
     if installation_id is None or project_id is None or agent_id is None:
         return None
-    return (installation_id, project_id, agent_id)
-
-
-def _locator_family_id(locator: Mapping[str, Any]) -> str | None:
-    return optional_str(locator.get("family_id"))
+    family_id = optional_str(locator.get("family_id"))
+    return {
+        "schema_version": 1,
+        "project": {
+            "schema_version": 1,
+            "origin": {
+                "schema_version": 1,
+                "installation_id": installation_id,
+            },
+            "project_id": project_id,
+        },
+        "agent_id": agent_id,
+        "family_id": family_id,
+    }

@@ -1192,7 +1192,7 @@ when the Agents tab and selected remote row support that action.
 | `toggle_agent_follow`         | `unbound` | Follow or unfollow the selected remote row.                  |
 | `view_agent_in_focus`         | `unbound` | Switch a followed Fleet row into Focus.                      |
 | `connect_agent_machine`       | `unbound` | Show the selected row's machine alias and connection health. |
-| `setup_agent_machine`         | `unbound` | Show enrollment guidance when no machine is configured.      |
+| `setup_agent_machine`         | `unbound` | Show canonical `sase machine init` enrollment guidance.      |
 | `retry_remote_agent`          | `unbound` | Retry the selected row on its owning host.                   |
 | `view_remote_agent_content`   | `unbound` | Fetch bounded remote chat, output, or diff content.          |
 | `answer_remote_attention`     | `unbound` | Answer a pending remote question or approve a pending gate.  |
@@ -2267,8 +2267,8 @@ workspace-local and do not create project registry records.
 
 Configures remote-machine discovery, enrollment records, gateway deadlines, and the
 local federation worker. Ordinary config loading is pure: it reads and validates this
-section but never discovers peers or contacts a gateway. Use `sase machine discover`,
-`init`, or `status` for explicit network work. See the
+section but never discovers peers or contacts a gateway. Use `sase machine init`,
+`discover`, or `status` for explicit network work. See the
 [Remote Dispatch Runbook](remote_dispatch.md) for the supported setup flow.
 
 ```yaml
@@ -4809,9 +4809,9 @@ accept a bundle on piped stdin when `--bootstrap-file` is omitted.
 | `sase machine discover`                   | `-j/--json`, `-p/--provider`, `-t/--timeout`        | Query configured or repeatably selected discovery providers.                                |
 | `sase machine bootstrap`                  | `-e/--expires`, `-j/--json`, `-s/--scope`           | On the target, issue a scoped single-use bundle to stdout.                                  |
 | `sase machine init`                       | `-B/--bootstrap-file`, `-c/--check`, `-j`, `-t`     | Interactively discover, enroll, reload, and verify; `--check` is offline.                   |
-| `sase machine add ALIAS [ENDPOINT]`       | `-B`, `-c/--candidate`, `-j`, `-p/--provider`, `-t` | Enroll a named HTTPS endpoint or discovered candidate.                                      |
+| `sase machine add ALIAS [ENDPOINT]`       | `-B`, `-c/--candidate`, `-j`, `-p/--provider`, `-t` | Enroll a named HTTPS endpoint or discovered candidate, then activate.                       |
 | `sase machine status [ALIAS ...]`         | `-j/--json`, `-t/--timeout`                         | Run authenticated hello checks; no aliases means all configured aliases.                    |
-| `sase machine repair ALIAS`               | `-B/--bootstrap-file`, `-j/--json`, `-t/--timeout`  | Rotate a quarantined or mismatched enrollment with a fresh bundle.                          |
+| `sase machine repair ALIAS`               | `-B/--bootstrap-file`, `-j/--json`, `-t/--timeout`  | Rotate a quarantined or mismatched enrollment and activate the replacement.                 |
 | `sase machine rename OLD NEW`             | `-j/--json`                                         | Rename the viewer-local alias without changing gateway identity or credentials.             |
 | `sase machine remove ALIAS`               | `-j/--json`, `-y/--yes`                             | Remove local config and its credential reference; interactive stdin prompts unless `--yes`. |
 | `sase machine agent {stop,retry,fork}`    | action-specific arguments, `-j`, `-t`               | Submit a journaled remote lifecycle mutation; ACE supplies revision-safe durable sidecars.  |

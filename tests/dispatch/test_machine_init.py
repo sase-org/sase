@@ -16,8 +16,11 @@ from sase.dispatch.credentials import LocalCredentialStore
 from sase.dispatch.machine_init import MachineInitService
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.models import (
+    CredentialRecord,
     DispatchConfig,
     DiscoveryCandidate,
+    DiscoveryResult,
+    MachineDiagnostic,
     MachineRecord,
     ProviderSettings,
 )
@@ -162,6 +165,7 @@ def _service(
         credential_store=LocalCredentialStore(credential_path),
         gateway_client=fake,  # type: ignore[arg-type]
         discover_fn=lambda **_kwargs: candidates,
+        discover_result_fn=lambda **_kwargs: DiscoveryResult(candidates=candidates),
     )
     service = MachineInitService(
         machine_service=machine,
@@ -608,3 +612,255 @@ def test_read_enrollment_bundle_file_stdin_and_getpass(tmp_path: Path) -> None:
     )
     assert hidden.startswith("hidden:")
     assert "bundle" in hidden.lower()
+
+
+def test_apply_preserves_discovery_diagnostics_and_fails_empty_tooling(
+    isolated_dispatch: tuple[Path, Path],
+) -> None:
+    diagnostic = MachineDiagnostic(
+        code="tailnet_status_unavailable",
+        severity="error",
+        message="tailscale CLI is not installed or not on PATH",
+    )
+    machine = MachineService(
+        credential_store=LocalCredentialStore(isolated_dispatch[1]),
+        gateway_client=_FakeGateway(_pin()),  # type: ignore[arg-type]
+        discover_result_fn=lambda **_kwargs: DiscoveryResult(diagnostics=(diagnostic,)),
+    )
+    service = MachineInitService(
+        machine_service=machine,
+        load_config_fn=lambda: _config(),
+        use_chezmoi_fn=lambda: False,
+    )
+    result = service.apply(
+        input_func=lambda _prompt: "1",
+        getpass_func=lambda _prompt: _bundle(_pin()),
+        stdin=TtyStringIO(),
+    )
+    assert result.exit_code == 1
+    assert result.nothing_to_enroll is False
+    assert result.diagnostics == (diagnostic,)
+    assert "tailscale CLI is not installed" in result.errors[0]
+
+
+def test_chezmoi_submit_failure_does_not_untracked_apply(
+    isolated_dispatch: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin = _pin()
+    applied = isolated_dispatch[0] / "sase.yml"
+    source = tmp_path / "chezmoi-source.yml"
+
+    def resolve(file: str, *, use_chezmoi: bool) -> Path:
+        return source if use_chezmoi else Path(file)
+
+    monkeypatch.setattr("sase.dispatch.machine_init.resolve_write_path", resolve)
+
+    def boom_submit(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("supervisor down")
+
+    monkeypatch.setattr("sase.procs.submit_proc", boom_submit)
+    untracked = {"called": False}
+
+    def untracked_apply(_target: Path | str) -> subprocess.CompletedProcess[str]:
+        untracked["called"] = True
+        return subprocess.CompletedProcess(["chezmoi", "apply"], 0, "", "")
+
+    monkeypatch.setattr("sase.config.targets.apply_chezmoi", untracked_apply)
+    service, _fake = _service(
+        isolated_dispatch,
+        pin=pin,
+        candidates=(_candidate(pin=pin),),
+        use_chezmoi=True,
+        registry_target=applied,
+    )
+    answers = iter(["1", "fleet"])
+    result = service.apply(
+        input_func=lambda _prompt: next(answers),
+        getpass_func=lambda _prompt: _bundle(pin),
+        stdin=TtyStringIO(),
+    )
+    assert result.exit_code == 1
+    assert untracked["called"] is False
+    assert "could not submit chezmoi apply" in result.errors[0]
+    assert "sase machine repair fleet" in result.recovery_messages[0]
+
+
+def test_chezmoi_wait_failure_retains_proc_and_does_not_reapply(
+    isolated_dispatch: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin = _pin()
+    applied = isolated_dispatch[0] / "sase.yml"
+    source = tmp_path / "chezmoi-source.yml"
+
+    def resolve(file: str, *, use_chezmoi: bool) -> Path:
+        return source if use_chezmoi else Path(file)
+
+    monkeypatch.setattr("sase.dispatch.machine_init.resolve_write_path", resolve)
+
+    class _Proc:
+        proc_id = "proc-chezmoi-1"
+
+    submits = {"count": 0}
+
+    def submit(*_args: object, **_kwargs: object) -> _Proc:
+        submits["count"] += 1
+        return _Proc()
+
+    def boom_wait(proc_id: str, **_kwargs: object) -> object:
+        raise TimeoutError(f"timed out waiting for proc {proc_id}")
+
+    monkeypatch.setattr("sase.procs.submit_proc", submit)
+    monkeypatch.setattr("sase.procs.wait_for_proc", boom_wait)
+    untracked = {"called": False}
+
+    def untracked_apply(_target: Path | str) -> subprocess.CompletedProcess[str]:
+        untracked["called"] = True
+        return subprocess.CompletedProcess(["chezmoi", "apply"], 0, "", "")
+
+    monkeypatch.setattr("sase.config.targets.apply_chezmoi", untracked_apply)
+    service, _fake = _service(
+        isolated_dispatch,
+        pin=pin,
+        candidates=(_candidate(pin=pin),),
+        use_chezmoi=True,
+        registry_target=applied,
+    )
+    answers = iter(["1", "fleet"])
+    result = service.apply(
+        input_func=lambda _prompt: next(answers),
+        getpass_func=lambda _prompt: _bundle(pin),
+        stdin=TtyStringIO(),
+    )
+    assert result.exit_code == 1
+    assert submits["count"] == 1
+    assert untracked["called"] is False
+    assert result.chezmoi_in_progress is True
+    assert result.chezmoi_proc_id == "proc-chezmoi-1"
+    assert "proc-chezmoi-1" in result.errors[0]
+
+
+def test_apply_keeps_working_candidates_beside_discovery_diagnostics(
+    isolated_dispatch: tuple[Path, Path],
+) -> None:
+    pin = _pin()
+    diagnostic = MachineDiagnostic(
+        code="dispatch_provider_not_installed",
+        severity="error",
+        message="dispatch provider plugin@example is selected but is not installed",
+    )
+    candidate = _candidate(pin=pin)
+    machine = MachineService(
+        credential_store=LocalCredentialStore(isolated_dispatch[1]),
+        gateway_client=_FakeGateway(pin),  # type: ignore[arg-type]
+        discover_result_fn=lambda **_kwargs: DiscoveryResult(
+            candidates=(candidate,),
+            diagnostics=(diagnostic,),
+        ),
+    )
+    service = MachineInitService(
+        machine_service=machine,
+        use_chezmoi_fn=lambda: False,
+    )
+    answers = iter(["1", "fleet"])
+    result = service.apply(
+        input_func=lambda _prompt: next(answers),
+        getpass_func=lambda _prompt: _bundle(pin),
+        stdin=TtyStringIO(),
+    )
+    assert result.exit_code == 0
+    assert [item.alias for item in result.enrollments] == ["fleet"]
+    assert result.diagnostics == (diagnostic,)
+
+
+def test_handle_add_activates_authenticated_hello(
+    isolated_dispatch: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main.machine_handler import _handle_add
+
+    monkeypatch.setattr(config_core, "get_use_chezmoi", lambda: False)
+    pin = _pin()
+    service, fake = _service(isolated_dispatch, pin=pin)
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(_bundle(pin), encoding="utf-8")
+    args = argparse.Namespace(
+        alias="fleet",
+        endpoint="https://fleet.example.test",
+        provider="builtin@https",
+        candidate=None,
+        json=True,
+        timeout=None,
+        bootstrap_file=str(bundle_path),
+    )
+    code = _handle_add(args, service.machine_service)
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    assert fake.enroll_calls == 1
+    assert payload["activated"] is True
+    assert payload["result"]["alias"] == "fleet"
+    assert payload["errors"] == []
+
+
+def test_handle_repair_retires_old_credential_only_after_activation(
+    isolated_dispatch: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.main.machine_handler import _handle_repair
+
+    monkeypatch.setattr(config_core, "get_use_chezmoi", lambda: False)
+    old_pin = _pin("a")
+    new_pin = _pin("b")
+    config_dir, credential_path = isolated_dispatch
+    (config_dir / "sase.yml").write_text(
+        "\n".join(
+            [
+                "dispatch:",
+                "  machines:",
+                "    apollo:",
+                "      provider: builtin@https",
+                "      endpoint: https://fleet.example.test",
+                "      credential_ref: fleet:apollo",
+                f"      installation_pin: {old_pin}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    config_core.clear_config_cache()
+    store = LocalCredentialStore(credential_path)
+    store.put(
+        CredentialRecord(
+            ref="fleet:apollo",
+            token="old-token",
+            token_type="bearer",
+            provider_ref="builtin@https",
+            endpoint="https://fleet.example.test",
+            installation_id=old_pin,
+        )
+    )
+    fake = _FakeGateway(new_pin)
+    service = MachineService(
+        credential_store=store,
+        gateway_client=fake,  # type: ignore[arg-type]
+    )
+    bundle_path = tmp_path / "bundle.json"
+    bundle_path.write_text(_bundle(new_pin), encoding="utf-8")
+    args = argparse.Namespace(
+        alias="apollo",
+        json=False,
+        timeout=None,
+        bootstrap_file=str(bundle_path),
+    )
+    code = _handle_repair(args, service)
+    assert code == 0
+    assert store.get("fleet:apollo") is None
+    assert any(
+        str(row.get("ref", "")).startswith("fleet:apollo:") for row in store.metadata()
+    )

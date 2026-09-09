@@ -123,7 +123,23 @@ def _apply_json_payload(result: MachineInitApplyResult) -> dict[str, object]:
         "repair": [_reconciled_row(item) for item in result.repair],
         "recovery": list(result.recovery_messages),
         "errors": list(result.errors),
+        "diagnostics": [_diagnostic_row(item) for item in result.diagnostics],
         "cancelled": result.cancelled,
+        "nothing_to_enroll": result.nothing_to_enroll,
+        "chezmoi_proc_id": result.chezmoi_proc_id or None,
+        "chezmoi_in_progress": result.chezmoi_in_progress,
+    }
+
+
+def _diagnostic_row(item: object) -> dict[str, object]:
+    from sase.dispatch.models import MachineDiagnostic
+
+    assert isinstance(item, MachineDiagnostic)
+    return {
+        "code": item.code,
+        "severity": item.severity,
+        "message": item.message,
+        "alias": item.alias,
     }
 
 

@@ -78,6 +78,8 @@ def test_machine_add_help_has_no_secret_cli_value() -> None:
     assert "ENDPOINT" in add_help
     assert_metavar_option_documented(add_help, "-B", "--bootstrap-file", "PATH")
     assert "no secret value is accepted as a command-line option" in add_help
+    assert "sase machine init" in add_help
+    assert "authenticated hello" in add_help
     assert "--bootstrap-secret" not in add_help
 
 

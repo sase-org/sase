@@ -56,28 +56,22 @@ def _fixture_status(name: str) -> tailnet_module._BoundedCommandResult:
 def test_tailnet_discovery_parses_status_and_probes_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fake_probe(
+    def fake_collect(
         endpoint: str,
         *,
         timeout_seconds: float,
         max_response_bytes: int,
-        alias: str,
-    ) -> tailnet_module._HealthProbeResult:
+    ) -> tailnet_module._HealthObservation:
         del timeout_seconds, max_response_bytes
         if "apollo" in endpoint:
-            return tailnet_module._HealthProbeResult(
-                compatibility="compatible",
-                reason="fleet protocol v1 advertised",
+            return tailnet_module._HealthObservation(
+                endpoint=endpoint,
+                payload={"status": "ok", "fleet": {"supported_protocol_versions": [1]}},
             )
-        return tailnet_module._HealthProbeResult(
-            compatibility="unknown",
-            reason="health probe timed out",
-            diagnostic=tailnet_module.MachineDiagnostic(
-                code="tailnet_probe_timeout",
-                severity="warning",
-                alias=alias,
-                message=f"{alias} health probe failed: health probe timed out",
-            ),
+        return tailnet_module._HealthObservation(
+            endpoint=endpoint,
+            error_code="tailnet_probe_timeout",
+            error_reason="health probe timed out",
         )
 
     monkeypatch.setattr(
@@ -85,7 +79,9 @@ def test_tailnet_discovery_parses_status_and_probes_candidates(
         "_run_tailscale_status",
         lambda config, timeout: _fixture_status("tailscale_status_basic.json"),
     )
-    monkeypatch.setattr(tailnet_module, "_probe_tailnet_health", fake_probe)
+    monkeypatch.setattr(
+        tailnet_module, "_collect_tailnet_health_observation", fake_collect
+    )
 
     result = discover_dispatch_result(
         config=_tailnet_config(),
@@ -118,10 +114,10 @@ def test_tailnet_discovery_defensively_handles_missing_and_extra_fields(
     )
     monkeypatch.setattr(
         tailnet_module,
-        "_probe_tailnet_health",
-        lambda endpoint, **kwargs: tailnet_module._HealthProbeResult(
-            compatibility="compatible",
-            reason="fleet protocol v1 advertised",
+        "_collect_tailnet_health_observation",
+        lambda endpoint, **kwargs: tailnet_module._HealthObservation(
+            endpoint=endpoint,
+            payload={"status": "ok", "fleet": {"supported_protocol_versions": [1]}},
         ),
     )
 
@@ -218,6 +214,10 @@ def test_tailnet_health_classifies_fleet_advertisement() -> None:
         {"hello": "world"},
         alias="web-server",
     )
+    unrelated_ok = tailnet_module._classify_tailnet_health_payload(
+        {"status": "ok", "service": "unrelated"},
+        alias="web",
+    )
 
     assert compatible.compatibility == "compatible"
     assert unknown.compatibility == "unknown"
@@ -229,6 +229,9 @@ def test_tailnet_health_classifies_fleet_advertisement() -> None:
     assert unrelated.compatibility == "incompatible"
     assert unrelated.diagnostic is not None
     assert unrelated.diagnostic.code == "tailnet_probe_unrelated_service"
+    assert unrelated_ok.compatibility == "incompatible"
+    assert unrelated_ok.diagnostic is not None
+    assert unrelated_ok.diagnostic.code == "tailnet_probe_unrelated_service"
 
 
 def test_tailnet_probe_reports_unrelated_non_json_service(
@@ -248,8 +251,7 @@ def test_tailnet_probe_reports_unrelated_non_json_service(
             return b"<html>not json</html>"
 
     monkeypatch.setattr(
-        tailnet_module.urllib.request,
-        "urlopen",
+        "sase.dispatch._tailnet_health.urllib.request.urlopen",
         lambda request, timeout: _Response(),
     )
 

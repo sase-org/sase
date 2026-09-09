@@ -101,6 +101,24 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
     )
 
 
+def test_validate_sase_core_rs_requires_machine_setup_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "machine_setup_wire_schema_version",
+        "classify_tailnet_health",
+        "classify_tailnet_discovery",
+        "reconcile_machine_enrollments",
+        "fleet_followed_batch_family_promotions",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    assert validator._validate_bindings(module_with_required_bindings(validator))
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_pending_commit_checkpoint_bindings() -> None:
     validator = load_validate_sase_core_rs()
     bindings = {
@@ -170,6 +188,7 @@ def test_validate_sase_core_rs_requires_fleet_contract_bindings() -> None:
         "fleet_count_logical_agents",
         "fleet_follow_record_key",
         "fleet_reconcile_follow_records",
+        "fleet_followed_batch_family_promotions",
         "fleet_count_focus_and_fleet",
         "fleet_classify_cursor_replay",
         "fleet_operation_payload_fingerprint",
@@ -179,6 +198,10 @@ def test_validate_sase_core_rs_requires_fleet_contract_bindings() -> None:
         "fleet_evaluate_mutation_precondition",
         "fleet_partition_bulk_targets",
         "fleet_validate_connection_plan",
+        "machine_setup_wire_schema_version",
+        "classify_tailnet_health",
+        "classify_tailnet_discovery",
+        "reconcile_machine_enrollments",
         "federation_worker_main",
         "fleet_classify_runtime_duration",
         "fleet_classify_cache_freshness",

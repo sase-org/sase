@@ -30,9 +30,11 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         "add",
         help="Enroll a remote machine alias",
         description=(
-            "Enroll ALIAS against ENDPOINT using a pasted enrollment bundle. "
-            "The bundle is read from --bootstrap-file or an interactive prompt; "
-            "no secret value is accepted as a command-line option."
+            "Enroll ALIAS against ENDPOINT using a pasted enrollment bundle, then "
+            "deploy, reload, and require an authenticated hello. Canonical "
+            "`sase machine init` is the guided path; this command is the direct "
+            "add. The bundle is read from --bootstrap-file or an interactive "
+            "prompt; no secret value is accepted as a command-line option."
         ),
     )
     add_parser.add_argument("alias", metavar="ALIAS", help="Viewer-local alias")
@@ -419,8 +421,9 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         "repair",
         help="Repair a quarantined or mismatched enrollment",
         description=(
-            "Re-enroll ALIAS using a fresh one-time bundle and rotate its local "
-            "credential reference."
+            "Re-enroll ALIAS using a fresh one-time bundle, deploy the updated "
+            "record, and require an authenticated hello before retiring the "
+            "still-applied credential."
         ),
     )
     repair_parser.add_argument("alias", metavar="ALIAS", help="Alias to repair")

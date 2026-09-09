@@ -298,3 +298,59 @@ def test_add_machine_rejects_disabled_provider(
             provider_ref="builtin@tailnet",
             bundle_text=_bundle(pin),
         )
+
+
+def test_repair_machine_keeps_previous_credential(
+    isolated_dispatch: tuple[Path, Path],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.config import core as config_core
+
+    config_dir, credential_path = isolated_dispatch
+    old_pin = _pin("a")
+    new_pin = _pin("b")
+    (config_dir / "sase.yml").write_text(
+        "\n".join(
+            [
+                "dispatch:",
+                "  machines:",
+                "    alpha:",
+                "      provider: builtin@https",
+                "      endpoint: https://fleet.example.test",
+                "      credential_ref: fleet:alpha",
+                f"      installation_pin: {old_pin}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    config_core.clear_config_cache()
+    store = LocalCredentialStore(credential_path)
+    store.put(
+        CredentialRecord(
+            ref="fleet:alpha",
+            token="old-token",
+            token_type="bearer",
+            provider_ref="builtin@https",
+            endpoint="https://fleet.example.test",
+            installation_id=old_pin,
+        )
+    )
+    monkeypatch.setattr(
+        "sase.dispatch.machine_service.validate_connection_plan",
+        lambda record, **kwargs: (),
+    )
+    fake = _FakeGateway(new_pin)
+    result = MachineService(
+        credential_store=store,
+        gateway_client=fake,  # type: ignore[arg-type]
+    ).repair_machine(
+        alias="alpha",
+        bundle_text=_bundle(new_pin),
+    )
+
+    assert result.quarantined is False
+    assert store.get("fleet:alpha") is not None
+    assert store.get("fleet:alpha").token == "old-token"
+    assert result.credential_ref != "fleet:alpha"
+    assert store.get(result.credential_ref) is not None

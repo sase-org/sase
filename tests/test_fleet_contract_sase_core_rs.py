@@ -36,6 +36,7 @@ FLEET_BINDINGS = {
     "fleet_count_logical_agents",
     "fleet_follow_record_key",
     "fleet_reconcile_follow_records",
+    "fleet_followed_batch_family_promotions",
     "fleet_count_focus_and_fleet",
     "fleet_classify_cursor_replay",
     "fleet_operation_payload_fingerprint",

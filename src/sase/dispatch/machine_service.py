@@ -291,8 +291,6 @@ class MachineService:
         except Exception:
             self.credential_store.delete(credential.ref)
             raise
-        if existing.credential_ref != credential.ref:
-            self.credential_store.delete(existing.credential_ref)
         return replace(result, record=repaired)
 
     def status(

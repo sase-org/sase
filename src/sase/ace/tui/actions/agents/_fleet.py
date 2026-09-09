@@ -148,16 +148,16 @@ class AgentFleetMixin:
         """Open enrollment guidance while no remote machine is configured."""
         if self._fleet_mode_available():
             self.notify(  # type: ignore[attr-defined]
-                "Remote machines are already enrolled; run 'sase machine list' "
-                "or 'sase machine status' from a shell for details"
+                "Remote machines are already enrolled; run 'sase machine init' "
+                "to rescan, or 'sase machine list' / 'sase machine status' "
+                "from a shell for details"
             )
             return
         self.notify(  # type: ignore[attr-defined]
-            "No remote machines are enrolled. From a shell, run "
-            "'sase machine discover' to list candidates, then "
-            "'sase machine add <alias> <https-endpoint>' to enroll one "
-            "(see 'sase machine add -h'). The Focus/Fleet strip appears "
-            "once a machine is enrolled.",
+            "No remote machines are enrolled. On the target, run "
+            "'sase machine bootstrap --json' into a protected file. On this "
+            "controller, run 'sase machine init -B <file>' to discover, enroll, "
+            "and verify. The Focus/Fleet strip appears once a machine is enrolled.",
             timeout=12,
         )
 

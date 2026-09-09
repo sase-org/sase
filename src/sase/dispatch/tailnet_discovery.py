@@ -6,7 +6,8 @@ from collections.abc import Mapping
 import json
 import time
 from typing import Any
-import urllib.request
+
+from sase.core.machine_setup_facade import classify_tailnet_discovery
 
 from ._tailnet_common import (
     _TAILNET_DEFAULT_PROBE_TIMEOUT_SECONDS,
@@ -18,17 +19,12 @@ from ._tailnet_common import (
     safe_text,
 )
 from ._tailnet_health import (
+    HealthObservation,
     HealthProbeResult,
     classify_tailnet_health_payload,
+    collect_tailnet_health_observation,
+    diagnostic_from_wire,
     probe_tailnet_health,
-)
-from ._tailnet_peers import (
-    endpoint_overrides,
-    is_self_peer,
-    tailnet_candidate_detail,
-    tailnet_peer_endpoint,
-    tailnet_peer_label,
-    tailnet_peer_os,
 )
 from ._tailnet_status import (
     BoundedCommandResult,
@@ -40,21 +36,17 @@ from .models import DiscoveryCandidate, DiscoveryResult, MachineDiagnostic
 
 # Preserve this module's historical private test surface after splitting helpers out.
 _BoundedCommandResult = BoundedCommandResult
+_HealthObservation = HealthObservation
 _HealthProbeResult = HealthProbeResult
 _classify_tailnet_health_payload = classify_tailnet_health_payload
+_collect_tailnet_health_observation = collect_tailnet_health_observation
 _config_positive_float = config_positive_float
 _config_positive_int = config_positive_int
-_endpoint_overrides = endpoint_overrides
-_is_self_peer = is_self_peer
 _positive_timeout = positive_timeout
 _probe_tailnet_health = probe_tailnet_health
 _run_command_bounded = run_command_bounded
 _run_tailscale_status = run_tailscale_status
 _safe_text = safe_text
-_tailnet_candidate_detail = tailnet_candidate_detail
-_tailnet_peer_endpoint = tailnet_peer_endpoint
-_tailnet_peer_label = tailnet_peer_label
-_tailnet_peer_os = tailnet_peer_os
 _tailscale_status_argv = tailscale_status_argv
 
 
@@ -104,47 +96,7 @@ def discover_tailnet(
                 ),
             )
         )
-    if not isinstance(payload, Mapping):
-        return DiscoveryResult(
-            diagnostics=(
-                MachineDiagnostic(
-                    code="tailnet_status_malformed",
-                    severity="error",
-                    message="tailscale status --json returned a non-object payload",
-                ),
-            )
-        )
-    return _tailnet_result_from_status(
-        payload,
-        config=config,
-        deadline=deadline,
-    )
 
-
-def _tailnet_result_from_status(
-    payload: Mapping[str, Any],
-    *,
-    config: Mapping[str, Any],
-    deadline: float,
-) -> DiscoveryResult:
-    raw_peers = payload.get("Peer", {})
-    if raw_peers is None:
-        raw_peers = {}
-    if not isinstance(raw_peers, Mapping):
-        return DiscoveryResult(
-            diagnostics=(
-                MachineDiagnostic(
-                    code="tailnet_status_peer_invalid",
-                    severity="error",
-                    message="tailscale status Peer payload must be a mapping",
-                ),
-            )
-        )
-
-    self_peer = payload.get("Self")
-    self_mapping = self_peer if isinstance(self_peer, Mapping) else {}
-    candidates: list[DiscoveryCandidate] = []
-    diagnostics: list[MachineDiagnostic] = []
     overrides = _endpoint_overrides(config)
     probe_timeout = _config_positive_float(
         config,
@@ -156,92 +108,85 @@ def _tailnet_result_from_status(
         "probe_max_bytes",
         _TAILNET_HEALTH_MAX_BYTES,
     )
-
-    for peer_key, raw_peer in sorted(raw_peers.items(), key=lambda item: str(item[0])):
-        if not isinstance(raw_peer, Mapping):
-            diagnostics.append(
-                MachineDiagnostic(
-                    code="tailnet_peer_not_mapping",
-                    severity="warning",
-                    alias=str(peer_key),
-                    message=f"tailnet peer {peer_key} was not an object",
-                )
-            )
+    classified = classify_tailnet_discovery(
+        {
+            "schema_version": 1,
+            "status": payload,
+            "endpoint_overrides": overrides,
+            "health_observations": [],
+        }
+    )
+    observations: list[dict[str, Any]] = []
+    deadline_hit = False
+    for peer in classified.get("peers") or ():
+        if not isinstance(peer, Mapping):
             continue
-        if _is_self_peer(str(peer_key), raw_peer, self_mapping):
-            continue
-
-        endpoint, endpoint_source, endpoint_diagnostics = _tailnet_peer_endpoint(
-            str(peer_key),
-            raw_peer,
-            overrides,
-        )
-        diagnostics.extend(endpoint_diagnostics)
+        endpoint = str(peer.get("endpoint") or "")
         if not endpoint:
             continue
-
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            diagnostics.append(
-                MachineDiagnostic(
-                    code="tailnet_discovery_deadline",
-                    severity="error",
-                    message="tailnet discovery exceeded the overall deadline",
-                )
-            )
+            deadline_hit = True
             break
-
-        alias = _tailnet_peer_label(str(peer_key), raw_peer)
-        online = raw_peer.get("Online")
-        os_hint = _tailnet_peer_os(raw_peer)
-        probe = _probe_tailnet_health(
+        observation = _collect_tailnet_health_observation(
             endpoint,
             timeout_seconds=max(
                 _TAILNET_MIN_TIMEOUT_SECONDS,
                 min(probe_timeout, remaining),
             ),
             max_response_bytes=probe_max_bytes,
-            alias=alias,
         )
-        if probe.diagnostic is not None:
-            diagnostics.append(probe.diagnostic)
-        if online is False:
-            diagnostics.append(
-                MachineDiagnostic(
-                    code="tailnet_peer_offline",
-                    severity="info",
-                    alias=alias,
-                    message=f"{alias} is offline according to tailscale status",
-                )
-            )
-        if os_hint and os_hint not in {"linux", "macos", "darwin"}:
-            diagnostics.append(
-                MachineDiagnostic(
-                    code="tailnet_peer_os_advisory",
-                    severity="info",
-                    alias=alias,
-                    message=f"{alias} reports OS {os_hint}; gateway support is advisory",
-                )
-            )
+        observations.append(observation.to_wire())
 
-        candidates.append(
-            DiscoveryCandidate(
-                provider_ref="builtin@tailnet",
-                endpoint=endpoint,
-                display_name=alias,
-                detail=_tailnet_candidate_detail(
-                    compatibility=probe.compatibility,
-                    probe_reason=probe.reason,
-                    online=online if isinstance(online, bool) else None,
-                    os_hint=os_hint,
-                    endpoint_source=endpoint_source,
-                ),
+    classified = classify_tailnet_discovery(
+        {
+            "schema_version": 1,
+            "status": payload,
+            "endpoint_overrides": overrides,
+            "health_observations": observations,
+        }
+    )
+    diagnostics = [
+        item
+        for item in (
+            diagnostic_from_wire(raw) for raw in classified.get("diagnostics") or ()
+        )
+        if item is not None
+    ]
+    if deadline_hit:
+        diagnostics.append(
+            MachineDiagnostic(
+                code="tailnet_discovery_deadline",
+                severity="error",
+                message="tailnet discovery exceeded the overall deadline",
             )
         )
+    candidates = tuple(
+        _candidate_from_wire(raw) for raw in classified.get("candidates") or ()
+    )
+    return DiscoveryResult(candidates=candidates, diagnostics=tuple(diagnostics))
 
-    return DiscoveryResult(
-        candidates=tuple(candidates),
-        diagnostics=tuple(diagnostics),
+
+def _endpoint_overrides(config: Mapping[str, Any]) -> dict[str, str]:
+    raw = config.get("endpoint_overrides", config.get("endpoints", {}))
+    if not isinstance(raw, Mapping):
+        return {}
+    return {
+        str(key): value
+        for key, value in raw.items()
+        if isinstance(value, str) and value
+    }
+
+
+def _candidate_from_wire(raw: object) -> DiscoveryCandidate:
+    payload = raw if isinstance(raw, Mapping) else {}
+    return DiscoveryCandidate(
+        provider_ref=str(payload.get("provider_ref") or "builtin@tailnet"),
+        endpoint=str(payload.get("endpoint") or ""),
+        display_name=str(payload.get("display_name") or ""),
+        machine_selector=str(payload.get("machine_selector") or ""),
+        installation_pin=str(payload.get("installation_pin") or ""),
+        detail=str(payload.get("detail") or ""),
     )
 
 

@@ -8,7 +8,7 @@ caller may report enrollment success.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 import subprocess
@@ -17,6 +17,7 @@ from typing import Literal, TextIO
 
 from sase.config import core as config_core
 from sase.config.targets import resolve_write_path
+from sase.core.machine_setup_facade import reconcile_machine_enrollments
 from sase.dispatch.config import load_dispatch_config, machine_registry_target_path
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.models import (
@@ -24,6 +25,7 @@ from sase.dispatch.models import (
     DispatchError,
     DiscoveryCandidate,
     EnrollmentResult,
+    MachineDiagnostic,
     MachineRecord,
     MachineStatus,
     validate_machine_alias,
@@ -65,8 +67,11 @@ class MachineInitApplyResult:
     repair: tuple[ReconciledCandidate, ...] = ()
     recovery_messages: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
+    diagnostics: tuple[MachineDiagnostic, ...] = ()
     cancelled: bool = False
     nothing_to_enroll: bool = False
+    chezmoi_proc_id: str = ""
+    chezmoi_in_progress: bool = False
 
 
 class MachineInitService:
@@ -130,62 +135,29 @@ class MachineInitService:
         records = (
             tuple(enrolled) if enrolled is not None else self.load_config_fn().machines
         )
-        by_pin = {
-            record.pinned_installation_id: record
-            for record in records
-            if record.pinned_installation_id
-        }
-        by_endpoint = {
-            (record.provider_ref, record.endpoint): record for record in records
-        }
+        result = reconcile_machine_enrollments(
+            {
+                "schema_version": 1,
+                "candidates": [_candidate_wire(candidate) for candidate in candidates],
+                "enrolled": [_enrolled_wire(record) for record in records],
+            }
+        )
         reconciled: list[ReconciledCandidate] = []
-        for candidate in candidates:
-            pin_match = (
-                by_pin.get(candidate.installation_pin)
-                if candidate.installation_pin
-                else None
+        for item in result.get("items") or ():
+            if not isinstance(item, Mapping):
+                continue
+            raw_status = item.get("status")
+            status: CandidateDisposition = (
+                raw_status if raw_status in {"new", "enrolled", "repair"} else "new"
             )
-            endpoint_match = by_endpoint.get(
-                (candidate.provider_ref, candidate.endpoint)
+            reconciled.append(
+                ReconciledCandidate(
+                    candidate=_candidate_from_wire(item.get("candidate")),
+                    status=status,
+                    alias=str(item.get("alias") or ""),
+                    reason=str(item.get("reason") or ""),
+                )
             )
-            if pin_match is not None:
-                reconciled.append(
-                    ReconciledCandidate(
-                        candidate=candidate,
-                        status="enrolled",
-                        alias=pin_match.alias,
-                        reason="already enrolled",
-                    )
-                )
-            elif (
-                endpoint_match is not None
-                and candidate.installation_pin
-                and candidate.installation_pin != endpoint_match.pinned_installation_id
-            ):
-                reconciled.append(
-                    ReconciledCandidate(
-                        candidate=candidate,
-                        status="repair",
-                        alias=endpoint_match.alias,
-                        reason=(
-                            "installation identity changed; run "
-                            f"`sase machine repair {endpoint_match.alias}`"
-                        ),
-                    )
-                )
-            elif endpoint_match is not None:
-                reconciled.append(
-                    ReconciledCandidate(
-                        candidate=candidate,
-                        status="enrolled",
-                        alias=endpoint_match.alias,
-                        reason="already enrolled",
-                    )
-                )
-            else:
-                reconciled.append(
-                    ReconciledCandidate(candidate=candidate, status="new")
-                )
         return tuple(reconciled)
 
     def apply(
@@ -200,13 +172,15 @@ class MachineInitService:
     ) -> MachineInitApplyResult:
         """Discover, reconcile, enroll selected machines, and activate them."""
         try:
-            candidates = self.machine_service.discover(
+            discovery = self.machine_service.discover_detailed(
                 provider_refs=provider_refs,
                 timeout_seconds=timeout_seconds,
             )
         except DispatchError as exc:
             return MachineInitApplyResult(exit_code=1, errors=(str(exc),))
 
+        candidates = discovery.candidates
+        diagnostics = discovery.diagnostics
         enrolled = self.load_config_fn().machines
         reconciled = self.reconcile(candidates, enrolled)
         skipped = tuple(item for item in reconciled if item.status == "enrolled")
@@ -216,23 +190,27 @@ class MachineInitService:
 
         _print_enrolled(enrolled)
         _print_reconciled(reconciled)
-        if not candidates and not enrolled:
-            print("No remote machine candidates found.", file=sys.stderr)
-            return MachineInitApplyResult(
-                exit_code=0,
-                skipped=skipped,
-                repair=repair,
-                nothing_to_enroll=True,
-            )
+        _print_diagnostics(diagnostics)
         if not new_candidates:
             if not candidates:
                 print("No remote machine candidates found.", file=sys.stderr)
             else:
                 print("No new remote machines to enroll.", file=sys.stderr)
+            if _discovery_failed(diagnostics):
+                return MachineInitApplyResult(
+                    exit_code=1,
+                    skipped=skipped,
+                    repair=repair,
+                    diagnostics=diagnostics,
+                    errors=tuple(
+                        item.message for item in diagnostics if item.severity == "error"
+                    ),
+                )
             return MachineInitApplyResult(
                 exit_code=0,
                 skipped=skipped,
                 repair=repair,
+                diagnostics=diagnostics,
                 nothing_to_enroll=True,
             )
 
@@ -244,6 +222,7 @@ class MachineInitService:
                 exit_code=1,
                 skipped=skipped,
                 repair=repair,
+                diagnostics=diagnostics,
                 cancelled=True,
             )
         except ValueError as exc:
@@ -251,6 +230,7 @@ class MachineInitService:
                 exit_code=1,
                 skipped=skipped,
                 repair=repair,
+                diagnostics=diagnostics,
                 errors=(str(exc),),
             )
         if not selected:
@@ -259,6 +239,7 @@ class MachineInitService:
                 exit_code=0,
                 skipped=skipped,
                 repair=repair,
+                diagnostics=diagnostics,
                 nothing_to_enroll=True,
             )
 
@@ -286,6 +267,7 @@ class MachineInitService:
                     enrollments=tuple(enrollments),
                     skipped=skipped,
                     repair=repair,
+                    diagnostics=diagnostics,
                     cancelled=True,
                 )
             except Exception as exc:  # noqa: BLE001 - interactive command boundary.
@@ -295,6 +277,7 @@ class MachineInitService:
                     skipped=skipped,
                     repair=repair,
                     recovery_messages=tuple(recovery),
+                    diagnostics=diagnostics,
                     errors=(f"failed to enroll {candidate.endpoint}: {exc}",),
                 )
 
@@ -305,32 +288,37 @@ class MachineInitService:
             )
             if activation.recovery_message:
                 recovery.append(activation.recovery_message)
+            enrollments.append(result)
             if result.quarantined:
-                enrollments.append(result)
                 return MachineInitApplyResult(
                     exit_code=1,
                     enrollments=tuple(enrollments),
                     skipped=skipped,
                     repair=repair,
                     recovery_messages=tuple(recovery),
+                    diagnostics=diagnostics,
+                    chezmoi_proc_id=activation.proc_id,
+                    chezmoi_in_progress=activation.in_progress,
                 )
             if not activation.ok:
-                enrollments.append(result)
                 return MachineInitApplyResult(
                     exit_code=1,
                     enrollments=tuple(enrollments),
                     skipped=skipped,
                     repair=repair,
                     recovery_messages=tuple(recovery),
+                    diagnostics=diagnostics,
                     errors=activation.errors,
+                    chezmoi_proc_id=activation.proc_id,
+                    chezmoi_in_progress=activation.in_progress,
                 )
-            enrollments.append(result)
         return MachineInitApplyResult(
             exit_code=0,
             enrollments=tuple(enrollments),
             skipped=skipped,
             repair=repair,
             recovery_messages=tuple(recovery),
+            diagnostics=diagnostics,
         )
 
     def activate(
@@ -341,16 +329,31 @@ class MachineInitService:
         timeout_seconds: float | None = None,
     ) -> _ActivationOutcome:
         """Deploy, reload, and verify an enrollment before success is claimed."""
-        apply_failed, apply_error = self._apply_overlay_if_needed()
+        apply_outcome = self._apply_overlay_if_needed()
         self.clear_config_cache_fn()
         config = self.load_config_fn()
         record = config.machine_by_alias().get(alias)
         expected_record = expected.record
-        if apply_failed:
+        if apply_outcome.failed:
+            errors = tuple(
+                message
+                for message in (
+                    apply_outcome.error,
+                    (
+                        f"tracked chezmoi apply proc {apply_outcome.proc_id} "
+                        "is still in progress"
+                        if apply_outcome.in_progress and apply_outcome.proc_id
+                        else ""
+                    ),
+                )
+                if message
+            )
             return _ActivationOutcome(
                 ok=False,
-                errors=(apply_error,) if apply_error else (),
+                errors=errors,
                 recovery_message=_apply_recovery_message(alias),
+                proc_id=apply_outcome.proc_id,
+                in_progress=apply_outcome.in_progress,
             )
         if expected_record is None:
             return _ActivationOutcome(
@@ -404,25 +407,19 @@ class MachineInitService:
             )
         return _ActivationOutcome(ok=True)
 
-    def _apply_overlay_if_needed(self) -> tuple[bool, str]:
+    def _apply_overlay_if_needed(self) -> _ChezmoiApplyOutcome:
         if not self.use_chezmoi_fn():
-            return False, ""
+            return _ChezmoiApplyOutcome()
         target = self.registry_target_fn()
         write_path = resolve_write_path(str(target), use_chezmoi=True)
         if write_path is None or write_path == target:
-            return False, ""
+            return _ChezmoiApplyOutcome()
         try:
-            result = _run_scoped_chezmoi_apply(target, apply_fn=self.apply_chezmoi_fn)
+            return _run_scoped_chezmoi_apply(target, apply_fn=self.apply_chezmoi_fn)
         except FileNotFoundError:
-            return True, "chezmoi not found on PATH"
+            return _ChezmoiApplyOutcome(error="chezmoi not found on PATH")
         except OSError as exc:
-            return True, f"chezmoi apply failed: {exc}"
-        if result.returncode != 0:
-            detail = (
-                result.stderr or result.stdout or f"exit {result.returncode}"
-            ).strip()
-            return True, f"chezmoi apply failed: {detail}"
-        return False, ""
+            return _ChezmoiApplyOutcome(error=f"chezmoi apply failed: {exc}")
 
 
 @dataclass(frozen=True)
@@ -430,21 +427,59 @@ class _ActivationOutcome:
     ok: bool
     errors: tuple[str, ...] = ()
     recovery_message: str = ""
+    proc_id: str = ""
+    in_progress: bool = False
+
+
+@dataclass(frozen=True)
+class _ChezmoiApplyOutcome:
+    """Non-raising result of a scoped, tracked chezmoi apply."""
+
+    returncode: int = 0
+    stdout: str = ""
+    stderr: str = ""
+    proc_id: str = ""
+    submitted: bool = False
+    observed: bool = True
+    in_progress: bool = False
+    error: str = ""
+
+    @property
+    def failed(self) -> bool:
+        return bool(
+            self.error
+            or self.returncode != 0
+            or self.in_progress
+            or (self.submitted and not self.observed)
+        )
 
 
 def _run_scoped_chezmoi_apply(
     target: Path | str,
     *,
     apply_fn: ApplyChezmoiFn | None = None,
-) -> subprocess.CompletedProcess[str]:
+) -> _ChezmoiApplyOutcome:
     """Run the scoped ``apply_chezmoi`` operation from a durable tracked proc.
 
     The argv matches :func:`sase.config.targets.apply_chezmoi` so the supervisor
     performs the same scoped, forced apply. Callers inject ``apply_fn`` in tests.
-    A non-zero exit is returned, not raised.
+    A non-zero exit is returned, not raised. Submit or wait failures never start
+    a second untracked apply.
     """
     if apply_fn is not None:
-        return apply_fn(target)
+        result = apply_fn(target)
+        detail = (result.stderr or result.stdout or "").strip()
+        error = ""
+        if result.returncode != 0:
+            error = f"chezmoi apply failed: {detail or f'exit {result.returncode}'}"
+        return _ChezmoiApplyOutcome(
+            returncode=result.returncode,
+            stdout=result.stdout or "",
+            stderr=result.stderr or "",
+            submitted=True,
+            observed=True,
+            error=error,
+        )
     from sase.procs import submit_proc, wait_for_proc
 
     expanded = str(Path(target).expanduser())
@@ -458,11 +493,27 @@ def _run_scoped_chezmoi_apply(
             tags=("machine-init", "chezmoi-apply"),
             timeout_seconds=900,
         )
+    except Exception as exc:  # noqa: BLE001 - report submit failure without applying.
+        return _ChezmoiApplyOutcome(
+            returncode=1,
+            submitted=False,
+            observed=False,
+            error=f"could not submit chezmoi apply: {exc}",
+        )
+    try:
         finished = wait_for_proc(proc.proc_id, timeout=900)
-    except Exception:  # noqa: BLE001 - fall back to the in-process apply helper.
-        from sase.config.targets import apply_chezmoi
-
-        return apply_chezmoi(target)
+    except Exception as exc:  # noqa: BLE001 - retain the submitted proc identity.
+        return _ChezmoiApplyOutcome(
+            returncode=1,
+            proc_id=proc.proc_id,
+            submitted=True,
+            observed=False,
+            in_progress=True,
+            error=(
+                f"chezmoi apply was submitted as proc {proc.proc_id} but its "
+                f"outcome could not be observed: {exc}"
+            ),
+        )
     returncode = 0 if finished.status == "success" else (finished.exit_code or 1)
     log_text = ""
     if finished.log_path:
@@ -470,16 +521,73 @@ def _run_scoped_chezmoi_apply(
             log_text = Path(finished.log_path).read_text(encoding="utf-8")
         except OSError:
             log_text = ""
-    return subprocess.CompletedProcess(
-        argv,
-        returncode,
+    detail = (finished.message or log_text).strip()
+    error = ""
+    if returncode != 0:
+        error = f"chezmoi apply failed: {detail or f'exit {returncode}'}"
+    return _ChezmoiApplyOutcome(
+        returncode=returncode,
         stdout=log_text,
         stderr=finished.message or "",
+        proc_id=proc.proc_id,
+        submitted=True,
+        observed=True,
+        error=error,
     )
 
 
 def _non_info_messages(config: DispatchConfig) -> tuple[str, ...]:
     return tuple(item.message for item in config.diagnostics if item.severity != "info")
+
+
+def _discovery_failed(diagnostics: Sequence[MachineDiagnostic]) -> bool:
+    return any(item.severity == "error" for item in diagnostics)
+
+
+def _print_diagnostics(diagnostics: Sequence[MachineDiagnostic]) -> None:
+    for diagnostic in diagnostics:
+        if diagnostic.alias:
+            print(
+                f"{diagnostic.severity}: {diagnostic.alias}: {diagnostic.message}",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"{diagnostic.severity}: {diagnostic.message}",
+                file=sys.stderr,
+            )
+
+
+def _candidate_wire(candidate: DiscoveryCandidate) -> dict[str, str]:
+    return {
+        "provider_ref": candidate.provider_ref,
+        "endpoint": candidate.endpoint,
+        "display_name": candidate.display_name,
+        "machine_selector": candidate.machine_selector,
+        "installation_pin": candidate.installation_pin,
+        "detail": candidate.detail,
+    }
+
+
+def _enrolled_wire(record: MachineRecord) -> dict[str, str]:
+    return {
+        "alias": record.alias,
+        "provider_ref": record.provider_ref,
+        "endpoint": record.endpoint,
+        "pinned_installation_id": record.pinned_installation_id,
+    }
+
+
+def _candidate_from_wire(raw: object) -> DiscoveryCandidate:
+    payload = raw if isinstance(raw, Mapping) else {}
+    return DiscoveryCandidate(
+        provider_ref=str(payload.get("provider_ref") or ""),
+        endpoint=str(payload.get("endpoint") or ""),
+        display_name=str(payload.get("display_name") or ""),
+        machine_selector=str(payload.get("machine_selector") or ""),
+        installation_pin=str(payload.get("installation_pin") or ""),
+        detail=str(payload.get("detail") or ""),
+    )
 
 
 def _print_enrolled(enrolled: Sequence[MachineRecord]) -> None:
