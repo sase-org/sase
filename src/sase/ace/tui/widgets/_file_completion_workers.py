@@ -1,106 +1,47 @@
-"""Background workers for manual prompt completion inventories."""
+"""Background workers for manual prompt completion inventories.
+
+Path, commit, and directive inventory schedule/apply helpers live in sibling
+modules. This module keeps model-alias and VCS-repo workers, routes every
+inventory worker result, and preserves the original import surface.
+"""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
-from sase.artifact_refs import ArtifactRefContext
-from sase.ace.tui.widgets._file_completion_context import FileCompletionContextMixin
-from sase.ace.tui.widgets.artifact_ref_completion import (
-    ARTIFACT_REF_COMPLETION_KIND,
+from sase.ace.tui.widgets._file_completion_worker_results import (
+    FinalizerInventoryWorkerResult,
+    MachineInventoryWorkerResult,
+    ModelCompletionCatalogWorkerResult,
+    PromptCommitInventoryWorkerResult,
+    PromptPathInventoryWorkerResult,
+    VcsRepoCompletionWorkerResult,
+    WaitBeadInventoryWorkerResult,
+)
+from sase.ace.tui.widgets._file_completion_workers_directives import (
+    FileCompletionDirectiveInventoryWorkerMixin,
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.model_alias_completion import MODEL_ALIAS_COMPLETION_KIND
-from sase.ace.tui.widgets.prompt_commit_inventory import (
-    PromptCommitSnapshot,
-    load_prompt_commit_snapshot,
-    prompt_commit_snapshot_expired,
-    revalidate_prompt_commit_snapshot,
-)
-from sase.ace.tui.widgets.prompt_path_inventory import (
-    PromptPathSnapshot,
-    load_prompt_path_snapshot,
-    prompt_path_directory_key,
-    revalidate_prompt_path_snapshot,
-)
 from sase.ace.tui.widgets.vcs_repo_completion import (
     VCS_REPO_COMPLETION_KIND,
     vcs_repo_completion_candidates,
 )
+from sase.xprompt.model_completion import build_model_completion_catalog
 from sase.xprompt.vcs_repo_completion import (
-    VcsRepoFetchResult,
     VcsRepoTrigger,
     fetch_repo_candidates,
 )
-from sase.xprompt.model_completion import build_model_completion_catalog
+
+if TYPE_CHECKING:
+    from sase.ace.tui.widgets.prompt_commit_inventory import PromptCommitSnapshot
+    from sase.ace.tui.widgets.prompt_path_inventory import PromptPathSnapshot
+    from sase.xprompt.vcs_repo_completion import VcsRepoFetchResult
 
 
-@dataclass(frozen=True)
-class _VcsRepoCompletionWorkerResult:
-    """Result returned by a repository completion fetch worker."""
-
-    workflow: str
-    namespace: str
-    result: VcsRepoFetchResult
-
-    @property
-    def key(self) -> tuple[str, str]:
-        return (self.workflow, self.namespace)
-
-
-@dataclass(frozen=True)
-class _PromptPathInventoryWorkerResult:
-    """Result returned by a prompt path inventory worker."""
-
-    snapshot: PromptPathSnapshot
-    changed: bool
-
-
-@dataclass(frozen=True)
-class _PromptCommitInventoryWorkerResult:
-    """Result returned by a prompt commit inventory worker."""
-
-    snapshot: PromptCommitSnapshot
-    changed: bool
-
-
-@dataclass(frozen=True)
-class _WaitBeadInventoryWorkerResult:
-    """Result returned by a prompt wait-bead inventory worker."""
-
-    project_key: str
-    rows: tuple[dict[str, str], ...]
-    available: bool
-
-
-@dataclass(frozen=True)
-class _FinalizerInventoryWorkerResult:
-    """Result returned by a prompt finalizer-catalog worker."""
-
-    rows: tuple[dict[str, object], ...]
-    available: bool
-
-
-@dataclass(frozen=True)
-class _MachineInventoryWorkerResult:
-    """Result returned by a prompt dispatch-machine inventory worker."""
-
-    rows: tuple[dict[str, str], ...]
-    available: bool
-
-
-@dataclass(frozen=True)
-class _ModelCompletionCatalogWorkerResult:
-    """Result returned by a model completion catalog worker."""
-
-    rows: tuple[Any, ...]
-    available: bool
-
-
-class FileCompletionWorkerMixin(FileCompletionContextMixin):
+class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
     """Mixin providing background inventory loading and result routing."""
 
     if TYPE_CHECKING:
@@ -166,12 +107,12 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
             return
         self._model_completion_catalog_inflight = True
 
-        def task() -> _ModelCompletionCatalogWorkerResult:
+        def task() -> ModelCompletionCatalogWorkerResult:
             try:
                 rows = tuple(build_model_completion_catalog())
             except Exception:  # noqa: BLE001 - degrade rather than freeze the prompt.
-                return _ModelCompletionCatalogWorkerResult(rows=(), available=False)
-            return _ModelCompletionCatalogWorkerResult(rows=rows, available=True)
+                return ModelCompletionCatalogWorkerResult(rows=(), available=False)
+            return ModelCompletionCatalogWorkerResult(rows=rows, available=True)
 
         self.run_worker(
             task,
@@ -182,7 +123,7 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
 
     def _apply_model_completion_catalog_result(
         self,
-        result: _ModelCompletionCatalogWorkerResult,
+        result: ModelCompletionCatalogWorkerResult,
     ) -> None:
         """Record catalog availability and refresh a matching open alias menu."""
         request_current = self._model_completion_catalog_request_is_current()
@@ -233,8 +174,8 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
             return
         self._vcs_repo_completion_inflight.add(key)
 
-        def task() -> _VcsRepoCompletionWorkerResult:
-            return _VcsRepoCompletionWorkerResult(
+        def task() -> VcsRepoCompletionWorkerResult:
+            return VcsRepoCompletionWorkerResult(
                 workflow=trigger.workflow,
                 namespace=trigger.namespace,
                 result=fetch_repo_candidates(trigger.workflow, trigger.namespace),
@@ -247,295 +188,9 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
             thread=True,
         )
 
-    def _prompt_path_directory_key(self, directory: str = "") -> str:
-        """Resolve a caller-visible prompt directory to its cache key."""
-        return prompt_path_directory_key(self.text, directory)
-
-    def _get_warm_prompt_path_snapshot(
-        self,
-        directory_key: str,
-    ) -> PromptPathSnapshot | None:
-        """Return a snapshot using a pure in-memory lookup."""
-        return self._prompt_path_snapshots.get(directory_key)
-
-    def _open_prompt_path_directory(
-        self,
-        directory: str,
-    ) -> PromptPathSnapshot | None:
-        """Mark a menu directory active and revalidate it off-thread."""
-        directory_key = self._prompt_path_directory_key(directory)
-        self._prompt_path_completion_directory_key = directory_key
-        snapshot = self._get_warm_prompt_path_snapshot(directory_key)
-        self._schedule_prompt_path_inventory_load(directory_key, snapshot)
-        return snapshot
-
-    def _schedule_prompt_path_inventory_load(
-        self,
-        directory_key: str,
-        previous: PromptPathSnapshot | None = None,
-    ) -> None:
-        """Coalesce one directory revalidation on a background worker."""
-        if directory_key in self._prompt_path_inflight:
-            return
-        self._prompt_path_inflight.add(directory_key)
-
-        def task() -> _PromptPathInventoryWorkerResult:
-            snapshot = (
-                load_prompt_path_snapshot(directory_key)
-                if previous is None
-                else revalidate_prompt_path_snapshot(directory_key, previous)
-            )
-            return _PromptPathInventoryWorkerResult(
-                snapshot=snapshot,
-                changed=snapshot is not previous,
-            )
-
-        self.run_worker(
-            task,
-            name=f"prompt-path-inventory:{directory_key}",
-            group="prompt-path-inventory",
-            thread=True,
-        )
-
-    def _apply_prompt_path_inventory_result(
-        self,
-        result: _PromptPathInventoryWorkerResult,
-    ) -> None:
-        """Store a worker result and refresh the matching open menu."""
-        snapshot = result.snapshot
-        self._prompt_path_snapshots[snapshot.directory_key] = snapshot
-        if not result.changed:
-            return
-        if (
-            not self._file_completion_active
-            or self._completion_kind != ARTIFACT_REF_COMPLETION_KIND
-            or self._prompt_path_completion_directory_key != snapshot.directory_key
-        ):
-            return
-        self._refresh_file_completion_from_cursor()
-
-    def _schedule_prompt_commit_inventory_load(
-        self,
-        project: str | None,
-        context: ArtifactRefContext,
-        previous: PromptCommitSnapshot | None = None,
-    ) -> None:
-        """Coalesce one target-project commit revalidation off the UI thread."""
-        if project in self._prompt_commit_inflight:
-            return
-        if previous is not None and not prompt_commit_snapshot_expired(previous):
-            return
-        self._prompt_commit_inflight.add(project)
-        # One worker per project is in flight at a time, so the project keys the
-        # name uniquely and a finished worker can never retire a live one.
-        worker_name = f"prompt-commit-inventory:{'' if project is None else project}"
-        self._prompt_commit_worker_projects[worker_name] = project
-
-        def task() -> _PromptCommitInventoryWorkerResult:
-            snapshot = (
-                load_prompt_commit_snapshot(project, context)
-                if previous is None
-                else revalidate_prompt_commit_snapshot(previous, project, context)
-            )
-            return _PromptCommitInventoryWorkerResult(
-                snapshot=snapshot,
-                changed=snapshot is not previous,
-            )
-
-        self.run_worker(
-            task,
-            name=worker_name,
-            group="prompt-commit-inventory",
-            thread=True,
-        )
-
-    def _apply_prompt_commit_inventory_result(
-        self,
-        result: _PromptCommitInventoryWorkerResult,
-    ) -> None:
-        """Store a commit snapshot and refresh only its matching open menu."""
-        snapshot = result.snapshot
-        self._prompt_commit_snapshots[snapshot.project] = snapshot
-        if not result.changed:
-            return
-        context = self._get_artifact_ref_completion_context()
-        if (
-            not self._file_completion_active
-            or self._completion_kind != ARTIFACT_REF_COMPLETION_KIND
-            or context is None
-            or context.stage != "payload"
-            or (context.kind or "").casefold() != "commit"
-            or self._xprompt_arg_assist_project_from_text() != snapshot.project
-        ):
-            return
-        self._refresh_file_completion_from_cursor()
-
-    def _schedule_wait_bead_inventory_load(self, project_key: str) -> None:
-        """Coalesce one bead-store read on a background worker."""
-        if project_key in self._wait_bead_inflight:
-            return
-        self._wait_bead_inflight.add(project_key)
-
-        def task() -> _WaitBeadInventoryWorkerResult:
-            from sase.ace.tui.models.wait_bead_catalog import raw_wait_bead_inventory
-
-            try:
-                rows, available = raw_wait_bead_inventory(project_key)
-            except Exception:  # noqa: BLE001 - degrade rather than freeze the prompt.
-                rows, available = (), False
-            return _WaitBeadInventoryWorkerResult(
-                project_key=project_key,
-                rows=rows,
-                available=available,
-            )
-
-        self.run_worker(
-            task,
-            name=f"prompt-wait-beads:{project_key}",
-            group="prompt-wait-beads",
-            thread=True,
-        )
-
-    def _apply_wait_bead_inventory_result(
-        self,
-        result: _WaitBeadInventoryWorkerResult,
-    ) -> None:
-        """Store a warm bead inventory and refresh a matching open menu."""
-        self._wait_bead_inventory = result.rows
-        self._wait_bead_available = result.available
-        self._wait_bead_project = result.project_key
-        if not self._file_completion_active or self._completion_kind != "directive_arg":
-            return
-        if self._wait_bead_project_key() != result.project_key:
-            return
-        self._refresh_file_completion_from_cursor()
-
-    def on_mount(self) -> None:
-        """Warm the finalizer catalog as soon as a prompt pane is live."""
-        super_on_mount = getattr(super(), "on_mount", None)
-        if callable(super_on_mount):
-            super_on_mount()
-        self._schedule_finalizer_inventory_load()
-
-    def _prompt_app_or_none(self) -> object | None:
-        """Return the hosting app when one is active."""
-        try:
-            return self.app
-        except Exception:
-            return None
-
-    def _schedule_finalizer_inventory_load(self) -> None:
-        """Coalesce one finalizer-config replay on a background worker."""
-        if callable(getattr(self._prompt_app_or_none(), "finalizer_inventory", None)):
-            return
-        if self._finalizer_inflight:
-            return
-        self._finalizer_inflight = True
-
-        def task() -> _FinalizerInventoryWorkerResult:
-            from sase.finalizers.catalog import build_finalizer_completion_catalog
-
-            try:
-                catalog = build_finalizer_completion_catalog()
-            except Exception:  # noqa: BLE001 - degrade rather than freeze the prompt.
-                return _FinalizerInventoryWorkerResult(rows=(), available=False)
-            if not catalog.ok:
-                return _FinalizerInventoryWorkerResult(rows=(), available=False)
-            return _FinalizerInventoryWorkerResult(
-                rows=catalog.wire_entries(),
-                available=True,
-            )
-
-        self.run_worker(
-            task,
-            name="prompt-finalizers",
-            group="prompt-finalizers",
-            thread=True,
-        )
-
-    def _apply_finalizer_inventory_result(
-        self,
-        result: _FinalizerInventoryWorkerResult,
-    ) -> None:
-        """Store a warm catalog and refresh a still-current ``%final`` menu."""
-        self._finalizer_inventory = result.rows
-        self._finalizer_available = result.available
-        if not self._file_completion_active or self._completion_kind != "directive_arg":
-            return
-        clause_ctx = self._directive_clause_at_cursor()
-        if clause_ctx is None:
-            return
-        from sase.ace.tui.widgets.directive_completion import (
-            clause_needs_finalizer_inventory,
-        )
-
-        _row, clause = clause_ctx
-        if not clause_needs_finalizer_inventory(clause):
-            return
-        self._refresh_file_completion_from_cursor()
-
-    def _schedule_machine_inventory_load(self) -> None:
-        """Coalesce one dispatch-machine config read on a background worker."""
-        if self._machine_inflight:
-            return
-        self._machine_inflight = True
-
-        def task() -> _MachineInventoryWorkerResult:
-            from sase.dispatch.machine_catalog import machine_completion_catalog_payload
-
-            try:
-                payload = machine_completion_catalog_payload()
-            except Exception:  # noqa: BLE001 - degrade rather than freeze the prompt.
-                return _MachineInventoryWorkerResult(rows=(), available=False)
-            entries = payload.get("entries")
-            if not isinstance(entries, list):
-                return _MachineInventoryWorkerResult(rows=(), available=False)
-            rows: list[dict[str, str]] = []
-            for entry in entries:
-                if isinstance(entry, dict):
-                    rows.append(
-                        {
-                            key: str(value)
-                            for key, value in entry.items()
-                            if isinstance(key, str)
-                        }
-                    )
-            return _MachineInventoryWorkerResult(
-                rows=tuple(rows),
-                available=True,
-            )
-
-        self.run_worker(
-            task,
-            name="prompt-dispatch-machines",
-            group="prompt-dispatch-machines",
-            thread=True,
-        )
-
-    def _apply_machine_inventory_result(
-        self,
-        result: _MachineInventoryWorkerResult,
-    ) -> None:
-        """Store a warm machine catalog and refresh a matching open menu."""
-        self._machine_inventory = result.rows
-        self._machine_available = result.available
-        if not self._file_completion_active or self._completion_kind != "directive_arg":
-            return
-        clause_ctx = self._directive_clause_at_cursor()
-        if clause_ctx is None:
-            return
-        from sase.ace.tui.widgets.directive_completion import (
-            clause_needs_machine_inventory,
-        )
-
-        _row, clause = clause_ctx
-        if not clause_needs_machine_inventory(clause):
-            return
-        self._refresh_file_completion_from_cursor()
-
     def _apply_vcs_repo_completion_result(
         self,
-        worker_result: _VcsRepoCompletionWorkerResult,
+        worker_result: VcsRepoCompletionWorkerResult,
     ) -> None:
         """Refresh an active repo menu from a completed worker result."""
         trigger = self._get_vcs_repo_trigger()
@@ -593,7 +248,7 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
                 self._prompt_commit_inflight.discard(project)
             if event.state == WorkerState.SUCCESS:
                 result = event.worker.result
-                if isinstance(result, _PromptCommitInventoryWorkerResult):
+                if isinstance(result, PromptCommitInventoryWorkerResult):
                     self._apply_prompt_commit_inventory_result(result)
                     return
 
@@ -605,7 +260,7 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
         if event.worker.group == "prompt-path-inventory":
             if event.state == WorkerState.SUCCESS:
                 result = event.worker.result
-                if isinstance(result, _PromptPathInventoryWorkerResult):
+                if isinstance(result, PromptPathInventoryWorkerResult):
                     directory_key = result.snapshot.directory_key
                     self._prompt_path_inflight.discard(directory_key)
                     self._apply_prompt_path_inventory_result(result)
@@ -629,7 +284,7 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
                 self._wait_bead_inflight.discard(project_key)
             if event.state == WorkerState.SUCCESS:
                 result = event.worker.result
-                if isinstance(result, _WaitBeadInventoryWorkerResult):
+                if isinstance(result, WaitBeadInventoryWorkerResult):
                     self._apply_wait_bead_inventory_result(result)
                     return
             handler = getattr(super(), "on_worker_state_changed", None)
@@ -646,13 +301,13 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
                 self._finalizer_inflight = False
             if event.state == WorkerState.SUCCESS:
                 result = event.worker.result
-                if isinstance(result, _FinalizerInventoryWorkerResult):
+                if isinstance(result, FinalizerInventoryWorkerResult):
                     self._apply_finalizer_inventory_result(result)
                     return
             if event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
                 if self._finalizer_inventory is None:
                     self._apply_finalizer_inventory_result(
-                        _FinalizerInventoryWorkerResult(rows=(), available=False)
+                        FinalizerInventoryWorkerResult(rows=(), available=False)
                     )
                 return
             handler = getattr(super(), "on_worker_state_changed", None)
@@ -669,13 +324,13 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
                 self._machine_inflight = False
             if event.state == WorkerState.SUCCESS:
                 result = event.worker.result
-                if isinstance(result, _MachineInventoryWorkerResult):
+                if isinstance(result, MachineInventoryWorkerResult):
                     self._apply_machine_inventory_result(result)
                     return
             if event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
                 if self._machine_inventory is None:
                     self._apply_machine_inventory_result(
-                        _MachineInventoryWorkerResult(rows=(), available=False)
+                        MachineInventoryWorkerResult(rows=(), available=False)
                     )
                 return
             handler = getattr(super(), "on_worker_state_changed", None)
@@ -692,13 +347,13 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
                 self._model_completion_catalog_inflight = False
             if event.state == WorkerState.SUCCESS:
                 result = event.worker.result
-                if isinstance(result, _ModelCompletionCatalogWorkerResult):
+                if isinstance(result, ModelCompletionCatalogWorkerResult):
                     self._apply_model_completion_catalog_result(result)
                     return
             if event.state in (WorkerState.ERROR, WorkerState.CANCELLED):
                 if not self._model_completion_catalog_loaded:
                     self._apply_model_completion_catalog_result(
-                        _ModelCompletionCatalogWorkerResult(rows=(), available=False)
+                        ModelCompletionCatalogWorkerResult(rows=(), available=False)
                     )
                 return
             handler = getattr(super(), "on_worker_state_changed", None)
@@ -714,7 +369,7 @@ class FileCompletionWorkerMixin(FileCompletionContextMixin):
 
         if event.state == WorkerState.SUCCESS:
             result = event.worker.result
-            if isinstance(result, _VcsRepoCompletionWorkerResult):
+            if isinstance(result, VcsRepoCompletionWorkerResult):
                 self._vcs_repo_completion_inflight.discard(result.key)
                 self._apply_vcs_repo_completion_result(result)
                 return

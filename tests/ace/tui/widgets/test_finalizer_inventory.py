@@ -9,7 +9,7 @@ from unittest.mock import patch
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.widgets._file_completion_workers import (
-    _FinalizerInventoryWorkerResult,
+    FinalizerInventoryWorkerResult,
 )
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
 from sase.finalizers.catalog import _FinalizerCatalogBuild, _FinalizerCatalogEntry
@@ -64,7 +64,7 @@ def test_stale_finalizer_result_does_not_refresh_a_non_final_menu() -> None:
 
     with patch.object(text_area, "_refresh_file_completion_from_cursor") as refresh:
         text_area._apply_finalizer_inventory_result(
-            _FinalizerInventoryWorkerResult(rows=SAMPLE_FINALIZERS, available=True)
+            FinalizerInventoryWorkerResult(rows=SAMPLE_FINALIZERS, available=True)
         )
 
     refresh.assert_not_called()
@@ -80,7 +80,7 @@ def test_warm_result_refreshes_an_open_finalizer_menu() -> None:
 
     with patch.object(text_area, "_refresh_file_completion_from_cursor") as refresh:
         text_area._apply_finalizer_inventory_result(
-            _FinalizerInventoryWorkerResult(rows=SAMPLE_FINALIZERS, available=True)
+            FinalizerInventoryWorkerResult(rows=SAMPLE_FINALIZERS, available=True)
         )
 
     refresh.assert_called_once()
@@ -129,6 +129,6 @@ def test_worker_task_uses_the_cached_catalog_builder() -> None:
         result = task()
 
     builder.assert_called_once()
-    assert isinstance(result, _FinalizerInventoryWorkerResult)
+    assert isinstance(result, FinalizerInventoryWorkerResult)
     assert result.available is True
     assert result.rows[0]["value"] == "commit"

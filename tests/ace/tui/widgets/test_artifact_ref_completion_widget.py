@@ -11,8 +11,8 @@ from textual.widgets import Static
 
 from sase.artifact_refs import parse_artifact_ref
 from sase.ace.tui.widgets._file_completion_workers import (
-    _PromptCommitInventoryWorkerResult,
-    _PromptPathInventoryWorkerResult,
+    PromptCommitInventoryWorkerResult,
+    PromptPathInventoryWorkerResult,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -200,7 +200,7 @@ async def test_cold_path_snapshot_refreshes_the_open_menu() -> None:
         assert directory_key is not None
 
         text_area._apply_prompt_path_inventory_result(
-            _PromptPathInventoryWorkerResult(
+            PromptPathInventoryWorkerResult(
                 PromptPathSnapshot(
                     directory_key,
                     (PromptPathRow("main.py", False),),
@@ -235,7 +235,7 @@ async def test_cold_commit_snapshot_loads_without_the_commits_pane() -> None:
 
         text_area._prompt_commit_inflight.discard(None)
         text_area._apply_prompt_commit_inventory_result(
-            _PromptCommitInventoryWorkerResult(
+            PromptCommitInventoryWorkerResult(
                 PromptCommitSnapshot(
                     None,
                     (

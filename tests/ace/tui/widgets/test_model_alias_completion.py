@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.widgets import Static
 
 from sase.ace.tui.widgets._file_completion_workers import (
-    _ModelCompletionCatalogWorkerResult,
+    ModelCompletionCatalogWorkerResult,
 )
 from sase.ace.tui.widgets.model_alias_completion import (
     MODEL_ALIAS_COMPLETION_KIND,
@@ -430,7 +430,7 @@ async def test_model_alias_catalog_worker_refreshes_matching_request() -> None:
 
             with patch.object(ta, "_refresh_file_completion_from_cursor") as refresh:
                 ta._apply_model_completion_catalog_result(
-                    _ModelCompletionCatalogWorkerResult(
+                    ModelCompletionCatalogWorkerResult(
                         rows=_alias_entries(),
                         available=True,
                     )
@@ -454,7 +454,7 @@ async def test_model_alias_catalog_worker_rejects_stale_prompt_state() -> None:
             ta.cursor_location = (0, 2)
             with patch.object(ta, "_refresh_file_completion_from_cursor") as refresh:
                 ta._apply_model_completion_catalog_result(
-                    _ModelCompletionCatalogWorkerResult(
+                    ModelCompletionCatalogWorkerResult(
                         rows=_alias_entries(),
                         available=True,
                     )
@@ -476,7 +476,7 @@ async def test_model_alias_catalog_failure_can_retry_from_unavailable_row() -> N
 
             assert ta._try_model_alias_completion() is True
             ta._apply_model_completion_catalog_result(
-                _ModelCompletionCatalogWorkerResult(rows=(), available=False)
+                ModelCompletionCatalogWorkerResult(rows=(), available=False)
             )
 
             assert ta._model_completion_catalog_available is False
@@ -544,7 +544,7 @@ async def test_model_alias_catalog_request_does_not_revive_inactive_stack_pane()
                 "_refresh_file_completion_from_cursor",
             ) as refresh:
                 bottom._apply_model_completion_catalog_result(
-                    _ModelCompletionCatalogWorkerResult(
+                    ModelCompletionCatalogWorkerResult(
                         rows=_alias_entries(),
                         available=True,
                     )
