@@ -20,7 +20,7 @@ from sase.llm_provider.usage.claude import (
 )
 from sase.llm_provider.usage._claude_support import (
     ClaudeCommandResult,
-    _parse_claude_reset_timestamp,
+    parse_claude_reset_timestamp,
 )
 from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
 from sase.llm_provider.usage.types import UsageProbeContext
@@ -252,14 +252,14 @@ def test_claude_reset_parser_handles_time_date_year_rollover_and_iso() -> None:
     september = datetime(2026, 9, 7, 18, 0, tzinfo=ny).timestamp()
 
     assert (
-        _parse_claude_reset_timestamp(
+        parse_claude_reset_timestamp(
             "Jan 1, 8pm (America/New_York)",
             observed_at=december,
         )
         == datetime(2027, 1, 1, 20, 0, tzinfo=ny).timestamp()
     )
     assert (
-        _parse_claude_reset_timestamp("8pm", observed_at=september)
+        parse_claude_reset_timestamp("8pm", observed_at=september)
         == datetime(
             2026,
             9,
@@ -270,7 +270,7 @@ def test_claude_reset_parser_handles_time_date_year_rollover_and_iso() -> None:
         ).timestamp()
     )
     assert (
-        _parse_claude_reset_timestamp(
+        parse_claude_reset_timestamp(
             "2026-09-08 18:30 UTC",
             observed_at=september,
         )
