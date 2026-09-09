@@ -15,6 +15,7 @@ from typing import Any
 REQUIRED_BINDINGS = (
     "feature_flag_state_get",
     "feature_flag_state_set",
+    "feature_flag_state_reconcile",
 )
 WIRE_SCHEMA_VERSION = 1
 FIRST_FLAG = "prettier_enabled"
@@ -99,12 +100,25 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
                 f"expected {expected_flags!r}, got {again!r}"
             )
 
+        reconciled = _require_mapping(
+            module.feature_flag_state_reconcile(home, [SECOND_FLAG]),
+            label="reconcile",
+        )
+        if reconciled.get("status") != "cleaned":
+            raise RuntimeError(f"unexpected reconcile status: {reconciled!r}")
+        if reconciled.get("removed") != [FIRST_FLAG]:
+            raise RuntimeError(f"unexpected reconcile removals: {reconciled!r}")
+        if reconciled.get("flags") != {SECOND_FLAG: True}:
+            raise RuntimeError(f"unexpected reconcile flags: {reconciled!r}")
+
         return {
             "empty_flags": empty["flags"],
             "first_changed": first["changed"],
             "loaded_flags": loaded["flags"],
             "idempotent_changed": again["changed"],
             "idempotent_previous": again["previous"],
+            "reconciled_flags": reconciled["flags"],
+            "reconciled_removed": reconciled["removed"],
         }
 
 

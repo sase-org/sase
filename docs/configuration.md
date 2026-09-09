@@ -3964,9 +3964,23 @@ detail card (`STATE`).
 Missing state is an empty snapshot (every flag uses its registry/config default). A
 malformed, oversized, or unsupported whole file is not silently deleted or overwritten:
 reads return no preferences plus a diagnostic, mutations fail with the path and a
-recovery-oriented message, and registered flags still resolve from lower layers. Valid
-unknown keys written by a newer SASE are preserved across writes and ignored with a
-diagnostic so a temporary downgrade cannot destroy them.
+recovery-oriented message, and registered flags still resolve from lower layers.
+
+Valid unknown keys in the machine-state file are tolerated by registry-neutral reads and
+writes, but installing process-wide feature flags for ACE, AXE, or an agent runner
+reconciles that file against the running SASE registry and removes saved entries that
+are no longer registered. ACE defers the disk transaction until the initially visible
+surface is ready, then shows one cleanup toast; AXE and agent runners report the same
+cleanup on stderr. Clean starts do not rewrite the file or emit cleanup prose. If
+another process already removed the stale keys, ACE reports that the previously
+unregistered saved keys are already absent. If cleanup fails or the file becomes
+unusable, SASE preserves the file, keeps the diagnostic, and retries on the next
+startup.
+
+This means downgrading or misspelling a saved flag no longer preserves that saved key
+past the next installing process. A later upgrade falls back to registry/config defaults
+until the choice is saved again. Portable YAML `feature_flags` entries keep the older
+tolerance: unknown config keys are diagnosed and ignored, not rewritten.
 
 #### Resolution order
 
@@ -4040,7 +4054,7 @@ gives the both-states test checklist. Kinds are `beta` (default off) and `sunset
 [Beads](beads.md#flag-bead-lifecycle) for the removal lifecycle.
 
 Source: `src/sase/feature_flags/registry.py`, `src/sase/feature_flags/schema.py`,
-`src/sase/feature_flags/state.py`
+`src/sase/feature_flags/snapshot.py`, `src/sase/feature_flags/state.py`
 
 ### workspace
 

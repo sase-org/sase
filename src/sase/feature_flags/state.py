@@ -36,8 +36,15 @@ _SET_FIELDS = frozenset(
         "diagnostics",
     }
 )
+_RECONCILE_FIELDS = frozenset(
+    {"version", "status", "removed", "flags", "path", "diagnostics"}
+)
 _DIAGNOSTIC_FIELDS = frozenset({"severity", "code", "message", "path"})
 _PROCESS_PIN_SOURCES: frozenset[FlagSource] = frozenset({"override", "cli"})
+FeatureFlagReconcileStatus = Literal["cleaned", "unchanged", "unusable", "failed"]
+_RECONCILE_STATUSES: frozenset[str] = frozenset(
+    {"cleaned", "unchanged", "unusable", "failed"}
+)
 
 
 @dataclass(frozen=True)
@@ -74,6 +81,24 @@ class SavedFeatureFlagSetOutcome:
         object.__setattr__(self, "diagnostics", tuple(self.diagnostics))
 
 
+@dataclass(frozen=True)
+class SavedFeatureFlagReconcileOutcome:
+    """Decoded registry-driven reconciliation outcome from the Rust store."""
+
+    version: int
+    status: FeatureFlagReconcileStatus
+    removed: tuple[str, ...]
+    flags: Mapping[str, bool]
+    path: str
+    diagnostics: tuple[FeatureFlagDiagnostic, ...] = ()
+
+    def __post_init__(self) -> None:
+        """Freeze mapping and sequence inputs so callers cannot mutate an outcome."""
+        object.__setattr__(self, "removed", tuple(self.removed))
+        object.__setattr__(self, "flags", MappingProxyType(dict(self.flags)))
+        object.__setattr__(self, "diagnostics", tuple(self.diagnostics))
+
+
 def feature_flag_state_path() -> str:
     """Return the machine-local preference path under the current ``SASE_HOME``."""
     return str(sase_home() / FEATURE_FLAG_STATE_FILENAME)
@@ -93,6 +118,21 @@ def _persist_saved_feature_flag(key: str, enabled: bool) -> SavedFeatureFlagSetO
         "feature_flag_state_set", str(sase_home()), key, enabled, path=path
     )
     return _set_outcome_from_wire(payload, fallback_path=path, key=key, enabled=enabled)
+
+
+def reconcile_saved_feature_flags(
+    registered_keys: tuple[str, ...] | list[str],
+) -> SavedFeatureFlagReconcileOutcome:
+    """Remove saved entries absent from the supplied authoritative registry."""
+    path = feature_flag_state_path()
+    keys = _require_registered_keys(registered_keys, path)
+    payload = _call_binding(
+        "feature_flag_state_reconcile",
+        str(sase_home()),
+        list(keys),
+        path=path,
+    )
+    return _reconcile_outcome_from_wire(payload, fallback_path=path)
 
 
 def set_saved_feature_flag(key: str, enabled: bool) -> FeatureFlagMutationOutcome:
@@ -219,6 +259,41 @@ def _set_outcome_from_wire(
     )
 
 
+def _reconcile_outcome_from_wire(
+    payload: object,
+    *,
+    fallback_path: str,
+) -> SavedFeatureFlagReconcileOutcome:
+    data = _require_mapping(
+        payload, "feature-flag state reconcile outcome", path=fallback_path
+    )
+    _require_fields(
+        data,
+        _RECONCILE_FIELDS,
+        "feature-flag state reconcile outcome",
+        fallback_path,
+    )
+    path = _require_path(data.get("path"), fallback_path)
+    version = _require_version(data.get("version"), path)
+    status = data.get("status")
+    if status not in _RECONCILE_STATUSES:
+        raise FeatureFlagStateError(
+            f"feature-flag state reconcile status is invalid: {status!r}",
+            path=path,
+        )
+    removed = _require_removed_keys(data.get("removed"), path)
+    flags = _require_flags(data.get("flags"), path)
+    diagnostics = _require_diagnostics(data.get("diagnostics"), path)
+    return SavedFeatureFlagReconcileOutcome(
+        version=version,
+        status=cast(FeatureFlagReconcileStatus, status),
+        removed=removed,
+        flags=flags,
+        path=path,
+        diagnostics=diagnostics,
+    )
+
+
 def _require_mapping(payload: object, label: str, *, path: str) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise FeatureFlagStateError(f"{label} is not an object: {payload!r}", path=path)
@@ -288,6 +363,52 @@ def _require_flags(value: object, path: str) -> dict[str, bool]:
     return flags
 
 
+def _require_removed_keys(value: object, path: str) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise FeatureFlagStateError(
+            f"feature-flag state removed keys must be a list: {value!r}",
+            path=path,
+        )
+    removed: list[str] = []
+    previous: str | None = None
+    for raw_key in value:
+        if type(raw_key) is not str or not is_feature_flag_key(raw_key):
+            raise FeatureFlagStateError(
+                f"feature-flag state removed key must be snake_case: {raw_key!r}",
+                path=path,
+            )
+        if previous is not None and raw_key <= previous:
+            raise FeatureFlagStateError(
+                "feature-flag state removed keys must be strictly sorted",
+                path=path,
+            )
+        previous = raw_key
+        removed.append(raw_key)
+    return tuple(removed)
+
+
+def _require_registered_keys(value: object, path: str) -> tuple[str, ...]:
+    if not isinstance(value, (list, tuple)):
+        raise FeatureFlagStateError(
+            f"registered feature flag keys must be a sequence: {value!r}",
+            path=path,
+        )
+    keys: list[str] = []
+    for raw_key in value:
+        if type(raw_key) is not str or not is_feature_flag_key(raw_key):
+            raise FeatureFlagStateError(
+                f"registered feature flag key must be snake_case: {raw_key!r}",
+                path=path,
+            )
+        keys.append(raw_key)
+    if len(set(keys)) != len(keys):
+        raise FeatureFlagStateError(
+            "registered feature flag keys must be unique",
+            path=path,
+        )
+    return tuple(sorted(keys))
+
+
 def _require_diagnostics(value: object, path: str) -> tuple[FeatureFlagDiagnostic, ...]:
     if value is None:
         return ()
@@ -348,9 +469,12 @@ def _diagnostic_from_wire(
 __all__ = [
     "FEATURE_FLAG_STATE_FILENAME",
     "FEATURE_FLAG_STATE_WIRE_SCHEMA_VERSION",
+    "FeatureFlagReconcileStatus",
+    "SavedFeatureFlagReconcileOutcome",
     "SavedFeatureFlagSetOutcome",
     "SavedFeatureFlagState",
     "feature_flag_state_path",
     "load_saved_feature_flags",
+    "reconcile_saved_feature_flags",
     "set_saved_feature_flag",
 ]

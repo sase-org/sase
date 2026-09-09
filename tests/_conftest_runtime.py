@@ -182,6 +182,8 @@ def reset_process_feature_flags() -> None:
     with flag_snapshot._lock:
         flag_snapshot._snapshot = None
         flag_snapshot._installed = False
+        flag_snapshot._cleanup_request = None
+        flag_snapshot._cleanup_running = False
         flag_snapshot._override_stack.clear()
         flag_snapshot._cli_values.clear()
 

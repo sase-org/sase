@@ -96,6 +96,7 @@ def test_required_bindings_include_pre_facade_contracts(tool: ModuleType) -> Non
     expected = {
         "feature_flag_state_get",
         "feature_flag_state_set",
+        "feature_flag_state_reconcile",
         "migration_acquire_bounded_lock",
         "migration_fingerprint",
         "migration_journal_record_normalize",
@@ -132,6 +133,7 @@ def test_list_includes_required_feature_flag_state_bindings(
     assert "scanned_binding" in listed
     assert "feature_flag_state_get" in listed
     assert "feature_flag_state_set" in listed
+    assert "feature_flag_state_reconcile" in listed
 
 
 def test_dev_extension_exposes_every_collected_name(

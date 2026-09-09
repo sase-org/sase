@@ -96,6 +96,8 @@ def init_runtime_state(
     self._startup_axe_ready_mono = None
     self._startup_visible_ready_mono = None
     self._startup_telemetry_recorded = False
+    self._feature_flag_cleanup_notice_scheduled = False
+    self._feature_flag_cleanup_async_tasks = set()
     self._agents_onboarding_launch_targets_available = False
     self._agents_onboarding_launch_targets_refresh_scheduled = False
     self._agents_onboarding_launch_targets_refresh_running = False

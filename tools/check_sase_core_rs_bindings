@@ -43,6 +43,7 @@ RUST_BINDING_FUNCTION = "require_rust_binding"
 REQUIRED_BINDINGS = (
     "feature_flag_state_get",
     "feature_flag_state_set",
+    "feature_flag_state_reconcile",
     "migration_acquire_bounded_lock",
     "migration_fingerprint",
     "migration_journal_record_normalize",

@@ -15,6 +15,7 @@ from ...query.types import QueryExpr
 from ..util.fs_watcher import ArtifactWatcher
 from ..util.nav_gate import NavigationGate
 from ._startup_common_placeholders import StartupCommonPlaceholdersMixin
+from ._startup_feature_flags import StartupFeatureFlagCleanupMixin
 from ._startup_history_words import StartupHistoryWordsMixin
 from ._startup_loads import StartupLoadsMixin
 from ._startup_misspellings import StartupMisspellingsMixin
@@ -54,6 +55,7 @@ class StartupMixin(
     StateInitMixin,
     StartupHistoryWordsMixin,
     StartupCommonPlaceholdersMixin,
+    StartupFeatureFlagCleanupMixin,
     StartupMisspellingsMixin,
     StartupPromptCatalogMixin,
     StartupLoadsMixin,
@@ -87,6 +89,7 @@ class StartupMixin(
     _startup_axe_ready_mono: float | None
     _startup_visible_ready_mono: float | None
     _startup_telemetry_recorded: bool
+    _feature_flag_cleanup_notice_scheduled: bool
     _agents_onboarding_launch_targets_available: bool
     _agents_onboarding_launch_targets_refresh_scheduled: bool
     _agents_onboarding_launch_targets_refresh_running: bool

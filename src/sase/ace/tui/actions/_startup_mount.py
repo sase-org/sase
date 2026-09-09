@@ -190,6 +190,10 @@ class StartupMountMixin:
             ).end_startup_stopwatch()
         except Exception:
             pass
+        try:
+            self._schedule_feature_flag_cleanup_notice()
+        except Exception:
+            log.debug("Failed to schedule feature-flag cleanup notice", exc_info=True)
 
     def _apply_startup_loading_state(self: Any) -> None:
         """Mark async-loaded panels as loading so the user sees spinners.

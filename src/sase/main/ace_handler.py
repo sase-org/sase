@@ -163,7 +163,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
     set_include_local_config(False)
     # Pin flags only after local config is disabled; otherwise ACE would
     # inherit project-local feature_flags that are meant for agent runs.
-    install_process_feature_flags()
+    install_process_feature_flags(defer_cleanup=True)
 
     # Route every ``sase`` logger record (including un-instrumented
     # ``log.exception(...)`` calls) to a durable, findable ~/.sase/logs/tui.log

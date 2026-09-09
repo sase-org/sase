@@ -45,6 +45,10 @@ def test_installed_core_feature_flag_state_round_trip() -> None:
         },
         "idempotent_changed": False,
         "idempotent_previous": True,
+        "reconciled_flags": {
+            "alpha_flag": True,
+        },
+        "reconciled_removed": ["prettier_enabled"],
     }
 
 
@@ -54,6 +58,7 @@ def test_feature_flag_state_smoke_requires_complete_binding_family() -> None:
     with pytest.raises(
         RuntimeError,
         match=r"missing feature-flag state binding\(s\): "
-        "feature_flag_state_get, feature_flag_state_set",
+        "feature_flag_state_get, feature_flag_state_set, "
+        "feature_flag_state_reconcile",
     ):
         tool.validate_round_trip(ModuleType("incomplete_sase_core_rs"))

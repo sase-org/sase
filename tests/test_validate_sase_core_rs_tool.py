@@ -232,7 +232,11 @@ def test_validate_sase_core_rs_requires_bead_link_mutation_bindings() -> None:
 
 def test_validate_sase_core_rs_requires_feature_flag_state_bindings() -> None:
     validator = load_validate_sase_core_rs()
-    bindings = {"feature_flag_state_get", "feature_flag_state_set"}
+    bindings = {
+        "feature_flag_state_get",
+        "feature_flag_state_set",
+        "feature_flag_state_reconcile",
+    }
 
     assert bindings <= set(validator.REQUIRED_BINDINGS)
     for binding in bindings:

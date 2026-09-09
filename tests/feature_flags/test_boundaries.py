@@ -21,7 +21,7 @@ def test_handle_ace_installs_after_disabling_local_config(
     )
     monkeypatch.setattr(
         "sase.feature_flags.install_process_feature_flags",
-        lambda: events.append(("install_process_feature_flags", None)),
+        lambda **kwargs: events.append(("install_process_feature_flags", kwargs)),
     )
     monkeypatch.setattr(
         "sase.ace.tui.log_setup.install_tui_file_logging",
@@ -60,7 +60,7 @@ def test_handle_ace_installs_after_disabling_local_config(
 
     assert events[:4] == [
         ("set_include_local_config", False),
-        ("install_process_feature_flags", None),
+        ("install_process_feature_flags", {"defer_cleanup": True}),
         ("install_tui_file_logging", None),
         ("AceApp", events[3][1]),
     ]

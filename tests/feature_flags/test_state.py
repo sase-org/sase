@@ -22,6 +22,7 @@ from sase.feature_flags.state import (
     FEATURE_FLAG_STATE_WIRE_SCHEMA_VERSION,
     feature_flag_state_path,
     load_saved_feature_flags,
+    reconcile_saved_feature_flags,
     set_saved_feature_flag,
 )
 from sase.feature_flags import snapshot as snapshot_mod
@@ -113,6 +114,38 @@ def test_load_round_trips_registered_and_unknown_keys() -> None:
     assert [item.code for item in snapshot.diagnostics] == ["unknown_key"]
     with pytest.raises(TypeError):
         loaded.flags["future_release_flag"] = True  # type: ignore[index]
+
+
+def test_reconcile_saved_feature_flags_removes_unknowns_and_preserves_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_state({BETA_KEY: True, "future_release_flag": False})
+    reset_process_feature_flags()
+
+    outcome = reconcile_saved_feature_flags((BETA_KEY, SUNSET_KEY))
+
+    assert outcome.status == "cleaned"
+    assert outcome.removed == ("future_release_flag",)
+    assert dict(outcome.flags) == {BETA_KEY: True}
+    assert dict(load_saved_feature_flags().flags) == {BETA_KEY: True}
+    assert outcome.diagnostics == ()
+    with pytest.raises(TypeError):
+        outcome.flags[BETA_KEY] = False  # type: ignore[index]
+    monkeypatch.setattr(
+        "sase.feature_flags.state.require_rust_binding",
+        lambda _name: (
+            lambda *_args: {
+                "version": 1,
+                "status": "cleaned",
+                "removed": ["zeta_flag", "alpha_flag"],
+                "flags": {},
+                "path": feature_flag_state_path(),
+                "diagnostics": [],
+            }
+        ),
+    )
+    with pytest.raises(FeatureFlagStateError, match="strictly sorted"):
+        reconcile_saved_feature_flags((BETA_KEY,))
 
 
 def test_corrupt_state_is_non_destructive_and_blocks_mutation() -> None:

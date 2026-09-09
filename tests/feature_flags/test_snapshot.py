@@ -15,6 +15,7 @@ from sase.feature_flags import FeatureFlagError
 from sase.feature_flags.env import SASE_FEATURE_FLAGS_ENV, parse_feature_flags_env
 from sase.feature_flags.models import FeatureFlagDiagnostic
 from sase.feature_flags.resolver import FeatureFlagLayerInput
+from sase.feature_flags.state import SavedFeatureFlagReconcileOutcome
 from sase.feature_flags import snapshot as snapshot_mod
 
 from tests._conftest_runtime import reset_process_feature_flags
@@ -105,6 +106,193 @@ def test_install_process_feature_flags_is_idempotent_and_logs_once(
     assert (
         messages.count("feature flags resolved; non-default: demo_flag=True (user)")
         == 1
+    )
+
+
+def test_install_process_feature_flags_synchronously_cleans_unknown_saved_state(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _install_snapshot_inputs(monkeypatch, defs=definitions(demo_flag()))
+    monkeypatch.setattr(
+        snapshot_mod,
+        "_saved_state_input",
+        lambda: (
+            {"demo_flag": True, "retired_flag": False},
+            (),
+            "/tmp/feature_flags.json",
+        ),
+    )
+    calls: list[tuple[str, ...]] = []
+    notices: list[snapshot_mod.FeatureFlagCleanupNotice] = []
+
+    def reconcile(keys: tuple[str, ...]) -> SavedFeatureFlagReconcileOutcome:
+        calls.append(keys)
+        return SavedFeatureFlagReconcileOutcome(
+            version=1,
+            status="cleaned",
+            removed=("retired_flag",),
+            flags={"demo_flag": True},
+            path="/tmp/feature_flags.json",
+        )
+
+    monkeypatch.setattr(snapshot_mod, "reconcile_saved_feature_flags", reconcile)
+    monkeypatch.setattr(
+        snapshot_mod,
+        "_emit_cleanup_notice_stderr",
+        lambda notice: notices.append(notice),
+    )
+    monkeypatch.delenv(SASE_FEATURE_FLAGS_ENV, raising=False)
+    caplog.set_level(logging.WARNING, logger="sase.feature_flags.snapshot")
+    reset_process_feature_flags()
+
+    installed = snapshot_mod.install_process_feature_flags()
+
+    assert calls == [("demo_flag",)]
+    assert notices[0].title == "Feature flags cleaned up"
+    assert "AUTO-CLEANED" in notices[0].plain_message
+    assert dict(installed.saved) == {"demo_flag": True}
+    assert [item.code for item in installed.diagnostics] == []
+    assert parse_feature_flags_env(os.environ[SASE_FEATURE_FLAGS_ENV]) == {
+        "demo_flag": True
+    }
+    assert all(
+        record.getMessage().find("unknown_key") == -1 for record in caplog.records
+    )
+
+
+def test_deferred_feature_flag_cleanup_runs_once_and_settles_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_snapshot_inputs(monkeypatch, defs=definitions(demo_flag()))
+    monkeypatch.setattr(
+        snapshot_mod,
+        "_saved_state_input",
+        lambda: (
+            {"demo_flag": True, "retired_flag": False},
+            (),
+            "/tmp/feature_flags.json",
+        ),
+    )
+    calls: list[tuple[str, ...]] = []
+
+    def reconcile(keys: tuple[str, ...]) -> SavedFeatureFlagReconcileOutcome:
+        calls.append(keys)
+        return SavedFeatureFlagReconcileOutcome(
+            version=1,
+            status="cleaned",
+            removed=("retired_flag",),
+            flags={"demo_flag": True},
+            path="/tmp/feature_flags.json",
+        )
+
+    monkeypatch.setattr(snapshot_mod, "reconcile_saved_feature_flags", reconcile)
+    reset_process_feature_flags()
+
+    installed = snapshot_mod.install_process_feature_flags(defer_cleanup=True)
+    assert calls == []
+    assert snapshot_mod.has_pending_feature_flag_cleanup() is True
+    assert [item.code for item in installed.diagnostics] == ["unknown_key"]
+
+    notice = snapshot_mod.run_pending_feature_flag_cleanup()
+    again = snapshot_mod.run_pending_feature_flag_cleanup()
+    settled = snapshot_mod.current_flags()
+
+    assert calls == [("demo_flag",)]
+    assert notice is not None
+    assert notice.title == "Feature flags cleaned up"
+    assert again is None
+    assert dict(settled.saved) == {"demo_flag": True}
+    assert settled.diagnostics == ()
+
+
+def test_cleanup_race_reports_already_clean_without_rewriting_snapshot_decisions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_snapshot_inputs(monkeypatch, defs=definitions(demo_flag()))
+    monkeypatch.setattr(
+        snapshot_mod,
+        "_saved_state_input",
+        lambda: (
+            {"demo_flag": True, "retired_flag": False},
+            (),
+            "/tmp/feature_flags.json",
+        ),
+    )
+    monkeypatch.setattr(
+        snapshot_mod,
+        "reconcile_saved_feature_flags",
+        lambda _keys: SavedFeatureFlagReconcileOutcome(
+            version=1,
+            status="unchanged",
+            removed=(),
+            flags={"demo_flag": False},
+            path="/tmp/feature_flags.json",
+        ),
+    )
+    reset_process_feature_flags()
+
+    installed = snapshot_mod.install_process_feature_flags(defer_cleanup=True)
+    notice = snapshot_mod.run_pending_feature_flag_cleanup()
+    settled = snapshot_mod.current_flags()
+
+    assert notice is not None
+    assert notice.title == "Feature flag state cleaned up"
+    assert "ALREADY CLEAN" in notice.plain_message
+    assert installed.enabled("demo_flag") is True
+    assert settled.enabled("demo_flag") is True
+    assert dict(settled.saved) == {"demo_flag": False}
+    assert settled.diagnostics == ()
+
+
+def test_cleanup_failure_keeps_state_diagnostic_but_suppresses_install_warning(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _install_snapshot_inputs(monkeypatch, defs=definitions(demo_flag()))
+    monkeypatch.setattr(
+        snapshot_mod,
+        "_saved_state_input",
+        lambda: (
+            {"demo_flag": True, "retired_flag": False},
+            (),
+            "/tmp/feature_flags.json",
+        ),
+    )
+    notices: list[snapshot_mod.FeatureFlagCleanupNotice] = []
+    monkeypatch.setattr(
+        snapshot_mod,
+        "reconcile_saved_feature_flags",
+        lambda _keys: SavedFeatureFlagReconcileOutcome(
+            version=1,
+            status="failed",
+            removed=(),
+            flags={},
+            path="/tmp/feature_flags.json",
+            diagnostics=(
+                FeatureFlagDiagnostic(
+                    severity="error",
+                    code="write_failed",
+                    message="cannot replace state",
+                    source="state",
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        snapshot_mod,
+        "_emit_cleanup_notice_stderr",
+        lambda notice: notices.append(notice),
+    )
+    caplog.set_level(logging.WARNING, logger="sase.feature_flags.snapshot")
+    reset_process_feature_flags()
+
+    installed = snapshot_mod.install_process_feature_flags()
+
+    assert notices[0].title == "Feature flag cleanup failed"
+    assert [item.code for item in installed.diagnostics] == ["unknown_key"]
+    assert all(
+        record.getMessage().find("unknown_key") == -1 for record in caplog.records
     )
 
 
