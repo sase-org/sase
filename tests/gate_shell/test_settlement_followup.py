@@ -3,24 +3,16 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
 import sase.gate_shell.settlement as settlement_module
-from sase.gate_shell.member import create_gate_shell_member
+from sase.gate_shell.claims import GATE_WORKSPACE_CLAIM_WORKFLOW
 from sase.gate_shell.settlement import settle_gate_shell
-from sase.gate_shell.claims import (
-    GATE_WORKSPACE_CLAIM_WORKFLOW,
-    gate_claim_is_releasable,
-)
 from sase.gate_shell.store import read_gate_shell_marker
-from sase.logs.workspace_claim_ledger import read_ledger_records
 from sase.notification_gates.executor import execute_gate_selection
-from sase.notification_gates.model_shell import GateShellSpec, subset_branches_allowed
 from sase.notification_gates.service import create_gate
 from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
 from sase.plan_gate import build_plan_approval_gate_spec
@@ -28,113 +20,15 @@ from sase.plan_shell.create import plan_gate_shell_block
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 from sase.shells.followup import FollowupLaunchResult
 from tests._plan_gate_fixtures import write_plan
+from tests.gate_shell._settlement_followup_helpers import (
+    DEFAULT_SHELL,
+    gate_spec,
+    make_gate_shell_member,
+    sandbox_home,
+)
 from tests.plan_validation_helpers import VALID_TALE_PLAN
 
-_ECHO_COMMAND = (
-    "#!/usr/bin/env python3\n"
-    "import json, sys\n"
-    "print(json.dumps({'status': 'ok', 'input': json.load(sys.stdin)}))\n"
-)
-
-
-@pytest.fixture(autouse=True)
-def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-
-
-_DEFAULT_SHELL: dict[str, Any] = {
-    "pending_status": "GATE",
-    "settled_status": "GATED",
-    "next": {"prompt": "Verify the cleanup landed."},
-}
-
-
-def _spec(request_id: str, *, shell: dict[str, Any] | None) -> dict[str, object]:
-    spec: dict[str, object] = {
-        "schema_version": 3,
-        "request_id": request_id,
-        "kind": "custom",
-        "producer": {"agent": "test"},
-        "payload": {},
-        "presentation": {
-            "icon": "🧪",
-            "title": "Reclaim disk space",
-            "notes": ["Free up disk on the shared volume"],
-        },
-        "query": "cleanup OR reject",
-        "primary_branch": ["cleanup"],
-        "options": [
-            {
-                "id": "cleanup",
-                "label": "Clean up",
-                "command": {"argv": ["commands/cleanup"]},
-            },
-            {
-                "id": "reject",
-                "label": "Reject",
-                "command": {"argv": ["commands/reject"]},
-            },
-        ],
-        "resources": [
-            {"path": "commands/cleanup", "role": "command", "content": _ECHO_COMMAND},
-            {"path": "commands/reject", "role": "command", "content": _ECHO_COMMAND},
-        ],
-    }
-    if shell is not None:
-        spec["shell"] = shell
-    return spec
-
-
-def _make_gate_shell_member(
-    request_id: str,
-    bundle_path: Path,
-    *,
-    shell: dict[str, Any],
-    branches: tuple[tuple[str, ...], ...] = (("cleanup",), ("reject",)),
-    gate_kind: str = "custom",
-    label: str = "Reclaim disk space",
-    workspace_num: int | None = None,
-) -> str:
-    """Build the gate-shell member from the *same* shell block as the bundle.
-
-    Settlement resolves follow-up policy from the durable bundle envelope
-    (the single source of truth), never from the member's own metadata, so a
-    test that wants a resolvable policy must give both the same shell block.
-    """
-    parsed_shell = GateShellSpec.from_mapping(
-        shell,
-        branches=branches,
-        allow_branch_subsets=subset_branches_allowed(gate_kind),
-    )
-    base_meta: dict[str, Any] = {
-        "name": "lane--0",
-        "agent_family": "lane",
-        "model": "gpt-5",
-    }
-    if workspace_num is not None:
-        base_meta["workspace_dir"] = "/work/lane"
-    artifacts_dir = create_gate_shell_member(
-        "proj",
-        base_meta,
-        lane="lane",
-        suffix="--gate",
-        prev_artifacts_timestamp="20260812120000",
-        workspace_num=workspace_num,
-        gate_id=request_id,
-        gate_kind=gate_kind,
-        label=label,
-        reason="wait for reviewer",
-        creator_agent="lane--0",
-        timeout_seconds=86400.0,
-        request_fingerprint=None,
-        shell=parsed_shell,
-    )
-    from sase.axe.run_agent_helpers_artifacts import update_meta_field
-
-    update_meta_field(artifacts_dir, "gate_bundle_path", str(bundle_path))
-    if workspace_num is not None:
-        update_meta_field(artifacts_dir, "gate_workspace_policy", "inherit")
-    return artifacts_dir
+__all__ = ["sandbox_home"]
 
 
 def _write_response(
@@ -153,30 +47,6 @@ def _write_response(
     (bundle_path / "response.json").write_text(
         json.dumps(response, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
-    )
-
-
-def _record_creator_claim_meta(
-    artifacts_dir: str,
-    *,
-    pid: int,
-    workflow: str,
-    cl_name: str | None,
-    artifacts_timestamp: str,
-    pinned: bool = False,
-) -> None:
-    from sase.axe.run_agent_helpers_artifacts import update_meta_fields
-
-    update_meta_fields(
-        artifacts_dir,
-        {
-            "gate_creator_claim_pid": pid,
-            "gate_creator_claim_workflow": workflow,
-            "gate_creator_claim_cl_name": cl_name,
-            "gate_creator_claim_artifacts_timestamp": artifacts_timestamp,
-            "gate_creator_claim_pinned": pinned,
-            "cl_name": cl_name,
-        },
     )
 
 
@@ -202,9 +72,9 @@ def test_launcher_only_runs_after_the_shell_is_terminal_and_indexed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     request_id = "reclaim-order"
-    gate = create_gate(_spec(request_id, shell=_DEFAULT_SHELL))
-    artifacts_dir = _make_gate_shell_member(
-        request_id, gate.bundle_path, shell=_DEFAULT_SHELL
+    gate = create_gate(gate_spec(request_id, shell=DEFAULT_SHELL))
+    artifacts_dir = make_gate_shell_member(
+        request_id, gate.bundle_path, shell=DEFAULT_SHELL
     )
     execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
     record = read_gate_shell_marker("proj", artifacts_dir)
@@ -244,8 +114,8 @@ def test_timeout_with_no_timeout_branch_launches_nothing(
 ) -> None:
     shell: dict[str, Any] = {"next": {"prompt": "answered-only prompt"}}
     request_id = "reclaim-timeout-unmapped"
-    gate = create_gate(_spec(request_id, shell=shell))
-    artifacts_dir = _make_gate_shell_member(request_id, gate.bundle_path, shell=shell)
+    gate = create_gate(gate_spec(request_id, shell=shell))
+    artifacts_dir = make_gate_shell_member(request_id, gate.bundle_path, shell=shell)
     record = read_gate_shell_marker("proj", artifacts_dir)
     assert record is not None
 
@@ -275,8 +145,8 @@ def test_timeout_with_a_timeout_branch_launches(
 ) -> None:
     shell: dict[str, Any] = {"branches": {"timeout": {"prompt": "handle the timeout"}}}
     request_id = "reclaim-timeout-mapped"
-    gate = create_gate(_spec(request_id, shell=shell))
-    artifacts_dir = _make_gate_shell_member(request_id, gate.bundle_path, shell=shell)
+    gate = create_gate(gate_spec(request_id, shell=shell))
+    artifacts_dir = make_gate_shell_member(request_id, gate.bundle_path, shell=shell)
     record = read_gate_shell_marker("proj", artifacts_dir)
     assert record is not None
 
@@ -305,9 +175,9 @@ def test_unparseable_shell_block_records_followup_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     request_id = "reclaim-bad-shell"
-    gate = create_gate(_spec(request_id, shell=_DEFAULT_SHELL))
-    artifacts_dir = _make_gate_shell_member(
-        request_id, gate.bundle_path, shell=_DEFAULT_SHELL
+    gate = create_gate(gate_spec(request_id, shell=DEFAULT_SHELL))
+    artifacts_dir = make_gate_shell_member(
+        request_id, gate.bundle_path, shell=DEFAULT_SHELL
     )
     _write_response(gate.bundle_path, ("cleanup",), result={"status": "ok"})
     request = json.loads(gate.request_path.read_text(encoding="utf-8"))
@@ -357,7 +227,7 @@ def test_tale_approve_commit_settlement_launches_coder_followup(
     shell = plan_gate_shell_block("tale")
     spec["shell"] = shell
     gate = create_gate(spec)
-    artifacts_dir = _make_gate_shell_member(
+    artifacts_dir = make_gate_shell_member(
         request_id,
         gate.bundle_path,
         shell=shell,
@@ -407,9 +277,9 @@ def test_creator_live_suppresses_launch_and_stashes_the_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     request_id = "reclaim-auto"
-    gate = create_gate(_spec(request_id, shell=_DEFAULT_SHELL))
-    artifacts_dir = _make_gate_shell_member(
-        request_id, gate.bundle_path, shell=_DEFAULT_SHELL
+    gate = create_gate(gate_spec(request_id, shell=DEFAULT_SHELL))
+    artifacts_dir = make_gate_shell_member(
+        request_id, gate.bundle_path, shell=DEFAULT_SHELL
     )
     execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
     record = read_gate_shell_marker("proj", artifacts_dir)
@@ -448,9 +318,9 @@ def test_creator_live_leaves_the_workspace_claim_alone(
         ],
     )
     request_id = "reclaim-auto-claim"
-    gate = create_gate(_spec(request_id, shell=_DEFAULT_SHELL))
-    artifacts_dir = _make_gate_shell_member(
-        request_id, gate.bundle_path, shell=_DEFAULT_SHELL, workspace_num=3
+    gate = create_gate(gate_spec(request_id, shell=DEFAULT_SHELL))
+    artifacts_dir = make_gate_shell_member(
+        request_id, gate.bundle_path, shell=DEFAULT_SHELL, workspace_num=3
     )
     from sase.axe.run_agent_helpers_artifacts import update_meta_field
 
@@ -479,228 +349,13 @@ def test_creator_live_leaves_the_workspace_claim_alone(
     )
 
 
-def test_settlement_holds_gate_claim_on_settling_pid_before_done_marker(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
-    from tests.monitor._fixtures import write_project_file
-
-    creator_pid = 1234
-    request_id = "reclaim-settle-hold"
-    shell: dict[str, Any] = {}
-    gate = create_gate(_spec(request_id, shell=shell))
-    artifacts_dir = _make_gate_shell_member(
-        request_id, gate.bundle_path, shell=shell, workspace_num=3
-    )
-    gate_timestamp = Path(artifacts_dir).name
-    project_file = write_project_file(
-        "proj",
-        running_claims=[
-            WorkspaceClaim(
-                3,
-                GATE_WORKSPACE_CLAIM_WORKFLOW,
-                "feature",
-                pid=creator_pid,
-                artifacts_timestamp=gate_timestamp,
-            )
-        ],
-    )
-    _record_creator_claim_meta(
-        artifacts_dir,
-        pid=creator_pid,
-        workflow="lane",
-        cl_name="feature",
-        artifacts_timestamp="20260812120000",
-    )
-    record = read_gate_shell_marker("proj", artifacts_dir)
-    assert record is not None
-    monkeypatch.setattr(
-        "sase.gate_shell.start_claim.is_process_running",
-        lambda _pid: False,
-    )
-
-    observed_claims: list[list[WorkspaceClaim]] = []
-
-    def observing_done_marker(
-        called_artifacts_dir: str, marker: dict[str, Any]
-    ) -> None:
-        observed_claims.append(get_claimed_workspaces(project_file))
-        write_done_marker_and_update_index(called_artifacts_dir, marker)
-
-    monkeypatch.setattr(
-        settlement_module,
-        "write_done_marker_and_update_index",
-        observing_done_marker,
-    )
-
-    ledger_file = str(tmp_path / "workspace_claims.jsonl")
-    with patch("sase.logs.workspace_claim_ledger.LEDGER_FILE", ledger_file):
-        settle_gate_shell(record, gate_state="timeout", reason="gate timed out")
-        ledger = read_ledger_records(ledger_file=ledger_file)
-
-    assert observed_claims
-    first_claims = observed_claims[0]
-    assert len(first_claims) == 1
-    held = first_claims[0]
-    assert held.workspace_num == 3
-    assert held.workflow == GATE_WORKSPACE_CLAIM_WORKFLOW
-    assert held.pid == os.getpid()
-    assert held.artifacts_timestamp == gate_timestamp
-    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
-    assert meta["gate_claim_holder_pid"] == os.getpid()
-    assert any(
-        entry["operation"] == "transfer"
-        and entry["caller_tag"] == "gate-shell-settle-hold"
-        and entry["claim_pid"] == os.getpid()
-        for entry in ledger
-    )
-
-
-def test_dead_settlement_holder_with_terminal_marker_is_releasable(
-    tmp_path: Path,
-) -> None:
-    from sase.axe.run_agent_helpers_artifacts import update_meta_field
-    from tests.monitor._fixtures import write_project_file
-
-    request_id = "reclaim-settle-crash"
-    shell: dict[str, Any] = {}
-    gate = create_gate(_spec(request_id, shell=shell))
-    artifacts_dir = _make_gate_shell_member(
-        request_id, gate.bundle_path, shell=shell, workspace_num=3
-    )
-    update_meta_field(artifacts_dir, "gate_state", "answered")
-    project_file = write_project_file("proj")
-    claim = WorkspaceClaim(
-        3,
-        GATE_WORKSPACE_CLAIM_WORKFLOW,
-        "feature",
-        pid=987654,
-        artifacts_timestamp=Path(artifacts_dir).name,
-    )
-
-    assert gate_claim_is_releasable(project_file, claim) is True
-
-
-def test_settle_restores_original_claim_when_creator_pid_is_live(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from tests.monitor._fixtures import write_project_file
-
-    creator_pid = 1234
-    creator_timestamp = "20260812120000"
-    project_file = write_project_file(
-        "proj",
-        running_claims=[
-            WorkspaceClaim(
-                3,
-                GATE_WORKSPACE_CLAIM_WORKFLOW,
-                "feature",
-                pid=creator_pid,
-                artifacts_timestamp="20260812120500",
-            )
-        ],
-    )
-    request_id = "reclaim-live-creator"
-    shell: dict[str, Any] = {}
-    gate = create_gate(_spec(request_id, shell=shell))
-    artifacts_dir = _make_gate_shell_member(
-        request_id, gate.bundle_path, shell=shell, workspace_num=3
-    )
-    _record_creator_claim_meta(
-        artifacts_dir,
-        pid=creator_pid,
-        workflow="lane",
-        cl_name="feature",
-        artifacts_timestamp=creator_timestamp,
-    )
-    record = read_gate_shell_marker("proj", artifacts_dir)
-    assert record is not None
-    monkeypatch.setattr(
-        "sase.gate_shell.start_claim.is_process_running",
-        lambda pid: pid == creator_pid,
-    )
-
-    ledger_file = str(tmp_path / "workspace_claims.jsonl")
-    with patch("sase.logs.workspace_claim_ledger.LEDGER_FILE", ledger_file):
-        settle_gate_shell(record, gate_state="timeout", reason="gate timed out")
-        ledger = read_ledger_records(ledger_file=ledger_file)
-
-    claims = get_claimed_workspaces(project_file)
-    assert len(claims) == 1
-    restored = claims[0]
-    assert restored.workspace_num == 3
-    assert restored.workflow == "lane"
-    assert restored.cl_name == "feature"
-    assert restored.pid == creator_pid
-    assert restored.artifacts_timestamp == creator_timestamp
-    assert ledger[-1]["operation"] == "transfer"
-    assert ledger[-1]["caller_tag"] == "gate-shell-settle-restore"
-    assert ledger[-1]["claim_pid"] == creator_pid
-    log_text = (Path(artifacts_dir) / "gate.log").read_text(encoding="utf-8")
-    assert "creator pid 1234 is still alive" in log_text
-    assert "restored workspace #3 claim to lane" in log_text
-
-
-def test_settle_releases_gate_claim_when_creator_pid_is_dead(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from tests.monitor._fixtures import write_project_file
-
-    creator_pid = 1234
-    project_file = write_project_file(
-        "proj",
-        running_claims=[
-            WorkspaceClaim(
-                3,
-                GATE_WORKSPACE_CLAIM_WORKFLOW,
-                "feature",
-                pid=creator_pid,
-                artifacts_timestamp="20260812120500",
-            )
-        ],
-    )
-    request_id = "reclaim-dead-creator"
-    shell: dict[str, Any] = {}
-    gate = create_gate(_spec(request_id, shell=shell))
-    artifacts_dir = _make_gate_shell_member(
-        request_id, gate.bundle_path, shell=shell, workspace_num=3
-    )
-    _record_creator_claim_meta(
-        artifacts_dir,
-        pid=creator_pid,
-        workflow="lane",
-        cl_name="feature",
-        artifacts_timestamp="20260812120000",
-    )
-    record = read_gate_shell_marker("proj", artifacts_dir)
-    assert record is not None
-    monkeypatch.setattr(
-        "sase.gate_shell.start_claim.is_process_running",
-        lambda _pid: False,
-    )
-
-    ledger_file = str(tmp_path / "workspace_claims.jsonl")
-    with patch("sase.logs.workspace_claim_ledger.LEDGER_FILE", ledger_file):
-        settle_gate_shell(record, gate_state="timeout", reason="gate timed out")
-        ledger = read_ledger_records(ledger_file=ledger_file)
-
-    assert get_claimed_workspaces(project_file) == []
-    assert ledger[-1]["operation"] == "release"
-    assert ledger[-1]["caller_tag"] == "gate-shell-settle"
-    log_path = Path(artifacts_dir) / "gate.log"
-    assert not log_path.exists()
-
-
 def test_done_marker_carries_the_followup_outcome_and_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     request_id = "reclaim-done"
-    gate = create_gate(_spec(request_id, shell=_DEFAULT_SHELL))
-    artifacts_dir = _make_gate_shell_member(
-        request_id, gate.bundle_path, shell=_DEFAULT_SHELL
+    gate = create_gate(gate_spec(request_id, shell=DEFAULT_SHELL))
+    artifacts_dir = make_gate_shell_member(
+        request_id, gate.bundle_path, shell=DEFAULT_SHELL
     )
     execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
     record = read_gate_shell_marker("proj", artifacts_dir)
