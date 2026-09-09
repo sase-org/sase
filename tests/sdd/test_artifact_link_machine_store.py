@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any
 
@@ -144,6 +145,31 @@ class TestMaterializationAndIntegration:
         assert (hidden_plans / "README.md").is_file()
         assert (hidden_plans / ".git").is_dir()
 
+    def test_missing_hidden_clone_setup_receives_chop_deadline(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+        plans_remote = _seeded_remote(tmp_path, "plans")
+        primary = _sidecar_repos_primary(tmp_path, roles={"plans": plans_remote})
+        deadline = time.monotonic() + 300.0
+        calls: list[dict[str, object]] = []
+        import sase.sdd._store_link as store_link_mod
+
+        original = store_link_mod.ensure_sidecar_sdd_clone
+
+        def _spy(clone_dir: Path, remote_url: str, **kwargs: Any) -> None:
+            calls.append({"clone_dir": clone_dir, "remote_url": remote_url, **kwargs})
+            original(clone_dir, remote_url, **kwargs)
+
+        monkeypatch.setattr(store_link_mod, "ensure_sidecar_sdd_clone", _spy)
+
+        resolve_machine_artifact_link_store("acme_widget", primary, deadline=deadline)
+
+        assert len(calls) == 1
+        assert calls[0]["deadline"] == deadline
+        hidden_plans = Path(hidden_sidecar_clone_dir("acme_widget", "plans"))
+        assert (hidden_plans / ".git").is_dir()
+
     def test_existing_hidden_clone_integrates_fresh_remote_state(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -163,6 +189,36 @@ class TestMaterializationAndIntegration:
         resolve_machine_artifact_link_store("acme_widget", primary)
 
         assert (hidden_plans / "README.md").read_text(encoding="utf-8") == "v2\n"
+
+    def test_existing_hidden_clone_fresh_integration_receives_chop_deadline(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+        plans_remote = _seeded_remote(tmp_path, "plans")
+        primary = _sidecar_repos_primary(tmp_path, roles={"plans": plans_remote})
+
+        resolve_machine_artifact_link_store("acme_widget", primary)
+        hidden_plans = Path(hidden_sidecar_clone_dir("acme_widget", "plans"))
+        assert (hidden_plans / ".git").is_dir()
+
+        deadline = time.monotonic() + 300.0
+        calls: list[dict[str, object]] = []
+        import sase.sdd._store_link as store_link_mod
+
+        original = store_link_mod.ensure_sidecar_sdd_clone
+
+        def _spy(clone_dir: Path, remote_url: str, **kwargs: Any) -> None:
+            calls.append({"clone_dir": clone_dir, "remote_url": remote_url, **kwargs})
+            original(clone_dir, remote_url, **kwargs)
+
+        monkeypatch.setattr(store_link_mod, "ensure_sidecar_sdd_clone", _spy)
+
+        resolve_machine_artifact_link_store("acme_widget", primary, deadline=deadline)
+
+        assert len(calls) == 1
+        assert calls[0]["clone_dir"] == hidden_plans
+        assert calls[0]["fresh"] is True
+        assert calls[0]["deadline"] == deadline
 
     def test_primary_clone_is_used_only_as_a_git_object_reference(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

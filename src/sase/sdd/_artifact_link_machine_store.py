@@ -238,6 +238,7 @@ def _ensure_hidden_document_root(
             reference_repo=_primary_reference_repo(store, role),
             strict=True,
             fresh=fresh,
+            deadline=deadline,
         )
     except Exception as exc:  # noqa: BLE001 - one role must not block another.
         return None, f"{role}: hidden clone unavailable: {exc}"
