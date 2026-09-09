@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import Any
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -22,8 +23,10 @@ from ._exceptions import DirectiveError
 from ._parsing import (
     find_matching_brace_for_args,
     find_matching_paren_for_args,
+    parse_arg_spans,
     parse_args,
 )
+from ._parsing_args import process_text_block
 
 
 @dataclass
@@ -39,6 +42,7 @@ class _CollectedDirectives:
     wait_time_args: list[str] = field(default_factory=list)
     wait_runners_args: list[str] = field(default_factory=list)
     wait_priority_args: list[str] = field(default_factory=list)
+    queue_occurrences: list[dict[str, Any]] = field(default_factory=list)
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
     clan_tribe_arg: str | None = None
     clan_tribe_present: bool = False
@@ -67,6 +71,11 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
             continue
         if name in {"if", "proc"}:
             _collect_code_directive(collected, prompt, match, name)
+            continue
+        if name == "queue":
+            occurrence, match_end = _collect_queue_occurrence(prompt, match)
+            collected.queue_occurrences.append(occurrence)
+            collected.regions_to_remove.append((match.start(), match_end))
             continue
 
         has_open_paren = match.group(2) is not None
@@ -116,17 +125,49 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                     supported_keys = {
                         "agent",
                         "bead",
-                        "priority",
                         "proc",
-                        "runners",
                         "time",
                         "unit",
                     }
+                    from sase.xprompt.queue_directive import (
+                        queue_directive_enabled,
+                    )
+
+                    queue_enabled = queue_directive_enabled()
+                    if not queue_enabled:
+                        supported_keys = {
+                            *supported_keys,
+                            "priority",
+                            "runners",
+                        }
+                    if "runners" in named_args and queue_enabled:
+                        raise DirectiveError(
+                            "%wait(runners=...) has moved to %queue. "
+                            "Use %queue(runners=N) or %q:N, and keep dependencies "
+                            "on %wait."
+                        )
+                    if "priority" in named_args and queue_enabled:
+                        raise DirectiveError(
+                            "%wait(priority=...) has moved to %queue. "
+                            "Use %queue(priority=N) or %q(p=N), and keep "
+                            "dependencies on %wait."
+                        )
+                    if "p" in named_args and queue_enabled:
+                        raise DirectiveError(
+                            "%wait(p=...) is unsupported. Use "
+                            "%queue(priority=...) or %q(p=...)."
+                        )
                     unknown_keys = sorted(
                         key for key in named_args if key not in supported_keys
                     )
                     if unknown_keys:
                         keys = ", ".join(f"{key}=" for key in unknown_keys)
+                        if queue_enabled:
+                            raise DirectiveError(
+                                f"Unsupported keyword on %wait: {keys}. "
+                                "Use unit=, agent=, proc=, bead=, or time=. "
+                                "Queue controls belong on %queue."
+                            )
                         raise DirectiveError(
                             f"Unsupported keyword on %wait: {keys}. "
                             "Only agent=, bead=, priority=, proc=, runners=, "
@@ -315,6 +356,73 @@ def _split_final_selector_args(raw: str) -> list[str]:
     if "," not in raw:
         return [raw]
     return [part.strip() for part in raw.split(",")]
+
+
+def _collect_queue_occurrence(
+    prompt: str,
+    match: re.Match[str],
+) -> tuple[dict[str, Any], int]:
+    """Return a Rust queue occurrence payload for one `%queue` / `%q` match."""
+    has_open_paren = match.group(2) is not None
+    colon_arg = match.group(3)
+    plus_suffix = match.group(4)
+    match_end = match.end()
+    args: list[dict[str, str]] = []
+    if has_open_paren:
+        paren_start = match.end() - 1
+        paren_end = find_matching_paren_for_args(prompt, paren_start)
+        if paren_end is not None:
+            match_end = paren_end + 1
+            args = _queue_args_from_paren_content(
+                prompt[paren_start + 1 : paren_end],
+            )
+    elif colon_arg is not None:
+        args = [{"value": _decode_queue_arg_value(colon_arg)}]
+
+    return (
+        {
+            "source": prompt[match.start() : match_end],
+            "source_span": [match.start(), match_end],
+            "args": args,
+            "has_plus_suffix": plus_suffix is not None,
+        },
+        match_end,
+    )
+
+
+def _queue_args_from_paren_content(paren_content: str) -> list[dict[str, str]]:
+    args: list[dict[str, str]] = []
+    for span in parse_arg_spans(paren_content, preserve_empty_args=True):
+        if span.name is None:
+            args.append(
+                {
+                    "value": _decode_queue_arg_value(
+                        paren_content[span.start : span.end],
+                    )
+                }
+            )
+            continue
+        value = (
+            ""
+            if span.value_start is None or span.value_end is None
+            else paren_content[span.value_start : span.value_end]
+        )
+        args.append(
+            {
+                "name": span.name,
+                "value": _decode_queue_arg_value(value),
+            }
+        )
+    return args
+
+
+def _decode_queue_arg_value(value: str) -> str:
+    value = value.strip()
+    if value.startswith("`") and value.endswith("`") and len(value) >= 2:
+        return value[1:-1]
+    if len(value) >= 2 and value[0] in ('"', "'") and value[-1] == value[0]:
+        return value[1:-1]
+    return process_text_block(value)
 
 
 def _collect_clan_paren_args(

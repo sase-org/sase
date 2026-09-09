@@ -16,7 +16,9 @@ from ._directive_edit_wait import (
     AutoMode,
     PromptWaitDirective,
     set_prompt_auto_mode,
+    set_prompt_queue,
     set_prompt_wait,
+    set_prompt_wait_and_queue,
 )
 
 __all__ = [
@@ -30,6 +32,8 @@ __all__ = [
     "set_prompt_clan_tribe",
     "set_prompt_model",
     "set_prompt_name",
+    "set_prompt_queue",
     "set_prompt_tribe",
     "set_prompt_wait",
+    "set_prompt_wait_and_queue",
 ]

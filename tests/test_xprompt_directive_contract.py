@@ -23,7 +23,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
     core_names = set(contract)
     extra = core_names - runtime_names
 
-    assert extra == {"queue"}
+    assert extra == set()
     assert runtime_names <= core_names
     expected_aliases = {
         alias: name

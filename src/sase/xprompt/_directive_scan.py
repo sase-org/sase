@@ -90,6 +90,7 @@ def scan_dispatch_directive(prompt: str) -> DispatchDirectiveScan | None:
     source = ""
     regions_to_remove: list[tuple[int, int]] = []
     saw_wait = False
+    saw_queue = False
     saw_clan = False
 
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
@@ -98,6 +99,8 @@ def scan_dispatch_directive(prompt: str) -> DispatchDirectiveScan | None:
             continue
         if name == "wait":
             saw_wait = True
+        if name == "queue":
+            saw_queue = True
         if name == "clan":
             saw_clan = True
         if name != "dispatch":
@@ -112,9 +115,10 @@ def scan_dispatch_directive(prompt: str) -> DispatchDirectiveScan | None:
 
     if target is None:
         return None
-    if saw_wait or saw_clan:
+    if saw_wait or saw_queue or saw_clan:
         raise DirectiveError(
-            "%dispatch cannot be combined with %wait or %clan in V1 remote launch."
+            "%dispatch cannot be combined with %wait, %queue, or %clan in V1 "
+            "remote launch."
         )
 
     cleaned = protected
@@ -164,7 +168,11 @@ def _dispatch_raw_target(prompt: str, match: re.Match[str]) -> tuple[str, int]:
 
 def has_deferred_start_directive(prompt: str) -> bool:
     """Quick check whether a prompt defers launch."""
-    if _has_wait_directive(prompt) or _has_t_time_xprompt_reference(prompt):
+    if (
+        _has_wait_directive(prompt)
+        or _has_queue_admission_directive(prompt)
+        or _has_t_time_xprompt_reference(prompt)
+    ):
         return True
     if "#fork" not in prompt:
         return False
@@ -173,8 +181,14 @@ def has_deferred_start_directive(prompt: str) -> bool:
     return has_fork_reference(prompt)
 
 
-def has_wait_runners_directive(prompt: str) -> bool:
-    """Quick check for a parenthesized ``%wait`` with a runner threshold."""
+def has_runner_threshold_directive(prompt: str) -> bool:
+    """Quick check for an explicit runner-slot threshold directive."""
+    return _has_legacy_wait_runners_directive(
+        prompt,
+    ) or _has_queue_runners_directive(prompt)
+
+
+def _has_legacy_wait_runners_directive(prompt: str) -> bool:
     return _has_protected_pattern_match(
         prompt,
         r"(?:^|\s)%(?:wait|w)\([^)]*\brunners\s*=",
@@ -217,6 +231,31 @@ def _has_wait_directive(prompt: str) -> bool:
         prompt,
         r"(?:^|\s)%(?:wait|w)(?:[:+(]|\s|$)",
     )
+
+
+def _has_queue_admission_directive(prompt: str) -> bool:
+    if not _queue_directive_enabled():
+        return False
+    return _has_protected_directive_match(
+        prompt,
+        r"(?:^|\s)%(?:queue|q)(?::`?[^`\s]+`?|\()",
+    )
+
+
+def _has_queue_runners_directive(prompt: str) -> bool:
+    if not _queue_directive_enabled():
+        return False
+    return _has_protected_pattern_match(
+        prompt,
+        r"(?:^|\s)%(?:queue|q)(?::`?[0-9]+`?|\(\s*(?:[0-9]+|runners\s*=)|\([^)]*,\s*runners\s*=)",
+        required_substring="%",
+    )
+
+
+def _queue_directive_enabled() -> bool:
+    from sase.xprompt.queue_directive import queue_directive_enabled
+
+    return queue_directive_enabled()
 
 
 def _has_protected_directive_match(prompt: str, pattern: str) -> bool:

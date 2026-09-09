@@ -5,14 +5,15 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.feature_flags import override_flags
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import (
     extract_prompt_directives,
     has_alt_directive,
     has_deferred_start_directive,
     has_model_directive,
+    has_runner_threshold_directive,
     has_typed_launch_directive,
-    has_wait_runners_directive,
 )
 
 
@@ -132,6 +133,21 @@ def test_has_deferred_start_directive_detects_tribe_fork() -> None:
     assert has_deferred_start_directive("#fork:@epic do something") is True
 
 
+@pytest.mark.parametrize(
+    "directive",
+    ["%q:5", "%queue(runners=0)", "%q(p=20)", "%queue(priority=20)"],
+)
+def test_has_deferred_start_directive_detects_queue_when_enabled(
+    directive: str,
+) -> None:
+    with override_flags(queue_directive=True):
+        assert has_deferred_start_directive(f"{directive}\nDo something") is True
+
+
+def test_has_deferred_start_directive_ignores_queue_when_disabled() -> None:
+    assert has_deferred_start_directive("%q:5\nDo something") is False
+
+
 def test_has_deferred_start_directive_plain_prompt() -> None:
     """Returns False when no deferred-start syntax is present."""
     assert has_deferred_start_directive("Just a plain prompt") is False
@@ -163,8 +179,26 @@ def test_has_deferred_start_directive_ignores_disabled_regions(
     "directive",
     ["%wait(runners=0)", "%w(agent, runners = 2)"],
 )
-def test_has_wait_runners_directive_detects_live_directive(directive: str) -> None:
-    assert has_wait_runners_directive(f"{directive}\nDo work") is True
+def test_has_runner_threshold_directive_detects_legacy_live_directive(
+    directive: str,
+) -> None:
+    assert has_runner_threshold_directive(f"{directive}\nDo work") is True
+
+
+@pytest.mark.parametrize(
+    "directive",
+    ["%q:0", "%queue(runners=2)", "%q(3, p=20)"],
+)
+def test_has_runner_threshold_directive_detects_queue_when_enabled(
+    directive: str,
+) -> None:
+    with override_flags(queue_directive=True):
+        assert has_runner_threshold_directive(f"{directive}\nDo work") is True
+
+
+def test_has_runner_threshold_directive_ignores_priority_only_queue() -> None:
+    with override_flags(queue_directive=True):
+        assert has_runner_threshold_directive("%q(p=20)\nDo work") is False
 
 
 @pytest.mark.parametrize(
@@ -176,10 +210,10 @@ def test_has_wait_runners_directive_detects_live_directive(directive: str) -> No
         ("%xprompts_enabled:false\n%wait(runners=0)\n%xprompts_enabled:true\nDo work"),
     ],
 )
-def test_has_wait_runners_directive_ignores_inactive_or_absent_syntax(
+def test_has_runner_threshold_directive_ignores_inactive_or_absent_syntax(
     prompt: str,
 ) -> None:
-    assert has_wait_runners_directive(prompt) is False
+    assert has_runner_threshold_directive(prompt) is False
 
 
 @pytest.mark.parametrize("reference", ["#fork:old_agent", "#fork(old_agent)"])

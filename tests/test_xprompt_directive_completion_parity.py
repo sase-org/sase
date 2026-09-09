@@ -77,6 +77,21 @@ def test_ace_and_lsp_include_typed_launch_directives_when_enabled(
     assert ace_labels == lsp_labels
 
 
+def test_ace_and_lsp_include_queue_directive_when_enabled(
+    tmp_path: Path,
+) -> None:
+    with override_flags(queue_directive=True):
+        ace_candidates, shared = build_directive_completion_candidates("%")
+        assert shared == ""
+        ace_rows = _ace_surface_rows(ace_candidates)
+        with LspSession(tmp_path) as lsp:
+            lsp_rows = lsp.complete("%")
+
+    ace_labels = {row.label for row in ace_rows}
+    assert {"%queue", "%q:...", "%queue(runners=..., priority=...)"} <= ace_labels
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+
+
 def test_ace_and_lsp_include_dispatch_directive(
     tmp_path: Path,
 ) -> None:
@@ -137,6 +152,43 @@ def test_ace_and_lsp_directive_argument_rows_match(
             lsp_rows = lsp.complete(text)
 
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_insertions"),
+    [
+        ("%queue(", ["p=", "priority=", "runners=", "0", "1"]),
+        ("%q(", ["p=", "priority=", "runners=", "0", "1"]),
+        ("%q:", ["0", "1"]),
+    ],
+)
+def test_ace_and_lsp_queue_argument_rows_match_when_enabled(
+    tmp_path: Path,
+    text: str,
+    expected_insertions: list[str],
+) -> None:
+    with override_flags(queue_directive=True):
+        ace_rows = _ace_clause_rows(text)
+        with LspSession(tmp_path) as lsp:
+            lsp_rows = lsp.complete(text)
+
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert [row.insertion for row in ace_rows] == expected_insertions
+
+
+def test_wait_keywords_exclude_queue_fields_when_queue_is_enabled(
+    tmp_path: Path,
+) -> None:
+    with override_flags(queue_directive=True):
+        ace_rows = _ace_clause_rows("%wait(")
+        with LspSession(tmp_path) as lsp:
+            lsp_rows = lsp.complete("%wait(")
+
+    insertions = {row.insertion for row in ace_rows}
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert "runners=" not in insertions
+    assert "priority=" not in insertions
+    assert "p=" not in insertions
 
 
 def test_wait_colon_form_never_advertises_structured_keywords(

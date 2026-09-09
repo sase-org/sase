@@ -253,11 +253,14 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
         mode = spec.get("mode")
         return lambda prompt: set_prompt_auto_mode(prompt, mode)
     if kind == "set_wait":
-        from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
+        from sase.xprompt.directive_edit import (
+            PromptWaitDirective,
+            set_prompt_wait_and_queue,
+        )
 
         wait = spec.get("wait")
         if not isinstance(wait, dict):
-            return lambda prompt: set_prompt_wait(prompt, None)
+            return lambda prompt: set_prompt_wait_and_queue(prompt, None)
         directive = PromptWaitDirective(
             agents=tuple(wait.get("agents") or ()),
             time_token=wait.get("time_token"),
@@ -265,7 +268,15 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
             priority=wait.get("priority"),
             beads=tuple(wait.get("beads") or ()),
         )
-        return lambda prompt: set_prompt_wait(prompt, directive)
+        return lambda prompt: set_prompt_wait_and_queue(prompt, directive)
+    if kind == "set_queue":
+        from sase.xprompt.directive_edit import set_prompt_queue
+
+        return lambda prompt: set_prompt_queue(
+            prompt,
+            runners=spec.get("runners"),
+            priority=spec.get("priority"),
+        )
     if kind == "set_tribe":
         from sase.xprompt.directive_edit import set_prompt_tribe
 

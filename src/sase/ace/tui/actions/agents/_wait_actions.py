@@ -15,7 +15,7 @@ from sase.ace.tui.models.agent_family_preview_cache import (
     should_resolve_family_plan_preview,
 )
 from sase.project_display_names import humanize_cl_name
-from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait
+from sase.xprompt.directive_edit import PromptWaitDirective, set_prompt_wait_and_queue
 
 from ..proc_actions import TrackedProcCompletion
 from ._wait_helpers import (
@@ -464,7 +464,7 @@ class AgentWaitActionsMixin:
             wait_spec = prompt_wait_spec(result)
             if wait_spec is None:
                 return
-            new_prompt = set_prompt_wait(raw_content, wait_spec)
+            new_prompt = set_prompt_wait_and_queue(raw_content, wait_spec)
 
             self._setup_home_prompt_context(  # type: ignore[attr-defined]
                 display_name=agent.display_name or agent.cl_name,

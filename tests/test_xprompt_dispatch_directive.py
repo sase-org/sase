@@ -34,6 +34,7 @@ def test_dispatch_scan_strips_only_dispatch_directive() -> None:
         "%dispatch(apollo, zeus) run there",
         "%dispatch(machine=apollo) run there",
         "%dispatch:apollo %wait:planner run there",
+        "%dispatch:apollo %q:1 run there",
         "%dispatch:apollo %clan:builders run there",
     ],
 )

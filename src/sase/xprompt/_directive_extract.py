@@ -42,6 +42,7 @@ from ._disabled_regions import (
     strip_disabled_region_markers,
     unprotect_disabled_regions,
 )
+from ._exceptions import DirectiveError
 from ._fenced_blocks import protect_fenced_blocks, unprotect_fenced_blocks
 from ._parsing_args import process_text_block
 
@@ -117,6 +118,34 @@ def extract_prompt_directives(
     wait_duration, wait_until = resolve_wait_time_args(collected.wait_time_args)
     wait_runners = resolve_wait_runners_args(collected.wait_runners_args)
     wait_priority = resolve_wait_priority_args(collected.wait_priority_args)
+    if collected.queue_occurrences:
+        from sase.xprompt.queue_directive import (
+            collect_queue_fields,
+            queue_directive_enabled,
+            queue_directive_flag_key,
+        )
+
+        if not queue_directive_enabled():
+            flag = queue_directive_flag_key()
+            raise DirectiveError(
+                f"%queue requires the {flag} feature flag. "
+                f"Enable it with `sase flag enable {flag}`."
+            )
+        queue_payload = collect_queue_fields(collected.queue_occurrences)
+        queue_errors = queue_payload.get("errors")
+        if isinstance(queue_errors, list) and queue_errors:
+            first = queue_errors[0]
+            if isinstance(first, dict):
+                message = str(first.get("message") or "Invalid %queue directive.")
+            else:
+                message = "Invalid %queue directive."
+            raise DirectiveError(message)
+        fields = queue_payload.get("fields")
+        if isinstance(fields, dict):
+            runners = fields.get("runners")
+            priority = fields.get("priority")
+            wait_runners = int(runners) if runners is not None else None
+            wait_priority = int(priority) if priority is not None else None
 
     cleaned = _remove_directive_regions(prompt, collected.regions_to_remove)
 

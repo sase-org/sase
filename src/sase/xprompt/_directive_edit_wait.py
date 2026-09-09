@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from ._directive_edit_core import format_directive_arg, set_prompt_directive
+from .queue_directive import format_queue_directive, queue_directive_enabled
 
 AutoMode = Literal["plan", "tale", "epic"]
 
@@ -44,8 +45,15 @@ def set_prompt_wait(
     prompt: str,
     wait_spec: PromptWaitDirective | None,
 ) -> str:
-    """Return *prompt* with a canonical ``%wait(...)`` directive or none."""
-    replacement = _format_wait_directive(wait_spec) if wait_spec else None
+    """Return *prompt* with dependency/time ``%wait`` rewritten."""
+    replacement = (
+        _format_wait_directive(
+            wait_spec,
+            include_queue_fields=not queue_directive_enabled(),
+        )
+        if wait_spec
+        else None
+    )
     return set_prompt_directive(
         prompt,
         {"wait"},
@@ -55,15 +63,73 @@ def set_prompt_wait(
     )
 
 
-def _format_wait_directive(wait_spec: PromptWaitDirective | None) -> str | None:
+def set_prompt_wait_and_queue(
+    prompt: str,
+    wait_spec: PromptWaitDirective | None,
+) -> str:
+    """Return *prompt* with wait and runner-slot queue directives rewritten."""
+    if not queue_directive_enabled():
+        return set_prompt_wait(prompt, wait_spec)
+    wait_replacement = (
+        _format_wait_directive(wait_spec, include_queue_fields=False)
+        if wait_spec
+        else None
+    )
+    queue_replacement = (
+        format_queue_directive(
+            runners=wait_spec.runners,
+            priority=wait_spec.priority,
+        )
+        if wait_spec
+        else None
+    )
+    replacement = (
+        "\n".join(part for part in (wait_replacement, queue_replacement) if part)
+        or None
+    )
+    return set_prompt_directive(
+        prompt,
+        {"wait", "queue"},
+        replacement,
+        remove_deprecated=True,
+        remove_time_xprompts=True,
+    )
+
+
+def set_prompt_queue(
+    prompt: str,
+    *,
+    runners: int | None,
+    priority: int | None,
+) -> str:
+    """Return *prompt* with only the runner-slot queue directive rewritten."""
+    if not queue_directive_enabled():
+        return set_prompt_wait(
+            prompt,
+            PromptWaitDirective(runners=runners, priority=priority),
+        )
+    return set_prompt_directive(
+        prompt,
+        {"queue"},
+        format_queue_directive(runners=runners, priority=priority),
+        remove_deprecated=False,
+        remove_time_xprompts=False,
+    )
+
+
+def _format_wait_directive(
+    wait_spec: PromptWaitDirective | None,
+    *,
+    include_queue_fields: bool,
+) -> str | None:
     if not wait_spec:
         return None
     parts = [format_directive_arg(agent) for agent in wait_spec.agents]
     if wait_spec.time_token:
         parts.append(f"time={wait_spec.time_token}")
-    if wait_spec.runners is not None:
+    if include_queue_fields and wait_spec.runners is not None:
         parts.append(f"runners={wait_spec.runners}")
-    if wait_spec.priority is not None:
+    if include_queue_fields and wait_spec.priority is not None:
         parts.append(f"priority={wait_spec.priority}")
     directives = [f"%wait({', '.join(parts)})"] if parts else []
     directives.extend(
