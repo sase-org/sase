@@ -16,6 +16,7 @@ from sase.ace.tui.widgets.provider_disables_indicator import (
     ProviderDisablesIndicator,
     _ACTIVE_STYLE,
 )
+from sase.llm_provider.usage.hints import CapacityHint
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_SOFT,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
@@ -368,6 +369,7 @@ def test_initial_content_uses_peek_cache(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     peek = MagicMock(return_value=context)
     monkeypatch.setattr(f"{_MODULE}.peek_provider_routing_context", peek)
+    monkeypatch.setattr(f"{_MODULE}.cached_usage_peek", lambda: ((), frozenset()))
 
     rendered = ProviderDisablesIndicator()._build_initial_content()
 
@@ -386,6 +388,66 @@ async def test_provider_disables_indicator_is_mounted() -> None:
     assert isinstance(indicator, ProviderDisablesIndicator)
 
 
+def _usage_items() -> tuple[CapacityHint, CapacityHint]:
+    return (
+        CapacityHint(
+            kind="rejected",
+            label="0% left · Week · all",
+            provider="grok",
+            window_key="weekly",
+            scope="Week · all",
+            remaining_percent=0.0,
+        ),
+        CapacityHint(
+            kind="low",
+            label="12% left · Shared 5h",
+            provider="codex",
+            window_key="shared",
+            scope="Shared 5h",
+            remaining_percent=12.5,
+        ),
+    )
+
+
+def test_usage_attention_renders_count_beside_disable_at_narrow_width() -> None:
+    text = ProviderDisablesIndicator._build_content(
+        {"claude": _disable(expires_at=None)},
+        usage_items=_usage_items(),
+        width=80,
+        now=100.0,
+    )
+
+    assert "CLAUDE off ∞" in text.plain
+    assert "usage +2" in text.plain
+
+
+def test_priority_pill_does_not_suppress_usage_attention() -> None:
+    text = ProviderDisablesIndicator._build_content(
+        {},
+        priority=_priority("codex", expires_at=3_820.0),
+        usage_items=_usage_items()[:1],
+        width=80,
+        now=100.0,
+    )
+
+    assert "CODEX ★ priority 1h2m" in text.plain
+    assert "usage" in text.plain
+
+
+def test_usage_tooltip_lists_attention_items() -> None:
+    tooltip = ProviderDisablesIndicator._build_tooltip(
+        {"claude": _disable("claude", expires_at=None, source="ace")},
+        usage_items=_usage_items(),
+        now=100.0,
+    )
+
+    assert tooltip is not None
+    assert "CLAUDE - hard · manual, until cleared" in tooltip
+    assert "Usage attention:" in tooltip
+    assert "GROK - rejected · 0% left · Week · all" in tooltip
+    assert "Providers · Usage" in tooltip
+
+
 async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
 
@@ -399,7 +461,30 @@ async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None
             "#provider-disables-indicator",
             ProviderDisablesIndicator,
         )
+        indicator._usage_open_provider = None
         await indicator.on_click()
         await page.pause()
 
     assert calls == ["opened"]
+
+
+async def test_click_opens_provider_usage_when_attention_is_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    async with AcePage() as page:
+
+        async def _run_action(action: str, *args: object, **kwargs: object) -> None:
+            calls.append(action)
+
+        monkeypatch.setattr(page.app, "run_action", _run_action)
+        indicator = page.query_one_widget(
+            "#provider-disables-indicator",
+            ProviderDisablesIndicator,
+        )
+        indicator._usage_open_provider = "grok"
+        await indicator.on_click()
+        await page.pause()
+
+    assert calls == ["open_provider_usage"]

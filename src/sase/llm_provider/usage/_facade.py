@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +72,32 @@ def provider_usage_format_remaining_text(used_percent: float) -> str:
         raise ValueError("used_percent must be finite")
     binding = require_rust_binding("provider_usage_format_remaining_text")
     return str(binding(float(used_percent)))
+
+
+def provider_usage_window_applies(
+    applicability: Mapping[str, object],
+    model_id: str | None = None,
+) -> str:
+    """Return whether a window applies to *model_id*.
+
+    The Rust binding reports ``applies``, ``does_not_apply``, or ``unknown``.
+    """
+    binding = require_rust_binding("provider_usage_window_applies")
+    return str(binding(dict(applicability), model_id))
+
+
+def provider_usage_summarize_for_model(
+    windows: Sequence[Mapping[str, object]],
+    model_id: str,
+) -> dict[str, Any] | None:
+    """Return the tightest applicable public-window summary for *model_id*."""
+    binding = require_rust_binding("provider_usage_summarize_for_model")
+    result = binding([dict(window) for window in windows], model_id)
+    if result is None:
+        return None
+    if not isinstance(result, dict):
+        raise ProviderUsageStateError("usage summary is not an object")
+    return result
 
 
 def record_provider_usage_observation(
@@ -340,6 +366,8 @@ __all__ = [
     "provider_usage_format_remaining_text",
     "provider_usage_remaining_percent",
     "provider_usage_state_path",
+    "provider_usage_summarize_for_model",
+    "provider_usage_window_applies",
     "record_provider_usage_observation",
     "record_provider_usage_refresh_attempt",
     "release_provider_usage_refresh",

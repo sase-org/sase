@@ -41,6 +41,7 @@ ALIAS_LANE_PALETTE = _PillPalette(accent="#AF87FF", secondary="#3A2A5F")
 PROVIDER_DISABLE_PALETTE = _PillPalette(accent="#FFAF5F", secondary="#5F3518")
 PROVIDER_SOFT_DISABLE_PALETTE = _PillPalette(accent="#FFD75F", secondary="#4A3A12")
 PROVIDER_PRIORITY_PALETTE = _PillPalette(accent="#87D7FF", secondary="#1F4A5F")
+PROVIDER_USAGE_PALETTE = _PillPalette(accent="#FFD75F", secondary="#4A3A12")
 
 
 def format_remaining_until(

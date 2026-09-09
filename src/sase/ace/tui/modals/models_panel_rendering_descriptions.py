@@ -2,12 +2,20 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Any
 
 from rich.text import Text
 
 from sase.ace.tui.model_alias_styles import append_pool_weight
 from sase.llm_provider import AliasView, BucketView
+from sase.llm_provider.usage.hints import (
+    capacity_hint_style,
+    member_capacity_hint,
+    model_id_from_target,
+    providers_by_name,
+)
+from sase.llm_provider.usage.peek import cached_usage_peek
 
 from .models_panel_rendering_layout import (
     _DESCRIPTION_MISSING_STYLE,
@@ -150,6 +158,8 @@ def _description_text_for_threshold(row: BigEpicPhaseThresholdSettingRow) -> Tex
 def description_text_for_view(
     view: AliasView | None,
     default_effort: str | None = None,
+    *,
+    usage_providers: Sequence[Mapping[str, Any]] | None = None,
 ) -> Text:
     """Return the two-line description strip content for *view*."""
     if view is None:
@@ -187,6 +197,7 @@ def description_text_for_view(
             style=_DESCRIPTION_MISSING_STYLE,
         )
     if view.selector_members:
+        usage_by_name = _usage_provider_index(usage_providers)
         if text:
             text.append("\n")
         label = "pool" if view.selector_mode == "round_robin" else "fallback"
@@ -228,6 +239,7 @@ def description_text_for_view(
                         style = f"dim {color}" if dimmed else color
                 suffix = _member_routing_suffix(member)
                 text.append(f"{marker} {target}{suffix}", style=style)
+                _append_member_capacity(text, member, usage_by_name)
             else:
                 style = (
                     "dim #FFD75F"
@@ -257,6 +269,37 @@ def description_text_for_view(
                 style="dim",
             )
     return text
+
+
+def _usage_provider_index(
+    usage_providers: Sequence[Mapping[str, Any]] | None,
+) -> dict[str, Mapping[str, Any]]:
+    """Index usage snapshots without touching selector state or the store lock."""
+    if usage_providers is None:
+        usage_providers, _eligible = cached_usage_peek()
+    return providers_by_name(usage_providers)
+
+
+def _append_member_capacity(
+    text: Text,
+    member: object,
+    usage_by_name: Mapping[str, Mapping[str, Any]],
+) -> None:
+    """Append one member's capacity hint; never combines pool percentages."""
+    provider = getattr(member, "provider", None)
+    target = str(getattr(member, "target", "") or "")
+    if not isinstance(provider, str) or not target:
+        return
+    hint = member_capacity_hint(
+        usage_by_name.get(provider),
+        model_id_from_target(target),
+    )
+    if hint is None:
+        return
+    text.append(
+        f"  {hint.marker} {hint.label}",
+        style=capacity_hint_style(hint.kind),
+    )
 
 
 def _member_routing_suffix(member: object) -> str:

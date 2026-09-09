@@ -9,6 +9,7 @@ from textual.widgets._option_list import Option
 from sase.ace.tui.provider_styles import model_option_text, provider_header_text
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
 from sase.llm_provider.provider_priority import ProviderRoutingContext
+from sase.llm_provider.usage.hints import capacity_hint_marker, capacity_hint_style
 
 from .model_picker_rows import (
     DEFAULT_SENTINEL,
@@ -139,11 +140,13 @@ def rows_to_options(
             else:
                 label.append("   ")
             label.append_text(row.rendered_label.copy())
+            _append_capacity_hint(label, row)
             label.no_wrap = True
             label.overflow = "ellipsis"
         elif row.kind == "provider" and row.provider is not None:
             label = provider_header_text(row.provider, row.model_count or 0)
             _append_routing_state(label, row)
+            _append_capacity_hint(label, row)
         elif row.kind == "model" and row.model_id is not None:
             label = model_option_text(
                 provider=row.provider,
@@ -156,6 +159,7 @@ def rows_to_options(
             if row.soft:
                 label.stylize("dim")
             _append_routing_state(label, row)
+            _append_capacity_hint(label, row)
         elif jump_hints is not None and not row.disabled:
             hint = jump_hints.get(row.option_id)
             label = Text()
@@ -202,3 +206,15 @@ def _append_routing_state(label: Text, row: ModelPickerRow) -> None:
         label.append("  ★ priority", style=_PRIORITY_STYLE)
     elif row.backup:
         label.append("  backup", style=_BACKUP_STYLE)
+
+
+def _append_capacity_hint(label: Text, row: ModelPickerRow) -> None:
+    """Append a scoped capacity hint without changing routing or selection."""
+    if not row.capacity_label:
+        return
+    marker = capacity_hint_marker(row.capacity_severity)
+    label.append("  ")
+    label.append(
+        f"{marker} {row.capacity_label}",
+        style=capacity_hint_style(row.capacity_severity),
+    )

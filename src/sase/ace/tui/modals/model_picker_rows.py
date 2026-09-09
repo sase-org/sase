@@ -1,8 +1,8 @@
 """Typed rows and catalog construction for the model picker."""
 
 from dataclasses import dataclass
-from collections.abc import Mapping
-from typing import Literal
+from collections.abc import Mapping, Sequence
+from typing import Any, Literal
 
 from rich.text import Text
 
@@ -19,6 +19,13 @@ from sase.llm_provider.provider_priority import (
     resolve_provider_routing_context,
 )
 from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
+from sase.llm_provider.usage.hints import (
+    alias_capacity_hint,
+    model_capacity_hint,
+    provider_header_capacity_hint,
+    providers_by_name,
+)
+from sase.llm_provider.usage.peek import cached_usage_peek
 
 # Sentinel returned when user selects "Custom..."
 CUSTOM_SENTINEL = "__custom__"
@@ -75,6 +82,8 @@ class ModelPickerRow:
     rendered_label: Text | None = None
     advisory_label: str | None = None
     advisory_severity: str | None = None
+    capacity_label: str | None = None
+    capacity_severity: str | None = None
     soft: bool = False
     priority: bool = False
     backup: bool = False
@@ -110,6 +119,7 @@ class ModelPickerRow:
                 self.rendered_label.plain if self.rendered_label else None,
                 self.disabled_reason,
                 self.advisory_label,
+                self.capacity_label,
                 "soft" if self.soft else None,
                 "priority" if self.priority else None,
                 "backup" if self.backup else None,
@@ -218,7 +228,19 @@ def _alias_row_text(
     return text
 
 
-def _build_alias_rows(context: AliasSelectionContext) -> list[ModelPickerRow]:
+def _usage_provider_index(
+    usage_providers: Sequence[Mapping[str, Any]] | None,
+) -> dict[str, Mapping[str, Any]]:
+    """Index usage snapshots by provider id, peeking the display cache by default."""
+    if usage_providers is None:
+        usage_providers, _eligible = cached_usage_peek()
+    return providers_by_name(usage_providers)
+
+
+def _build_alias_rows(
+    context: AliasSelectionContext,
+    usage_by_name: Mapping[str, Mapping[str, Any]],
+) -> list[ModelPickerRow]:
     """Build alias rows once from the Models panel's in-memory snapshot."""
     if not context.views:
         return []
@@ -232,6 +254,12 @@ def _build_alias_rows(context: AliasSelectionContext) -> list[ModelPickerRow]:
     ]
     for view in context.views:
         disabled_reason = _alias_disabled_reason(context, view.name)
+        hint = alias_capacity_hint(
+            provider=view.provider,
+            model=view.model,
+            selector_members=view.selector_members,
+            providers=usage_by_name,
+        )
         rows.append(
             ModelPickerRow(
                 kind="alias",
@@ -248,6 +276,8 @@ def _build_alias_rows(context: AliasSelectionContext) -> list[ModelPickerRow]:
                     operation=context.operation,
                     disabled_reason=disabled_reason,
                 ),
+                capacity_label=None if hint is None else hint.label,
+                capacity_severity=None if hint is None else hint.kind,
             )
         )
     return rows
@@ -260,6 +290,7 @@ def build_model_rows(
     include_selector_option: bool = False,
     provider_disables: Mapping[str, TemporaryProviderDisable] | None = None,
     routing_context: ProviderRoutingContext | None = None,
+    usage_providers: Sequence[Mapping[str, Any]] | None = None,
 ) -> list[ModelPickerRow]:
     """Build typed model-picker rows grouped by provider."""
     if routing_context is not None and provider_disables is not None:
@@ -283,6 +314,7 @@ def build_model_rows(
 
     aliases = model_short_alias_map()
     advisories = model_advisory_map()
+    usage_by_name = _usage_provider_index(usage_providers)
     hidden_providers = model_picker_hidden_provider_names()
     hard_providers = {
         provider
@@ -329,6 +361,10 @@ def build_model_rows(
             header_label = f"{header_label}  priority"
         elif backup:
             header_label = f"{header_label}  backup"
+        snapshot = usage_by_name.get(provider)
+        header_hint = (
+            provider_header_capacity_hint(snapshot) if snapshot is not None else None
+        )
         rows.append(
             ModelPickerRow(
                 kind="provider",
@@ -339,6 +375,8 @@ def build_model_rows(
                 soft=soft,
                 priority=priority,
                 backup=backup,
+                capacity_label=None if header_hint is None else header_hint.label,
+                capacity_severity=None if header_hint is None else header_hint.kind,
             )
         )
         for model in models:
@@ -354,6 +392,9 @@ def build_model_rows(
             if advisory_label:
                 marker = model_advisory_marker(advisory.get("severity"))
                 label = f"{label}  {marker} {advisory_label}"
+            model_hint = (
+                model_capacity_hint(snapshot, model) if snapshot is not None else None
+            )
             rows.append(
                 ModelPickerRow(
                     kind="model",
@@ -370,11 +411,13 @@ def build_model_rows(
                     soft=soft,
                     priority=priority,
                     backup=backup,
+                    capacity_label=None if model_hint is None else model_hint.label,
+                    capacity_severity=None if model_hint is None else model_hint.kind,
                 )
             )
 
     if alias_context is not None:
-        rows.extend(_build_alias_rows(alias_context))
+        rows.extend(_build_alias_rows(alias_context, usage_by_name))
 
     if include_selector_option:
         rows.append(

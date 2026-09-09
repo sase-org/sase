@@ -60,6 +60,7 @@ def usage_provider(
     freshness: str = "fresh",
     scope: Mapping[str, Any] | None = None,
     windows: list[dict[str, Any]] | None = None,
+    known_constraints: list[dict[str, Any]] | None = None,
     last_attempt_at: float | None = FROZEN_NOW,
     last_full_observation_at: float | None = FROZEN_NOW,
 ) -> dict[str, Any]:
@@ -84,7 +85,9 @@ def usage_provider(
         "completeness": "complete",
         "context_ref": f"{name}:default:1",
         "diagnostic": diagnostic,
-        "known_constraints": [],
+        "known_constraints": (
+            known_constraints if known_constraints is not None else []
+        ),
         "last_attempt_at": last_attempt_at,
         "last_full_observation_at": last_full_observation_at,
         "plan": plan,
