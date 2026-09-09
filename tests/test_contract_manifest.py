@@ -170,15 +170,15 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # candidate should displace an entry rather than add one.
 #
 # Re-curated to 64 on 2026-09-08 for `test_core_eligibility_facade.py`, the
-# compact Python/Rust artifact-link eligibility boundary guard. The facade
-# validates cross-boundary JSON shapes and binding names that do not map cleanly
-# onto Python import-graph edges. The prior 63-entry set measured 35.80 s under
-# the command above on this host, and this added path measured 2.88 s standalone
-# under the same marker selector, for an estimated 38.68 serial seconds across
-# the refreshed 64-entry set. The next candidate should displace an entry rather
-# than add one.
+# compact Python/Rust boundary guard for artifact-link eligibility evidence. It
+# belongs beside `test_core_finalizer_facade.py`: both protect public facade
+# contracts whose callers can fail at runtime even when the Rust binding exists,
+# including cross-boundary JSON shapes and binding names that do not map cleanly
+# onto Python import-graph edges. The refreshed 64-entry set measured 36.95 s
+# under the command above on this host. The next candidate should displace an
+# entry rather than add one.
 _MANIFEST_ENTRY_BUDGET = 64
-_MEASURED_SERIAL_COST = "38.68 serial seconds across 64 entries"
+_MEASURED_SERIAL_COST = "36.95 serial seconds across 64 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

@@ -736,7 +736,9 @@ the safe desktop development and same-host test path.
 For private remote access, prefer Tailscale Serve or an equivalent private tailnet path
 that terminates access control outside the gateway. Keep the gateway bound to loopback
 when possible, then serve the loopback endpoint through the private tailnet
-configuration.
+configuration. The remote-dispatch setup path uses the same loopback-plus-Serve exposure
+pattern; see the [Remote Dispatch Runbook](remote_dispatch.md) for target gateway
+supervision, bootstrap issuance, and controller enrollment.
 
 LAN and public-interface binds are explicit opt-in only:
 

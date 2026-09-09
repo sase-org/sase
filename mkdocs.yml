@@ -44,6 +44,7 @@ nav:
       - Notifications: notifications.md
       - Mobile Gateway: mobile_gateway.md
       - Mobile MVP Runbook: mobile_mvp_runbook.md
+      - Remote Dispatch Runbook: remote_dispatch.md
       - Performance Runbook: perf_runbook.md
       - Telemetry: telemetry.md
       - Agent Revival Log: troubleshooting/agent-revival.md

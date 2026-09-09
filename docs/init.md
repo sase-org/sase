@@ -176,7 +176,9 @@ wiring, or generated skill files.
 ## Remote machines
 
 `sase machine init` is the canonical remote-machine initializer. `sase init machine` and
-the bare `sase init` machine spec delegate to the same planner and apply service.
+the bare `sase init` machine spec delegate to the same planner and apply service. The
+operational target-preparation flow is covered in the
+[Remote Dispatch Runbook](remote_dispatch.md).
 
 `--check`, `--json`, and other previews inspect only local merged configuration: they
 never run discovery or talk to a gateway. A zero-machine or all-enrolled registry is not

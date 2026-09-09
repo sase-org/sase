@@ -16,6 +16,10 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
             "Manage viewer-local aliases for enrolled remote machines. With no "
             "subcommand, delegates to `sase machine list`."
         ),
+        epilog=(
+            "Runbook: docs/remote_dispatch.md covers target gateway supervision, "
+            "Tailscale Serve, bootstrap issuance, enrollment, and live operation."
+        ),
     )
     machine_subparsers = parser.add_subparsers(
         dest="machine_subcommand",
