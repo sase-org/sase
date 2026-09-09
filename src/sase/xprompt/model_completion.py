@@ -9,103 +9,47 @@ payload remains a launch-time configuration snapshot.
 
 from __future__ import annotations
 
-import re
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, replace
-from typing import Any
+from collections.abc import Mapping
 
 from sase.config.core import current_config_token
-from sase.core.rust import require_rust_binding
-from sase.llm_provider.alias_view import AliasView, build_alias_views
-
+from sase.llm_provider.alias_view import build_alias_views
 from sase.llm_provider.config import (
     BUILTIN_MODEL_ALIAS_NAMES,
     get_model_aliases,
-)
-from sase.llm_provider.registry import (
-    get_llm_metadata_payload,
-    model_advisory_marker,
-    model_picker_hidden_provider_names,
 )
 from sase.llm_provider.provider_disable import (
     TemporaryProviderDisable,
 )
 from sase.llm_provider.provider_priority import (
-    ProviderAvailability,
     ProviderRoutingContext,
-    classify_provider_availability,
-    provider_availability_facts,
     resolve_provider_routing_context,
 )
-from sase.llm_provider.load_balancing import MemberAvailability
 from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
+from sase.llm_provider.registry import (
+    get_llm_metadata_payload,
+    model_advisory_marker,
+    model_picker_hidden_provider_names,
+)
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
-
-#: Wire schema understood by existing Rust LSP versions. Alias metadata is
-#: additive under v1 so old readers ignore it and new readers can still load
-#: stale v1 catalogs that omit it.
-MODEL_COMPLETION_CATALOG_SCHEMA_VERSION = 1
-
-MODEL_COMPLETION_ENTRY_WIRE_FIELDS: tuple[str, ...] = (
-    "value",
-    "display",
-    "description",
-    "kind",
-    "provider",
-    "aliases",
-    "alias_kind",
-    "target_provider",
-    "target_model",
-    "target_effort",
-    "provenance",
-    "reference",
-    "reference_effort",
-    "selector_mode",
-    "pool_available",
-    "pool_total",
-    "config_source",
-    "bucket",
-    "advisory_label",
-    "advisory_severity",
-    "provider_model_count",
+from sase.xprompt._model_completion_catalog import (
+    build_static_model_completion_catalog,
 )
-
-_MODEL_COMPLETION_INT_FIELDS = frozenset(
-    {"pool_available", "pool_total", "provider_model_count"}
+from sase.xprompt._model_completion_entry import (
+    MODEL_COMPLETION_CATALOG_SCHEMA_VERSION,
+    MODEL_COMPLETION_ENTRY_WIRE_FIELDS,
+    ModelCompletionEntry,
 )
-
-_INLINE_MODEL_VALUE_RE = re.compile(r"^[A-Za-z0-9_\-=./@]+$")
+from sase.xprompt._model_completion_routing import (
+    overlay_live_model_completion_entries,
+)
+from sase.xprompt._model_completion_wire import (
+    filter_model_completion_entries,
+    model_completion_entry_to_wire,
+    model_completion_entry_wire_rows,
+)
 
 # Built-in size aliases surfaced as ``%model`` completions, in display order.
 _IMPLICIT_ALIASES: tuple[str, ...] = BUILTIN_MODEL_ALIAS_NAMES
-
-
-@dataclass(frozen=True, slots=True)
-class ModelCompletionEntry:
-    """One inline-completable ``%model`` value."""
-
-    value: str
-    display: str
-    description: str = ""
-    kind: str = "model"
-    provider: str = ""
-    aliases: tuple[str, ...] = field(default_factory=tuple)
-    alias_kind: str = ""
-    target_provider: str = ""
-    target_model: str = ""
-    target_effort: str = ""
-    provenance: str = ""
-    reference: str = ""
-    reference_effort: str = ""
-    selector_mode: str = ""
-    pool_available: int = 0
-    pool_total: int = 0
-    config_source: str = ""
-    bucket: str = ""
-    advisory_label: str = ""
-    advisory_severity: str = ""
-    provider_model_count: int = 0
-
 
 _CatalogCache = tuple[tuple[object, ...], tuple[ModelCompletionEntry, ...]]
 _CATALOG_CACHE: _CatalogCache | None = None
@@ -168,7 +112,7 @@ def model_completion_catalog_payload() -> dict[str, object]:
     return {
         "schema_version": MODEL_COMPLETION_CATALOG_SCHEMA_VERSION,
         "entries": [
-            _model_completion_entry_to_wire(entry)
+            model_completion_entry_to_wire(entry)
             for entry in build_model_completion_catalog(
                 overrides={},
                 routing_context=context,
@@ -177,52 +121,25 @@ def model_completion_catalog_payload() -> dict[str, object]:
     }
 
 
-def filter_model_completion_entries(
-    entries: list[ModelCompletionEntry],
-    partial: str,
-) -> list[ModelCompletionEntry]:
-    """Return entries whose value or alias hint prefix-matches ``partial``."""
-    binding = require_rust_binding("filter_model_completion_entries")
-    payload: Any = binding(model_completion_entry_wire_rows(entries), partial)
-    if not isinstance(payload, list):
-        raise TypeError("filter_model_completion_entries returned a non-list payload")
-    return [_model_completion_entry_from_wire(row) for row in payload]
+def _build_static_catalog() -> list[ModelCompletionEntry]:
+    payload = get_llm_metadata_payload()
+    hidden_providers = model_picker_hidden_provider_names()
+    try:
+        alias_views = {
+            view.name: view
+            for view in build_alias_views(overrides={}, provider_disables={})
+        }
+    except Exception:  # noqa: BLE001 - plain aliases are the safe fallback.
+        alias_views = {}
 
-
-def model_completion_entry_wire_rows(
-    entries: Sequence[ModelCompletionEntry],
-) -> list[dict[str, object]]:
-    """Return rectangular Rust/Python wire rows for model catalog entries."""
-    return [_model_completion_entry_to_wire(entry) for entry in entries]
-
-
-def _model_completion_entry_to_wire(
-    entry: ModelCompletionEntry,
-) -> dict[str, object]:
-    """Return the rectangular Rust/Python wire row for one entry."""
-    row: dict[str, object] = {}
-    for field_name in MODEL_COMPLETION_ENTRY_WIRE_FIELDS:
-        value = getattr(entry, field_name)
-        row[field_name] = list(value) if field_name == "aliases" else value
-    return row
-
-
-def _model_completion_entry_from_wire(
-    payload: object,
-) -> ModelCompletionEntry:
-    """Rehydrate one Rust-returned wire row into the Python dataclass."""
-    if not isinstance(payload, Mapping):
-        raise TypeError("model completion filter row must be a mapping")
-    values: dict[str, object] = {}
-    for field_name in MODEL_COMPLETION_ENTRY_WIRE_FIELDS:
-        raw = payload.get(field_name)
-        if field_name == "aliases":
-            values[field_name] = tuple(item for item in _str_list(raw) if item)
-        elif field_name in _MODEL_COMPLETION_INT_FIELDS:
-            values[field_name] = raw if isinstance(raw, int) else 0
-        else:
-            values[field_name] = raw if isinstance(raw, str) else ""
-    return ModelCompletionEntry(**values)  # type: ignore[arg-type]
+    return build_static_model_completion_catalog(
+        metadata_payload=payload,
+        user_aliases=get_model_aliases(),
+        alias_views=alias_views,
+        hidden_providers=hidden_providers,
+        implicit_aliases=_IMPLICIT_ALIASES,
+        advisory_marker=model_advisory_marker,
+    )
 
 
 def _overlay_live_model_completion_entries(
@@ -233,460 +150,15 @@ def _overlay_live_model_completion_entries(
     routing_context: ProviderRoutingContext | None,
 ) -> list[ModelCompletionEntry]:
     """Apply live provider and temporary-alias overlays to a static catalog."""
-    if routing_context is not None and provider_disables is not None:
-        raise ValueError("pass routing_context or provider_disables, not both")
-    context = (
-        peek_provider_routing_context()
-        if routing_context is None and provider_disables is None
-        else resolve_provider_routing_context(
-            routing_context=routing_context,
-            provider_disables=provider_disables,
-        )
-    )
-    if context.provider_disables or context.priority is not None:
-        return _apply_provider_routing(entries, context, overrides=overrides)
-    if overrides is not None:
-        return _apply_alias_overrides(entries, overrides)
-    return entries
-
-
-def _apply_alias_overrides(
-    entries: list[ModelCompletionEntry],
-    overrides: Mapping[str, TemporaryLLMOverride],
-) -> list[ModelCompletionEntry]:
-    """Return *entries* with temporary targets overlaid on matching aliases."""
-    if not overrides:
-        return list(entries)
-
-    positions = {
-        entry.value.lstrip("@"): index
-        for index, entry in enumerate(entries)
-        if entry.kind in {"implicit_alias", "user_alias"}
-    }
-    overlaid = list(entries)
-    for raw_alias, override in overrides.items():
-        index = positions.get(raw_alias.lstrip("@"))
-        if index is None:
-            continue
-        overlaid[index] = replace(
-            overlaid[index],
-            target_provider=override.provider,
-            target_model=override.model,
-            target_effort=override.effort or "",
-            provenance="override",
-            reference="",
-            reference_effort="",
-            selector_mode="",
-            pool_available=0,
-            pool_total=0,
-        )
-
-    return overlaid
-
-
-def _apply_provider_routing(
-    entries: list[ModelCompletionEntry],
-    routing_context: ProviderRoutingContext,
-    *,
-    overrides: Mapping[str, TemporaryLLMOverride] | None,
-) -> list[ModelCompletionEntry]:
-    """Drop unavailable concrete entries and refresh alias target metadata."""
-    filtered: list[ModelCompletionEntry] = []
-    for entry in entries:
-        if entry.kind not in {"model", "provider"}:
-            filtered.append(entry)
-            continue
-        routing = _completion_provider_routing(entry.provider, routing_context)
-        if routing.availability == MemberAvailability.UNAVAILABLE:
-            continue
-        filtered.append(replace(entry, provenance=_completion_provenance(routing)))
-    try:
-        alias_views = {
-            view.name: view
-            for view in build_alias_views(
-                overrides=overrides or {},
-                routing_context=routing_context,
-            )
-        }
-    except Exception:  # noqa: BLE001 - keep concrete filtering if aliases fail.
-        return _apply_alias_overrides(filtered, overrides or {})
-
-    overlaid: list[ModelCompletionEntry] = []
-    for entry in filtered:
-        if entry.kind not in {"implicit_alias", "user_alias"}:
-            overlaid.append(entry)
-            continue
-        view = alias_views.get(entry.value.lstrip("@"))
-        if view is None:
-            overlaid.append(entry)
-            continue
-        selector_members = tuple(
-            member for member in view.selector_members if not member.last_resort
-        )
-        provenance = "configured" if view.configured else "implicit"
-        if view.override is not None:
-            provenance = "override_paused" if view.is_override_paused else "override"
-        elif "actual_soft_disable" in view.provenance:
-            provenance = "soft"
-        elif "priority" in view.provenance:
-            provenance = "priority"
-        elif "priority_backup" in view.provenance:
-            provenance = "backup"
-        overlaid.append(
-            replace(
-                entry,
-                target_provider=view.provider or "",
-                target_model=view.model,
-                target_effort=view.effort or "",
-                provenance=provenance,
-                reference=view.references or view.implicit_fallback or "",
-                reference_effort=view.reference_effort or "",
-                selector_mode=view.selector_mode or "",
-                pool_available=sum(member.available for member in selector_members),
-                pool_total=len(selector_members),
-                config_source=view.configured_source or "",
-                bucket=view.bucket or "",
-            )
-        )
-    return overlaid
-
-
-def _completion_provider_routing(
-    provider: str,
-    routing_context: ProviderRoutingContext,
-) -> ProviderAvailability:
-    """Classify a catalog provider without folding in CLI availability."""
-    return classify_provider_availability(
-        routing_context,
-        provider_availability_facts(
-            provider,
-            registered=True,
-            user_facing=True,
-            cli_available=True,
-        ),
-    )
-
-
-def _completion_provenance(routing: ProviderAvailability) -> str:
-    """Return the compact completion label for provider routing provenance."""
-    provenance = routing.provenance
-    if "actual_soft_disable" in provenance:
-        return "soft"
-    if "priority" in provenance:
-        return "priority"
-    if "priority_backup" in provenance:
-        return "backup"
-    return ""
-
-
-def _build_static_catalog() -> list[ModelCompletionEntry]:
-    payload = get_llm_metadata_payload()
-    providers = _dict(payload.get("providers"))
-    model_to_provider = _str_dict(payload.get("model_to_provider"))
-    short_aliases = _str_dict(payload.get("model_short_aliases"))
-    advisories = _advisory_labels(payload.get("model_advisories"))
-    hidden_providers = model_picker_hidden_provider_names()
-    provider_order = [
-        provider
-        for provider in _provider_order(payload, providers)
-        if provider not in hidden_providers
-    ]
-    try:
-        alias_views = {
-            view.name: view
-            for view in build_alias_views(overrides={}, provider_disables={})
-        }
-    except Exception:  # noqa: BLE001 - plain aliases are the safe fallback.
-        alias_views = {}
-
-    entries: list[ModelCompletionEntry] = []
-    seen: set[str] = set()
-    contributing_providers: dict[str, tuple[str, int]] = {}
-    for provider in provider_order:
-        provider_metadata = _dict(providers.get(provider))
-        known_models = _str_list(provider_metadata.get("known_model_names"))
-        provider_display = _provider_display(provider, provider_metadata)
-        for model in known_models:
-            if model_to_provider.get(model) != provider:
-                continue
-            if _append_model_entry(
-                entries,
-                seen,
-                model=model,
-                provider=provider,
-                provider_display=provider_display,
-                short_alias=short_aliases.get(model, ""),
-                advisory=advisories.get(model, ("", "")),
-            ):
-                _, count = contributing_providers.get(provider, (provider_display, 0))
-                contributing_providers[provider] = (provider_display, count + 1)
-
-    # Include any model_to_provider entries missing from provider metadata so
-    # the catalog follows the actual resolution map even if plugin metadata is
-    # partial.
-    for model, provider in sorted(model_to_provider.items()):
-        if model in seen or provider in hidden_providers:
-            continue
-        provider_metadata = _dict(providers.get(provider))
-        provider_display = _provider_display(provider, provider_metadata)
-        if _append_model_entry(
-            entries,
-            seen,
-            model=model,
-            provider=provider,
-            provider_display=provider_display,
-            short_alias=short_aliases.get(model, ""),
-            advisory=advisories.get(model, ("", "")),
-        ):
-            _, count = contributing_providers.get(provider, (provider_display, 0))
-            contributing_providers[provider] = (provider_display, count + 1)
-
-    user_aliases = get_model_aliases()
-    _append_implicit_alias_entries(
+    return overlay_live_model_completion_entries(
         entries,
-        seen,
-        user_aliases=user_aliases,
-        alias_views=alias_views,
+        overrides=overrides,
+        provider_disables=provider_disables,
+        routing_context=routing_context,
+        build_alias_views_func=build_alias_views,
+        peek_provider_routing_context_func=peek_provider_routing_context,
+        resolve_provider_routing_context_func=resolve_provider_routing_context,
     )
-
-    for alias in sorted(user_aliases):
-        if alias in seen:
-            continue
-        _append_alias_entry(
-            entries,
-            seen,
-            value=alias,
-            view=alias_views.get(alias),
-            kind="user_alias",
-        )
-
-    provider_row_order = [
-        *provider_order,
-        *sorted(
-            provider
-            for provider in contributing_providers
-            if provider not in provider_order
-        ),
-    ]
-    for provider in provider_row_order:
-        provider_contribution = contributing_providers.get(provider)
-        if provider_contribution is None:
-            continue
-        provider_display, model_count = provider_contribution
-        _append_provider_entry(
-            entries,
-            seen,
-            provider=provider,
-            provider_display=provider_display,
-            model_count=model_count,
-        )
-
-    return entries
-
-
-def _append_implicit_alias_entries(
-    entries: list[ModelCompletionEntry],
-    seen: set[str],
-    *,
-    user_aliases: dict[str, str],
-    alias_views: dict[str, AliasView],
-) -> None:
-    """Append the implicit built-in size aliases.
-
-    An implicit alias the user has shadowed via ``model_aliases`` is skipped here
-    so the user-configured target is surfaced once, with its real
-    description, by the caller's user-alias loop.
-    """
-    for value in _IMPLICIT_ALIASES:
-        if value in user_aliases:
-            continue
-        view = alias_views.get(value)
-        _append_alias_entry(
-            entries,
-            seen,
-            value=value,
-            view=view,
-            kind="implicit_alias",
-        )
-
-
-def _append_model_entry(
-    entries: list[ModelCompletionEntry],
-    seen: set[str],
-    *,
-    model: str,
-    provider: str,
-    provider_display: str,
-    short_alias: str,
-    advisory: tuple[str, str] = ("", ""),
-) -> bool:
-    if model in seen or not _is_inline_completable(model):
-        return False
-    aliases = (short_alias,) if short_alias else ()
-    description = provider_display
-    if short_alias:
-        description = f"{provider_display} ({short_alias})"
-    advisory_label, advisory_severity = advisory
-    if advisory_label:
-        # The completion detail is the only thing a user sees while typing
-        # `%model:...`, so the advisory has to ride along with it.
-        glyph = model_advisory_marker(advisory_severity)
-        description = f"{description} — {glyph} {advisory_label}"
-    entries.append(
-        ModelCompletionEntry(
-            value=model,
-            display=model,
-            description=description,
-            kind="model",
-            provider=provider,
-            aliases=aliases,
-            advisory_label=advisory_label,
-            advisory_severity=advisory_severity if advisory_label else "",
-        )
-    )
-    seen.add(model)
-    return True
-
-
-def _append_provider_entry(
-    entries: list[ModelCompletionEntry],
-    seen: set[str],
-    *,
-    provider: str,
-    provider_display: str,
-    model_count: int,
-) -> None:
-    value = f"{provider}/"
-    if value in seen or not _is_inline_completable(value):
-        return
-    entries.append(
-        ModelCompletionEntry(
-            value=value,
-            display=value,
-            description=provider_display,
-            kind="provider",
-            provider=provider,
-            provider_model_count=model_count,
-        )
-    )
-    seen.add(value)
-
-
-def _advisory_labels(value: object) -> dict[str, tuple[str, str]]:
-    """Return ``{model → (label, severity)}`` from the registry payload."""
-    labels: dict[str, tuple[str, str]] = {}
-    for model, advisory in _dict(value).items():
-        entry = _str_dict(advisory)
-        if label := entry.get("label", ""):
-            labels[model] = (label, entry.get("severity", ""))
-    return labels
-
-
-def _append_alias_entry(
-    entries: list[ModelCompletionEntry],
-    seen: set[str],
-    *,
-    value: str,
-    view: AliasView | None,
-    kind: str,
-    description: str = "",
-) -> None:
-    display_value = f"@{value}" if not value.startswith("@") else value
-    bare_alias = display_value[1:] if display_value.startswith("@") else display_value
-    if display_value in seen or not _is_inline_completable(display_value):
-        return
-    if view is not None:
-        description = description or view.description or ""
-        reference = view.references or view.implicit_fallback or ""
-        selector_members = tuple(
-            member for member in view.selector_members if not member.last_resort
-        )
-        entry = ModelCompletionEntry(
-            value=display_value,
-            display=display_value,
-            description=description,
-            kind=kind,
-            provider="",
-            aliases=(bare_alias,),
-            alias_kind=view.kind,
-            target_provider=view.provider or "",
-            target_model=view.model,
-            target_effort=view.effort or "",
-            provenance="configured" if view.configured else "implicit",
-            reference=reference,
-            reference_effort=view.reference_effort or "",
-            selector_mode=view.selector_mode or "",
-            pool_available=sum(member.available for member in selector_members),
-            pool_total=len(selector_members),
-            config_source=view.configured_source or "",
-            bucket=view.bucket or "",
-        )
-    else:
-        entry = ModelCompletionEntry(
-            value=display_value,
-            display=display_value,
-            description=description,
-            kind=kind,
-            provider="",
-            aliases=(bare_alias,),
-        )
-    entries.append(entry)
-    seen.add(display_value)
-
-
-def _provider_order(
-    payload: dict[str, object],
-    providers: dict[str, object],
-) -> list[str]:
-    ordered: list[str] = []
-    for item in _dict_list(payload.get("autodetect_candidates")):
-        provider = item.get("provider")
-        if (
-            isinstance(provider, str)
-            and provider in providers
-            and provider not in ordered
-        ):
-            ordered.append(provider)
-    ordered.extend(
-        sorted(provider for provider in providers if provider not in ordered)
-    )
-    return ordered
-
-
-def _provider_display(provider: str, metadata: dict[str, object]) -> str:
-    for key in ("display_name", "provider_name"):
-        provider_name = metadata.get(key)
-        if isinstance(provider_name, str) and provider_name:
-            return provider_name
-    return provider
-
-
-def _is_inline_completable(value: str) -> bool:
-    return _INLINE_MODEL_VALUE_RE.fullmatch(value) is not None
-
-
-def _dict(value: object) -> dict[str, object]:
-    if not isinstance(value, dict):
-        return {}
-    return {str(key): item for key, item in value.items()}
-
-
-def _str_dict(value: object) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    return {str(key): str(item) for key, item in value.items()}
-
-
-def _str_list(value: object) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [str(item) for item in value]
-
-
-def _dict_list(value: object) -> list[dict[str, object]]:
-    if not isinstance(value, list):
-        return []
-    return [item for item in value if isinstance(item, dict)]
 
 
 __all__ = [
