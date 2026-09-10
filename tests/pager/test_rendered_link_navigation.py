@@ -65,10 +65,10 @@ async def test_follow_several_hops_then_back_and_forward_restore_the_trail(
         await settle(pilot)
         assert screen.document is document
 
-        await pilot.press("ctrl+i")
+        await pilot.press("tab")
         await settle(pilot)
         assert "struct Router" in screen.document.sections[0].plain_text
-        await pilot.press("ctrl+i")
+        await pilot.press("tab")
         await settle(pilot)
         assert "struct Controller" in screen.document.sections[0].plain_text
 

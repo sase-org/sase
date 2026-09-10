@@ -18,4 +18,5 @@ def test_help_inserts_section_rows_after_back_and_before_forward() -> None:
 
     assert text.index("; or :") < text.index("backspace")
     assert text.index("backspace") < text.index("ctrl+n / ctrl+p")
-    assert text.index("ctrl+n / ctrl+p") < text.index("ctrl+i")
+    assert text.index("ctrl+n / ctrl+p") < text.index("<tab>")
+    assert "ctrl+i" not in text

@@ -220,6 +220,8 @@ def test_footer_legend_shows_entity_nav_for_a_multi_section_document() -> None:
 def test_footer_legend_names_trail_sheet_when_history_exists() -> None:
     line = footer_legend(section_total=1, trail_forward_count=2)
 
+    assert "<tab> forward" in line.plain
+    assert "^I forward" not in line.plain
     assert "? trail/keys" in line.plain
     assert "? keys" not in line.plain
 

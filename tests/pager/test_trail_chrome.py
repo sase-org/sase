@@ -207,3 +207,12 @@ def test_help_content_lists_complete_history_with_states_and_identity() -> None:
     assert "forward" in text
     assert "section:1" in text
     assert content.current_line > 0
+
+
+def test_full_trail_band_uses_tab_for_forward_hint() -> None:
+    snapshot = _snapshot(["overview", "pager.md", "review"], 1)
+
+    text = render_trail_band(snapshot, width=80, screen_height=24).plain
+
+    assert "<tab> forward 1" in text
+    assert "^I forward" not in text

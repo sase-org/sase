@@ -68,7 +68,7 @@ class PagerScreen(
         Binding("ctrl+n", "next_section", "Next Section"),
         Binding("ctrl+p", "prev_section", "Prev Section"),
         Binding("backspace,ctrl+o", "trail_back", "Back"),
-        Binding("ctrl+i", "trail_forward", "Forward"),
+        Binding("tab,ctrl+i", "trail_forward", "Forward", key_display="<tab>"),
         Binding("r", "refresh", "Refresh"),
         Binding("y", "arm_copy", "Copy"),
         Binding("E", "arm_edit", "Edit"),

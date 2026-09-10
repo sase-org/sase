@@ -106,7 +106,7 @@ without highlighting. Unknown types can still be forced with an explicit lexer.
 | `Ctrl+N` / `Ctrl+P`    | Go to the next / previous section                                     |
 | `/`, `n`, `N`          | Search; repeat forward / backward                                     |
 | `Backspace` / `Ctrl+O` | Follow the pager trail backward; an empty back trail closes the pager |
-| `Ctrl+I`               | Follow the pager trail forward                                        |
+| `<tab>`                | Follow the pager trail forward (`Ctrl+I` remains an alias)            |
 | `r`                    | Reload the current content                                            |
 | `y<label>`             | Copy a painted artifact reference or resolved file path               |
 | `yy`                   | Copy the current section's reference or path, when one is available   |

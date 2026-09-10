@@ -25,6 +25,7 @@ from sase.pager.resolve import (
 from ._view_files_helpers import _make_app
 from ._view_files_pager_helpers import (
     _PagerHost,
+    _PriorityTabPagerHost,
     _ViewHost,
     _attached_label_document,
     _multi_section_document,
@@ -156,6 +157,50 @@ async def test_pager_screen_modal_label_key_does_not_reach_host_binding() -> Non
         assert screen._last_activated_label.hint == "a"
         assert handled == [("target-10", "follow")]
         assert app.host_a_count == 0
+
+
+async def test_pager_screen_tab_forward_does_not_reach_priority_host_binding() -> None:
+    app = _PriorityTabPagerHost()
+    source = _multi_section_document()
+    target = PagerDocument(
+        sections=(
+            PagerSection(
+                identity="file:/tmp/target.py",
+                title="target.py",
+                kind="file",
+                body="target\n",
+            ),
+        ),
+        title="target",
+        origin=PagerOrigin.FILE,
+    )
+    async with app.run_test(size=(80, 12)) as pilot:
+        screen = PagerScreen(source)
+        app.push_screen(screen)
+        await pilot.pause()
+        screen._apply_resolution(
+            "target",
+            LinkTarget(kind=LinkTargetKind.DOCUMENT, document=target),
+            intent="follow",
+        )
+        await pilot.pause()
+        await pilot.press("backspace")
+        await pilot.pause()
+
+        assert screen.document is source
+        assert screen._forward_trail
+
+        await pilot.press("tab")
+        await pilot.pause()
+
+        assert screen.document is target
+        assert app.host_tab_count == 0
+
+        await pilot.press("tab")
+        await pilot.pause()
+
+        assert screen.document is target
+        assert app.host_tab_count == 0
 
 
 def test_link_index_backed_pager_resolver_prefers_indexed_file_target(

@@ -9,6 +9,7 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Static
 
+from sase.ace.tui._app_action_availability import check_app_action
 from sase.ace.tui.actions.hints._files import _COMMIT_TARGET_KIND, FileViewingMixin
 from sase.ace.tui.actions.hints._processing import InputProcessingMixin
 from sase.pager import PagerExit
@@ -42,6 +43,26 @@ class _PagerHost(App[None]):
 
     def action_host_a(self) -> None:
         self.host_a_count += 1
+
+
+class _PriorityTabPagerHost(_PagerHost):
+    """Pager host with ACE-style priority Tab switching enabled."""
+
+    BINDINGS = [
+        *_PagerHost.BINDINGS,
+        Binding("tab", "next_tab", "Next Tab", show=False, priority=True),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.current_tab = "agents"
+        self.host_tab_count = 0
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        return check_app_action(self, action, parameters, super().check_action)
+
+    def action_next_tab(self) -> None:
+        self.host_tab_count += 1
 
 
 class _ViewHost(InputProcessingMixin, FileViewingMixin, App[None]):
