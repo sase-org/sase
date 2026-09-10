@@ -1416,6 +1416,16 @@ updates such as mark-read, mark-all-read, mute, snooze, and dismiss use a count-
 Rust mutation path unless the caller needs rehydrated notification rows; this keeps
 inbox counters cheap when ACE or a bridge process only needs mutation metadata.
 
+The store keeps itself O(live). When `notifications.jsonl` crosses 4 MiB or holds at
+least 1,000 dismissed rows, the next read or rewrite compacts it under the same
+exclusive lock: dismissed rows older than a 14-day retention window are appended to a
+sibling `notifications-archive.jsonl` and dropped from the live file, then the live file
+is replaced atomically so a crash mid-compaction loses no row. Snoozed rows are never
+archived while snoozed, and dismissed rows inside the retention window stay put so the
+inbox UI's `include_dismissed` view is unchanged. `sase logs pack` reads the archive
+alongside the live file, so a window older than the retention period still packs
+complete.
+
 The Rust store also owns every temporal semantic: it validates and normalizes snooze
 deadlines, expires due rows atomically under the same lock as the read, stamps
 `resurfaced_at`, and reports both `expired_ids` and the earliest remaining

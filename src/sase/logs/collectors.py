@@ -185,10 +185,20 @@ def collect_artifacts(start: datetime, end: datetime) -> list[Path]:
 
 
 def collect_notifications(start: datetime, end: datetime) -> list[str]:
-    """Return filtered JSONL lines from notifications.jsonl whose timestamp is in range."""
-    return _collect_jsonl_by_iso_timestamp(
+    """Return filtered notification JSONL lines whose timestamp is in range.
+
+    The Rust store compacts long-dismissed rows out of ``notifications.jsonl``
+    into a sibling ``notifications-archive.jsonl``, so a window older than the
+    retention period lives partly or wholly in the archive. Both files are read
+    and the merged lines are returned in timestamp order.
+    """
+    lines = _collect_jsonl_by_iso_timestamp(
+        "~/.sase/notifications/notifications-archive.jsonl", start, end
+    )
+    lines += _collect_jsonl_by_iso_timestamp(
         "~/.sase/notifications/notifications.jsonl", start, end
     )
+    return _sorted_by_iso_timestamp(lines)
 
 
 def collect_checks(start: datetime, end: datetime) -> list[Path]:
@@ -201,6 +211,29 @@ def collect_plans(start: datetime, end: datetime) -> list[Path]:
 
 def collect_questions(start: datetime, end: datetime) -> list[Path]:
     return _collect_by_mtime("~/.sase/user_question", start, end)
+
+
+def _iso_timestamp(line: str) -> datetime | None:
+    """Return the ISO 8601 ``timestamp`` of a JSONL *line*, or None when absent."""
+    try:
+        data = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+    try:
+        ts = datetime.fromisoformat(data.get("timestamp", ""))
+    except (ValueError, TypeError):
+        return None
+    return ts.replace(tzinfo=get_timezone()) if ts.tzinfo is None else ts
+
+
+def _sorted_by_iso_timestamp(lines: list[str]) -> list[str]:
+    """Order JSONL *lines* by their ISO ``timestamp``, ties broken by input order."""
+    stamped = [
+        (stamp, index, line)
+        for index, line in enumerate(lines)
+        if (stamp := _iso_timestamp(line)) is not None
+    ]
+    return [line for _, _, line in sorted(stamped)]
 
 
 def _collect_jsonl_by_timestamp(path: str, start: datetime, end: datetime) -> list[str]:
@@ -237,22 +270,12 @@ def _collect_jsonl_by_iso_timestamp(
     if not p.is_file():
         return []
     lines: list[str] = []
-    for line in p.read_text().splitlines():
-        line = line.strip()
+    for raw_line in p.read_text().splitlines():
+        line = raw_line.strip()
         if not line:
             continue
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        ts_str = data.get("timestamp", "")
-        try:
-            ts = datetime.fromisoformat(ts_str)
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=get_timezone())
-        except (ValueError, TypeError):
-            continue
-        if _in_range(ts, start, end):
+        ts = _iso_timestamp(line)
+        if ts is not None and _in_range(ts, start, end):
             lines.append(line)
     return lines
 

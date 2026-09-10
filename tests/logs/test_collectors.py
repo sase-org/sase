@@ -18,6 +18,7 @@ from sase.logs.collectors import (
     collect_diffs,
     collect_hooks,
     collect_mentors,
+    collect_notifications,
     collect_reverted_diffs,
     collect_saved_plans,
 )
@@ -296,6 +297,51 @@ class TestNewCollectors:
             results = collect_axe_state(start, end)
 
         assert results == []
+
+
+class TestCollectNotifications:
+    """Compaction moves long-dismissed rows out of ``notifications.jsonl``."""
+
+    @staticmethod
+    def _row(notification_id: str, timestamp: str) -> str:
+        return json.dumps({"id": notification_id, "timestamp": timestamp})
+
+    def test_merges_live_and_archived_rows_in_timestamp_order(
+        self, tmp_path: Path
+    ) -> None:
+        notifications_dir = tmp_path / "notifications"
+        notifications_dir.mkdir()
+        (notifications_dir / "notifications.jsonl").write_text(
+            self._row("live", "2026-03-15T12:00:00") + "\n"
+        )
+        archived = [
+            self._row("archived", "2026-03-14T12:00:00"),
+            self._row("stale", "2026-03-01T12:00:00"),
+        ]
+        (notifications_dir / "notifications-archive.jsonl").write_text(
+            "\n".join(archived) + "\n"
+        )
+        start = datetime(2026, 3, 12, tzinfo=get_timezone())
+        end = datetime(2026, 3, 20, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_notifications(start, end)
+
+        assert [json.loads(line)["id"] for line in results] == ["archived", "live"]
+
+    def test_missing_archive_is_not_an_error(self, tmp_path: Path) -> None:
+        notifications_dir = tmp_path / "notifications"
+        notifications_dir.mkdir()
+        (notifications_dir / "notifications.jsonl").write_text(
+            self._row("live", "2026-03-15T12:00:00") + "\n"
+        )
+        start = datetime(2026, 3, 12, tzinfo=get_timezone())
+        end = datetime(2026, 3, 20, tzinfo=get_timezone())
+
+        with _patch_expanduser(tmp_path):
+            results = collect_notifications(start, end)
+
+        assert [json.loads(line)["id"] for line in results] == ["live"]
 
 
 @contextmanager
