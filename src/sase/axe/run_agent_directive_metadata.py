@@ -33,6 +33,7 @@ EPIC_WORK_ENV_METADATA_NAMES = (
     (SASE_EPIC_CLAN_TRIBE_ENV, "clan_tribe"),
 )
 DEFAULT_QUEUE_WEIGHT = 1.0
+QUEUE_WEIGHT_ERROR = "queue_weight must be a positive finite number"
 
 
 @dataclass(frozen=True)
@@ -106,7 +107,7 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
     workspace_num = existing_meta.get("workspace_num")
     if isinstance(workspace_num, int):
         preserved["workspace_num"] = workspace_num
-    queue_weight = _coerce_queue_weight(existing_meta.get("queue_weight"))
+    queue_weight = _existing_queue_weight(existing_meta, source="agent metadata")
     if queue_weight is not None:
         preserved["queue_weight"] = queue_weight
         preserved["queue_weight_explicit"] = (
@@ -222,11 +223,13 @@ def build_agent_meta(
         agent_meta["wait_runners"] = directives.wait_runners
     if directives.wait_priority is not None:
         agent_meta["wait_priority"] = directives.wait_priority
-    agent_meta["queue_weight"] = (
+    authored_queue_weight = (
         directives.queue_weight
         if directives.queue_weight_explicit and directives.queue_weight is not None
         else DEFAULT_QUEUE_WEIGHT
     )
+    authored_queue_weight_explicit = directives.queue_weight_explicit
+    agent_meta["queue_weight"] = authored_queue_weight
     agent_meta["queue_weight_explicit"] = directives.queue_weight_explicit
     if inputs.model:
         agent_meta["model"] = inputs.model
@@ -276,6 +279,9 @@ def build_agent_meta(
 
     agent_meta.update(agent_meta_from_chop_env())
     agent_meta.update(inputs.preserved)
+    if authored_queue_weight_explicit:
+        agent_meta["queue_weight"] = authored_queue_weight
+        agent_meta["queue_weight_explicit"] = True
     agent_meta.update(inputs.epic_work)
     if inputs.vcs_ref:
         agent_meta["vcs_ref"] = [inputs.vcs_ref[0], inputs.vcs_ref[1]]
@@ -303,6 +309,39 @@ def _coerce_queue_weight(value: object) -> float | None:
     if not math.isfinite(weight) or weight <= 0:
         return None
     return weight
+
+
+def _invalid_queue_weight_message(source: str, value: object) -> str:
+    return f"Invalid queue_weight in {source}: {QUEUE_WEIGHT_ERROR}; got {value!r}."
+
+
+def _existing_queue_weight(meta: Mapping[str, Any], *, source: str) -> float | None:
+    if meta.get("queue_weight_invalid") is True:
+        raise RuntimeError(
+            _invalid_queue_weight_message(source, meta.get("queue_weight"))
+        )
+    if "queue_weight" not in meta:
+        return None
+    queue_weight = _coerce_queue_weight(meta.get("queue_weight"))
+    if queue_weight is None:
+        raise RuntimeError(
+            _invalid_queue_weight_message(source, meta.get("queue_weight"))
+        )
+    return queue_weight
+
+
+def _parent_queue_weight(
+    family_attach_plan: FamilyAttachLaunchPlan,
+) -> float | None:
+    meta_path = os.path.join(family_attach_plan.parent_artifacts_dir, "agent_meta.json")
+    try:
+        with open(meta_path, encoding="utf-8") as f:
+            parent_meta = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(parent_meta, dict):
+        return None
+    return _existing_queue_weight(parent_meta, source="family parent metadata")
 
 
 def _qualify_agent_identity_metadata(agent_meta: dict[str, Any]) -> None:
@@ -361,6 +400,11 @@ def _add_family_metadata(
         agent_meta["patch_name"] = family_attach_plan.parent_cl_name
         agent_meta["changespec_name"] = family_attach_plan.parent_cl_name
         agent_meta["cl_name"] = family_attach_plan.parent_cl_name
+    if agent_meta.get("queue_weight_explicit") is not True:
+        parent_queue_weight = _parent_queue_weight(family_attach_plan)
+        if parent_queue_weight is not None:
+            agent_meta["queue_weight"] = parent_queue_weight
+            agent_meta["queue_weight_explicit"] = False
     if family_attach_plan.parent_agent_clan:
         from sase.agent.clan_membership import (
             AGENT_CLAN_FIELD,

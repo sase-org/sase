@@ -98,6 +98,15 @@ class _RunnerSlotAdmissionError(RuntimeError):
     """Raised when a serial continuation requests an incompatible live claim."""
 
 
+def _invalid_queue_weight_error(
+    source: str, value: object
+) -> _RunnerSlotAdmissionError:
+    return _RunnerSlotAdmissionError(
+        f"Invalid queue_weight in {source}: expected a positive finite number, "
+        f"got {value!r}."
+    )
+
+
 def _marker_runner_condition_state(
     waiting_data: dict[str, Any] | None,
     directive_threshold: int | None,
@@ -156,12 +165,22 @@ def _marker_queue_weight_state(
     directive_explicit: bool,
 ) -> tuple[float, bool]:
     if waiting_data is not None and "slot_requested_at" in waiting_data:
-        marker_weight = _valid_queue_weight(waiting_data.get("queue_weight"))
-        if marker_weight is not None:
+        if waiting_data.get("queue_weight_invalid") is True:
+            raise _invalid_queue_weight_error(
+                "waiting marker",
+                waiting_data.get("queue_weight"),
+            )
+        if "queue_weight" in waiting_data:
+            marker_weight = _valid_queue_weight(waiting_data.get("queue_weight"))
+            if marker_weight is None:
+                raise _invalid_queue_weight_error(
+                    "waiting marker",
+                    waiting_data.get("queue_weight"),
+                )
             return marker_weight, waiting_data.get("queue_weight_explicit") is True
     weight = _valid_queue_weight(directive_weight)
     if weight is None:
-        return _DEFAULT_QUEUE_WEIGHT, False
+        raise _invalid_queue_weight_error("agent metadata", directive_weight)
     return weight, directive_explicit
 
 
@@ -319,6 +338,42 @@ def _enrich_candidate_from_records(
     return candidate
 
 
+def _candidate_scan_queue_weight_error(
+    records: list[AgentArtifactRecordWire],
+    artifacts_dir: str,
+) -> _RunnerSlotAdmissionError | None:
+    for record in records:
+        if record.artifact_dir != artifacts_dir:
+            continue
+        waiting = record.waiting
+        if waiting is not None:
+            if waiting.queue_weight_invalid:
+                return _invalid_queue_weight_error(
+                    "waiting marker",
+                    waiting.queue_weight,
+                )
+            if (
+                waiting.queue_weight is not None
+                and _valid_queue_weight(waiting.queue_weight) is None
+            ):
+                return _invalid_queue_weight_error(
+                    "waiting marker",
+                    waiting.queue_weight,
+                )
+        meta = record.agent_meta
+        if meta is None:
+            return None
+        if meta.queue_weight_invalid:
+            return _invalid_queue_weight_error("agent metadata", meta.queue_weight)
+        if (
+            meta.queue_weight is not None
+            and _valid_queue_weight(meta.queue_weight) is None
+        ):
+            return _invalid_queue_weight_error("agent metadata", meta.queue_weight)
+        return None
+    return None
+
+
 def _assert_active_family_weight_is_compatible(
     *,
     claim: dict[str, Any],
@@ -341,6 +396,44 @@ def _assert_active_family_weight_is_compatible(
         )
 
 
+def _active_claim_weight(claim: dict[str, Any]) -> float:
+    occupied = claim.get("occupied_capacity")
+    if not isinstance(occupied, (int, float)) or isinstance(occupied, bool):
+        raise _RunnerSlotAdmissionError(
+            "Active serial family has an invalid runner capacity claim."
+        )
+    weight = float(occupied)
+    if not math.isfinite(weight) or weight <= 0:
+        raise _RunnerSlotAdmissionError(
+            "Active serial family has an invalid runner capacity claim."
+        )
+    return weight
+
+
+def _publish_claim_queue_weight(
+    *,
+    artifacts_dir: str,
+    agent_meta: dict[str, Any] | None,
+    queue_weight: float,
+    queue_weight_explicit: bool,
+) -> None:
+    fields = {
+        "queue_weight": queue_weight,
+        "queue_weight_explicit": queue_weight_explicit,
+    }
+    if agent_meta is not None:
+        agent_meta.update(fields)
+        agent_meta.pop("queue_weight_invalid", None)
+        agent_meta.pop("queue_weight_error", None)
+    from sase.axe.run_agent_helpers_artifacts import update_meta_fields
+
+    update_meta_fields(
+        artifacts_dir,
+        fields,
+        remove_keys=("queue_weight_invalid", "queue_weight_error"),
+    )
+
+
 def _try_claim_runner_slot(
     *,
     artifacts_dir: str,
@@ -350,6 +443,7 @@ def _try_claim_runner_slot(
     directive_priority: int | None = None,
     directive_queue_weight: float = _DEFAULT_QUEUE_WEIGHT,
     directive_queue_weight_explicit: bool = False,
+    agent_meta: dict[str, Any] | None = None,
     claim: Callable[[], str],
 ) -> tuple[str | None, bool]:
     """Try one check-and-claim under the global lock.
@@ -420,6 +514,12 @@ def _try_claim_runner_slot(
                 ),
             )
             records = _scan_runner_slot_records()
+            queue_weight_error = _candidate_scan_queue_weight_error(
+                records,
+                artifacts_dir,
+            )
+            if queue_weight_error is not None:
+                raise queue_weight_error
             candidate = _enrich_candidate_from_records(candidate, records)
             is_live = _record_liveness_probe()
             now = datetime.now(UTC)
@@ -442,10 +542,19 @@ def _try_claim_runner_slot(
             )
             active_claim = _active_serial_claim(snapshot, candidate)
             if active_claim is not None:
+                claim_weight = _active_claim_weight(active_claim)
                 _assert_active_family_weight_is_compatible(
                     claim=active_claim,
                     requested_weight=queue_weight,
                     requested_weight_explicit=queue_weight_explicit,
+                )
+                _publish_claim_queue_weight(
+                    artifacts_dir=artifacts_dir,
+                    agent_meta=agent_meta,
+                    queue_weight=(
+                        queue_weight if queue_weight_explicit else claim_weight
+                    ),
+                    queue_weight_explicit=queue_weight_explicit,
                 )
                 run_started_at = claim()
                 remove_waiting_marker(artifacts_dir)
@@ -456,6 +565,12 @@ def _try_claim_runner_slot(
             entered_deference = False
             deference_window = 0.0
             if eligible:
+                _publish_claim_queue_weight(
+                    artifacts_dir=artifacts_dir,
+                    agent_meta=agent_meta,
+                    queue_weight=queue_weight,
+                    queue_weight_explicit=queue_weight_explicit,
+                )
                 run_started_at = claim()
                 remove_waiting_marker(artifacts_dir)
                 return run_started_at, False
@@ -529,6 +644,7 @@ def wait_for_runner_slot(
             directive_priority=wait_priority,
             directive_queue_weight=queue_weight,
             directive_queue_weight_explicit=queue_weight_explicit,
+            agent_meta=agent_meta,
             claim=claim,
         )
         if run_started_at is not None:

@@ -354,6 +354,89 @@ def test_family_attach_parent_workspace_num_does_not_clobber_claimed_run(
     assert child_meta["workspace_num"] == 8
 
 
+@pytest.mark.parametrize(
+    ("prompt", "expected_weight", "expected_explicit"),
+    [
+        ("%i(reviewer, family=foo)\nReview", 2.0, False),
+        ("%queue(weight=0.25)\n%i(reviewer, family=foo)\nReview", 0.25, True),
+    ],
+)
+def test_family_attach_child_preserves_queue_weight_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    prompt: str,
+    expected_weight: float,
+    expected_explicit: bool,
+) -> None:
+    parent_dir = tmp_path / "parent"
+    parent_dir.mkdir()
+    (parent_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "foo--0",
+                "queue_weight": 2.0,
+                "queue_weight_explicit": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    child_dir = tmp_path / "child"
+    child_dir.mkdir()
+    plan = FamilyAttachLaunchPlan(
+        parent_arg="foo",
+        suffix_arg="reviewer",
+        parent_name="foo--0",
+        parent_base="foo",
+        parent_timestamp="20260701010101",
+        parent_artifacts_dir=str(parent_dir),
+        role_suffix="--reviewer",
+        agent_name="foo--reviewer",
+        agent_family_role="reviewer",
+        parent_family_member_name="foo--0",
+        parent_family_role_suffix="--0",
+        parent_needs_rename=False,
+        parent_project_name="sase",
+        parent_cl_name="feature",
+    )
+    monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
+
+    with (
+        patch("sase.agent.names.ensure_historical_auto_name_migration"),
+        patch(
+            "sase.agent.names.agent_name_allocation_lock", return_value=nullcontext()
+        ),
+        patch("sase.agent.names.claim_agent_name"),
+        patch(
+            "sase.xprompt.process_xprompt_references",
+            side_effect=lambda prompt, **_: prompt,
+        ),
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch(
+            "sase.llm_provider.config.resolve_effective_effort",
+            return_value=(None, None),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+    ):
+        info = extract_directives_and_write_meta(
+            prompt,
+            workspace_dir="/tmp/workspace",
+            artifacts_dir=str(child_dir),
+            cl_name="feature",
+            raw_resolved_prompt=prompt,
+        )
+
+    child_meta = json.loads((child_dir / "agent_meta.json").read_text())
+    assert info.queue_weight == expected_weight
+    assert info.queue_weight_explicit is expected_explicit
+    assert child_meta["queue_weight"] == expected_weight
+    assert child_meta["queue_weight_explicit"] is expected_explicit
+
+
 def test_family_parent_meta_wait_happens_before_name_lock(tmp_path: Path) -> None:
     events: list[str] = []
 

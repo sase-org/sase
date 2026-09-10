@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import json
+import math
+import os
 import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
-from sase.axe.run_agent_helpers_artifacts import update_meta_field
+from sase.axe.run_agent_helpers_artifacts import update_meta_fields
 from sase.logs._bounded import DEFAULT_MAX_BYTES, append_bytes_locked, log_file_lock
 
 GATE_SHELL_LOG_FILENAME = "gate.log"
@@ -76,6 +81,7 @@ def bind_gate_shell_execution_callbacks(
     def on_command_start(
         _scope: str, _target_id: str, _label: str, argv: tuple[str, ...]
     ) -> None:
+        _claim_gate_shell_execution_capacity(artifacts_dir)
         _append_gate_shell_log_text(artifacts_dir, f"$ {argv[0]}\n")
 
     def on_output_line(_scope: str, _target_id: str, stream: str, line: str) -> None:
@@ -84,12 +90,119 @@ def bind_gate_shell_execution_callbacks(
 
     def on_process_state(process: subprocess.Popen[bytes], started: bool) -> None:
         if started:
-            update_meta_field(artifacts_dir, "pid", process.pid)
+            from sase.core.process_identity import process_identity_token
+
+            update_meta_fields(
+                artifacts_dir,
+                {
+                    "pid": process.pid,
+                    "process_identity": process_identity_token(process.pid),
+                },
+            )
 
     return _GateShellExecutionCallbacks(
         on_command_start=on_command_start,
         on_output_line=on_output_line,
         on_process_state=on_process_state,
+    )
+
+
+def _read_gate_shell_meta(artifacts_dir: str) -> dict[str, Any]:
+    try:
+        with open(
+            Path(artifacts_dir) / "agent_meta.json",
+            encoding="utf-8",
+        ) as f:
+            loaded = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _positive_finite_weight(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    weight = float(value)
+    if not math.isfinite(weight) or weight <= 0:
+        return None
+    return weight
+
+
+def _gate_shell_queue_weight(meta: dict[str, Any]) -> float:
+    if meta.get("queue_weight_invalid") is True:
+        raise RuntimeError(
+            "Invalid queue_weight in gate shell metadata: expected a positive "
+            f"finite number, got {meta.get('queue_weight')!r}."
+        )
+    if "queue_weight" not in meta:
+        return 1.0
+    queue_weight = _positive_finite_weight(meta.get("queue_weight"))
+    if queue_weight is None:
+        raise RuntimeError(
+            "Invalid queue_weight in gate shell metadata: expected a positive "
+            f"finite number, got {meta.get('queue_weight')!r}."
+        )
+    return queue_weight
+
+
+def _is_real_pending_gate_shell(meta: dict[str, Any]) -> bool:
+    return (
+        meta.get("agent_family_role") == "gate"
+        and isinstance(meta.get("gate_id"), str)
+        and bool(str(meta.get("gate_id") or "").strip())
+        and meta.get("gate_state") == "pending"
+    )
+
+
+def _claim_gate_shell_execution_capacity(artifacts_dir: str) -> None:
+    meta = _read_gate_shell_meta(artifacts_dir)
+    if not _is_real_pending_gate_shell(meta):
+        return
+
+    queue_weight = _gate_shell_queue_weight(meta)
+
+    timestamp = Path(artifacts_dir).name
+    cl_name = (
+        str(meta.get("cl_name") or meta.get("patch_name") or meta.get("name") or "")
+        or "gate"
+    )
+    shell_pid = os.getpid()
+    run_started_at = datetime.now(UTC).isoformat()
+
+    def claim() -> str:
+        from sase.core.process_identity import process_identity_token
+
+        meta.update(
+            {
+                "pid": shell_pid,
+                "process_identity": process_identity_token(shell_pid),
+                "gate_state": "settling",
+                "run_started_at": run_started_at,
+            }
+        )
+        update_meta_fields(
+            artifacts_dir,
+            {
+                "pid": shell_pid,
+                "process_identity": meta["process_identity"],
+                "gate_state": "settling",
+                "run_started_at": run_started_at,
+            },
+        )
+        return run_started_at
+
+    from sase.axe.run_agent_wait_slots import wait_for_runner_slot
+
+    wait_for_runner_slot(
+        artifacts_dir,
+        cl_name,
+        timestamp,
+        meta,
+        wait_runners=None,
+        wait_priority=None,
+        queue_weight=queue_weight,
+        queue_weight_explicit=meta.get("queue_weight_explicit") is True,
+        claim=claim,
     )
 
 

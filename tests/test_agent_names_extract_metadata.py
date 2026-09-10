@@ -107,6 +107,60 @@ class TestExtractDirectivesMetadata:
         assert result["meta"]["queue_weight"] == 0.25
         assert result["meta"]["queue_weight_explicit"] is True
 
+    def test_fresh_explicit_queue_weight_overrides_preserved_metadata(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir()
+        (artifacts / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "pid": 123,
+                    "queue_weight": 2.0,
+                    "queue_weight_explicit": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = run_extract(
+            tmp_path,
+            env_auto_dismiss=True,
+            prompt="%queue(weight=0.25)\ndo stuff",
+        )
+
+        assert result["info"].queue_weight == 0.25
+        assert result["info"].queue_weight_explicit is True
+        assert result["meta"]["queue_weight"] == 0.25
+        assert result["meta"]["queue_weight_explicit"] is True
+
+    def test_omitted_queue_weight_inherits_preserved_metadata(
+        self, tmp_path: Path
+    ) -> None:
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir()
+        (artifacts / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "pid": 123,
+                    "queue_weight": 2.0,
+                    "queue_weight_explicit": False,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        result = run_extract(
+            tmp_path,
+            env_auto_dismiss=True,
+            prompt="do stuff",
+        )
+
+        assert result["info"].queue_weight == 2.0
+        assert result["info"].queue_weight_explicit is False
+        assert result["meta"]["queue_weight"] == 2.0
+        assert result["meta"]["queue_weight_explicit"] is False
+
     def test_persists_wait_beads_metadata(self, tmp_path: Path) -> None:
         result = run_extract(
             tmp_path,
