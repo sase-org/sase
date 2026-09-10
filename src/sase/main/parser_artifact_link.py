@@ -29,7 +29,7 @@ def register_artifact_link_parser(
             "  sase artifact link add plan:202608/a.md implements "
             'bead:sase-js "extends the ref contract this epic landed"\n'
             "  sase artifact link import-indexes\n"
-            "  sase artifact link import-indexes --apply\n"
+            "  sase artifact link import-indexes --apply fleet-capable-abc123def456\n"
             "  sase artifact link list plan:202608/a.md -d both\n"
             "  sase artifact link list --source store -j -l 0\n"
             "  sase artifact link rm plan:202608/a.md bead:sase-js "
@@ -91,13 +91,20 @@ def register_artifact_link_parser(
         help="Import legacy links/ indexes into immutable link events",
         description=(
             "Plan or apply the legacy artifact-link index cutover. Preview is "
-            "the default and writes nothing. Applying fences current SASE "
-            "binaries with link-events/STORE.json, publishes one deterministic "
-            "baseline import event to every document sidecar root, and then "
-            "marks legacy links/ indexes imported. Older SASE binaries do not "
-            "understand the marker."
+            "the default and writes nothing. Applying requires the positional "
+            "attestation token printed by preview, fences current SASE binaries "
+            "with link-events/STORE.json, publishes one deterministic baseline "
+            "import event to every document sidecar root, and then marks legacy "
+            "links/ indexes imported. Older SASE binaries do not understand the "
+            "marker."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    import_parser.add_argument(
+        "attestation",
+        nargs="?",
+        metavar="ATTESTATION",
+        help="Fleet capability token printed by preview and required with --apply",
     )
     import_parser.add_argument(
         "-a",

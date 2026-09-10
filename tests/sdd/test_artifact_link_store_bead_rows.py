@@ -6,9 +6,15 @@ from pathlib import Path
 
 import pytest
 
+from sase.core.rust import require_rust_binding
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
-from tests.sdd._artifact_link_store_helpers import _plan_index, _row, _store
+from tests.sdd._artifact_link_store_helpers import (
+    _plan_index,
+    _row,
+    _store,
+    write_imported_cutover_marker,
+)
 
 
 def test_bead_endpoint_is_not_written_to_sidecar_json(
@@ -142,6 +148,43 @@ def test_backfill_bead_endpoint_links_is_additive_and_idempotent(
         assert again["written"] == 0
 
 
+def test_imported_backfill_projects_from_events_without_sidecar_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    with BeadProject.init(tmp_path) as project:
+        issue = project.create("Target", IssueType.PLAN)
+        store = ArtifactLinkStore(
+            project_key="gh_sase-org__sase",
+            sidecar_roots={"plan": tmp_path / "plans"},
+            beads_dir=project.beads_dir,
+        )
+        plans = tmp_path / "plans"
+        plans.mkdir(exist_ok=True)
+        event = _event_for_row(
+            store.project_key,
+            _row(
+                source="plan:202608/a.md",
+                relation="implements",
+                target=f"bead:{issue.id}",
+                description="lands the approved CLI design",
+            ),
+        )
+        _write_event(plans, event)
+        store.rebuild_aggregate()
+        write_imported_cutover_marker(store)
+
+        result = store.backfill_bead_endpoint_links()
+
+        assert result["candidates"] == 1
+        assert result["written"] == 1
+        assert list((plans / "links").rglob("*.json")) == []
+        assert project.show(issue.id).links[0].direction == "in"
+
+
 def test_bead_load_includes_incoming_rows_stored_on_the_target_bead(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -253,3 +296,40 @@ def test_bead_merge_includes_sidecar_and_deduplicates(
         related = [row for row in rows if row["relation"] == "related"]
         assert len(related) == 1
         assert related[0]["description"] == "bead owned duplicate"
+
+
+def _event_for_row(project_key: str, row: dict[str, object]) -> dict[str, object]:
+    edge = {
+        "kind": "directed",
+        "source_ref": row["source_ref"],
+        "relation": row["relation"],
+        "target_ref": row["target_ref"],
+    }
+    event = {
+        "schema_version": int(
+            require_rust_binding("artifact_link_event_schema_version")()
+        ),
+        "project_key": project_key,
+        "operation_id": "d" * 32,
+        "created_by": row["created_by"],
+        "origin": row["origin"],
+        "created_at": row["created_at"],
+        "kind": {
+            "type": "edge-put",
+            "edge": edge,
+            "description": row["description"],
+            "observed_operation_ids": [],
+        },
+    }
+    return dict(require_rust_binding("artifact_link_event_canonicalize")(event))
+
+
+def _write_event(root: Path, event: dict[str, object]) -> None:
+    digest = str(require_rust_binding("artifact_link_event_digest")(event))
+    relpath = str(require_rust_binding("artifact_link_event_path_for_digest")(digest))
+    path = root / relpath
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        str(require_rust_binding("artifact_link_event_canonical_json")(event)),
+        encoding="utf-8",
+    )

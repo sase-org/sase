@@ -114,7 +114,7 @@ def observation_or_put_event_from_row(
             "type": "observation",
             "edge": edge,
             "description": str(canonical_row.get("description") or ""),
-            "occurrences": row_uses(canonical_row),
+            "occurrences": _row_uses(canonical_row),
         }
     else:
         kind = {
@@ -331,7 +331,7 @@ def probe_row_from_edge(edge: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def row_uses(row: Mapping[str, Any]) -> int:
+def _row_uses(row: Mapping[str, Any]) -> int:
     try:
         uses = int(row.get("uses") or 0)
     except (TypeError, ValueError):

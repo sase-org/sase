@@ -8,6 +8,7 @@ import subprocess
 
 from sase.sdd._artifact_link_files import artifact_link_lock_path
 from sase.sdd._artifact_link_ignore import (
+    ARTIFACT_LINK_EVENT_STAGING_GITIGNORE_PATTERN,
     ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN,
     ensure_artifact_link_lock_gitignore,
 )
@@ -62,6 +63,7 @@ def test_lock_ignore_appends_without_disturbing_existing_content(
     assert ensure_artifact_link_lock_gitignore(tmp_path) == gitignore
     assert gitignore.read_text(encoding="utf-8") == (
         f"assets/cache/\n{ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN}\n"
+        f"{ARTIFACT_LINK_EVENT_STAGING_GITIGNORE_PATTERN}\n"
     )
     before = gitignore.read_bytes()
     assert ensure_artifact_link_lock_gitignore(tmp_path) is None

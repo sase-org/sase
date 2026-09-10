@@ -320,6 +320,24 @@ def _check_artifact_link_cutover(context: DoctorContext) -> DiagnosticCheck:
             summary="no artifact-link cutover marker present",
             data={"state": "none"},
         )
+    if inspection.state == "incomplete":
+        return DiagnosticCheck(
+            id=_CUTOVER_CHECK_ID,
+            group="project",
+            status="ERROR",
+            title=_CUTOVER_TITLE,
+            summary="artifact-link cutover is incomplete",
+            next_steps=(
+                "Resume the import with `sase artifact link import-indexes --apply "
+                "<attestation>` before reading or writing artifact links."
+            ),
+            data={
+                "state": "incomplete",
+                "import_id": inspection.marker.import_id,
+                "roles": list(inspection.incomplete_roles),
+                "diagnostics": list(inspection.diagnostics),
+            },
+        )
 
     stragglers = _cutover_links_tree_stragglers(adapter, inspection.marker)
     if stragglers:

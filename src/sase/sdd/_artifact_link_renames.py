@@ -11,6 +11,7 @@ from typing import Any
 from sase.agents_sync.io import atomic_write_json
 from sase.core.rust import require_rust_binding
 from sase.sdd._artifact_link_authorize import classify_machine_writable_sidecar_roots
+from sase.sdd._artifact_link_cutover_state import artifact_link_indexes_imported
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     canonicalize_artifact_link_ref,
@@ -50,6 +51,7 @@ class _ArtifactLinkRenameReport:
     aggregate_changed: bool = False
     alias_events_queued: int = 0
     alias_event_errors: tuple[str, ...] = ()
+    legacy_indexes_frozen: bool = False
     deferred_refs: int = 0
     skip_diagnostics: tuple[str, ...] = ()
 
@@ -178,6 +180,20 @@ def _apply_artifact_renames(
     removed_indexes: list[Path] = []
     rewritten_rows = 0
     alias_events_queued, alias_event_errors = _queue_alias_events(store, ordered)
+    if artifact_link_indexes_imported(
+        store.sidecar_roots,
+        project_key=store.project_key,
+    ):
+        before = store.load_aggregate()
+        after = store.rebuild_aggregate()
+        return _ArtifactLinkRenameReport(
+            renames=ordered,
+            aggregate_changed=before != after,
+            alias_events_queued=alias_events_queued,
+            alias_event_errors=alias_event_errors,
+            legacy_indexes_frozen=True,
+            skip_diagnostics=skip_diagnostics,
+        )
     for kind, root in candidate_roots.items():
         if kind not in writable_roots:
             continue
@@ -209,6 +225,7 @@ def _apply_artifact_renames(
         aggregate_changed=aggregate_changed,
         alias_events_queued=alias_events_queued,
         alias_event_errors=alias_event_errors,
+        legacy_indexes_frozen=False,
         skip_diagnostics=skip_diagnostics,
     )
 

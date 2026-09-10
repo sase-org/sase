@@ -12,9 +12,9 @@ from sase.sdd._artifact_link_cutover_state import (
     ArtifactLinkBaselineEventIdentity,
     ArtifactLinkCutoverImportIdentity,
     ArtifactLinkCutoverRole,
-    artifact_link_cutover_marker_bytes,
     artifact_link_cutover_marker_path,
     build_artifact_link_cutover_marker_payload,
+    parse_artifact_link_cutover_marker_payload,
 )
 from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_event
 from sase.sdd.artifact_link_store import (
@@ -437,7 +437,7 @@ def _write_imported_marker(store: ArtifactLinkStore) -> None:
             path=f"link-events/v1/{digest[:2]}/{digest}.json",
         ),
     )
-    marker_bytes = artifact_link_cutover_marker_bytes(payload)
+    marker_bytes = parse_artifact_link_cutover_marker_payload(payload).canonical_bytes
     for root in store.sidecar_roots.values():
         path = artifact_link_cutover_marker_path(root)
         path.parent.mkdir(parents=True, exist_ok=True)

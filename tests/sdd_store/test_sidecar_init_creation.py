@@ -8,6 +8,10 @@ import subprocess
 
 import pytest
 
+from sase.sdd._artifact_link_ignore import (
+    ARTIFACT_LINK_EVENT_STAGING_GITIGNORE_PATTERN,
+    ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN,
+)
 from sase.sdd._sidecar_init import (
     SidecarInitSpec,
     initialize_materialized_sidecars,
@@ -16,6 +20,11 @@ from sase.sdd._sidecar_init import (
 from sase.sdd._store_records import read_sdd_store_record
 
 from ._sidecar_init_helpers import bare_remote, configure_git_environment
+
+_ARTIFACT_LINK_GITIGNORE_LINES = [
+    ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN,
+    ARTIFACT_LINK_EVENT_STAGING_GITIGNORE_PATTERN,
+]
 
 
 def _has_head(repo: Path) -> bool:
@@ -138,12 +147,12 @@ def test_split_init_creates_both_repos_before_writing_record(
         "beads/beads.db-shm",
         "beads/beads.db-wal",
         "beads/.bead-mutation-lock.holder",
-        "/links/**/*.lock",
+        *_ARTIFACT_LINK_GITIGNORE_LINES,
     ]
     assert (clones["research"] / "README.md").is_file()
-    assert (clones["research"] / ".gitignore").read_text().splitlines() == [
-        "/links/**/*.lock",
-    ]
+    assert (
+        clones["research"] / ".gitignore"
+    ).read_text().splitlines() == _ARTIFACT_LINK_GITIGNORE_LINES
 
 
 def test_split_init_no_publish_writes_plans_and_beads_without_commits_or_pushes(
@@ -192,12 +201,14 @@ def test_split_init_no_publish_writes_plans_and_beads_without_commits_or_pushes(
     )
 
     assert (clones["plans"] / "README.md").is_file()
-    assert (clones["plans"] / ".gitignore").read_text().splitlines() == [
-        "/links/**/*.lock",
-    ]
+    assert (
+        clones["plans"] / ".gitignore"
+    ).read_text().splitlines() == _ARTIFACT_LINK_GITIGNORE_LINES
     assert (clones["beads"] / "README.md").is_file()
     assert (clones["beads"] / ".gitignore").is_file()
-    assert "/links/**/*.lock" not in (clones["beads"] / ".gitignore").read_text()
+    beads_ignore = (clones["beads"] / ".gitignore").read_text()
+    for line in _ARTIFACT_LINK_GITIGNORE_LINES:
+        assert line not in beads_ignore
     assert not _has_head(clones["plans"])
     assert not _has_head(clones["beads"])
     for remote in remotes.values():

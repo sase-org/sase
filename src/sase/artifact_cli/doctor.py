@@ -231,6 +231,8 @@ def _print_report(
             _outbox_summary(
                 link_report.outbox_entries,
                 link_report.outbox_event_entries,
+                link_report.outbox_legacy_entries,
+                link_report.outbox_invalid_entries,
                 link_report.outbox_oldest_age_seconds,
                 link_report.outbox_p95_age_seconds,
             ),
@@ -326,13 +328,16 @@ def _counter_pair(left: int, left_label: str, right: int, right_label: str) -> s
 def _outbox_summary(
     entries: int,
     event_entries: int,
+    legacy_entries: int,
+    invalid_entries: int,
     oldest_age_seconds: float,
     p95_age_seconds: float,
 ) -> str:
-    if entries <= 0:
+    if entries <= 0 and legacy_entries <= 0 and invalid_entries <= 0:
         return "0"
     return (
-        f"{entries} queued / {event_entries} events; "
+        f"{entries} queued / {event_entries} events / "
+        f"{legacy_entries} legacy / {invalid_entries} invalid; "
         f"oldest {round(oldest_age_seconds)}s; p95 {round(p95_age_seconds)}s"
     )
 

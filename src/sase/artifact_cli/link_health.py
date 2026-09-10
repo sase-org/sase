@@ -92,6 +92,8 @@ class ArtifactLinkHealthReport:
     )
     outbox_entries: int = 0
     outbox_event_entries: int = 0
+    outbox_legacy_entries: int = 0
+    outbox_invalid_entries: int = 0
     outbox_dropped: int = 0
     outbox_oldest_age_seconds: float = 0.0
     outbox_p95_age_seconds: float = 0.0
@@ -255,6 +257,8 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         aggregate_drift=drift,
         outbox_entries=0 if outbox is None else outbox.queued,
         outbox_event_entries=0 if outbox is None else outbox.event_queued,
+        outbox_legacy_entries=0 if outbox is None else outbox.legacy_queued,
+        outbox_invalid_entries=0 if outbox is None else outbox.invalid_queued,
         outbox_dropped=0 if outbox is None else outbox.dropped,
         outbox_oldest_age_seconds=(
             0.0 if outbox is None else outbox.oldest_age_seconds
@@ -368,6 +372,14 @@ def _cutover_health_values(store: ArtifactLinkStore) -> _CutoverHealthValues:
         return _CutoverHealthValues(cutover_state="invalid", cutover_errors=(str(exc),))
     if inspection.marker is None:
         return _CutoverHealthValues(cutover_state="none")
+    if inspection.state == "incomplete":
+        diagnostics = inspection.diagnostics or (
+            "resume with `sase artifact link import-indexes --apply <attestation>`",
+        )
+        return _CutoverHealthValues(
+            cutover_state="incomplete",
+            cutover_errors=tuple(diagnostics),
+        )
     stragglers: list[str] = []
     if inspection.imported:
         for role in inspection.marker.roles:

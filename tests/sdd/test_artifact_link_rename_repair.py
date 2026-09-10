@@ -22,6 +22,7 @@ from sase.sdd.artifact_link_outbox import read_artifact_link_outbox_entries
 from sase.sdd._artifact_link_store_support import sidecar_index_path
 from tests.sdd._artifact_link_store_helpers import _store
 from tests.sdd._artifact_link_store_helpers import _row
+from tests.sdd._artifact_link_store_helpers import write_imported_cutover_marker
 
 _PLAN_REFS = (
     "plan:202608/a.md",
@@ -277,6 +278,45 @@ def test_rename_repair_commit_includes_rewrite_and_removed_index(
     assert "A\tlinks/202608/new.md.json" in changed
     assert "D\tlinks/202608/old.md.json" in changed
     assert _git_output(plans, "status", "--short") == ""
+
+
+def test_imported_rename_repair_queues_alias_without_rewriting_links(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    plans = store.sidecar_roots["plan"]
+    new_path = plans / "202608" / "new.md"
+    new_path.parent.mkdir(parents=True)
+    new_path.write_text("# renamed\n", encoding="utf-8")
+    old_index = _write_link_index(
+        plans,
+        "plan:202608/old.md",
+        rows=[
+            _row(
+                source="agent:planner.coder",
+                relation="read",
+                target="plan:202608/old.md",
+                origin="read",
+            )
+        ],
+    )
+    new_index = sidecar_index_path(plans, "plan:202608/new.md")
+    write_imported_cutover_marker(store)
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_renames._historical_rename_map",
+        lambda _root, *, kind: {f"{kind}:202608/old.md": f"{kind}:202608/new.md"},
+    )
+
+    report = repair_historical_artifact_renames(store, ("plan:202608/old.md",))
+
+    assert report.legacy_indexes_frozen is True
+    assert report.changed_paths == ()
+    assert old_index.exists()
+    assert not new_index.exists()
+    [entry] = read_artifact_link_outbox_entries("gh_sase-org__sase")
+    assert entry.event is not None
+    assert entry.event["kind"]["type"] == "alias"
 
 
 def _write_link_index(

@@ -925,7 +925,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "a81c918b563647b0",
+                "description_digest": "27742f142949f395",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "gc",
@@ -963,6 +963,17 @@
                     "strings": [
                       "-j",
                       "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "dry_run",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "--dry-run"
                     ],
                     "takes_value": false
                   },
@@ -3165,7 +3176,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "5994558d1956f654",
+                "description_digest": "dfb3a2f816a53d5a",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "import-indexes",
@@ -3212,7 +3223,16 @@
                   "link",
                   "import-indexes"
                 ],
-                "positionals": [],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "attestation",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ATTESTATION",
+                    "nargs": "?"
+                  }
+                ],
                 "subcommands": []
               },
               {

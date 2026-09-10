@@ -12,6 +12,10 @@ import pytest
 
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
+from sase.sdd._artifact_link_ignore import (
+    ARTIFACT_LINK_EVENT_STAGING_GITIGNORE_PATTERN,
+    ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN,
+)
 from sase.sdd._sidecar_init import SidecarInitSpec, initialize_sidecars
 from sase.sdd._store_records import (
     read_sdd_store_record,
@@ -22,6 +26,10 @@ from sase.sdd._store_types import SddMaterializationError
 from ._sidecar_init_helpers import bare_remote, configure_git_environment, git
 
 _ROLES = ("plans", "research", "beads")
+_ARTIFACT_LINK_GITIGNORE_LINES = [
+    ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN,
+    ARTIFACT_LINK_EVENT_STAGING_GITIGNORE_PATTERN,
+]
 
 
 def _git_output(cwd: Path, *args: str) -> str:
@@ -139,9 +147,9 @@ def test_fresh_init_records_and_seeds_root_beads_sidecar(
         ".bead-mutation-lock.holder",
     ]
     assert not (clones["plans"] / "beads").exists()
-    assert (clones["plans"] / ".gitignore").read_text().splitlines() == [
-        "/links/**/*.lock",
-    ]
+    assert (
+        clones["plans"] / ".gitignore"
+    ).read_text().splitlines() == _ARTIFACT_LINK_GITIGNORE_LINES
 
 
 def test_migration_imports_pushes_cleans_and_reruns_without_new_commits(
@@ -163,7 +171,7 @@ def test_migration_imports_pushes_cleans_and_reruns_without_new_commits(
     assert not (clones["beads"] / "beads.db").exists()
     assert not (clones["plans"] / "beads").exists()
     assert (clones["plans"] / ".gitignore").read_text() == (
-        "keep-this\n/links/**/*.lock\n"
+        "keep-this\n" + "\n".join(_ARTIFACT_LINK_GITIGNORE_LINES) + "\n"
     )
     import_message = _git_output(clones["beads"], "log", "-1", "--format=%B")
     assert "Import bead state from acme/widget--plans@" in import_message

@@ -80,7 +80,16 @@ def test_parser_registers_link_migrate_notes() -> None:
 
 def test_parser_registers_link_import_indexes() -> None:
     parser = create_parser()
-    args = parser.parse_args(["artifact", "link", "import-indexes", "-a", "-j"])
+    args = parser.parse_args(
+        [
+            "artifact",
+            "link",
+            "import-indexes",
+            "-a",
+            "fleet-capable-abc123def456",
+            "-j",
+        ]
+    )
     link_subcommands = _subparser_action(
         _subparser_action(_artifact_parser(parser)).choices["link"]
     )
@@ -89,8 +98,10 @@ def test_parser_registers_link_import_indexes() -> None:
     assert args.artifact_subcommand == "link"
     assert args.link_subcommand == "import-indexes"
     assert args.apply is True
+    assert args.attestation == "fleet-capable-abc123def456"
     assert args.json is True
     assert "Preview is the default" in help_text
+    assert "attestation token printed by preview" in help_text
     assert "Older SASE binaries do not understand the marker" in help_text
 
 

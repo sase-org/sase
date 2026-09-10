@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.artifact_ref_models import ArtifactRefContext
 
+from sase.sdd._artifact_link_cutover_state import artifact_link_indexes_imported
 from sase.sdd._artifact_link_event_store import (
     ArtifactLinkEventSnapshot,
     reduce_artifact_link_event_inputs,
@@ -144,6 +145,35 @@ class ArtifactLinkStoreReconcileMixin:
 
         if self.beads_dir is None:
             return {"candidates": 0, "written": 0}
+        if artifact_link_indexes_imported(
+            self.sidecar_roots,
+            project_key=self.project_key,
+        ):
+            from sase.sdd._artifact_link_event_project import apply_events_to_beads
+
+            event_candidates = {
+                (
+                    str(row.get("source_ref") or ""),
+                    str(row.get("relation") or ""),
+                    str(row.get("target_ref") or ""),
+                )
+                for row in self.load_aggregate().get("rows", ())
+                if not is_projected_row(row)
+                and kind_of_ref(str(row.get("target_ref") or "")) == BEAD_KIND
+            }
+            projection = apply_events_to_beads(
+                self,  # type: ignore[arg-type]
+                (),
+                mutation_origin="machine",
+                artifacts_dir=None,
+                force=True,
+            )
+            if projection.receipt:
+                self.rebuild_aggregate()
+            return {
+                "candidates": len(event_candidates),
+                "written": int(projection.changed),
+            }
         candidates: dict[tuple[str, str, str], dict[str, Any]] = {}
         for row in (
             *self.load_aggregate().get("rows", ()),

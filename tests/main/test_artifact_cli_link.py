@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.artifact_cli.link_migrate import handle_link_migrate_notes
+from sase.artifact_cli.link_import import handle_link_import_indexes
 from sase.artifact_cli.link_ops import (
     add_artifact_link,
     handle_link_add,
@@ -146,6 +147,52 @@ def test_add_and_rm_work_without_feature_override(
         == 0
     )
     assert capsys.readouterr().err == ""
+
+
+def test_import_indexes_apply_requires_matching_attestation(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    marker = object()
+    report = SimpleNamespace(
+        plan=SimpleNamespace(fenced_marker=marker),
+        to_json_dict=lambda: {
+            "applied": False,
+            "plan": {"project_key": "gh_sase-org__sase"},
+        },
+    )
+    calls: list[bool] = []
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_import.resolve_artifact_link_store",
+        lambda *, cwd: SimpleNamespace(project_key="gh_sase-org__sase"),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_import.resolve_machine_artifact_link_store",
+        lambda _project_key, _cwd: object(),
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_import.artifact_link_cutover_attestation",
+        lambda _marker: "fleet-capable-goodtoken",
+    )
+
+    def _fake_import(_store: object, *, apply: bool) -> object:
+        calls.append(apply)
+        return report
+
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_import.import_artifact_link_indexes",
+        _fake_import,
+    )
+
+    rc = handle_link_import_indexes(
+        argparse.Namespace(apply=True, attestation="wrong-token", json=True)
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 1
+    assert calls == [False]
+    assert json.loads(captured.out)["applied"] is False
+    assert "fleet-capable-goodtoken" in captured.err
 
 
 def test_add_artifact_link_requires_reason(

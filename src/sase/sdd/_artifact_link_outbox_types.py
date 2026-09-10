@@ -168,14 +168,6 @@ def sidecar_refs(entry: ArtifactLinkOutboxEntry) -> tuple[str, ...]:
     return ()
 
 
-def row_uses(row: Mapping[str, Any]) -> int:
-    try:
-        uses = int(row.get("uses") or 0)
-    except (TypeError, ValueError):
-        return 0
-    return max(0, uses)
-
-
 def event_from_row(
     row: Mapping[str, Any],
     *,
@@ -230,7 +222,6 @@ __all__ = [
     "event_operation_id",
     "operation_id",
     "required_text",
-    "row_uses",
     "rows_from_events",
     "sidecar_refs",
 ]

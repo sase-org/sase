@@ -25,7 +25,7 @@ from sase.sdd.artifact_link_store import ArtifactLinkStore
 
 
 @dataclass(frozen=True, slots=True)
-class ArtifactLinkBeadProjectionResult:
+class _ArtifactLinkBeadProjectionResult:
     """Durability receipt for bead endpoint projection."""
 
     changed: bool
@@ -79,11 +79,12 @@ def apply_events_to_beads(
     *,
     mutation_origin: str,
     artifacts_dir: str | Path | None,
-) -> ArtifactLinkBeadProjectionResult:
-    if not objects:
-        return ArtifactLinkBeadProjectionResult(changed=False, receipt=True)
+    force: bool = False,
+) -> _ArtifactLinkBeadProjectionResult:
+    if not objects and not force:
+        return _ArtifactLinkBeadProjectionResult(changed=False, receipt=True)
     if store.beads_dir is None:
-        return ArtifactLinkBeadProjectionResult(
+        return _ArtifactLinkBeadProjectionResult(
             changed=False,
             receipt=False,
             diagnostic="artifact-link bead store is unavailable",
@@ -94,8 +95,8 @@ def apply_events_to_beads(
         commit_bead_link_events,
     )
 
+    changed = False
     try:
-        changed = False
         union_events = (
             *(event.event for event in _iter_event_objects(store)),
             *(item.event for item in objects),
@@ -140,20 +141,20 @@ def apply_events_to_beads(
                 mutation_origin=mutation_origin,
             )
         if _bead_store_has_uncommitted_changes(store.beads_dir):
-            return ArtifactLinkBeadProjectionResult(
+            return _ArtifactLinkBeadProjectionResult(
                 changed=changed,
                 receipt=False,
                 diagnostic="artifact-link bead projection has uncommitted changes",
             )
-        return ArtifactLinkBeadProjectionResult(changed=changed, receipt=True)
+        return _ArtifactLinkBeadProjectionResult(changed=changed, receipt=True)
     except ArtifactLinkPersistError as exc:
-        return ArtifactLinkBeadProjectionResult(
+        return _ArtifactLinkBeadProjectionResult(
             changed=changed,
             receipt=False,
             diagnostic=exc.diagnostic,
         )
     except Exception as exc:  # noqa: BLE001 - outbox replay must retry cleanly.
-        return ArtifactLinkBeadProjectionResult(
+        return _ArtifactLinkBeadProjectionResult(
             changed=changed,
             receipt=False,
             diagnostic=str(exc),
@@ -365,7 +366,6 @@ def _iter_event_objects(store: ArtifactLinkStore) -> Iterable[_ArtifactLinkEvent
 
 
 __all__ = [
-    "ArtifactLinkBeadProjectionResult",
     "active_operation_ids_for_row",
     "apply_events_to_aggregate",
     "apply_events_to_beads",

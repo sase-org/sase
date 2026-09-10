@@ -13,6 +13,7 @@ from sase.sdd._artifact_link_authorize import (
     sidecar_root_not_machine_writable_message,
 )
 from sase.sdd._artifact_link_outbox_io import (
+    inspect_artifact_link_outbox as _inspect_artifact_link_outbox,
     read_artifact_link_outbox_entries as _read_artifact_link_outbox_entries,
     rewrite_artifact_link_outbox_without_ids as _rewrite_without_ids,
 )
@@ -41,6 +42,8 @@ class _ArtifactLinkOutboxDrainReport:
     queued: int
     drained: int = 0
     retained: int = 0
+    retained_legacy: int = 0
+    retained_invalid: int = 0
     dropped: int = 0
     committed: bool = False
     changed_indexes: tuple[Path, ...] = ()
@@ -63,9 +66,14 @@ def drain_artifact_link_outbox(
     """
 
     link_store = store or resolve_artifact_link_store()
+    stats = _inspect_artifact_link_outbox(link_store.project_key)
     entries = _read_artifact_link_outbox_entries(link_store.project_key)
     if not entries:
-        return _ArtifactLinkOutboxDrainReport(queued=0)
+        return _ArtifactLinkOutboxDrainReport(
+            queued=0,
+            retained_legacy=stats.legacy_queued,
+            retained_invalid=stats.invalid_queued,
+        )
 
     selected, retained = _partition_selected(entries, agent_name=agent_name)
     terminal_cutoff = _terminal_cutoff() if drop_stale_terminal else None
@@ -108,6 +116,8 @@ def drain_artifact_link_outbox(
         queued=len(entries),
         drained=len(published_event_ids),
         retained=(len(entries) - len(published_event_ids) - len(stale)),
+        retained_legacy=stats.legacy_queued,
+        retained_invalid=stats.invalid_queued,
         dropped=len(stale),
         committed=event_report.committed,
         changed_indexes=(),

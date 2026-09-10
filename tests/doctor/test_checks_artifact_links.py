@@ -17,9 +17,9 @@ from sase.sdd._artifact_link_cutover_state import (
     ArtifactLinkBaselineEventIdentity,
     ArtifactLinkCutoverImportIdentity,
     ArtifactLinkCutoverRole,
-    artifact_link_cutover_marker_bytes,
     artifact_link_cutover_marker_path,
     build_artifact_link_cutover_marker_payload,
+    parse_artifact_link_cutover_marker_payload,
 )
 from sase.sdd.artifact_link_import_indexes import (
     artifact_link_legacy_links_tree_identity,
@@ -146,7 +146,9 @@ def test_artifact_link_cutover_check_flags_imported_links_tree_stragglers(
     )
     marker_path = artifact_link_cutover_marker_path(plans)
     marker_path.parent.mkdir(parents=True)
-    marker_path.write_bytes(artifact_link_cutover_marker_bytes(payload))
+    marker_path.write_bytes(
+        parse_artifact_link_cutover_marker_payload(payload).canonical_bytes
+    )
     link_path = plans / "links" / "doc.md.json"
     link_path.parent.mkdir(parents=True)
     link_path.write_text("{}\n", encoding="utf-8")

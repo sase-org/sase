@@ -511,7 +511,9 @@ def test_legacy_row_only_outbox_entries_convert_before_drain(
     )
     converted = convert_legacy_artifact_link_outbox_entries("gh_sase-org__sase")
 
-    assert converted == 1
+    assert converted.converted == 1
+    assert converted.covered == 0
+    assert converted.invalid == ()
     [converted_entry] = read_artifact_link_outbox_entries("gh_sase-org__sase")
     assert converted_entry.event is not None
     assert converted_entry.created_at == 100.0
