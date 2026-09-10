@@ -7,6 +7,7 @@ from sase.ace.tui.commands import (
     is_command_available,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.feature_flags import override_flags
 from tests._command_availability_helpers import catalog_by_id as _catalog_by_id
 
 
@@ -52,6 +53,41 @@ def test_fleet_commands_are_contextual_for_remote_rows() -> None:
     assert is_command_available(catalog["app.connect_agent_machine"], ctx)
     assert is_command_available(catalog["app.retry_remote_agent"], ctx)
     assert is_command_available(catalog["app.view_remote_agent_content"], ctx)
+
+
+def test_unified_agents_hides_legacy_focus_fleet_commands() -> None:
+    catalog = _catalog_by_id()
+    remote = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fleet-ui",
+        project_file="/fleet/apollo/project.yml",
+        status="RUNNING",
+        start_time=None,
+        agent_name="apollo.agent",
+        fleet_origin_alias="apollo",
+        fleet_logical_locator={
+            "schema_version": 1,
+            "project": "sase",
+            "agent_id": "apollo.agent",
+        },
+        fleet_followed=True,
+        fleet_content={"handles": [{"id": "ch1"}]},
+    )
+    ctx = CommandContext(
+        tab="agents",
+        agent=remote,
+        fleet_enabled=True,
+        agents_subtab="fleet",
+        selected_agent_remote=True,
+        selected_agent_followable=True,
+        selected_agent_followed=True,
+    )
+
+    with override_flags(ace_unified_agents=True):
+        assert not is_command_available(catalog["app.cycle_agents_subtab"], ctx)
+        assert not is_command_available(catalog["app.view_agent_in_focus"], ctx)
+        assert is_command_available(catalog["app.toggle_agent_follow"], ctx)
+        assert is_command_available(catalog["app.view_remote_agent_content"], ctx)
 
 
 def test_answer_remote_attention_requires_pending_entry() -> None:

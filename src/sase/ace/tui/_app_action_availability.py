@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from sase.feature_flags import FeatureFlag, current_flags
+
 from .tab_order import ARTIFACTS_TAB
 
 CheckAction = Callable[[str, tuple[object, ...]], bool | None]
@@ -95,8 +97,11 @@ def check_app_action(
     if action in _AGENT_FLEET_ACTIONS:
         if app.current_tab != "agents":
             return False
+        unified_agents = current_flags().enabled(FeatureFlag.ace_unified_agents)
         fleet_available = getattr(app, "_fleet_mode_available", None)
         if action in {"cycle_agents_subtab", "cycle_agents_subtab_reverse"}:
+            if unified_agents:
+                return False
             return bool(fleet_available()) if callable(fleet_available) else False
         if action == "toggle_agent_follow":
             return bool(
@@ -104,6 +109,8 @@ def check_app_action(
                 and getattr(selected_agent, "fleet_logical_locator", None)
             )
         if action == "view_agent_in_focus":
+            if unified_agents:
+                return False
             return bool(
                 selected_agent_remote
                 and getattr(selected_agent, "fleet_followed", False)

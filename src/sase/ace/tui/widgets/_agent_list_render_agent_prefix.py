@@ -61,6 +61,12 @@ def _append_fleet_badge(text: Text, agent: Agent) -> None:
     text.append(f"{glyph}{alias} ", style=style)
 
 
+def _append_machine_chip(text: Text, agent: Agent) -> None:
+    alias = agent.fleet_origin_alias or "here"
+    style = "bold #5FD7FF" if agent.fleet_origin_alias else "bold #87D75F"
+    text.append(f"{alias} ", style=style)
+
+
 def _monitor_glyph_style(agent: Agent) -> str:
     """Return the row gear style for a monitor shell.
 
@@ -134,6 +140,8 @@ def append_agent_row_prefix(
     tribe_label: str | None = None,
     tribe_colors: Mapping[str, str] | None = None,
     tier_styles: tuple[str, ...] = (),
+    show_machine_chip: bool = False,
+    show_fleet_badge: bool = True,
 ) -> Text:
     """Build the left-side chrome that precedes the status parenthetical."""
     text = render_tier_gutter(tier_styles)
@@ -197,7 +205,10 @@ def append_agent_row_prefix(
         badge_color = "#FFAF00"  # warm yellow
         text.append(f"↻{agent.retry_attempt} ", style=f"bold {badge_color}")
 
-    _append_fleet_badge(text, agent)
+    if show_machine_chip:
+        _append_machine_chip(text, agent)
+    elif show_fleet_badge:
+        _append_fleet_badge(text, agent)
 
     # Agent type indicator with color
     dt = agent.get_display_type(is_expanded=is_expanded)

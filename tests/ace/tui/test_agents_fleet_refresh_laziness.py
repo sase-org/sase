@@ -9,10 +9,11 @@ import pytest
 
 from sase.ace.tui.actions.agents import _fleet as fleet_mod
 from sase.ace.tui.actions.agents._fleet import AgentFleetMixin
-from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fleet_agents import FleetRowsProjection
 from sase.dispatch.federation import FederationConfig, FederationWorkerSettings
 from sase.dispatch.follow_store import FollowStoreMutationOutcome, FollowStoreSnapshot
+from sase.feature_flags import override_flags
 from tests.ace.tui.fleet_fixture import (
     OfflineFleetFacade,
     fleet_attention_response,
@@ -86,6 +87,52 @@ def test_fleet_status_text_labels_partial_and_zero_results() -> None:
     assert app._fleet_status_text() == "2 machines · partial"
 
 
+def test_unified_agents_status_text_labels_scope_and_staleness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _FleetRefreshHarness(mode="focus")
+    app._agents_fleet_loading = False
+    app._agents = [
+        Agent(
+            AgentType.RUNNING,
+            "local-work",
+            "/tmp/local-project.yml",
+            "QUESTION",
+            None,
+            status_bucket="question",
+            agent_name="local-work",
+        ),
+        Agent(
+            AgentType.RUNNING,
+            "remote-work",
+            "/fleet/apollo/project.yml",
+            "RUNNING",
+            None,
+            status_bucket="running",
+            agent_name="remote-work",
+            fleet_origin_alias="apollo",
+            fleet_logical_key="remote-logical-key",
+            fleet_attention={"kind": "question", "state": "pending"},
+        ),
+    ]
+    app._agents_fleet_projection = FleetRowsProjection(
+        configured_host_count=2,
+        diagnostics=(
+            {
+                "code": "host_stale",
+                "severity": "warning",
+                "alias": "mac",
+                "message": "cached projection is stale",
+            },
+        ),
+    )
+    monkeypatch.setattr(fleet_mod, "get_machine_name", lambda: "athena")
+
+    assert app._unified_agents_status_text() == (
+        "here: athena · 2 active · 2 needs you · 2 machines · mac unknown"
+    )
+
+
 @pytest.mark.asyncio
 async def test_hidden_fleet_refresh_skips_catalog_hydration(
     monkeypatch: pytest.MonkeyPatch,
@@ -136,6 +183,49 @@ async def test_hidden_fleet_refresh_skips_catalog_hydration(
     assert app._agents[0].status == "QUESTION"
     assert app._agents_fleet_projection.diagnostics[0]["code"] == "cached_projection"
     assert app.reproject_sources == ["fleet_refresh"]
+
+
+@pytest.mark.asyncio
+async def test_unified_agents_refresh_hydrates_catalog_in_focus_mode(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = fleet_summary(agent_id="agent-a")
+    response = fleet_host_response(summaries=(summary,))
+    facade = OfflineFleetFacade(summary_response=response, catalog_response=response)
+    app = _FleetRefreshHarness(mode="focus")
+    local = Agent(
+        AgentType.RUNNING,
+        "local-work",
+        "/tmp/local-project.yml",
+        "RUNNING",
+        None,
+        agent_name="local-work",
+    )
+    app._agents_local_with_children = [local]
+
+    monkeypatch.setattr(fleet_mod, "load_federation_config", lambda: fleet_config())
+    monkeypatch.setattr(
+        fleet_mod,
+        "_load_reconciled_follow_snapshot",
+        lambda: FollowStoreSnapshot(
+            schema_version=1,
+            records=(),
+            tombstones=(),
+            path="/tmp/sase-fleet-follows.json",
+        ),
+    )
+    monkeypatch.setattr(fleet_mod, "build_federation_facade", lambda _config: facade)
+
+    with override_flags(ace_unified_agents=True):
+        await app._run_agents_fleet_refresh(generation=1, source="apply")
+
+    assert facade.calls == ["summary", "catalog"]
+    assert app.current_agents_subtab == "focus"
+    assert [row.cl_name for row in app._agents] == ["local-work", "sase-main"]
+    assert [row.fleet_logical_key for row in app._agents_fleet_rows] == [
+        summary["logical_key"]
+    ]
+    assert app._agents_fleet_focus_rows == []
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from textual import on
 from textual.widgets import Static
 
+from sase.config import get_machine_name
 from sase.dispatch.federation import (
     FederationConfig,
     FederationConfigError,
@@ -28,6 +29,7 @@ from sase.dispatch.follow_store import (
     record_follow,
     unfollow,
 )
+from sase.feature_flags import FeatureFlag, current_flags
 
 from ...models.fleet_agents import (
     FleetRowsProjection,
@@ -50,6 +52,95 @@ log = logging.getLogger(__name__)
 _AGENTS_SUBTABS: tuple[str, str] = ("focus", "fleet")
 _FLEET_CATALOG_PAGE_LIMIT = 100
 _FLEET_CATALOG_MAX_PAGES = 16
+_LOCAL_ACTIVE_STATUSES = frozenset(
+    {
+        "approved",
+        "approval",
+        "asking",
+        "pending",
+        "question",
+        "queued",
+        "running",
+        "starting",
+        "waiting",
+        "waiting_input",
+    }
+)
+_LOCAL_ATTENTION_STATUSES = frozenset(
+    {
+        "approval",
+        "asking",
+        "question",
+        "waiting_input",
+    }
+)
+
+
+def _unified_agents_enabled() -> bool:
+    snapshot = current_flags()
+    return snapshot.enabled(FeatureFlag.ace_unified_agents)
+
+
+def _local_machine_label() -> str:
+    try:
+        return get_machine_name() or "here"
+    except Exception:
+        log.debug("local machine name lookup failed", exc_info=True)
+        return "here"
+
+
+def _agent_status_key(agent: Agent) -> str:
+    value = getattr(agent, "status_bucket", None) or getattr(agent, "status", "")
+    return str(value).casefold().replace("-", "_").replace(" ", "_")
+
+
+def _agent_counts_as_active(agent: Agent) -> bool:
+    return _agent_status_key(agent) in _LOCAL_ACTIVE_STATUSES
+
+
+def _unified_attention_count(rows: list[Agent]) -> int:
+    count = 0
+    seen_remote: set[str] = set()
+    for agent in rows:
+        if getattr(agent, "fleet_origin_alias", None):
+            attention = getattr(agent, "fleet_attention", None)
+            if not isinstance(attention, Mapping):
+                continue
+            if str(attention.get("state") or "").casefold() != "pending":
+                continue
+            key = (
+                getattr(agent, "fleet_logical_key", None)
+                or getattr(agent, "fleet_exact_key", None)
+                or repr(agent.identity)
+            )
+            if key in seen_remote:
+                continue
+            seen_remote.add(key)
+            count += 1
+            continue
+        if _agent_status_key(agent) in _LOCAL_ATTENTION_STATUSES:
+            count += 1
+    return count
+
+
+def _unified_diagnostic_text(projection: FleetRowsProjection) -> str:
+    diagnostics = projection.diagnostics
+    if not diagnostics:
+        return ""
+    aliases = tuple(
+        dict.fromkeys(
+            str(alias)
+            for diagnostic in diagnostics
+            if isinstance(diagnostic, Mapping)
+            and isinstance(alias := diagnostic.get("alias"), str)
+            and alias
+        )
+    )
+    if aliases and len(aliases) <= 2:
+        return f"{', '.join(aliases)} unknown"
+    issue_count = len(diagnostics)
+    suffix = "issue" if issue_count == 1 else "issues"
+    return f"{issue_count} machine {suffix}"
 
 
 class AgentFleetMixin:
@@ -75,6 +166,8 @@ class AgentFleetMixin:
         if event.tab_id not in _AGENTS_SUBTABS:
             return
         event.stop()
+        if _unified_agents_enabled():
+            return
         self._set_agents_subtab(event.tab_id)
 
     def watch_current_agents_subtab(
@@ -84,6 +177,16 @@ class AgentFleetMixin:
     ) -> None:
         """Reproject cached Agents rows when Focus/Fleet mode changes."""
         if old_mode == new_mode:
+            return
+        if _unified_agents_enabled():
+            if new_mode == "fleet":
+                self.current_agents_subtab = "focus"
+                return
+            self._reproject_agents_from_current_mode(source="mode_switch")
+            self._schedule_agents_fleet_refresh(
+                source="mode_switch",
+                force=True,
+            )
             return
         if new_mode == "fleet" and not self._fleet_mode_available():
             self.current_agents_subtab = "focus"
@@ -125,6 +228,9 @@ class AgentFleetMixin:
 
     def action_view_agent_in_focus(self) -> None:
         """Switch to Focus mode on the selected followed remote row."""
+        if _unified_agents_enabled():
+            self.notify("Remote agents are already in the unified Agents list")  # type: ignore[attr-defined]
+            return
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
         if agent is None or not getattr(agent, "fleet_origin_alias", None):
             self.notify("Select a remote fleet agent")  # type: ignore[attr-defined]
@@ -155,15 +261,23 @@ class AgentFleetMixin:
                 "from a shell for details"
             )
             return
+        visible_after_enrollment = (
+            "The Agents list includes it once a machine is enrolled."
+            if _unified_agents_enabled()
+            else "The Focus/Fleet strip appears once a machine is enrolled."
+        )
         self.notify(  # type: ignore[attr-defined]
             "No remote machines are enrolled. On the target, run "
             "'sase machine bootstrap --json' into a protected file. On this "
             "controller, run 'sase machine init -B <file>' to discover, enroll, "
-            "and verify. The Focus/Fleet strip appears once a machine is enrolled.",
+            f"and verify. {visible_after_enrollment}",
             timeout=12,
         )
 
     def _cycle_agents_subtab(self, *, reverse: bool) -> None:
+        if _unified_agents_enabled():
+            self.notify("Agents already includes enrolled machines")  # type: ignore[attr-defined]
+            return
         if not self._fleet_mode_available():
             self.notify("Fleet view is not configured")  # type: ignore[attr-defined]
             return
@@ -175,6 +289,9 @@ class AgentFleetMixin:
         self._set_agents_subtab(next_mode)
 
     def _set_agents_subtab(self, mode: str) -> None:
+        if _unified_agents_enabled():
+            self.current_agents_subtab = "focus"
+            return
         self.current_agents_subtab = "fleet" if mode == "fleet" else "focus"
 
     def _project_agents_for_current_mode_after_load(
@@ -191,7 +308,7 @@ class AgentFleetMixin:
 
     def _sync_agents_local_source_from_current(self) -> None:
         """Mirror local-only rows after existing in-memory mutations."""
-        if self.current_agents_subtab == "fleet":
+        if self.current_agents_subtab == "fleet" and not _unified_agents_enabled():
             return
         self._agents_local_with_children = self._local_agents_from_mixed(
             getattr(self, "_agents_with_children", [])
@@ -201,6 +318,11 @@ class AgentFleetMixin:
         )
 
     def _agents_source_for_current_mode(self, local_agents: list[Agent]) -> list[Agent]:
+        if _unified_agents_enabled():
+            return [
+                *local_agents,
+                *getattr(self, "_agents_fleet_rows", []),
+            ]
         if self.current_agents_subtab == "fleet":
             return list(getattr(self, "_agents_fleet_rows", []))
         return [
@@ -275,6 +397,7 @@ class AgentFleetMixin:
 
     async def _run_agents_fleet_refresh(self, *, generation: int, source: str) -> None:
         try:
+            unified_agents = _unified_agents_enabled()
             config = await asyncio.to_thread(load_federation_config)
             follow_snapshot = await asyncio.to_thread(_load_reconciled_follow_snapshot)
             summary_response: Mapping[str, Any] | None = None
@@ -323,7 +446,11 @@ class AgentFleetMixin:
                             timeout_seconds=timeout,
                         ),
                     )
-                if self.current_agents_subtab == "fleet" or source == "manual":
+                if (
+                    unified_agents
+                    or self.current_agents_subtab == "fleet"
+                    or source == "manual"
+                ):
                     catalog_response = await self._fetch_fleet_catalog(
                         facade,
                         timeout_seconds=timeout,
@@ -487,7 +614,9 @@ class AgentFleetMixin:
             config.hosts or config.diagnostics or projection.configured_host_count
         )
         self._agents_fleet_last_error = None
-        if not self._agents_fleet_available and self.current_agents_subtab == "fleet":
+        if _unified_agents_enabled():
+            self.current_agents_subtab = "focus"
+        elif not self._agents_fleet_available and self.current_agents_subtab == "fleet":
             self.current_agents_subtab = "focus"
         self._reproject_agents_from_current_mode(source="fleet_refresh")
         self._announce_remote_attention(projection)  # type: ignore[attr-defined]
@@ -581,6 +710,11 @@ class AgentFleetMixin:
             header.add_class("hidden")
             return
         header.remove_class("hidden")
+        if _unified_agents_enabled():
+            tabs.add_class("hidden")
+            status.update(self._unified_agents_status_text())
+            return
+        tabs.remove_class("hidden")
         counts = dict(
             getattr(self, "_agents_fleet_projection", FleetRowsProjection()).counts
         )
@@ -618,6 +752,35 @@ class AgentFleetMixin:
             active_tab=self.current_agents_subtab,
         )
         status.update(self._fleet_status_text())
+
+    def _unified_agents_status_text(self) -> str:
+        prefix = f"here: {_local_machine_label()}"
+        if getattr(self, "_agents_fleet_loading", False):
+            return f"{prefix} · loading machines..."
+        error = getattr(self, "_agents_fleet_last_error", None)
+        if error:
+            return f"{prefix} · {error}"
+        projection = getattr(self, "_agents_fleet_projection", FleetRowsProjection())
+        rows = list(
+            getattr(self, "_agents", [])
+        ) or self._agents_source_for_current_mode(
+            list(getattr(self, "_agents_local_with_children", []))
+        )
+        active_count = sum(1 for agent in rows if _agent_counts_as_active(agent))
+        attention_count = _unified_attention_count(rows)
+        host_count = projection.configured_host_count
+        parts = [prefix, f"{active_count} active"]
+        if attention_count:
+            parts.append(f"{attention_count} needs you")
+        if host_count:
+            suffix = "machine" if host_count == 1 else "machines"
+            parts.append(f"{host_count} {suffix}")
+        diagnostic_text = _unified_diagnostic_text(projection)
+        if diagnostic_text:
+            parts.append(diagnostic_text)
+        elif projection.partial:
+            parts.append("partial")
+        return " · ".join(parts)
 
     def _fleet_status_text(self) -> str:
         if getattr(self, "_agents_fleet_loading", False):

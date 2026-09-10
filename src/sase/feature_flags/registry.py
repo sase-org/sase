@@ -22,6 +22,7 @@ class FeatureFlag(StrEnum):
     """Every SASE feature flag key. Add members through ``sase flag new``."""
 
     ace_refresh_tokens = "ace_refresh_tokens"
+    ace_unified_agents = "ace_unified_agents"
     admin_center_flags = "admin_center_flags"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
@@ -38,6 +39,14 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "Gate ACE and proc refreshes on per-surface stat-only change tokens."
         ),
         bead="sase-wr",
+    ),
+    FeatureFlag.ace_unified_agents: FeatureFlagDefinition(
+        key=FeatureFlag.ace_unified_agents,
+        kind="beta",
+        description=(
+            "Show one unified Agents list across local and enrolled machines."
+        ),
+        bead="sase-z6",
     ),
     FeatureFlag.admin_center_flags: FeatureFlagDefinition(
         key=FeatureFlag.admin_center_flags,

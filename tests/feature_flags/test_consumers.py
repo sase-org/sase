@@ -19,6 +19,7 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     typed_launch = definitions[FeatureFlag.typed_launch_units]
     weighted_queue = definitions[FeatureFlag.weighted_queue_capacity]
     refresh_tokens = definitions[FeatureFlag.ace_refresh_tokens]
+    unified_agents = definitions[FeatureFlag.ace_unified_agents]
     link_events = definitions[FeatureFlag.link_events]
 
     assert flags_pane.kind == "sunset"
@@ -27,6 +28,9 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     assert refresh_tokens.kind == "sunset"
     assert refresh_tokens.default is True
     assert refresh_tokens.bead == "sase-wr"
+    assert unified_agents.kind == "beta"
+    assert unified_agents.default is False
+    assert unified_agents.bead == "sase-z6"
     assert ref_sync.kind == "sunset"
     assert ref_sync.default is True
     assert ref_sync.bead == "sase-qu"
@@ -50,6 +54,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert default.enabled(FeatureFlag.ace_refresh_tokens) is True
     assert default.enabled(FeatureFlag.typed_launch_units) is False
     assert default.enabled(FeatureFlag.weighted_queue_capacity) is False
+    assert default.enabled(FeatureFlag.ace_unified_agents) is False
     assert default.enabled(FeatureFlag.link_events) is False
 
     user = resolve_feature_flags(
@@ -63,6 +68,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
                     "ace_refresh_tokens": False,
                     "typed_launch_units": True,
                     "weighted_queue_capacity": True,
+                    "ace_unified_agents": True,
                     "link_events": True,
                 },
                 detail="user.yml",
@@ -79,6 +85,8 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert user.decision(FeatureFlag.typed_launch_units).source == "user"
     assert user.enabled(FeatureFlag.weighted_queue_capacity) is True
     assert user.decision(FeatureFlag.weighted_queue_capacity).source == "user"
+    assert user.enabled(FeatureFlag.ace_unified_agents) is True
+    assert user.decision(FeatureFlag.ace_unified_agents).source == "user"
     assert user.enabled(FeatureFlag.link_events) is True
     assert user.decision(FeatureFlag.link_events).source == "user"
 
@@ -88,7 +96,8 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
         env_value=(
             '{"admin_center_flags":false,"ref_sync_gesture":false,'
             '"ace_refresh_tokens":false,"typed_launch_units":true,'
-            '"weighted_queue_capacity":true,"link_events":true}'
+            '"weighted_queue_capacity":true,"ace_unified_agents":true,'
+            '"link_events":true}'
         ),
     )
     assert env.enabled(FeatureFlag.admin_center_flags) is False
@@ -101,6 +110,8 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert env.decision(FeatureFlag.typed_launch_units).source == "env"
     assert env.enabled(FeatureFlag.weighted_queue_capacity) is True
     assert env.decision(FeatureFlag.weighted_queue_capacity).source == "env"
+    assert env.enabled(FeatureFlag.ace_unified_agents) is True
+    assert env.decision(FeatureFlag.ace_unified_agents).source == "env"
     assert env.enabled(FeatureFlag.link_events) is True
     assert env.decision(FeatureFlag.link_events).source == "env"
 
@@ -115,6 +126,7 @@ def test_consumer_flags_both_states_via_override(
         ace_refresh_tokens=False,
         typed_launch_units=True,
         weighted_queue_capacity=True,
+        ace_unified_agents=True,
         link_events=True,
     ) as snapshot:
         assert snapshot.enabled(FeatureFlag.admin_center_flags) is False
@@ -127,6 +139,8 @@ def test_consumer_flags_both_states_via_override(
         assert current_flags().enabled(FeatureFlag.typed_launch_units) is True
         assert snapshot.enabled(FeatureFlag.weighted_queue_capacity) is True
         assert current_flags().enabled(FeatureFlag.weighted_queue_capacity) is True
+        assert snapshot.enabled(FeatureFlag.ace_unified_agents) is True
+        assert current_flags().enabled(FeatureFlag.ace_unified_agents) is True
         assert snapshot.enabled(FeatureFlag.link_events) is True
         assert current_flags().enabled(FeatureFlag.link_events) is True
 
@@ -136,4 +150,5 @@ def test_consumer_flags_both_states_via_override(
     assert restored.enabled(FeatureFlag.ace_refresh_tokens) is True
     assert restored.enabled(FeatureFlag.typed_launch_units) is False
     assert restored.enabled(FeatureFlag.weighted_queue_capacity) is False
+    assert restored.enabled(FeatureFlag.ace_unified_agents) is False
     assert restored.enabled(FeatureFlag.link_events) is False

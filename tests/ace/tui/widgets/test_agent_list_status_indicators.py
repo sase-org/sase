@@ -163,6 +163,50 @@ class TestAgentListFleetMarker:
         assert "★apollo" in followed_left.plain
         assert "☆apollo" in unfollowed_left.plain
 
+    def test_unified_rows_use_machine_chips_for_local_and_remote(self) -> None:
+        local = make_agent(llm_provider=None)
+        remote = make_agent(
+            fleet_origin_alias="apollo",
+            fleet_followed=True,
+            llm_provider=None,
+        )
+
+        local_left, _, _ = format_agent_option(
+            local,
+            0,
+            is_selected=False,
+            show_machine_chip=True,
+            show_fleet_badge=False,
+        )
+        remote_left, _, _ = format_agent_option(
+            remote,
+            1,
+            is_selected=False,
+            show_machine_chip=True,
+            show_fleet_badge=False,
+        )
+
+        assert local_left.plain.startswith("here ")
+        assert remote_left.plain.startswith("apollo ")
+        assert "★apollo" not in remote_left.plain
+
+    def test_grouped_unified_rows_can_suppress_machine_chrome(self) -> None:
+        remote = make_agent(
+            fleet_origin_alias="apollo",
+            fleet_followed=True,
+            llm_provider=None,
+        )
+
+        remote_left, _, _ = format_agent_option(
+            remote,
+            0,
+            is_selected=False,
+            show_machine_chip=False,
+            show_fleet_badge=False,
+        )
+
+        assert "apollo" not in remote_left.plain
+
 
 class TestStartingStatusRendering:
     def test_agent_row_renders_starting_status_with_distinct_style(self) -> None:
