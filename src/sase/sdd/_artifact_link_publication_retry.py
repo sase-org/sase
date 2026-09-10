@@ -1,43 +1,37 @@
-"""Durable retry state for unpublished artifact-link sidecar commits."""
+"""Durable retry state for unpublished artifact-link sidecar commits.
+
+Git probes and host-owned JSON state live in sibling modules so this file
+keeps the sweep orchestration and public registration API.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-import errno
-import fcntl
-import json
-import os
-import subprocess
-import tempfile
-import time
 
-from sase.core.artifact_link_publication_retry import (
-    artifact_link_publication_due,
-    artifact_link_publication_mark_attempt,
-    artifact_link_publication_record_key,
-    artifact_link_publication_register_pending,
-    artifact_link_publication_state_wire_schema_version,
-)
-from sase.core.paths import sase_projects_dir
+from sase.core.artifact_link_publication_retry import artifact_link_publication_due
 from sase.sdd._artifact_link_authorize import (
     probe_machine_writable_sidecar_root,
     sidecar_root_not_machine_writable_message,
 )
 from sase.sdd._artifact_link_machine_store import MachineArtifactLinkRoot
-
-_STATE_FILENAME = "artifact_link_publications.json"
-_LOCK_FILENAME = "artifact_link_publications.lock"
-_NEXT_ROLE_FIELD = "next_role"
-_STATE_LOCK_TIMEOUT_SECONDS = 2.0
-_LOCAL_GIT_TIMEOUT_SECONDS = 10.0
-
-
-class _ArtifactLinkPublicationStateBusy(RuntimeError):
-    """Raised when retry state is locked by another process."""
+from sase.sdd._artifact_link_publication_retry_state import (
+    clear_record as _clear_record,
+    mark_attempt as _mark_attempt,
+    next_retry_role_after as _next_retry_role_after,
+    register_pending as _register_pending,
+    rotate_retry_roots as _rotate_retry_roots,
+    write_next_retry_role as _write_next_retry_role,
+)
+from sase.sdd._artifact_link_publication_retry_support import (
+    deadline_expired as _deadline_expired,
+    deadline_remaining as _deadline_remaining,
+    head_is_published as _head_is_published,
+    publication_observation as _publication_observation,
+    retry_mutation_blocker as _retry_mutation_blocker,
+    wall_now as _wall_now,
+)
 
 
 @dataclass(frozen=True)
@@ -103,17 +97,6 @@ class _MutableReport:
             diagnostics=tuple(self.diagnostics),
             details=tuple(self.details),
         )
-
-
-def _artifact_link_publication_state_path(project_key: str) -> Path:
-    """Return the host-owned publication retry state file for *project_key*."""
-
-    key = project_key.strip()
-    if not key or "/" in key or key in {".", ".."}:
-        raise ValueError(
-            f"invalid project key for artifact-link publication state: {project_key!r}"
-        )
-    return sase_projects_dir() / key / _STATE_FILENAME
 
 
 def register_artifact_link_publication_failure(
@@ -411,193 +394,6 @@ def _sweep_root(
     )
 
 
-def _publication_observation(
-    root: MachineArtifactLinkRoot, now: float, *, deadline: float | None = None
-) -> tuple[dict[str, Any] | None, str | None]:
-    repo_root = root.repo_root.expanduser().resolve(strict=False)
-    if not (repo_root / ".git").is_dir():
-        return None, f"{repo_root} is not a git worktree"
-    upstream = _tracking_upstream(repo_root, deadline=deadline)
-    if upstream is None:
-        return None, "sidecar repository has no tracking upstream"
-    head_revision = _git_text(repo_root, ["rev-parse", "HEAD"], deadline=deadline)
-    if head_revision is None:
-        return None, "could not read sidecar HEAD"
-    return (
-        {
-            "version": artifact_link_publication_state_wire_schema_version(),
-            "project_key": root.project_key,
-            "role": root.role,
-            "repo_root": str(repo_root),
-            "remote_url": root.remote_url,
-            "upstream": upstream,
-            "head_revision": head_revision,
-            "oldest_unpublished_at": _oldest_unpublished_commit_time(
-                repo_root, upstream, deadline=deadline
-            )
-            or now,
-            "key": artifact_link_publication_record_key(
-                project_key=root.project_key,
-                role=root.role,
-                repo_root=str(repo_root),
-                remote_url=root.remote_url,
-                upstream=upstream,
-            ),
-        },
-        None,
-    )
-
-
-def _register_pending(
-    root: MachineArtifactLinkRoot,
-    now: float,
-    *,
-    observation: dict[str, Any] | None = None,
-    deadline: float | None = None,
-) -> tuple[dict[str, Any] | None, str | None, bool]:
-    if observation is None:
-        observation, diagnostic = _publication_observation(root, now, deadline=deadline)
-        if observation is None:
-            return None, diagnostic, False
-    key = str(observation["key"])
-    payload = {item: value for item, value in observation.items() if item != "key"}
-    path = _artifact_link_publication_state_path(root.project_key)
-    with _state_lock(path, deadline=deadline):
-        records, next_role = _read_state_unlocked(path)
-        current = records.get(key)
-        try:
-            record = artifact_link_publication_register_pending(
-                current if isinstance(current, dict) else None,
-                payload,
-                now=now,
-            )
-        except Exception:
-            record = artifact_link_publication_register_pending(
-                None,
-                payload,
-                now=now,
-            )
-        discovered = key not in records
-        records[key] = record
-        _write_state_unlocked(path, records, next_role)
-    return record, None, discovered
-
-
-def _mark_attempt(
-    project_key: str,
-    record: dict[str, Any],
-    attempt: dict[str, Any],
-    now: float,
-    *,
-    deadline: float | None = None,
-) -> dict[str, Any]:
-    key = str(record["key"])
-    path = _artifact_link_publication_state_path(project_key)
-    with _state_lock(path, deadline=deadline):
-        records, next_role = _read_state_unlocked(path)
-        current = records.get(key)
-        base = current if isinstance(current, dict) else record
-        marked = artifact_link_publication_mark_attempt(base, attempt, now=now)
-        records[key] = marked
-        _write_state_unlocked(path, records, next_role)
-    return marked
-
-
-def _clear_record(project_key: str, key: str, *, deadline: float | None = None) -> bool:
-    path = _artifact_link_publication_state_path(project_key)
-    with _state_lock(path, deadline=deadline):
-        records, next_role = _read_state_unlocked(path)
-        if key not in records:
-            return False
-        del records[key]
-        _write_state_unlocked(path, records, next_role)
-    return True
-
-
-def _read_state_unlocked(path: Path) -> tuple[dict[str, dict[str, Any]], str | None]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}, None
-    if (
-        not isinstance(payload, dict)
-        or payload.get("schema_version")
-        != artifact_link_publication_state_wire_schema_version()
-    ):
-        return {}, None
-    records = payload.get("records")
-    if not isinstance(records, dict):
-        records = {}
-    next_role = payload.get(_NEXT_ROLE_FIELD)
-    return (
-        {
-            str(key): value
-            for key, value in records.items()
-            if isinstance(key, str) and isinstance(value, dict)
-        },
-        next_role if isinstance(next_role, str) and next_role else None,
-    )
-
-
-def _write_state_unlocked(
-    path: Path,
-    records: dict[str, dict[str, Any]],
-    next_role: str | None,
-) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "schema_version": artifact_link_publication_state_wire_schema_version(),
-        "records": records,
-    }
-    if next_role:
-        payload[_NEXT_ROLE_FIELD] = next_role
-    fd, temporary_path = tempfile.mkstemp(
-        dir=path.parent, prefix=f".{path.name}.", suffix=".tmp"
-    )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, sort_keys=True)
-            stream.write("\n")
-        os.replace(temporary_path, path)
-    except BaseException:
-        try:
-            os.unlink(temporary_path)
-        except OSError:
-            pass
-        raise
-
-
-@contextmanager
-def _state_lock(path: Path, *, deadline: float | None = None) -> Iterator[None]:
-    lock_path = path.with_name(_LOCK_FILENAME)
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+", encoding="utf-8") as lock_file:
-        _flock_with_timeout(
-            lock_file.fileno(),
-            _bounded_timeout(_STATE_LOCK_TIMEOUT_SECONDS, deadline),
-        )
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-
-
-def _flock_with_timeout(fd: int, timeout_seconds: float) -> None:
-    deadline = time.monotonic() + max(0.0, timeout_seconds)
-    while True:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return
-        except OSError as exc:
-            if exc.errno not in {errno.EACCES, errno.EAGAIN}:
-                raise
-            if time.monotonic() >= deadline:
-                raise _ArtifactLinkPublicationStateBusy(
-                    "artifact-link publication retry state is locked"
-                ) from exc
-            time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
-
-
 def _run_publication_worker(
     repo_root: Path, *, worker_lock_wait: float, deadline: float | None
 ) -> Any:
@@ -612,164 +408,6 @@ def _run_publication_worker(
         worker_lock_wait=wait,
         deadline=deadline,
     )
-
-
-def _head_is_published(repo_root: Path, *, deadline: float | None = None) -> bool:
-    result = _git_result(
-        repo_root,
-        ["merge-base", "--is-ancestor", "HEAD", "@{upstream}"],
-        deadline=deadline,
-    )
-    return result is not None and result.returncode == 0
-
-
-def _retry_mutation_blocker(
-    repo_root: Path, *, deadline: float | None = None
-) -> str | None:
-    status = _git_result(
-        repo_root,
-        ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-        deadline=deadline,
-    )
-    if status is None or status.returncode != 0:
-        return "could not inspect sidecar worktree status"
-    if status.stdout:
-        return "sidecar repository has uncommitted or untracked changes"
-    return None
-
-
-def _tracking_upstream(repo_root: Path, *, deadline: float | None = None) -> str | None:
-    return _git_text(
-        repo_root,
-        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
-        deadline=deadline,
-    )
-
-
-def _oldest_unpublished_commit_time(
-    repo_root: Path, upstream: str, *, deadline: float | None = None
-) -> float | None:
-    output = _git_text(
-        repo_root,
-        ["log", "--format=%ct", "--reverse", f"{upstream}..HEAD"],
-        deadline=deadline,
-    )
-    if not output:
-        return None
-    first = output.splitlines()[0].strip()
-    try:
-        return float(int(first))
-    except ValueError:
-        return None
-
-
-def _git_text(
-    repo_root: Path, args: list[str], *, deadline: float | None = None
-) -> str | None:
-    result = _git_result(repo_root, args, deadline=deadline)
-    if result is None or result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
-
-
-def _git_result(
-    repo_root: Path, args: list[str], *, deadline: float | None = None
-) -> subprocess.CompletedProcess[str] | None:
-    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
-    timeout = _bounded_timeout(_LOCAL_GIT_TIMEOUT_SECONDS, deadline)
-    if timeout <= 0.0:
-        return None
-    try:
-        return subprocess.run(
-            ["git", *args],
-            cwd=repo_root,
-            env=env,
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=timeout,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-
-
-def _rotate_retry_roots(
-    roots: tuple[MachineArtifactLinkRoot, ...], *, deadline: float | None
-) -> tuple[MachineArtifactLinkRoot, ...]:
-    if len(roots) < 2:
-        return roots
-    projects = {root.project_key for root in roots}
-    if len(projects) != 1:
-        return roots
-    project_key = roots[0].project_key
-    try:
-        next_role = _read_next_retry_role(project_key, deadline=deadline)
-    except Exception:
-        return roots
-    if next_role is None:
-        return roots
-    for index, root in enumerate(roots):
-        if root.role == next_role:
-            return (*roots[index:], *roots[:index])
-    return roots
-
-
-def _read_next_retry_role(
-    project_key: str, *, deadline: float | None = None
-) -> str | None:
-    path = _artifact_link_publication_state_path(project_key)
-    with _state_lock(path, deadline=deadline):
-        _records, next_role = _read_state_unlocked(path)
-    return next_role
-
-
-def _write_next_retry_role(
-    project_key: str,
-    next_role: str | None,
-    *,
-    deadline: float | None = None,
-) -> None:
-    path = _artifact_link_publication_state_path(project_key)
-    with _state_lock(path, deadline=deadline):
-        records, _old_next_role = _read_state_unlocked(path)
-        _write_state_unlocked(path, records, next_role)
-
-
-def _next_retry_role_after(
-    roots: tuple[MachineArtifactLinkRoot, ...],
-    last_started: MachineArtifactLinkRoot,
-) -> str | None:
-    project_roots = [
-        root for root in roots if root.project_key == last_started.project_key
-    ]
-    if not project_roots:
-        return None
-    for index, root in enumerate(project_roots):
-        if root.role == last_started.role:
-            return project_roots[(index + 1) % len(project_roots)].role
-    return project_roots[0].role
-
-
-def _deadline_expired(deadline: float | None) -> bool:
-    return deadline is not None and time.monotonic() >= deadline
-
-
-def _deadline_remaining(deadline: float | None) -> float | None:
-    if deadline is None:
-        return None
-    return max(0.0, deadline - time.monotonic())
-
-
-def _bounded_timeout(default: float, deadline: float | None) -> float:
-    if deadline is None:
-        return max(0.0, default)
-    remaining = _deadline_remaining(deadline)
-    assert remaining is not None
-    return min(max(0.0, default), remaining)
-
-
-def _wall_now(value: float | None) -> float:
-    return float(time.time() if value is None else value)
 
 
 def _add_detail(

@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import sase.sdd._artifact_link_publication_retry as retry_mod
+import sase.sdd._artifact_link_publication_retry_support as retry_support
 from sase.linked_repos import hidden_sidecar_clone_dir
 from sase.sdd._artifact_link_commit import commit_artifact_link_indexes
 from sase.sdd._artifact_link_commit import _ensure_artifact_link_commit_published
@@ -276,21 +277,21 @@ def test_retry_git_probe_timeout_is_clipped_to_deadline(
 ) -> None:
     now = [100.0]
     captured_timeouts: list[float] = []
-    monkeypatch.setattr(retry_mod.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(retry_support.time, "monotonic", lambda: now[0])
 
     def _run(args: list[str], **kwargs: object):
         captured_timeouts.append(float(kwargs["timeout"]))
-        return retry_mod.subprocess.CompletedProcess(
+        return retry_support.subprocess.CompletedProcess(
             args,
             returncode=0,
             stdout="abc123\n",
             stderr="",
         )
 
-    monkeypatch.setattr(retry_mod.subprocess, "run", _run)
+    monkeypatch.setattr(retry_support.subprocess, "run", _run)
 
     assert (
-        retry_mod._git_text(tmp_path, ["rev-parse", "HEAD"], deadline=103.25)
+        retry_support._git_text(tmp_path, ["rev-parse", "HEAD"], deadline=103.25)
         == "abc123"
     )
     assert captured_timeouts == [3.25]
@@ -316,7 +317,7 @@ def test_retry_roots_rotate_after_deadline_consuming_role(
     )
     now = [0.0]
     seen: list[str] = []
-    monkeypatch.setattr(retry_mod.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(retry_support.time, "monotonic", lambda: now[0])
 
     def _consume_budget(root, **_kwargs: object) -> None:
         seen.append(root.role)
