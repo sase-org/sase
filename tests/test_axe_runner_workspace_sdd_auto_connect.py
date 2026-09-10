@@ -16,7 +16,7 @@ def _stub_eviction_guard(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
-        "sase.axe.runner_workspace._protect_unpushed_sidecar_bead_commits",
+        "sase.axe.runner_workspace._protect_unpushed_sidecar_commits",
         lambda *_args, **_kwargs: True,
     )
 

@@ -14,7 +14,7 @@ from sase.sdd._artifact_link_commit import (
     commit_artifact_link_indexes,
 )
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
-from sase.sdd.artifact_link_outbox import _read_artifact_link_outbox_entries
+from sase.sdd.artifact_link_outbox import read_artifact_link_outbox_entries
 from sase.sdd._artifact_link_store_support import sidecar_index_path
 from tests.sdd._artifact_link_store_helpers import _store
 from tests.sdd._artifact_link_store_helpers import _row
@@ -132,7 +132,7 @@ def test_rename_repair_queues_stable_alias_event(
 
     first = repair_historical_artifact_renames(store, ("plan:202608/old.md",))
     second = repair_historical_artifact_renames(store, ("plan:202608/old.md",))
-    entries = _read_artifact_link_outbox_entries("gh_sase-org__sase")
+    entries = read_artifact_link_outbox_entries("gh_sase-org__sase")
 
     assert first.alias_events_queued == 1
     assert second.alias_events_queued == 1

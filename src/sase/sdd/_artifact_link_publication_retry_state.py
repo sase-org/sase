@@ -48,9 +48,9 @@ def register_pending(
             return None, diagnostic, False
     key = str(observation["key"])
     payload = {item: value for item, value in observation.items() if item != "key"}
-    path = artifact_link_publication_state_path(root.project_key)
-    with state_lock(path, deadline=deadline):
-        records, next_role = read_state_unlocked(path)
+    path = _artifact_link_publication_state_path(root.project_key)
+    with _state_lock(path, deadline=deadline):
+        records, next_role = _read_state_unlocked(path)
         current = records.get(key)
         try:
             record = artifact_link_publication_register_pending(
@@ -79,9 +79,9 @@ def mark_attempt(
     deadline: float | None = None,
 ) -> dict[str, Any]:
     key = str(record["key"])
-    path = artifact_link_publication_state_path(project_key)
-    with state_lock(path, deadline=deadline):
-        records, next_role = read_state_unlocked(path)
+    path = _artifact_link_publication_state_path(project_key)
+    with _state_lock(path, deadline=deadline):
+        records, next_role = _read_state_unlocked(path)
         current = records.get(key)
         base = current if isinstance(current, dict) else record
         marked = artifact_link_publication_mark_attempt(base, attempt, now=now)
@@ -91,9 +91,9 @@ def mark_attempt(
 
 
 def clear_record(project_key: str, key: str, *, deadline: float | None = None) -> bool:
-    path = artifact_link_publication_state_path(project_key)
-    with state_lock(path, deadline=deadline):
-        records, next_role = read_state_unlocked(path)
+    path = _artifact_link_publication_state_path(project_key)
+    with _state_lock(path, deadline=deadline):
+        records, next_role = _read_state_unlocked(path)
         if key not in records:
             return False
         del records[key]
@@ -125,9 +125,9 @@ def rotate_retry_roots(
 def _read_next_retry_role(
     project_key: str, *, deadline: float | None = None
 ) -> str | None:
-    path = artifact_link_publication_state_path(project_key)
-    with state_lock(path, deadline=deadline):
-        _records, next_role = read_state_unlocked(path)
+    path = _artifact_link_publication_state_path(project_key)
+    with _state_lock(path, deadline=deadline):
+        _records, next_role = _read_state_unlocked(path)
     return next_role
 
 
@@ -137,9 +137,9 @@ def write_next_retry_role(
     *,
     deadline: float | None = None,
 ) -> None:
-    path = artifact_link_publication_state_path(project_key)
-    with state_lock(path, deadline=deadline):
-        records, _old_next_role = read_state_unlocked(path)
+    path = _artifact_link_publication_state_path(project_key)
+    with _state_lock(path, deadline=deadline):
+        records, _old_next_role = _read_state_unlocked(path)
         _write_state_unlocked(path, records, next_role)
 
 
@@ -158,7 +158,18 @@ def next_retry_role_after(
     return project_roots[0].role
 
 
-def artifact_link_publication_state_path(project_key: str) -> Path:
+def read_publication_state(
+    project_key: str,
+    *,
+    deadline: float | None = None,
+) -> tuple[dict[str, dict[str, Any]], str | None]:
+    """Return artifact-link publication retry records for *project_key*."""
+    path = _artifact_link_publication_state_path(project_key)
+    with _state_lock(path, deadline=deadline):
+        return _read_state_unlocked(path)
+
+
+def _artifact_link_publication_state_path(project_key: str) -> Path:
     """Return the host-owned publication retry state file for *project_key*."""
 
     key = project_key.strip()
@@ -169,7 +180,7 @@ def artifact_link_publication_state_path(project_key: str) -> Path:
     return sase_projects_dir() / key / _STATE_FILENAME
 
 
-def read_state_unlocked(path: Path) -> tuple[dict[str, dict[str, Any]], str | None]:
+def _read_state_unlocked(path: Path) -> tuple[dict[str, dict[str, Any]], str | None]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -223,7 +234,7 @@ def _write_state_unlocked(
 
 
 @contextmanager
-def state_lock(path: Path, *, deadline: float | None = None) -> Iterator[None]:
+def _state_lock(path: Path, *, deadline: float | None = None) -> Iterator[None]:
     lock_path = path.with_name(_LOCK_FILENAME)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("a+", encoding="utf-8") as lock_file:

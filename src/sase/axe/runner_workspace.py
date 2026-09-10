@@ -2,12 +2,17 @@
 
 import contextlib
 import logging
+import os
 import sys
 import time
 from collections.abc import Callable, Generator
 from pathlib import Path
 
-from sase._linked_repo_paths import SIDECAR_REPO_CLONES_SUBDIR
+from sase._linked_repo_paths import (
+    EXTERNAL_REPO_CLONES_SUBDIR,
+    LINKED_REPO_CLONES_SUBDIR,
+    SIDECAR_REPO_CLONES_SUBDIR,
+)
 from sase.git_lock_retry import (
     STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS,
     git_index_lock_path,
@@ -19,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class _WorkspaceBeadEvictionRefused(RuntimeError):
-    """Raised when eviction would destroy unpublished canonical bead commits."""
+    """Raised when eviction would destroy unpublished sidecar commits."""
 
 
 # Minimum age before a leftover ``.git/index.lock`` is treated as abandoned.
@@ -122,7 +127,7 @@ def _prepare_workspace_locked(
     # to predate the claim is abandoned; clear it as git itself instructs.
     clear_stale_git_index_lock(workspace_dir)
 
-    if not _protect_unpushed_sidecar_bead_commits(workspace_dir):
+    if not _protect_unpushed_sidecar_commits(workspace_dir):
         return False
 
     # Clean workspace (saves any existing changes to a diff file)
@@ -218,24 +223,26 @@ def _agents_sidecar_sync_guard(workspace_dir: str) -> Generator[bool, None, None
         yield acquired
 
 
-def _protect_unpushed_sidecar_bead_commits(
+def _protect_unpushed_sidecar_commits(
     workspace_dir: str,
     *,
     refuse_on_unpublished: bool = False,
 ) -> bool:
-    """Publish or rescue local bead commits before workspace preparation resets.
+    """Publish or rescue local sidecar commits before workspace preparation resets.
 
-    Every bead store reachable from *workspace_dir* is checked, including the
-    sidecar-repos clones under ``sase/repos/`` that live in their own Git
-    repositories. When *refuse_on_unpublished* is set, an unpublishable store
-    fails the preparation outright instead of warning and proceeding — the
-    caller is about to destroy the clone that holds the only copy.
+    Every direct sidecar clone under ``sase/repos/<role>`` is checked. Bead
+    stores keep the specialized semantic-sync path, while other sidecar roles
+    use a cheap upstream-ahead probe and direct push. When
+    *refuse_on_unpublished* is set, an unpublishable sidecar fails preparation
+    outright instead of warning and proceeding; the caller is about to destroy
+    the clone that holds the only copy.
     """
     workspace_root = Path(workspace_dir).expanduser().resolve()
 
     from sase.bead.sync import bead_store_git_root
 
     protected = True
+    unsafe_generic_roots: set[Path] = set()
     for beads_dir in _workspace_bead_store_dirs(workspace_root):
         store_root = _bead_store_repo_root(
             beads_dir, workspace_root, bead_store_git_root
@@ -245,6 +252,15 @@ def _protect_unpushed_sidecar_bead_commits(
         if not _protect_bead_store(
             beads_dir,
             store_root,
+            refuse_on_unpublished=refuse_on_unpublished,
+        ):
+            protected = False
+            unsafe_generic_roots.add(store_root)
+    for sidecar_root in _workspace_sidecar_repo_roots(workspace_root):
+        if sidecar_root in unsafe_generic_roots:
+            continue
+        if not _protect_sidecar_repo(
+            sidecar_root,
             refuse_on_unpublished=refuse_on_unpublished,
         ):
             protected = False
@@ -311,6 +327,188 @@ def _protect_bead_store(
     return True
 
 
+def _workspace_sidecar_repo_roots(workspace_root: Path) -> list[Path]:
+    """Return direct Git sidecar clones under ``sase/repos/<role>``."""
+    repos_root = workspace_root.joinpath(*SIDECAR_REPO_CLONES_SUBDIR)
+    if not repos_root.is_dir():
+        return []
+
+    skipped_containers = {
+        LINKED_REPO_CLONES_SUBDIR[-1],
+        EXTERNAL_REPO_CLONES_SUBDIR[-1],
+    }
+    roots: list[Path] = []
+    try:
+        children = sorted(repos_root.iterdir(), key=lambda path: path.name)
+    except OSError:
+        return []
+    for child in children:
+        if child.name in skipped_containers:
+            continue
+        if not child.is_dir():
+            continue
+        if not (child / ".git").exists():
+            continue
+        roots.append(child.resolve())
+    return roots
+
+
+def _protect_sidecar_repo(
+    repo_root: Path,
+    *,
+    refuse_on_unpublished: bool,
+) -> bool:
+    """Publish or rescue one non-bead sidecar repo before cleanup."""
+    local_commits, inspect_error = _unpushed_sidecar_commit_count(repo_root)
+    if inspect_error is not None:
+        if refuse_on_unpublished:
+            _report_sidecar_eviction_failure(
+                repo_root=repo_root,
+                remaining=None,
+                recovery_ref=None,
+                detail=inspect_error,
+            )
+            print(
+                "workspace preparation refused to evict sidecar repo "
+                f"{repo_root}: could not verify publication state: {inspect_error}",
+                file=sys.stderr,
+            )
+            return False
+        print(
+            f"Warning: could not verify sidecar publication state for {repo_root}: "
+            f"{inspect_error}",
+            file=sys.stderr,
+        )
+        return True
+    if local_commits <= 0:
+        return True
+
+    print(
+        "Found "
+        f"{local_commits} unpushed local sidecar commit(s) in {repo_root}; "
+        "publishing before workspace cleanup..."
+    )
+    push_error = _push_sidecar_repo(repo_root)
+    remaining, remaining_error = _unpushed_sidecar_commit_count(repo_root)
+    if remaining_error is not None:
+        remaining = local_commits
+    if remaining <= 0:
+        return True
+
+    detail = (
+        remaining_error
+        or push_error
+        or "git push reported success but local sidecar commits remain"
+    )
+    recovery_ref, recovery_error = _retain_current_head_recovery_ref(repo_root)
+    if recovery_error is not None or recovery_ref is None:
+        _report_sidecar_eviction_failure(
+            repo_root=repo_root,
+            remaining=remaining,
+            recovery_ref=None,
+            detail=f"{detail}; recovery ref failed: {recovery_error or 'unknown error'}",
+        )
+        print(
+            "workspace preparation refused to discard "
+            f"{remaining} unpushed local sidecar commit(s) in {repo_root}: "
+            f"{detail}; recovery ref failed: {recovery_error or 'unknown error'}",
+            file=sys.stderr,
+        )
+        return False
+
+    _report_sidecar_eviction_failure(
+        repo_root=repo_root,
+        remaining=remaining,
+        recovery_ref=recovery_ref,
+        detail=detail,
+    )
+    if refuse_on_unpublished:
+        print(
+            f"workspace preparation refused to evict sidecar repo {repo_root}: "
+            f"{remaining} unpublished local commit(s) retained at "
+            f"{recovery_ref}; {detail}",
+            file=sys.stderr,
+        )
+        return False
+
+    print(
+        "Warning: retained "
+        f"{remaining} unpushed local sidecar commit(s) at {recovery_ref} before "
+        f"workspace cleanup; {detail}",
+        file=sys.stderr,
+    )
+    return True
+
+
+def _unpushed_sidecar_commit_count(repo_root: Path) -> tuple[int, str | None]:
+    """Return commits ahead of the configured upstream, or an error detail."""
+    from sase.sdd._repository_health import default_git_runner, format_git_error
+
+    result = default_git_runner(
+        repo_root,
+        ["rev-list", "--count", "@{upstream}..HEAD"],
+        op="workspace.sidecar_safety.unpushed_count",
+    )
+    if result.returncode != 0:
+        return 0, format_git_error(
+            "could not count unpublished sidecar commits", result
+        )
+    try:
+        return int(result.stdout.strip()), None
+    except ValueError:
+        return 0, f"git rev-list returned a non-integer count: {result.stdout!r}"
+
+
+def _push_sidecar_repo(repo_root: Path) -> str | None:
+    """Push the current sidecar branch to its configured upstream."""
+    from sase.sdd._repository_health import default_git_runner, format_git_error
+
+    result = default_git_runner(
+        repo_root,
+        ["push"],
+        op="workspace.sidecar_safety.push",
+        network=True,
+    )
+    if result.returncode == 0:
+        return None
+    return format_git_error("git push failed", result)
+
+
+def _report_sidecar_eviction_failure(
+    *,
+    repo_root: Path,
+    remaining: int | None,
+    recovery_ref: str | None,
+    detail: str,
+) -> None:
+    """Surface a launch-time sidecar protection failure to the notification inbox."""
+    try:
+        from sase.notifications import notify_workflow_complete
+
+        notes = [
+            f"Failed to publish sidecar before workspace cleanup: {repo_root.name}",
+            detail,
+            "The sidecar clone was preserved so local-only commits are not lost.",
+        ]
+        if remaining is not None:
+            notes.insert(1, f"{remaining} commit(s) remained ahead of upstream.")
+        if recovery_ref is not None:
+            notes.append(f"Recovery ref: {recovery_ref}")
+        notify_workflow_complete(
+            "sidecar-protection",
+            os.environ.get("SASE_AGENT_CL_NAME", ""),
+            False,
+            notes,
+            extra_files=[str(repo_root)],
+            tags=["sidecar"],
+        )
+    except Exception:
+        logger.debug(
+            "Failed to report sidecar eviction protection failure",
+            exc_info=True,
+        )
+
+
 def _workspace_bead_store_dirs(workspace_root: Path) -> list[Path]:
     """Return every bead store a workspace reset or eviction could destroy."""
     stores: list[Path] = []
@@ -368,24 +566,27 @@ def _retain_current_head_recovery_ref(repo_root: Path) -> tuple[str | None, str 
     branch_result = default_git_runner(
         repo_root,
         ["symbolic-ref", "--quiet", "--short", "HEAD"],
-        op="workspace.bead_safety.branch",
+        op="workspace.sidecar_safety.branch",
     )
     if branch_result.returncode != 0 or not branch_result.stdout.strip():
         return (
             None,
             format_git_error(
-                "could not resolve the branch for bead recovery", branch_result
+                "could not resolve the branch for sidecar recovery",
+                branch_result,
             ),
         )
     head_result = default_git_runner(
         repo_root,
         ["rev-parse", "--verify", "HEAD"],
-        op="workspace.bead_safety.head",
+        op="workspace.sidecar_safety.head",
     )
     if head_result.returncode != 0 or not head_result.stdout.strip():
         return (
             None,
-            format_git_error("could not resolve HEAD for bead recovery", head_result),
+            format_git_error(
+                "could not resolve HEAD for sidecar recovery", head_result
+            ),
         )
 
     branch = branch_result.stdout.strip()
@@ -396,7 +597,7 @@ def _retain_current_head_recovery_ref(repo_root: Path) -> tuple[str | None, str 
         ref,
         head,
         default_git_runner,
-        "workspace.bead_safety",
+        "workspace.sidecar_safety",
     )
     if error is not None:
         return None, error
@@ -414,20 +615,20 @@ def prepare_launch_workspace_repos(
     materialization or synchronization pass.
 
     Raises:
-        _WorkspaceBeadEvictionRefused: when a sidecar bead clone holds canonical
-            bead commits that could not be published. Eviction would delete the
-            only copy of those commits, so the launch fails instead.
+        _WorkspaceBeadEvictionRefused: when a sidecar clone holds commits that
+            could not be published. Eviction would delete the only copy of
+            those commits, so the launch fails instead.
     """
     from sase.linked_repos import clear_workspace_repos
 
     # Only numbered workspaces evict sidecars; the primary checkout's clones
     # survive ``clear_workspace_repos`` untouched.
-    if workspace_num > 1 and not _protect_unpushed_sidecar_bead_commits(
+    if workspace_num > 1 and not _protect_unpushed_sidecar_commits(
         workspace_dir, refuse_on_unpublished=True
     ):
         raise _WorkspaceBeadEvictionRefused(
-            "refusing to evict workspace sidecar repos: a bead store holds "
-            "unpublished canonical bead commits (see diagnostics above)"
+            "refusing to evict workspace sidecar repos: at least one sidecar "
+            "holds unpublished commits (see diagnostics above)"
         )
 
     clear_workspace_repos(workspace_dir, workspace_num)

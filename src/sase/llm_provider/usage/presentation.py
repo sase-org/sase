@@ -433,7 +433,7 @@ def collector_health_label(
     *,
     reason: Any = None,
 ) -> str | None:
-    """Return the public label for a ``collector_health`` block."""
+    """Return the public compact label for a collector-health block."""
     return _collector_health_label(health, reason=reason)
 
 
@@ -446,7 +446,7 @@ def _collector_health_style(health: Mapping[str, Any] | None) -> str:
 
 
 def collector_health_style(health: Mapping[str, Any] | None) -> str:
-    """Return the public Rich style for a ``collector_health`` block."""
+    """Return the public Rich style for a collector-health block."""
     return _collector_health_style(health)
 
 
