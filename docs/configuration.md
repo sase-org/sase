@@ -2776,14 +2776,14 @@ axe:
 
 **Lumberjack fields** (per entry under `lumberjacks`):
 
-| Field          | Type                    | Required | Default | Description                                                                                                                     |
-| -------------- | ----------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `description`  | string                  | yes      | -       | Summary line, blank line, optional body describing the lane's cadence and work.                                                 |
-| `interval`     | int                     | no       | `1`     | Seconds between chop polling cycles.                                                                                            |
-| `chop_timeout` | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"`.                                                        |
-| `wait_runners` | int                     | no       | -       | Start a lane agent once at most this many other agents hold runner slots; omitting it uses the global `max_running_agents` cap. |
-| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every chop in this lumberjack.                                                                         |
-| `chops`        | list[object] or map     | no       | `[]`    | Composable chop definitions (see below).                                                                                        |
+| Field          | Type                    | Required | Default | Description                                                                                                        |
+| -------------- | ----------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| `description`  | string                  | yes      | -       | Summary line, blank line, optional body describing the lane's cadence and work.                                    |
+| `interval`     | int                     | no       | `1`     | Seconds between chop polling cycles.                                                                               |
+| `chop_timeout` | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"`.                                           |
+| `wait_runners` | int                     | no       | -       | Optional runner-count condition: start a lane agent once at most this many other participating lanes are occupied. |
+| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every chop in this lumberjack.                                                            |
+| `chops`        | list[object] or map     | no       | `[]`    | Composable chop definitions (see below).                                                                           |
 
 **Chop fields** (per entry under `chops`):
 
@@ -2865,26 +2865,26 @@ chop fields such as `run_every` and trigger thresholds.
 providers. The legacy `changespec` key remains accepted as an alias. The clan provider
 requires a case-sensitive `name_prefix` and checks canonical clan metadata for active
 agents, including waiting members; it never infers clans from dotted names.
-`agent_runners.max` defaults to `0` and inhibits while more than that many agents hold
-runner slots, the same population counted by `%queue(runners=N)` and the ACE
-runner-capacity chip. A `STARTING` agent has not yet been admitted and does not count;
-an agent parked on a question has yielded its slot and does not count. `trigger` accepts
-`always`, `git.commits_since`, or `fs`; the git provider requires `project` and
-`threshold`, and its checkpoint policy is `on_observation`, `on_action_accepted`, or
-`on_action_success`. The `fs` provider requires `paths` (bare path strings or
-`{path, glob}` objects, stat'd shallowly — no recursion, no content reads) and a
-positive `max_quiet` duration, fires when its computed state token changes or
-`max_quiet` elapses since the last fire, always uses `on_observation` checkpoint
-semantics, and fails open (fires without advancing its checkpoint) on an unreadable
-path. See
+`agent_runners.max` defaults to `0` and inhibits while more than that many participating
+agent lanes are occupied, the same count condition used by `%queue(runners=N)`. Weighted
+capacity is tracked separately by the runner-capacity snapshot and ACE header. A
+`STARTING` agent has not yet been admitted and does not count; an agent parked on a
+question has yielded its capacity and does not count. `trigger` accepts `always`,
+`git.commits_since`, or `fs`; the git provider requires `project` and `threshold`, and
+its checkpoint policy is `on_observation`, `on_action_accepted`, or `on_action_success`.
+The `fs` provider requires `paths` (bare path strings or `{path, glob}` objects, stat'd
+shallowly — no recursion, no content reads) and a positive `max_quiet` duration, fires
+when its computed state token changes or `max_quiet` elapses since the last fire, always
+uses `on_observation` checkpoint semantics, and fails open (fires without advancing its
+checkpoint) on an unreadable path. See
 [AXE — Triggers, Guards, Dedupe, and Targets](axe.md#triggers-guards-dedupe-and-targets)
 for the full contract. Skips are recorded with reasons. Manual runs bypass the trigger
-but honor guards; with `agent_runners`, a manual run while agents hold runner slots
-skips unless `sase axe chop run -f/--force` is used. `once_per` can be a key template
-string or an object with `key` and bounded `capacity`; proposal-supplied `dedupe_key`
-values take precedence. `dedupe_key` is durable work identity, not a retry clock: it
-stays reserved after a successful no-op launch, so chops whose work can go stale between
-scans should recheck eligibility with a proposal `%if` predicate (see
+but honor guards; with `agent_runners`, a manual run while participating lanes are
+occupied skips unless `sase axe chop run -f/--force` is used. `once_per` can be a key
+template string or an object with `key` and bounded `capacity`; proposal-supplied
+`dedupe_key` values take precedence. `dedupe_key` is durable work identity, not a retry
+clock: it stays reserved after a successful no-op launch, so chops whose work can go
+stale between scans should recheck eligibility with a proposal `%if` predicate (see
 [Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals))
 instead of folding a repository revision into the key. When dedupe removes a proposal
 from a `wait_on` chain, AXE walks through the skipped dependencies to the nearest
@@ -3331,35 +3331,27 @@ Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.p
 
 ### max_running_agents
 
-The configured global cap on concurrently occupied runner slots across all projects. A
-**runner slot is held by one running sase agent.** A standalone agent holds one slot. A
-live serial agent family normally holds one slot across its agent and monitor shells;
-independently launched clan members and live parallel family members each hold their own
-slot. A processless gate shell deliberately releases runner capacity while it owns a
-user decision, even when it retains the family's workspace claim.
+The configured global runner-capacity budget across all projects. The key remains an
+integer and the packaged default remains `10`, but the value is interpreted as capacity
+units. A normal launch claims `1.0`; `%queue(weight=...)` / `%q(w=...)` can request a
+positive finite fractional or larger weight.
 
-Holding a slot and waiting for one are separate questions. Roots and live parallel
-family members wait at the admission gate. Serial members inherit an already-live family
-slot. Current admission also exempts a serial successor launched after a gate-shell
-handoff, even though the pending gate released the family's slot. That successor starts
-immediately and can make observed occupancy exceed the cap if other work filled the
-released capacity first. Workflow Python/bash steps and axe Patch runners hold none of
-these slots; axe runners continue to use their separate `axe.max_*_runners` limits.
-Legacy in-flight question runs that use `pending_question.json` instead yield and later
-reacquire in their original process.
-
-On a host that uses monitors heavily, the same `max_running_agents` value now admits
-fewer new agents than it did before this occupancy rule: a monitor is not a way to free
-capacity. Raising the value (persistently in this field, or temporarily from Launch
-Control) is the supported response. The packaged default remains `10`.
+A standalone agent owns one claim of its effective weight. A live serial family shares
+one claim across its agent, monitor, and serial successor shells; serial continuations
+inherit the family weight when omitted, and must reacquire capacity after the family has
+released its claim. Independently launched clan members and live parallel family members
+each hold their own claim. A processless gate shell deliberately releases runner
+capacity while it owns a user decision, even when it retains the family's workspace
+claim. Workflow Python/bash steps and axe Patch runners hold none of this capacity; axe
+runners continue to use their separate `axe.max_*_runners` limits.
 
 ```yaml
 max_running_agents: 10
 ```
 
-| Field                | Type | Default | Minimum | Description                                                       |
-| -------------------- | ---- | ------- | ------- | ----------------------------------------------------------------- |
-| `max_running_agents` | int  | `10`    | `1`     | Configured maximum concurrent occupied runner slots on this host. |
+| Field                | Type | Default | Minimum | Description                                              |
+| -------------------- | ---- | ------- | ------- | -------------------------------------------------------- |
+| `max_running_agents` | int  | `10`    | `1`     | Configured runner-capacity units available on this host. |
 
 The effective cap is an active machine-wide temporary override first and this merged
 configured value second. In Launch Control, fixed `Ctrl+R` opens **Max Running Agents**:
@@ -3368,10 +3360,10 @@ until-cleared, or exact-time override, and `x` clears it. Temporary state is sto
 versioned record at `~/.sase/max_running_agents_override.json`; a new set replaces the
 previous value, expiry is enforced at its deadline, and a persistent edit leaves an
 active override in force. Lowering the effective value is non-preemptive, so existing
-agents continue and new implicit-cap launches wait for occupancy to drain. Parked
-implicit waiters and question continuations reread the effective cap on each normal
-poll. An explicit `%queue(runners=N)` keeps its own initial-admission threshold and may
-be either stricter or looser than the global cap.
+agents continue and new launches wait for occupied capacity to drain. Parked waiters and
+question continuations reread the effective cap on each normal poll. An explicit
+`%queue(runners=N)` keeps its own runner-count condition, but it cannot bypass the
+global capacity budget.
 
 ### max_agent_pipe_chain
 

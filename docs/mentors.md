@@ -15,7 +15,7 @@ The lifecycle is:
 1. Match mentor profiles against Patch commits.
 2. Register matching profiles in the Patch `MENTORS` field.
 3. Wait for non-skipped hooks on the latest regular commit to become ready.
-4. Start mentor agents when runner slots are available.
+4. Start mentor agents when runner capacity is available.
 5. Save structured JSON output and file snapshots.
 6. Review, accept, and apply comments from ACE.
 

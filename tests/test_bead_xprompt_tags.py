@@ -119,6 +119,16 @@ def test_bead_worker_builtin_xprompts_do_not_author_wait_directives(
     _assert_no_wait_directives(name, task_instruction)
 
 
+def test_builtin_land_prompt_requests_double_capacity() -> None:
+    body = _builtin_prompt_body("bd/land_epic")
+    cleaned, directives = extract_prompt_directives(body)
+
+    assert body.count("%q(w=2.0)") == 1
+    assert directives.queue_weight == 2.0
+    assert directives.queue_weight_explicit is True
+    assert cleaned.lstrip().startswith("You are the land agent")
+
+
 def test_builtin_phase_and_land_prompts_capture_follow_ups() -> None:
     prompts = get_all_prompts()
     phase_body = prompts["bd/work_phase_bead"].steps[0].prompt_part

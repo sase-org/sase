@@ -2091,24 +2091,19 @@ sequential family still contributes only one. A hidden top-level `STARTING` agen
 contributes one sase agent even though it is not selectable yet. Grouping mode, tribe
 ownership, and fold state do not change this projection.
 
-The sase-agent total is followed by an always-visible capacity chip in the form
-`[R/L · Q queued]`: `R` is the global number of runner slots currently held — the same
-occupancy the admission gate uses — `L` is the current effective `max_running_agents`
-limit (temporary override first, configured value second), and `Q` counts every live
-agent parked at the runner-slot admission gate, whether its threshold comes from that
-effective cap or an authored `%queue(runners=N)`. A standalone agent holds one slot. A
-live serial family normally shares one slot across its agent and monitor shells.
-Independently launched clan members and live parallel family members each hold their own
-slot. Processless gate shells release runner capacity, even when they retain a workspace
-claim. Current admission treats every serial-family successor as exempt, including one
-launched after a gate handoff: it starts immediately instead of appearing in `Q`, then
-becomes the family's occupied slot. If other work filled the released capacity while the
-gate was pending, `R` can temporarily exceed `L`. Roots and parallel members wait at the
-gate, while serial members ride an already-live family slot. Workflow Python/bash steps
-and axe Patch runners hold none of these slots. The occupancy count `R` always renders
-green, so it reads as a plain count; capacity pressure is carried by `L`, which
-escalates from dim through gold at half the limit, orange at three quarters, and red
-once `R` reaches or passes it. A nonzero queue count is cornflower blue.
+The sase-agent total is followed by an always-visible global capacity prefix in the form
+`C/L` immediately before the status strip: `C` is occupied runner capacity units and `L`
+is the current effective `max_running_agents` budget (temporary override first,
+configured value second). Normal agents claim `1.0`; non-default `%queue(weight=...)` /
+`%q(w=...)` launches claim their authored capacity units. If the capacity snapshot is
+unavailable, ACE renders an explicit unknown value such as `—/—` instead of deriving a
+fake value from visible rows. Capacity is machine-global and does not change when the
+Agents list is searched, folded, filtered by tribe/project, or focused on remote rows.
+The visible running count and the global queued count remain in the following status
+strip, for example `8.0/10.0 [8 running · 1 queued]`. Capacity pressure is carried by
+the `C/L` prefix, escalating from dim through gold at half the limit, orange at three
+quarters, and red when occupied capacity reaches or exceeds the limit. The running count
+keeps its stable green count style. A nonzero queue count is cornflower blue.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with
@@ -2118,35 +2113,36 @@ normalized owner status instead of counting historical members separately. `stop
 counts agents paused for plan approval, questions, or workflow human-input steps;
 `starting` counts just-launched agents that have not yet surfaced as visible rows;
 `running` excludes queued, waiting, failed, and stopped agents; `waiting` contains
-genuinely blocked dependency, bead, and time waits, while the capacity chip's `queued`
-count contains every live runner-slot waiter; `failed` is terminal failed work; `unread`
-counts terminal sase agents that still need acknowledgement; and `done` is completed
-visible work that has already been acknowledged. Nested family/clan member summaries
-remain concrete. The position/navigation denominator is a separate count: rendered
-selectable roots, where a clan container is one row and a hidden `STARTING` agent is
-excluded. During startup the header renders `Agents: …` until the first agent scan has
-loaded, avoiding a misleading zero-agent count. Each TUI launch starts in by-project
-grouping; cycling only changes the current session.
+genuinely blocked dependency, bead, and time waits, while the status strip's `queued`
+count contains every live runner-capacity waiter; `failed` is terminal failed work;
+`unread` counts terminal sase agents that still need acknowledgement; and `done` is
+completed visible work that has already been acknowledged. Nested family/clan member
+summaries remain concrete. The position/navigation denominator is a separate count:
+rendered selectable roots, where a clan container is one row and a hidden `STARTING`
+agent is excluded. During startup the header renders `Agents: …` until the first agent
+scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts in
+by-project grouping; cycling only changes the current session.
 
 **Queued** holds `QUEUED` agents that have cleared every dependency, bead, and time wait
-and need only runner capacity, whether their threshold comes from the global cap or an
-authored `%queue(runners=N)`. A queued row renders as `QUEUED #3/12`; an explicit runner
-threshold keeps its arrow qualifier, such as `QUEUED #4/12 ▶7→0 p20`, so a drain barrier
-cannot be mistaken for a fraction. Implicit-cap rows omit the repeated capacity suffix.
-**Waiting** holds genuinely blocked but self-progressing agents — `WAITING` with a time
-wait (`%wait(time=5m)`, `%wait(time=1430)`), a non-empty `waiting_for` dependency, or a
-bead wait. A compact `WAITING` row summarizes named waits as one sequence of independent
-tokens: agent counts keep the established status glyphs (`✗1 ▶1 ✓1 ?1`), while bead
-counts keep the canonical Beads-tab status glyph (`○` open, `◐` in progress, `●`
-closed). When a bead status matches a present agent bucket, the bead token follows that
-agent token, for example `WAITING ▶1 ◐2` or `WAITING ✓1 ●1`; unmatched bead tokens trail
-in canonical bead order. Zero entries are omitted and the count is always shown. Unknown
-agents and unknown beads both render as `?N`; when both are present they appear as
-adjacent independent counts, as in `WAITING ?1 ?2`. These tokens sit directly after
-`WAITING` and before a reserved-tribe `!`, duration, or countdown annotation. They are
-not the trailing gold `◆` linked-bead badge that marks an agent launched by
-`sase bead work`. **Stopped** keeps the strict "you need to act" semantics for plan
-approval, questions, and workflow input.
+and need only runner capacity or an authored `%queue(runners=N)` count condition. A
+queued row renders as `QUEUED #3/12`; an explicit runner threshold keeps its arrow
+qualifier, such as `QUEUED #4/12 ▶7→0 p20`, so a drain barrier cannot be mistaken for a
+fraction. Non-default queue weights render as the same quiet `wN` badge used on running
+rows and queue-ladder entries. Implicit-cap rows omit the repeated count-condition
+suffix. **Waiting** holds genuinely blocked but self-progressing agents — `WAITING` with
+a time wait (`%wait(time=5m)`, `%wait(time=1430)`), a non-empty `waiting_for`
+dependency, or a bead wait. A compact `WAITING` row summarizes named waits as one
+sequence of independent tokens: agent counts keep the established status glyphs
+(`✗1 ▶1 ✓1 ?1`), while bead counts keep the canonical Beads-tab status glyph (`○` open,
+`◐` in progress, `●` closed). When a bead status matches a present agent bucket, the
+bead token follows that agent token, for example `WAITING ▶1 ◐2` or `WAITING ✓1 ●1`;
+unmatched bead tokens trail in canonical bead order. Zero entries are omitted and the
+count is always shown. Unknown agents and unknown beads both render as `?N`; when both
+are present they appear as adjacent independent counts, as in `WAITING ?1 ?2`. These
+tokens sit directly after `WAITING` and before a reserved-tribe `!`, duration, or
+countdown annotation. They are not the trailing gold `◆` linked-bead badge that marks an
+agent launched by `sase bead work`. **Stopped** keeps the strict "you need to act"
+semantics for plan approval, questions, and workflow input.
 
 ### Agent Row Glyphs
 
@@ -3397,9 +3393,10 @@ preview and success notification both make that explicit.
 
 `Ctrl+R` is a fixed Launch Control binding and works from every alias, collapsed bucket,
 and open bucket. It is not a leader-keymap setting. The **Max Running Agents** card
-shows the current effective global cap and, while a temporary override is active, its
-remaining time plus the configured value. Press `e` to edit the user-base configuration,
-`o` to set a temporary machine-wide override, or `x` to clear an active override.
+shows the current effective capacity budget and, while a temporary override is active,
+its remaining time plus the configured value. Press `e` to edit the user-base
+configuration, `o` to set a temporary machine-wide override, or `x` to clear an active
+override.
 
 Edit and Override open a focused positive-integer card. Edit is prefilled with the
 configured value; Override is prefilled with the current effective value. The input
@@ -3416,11 +3413,12 @@ model and effort overrides. The versioned machine-wide record is
 `~/.sase/max_running_agents_override.json`; setting a value replaces the previous
 runner-limit override, `now >= expires_at` expires it, and Clear is idempotent. A
 persistent edit does not clear a live temporary override. Lowering the effective cap
-never stops an already-running agent: occupancy may temporarily exceed the cap, and new
-implicit-cap work waits until enough slots drain. Raising the cap lets eligible parked
+never stops an already-running agent: occupied capacity may temporarily exceed the cap,
+and new work waits until enough capacity drains. Raising the cap lets eligible parked
 agents advance through the existing priority/FIFO gate on their next poll. Launches with
-an explicit `%queue(runners=N)` retain their own initial-admission threshold, while
-question continuations reacquire against the current effective global cap.
+an explicit `%queue(runners=N)` retain that additional runner-count condition, but it
+cannot bypass the global capacity budget. Question continuations reacquire against the
+current effective global cap after their gate shell has released capacity.
 
 ### Provider routing controls
 

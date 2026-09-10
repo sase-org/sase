@@ -1591,23 +1591,23 @@ ranges. Name completion advertises every enabled user-facing directive, includin
 `%final`; `%if` and `%proc` appear only when the `typed_launch_units` beta flag is
 enabled. Retired `%name` / `%n` and `%tribe` / `%t` forms are not completed.
 
-| Directive           | Completed forms                                             | Completed argument rows                                                                                                                                                                                                                                                                      |
-| ------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `%model` / `%m`     | `%model:...`, `%model(...)`                                 | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                 |
-| `%effort` / `%e`    | `%effort:...`                                               | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                  |
-| `%final`            | Bare `%final`, `%final:...`, `%final(...)`                  | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                          |
-| `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                           | `bead=`, `clan=`, `family=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, family, or tribe targets for those keyword values.                                                                                                                                |
-| `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                   | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                        |
-| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                     | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, and `time=` suggests `5m` and `1430`.                                                    |
-| `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)` | Colon form completes only the positional non-negative-integer `runners` value, suggesting `0` and `1`. Parenthesized form adds `runners=`, `priority=`, and `p=`; `priority=` and `p=` conflict with each other, `priority=`/`p=` suggest `10` and `1`, and `runners=` suggests `0` and `1`. |
-| `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                           | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                    |
-| `%if`               | `%if::`; full Bash and Python fence recipes                 | No argument rows; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                           |
-| `%proc`             | `%proc(...)`, `%proc::`; Bash/Python recipes                | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                        |
-| `%hide` / `%h`      | Bare flag and plus form                                     | No argument rows.                                                                                                                                                                                                                                                                            |
-| `%auto` / `%a`      | Bare, plus, and `%auto:...`                                 | `plan`, `tale`, `epic`; gate-owned free-form values remain typable.                                                                                                                                                                                                                          |
-| `%repeat` / `%r`    | `%repeat:...`                                               | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                            |
-| `%alt`              | `%{...}` shorthand, `%alt(...)`, `%alt:...`                 | No structured argument rows.                                                                                                                                                                                                                                                                 |
-| `%xprompts_enabled` | `%xprompts_enabled:...`                                     | `false`, `true`.                                                                                                                                                                                                                                                                             |
+| Directive           | Completed forms                                             | Completed argument rows                                                                                                                                                                                                                                                                                                                                              |
+| ------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `%model` / `%m`     | `%model:...`, `%model(...)`                                 | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                                                                                         |
+| `%effort` / `%e`    | `%effort:...`                                               | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                                                                                          |
+| `%final`            | Bare `%final`, `%final:...`, `%final(...)`                  | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                  |
+| `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                           | `bead=`, `clan=`, `family=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, family, or tribe targets for those keyword values.                                                                                                                                                                                                        |
+| `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                   | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                |
+| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                     | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, and `time=` suggests `5m` and `1430`.                                                                                                                            |
+| `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)` | Colon form completes only the positional non-negative-integer `runners` value, suggesting `0` and `1`. Parenthesized form adds `runners=`, `priority=`, `p=`, `weight=`, and `w=`; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `runners=` suggests `0` and `1`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. |
+| `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                           | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                            |
+| `%if`               | `%if::`; full Bash and Python fence recipes                 | No argument rows; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                   |
+| `%proc`             | `%proc(...)`, `%proc::`; Bash/Python recipes                | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                |
+| `%hide` / `%h`      | Bare flag and plus form                                     | No argument rows.                                                                                                                                                                                                                                                                                                                                                    |
+| `%auto` / `%a`      | Bare, plus, and `%auto:...`                                 | `plan`, `tale`, `epic`; gate-owned free-form values remain typable.                                                                                                                                                                                                                                                                                                  |
+| `%repeat` / `%r`    | `%repeat:...`                                               | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                                                                                    |
+| `%alt`              | `%{...}` shorthand, `%alt(...)`, `%alt:...`                 | No structured argument rows.                                                                                                                                                                                                                                                                                                                                         |
+| `%xprompts_enabled` | `%xprompts_enabled:...`                                     | `false`, `true`.                                                                                                                                                                                                                                                                                                                                                     |
 
 Keyword-name completion omits non-repeatable keywords that are already present and
 keywords that conflict with a selected keyword, but this is only a completion filter:
@@ -1829,7 +1829,9 @@ Directives use the same argument syntax as xprompt references:
 %queue(runners=0)            # Drain barrier: start after all running agents stop
 %queue(priority=1)           # Join the runner queue ahead of larger priorities
 %q(p=1)                      # Same, using the p= alias for priority=
-%queue(runners=5, priority=20) # Both controls in one directive
+%queue(weight=0.25)          # Claim one quarter runner-capacity unit
+%q(w=2)                      # Same field using the w= alias; this claims two units
+%queue(runners=5, priority=20, weight=2) # Count, priority, and weight together
 %wait(agent1, time=5m) %queue(runners=1) # Dependencies, then time floor, then runner gate
 #t:5m                        # Shorthand for %wait(time=5m)
 %repeat:3                    # Run the prompt 3 times
@@ -2195,67 +2197,48 @@ until an absolute wall-clock time. For a pure time wait, `#t:<time>` is shorthan
   `%wait(time=260415/0900)` for 2026-04-15 at 09:00). Raises an error if the target is
   in the past.
 
-Agent and bead dependencies and `time=` combine across `%wait(...)` directives;
-`runners=` and `priority=` (or their `%q` positional/`p=` spellings) combine separately
-across `%queue(...)` / `%q(...)` directives. All dependencies wait first, then the time
-floor applies, and the runner-slot gate is the final admission stage. Primary and
-linked-workspace preparation starts only after admission, so admitted runner counts
-include that preparation work.
+Agent and bead dependencies and `time=` combine across `%wait(...)` directives.
+`runners=`, `priority=`/`p=`, and `weight=`/`w=` combine separately across `%queue(...)`
+/ `%q(...)` directives. All dependencies wait first, then the time floor applies, and
+the runner-capacity gate is the final admission stage. Primary and linked-workspace
+preparation starts only after admission, so admitted capacity includes that preparation
+work.
 
-The `%queue(runners=N)` / `%q:N` keyword is a per-prompt threshold, not a reservation of
-future capacity: the agent starts only when at most `N` other running sase agents are
-holding slots. It overrides the effective `max_running_agents - 1` threshold for that
-launch, so it can either lower or raise the effective limit. Among waiters eligible at
-the current running count, the lowest numeric `%queue(priority=N)` / `%q(p=N)` starts
-first, with FIFO ordering among equal priorities. That sort only compares waiters
-already parked when a slot frees, so a waiter whose priority is numerically worse than
-the `10` default additionally holds back for a bounded deference window rather than
-claiming the instant it becomes eligible. Default- and better-priority waiters
-(`priority=10` or lower) never defer and start on the first eligible poll. A
-deprioritized waiter defers only while a live, unstarted agent with a better priority
-has not yet joined the queue and could still plausibly arrive; when no such agent
-remains it claims immediately, and the window resets whenever the waiter stops being
-eligible, so time parked behind a full cap does not count toward it. The window is
-`min((priority - 10) * 3, 60)` seconds by default and is configurable through
-[`runner_slots`](configuration.md#runner_slots). There is no priority aging—deference
-delays a volunteer, it never improves a waiter's own priority and never preempts a
-running agent—so a steady stream of higher-priority arrivals can still starve default-
-or lower-priority waiters. An older waiter with a lower, currently ineligible threshold
-does not block eligible launches. `runners=0` is therefore a drain barrier that waits
-for true quiescence. Newer eligible launches can start while it is parked and keep it
-waiting until they also finish. Both values must be non-negative integers and may each
-appear only once across a prompt's `%queue` directives (including across `%queue` and
-`%q` occurrences); priority defaults to `10`.
+The effective global `max_running_agents` value is an integer capacity budget
+(configured default `10`; an active `~/.sase/max_running_agents_override.json` value
+wins). A launch without an authored weight claims `1.0` unit. `%queue(weight=W)` /
+`%q(w=W)` requests a positive finite capacity weight such as `0.25`, `1.0`, `2`, `.25`,
+or `2.5e-1`; zero, negative, boolean, NaN, infinity, overflow, and underflow to zero are
+rejected. Omitted weight defaults to `1.0`, but an explicitly authored `1.0` is
+preserved when prompts are reconstructed. `w` and `weight` are one field, so using both
+is a duplicate even when the values match.
 
-Without an explicit `%queue(runners=...)` / `%q:N` threshold, the effective global
-`max_running_agents` value limits concurrent occupied runner slots (configured default
-`10`; an active `~/.sase/max_running_agents_override.json` value wins). A slot is held
-by one running sase agent: a standalone agent, a live serial family across its agent and
-monitor shells, or each live parallel family member, even when ACE renders the member as
-a nested row. Independently launched clan members each hold one slot. A processless gate
-shell occupies no runner slot, even when it retains the family's workspace claim.
+Admission requires claimed capacity plus the requested weight to fit within the current
+limit. `%queue(runners=N)` / `%q:N` is an additional per-prompt count condition: the
+agent starts only when at most `N` other participating lanes are occupied. It can make a
+launch stricter, but it no longer bypasses the global capacity budget. `runners=0`
+therefore waits for a true drain and enough free capacity for the request. Newer
+eligible launches can still start while it is parked, and after the drain-barrier agent
+is admitted it does not reserve exclusivity against later launches.
 
-Holding a slot and waiting for one are separate. Roots and live parallel family members
-wait at this gate. Serial members normally ride an already-live family slot. The same
-admission exemption currently applies to a serial successor launched after a gate-shell
-handoff, even though the pending gate released that slot: the successor starts
-immediately and becomes the family's occupied slot. If other work filled the released
-capacity first, observed occupancy can temporarily exceed the cap. Immediate
-participating launches claim a slot before workspace preparation; dependency, time, and
-fork waiters remain uncounted until those prerequisites resolve. Workflow Python/bash
-steps and axe Patch runners hold none of these slots.
+Among waiters that currently fit capacity and any explicit runner-count condition, the
+lowest numeric `%queue(priority=N)` / `%q(p=N)` starts first, with FIFO ordering among
+equal priorities. That sort only compares waiters already parked when capacity frees, so
+a waiter whose priority is numerically worse than the `10` default additionally holds
+back for a bounded deference window. Default- and better-priority waiters (`priority=10`
+or lower) never defer. The window is `min((priority - 10) * 3, 60)` seconds by default
+and is configurable through [`runner_slots`](configuration.md#runner_slots). Deference
+is not priority aging or preemption, and a steady stream of fitting higher-priority
+arrivals can still starve lower-priority work.
 
-A modern `/sase_questions` handoff ends the asking agent and creates a processless
-`QUESTION` gate shell. Answering launches the next ordinary family member under the
-serial-family admission exemption, so it does not enter the runner queue. Legacy
-in-flight question runs that use `pending_question.json` instead yield and reacquire
-within their original process; their original `%queue(runners=N)` threshold governed
-initial admission and is not reapplied, while authored `priority=N` is retained.
-
-This temporary question pause does not make `%queue(runners=0)` exclusive. A
-drain-barrier launch may enter during the pause, and other work may still enter after
-that barrier is admitted whenever its own threshold permits. A modern question successor
-can then start under the serial-family exemption even while that work occupies capacity.
+A standalone agent owns one claim of its effective weight. A live serial family shares
+one claim across its agent, monitor, and serial successor shells; serial continuations
+inherit the family weight when their prompt omits one, and must reacquire capacity after
+the family releases its claim. Independently launched clan members and live parallel
+family members each hold their own claim. Processless gates and modern question shells
+hold zero capacity while waiting for a human, and their follow-up work must either
+transfer a live claim or re-enter admission. Workflow Python/bash steps and axe Patch
+runners are outside this budget.
 
 Absolute time waits cannot be combined with duration waits or with each other.
 
@@ -2691,8 +2674,8 @@ dependencies and the time floor stay on `%wait`, while the runner threshold move
 
 ```
 %wait(agent1, time=5m) %queue(runners=1)
-Wait for agent1 to finish, wait at least 5 minutes from launch, then wait until at most one other slot participant is
-running.
+Wait for agent1 to finish, wait at least 5 minutes from launch, then wait until at most one other participating lane is
+occupied and enough runner capacity is free.
 ```
 
 ## Command Substitution

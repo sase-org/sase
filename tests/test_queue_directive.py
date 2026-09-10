@@ -19,7 +19,7 @@ from sase.xprompt.queue_directive import collect_queue_fields, format_queue_dire
 
 
 ROOT = Path(__file__).resolve().parents[1]
-QUEUE_DIRECTIVE_CORE_FLOOR = (0, 32, 52)
+WEIGHTED_CAPACITY_CORE_FLOOR = (0, 32, 61)
 _CORE_FLOOR_RE = re.compile(r"^sase-core-rs>=(\d+(?:\.\d+)*),<\d+(?:\.\d+)*$")
 
 
@@ -33,7 +33,7 @@ def _declared_core_floor() -> tuple[int, ...]:
 
 
 def test_sase_core_rs_floor_is_published_queue_directive_release() -> None:
-    assert _declared_core_floor() >= QUEUE_DIRECTIVE_CORE_FLOOR
+    assert _declared_core_floor() >= WEIGHTED_CAPACITY_CORE_FLOOR
 
 
 def test_queue_adapter_collects_and_formats_through_rust() -> None:
@@ -79,29 +79,21 @@ def test_queue_adapter_collects_and_formats_through_rust() -> None:
     assert duplicate["errors"][0]["code"] == "duplicate-queue-field"
 
 
-def test_queue_weight_rejected_until_beta_flag_enabled() -> None:
-    with override_flags(weighted_queue_capacity=False):
-        with pytest.raises(DirectiveError, match="weighted_queue_capacity"):
-            extract_prompt_directives("%q(w=0.25)\nDo work")
-
-
-def test_queue_weight_extracts_when_beta_flag_enabled() -> None:
-    with override_flags(weighted_queue_capacity=True):
-        cleaned, directives = extract_prompt_directives("%q(w=0.25)\nDo work")
+def test_queue_weight_extracts_unconditionally() -> None:
+    cleaned, directives = extract_prompt_directives("%q(w=0.25)\nDo work")
 
     assert cleaned == "Do work"
     assert directives.queue_weight == 0.25
     assert directives.queue_weight_explicit is True
 
 
-def test_queue_weight_alias_duplicate_errors_when_beta_flag_enabled() -> None:
-    with override_flags(weighted_queue_capacity=True):
-        with pytest.raises(DirectiveError, match="Duplicate"):
-            extract_prompt_directives("%q(w=1, weight=1)\nDo work")
+def test_queue_weight_alias_duplicate_errors() -> None:
+    with pytest.raises(DirectiveError, match="Duplicate"):
+        extract_prompt_directives("%q(w=1, weight=1)\nDo work")
 
 
 def test_typed_launch_parses_queue_and_rebuilds_canonical_prompt() -> None:
-    with override_flags(typed_launch_units=True, weighted_queue_capacity=True):
+    with override_flags(typed_launch_units=True):
         plan = plan_typed_launch_units(
             "%w(builder, time=5m) %q(1, p=20, w=2)\nDo work",
             selected_project="sase",
@@ -117,14 +109,8 @@ def test_typed_launch_parses_queue_and_rebuilds_canonical_prompt() -> None:
     assert "%wait(runners=" not in rebuilt
 
 
-def test_typed_launch_rejects_queue_weight_when_beta_flag_disabled() -> None:
-    with override_flags(typed_launch_units=True, weighted_queue_capacity=False):
-        with pytest.raises(DirectiveError, match="weighted_queue_capacity"):
-            plan_typed_launch_units("%q(w=2)\nDo work", selected_project="sase")
-
-
 def test_typed_launch_preserves_explicit_default_weight() -> None:
-    with override_flags(typed_launch_units=True, weighted_queue_capacity=True):
+    with override_flags(typed_launch_units=True):
         plan = plan_typed_launch_units("%q(w=1.0)\nDo work", selected_project="sase")
         agent = plan.units[0].payload
         assert isinstance(agent, AgentUnitWire)

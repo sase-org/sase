@@ -571,14 +571,14 @@ the summary/body grammar in [Description Grammar](#description-grammar).
 
 #### Lumberjack Fields
 
-| Field          | Type                   | Required | Description                                                                                                                    |
-| -------------- | ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `description`  | `str`                  | yes      | Summary line, then a blank line, then an optional body (see [Description Grammar](#description-grammar))                       |
-| `interval`     | `int`                  | no       | Seconds between chop polling cycles; defaults to `1`                                                                           |
-| `chop_timeout` | `str \| null`          | no       | Default positive compound duration for chops in this lumberjack                                                                |
-| `wait_runners` | `int \| null`          | no       | Start a lane agent once at most this many other agents hold runner slots; omitting it uses the global `max_running_agents` cap |
-| `env`          | `dict[str, env-value]` | no       | Values inherited by every chop; individual chop env wins                                                                       |
-| `chops`        | list or map            | no       | Composable chop definitions                                                                                                    |
+| Field          | Type                   | Required | Description                                                                                                                        |
+| -------------- | ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `description`  | `str`                  | yes      | Summary line, then a blank line, then an optional body (see [Description Grammar](#description-grammar))                           |
+| `interval`     | `int`                  | no       | Seconds between chop polling cycles; defaults to `1`                                                                               |
+| `chop_timeout` | `str \| null`          | no       | Default positive compound duration for chops in this lumberjack                                                                    |
+| `wait_runners` | `int \| null`          | no       | Start a lane agent once at most this many other participating lanes are occupied; omitting it uses only the global capacity budget |
+| `env`          | `dict[str, env-value]` | no       | Values inherited by every chop; individual chop env wins                                                                           |
+| `chops`        | list or map            | no       | Composable chop definitions                                                                                                        |
 
 `wait_runners` applies only to agents emitted through a script chop's
 `proposed_launches`; it does not gate mentor, hook, or CRS workflow launchers. When a
@@ -969,11 +969,11 @@ Policy is runner-owned and evaluated before the script:
   The legacy `changespec` guard key remains accepted as an alias.
   `agent_clan.name_prefix` matches canonical clan metadata on active agents only; dotted
   agent names are not treated as clans. `agent_runners.max` defaults to `0` and inhibits
-  while more than that many agents hold runner slots, matching the population counted by
-  `%queue(runners=N)` and the ACE runner-capacity chip. A `STARTING` agent has not yet
-  been admitted and does not count; an agent parked on a question has yielded its slot
-  and does not count. A match records a visible `skipped` run naming the guard and
-  matching agent.
+  while more than that many participating lanes are occupied, matching the population
+  counted by `%queue(runners=N)`. Weighted runner capacity is tracked separately by the
+  host-wide capacity budget. A `STARTING` agent has not yet been admitted and does not
+  count; an agent parked on a question has yielded capacity and does not count. A match
+  records a visible `skipped` run naming the guard and matching agent.
 - `trigger` defaults to `always`. `git.commits_since` observes a project repository,
   fires when its threshold is met, and owns its checkpoint under the chop's state
   directory. A missing checkpoint fires once so a new chop is not silently inert.
@@ -1006,8 +1006,8 @@ Policy is runner-owned and evaluated before the script:
   `run_every` and trigger thresholds.
 
 Manual CLI/TUI runs bypass configured triggers because the operator explicitly requested
-a run, but still honor guards. With `agent_runners`, a manual run while agents hold
-runner slots skips unless `-f/--force` is passed to bypass both for that run.
+a run, but still honor guards. With `agent_runners`, a manual run while participating
+lanes are occupied skips unless `-f/--force` is passed to bypass both for that run.
 
 Once-per filtering keeps proposal chains connected. If a surviving proposal's `wait_on`
 points to a duplicate, AXE follows the skipped proposal's own dependency until it
@@ -1266,10 +1266,10 @@ missing or already terminal are garbage-collected during the housekeeping pass.
 
 ## Concurrency Management
 
-Axe uses a cross-process runner pool to enforce global concurrency limits. The
+Axe uses a cross-process runner pool to enforce global runner-capacity limits. The
 `SharedRunnerPool` uses `fcntl.flock` on a shared file
-(`~/.sase/axe/shared/runner_count`) to coordinate runner slots across all lumberjack
-processes atomically.
+(`~/.sase/axe/shared/runner_count`) to coordinate capacity claims and participating-lane
+counts across all lumberjack processes atomically.
 
 Hook runners and agent runners have separate limits (`max_hook_runners` and
 `max_agent_runners`), allowing fine-grained control over background resource usage.

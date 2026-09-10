@@ -1736,11 +1736,11 @@ setting, or bucket. Builtin aliases have fixed descriptions, custom aliases read
 member, its current availability, and the current selection, and each of the three
 scalar launch-model-setting rows shows its configured/shipped target, resolved
 provider/model, and provenance. The title shows the launch-effective default effort and
-current effective `max_running_agents` cap — occupied runner slots against the host
-ceiling, where a serial family still counts as one while any of its shells is live,
-including a monitor and its `--next` agent. Active temporary values include their
-remaining time and configured provenance. Non-pool aliases that explicitly carry an
-effort explain its provenance on the second description line.
+current effective `max_running_agents` capacity budget — occupied capacity units against
+the host ceiling, where a serial family still carries one live claim while any of its
+shells is live, including a monitor and its `--next` agent. Active temporary values
+include their remaining time and configured provenance. Non-pool aliases that explicitly
+carry an effort explain its provenance on the second description line.
 
 Overrides are independent **per-alias** for the five size aliases and any custom alias,
 and independent **per-setting** for the three scalar launch-model settings (namespaced

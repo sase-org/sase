@@ -118,12 +118,8 @@ def extract_prompt_directives(
     wait_priority: int | None = None
     queue_weight: float | None = None
     if collected.queue_occurrences:
-        from sase.xprompt.queue_directive import (
-            collect_queue_fields,
-            reject_queue_weight_when_disabled,
-        )
+        from sase.xprompt.queue_directive import collect_queue_fields
 
-        reject_queue_weight_when_disabled(collected.queue_occurrences)
         queue_payload = collect_queue_fields(collected.queue_occurrences)
         queue_errors = queue_payload.get("errors")
         if isinstance(queue_errors, list) and queue_errors:

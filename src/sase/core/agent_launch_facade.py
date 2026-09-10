@@ -185,7 +185,6 @@ def plan_typed_launch_units(
     from sase.xprompt.code_value import reject_disabled_code_directives
 
     reject_disabled_code_directives(prompt)
-    _reject_queue_weight_when_disabled(prompt)
     resolved_prompt = resolve_agent_name_key_markers([prompt])[0]
     from sase.xprompt.queue_directive import launch_feature_flag_keys
 
@@ -197,23 +196,6 @@ def plan_typed_launch_units(
         launch_feature_flag_keys(),
     )
     return launch_plan_from_dict(dict(payload))
-
-
-def _reject_queue_weight_when_disabled(prompt: str) -> None:
-    """Reject raw `%queue` weight fields before typed launch planning."""
-    if "%" not in prompt:
-        return
-
-    from sase.xprompt._directive_collect import collect_queue_directive_occurrences
-    from sase.xprompt._disabled_regions import protect_disabled_regions
-    from sase.xprompt._fenced_blocks import protect_fenced_blocks
-    from sase.xprompt.queue_directive import reject_queue_weight_when_disabled
-
-    fenced_blocks: list[str] = []
-    protected = protect_fenced_blocks(prompt, fenced_blocks)
-    disabled_regions: list[str] = []
-    protected = protect_disabled_regions(protected, disabled_regions)
-    reject_queue_weight_when_disabled(collect_queue_directive_occurrences(protected))
 
 
 def reconcile_admission_journal(

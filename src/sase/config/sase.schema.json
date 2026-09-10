@@ -3965,7 +3965,7 @@
     },
     "max_running_agents": {
       "type": "integer",
-      "description": "Maximum number of slot-participating user agents that may be running concurrently across all projects: top-level user agents and eligible parallel family members; serial follow-ups, workflow Python/bash steps, and axe runners are excluded.",
+      "description": "Host-wide runner-capacity budget. Normal launches claim 1.0 capacity unit; %queue(weight=...) / %q(w=...) may request positive fractional or larger weights. Serial families share one live claim, while independent clan members and parallel family members each hold their own claim.",
       "minimum": 1,
       "default": 10
     },
@@ -4325,11 +4325,6 @@
         "typed_launch_units": {
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",
-          "default": false
-        },
-        "weighted_queue_capacity": {
-          "type": "boolean",
-          "description": "Beta gate for weighted %queue capacity launch plumbing.",
           "default": false
         }
       }

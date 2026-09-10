@@ -28,7 +28,6 @@ class FeatureFlag(StrEnum):
     ref_sync_gesture = "ref_sync_gesture"
     link_events = "link_events"
     typed_launch_units = "typed_launch_units"
-    weighted_queue_capacity = "weighted_queue_capacity"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -92,12 +91,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         kind="beta",
         description="Beta gate for typed launch units, %if, and %proc.",
         bead="sase-s7",
-    ),
-    FeatureFlag.weighted_queue_capacity: FeatureFlagDefinition(
-        key=FeatureFlag.weighted_queue_capacity,
-        kind="beta",
-        description="Beta gate for weighted %queue capacity launch plumbing.",
-        bead="sase-z5",
     ),
 }
 
