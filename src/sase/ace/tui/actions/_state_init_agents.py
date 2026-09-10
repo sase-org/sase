@@ -51,6 +51,9 @@ def init_agent_state(self: Any) -> None:
     self._agents_fleet_loading = False
     self._agents_fleet_available = False
     self._agents_fleet_last_error = None
+    self._fleet_attention_inventory_refresh_running = False
+    self._fleet_attention_inventory_refresh_pending = False
+    self._fleet_attention_inventory_last_error = None
     self._agent_runner_capacity = RunnerCapacitySnapshot()
     self._agents_loading = False
     self._agents_refresh_pending = False

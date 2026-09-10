@@ -312,6 +312,11 @@ class _AttentionHarness(RemoteAttentionMixin):
         self._agents = [agent]
         self.screens: list[tuple[object, object]] = []
         self.notifications: list[str] = []
+        self._fleet_attention_inventory_refresh_running = False
+        self._fleet_attention_inventory_refresh_pending = False
+        self._fleet_attention_inventory_last_error = None
+        self._dirty_notifications = False
+        self.notification_snapshot_refreshes = 0
 
     def _get_selected_agent(self) -> Agent:
         return self._agents[0]
@@ -327,6 +332,9 @@ class _AttentionHarness(RemoteAttentionMixin):
 
     def notify(self, message: str, severity: str | None = None) -> None:
         self.notifications.append(message)
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self.notification_snapshot_refreshes += 1
 
 
 def _remote_agent_with_pending_question() -> Agent:
@@ -374,3 +382,28 @@ def test_footer_shows_shared_remote_row_actions() -> None:
     assert (footer._kd("accept_proposal"), "answer") in bindings
     assert (footer._kd("rename_cl"), "name") not in bindings
     assert (footer._kd("open_tmux"), "tmux (primary)") not in bindings
+
+
+@pytest.mark.asyncio
+async def test_attention_inventory_poll_marks_notifications_dirty_on_change(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.agents import _remote_attention as remote_attention
+
+    harness = _AttentionHarness(_remote_agent())
+    monkeypatch.setattr(
+        remote_attention,
+        "fetch_remote_attention_inventory",
+        lambda **_kwargs: {"schema_version": 1, "hosts": []},
+    )
+    monkeypatch.setattr(
+        remote_attention,
+        "reconcile_remote_attention_inbox",
+        lambda _response: SimpleNamespace(changed=True),
+    )
+
+    changed = await harness._poll_fleet_attention_inventory(source="auto_refresh")
+
+    assert changed is True
+    assert harness._dirty_notifications is True
+    assert harness.notification_snapshot_refreshes == 1

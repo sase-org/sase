@@ -143,6 +143,7 @@ class AgentNotificationModalMixin:
         from sase.notifications import mark_read
 
         from ._notification_actions import (
+            REMOTE_ATTENTION_NOTIFICATION_ACTION,
             handle_custom_gate,
             handle_hitl,
             handle_jump_to_agent,
@@ -151,6 +152,7 @@ class AgentNotificationModalMixin:
             handle_launch_approval,
             handle_open_launch_control,
             handle_plan_approval,
+            handle_remote_attention_notification,
             handle_tmux,
             handle_user_question,
             handle_view_error_report,
@@ -160,11 +162,14 @@ class AgentNotificationModalMixin:
 
         page = self._read_unread_notification_page_from_provider()
         unread = list(page.notifications)
+        read_protected_actions = (PRIVILEGED_GATE_ACTIONS - {"HITL"}) | {
+            REMOTE_ATTENTION_NOTIFICATION_ACTION
+        }
 
         def _on_dismiss(result: Notification | None) -> None:
             if result is not None:
                 # PlanApproval/UserQuestion must stay unread until response.
-                if result.action not in PRIVILEGED_GATE_ACTIONS - {"HITL"}:
+                if result.action not in read_protected_actions:
                     mark_read(result.id)
 
             self._refresh_notification_count()
@@ -195,6 +200,8 @@ class AgentNotificationModalMixin:
                 handle_user_question(self, result)
             elif result.action == "LaunchApproval":
                 handle_launch_approval(self, result)
+            elif result.action == REMOTE_ATTENTION_NOTIFICATION_ACTION:
+                handle_remote_attention_notification(self, result)
             elif gate_adapter is not None and gate_adapter.generic_form:
                 handle_custom_gate(self, result)
             elif result.action == "ViewErrorReport":

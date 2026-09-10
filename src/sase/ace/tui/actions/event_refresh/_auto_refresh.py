@@ -287,10 +287,24 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         # the watcher is inactive, otherwise wait for inotify to set
         # the dirty flag or the sanity-refresh window to elapse.
         new_agent_notification = False
-        if _should_refresh("_dirty_notifications", "notifications"):
+        remote_attention_changed = False
+        poll_attention_inventory = getattr(
+            self, "_poll_fleet_attention_inventory", None
+        )
+        if callable(poll_attention_inventory):
+            remote_attention_changed = bool(
+                await poll_attention_inventory(source="auto_refresh")
+            )
+        if remote_attention_changed or _should_refresh(
+            "_dirty_notifications", "notifications"
+        ):
             new_agent_notification = bool(
                 await self._poll_agent_completions()  # type: ignore[attr-defined]
             )
+            if remote_attention_changed and not getattr(
+                self, "_last_new_completion_notifications", None
+            ):
+                new_agent_notification = False
             self._dirty_notifications = False
             self._accept_surface_token("notifications", current_tokens)
             reloaded.append("notifications")

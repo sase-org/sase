@@ -7,6 +7,12 @@ import logging
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
+from sase.dispatch.attention_inbox import (
+    REMOTE_ATTENTION_NOTIFICATION_ACTION,
+    fetch_remote_attention_inventory,
+    reconcile_remote_attention_inbox,
+    remote_attention_from_notification,
+)
 from sase.dispatch.attention_notices import decide_and_persist_attention_notices
 
 from ...util.pump_tasks import spawn_pump_free_task
@@ -37,8 +43,63 @@ def has_pending_remote_attention(agent: Agent | None) -> bool:
     return bool(capability and remote_capability_enabled(agent, capability))  # type: ignore[arg-type]
 
 
+def handle_remote_attention_notification(app: Any, notification: Any) -> bool:
+    """Open a remote attention notification in the reusable answer modal."""
+    opener = getattr(app, "_open_remote_attention_notification", None)
+    if not callable(opener):
+        return False
+    return bool(opener(notification))
+
+
 class RemoteAttentionMixin:
     """Toast dedupe for pending remote attention and the answer/approve action."""
+
+    async def _poll_fleet_attention_inventory(self, *, source: str) -> bool:
+        """Reconcile global remote attention into the durable inbox.
+
+        This is intentionally independent of the Agents tab and followed-row
+        projection. It stays cheap for zero-machine configs because the
+        dispatch helper returns the disabled read shape before building a
+        federation worker facade.
+        """
+        del source
+        if getattr(self, "_fleet_attention_inventory_refresh_running", False):
+            self._fleet_attention_inventory_refresh_pending = True  # type: ignore[attr-defined]
+            return False
+        self._fleet_attention_inventory_refresh_running = True  # type: ignore[attr-defined]
+        saw_change = False
+        try:
+            while True:
+                self._fleet_attention_inventory_refresh_pending = False  # type: ignore[attr-defined]
+                try:
+                    response = await asyncio.to_thread(
+                        fetch_remote_attention_inventory,
+                        cache_only=False,
+                    )
+                    outcome = await asyncio.to_thread(
+                        reconcile_remote_attention_inbox,
+                        response,
+                    )
+                except Exception as exc:
+                    self._fleet_attention_inventory_last_error = str(exc)  # type: ignore[attr-defined]
+                    log.debug("remote attention inventory poll failed", exc_info=True)
+                    break
+                self._fleet_attention_inventory_last_error = None  # type: ignore[assignment,attr-defined]
+                if outcome.changed:
+                    saw_change = True
+                    self._dirty_notifications = True  # type: ignore[attr-defined]
+                    schedule = getattr(
+                        self, "_schedule_notification_snapshot_refresh", None
+                    )
+                    if callable(schedule):
+                        schedule()
+                if not getattr(
+                    self, "_fleet_attention_inventory_refresh_pending", False
+                ):
+                    break
+        finally:
+            self._fleet_attention_inventory_refresh_running = False  # type: ignore[attr-defined]
+        return saw_change
 
     def _announce_remote_attention(self, projection: FleetRowsProjection) -> None:
         pending = _pending_attention_rows(projection)
@@ -116,9 +177,33 @@ class RemoteAttentionMixin:
             _on_dismiss,
         )
 
+    def _open_remote_attention_notification(self, notification: Any) -> bool:
+        """Open a remote-attention notification with the existing answer modal."""
+        payload = remote_attention_from_notification(notification)
+        if payload is None:
+            self.notify(  # type: ignore[attr-defined]
+                "Remote attention notification is missing its request payload",
+                severity="warning",
+            )
+            return False
+        alias, attention = payload
+
+        from ...modals.remote_attention_modal import RemoteAttentionModal
+
+        def _on_dismiss(intent: dict[str, Any] | None) -> None:
+            if not intent:
+                return
+            self._submit_remote_attention_answer(None, alias, attention, intent)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            RemoteAttentionModal(alias=alias, entry=attention),
+            _on_dismiss,
+        )
+        return True
+
     def _submit_remote_attention_answer(
         self,
-        agent: Agent,
+        agent: Agent | None,
         alias: str,
         attention: Mapping[str, Any],
         intent: Mapping[str, Any],
@@ -160,14 +245,15 @@ class RemoteAttentionMixin:
             {key: value for key, value in intent.items() if key != "kind"}
         )
         label = "answering" if kind == "question" else "approving"
-        live = self._agent_by_identity(agent.identity) or agent  # type: ignore[attr-defined]
-        live.status = label
-        overrides = getattr(self, "_agent_status_overrides", None)
-        if isinstance(overrides, dict):
-            overrides[live.identity] = label
-        refilter = getattr(self, "_refilter_agents", None)
-        if callable(refilter):
-            refilter()
+        if agent is not None:
+            live = self._agent_by_identity(agent.identity) or agent  # type: ignore[attr-defined]
+            live.status = label
+            overrides = getattr(self, "_agent_status_overrides", None)
+            if isinstance(overrides, dict):
+                overrides[live.identity] = label
+            refilter = getattr(self, "_refilter_agents", None)
+            if callable(refilter):
+                refilter()
         submitted = submit_machine_attention_action(
             self,
             kind="approve" if kind == "gate" else "answer",
@@ -198,6 +284,16 @@ class RemoteAttentionMixin:
                 if status in {"answering", "approving"}:
                     overrides.pop(identity, None)
         self._schedule_agents_fleet_refresh(source="remote_attention", force=True)  # type: ignore[attr-defined]
+        poll_inventory = getattr(self, "_poll_fleet_attention_inventory", None)
+        if callable(poll_inventory):
+            task = spawn_pump_free_task(
+                self,
+                poll_inventory(source="remote_attention"),
+                name="sase-agents-fleet-attention-inventory",
+                registry_attr="_agents_fleet_async_tasks",
+            )
+            if task is None:
+                self._dirty_notifications = True  # type: ignore[attr-defined]
 
 
 def _request_id(entry: Mapping[str, Any]) -> str | None:
@@ -226,6 +322,8 @@ def _pending_attention_rows(
 
 
 __all__ = [
+    "REMOTE_ATTENTION_NOTIFICATION_ACTION",
     "RemoteAttentionMixin",
+    "handle_remote_attention_notification",
     "has_pending_remote_attention",
 ]

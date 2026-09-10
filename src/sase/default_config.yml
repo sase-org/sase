@@ -253,6 +253,9 @@ ace:
     hitl:
       color: "#FF8700"
       icon: "⚑"
+    attention:
+      color: "#87D7FF"
+      icon: "?"
     errors:
       color: "#FF5F5F"
       icon: "✖"

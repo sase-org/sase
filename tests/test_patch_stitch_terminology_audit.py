@@ -108,6 +108,18 @@ def test_classifier_accepts_sase_core_stable_mobile_wire_name() -> None:
     assert rule == "external_legacy_boundary"
 
 
+def test_classifier_accepts_sase_core_patch_record_migration_headers() -> None:
+    classification, rule, _reason = _classify_candidate(
+        "sase-core",
+        "crates/sase_core/src/migration/patch_records.rs",
+        'if is_named_header(line, "ChangeSpec") {',
+        "ChangeSpec",
+    )
+
+    assert classification == "legacy-compatibility-boundary"
+    assert rule == "external_legacy_boundary"
+
+
 def test_classifier_accepts_core_lazy_facade_legacy_public_export() -> None:
     classification, rule, _reason = _classify_candidate(
         "main",

@@ -195,6 +195,24 @@ async def test_watcher_active_dirty_notifications_polls_completions() -> None:
 
 
 @pytest.mark.asyncio
+async def test_remote_attention_inventory_change_polls_notifications_off_tab() -> None:
+    """Global remote decisions update the badge without entering Agents."""
+    app = _FakeApp(watcher_active=True)
+    app.current_tab = "artifacts"
+
+    async def poll_attention_inventory(*, source: str) -> bool:
+        app.refresh_calls.append(f"attention:{source}")
+        return True
+
+    app._poll_fleet_attention_inventory = poll_attention_inventory  # type: ignore[attr-defined]
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["attention:auto_refresh", "notifications"]
+    assert app._dirty_notifications is False
+
+
+@pytest.mark.asyncio
 async def test_new_notification_schedules_agents_refresh_on_agents_tab() -> None:
     """Notification-triggered agent refreshes go through the debounce entry point."""
     app = _FakeApp(watcher_active=True)

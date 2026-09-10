@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from sase.dispatch.attention_inbox import REMOTE_ATTENTION_NOTIFICATION_ACTION
 from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
 
 from .confirm_action_modal import ConfirmActionModal
 from .confirm_dialog import ConfirmKind
 from .notification_modal_action_types import NotificationMutationResult
 from .notification_modal_tags import modal_tag_to_core_key
+
+_CONFIRM_DISMISS_ACTIONS = PRIVILEGED_GATE_ACTIONS | {
+    REMOTE_ATTENTION_NOTIFICATION_ACTION
+}
 
 
 class NotificationBasicActionsMixin:
@@ -29,7 +34,7 @@ class NotificationBasicActionsMixin:
 
         notification = self._notifications[idx]
 
-        if notification.action in PRIVILEGED_GATE_ACTIONS:
+        if notification.action in _CONFIRM_DISMISS_ACTIONS:
             self._pending_confirm_notification_id = notification.id
             self.notify("Dismiss pending action notification? (y/n)")
             return
@@ -47,7 +52,7 @@ class NotificationBasicActionsMixin:
             return
 
         needs_confirm = any(
-            n.action in PRIVILEGED_GATE_ACTIONS
+            n.action in _CONFIRM_DISMISS_ACTIONS
             for n in self._notifications
             if n.id in self._marked_notification_ids
         )

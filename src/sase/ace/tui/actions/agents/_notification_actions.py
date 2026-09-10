@@ -21,6 +21,10 @@ from ._notification_modals import (
     open_user_question_modal_from_marker as open_user_question_modal_from_marker,
     persist_plan_approved as persist_plan_approved,
 )
+from ._remote_attention import (
+    REMOTE_ATTENTION_NOTIFICATION_ACTION as REMOTE_ATTENTION_NOTIFICATION_ACTION,
+    handle_remote_attention_notification as handle_remote_attention_notification,
+)
 from ._notification_navigation import (
     find_agent_for_notification as find_agent_for_notification,
     get_meta_changespec_name as get_meta_changespec_name,  # legacy compatibility alias
@@ -42,6 +46,7 @@ __all__ = [
     "handle_launch_approval",
     "handle_open_launch_control",
     "handle_plan_approval",
+    "handle_remote_attention_notification",
     "handle_tmux",
     "handle_user_question",
     "handle_view_error_report",
@@ -51,4 +56,5 @@ __all__ = [
     "navigate_to_changespec_tab",  # legacy compatibility alias
     "open_user_question_modal_from_marker",
     "persist_plan_approved",
+    "REMOTE_ATTENTION_NOTIFICATION_ACTION",
 ]

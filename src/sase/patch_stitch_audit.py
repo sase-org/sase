@@ -85,6 +85,12 @@ _STABLE_PUBLIC_REFERENCE_RE = re.compile(
     re.IGNORECASE,
 )
 
+_SASE_CORE_MIGRATION_COMPATIBILITY_PATHS = frozenset(
+    {
+        "crates/sase_core/src/migration/patch_records.rs",
+    }
+)
+
 
 @dataclass(frozen=True, slots=True)
 class _RepoSpec:
@@ -380,6 +386,8 @@ def _is_external_legacy_boundary(
     if _mentions_retained_public_marker(line):
         return True
     if repo == "sase-core":
+        if path in _SASE_CORE_MIGRATION_COMPATIBILITY_PATHS:
+            return True
         return _line_contains(
             line,
             "CHANGESPEC_WIRE_SCHEMA_VERSION",

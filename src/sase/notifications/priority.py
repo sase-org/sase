@@ -20,6 +20,7 @@ _PRIORITY_ACTIONS = frozenset(
         "BeadStaleCleanup",
         "PluginsRequired",
         "JumpToMentorReview",
+        "RemoteAttention",
     }
 )
 _PRIORITY_SENDERS = frozenset({"axe", "crs"})

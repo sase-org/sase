@@ -57,6 +57,7 @@ _GROUPING_PATTERN = re.compile(r"[a-z][a-z0-9_]*")
 # normally wins, and these keep the indicator styled if that block is emptied.
 _BUILTIN_TAB_COLORS = {
     "hitl": "#FF8700",
+    "attention": "#87D7FF",
     "errors": "#FF5F5F",
     "beads": "#AF87FF",
     GENERAL_TAB_KEY: "#FFD700",
@@ -69,6 +70,7 @@ _BUILTIN_TAB_COLORS = {
 # colors above do. Every glyph is single-cell so the top bar stays dense.
 _BUILTIN_TAB_ICONS = {
     "hitl": "⚑",
+    "attention": "?",
     "errors": "✖",
     "beads": "◈",
     GENERAL_TAB_KEY: "✉",
