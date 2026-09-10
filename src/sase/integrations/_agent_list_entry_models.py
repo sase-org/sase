@@ -26,6 +26,10 @@ class AgentWaitInfo:
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
     wait_priority: int | None = None
+    queue_weight: float | None = None
+    queue_weight_explicit: bool = False
+    queue_weight_invalid: bool = False
+    queue_weight_error: str | None = None
     slot_requested_at: str | None = None
     runner_slots_in_use: int | None = None
     # Display rank and total across every live runner-slot waiter. Capacity-
@@ -43,6 +47,8 @@ class AgentWaitInfo:
             or self.wait_duration_seconds is not None
             or self.wait_until
             or self.remaining_seconds is not None
+            or self.queue_weight_explicit
+            or self.queue_weight_invalid
             or self.slot_requested_at
         )
 

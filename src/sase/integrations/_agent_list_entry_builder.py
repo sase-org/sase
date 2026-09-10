@@ -365,6 +365,17 @@ def _wait_info(
         if meta is not None
         else None
     )
+    queue_weight = meta.queue_weight if meta is not None else None
+    queue_weight_explicit = meta.queue_weight_explicit if meta is not None else False
+    queue_weight_invalid = meta.queue_weight_invalid if meta is not None else False
+    queue_weight_error = meta.queue_weight_error if meta is not None else None
+    if waiting is not None and (
+        waiting.queue_weight is not None or waiting.queue_weight_invalid
+    ):
+        queue_weight = waiting.queue_weight
+        queue_weight_explicit = waiting.queue_weight_explicit
+        queue_weight_invalid = waiting.queue_weight_invalid
+        queue_weight_error = waiting.queue_weight_error
     return AgentWaitInfo(
         wait_for=wait_for,
         wait_for_beads=wait_for_beads,
@@ -373,11 +384,31 @@ def _wait_info(
         remaining_seconds=_remaining_wait_seconds(
             agent, wait_duration, wait_until, now
         ),
-        wait_runners=waiting.wait_runners if waiting is not None else None,
-        wait_runners_explicit=(
-            waiting.wait_runners_explicit if waiting is not None else False
+        wait_runners=(
+            waiting.wait_runners
+            if waiting is not None
+            else meta.wait_runners
+            if meta is not None
+            else None
         ),
-        wait_priority=waiting.wait_priority if waiting is not None else None,
+        wait_runners_explicit=(
+            waiting.wait_runners_explicit
+            if waiting is not None
+            else meta.wait_runners_explicit
+            if meta is not None
+            else False
+        ),
+        wait_priority=(
+            waiting.wait_priority
+            if waiting is not None
+            else meta.wait_priority
+            if meta is not None
+            else None
+        ),
+        queue_weight=queue_weight,
+        queue_weight_explicit=queue_weight_explicit,
+        queue_weight_invalid=queue_weight_invalid,
+        queue_weight_error=queue_weight_error,
         slot_requested_at=(waiting.slot_requested_at if waiting is not None else None),
     )
 

@@ -98,6 +98,10 @@ def enrich_agent_from_meta_wire(
         agent.waiting_for = list(meta.wait_for)
     if meta.wait_for_beads:
         agent.waiting_for_beads = list(meta.wait_for_beads)
+    agent.queue_weight = meta.queue_weight
+    agent.queue_weight_explicit = meta.queue_weight_explicit
+    agent.queue_weight_invalid = meta.queue_weight_invalid
+    agent.queue_weight_error = meta.queue_weight_error
     auto_action = meta.auto_approve_plan_action or None
     meta_auto_approved = agent.approve or bool(meta.approve) or bool(auto_action)
     apply_meta_approve = not workflow_child or is_main_workflow_agent_step(agent)
@@ -229,12 +233,24 @@ def enrich_agent_from_meta_wire(
             waiting.wait_priority is not None
             and waiting.wait_priority != DEFAULT_WAIT_PRIORITY
         )
+        if waiting.queue_weight is not None or waiting.queue_weight_invalid:
+            agent.queue_weight = waiting.queue_weight
+            agent.queue_weight_explicit = waiting.queue_weight_explicit
+            agent.queue_weight_invalid = waiting.queue_weight_invalid
+            agent.queue_weight_error = waiting.queue_weight_error
         agent.slot_requested_at = waiting.slot_requested_at
 
     if agent.wait_duration is None and meta.wait_duration is not None:
         agent.wait_duration = meta.wait_duration
     if agent.wait_until is None and meta.wait_until:
         agent.wait_until = meta.wait_until
+    if (
+        agent.wait_runners is None
+        and type(meta.wait_runners) is int
+        and meta.wait_runners >= 0
+    ):
+        agent.wait_runners = meta.wait_runners
+        agent.wait_runners_explicit = True
     if (
         agent.wait_priority is None
         and type(meta.wait_priority) is int

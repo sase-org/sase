@@ -187,6 +187,8 @@ def _admit_and_launch(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None
         bootstrap.agent_meta,
         wait_runners=bootstrap.info.wait_runners,
         wait_priority=bootstrap.info.wait_priority,
+        queue_weight=bootstrap.info.queue_weight,
+        queue_weight_explicit=bootstrap.info.queue_weight_explicit,
         claim=lambda: record_run_started_at(state.artifacts_dir, bootstrap.agent_meta),
     )
 

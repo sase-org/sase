@@ -185,6 +185,9 @@ def create_followup_artifacts(
     ):
         if base_meta.get(key):
             followup_meta[key] = base_meta[key]
+    for key in ("queue_weight", "queue_weight_explicit"):
+        if key in base_meta:
+            followup_meta[key] = base_meta[key]
     if agent_name_override is not None:
         followup_meta["name"] = agent_name_override
     if workflow_name is not None:

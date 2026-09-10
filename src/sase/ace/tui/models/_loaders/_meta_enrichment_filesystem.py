@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
@@ -33,6 +34,45 @@ from ._meta_enrichment_common import (
     valid_meta_tribe,
 )
 from ..agent import Agent
+
+
+_QUEUE_WEIGHT_ERROR = "queue_weight must be a positive finite number"
+
+
+def _coerce_queue_weight(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    weight = float(value)
+    if not math.isfinite(weight) or weight <= 0:
+        return None
+    return weight
+
+
+def _apply_queue_weight_fields(agent: Agent, data: dict[str, object]) -> None:
+    has_weight = "queue_weight" in data
+    if has_weight:
+        weight = _coerce_queue_weight(data.get("queue_weight"))
+        agent.queue_weight = weight
+        agent.queue_weight_explicit = data.get("queue_weight_explicit") is True
+        if weight is None:
+            agent.queue_weight_invalid = True
+            raw_error = data.get("queue_weight_error")
+            agent.queue_weight_error = (
+                raw_error if isinstance(raw_error, str) and raw_error else None
+            ) or _QUEUE_WEIGHT_ERROR
+            return
+        agent.queue_weight_invalid = data.get("queue_weight_invalid") is True
+        raw_error = data.get("queue_weight_error")
+        agent.queue_weight_error = (
+            raw_error if isinstance(raw_error, str) and raw_error else None
+        )
+        return
+    if data.get("queue_weight_invalid") is True:
+        agent.queue_weight_invalid = True
+        raw_error = data.get("queue_weight_error")
+        agent.queue_weight_error = (
+            raw_error if isinstance(raw_error, str) and raw_error else None
+        ) or _QUEUE_WEIGHT_ERROR
 
 
 def enrich_agent_from_meta(
@@ -124,6 +164,7 @@ def enrich_agent_from_meta(
         agent.waiting_for = data["wait_for"]
     if data.get("wait_for_beads"):
         agent.waiting_for_beads = data["wait_for_beads"]
+    _apply_queue_weight_fields(agent, data)
     raw_auto_action = data.get("auto_approve_plan_action")
     auto_action = (
         raw_auto_action
@@ -321,6 +362,7 @@ def enrich_agent_from_meta(
                         and raw_priority >= 0
                         and raw_priority != DEFAULT_WAIT_PRIORITY
                     )
+                _apply_queue_weight_fields(agent, waiting_data)
                 raw_requested_at = waiting_data.get("slot_requested_at")
                 if isinstance(raw_requested_at, str) and raw_requested_at:
                     agent.slot_requested_at = raw_requested_at
@@ -344,6 +386,11 @@ def enrich_agent_from_meta(
 
     # Fallback: an authored runner-slot priority remains useful after the
     # live waiting marker has been removed or before it has been published.
+    if agent.wait_runners is None:
+        raw_runners = data.get("wait_runners")
+        if type(raw_runners) is int and raw_runners >= 0:
+            agent.wait_runners = raw_runners
+            agent.wait_runners_explicit = True
     if agent.wait_priority is None:
         raw_priority = data.get("wait_priority")
         if type(raw_priority) is int and raw_priority >= 0:

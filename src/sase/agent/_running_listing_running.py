@@ -166,6 +166,10 @@ def running_info_from_running_record(
         monitor_stop_status=recorded_monitor_status(
             monitor_shell_field(meta, "stop_status")
         ),
+        queue_weight=meta.queue_weight,
+        queue_weight_explicit=meta.queue_weight_explicit,
+        queue_weight_invalid=meta.queue_weight_invalid,
+        queue_weight_error=meta.queue_weight_error,
     )
 
 

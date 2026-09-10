@@ -180,7 +180,13 @@ class AgentMetaWire:
     wait_for_beads: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
+    wait_runners: int | None = None
+    wait_runners_explicit: bool = False
     wait_priority: int | None = None
+    queue_weight: float | None = None
+    queue_weight_explicit: bool = False
+    queue_weight_invalid: bool = False
+    queue_weight_error: str | None = None
     wait_completed_at: str | None = None
     plan_submitted_at: list[str] = field(default_factory=list)
     epic_started_at: str | None = None
@@ -239,6 +245,10 @@ class WaitingMarkerWire:
     wait_runners_explicit: bool = False
     wait_priority: int | None = None
     wait_priority_explicit: bool = False
+    queue_weight: float | None = None
+    queue_weight_explicit: bool = False
+    queue_weight_invalid: bool = False
+    queue_weight_error: str | None = None
     slot_requested_at: str | None = None
 
 

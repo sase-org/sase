@@ -150,6 +150,10 @@ class PromptDirectives:
             %queue(runners=...) keyword.
         wait_priority: Runner-slot queue priority from the
             %queue(priority=...) keyword. Lower values start first.
+        queue_weight: Runner-slot capacity weight from the %queue(weight=...)
+            keyword, or None when omitted.
+        queue_weight_explicit: Whether `queue_weight` came from an authored
+            directive rather than the default effective capacity weight.
         if_code: Structured `%if::` fence body when typed launch units are on.
         proc_code: Structured `%proc` body when typed launch units are on.
         proc_options: Optional `%proc` kwargs (timeout, cwd, workspace, label).
@@ -199,6 +203,8 @@ class PromptDirectives:
     wait_until: str | None = None
     wait_runners: int | None = None
     wait_priority: int | None = None
+    queue_weight: float | None = None
+    queue_weight_explicit: bool = False
     dispatch: str | None = None
     final: list[str] = field(default_factory=list)
     if_code: CodeValue | None = None

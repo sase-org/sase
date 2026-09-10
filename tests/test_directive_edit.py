@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.feature_flags import override_flags
 from sase.xprompt.directive_edit import (
     PromptWaitDirective,
     demote_prompt_clan_declaration,
@@ -417,6 +418,49 @@ def test_set_prompt_queue_preserves_existing_wait() -> None:
     assert directives.wait == ["dep"]
     assert directives.wait_runners == 3
     assert directives.wait_priority == 1
+
+
+def test_set_prompt_wait_and_queue_preserves_existing_weight() -> None:
+    with override_flags(weighted_queue_capacity=True):
+        rewritten = set_prompt_wait_and_queue(
+            "%queue(weight=0.25)\n%wait:old\nDo work",
+            PromptWaitDirective(agents=("dep",), priority=20),
+        )
+        _, directives = extract_prompt_directives(rewritten)
+
+    assert rewritten == "%wait(dep)\n%queue(priority=20, weight=0.25)\nDo work"
+    assert directives.wait == ["dep"]
+    assert directives.wait_priority == 20
+    assert directives.queue_weight == 0.25
+    assert directives.queue_weight_explicit is True
+
+
+def test_set_prompt_wait_and_queue_clear_preserves_weight_only_queue() -> None:
+    with override_flags(weighted_queue_capacity=True):
+        rewritten = set_prompt_wait_and_queue("%q(w=2)\n%wait:old\nDo work", None)
+        _, directives = extract_prompt_directives(rewritten)
+
+    assert rewritten == "%queue(weight=2)\nDo work"
+    assert directives.wait == []
+    assert directives.queue_weight == 2.0
+    assert directives.queue_weight_explicit is True
+
+
+def test_set_prompt_queue_preserves_existing_weight() -> None:
+    with override_flags(weighted_queue_capacity=True):
+        rewritten = set_prompt_queue(
+            "%wait(dep)\n%q(w=1.0)\nDo work",
+            runners=3,
+            priority=1,
+        )
+        _, directives = extract_prompt_directives(rewritten)
+
+    assert rewritten == "%queue(runners=3, priority=1, weight=1)\n%wait(dep)\nDo work"
+    assert directives.wait == ["dep"]
+    assert directives.wait_runners == 3
+    assert directives.wait_priority == 1
+    assert directives.queue_weight == 1.0
+    assert directives.queue_weight_explicit is True
 
 
 def test_insert_after_frontmatter() -> None:

@@ -52,6 +52,10 @@ class RunningAgentInfo:
     monitor_exit_code: int | None = None
     monitor_start_status: str | None = None
     monitor_stop_status: str | None = None
+    queue_weight: float | None = None
+    queue_weight_explicit: bool = False
+    queue_weight_invalid: bool = False
+    queue_weight_error: str | None = None
 
     @property
     def is_monitor(self) -> bool:

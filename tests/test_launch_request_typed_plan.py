@@ -83,14 +83,15 @@ def test_old_request_without_typed_plan_uses_compat_dispatch(
 
 def test_typed_dispatch_result_includes_summary(tmp_path: Path) -> None:
     pytest.importorskip("sase_core_rs")
-    with override_flags(typed_launch_units=True):
-        plan = plan_typed_launch_units("Do work", selected_project="sase")
+    prompt = "%q(w=0.25)\nDo work"
+    with override_flags(typed_launch_units=True, weighted_queue_capacity=True):
+        plan = plan_typed_launch_units(prompt, selected_project="sase")
     response_dir = tmp_path / "bundle"
     response_dir.mkdir()
     data = {
         "request_id": "typed-1",
         "typed_plan": agent_launch_wire_to_json_dict(plan),
-        "dispatch": {"cwd": str(tmp_path), "prompt": "Do work"},
+        "dispatch": {"cwd": str(tmp_path), "prompt": prompt},
     }
     result = dispatch_typed_launch_request(
         response_dir,
@@ -111,3 +112,13 @@ def test_typed_dispatch_result_includes_summary(tmp_path: Path) -> None:
         (response_dir / "launch_admission" / "receipt.json").read_text(encoding="utf-8")
     )
     assert receipt["plan_digest"] == plan.content_digest
+    unit_receipt = json.loads(
+        (
+            response_dir
+            / "launch_admission"
+            / "units"
+            / f"{plan.units[0].logical_id}.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert unit_receipt["queue_weight"] == 0.25
+    assert unit_receipt["queue_weight_explicit"] is True

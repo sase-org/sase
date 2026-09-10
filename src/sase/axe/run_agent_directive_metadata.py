@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 import json
+import math
 import os
 from typing import Any, TYPE_CHECKING
 
@@ -31,6 +32,7 @@ EPIC_WORK_ENV_METADATA_NAMES = (
     (SASE_PHASE_BEAD_ID_ENV, "phase_bead_id"),
     (SASE_EPIC_CLAN_TRIBE_ENV, "clan_tribe"),
 )
+DEFAULT_QUEUE_WEIGHT = 1.0
 
 
 @dataclass(frozen=True)
@@ -104,6 +106,12 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
     workspace_num = existing_meta.get("workspace_num")
     if isinstance(workspace_num, int):
         preserved["workspace_num"] = workspace_num
+    queue_weight = _coerce_queue_weight(existing_meta.get("queue_weight"))
+    if queue_weight is not None:
+        preserved["queue_weight"] = queue_weight
+        preserved["queue_weight_explicit"] = (
+            existing_meta.get("queue_weight_explicit") is True
+        )
     if existing_meta.get("plan_committed") is True:
         preserved["plan_committed"] = True
     vcs_ref = existing_meta.get("vcs_ref")
@@ -214,6 +222,12 @@ def build_agent_meta(
         agent_meta["wait_runners"] = directives.wait_runners
     if directives.wait_priority is not None:
         agent_meta["wait_priority"] = directives.wait_priority
+    agent_meta["queue_weight"] = (
+        directives.queue_weight
+        if directives.queue_weight_explicit and directives.queue_weight is not None
+        else DEFAULT_QUEUE_WEIGHT
+    )
+    agent_meta["queue_weight_explicit"] = directives.queue_weight_explicit
     if inputs.model:
         agent_meta["model"] = inputs.model
     if inputs.llm_provider:
@@ -280,6 +294,15 @@ def build_agent_meta(
         )
     _qualify_agent_identity_metadata(agent_meta)
     return agent_meta
+
+
+def _coerce_queue_weight(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    weight = float(value)
+    if not math.isfinite(weight) or weight <= 0:
+        return None
+    return weight
 
 
 def _qualify_agent_identity_metadata(agent_meta: dict[str, Any]) -> None:

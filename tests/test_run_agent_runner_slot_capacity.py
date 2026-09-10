@@ -85,6 +85,8 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
             timestamp=waiter.name,
             directive_threshold=None,
             directive_priority=7,
+            directive_queue_weight=0.25,
+            directive_queue_weight_explicit=True,
             claim=claim,
         )
         assert first is None
@@ -94,6 +96,8 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
         assert marker["wait_runners_explicit"] is False
         assert marker["wait_priority"] == 7
         assert marker["wait_priority_explicit"] is True
+        assert marker["queue_weight"] == 0.25
+        assert marker["queue_weight_explicit"] is True
 
         config_cap = 2
         second, parked = run_agent_wait_slots._try_claim_runner_slot(
@@ -102,6 +106,8 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
             timestamp=waiter.name,
             directive_threshold=None,
             directive_priority=7,
+            directive_queue_weight=1.0,
+            directive_queue_weight_explicit=False,
             claim=claim,
         )
 

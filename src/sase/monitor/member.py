@@ -7,7 +7,12 @@ from typing import Any
 
 from sase.shells.member import create_family_shell_member
 
-_MONITOR_INHERITED_METADATA_FIELDS = ("agent_clan", "agent_clan_generation")
+_MONITOR_INHERITED_METADATA_FIELDS = (
+    "agent_clan",
+    "agent_clan_generation",
+    "queue_weight",
+    "queue_weight_explicit",
+)
 
 
 def create_monitor_member(

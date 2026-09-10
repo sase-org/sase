@@ -39,6 +39,8 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
                 wait_runners=0,
                 wait_runners_explicit=True,
                 wait_priority=3,
+                queue_weight=0.25,
+                queue_weight_explicit=True,
                 slot_requested_at="2026-07-12T12:00:00Z",
             ),
         ),
@@ -52,6 +54,10 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
     assert payload["wait_runners"] == 0
     assert payload["wait_runners_explicit"] is True
     assert payload["wait_priority"] == 3
+    assert payload["queue_weight"] == 0.25
+    assert payload["queue_weight_explicit"] is True
+    assert payload["queue_weight_invalid"] is False
+    assert payload["queue_weight_error"] is None
     assert payload["slot_requested_at"] == "2026-07-12T12:00:00Z"
     assert payload["runner_slots_in_use"] == 0
     assert payload["runner_slot_queue_position"] == 1

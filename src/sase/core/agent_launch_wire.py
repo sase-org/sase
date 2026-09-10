@@ -172,6 +172,8 @@ class AgentUnitWire:
     finalizers: list[str] = field(default_factory=list)
     wait_runners: int | None = None
     wait_priority: int | None = None
+    queue_weight: float | None = None
+    queue_weight_explicit: bool = False
 
 
 @dataclass(frozen=True)
@@ -283,10 +285,11 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
             "auto_mode",
             "wait_runners",
             "wait_priority",
+            "queue_weight",
         ):
             if agent_payload.get(key) is None:
                 agent_payload.pop(key, None)
-        for key in ("identity_force_reuse", "clan_declared"):
+        for key in ("identity_force_reuse", "clan_declared", "queue_weight_explicit"):
             if not agent_payload.get(key):
                 agent_payload.pop(key, None)
         return agent_launch_wire_to_json_dict(agent_payload)
@@ -561,6 +564,12 @@ def _launch_unit_payload_from_dict(
                 if data.get("wait_priority") is None
                 else int(data["wait_priority"])
             ),
+            queue_weight=(
+                None
+                if data.get("queue_weight") is None
+                else float(data["queue_weight"])
+            ),
+            queue_weight_explicit=bool(data.get("queue_weight_explicit", False)),
         )
     if kind == "proc":
         return ProcUnitWire(

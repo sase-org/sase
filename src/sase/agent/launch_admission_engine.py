@@ -200,6 +200,7 @@ class AdmissionEngine:
                     logical_id=logical_id,
                     fingerprint=fingerprint,
                     identity=identity or logical_id,
+                    unit=unit,
                 )
                 self._journal(
                     logical_id,

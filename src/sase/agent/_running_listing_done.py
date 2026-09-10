@@ -151,6 +151,12 @@ def done_info_from_record(
         monitor_stop_status=recorded_monitor_status(
             done.status_label or monitor_shell_field(meta, "stop_status")
         ),
+        queue_weight=meta.queue_weight if meta is not None else None,
+        queue_weight_explicit=(
+            meta.queue_weight_explicit if meta is not None else False
+        ),
+        queue_weight_invalid=meta.queue_weight_invalid if meta is not None else False,
+        queue_weight_error=meta.queue_weight_error if meta is not None else None,
     )
 
 

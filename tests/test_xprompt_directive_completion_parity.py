@@ -156,8 +156,8 @@ def test_ace_and_lsp_directive_argument_rows_match(
 @pytest.mark.parametrize(
     ("text", "expected_insertions"),
     [
-        ("%queue(", ["p=", "priority=", "runners=", "0", "1"]),
-        ("%q(", ["p=", "priority=", "runners=", "0", "1"]),
+        ("%queue(", ["p=", "priority=", "runners=", "w=", "weight=", "0", "1"]),
+        ("%q(", ["p=", "priority=", "runners=", "w=", "weight=", "0", "1"]),
         ("%q:", ["0", "1"]),
     ],
 )

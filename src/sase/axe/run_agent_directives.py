@@ -42,6 +42,8 @@ class AgentInfo(NamedTuple):
     wait_until: str | None
     wait_runners: int | None
     wait_priority: int | None
+    queue_weight: float
+    queue_weight_explicit: bool
     model: str | None
     llm_provider: str | None
     vcs_provider: str | None
@@ -502,6 +504,8 @@ def extract_directives_and_write_meta(
         wait_until=directives.wait_until,
         wait_runners=directives.wait_runners,
         wait_priority=directives.wait_priority,
+        queue_weight=float(agent_meta.get("queue_weight", 1.0)),
+        queue_weight_explicit=agent_meta.get("queue_weight_explicit") is True,
         model=agent_model,
         llm_provider=agent_llm_provider,
         vcs_provider=agent_vcs_provider,

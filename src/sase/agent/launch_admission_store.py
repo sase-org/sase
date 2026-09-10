@@ -10,8 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.agent_launch_wire import (
+    AgentUnitWire,
     LAUNCH_ADMISSION_JOURNAL_SCHEMA_VERSION,
     LaunchPlanWire,
+    LaunchUnitWire,
 )
 from sase.monitor.transaction import write_json_marker_atomic
 
@@ -92,15 +94,21 @@ def write_unit_receipt(
     logical_id: str,
     fingerprint: str,
     identity: str,
+    unit: LaunchUnitWire | None = None,
 ) -> None:
     units_dir = root / UNITS_DIRNAME
+    payload: dict[str, Any] = {
+        "logical_id": logical_id,
+        "fingerprint": fingerprint,
+        "identity": identity,
+    }
+    if unit is not None and isinstance(unit.payload, AgentUnitWire):
+        if unit.payload.queue_weight is not None:
+            payload["queue_weight"] = unit.payload.queue_weight
+        payload["queue_weight_explicit"] = unit.payload.queue_weight_explicit
     write_json_marker_atomic(
         units_dir / f"{logical_id}.json",
-        {
-            "logical_id": logical_id,
-            "fingerprint": fingerprint,
-            "identity": identity,
-        },
+        payload,
     )
 
 

@@ -14,6 +14,7 @@ from sase.core.agent_launch_facade import (
 )
 from sase.core.agent_launch_wire import AgentUnitWire
 from sase.feature_flags import override_flags
+from sase.xprompt.directives import DirectiveError, extract_prompt_directives
 from sase.xprompt.queue_directive import collect_queue_fields, format_queue_directive
 
 
@@ -45,18 +46,21 @@ def test_queue_adapter_collects_and_formats_through_rust() -> None:
                 "has_plus_suffix": False,
             },
             {
-                "source": "%queue(p=20)",
-                "source_span": [5, 18],
-                "args": [{"name": "p", "value": "20"}],
+                "source": "%queue(p=20, w=0.25)",
+                "source_span": [5, 26],
+                "args": [
+                    {"name": "p", "value": "20"},
+                    {"name": "w", "value": "0.25"},
+                ],
                 "has_plus_suffix": False,
             },
         ]
     )
     assert result["errors"] == []
-    assert result["fields"] == {"runners": 5, "priority": 20}
+    assert result["fields"] == {"runners": 5, "priority": 20, "weight": 0.25}
     assert (
-        format_queue_directive(runners=5, priority=20)
-        == "%queue(runners=5, priority=20)"
+        format_queue_directive(runners=5, priority=20, weight=0.25)
+        == "%queue(runners=5, priority=20, weight=0.25)"
     )
     duplicate = collect_queue_fields(
         [
@@ -75,19 +79,60 @@ def test_queue_adapter_collects_and_formats_through_rust() -> None:
     assert duplicate["errors"][0]["code"] == "duplicate-queue-field"
 
 
+def test_queue_weight_rejected_until_beta_flag_enabled() -> None:
+    with override_flags(weighted_queue_capacity=False):
+        with pytest.raises(DirectiveError, match="weighted_queue_capacity"):
+            extract_prompt_directives("%q(w=0.25)\nDo work")
+
+
+def test_queue_weight_extracts_when_beta_flag_enabled() -> None:
+    with override_flags(weighted_queue_capacity=True):
+        cleaned, directives = extract_prompt_directives("%q(w=0.25)\nDo work")
+
+    assert cleaned == "Do work"
+    assert directives.queue_weight == 0.25
+    assert directives.queue_weight_explicit is True
+
+
+def test_queue_weight_alias_duplicate_errors_when_beta_flag_enabled() -> None:
+    with override_flags(weighted_queue_capacity=True):
+        with pytest.raises(DirectiveError, match="Duplicate"):
+            extract_prompt_directives("%q(w=1, weight=1)\nDo work")
+
+
 def test_typed_launch_parses_queue_and_rebuilds_canonical_prompt() -> None:
-    with override_flags(typed_launch_units=True):
+    with override_flags(typed_launch_units=True, weighted_queue_capacity=True):
         plan = plan_typed_launch_units(
-            "%w(builder, time=5m) %q(1, p=20)\nDo work",
+            "%w(builder, time=5m) %q(1, p=20, w=2)\nDo work",
             selected_project="sase",
         )
         agent = plan.units[0].payload
         assert isinstance(agent, AgentUnitWire)
         assert agent.wait_runners == 1
         assert agent.wait_priority == 20
+        assert agent.queue_weight == 2.0
+        assert agent.queue_weight_explicit is True
         rebuilt = agent_unit_dispatch_prompt(agent)
-    assert "%queue(runners=1, priority=20)" in rebuilt
+    assert "%queue(runners=1, priority=20, weight=2)" in rebuilt
     assert "%wait(runners=" not in rebuilt
+
+
+def test_typed_launch_rejects_queue_weight_when_beta_flag_disabled() -> None:
+    with override_flags(typed_launch_units=True, weighted_queue_capacity=False):
+        with pytest.raises(DirectiveError, match="weighted_queue_capacity"):
+            plan_typed_launch_units("%q(w=2)\nDo work", selected_project="sase")
+
+
+def test_typed_launch_preserves_explicit_default_weight() -> None:
+    with override_flags(typed_launch_units=True, weighted_queue_capacity=True):
+        plan = plan_typed_launch_units("%q(w=1.0)\nDo work", selected_project="sase")
+        agent = plan.units[0].payload
+        assert isinstance(agent, AgentUnitWire)
+        rebuilt = agent_unit_dispatch_prompt(agent)
+
+    assert agent.queue_weight == 1.0
+    assert agent.queue_weight_explicit is True
+    assert "%queue(weight=1)" in rebuilt
 
 
 def test_typed_launch_rejects_retired_wait_queue_keywords() -> None:

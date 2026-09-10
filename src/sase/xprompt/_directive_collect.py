@@ -239,6 +239,18 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
     return collected
 
 
+def collect_queue_directive_occurrences(prompt: str) -> list[dict[str, Any]]:
+    """Collect `%queue` occurrences from a fenced/disabled protected prompt."""
+    occurrences: list[dict[str, Any]] = []
+    for match in _directive_matches_outside_alt(prompt):
+        name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name != "queue":
+            continue
+        occurrence, _match_end = _collect_queue_occurrence(prompt, match)
+        occurrences.append(occurrence)
+    return occurrences
+
+
 _PROC_OPTION_KEYS = frozenset(
     {"bash", "python", "timeout", "idle_timeout", "cwd", "workspace", "label"}
 )

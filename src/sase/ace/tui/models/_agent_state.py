@@ -310,6 +310,10 @@ class AgentState:
     wait_runners_explicit: bool = False
     wait_priority: int | None = None
     wait_priority_explicit: bool = False
+    queue_weight: float | None = None
+    queue_weight_explicit: bool = False
+    queue_weight_invalid: bool = False
+    queue_weight_error: str | None = None
     slot_requested_at: str | None = None
 
     # Snapshot-derived display context. These values are recomputed from the

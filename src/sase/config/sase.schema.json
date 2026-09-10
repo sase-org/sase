@@ -4270,6 +4270,11 @@
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",
           "default": false
+        },
+        "weighted_queue_capacity": {
+          "type": "boolean",
+          "description": "Beta gate for weighted %queue capacity launch plumbing.",
+          "default": false
         }
       }
     }

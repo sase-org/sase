@@ -7,7 +7,12 @@ from typing import Any
 from sase.notification_gates.model_shell import GateShellSpec
 from sase.shells.member import create_family_shell_member
 
-_GATE_INHERITED_METADATA_FIELDS = ("agent_clan", "agent_clan_generation")
+_GATE_INHERITED_METADATA_FIELDS = (
+    "agent_clan",
+    "agent_clan_generation",
+    "queue_weight",
+    "queue_weight_explicit",
+)
 
 
 def create_gate_shell_member(

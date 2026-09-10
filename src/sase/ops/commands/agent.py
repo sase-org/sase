@@ -266,6 +266,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
             time_token=wait.get("time_token"),
             runners=wait.get("runners"),
             priority=wait.get("priority"),
+            weight=wait.get("weight"),
             beads=tuple(wait.get("beads") or ()),
         )
         return lambda prompt: set_prompt_wait_and_queue(prompt, directive)
@@ -276,6 +277,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
             prompt,
             runners=spec.get("runners"),
             priority=spec.get("priority"),
+            weight=spec.get("weight"),
         )
     if kind == "set_tribe":
         from sase.xprompt.directive_edit import set_prompt_tribe

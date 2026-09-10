@@ -186,6 +186,8 @@ def test_waiting_marker_edit_preserves_priority_unless_explicitly_updated(
                 "waiting_for": ["old"],
                 "wait_priority": 20,
                 "wait_priority_explicit": True,
+                "queue_weight": 0.25,
+                "queue_weight_explicit": True,
                 "slot_requested_at": "2026-07-25T12:00:00Z",
             }
         ),
@@ -208,6 +210,8 @@ def test_waiting_marker_edit_preserves_priority_unless_explicitly_updated(
     assert waiting["wait_runners"] == 0
     assert waiting["wait_priority"] == 20
     assert waiting["wait_priority_explicit"] is True
+    assert waiting["queue_weight"] == 0.25
+    assert waiting["queue_weight_explicit"] is True
     assert waiting["slot_requested_at"] == "2026-07-25T12:00:00Z"
 
 
@@ -257,6 +261,62 @@ def test_waiting_marker_and_meta_priority_can_be_set_and_unset(
     waiting = json.loads((artifacts / "waiting.json").read_text())
     assert "wait_priority" not in waiting
     assert waiting["wait_priority_explicit"] is False
+
+
+def test_waiting_marker_and_meta_queue_weight_can_be_set_and_unset(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text("{}\n", encoding="utf-8")
+    (artifacts / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": [],
+                "queue_weight": 1.0,
+                "queue_weight_explicit": False,
+                "slot_requested_at": "2026-07-25T12:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    persist_agent_directive_update(
+        AgentDirectivePersistenceSpec(
+            artifacts_dir=artifacts,
+            meta_patch=wait_meta_patch_for_token(
+                update_queue_weight=True,
+                queue_weight=0.25,
+                queue_weight_explicit=True,
+            ),
+            waiting_marker=waiting_marker_patch_for_token(
+                update_queue_weight=True,
+                queue_weight=0.25,
+                queue_weight_explicit=True,
+            ),
+        )
+    )
+    meta = json.loads((artifacts / "agent_meta.json").read_text())
+    assert meta["queue_weight"] == 0.25
+    assert meta["queue_weight_explicit"] is True
+    waiting = json.loads((artifacts / "waiting.json").read_text())
+    assert waiting["queue_weight"] == 0.25
+    assert waiting["queue_weight_explicit"] is True
+    assert waiting["slot_requested_at"] == "2026-07-25T12:00:00Z"
+
+    persist_agent_directive_update(
+        AgentDirectivePersistenceSpec(
+            artifacts_dir=artifacts,
+            meta_patch=wait_meta_patch_for_token(update_queue_weight=True),
+            waiting_marker=waiting_marker_patch_for_token(update_queue_weight=True),
+        )
+    )
+    meta = json.loads((artifacts / "agent_meta.json").read_text())
+    assert "queue_weight" not in meta
+    assert "queue_weight_explicit" not in meta
+    waiting = json.loads((artifacts / "waiting.json").read_text())
+    assert "queue_weight" not in waiting
+    assert waiting["queue_weight_explicit"] is False
 
 
 def test_persist_agent_directive_update_sets_and_unsets_tribe_store(

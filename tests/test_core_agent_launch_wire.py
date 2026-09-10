@@ -25,6 +25,7 @@ from sase.core.agent_launch_wire import (
     AGENT_LAUNCH_WIRE_SCHEMA_VERSION,
     AgentLaunchPreparedWire,
     AgentLaunchRequestWire,
+    AgentUnitWire,
     LaunchFanoutPlanWire,
     LaunchFanoutSlotWire,
     LaunchPlanWire,
@@ -104,6 +105,49 @@ def test_typed_launch_plan_from_dict_rehydrates_proc_payload() -> None:
 def test_plan_typed_launch_units_feature_off_rejects_proc() -> None:
     with pytest.raises(DirectiveError, match="typed_launch_units"):
         plan_typed_launch_units('%proc("just check")', selected_project="sase")
+
+
+def test_agent_unit_queue_weight_round_trips_json_shape() -> None:
+    unit = AgentUnitWire(
+        prompt="Do work",
+        wait_runners=2,
+        queue_weight=0.25,
+        queue_weight_explicit=True,
+    )
+
+    payload = agent_launch_wire_to_json_dict(unit)
+
+    assert payload["queue_weight"] == 0.25
+    assert payload["queue_weight_explicit"] is True
+    plan = launch_plan_from_dict(
+        {
+            "schema_version": 1,
+            "launch_kind": "single",
+            "selected_project": "sase",
+            "content_digest": "a" * 64,
+            "units": [
+                {
+                    "logical_id": "unit-1",
+                    "source_order": 0,
+                    "waits": [],
+                    "payload": payload,
+                }
+            ],
+        }
+    )
+    restored = plan.units[0].payload
+    assert isinstance(restored, AgentUnitWire)
+    assert restored.queue_weight == 0.25
+    assert restored.queue_weight_explicit is True
+
+
+def test_agent_unit_omits_default_queue_weight_provenance_from_json() -> None:
+    payload = agent_launch_wire_to_json_dict(
+        AgentUnitWire(prompt="Do work", queue_weight=1.0)
+    )
+
+    assert payload["queue_weight"] == 1.0
+    assert "queue_weight_explicit" not in payload
 
 
 def test_plan_typed_launch_units_rust_mixed_graph() -> None:

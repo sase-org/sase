@@ -114,6 +114,12 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
     if target.wait_priority is None and source.wait_priority is not None:
         target.wait_priority = source.wait_priority
         target.wait_priority_explicit = source.wait_priority_explicit
+    if target.queue_weight is None and source.queue_weight is not None:
+        target.queue_weight = source.queue_weight
+        target.queue_weight_explicit = source.queue_weight_explicit
+    if not target.queue_weight_invalid and source.queue_weight_invalid:
+        target.queue_weight_invalid = True
+        target.queue_weight_error = source.queue_weight_error
     if target.slot_requested_at is None and source.slot_requested_at is not None:
         target.slot_requested_at = source.slot_requested_at
     if target.approve is False and source.approve is True:

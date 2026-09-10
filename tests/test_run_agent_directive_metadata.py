@@ -262,3 +262,35 @@ def test_preserved_agent_metadata_keeps_workspace_num(tmp_path: Path) -> None:
     preserved = preserved_agent_metadata(str(artifacts_dir))
 
     assert preserved["workspace_num"] == 12
+
+
+def test_preserved_agent_metadata_keeps_queue_weight(tmp_path: Path) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        '{"queue_weight":0.25,"queue_weight_explicit":true}',
+        encoding="utf-8",
+    )
+
+    preserved = preserved_agent_metadata(str(artifacts_dir))
+
+    assert preserved["queue_weight"] == 0.25
+    assert preserved["queue_weight_explicit"] is True
+
+
+@pytest.mark.parametrize("queue_weight", [0, -1, True, "0.25", float("inf")])
+def test_preserved_agent_metadata_rejects_invalid_queue_weight(
+    tmp_path: Path,
+    queue_weight: object,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"queue_weight": queue_weight, "queue_weight_explicit": True}),
+        encoding="utf-8",
+    )
+
+    preserved = preserved_agent_metadata(str(artifacts_dir))
+
+    assert "queue_weight" not in preserved
+    assert "queue_weight_explicit" not in preserved

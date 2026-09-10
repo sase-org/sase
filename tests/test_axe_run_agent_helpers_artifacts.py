@@ -290,6 +290,32 @@ def test_create_followup_inherits_reasoning_effort(tmp_path) -> None:
     assert meta["reasoning_effort"] == "xhigh"
 
 
+def test_create_followup_inherits_queue_weight_metadata(tmp_path) -> None:
+    """Retry/follow-up agents preserve the parent's queue weight."""
+    new_dir = tmp_path / "new"
+    new_dir.mkdir()
+
+    with patch(
+        "sase.axe.run_agent_helpers.create_artifacts_directory",
+        return_value=str(new_dir),
+    ):
+        create_followup_artifacts(
+            "proj",
+            {
+                "name": "a",
+                "model": "test",
+                "queue_weight": 1.0,
+                "queue_weight_explicit": False,
+            },
+            "--1",
+            "20260326120000",
+        )
+
+    meta = json.loads((new_dir / "agent_meta.json").read_text())
+    assert meta["queue_weight"] == 1.0
+    assert meta["queue_weight_explicit"] is False
+
+
 def test_create_followup_without_workspace_dir_omits_key(tmp_path) -> None:
     """No workspace_dir in base_meta leaves the key absent (graceful)."""
     new_dir = tmp_path / "new"

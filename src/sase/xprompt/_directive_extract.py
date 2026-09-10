@@ -116,9 +116,14 @@ def extract_prompt_directives(
     wait_duration, wait_until = resolve_wait_time_args(collected.wait_time_args)
     wait_runners: int | None = None
     wait_priority: int | None = None
+    queue_weight: float | None = None
     if collected.queue_occurrences:
-        from sase.xprompt.queue_directive import collect_queue_fields
+        from sase.xprompt.queue_directive import (
+            collect_queue_fields,
+            reject_queue_weight_when_disabled,
+        )
 
+        reject_queue_weight_when_disabled(collected.queue_occurrences)
         queue_payload = collect_queue_fields(collected.queue_occurrences)
         queue_errors = queue_payload.get("errors")
         if isinstance(queue_errors, list) and queue_errors:
@@ -134,6 +139,8 @@ def extract_prompt_directives(
             priority = fields.get("priority")
             wait_runners = int(runners) if runners is not None else None
             wait_priority = int(priority) if priority is not None else None
+            weight = fields.get("weight")
+            queue_weight = float(weight) if weight is not None else None
 
     cleaned = _remove_directive_regions(prompt, collected.regions_to_remove)
 
@@ -259,6 +266,8 @@ def extract_prompt_directives(
         wait_until=wait_until,
         wait_runners=wait_runners,
         wait_priority=wait_priority,
+        queue_weight=queue_weight,
+        queue_weight_explicit=queue_weight is not None,
         dispatch=resolve_dispatch_target(expanded_args),
         final=expanded_multi.get("final", []),
         if_code=if_code,

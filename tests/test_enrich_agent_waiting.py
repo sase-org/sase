@@ -51,6 +51,104 @@ def test_runner_slot_fields_from_waiting_json(tmp_path: Path) -> None:
     assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
 
 
+def test_queue_weight_fields_match_filesystem_and_wire(
+    tmp_path: Path,
+) -> None:
+    metadata = {
+        "pid": 1234,
+        "queue_weight": 0.25,
+        "queue_weight_explicit": True,
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(metadata))
+    filesystem_agent = make_agent(status="STARTING")
+    wire_agent = make_agent(status="STARTING")
+
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(**metadata),
+        None,
+        None,
+    )
+
+    assert filesystem_agent.queue_weight == 0.25
+    assert filesystem_agent.queue_weight_explicit is True
+    assert filesystem_agent.queue_weight_invalid is False
+    assert wire_agent.queue_weight == 0.25
+    assert wire_agent.queue_weight_explicit is True
+    assert wire_agent.queue_weight_invalid is False
+
+
+def test_absent_legacy_queue_weight_stays_unknown(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+    filesystem_agent = make_agent(status="STARTING")
+    wire_agent = make_agent(status="STARTING")
+
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(wire_agent, AgentMetaWire(pid=1234), None, None)
+
+    assert filesystem_agent.queue_weight is None
+    assert filesystem_agent.queue_weight_explicit is False
+    assert wire_agent.queue_weight is None
+    assert wire_agent.queue_weight_explicit is False
+
+
+def test_waiting_queue_weight_overrides_meta_in_filesystem_and_wire(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "queue_weight": 1.0})
+    )
+    (tmp_path / "waiting.json").write_text(
+        json.dumps(
+            {
+                "queue_weight": 0.5,
+                "queue_weight_explicit": True,
+                "slot_requested_at": "2026-07-12T12:00:00Z",
+            }
+        )
+    )
+    filesystem_agent = make_agent(status="STARTING")
+    wire_agent = make_agent(status="STARTING")
+
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(pid=1234, queue_weight=1.0),
+        WaitingMarkerWire(
+            queue_weight=0.5,
+            queue_weight_explicit=True,
+            slot_requested_at="2026-07-12T12:00:00Z",
+        ),
+        None,
+    )
+
+    assert filesystem_agent.queue_weight == 0.5
+    assert filesystem_agent.queue_weight_explicit is True
+    assert wire_agent.queue_weight == 0.5
+    assert wire_agent.queue_weight_explicit is True
+
+
+def test_invalid_filesystem_queue_weight_is_marked(tmp_path: Path) -> None:
+    metadata = {
+        "pid": 1234,
+        "queue_weight": "heavy",
+        "queue_weight_explicit": True,
+        "queue_weight_error": "bad weight",
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(metadata))
+    agent = make_agent(status="STARTING")
+
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.queue_weight is None
+    assert agent.queue_weight_explicit is True
+    assert agent.queue_weight_invalid is True
+    assert agent.queue_weight_error == "bad weight"
+
+
 def test_wait_priority_falls_back_to_agent_meta_in_filesystem_and_wire(
     tmp_path: Path,
 ) -> None:

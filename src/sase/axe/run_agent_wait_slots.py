@@ -7,6 +7,7 @@ queue marker and retries.
 """
 
 import fcntl
+import math
 import sys
 import time
 from collections.abc import Callable
@@ -42,6 +43,7 @@ from sase.core.runner_slots import (
 )
 
 _RUNNER_SLOT_POLL_INTERVAL = 2
+_DEFAULT_QUEUE_WEIGHT = 1.0
 _RUNNER_SLOT_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     include_prompt_step_markers=False,
     include_raw_prompt_snippets=False,
@@ -140,6 +142,30 @@ def _marker_priority_state(
     return DEFAULT_WAIT_PRIORITY, False
 
 
+def _valid_queue_weight(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    weight = float(value)
+    if not math.isfinite(weight) or weight <= 0:
+        return None
+    return weight
+
+
+def _marker_queue_weight_state(
+    waiting_data: dict[str, Any] | None,
+    directive_weight: float,
+    directive_explicit: bool,
+) -> tuple[float, bool]:
+    if waiting_data is not None and "slot_requested_at" in waiting_data:
+        marker_weight = _valid_queue_weight(waiting_data.get("queue_weight"))
+        if marker_weight is not None:
+            return marker_weight, waiting_data.get("queue_weight_explicit") is True
+    weight = _valid_queue_weight(directive_weight)
+    if weight is None:
+        return _DEFAULT_QUEUE_WEIGHT, False
+    return weight, directive_explicit
+
+
 def _continuous_eligibility_start(
     eligible_since: object,
     now: datetime,
@@ -171,6 +197,8 @@ def _park_for_unavailable_limit(
     waiting_data: dict[str, Any] | None,
     priority: int,
     priority_explicit: bool,
+    queue_weight: float,
+    queue_weight_explicit: bool,
     error: Exception,
 ) -> tuple[None, bool]:
     """Republish the queue marker when the runner limit cannot be read."""
@@ -192,6 +220,8 @@ def _park_for_unavailable_limit(
             "wait_runners_explicit": False,
             "wait_priority": priority,
             "wait_priority_explicit": priority_explicit,
+            "queue_weight": queue_weight,
+            "queue_weight_explicit": queue_weight_explicit,
             "slot_requested_at": requested_at,
             "runner_limit_unavailable": str(error),
         }
@@ -209,6 +239,8 @@ def _try_claim_runner_slot(
     timestamp: str,
     directive_threshold: int | None,
     directive_priority: int | None = None,
+    directive_queue_weight: float = _DEFAULT_QUEUE_WEIGHT,
+    directive_queue_weight_explicit: bool = False,
     claim: Callable[[], str],
 ) -> tuple[str | None, bool]:
     """Try one check-and-claim under the global lock.
@@ -227,6 +259,11 @@ def _try_claim_runner_slot(
                 waiting_data,
                 directive_priority,
             )
+            queue_weight, queue_weight_explicit = _marker_queue_weight_state(
+                waiting_data,
+                directive_queue_weight,
+                directive_queue_weight_explicit,
+            )
             try:
                 threshold, explicit = _marker_threshold(
                     waiting_data, directive_threshold
@@ -239,6 +276,8 @@ def _try_claim_runner_slot(
                     waiting_data=waiting_data,
                     priority=priority,
                     priority_explicit=priority_explicit,
+                    queue_weight=queue_weight,
+                    queue_weight_explicit=queue_weight_explicit,
                     error=error,
                 )
             records = _scan_runner_slot_records()
@@ -311,6 +350,8 @@ def _try_claim_runner_slot(
                     "wait_runners_explicit": explicit,
                     "wait_priority": priority,
                     "wait_priority_explicit": priority_explicit,
+                    "queue_weight": queue_weight,
+                    "queue_weight_explicit": queue_weight_explicit,
                     "slot_requested_at": requested_at,
                 }
             )
@@ -334,6 +375,8 @@ def wait_for_runner_slot(
     *,
     wait_runners: int | None,
     wait_priority: int | None = None,
+    queue_weight: float = _DEFAULT_QUEUE_WEIGHT,
+    queue_weight_explicit: bool = False,
     claim: Callable[[], str],
 ) -> str:
     """Pass the final participating-agent gate and atomically claim RUNNING.
@@ -364,6 +407,8 @@ def wait_for_runner_slot(
             timestamp=timestamp,
             directive_threshold=wait_runners,
             directive_priority=wait_priority,
+            directive_queue_weight=queue_weight,
+            directive_queue_weight_explicit=queue_weight_explicit,
             claim=claim,
         )
         if run_started_at is not None:

@@ -74,6 +74,41 @@ def test_legacy_metadata_tag_hydrates_canonical_tribe_only() -> None:
     assert "tag" not in metadata
 
 
+def test_agent_meta_queue_weight_round_trip() -> None:
+    snapshot = agent_scan_wire_from_dict(
+        {
+            "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+            "projects_root": "/tmp/projects",
+            "records": [
+                {
+                    "project_name": "proj",
+                    "project_dir": "/tmp/projects/proj",
+                    "project_file": "/tmp/projects/proj/proj.sase",
+                    "workflow_dir_name": "ace-run",
+                    "artifact_dir": "/tmp/projects/proj/artifacts/ace-run/1",
+                    "timestamp": "1",
+                    "agent_meta": {
+                        "queue_weight": 0.25,
+                        "queue_weight_explicit": True,
+                    },
+                    "waiting": {
+                        "queue_weight": 0.5,
+                        "queue_weight_explicit": True,
+                    },
+                }
+            ],
+        }
+    )
+
+    record = snapshot.records[0]
+    assert record.agent_meta is not None
+    assert record.waiting is not None
+    assert record.agent_meta.queue_weight == 0.25
+    assert record.agent_meta.queue_weight_explicit is True
+    assert record.waiting.queue_weight == 0.5
+    assert record.waiting.queue_weight_explicit is True
+
+
 def test_agent_meta_output_variables_round_trip() -> None:
     snapshot = agent_scan_wire_from_dict(
         {

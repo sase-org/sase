@@ -12,6 +12,7 @@ from sase.agent.batch_predecessor import (
     batch_predecessor_context,
     encode_batch_predecessor_context,
 )
+from sase.feature_flags import override_flags
 from sase.xprompt.models import XPrompt
 from tests._agent_names_extract_fixtures import mock_provider, run_extract
 
@@ -90,6 +91,23 @@ class TestExtractDirectivesMetadata:
 
         assert result["info"].wait_priority is None
         assert "wait_priority" not in result["meta"]
+        assert result["info"].queue_weight == 1.0
+        assert result["info"].queue_weight_explicit is False
+        assert result["meta"]["queue_weight"] == 1.0
+        assert result["meta"]["queue_weight_explicit"] is False
+
+    def test_persists_explicit_queue_weight_metadata(self, tmp_path: Path) -> None:
+        with override_flags(weighted_queue_capacity=True):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=True,
+                prompt="%queue(weight=0.25)\ndo stuff",
+            )
+
+        assert result["info"].queue_weight == 0.25
+        assert result["info"].queue_weight_explicit is True
+        assert result["meta"]["queue_weight"] == 0.25
+        assert result["meta"]["queue_weight_explicit"] is True
 
     def test_persists_wait_beads_metadata(self, tmp_path: Path) -> None:
         result = run_extract(

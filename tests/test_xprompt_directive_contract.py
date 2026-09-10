@@ -47,7 +47,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "model": (),
         "repeat": (),
         "wait": ("agent", "bead", "proc", "time", "unit"),
-        "queue": ("p", "priority", "runners"),
+        "queue": ("p", "priority", "runners", "w", "weight"),
         "if": (),
         "proc": (
             "bash",
