@@ -50,9 +50,10 @@ def compute_tier_styles(
     contribute a visible guide segment.  L0 (project / bucket) banners always
     contribute.  Middle-tier banners contribute the cooler Patch
     rule style: STANDARD L1 Patch banners, real BY_DATE L1 subgroup
-    banners, and name-root banners that own dotted-name prefix subgroups.
-    Terminal branch banners and synthetic ``(no time)`` buckets do not
-    add a descendant tier.  Order is outermost first.
+    banners, BY_MACHINE L1 status subgroup banners (every status label is
+    real, so all contribute), and name-root banners that own dotted-name
+    prefix subgroups.  Terminal branch banners and synthetic ``(no time)``
+    buckets do not add a descendant tier.  Order is outermost first.
     """
     agent_styles: dict[int, tuple[str, ...]] = {}
     banner_styles: list[tuple[str, ...]] = []
@@ -75,6 +76,8 @@ def compute_tier_styles(
             and mode is GroupingMode.BY_DATE
             and group.group_key[-1] != NO_HOUR_LABEL
         ):
+            return _PATCH_BANNER_RULE_STYLE
+        if group.level == 1 and mode is GroupingMode.BY_MACHINE:
             return _PATCH_BANNER_RULE_STYLE
         if group.has_child_groups:
             return _PATCH_BANNER_RULE_STYLE

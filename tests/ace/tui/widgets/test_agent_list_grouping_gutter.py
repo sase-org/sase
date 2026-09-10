@@ -174,3 +174,34 @@ def test_by_date_agent_row_carries_bucket_and_subgroup_gutters() -> None:
     options = list(widget._options)
     agent_plain = options[2].prompt.plain  # type: ignore[union-attr]
     assert agent_plain.startswith("│  │  ")
+
+
+def test_by_machine_status_subgroup_banner_uses_middle_tier_style() -> None:
+    """BY_MACHINE status subgroup headings use the promoted L1/Patch register."""
+    widget = AgentList()
+    widget.update_list(
+        [make_agent(status="RUNNING")],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_MACHINE,
+    )
+    options = list(widget._options)
+    subgroup_text = options[1].prompt
+    subgroup_plain = subgroup_text.plain  # type: ignore[union-attr]
+    assert subgroup_plain.startswith("│  ▎ ▶ Running ")
+    subgroup_styles = {s.style for s in subgroup_text.spans}  # type: ignore[union-attr]
+    assert _PROJECT_BANNER_RULE_STYLE in subgroup_styles
+    assert _PATCH_BANNER_BAR_STYLE in subgroup_styles
+    assert _PATCH_BANNER_RULE_STYLE in subgroup_styles
+
+
+def test_by_machine_agent_row_carries_machine_and_status_gutters() -> None:
+    """A standalone agent under here -> Running carries both ancestor tiers."""
+    widget = AgentList()
+    widget.update_list(
+        [make_agent(status="RUNNING")],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_MACHINE,
+    )
+    options = list(widget._options)
+    agent_plain = options[2].prompt.plain  # type: ignore[union-attr]
+    assert agent_plain.startswith("│  │  ")

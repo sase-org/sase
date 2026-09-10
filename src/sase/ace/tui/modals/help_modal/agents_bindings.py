@@ -458,7 +458,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Cycle: project -> date -> status -> machine",
                 ),
                 ("by date", "Sub-grouped by hour, day, or week"),
-                ("by machine", "Local rows under here; remotes by alias"),
+                ("by machine", "here + remotes, status subgroups"),
                 ("⏳ Waiting", "Timer or dependency wait"),
                 ("▲ Stopped", "User must act"),
                 ("▶ Running", "Actively executing"),

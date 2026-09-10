@@ -122,15 +122,18 @@ def _grouped_walk(
     )
 
 
-def _should_emit_date_subgroup_banner(subgroup: str, count: int) -> bool:
-    """Whether a BY_DATE subgroup bucket should have a visible banner.
+def _should_emit_subgroup_banner(mode: GroupingMode, subgroup: str, count: int) -> bool:
+    """Whether an L1 subgroup bucket should have a visible banner.
 
-    A real subgroup label always emits a banner; the synthetic
-    ``(no time)`` label only emits when 2+ agents share it.
+    ``BY_DATE`` keeps its existing rule: a real subgroup label always emits
+    a banner, while the synthetic ``(no time)`` label only emits when 2+
+    agents share it. ``BY_MACHINE`` has no synthetic bucket —
+    ``status_bucket_for`` always returns a real label — so it emits
+    whenever ``subgroup`` is non-empty.
     """
     if not subgroup:
         return False
-    if subgroup == NO_HOUR_LABEL:
+    if mode is GroupingMode.BY_DATE and subgroup == NO_HOUR_LABEL:
         return count >= 2
     return True
 
@@ -168,7 +171,12 @@ def enumerate_group_keys(
         prefix_counts: dict[tuple[tuple[str, ...], str, str], int] = {}
         subgroup_counts: dict[tuple[str, str], int] = {}
         for k in keys_per_agent:
-            parent: tuple[str, ...] = (k.project, k.patch) if use_cs else (k.project,)
+            if use_cs:
+                parent: tuple[str, ...] = (k.project, k.patch)
+            elif mode is GroupingMode.BY_MACHINE:
+                parent = (k.project, k.subgroup)
+            else:
+                parent = (k.project,)
             if k.name_root:
                 root_counts[(parent, k.name_root)] = (
                     root_counts.get((parent, k.name_root), 0) + 1
@@ -177,9 +185,9 @@ def enumerate_group_keys(
                 prefix_counts[(parent, k.name_root, k.name_prefix)] = (
                     prefix_counts.get((parent, k.name_root, k.name_prefix), 0) + 1
                 )
-            if mode is GroupingMode.BY_DATE and k.date_subgroup:
-                subgroup_counts[(k.project, k.date_subgroup)] = (
-                    subgroup_counts.get((k.project, k.date_subgroup), 0) + 1
+            if mode in {GroupingMode.BY_DATE, GroupingMode.BY_MACHINE} and k.subgroup:
+                subgroup_counts[(k.project, k.subgroup)] = (
+                    subgroup_counts.get((k.project, k.subgroup), 0) + 1
                 )
         for i in walk:
             k = keys_per_agent[i]
@@ -193,13 +201,19 @@ def enumerate_group_keys(
                     seen.add(l1)
                     out.append(l1)
                 parent = l1
+            elif mode is GroupingMode.BY_MACHINE:
+                parent = (k.project, k.subgroup)
             else:
                 parent = l0
-            if mode is GroupingMode.BY_DATE and _should_emit_date_subgroup_banner(
-                k.date_subgroup,
-                subgroup_counts.get((k.project, k.date_subgroup), 0),
+            if mode in {
+                GroupingMode.BY_DATE,
+                GroupingMode.BY_MACHINE,
+            } and _should_emit_subgroup_banner(
+                mode,
+                k.subgroup,
+                subgroup_counts.get((k.project, k.subgroup), 0),
             ):
-                subgroup_key: GroupKey = (k.project, k.date_subgroup)
+                subgroup_key: GroupKey = (k.project, k.subgroup)
                 if subgroup_key not in seen:
                     seen.add(subgroup_key)
                     out.append(subgroup_key)
@@ -234,13 +248,16 @@ def build_agent_tree(
         fold_registry: Optional per-group collapse registry.  ``None``
             (or an empty registry) renders every group expanded.
         mode: How to bucket agents at L0.  Defaults to ``STANDARD``
-            (existing project / Patch hierarchy).  ``BY_DATE`` and
-            ``BY_STATUS`` drop the Patch level entirely; L0 becomes
+            (existing project / Patch hierarchy).  ``BY_DATE``, ``BY_STATUS``,
+            and ``BY_MACHINE`` drop the Patch level entirely; L0 becomes
             the bucket.  ``BY_DATE`` uses date-aware subgroup banners under
             the bucket (1-hour under Today/Yesterday, calendar day under
             This Week, Monday-start week under Earlier); ``BY_STATUS``
             uses the name-root layer and optional dotted-name prefix
-            subgroups.
+            subgroups.  ``BY_MACHINE`` sub-groups each machine bucket by
+            status (reusing the same priority-ordered buckets as
+            ``BY_STATUS``), then applies the name-root / name-prefix layers
+            within each status subgroup.
         now: Reference time for ``BY_DATE`` bucketing.  Defaults to
             ``datetime.now()``; only consulted when *mode* is ``BY_DATE``.
 
@@ -266,10 +283,12 @@ def build_agent_tree(
         if use_cs:
             cs_indices.setdefault((k.project, k.patch), []).append(i)
             parent: tuple[str, ...] = (k.project, k.patch)
+        elif mode is GroupingMode.BY_MACHINE:
+            parent = (k.project, k.subgroup)
         else:
             parent = (k.project,)
-        if mode is GroupingMode.BY_DATE and k.date_subgroup:
-            subgroup_indices.setdefault((k.project, k.date_subgroup), []).append(i)
+        if mode in {GroupingMode.BY_DATE, GroupingMode.BY_MACHINE} and k.subgroup:
+            subgroup_indices.setdefault((k.project, k.subgroup), []).append(i)
         if k.name_root:
             root_indices.setdefault((parent, k.name_root), []).append(i)
         if k.name_root and k.name_prefix:
@@ -293,6 +312,13 @@ def build_agent_tree(
         return any(
             p_parent == parent_key and p_root == name_root and len(indices) >= 2
             for (p_parent, p_root, _prefix), indices in prefix_indices.items()
+        )
+
+    def subgroup_has_root_groups(l0: str, subgroup: str) -> bool:
+        parent_key = (l0, subgroup)
+        return any(
+            p_parent == parent_key and len(indices) >= 2
+            for (p_parent, _root), indices in root_indices.items()
         )
 
     for i in walk:
@@ -349,20 +375,26 @@ def build_agent_tree(
                 continue
             parent_key: tuple[str, ...] = (k.project, k.patch)
             deep_level = 2
+        elif mode is GroupingMode.BY_MACHINE:
+            parent_key = (k.project, k.subgroup)
+            deep_level = 2
         else:
             parent_key = (k.project,)
             deep_level = 1
 
-        if mode is GroupingMode.BY_DATE and k.date_subgroup != cur_subgroup:
-            cur_subgroup = k.date_subgroup
+        if (
+            mode in {GroupingMode.BY_DATE, GroupingMode.BY_MACHINE}
+            and k.subgroup != cur_subgroup
+        ):
+            cur_subgroup = k.subgroup
             cur_subgroup_collapsed = False
             cur_root = ""
             cur_prefix = ""
             cur_root_collapsed = False
             cur_prefix_collapsed = False
-            subgroup_count = len(subgroup_indices.get((k.project, k.date_subgroup), []))
-            if _should_emit_date_subgroup_banner(k.date_subgroup, subgroup_count):
-                subgroup_key: GroupKey = (k.project, k.date_subgroup)
+            subgroup_count = len(subgroup_indices.get((k.project, k.subgroup), []))
+            if _should_emit_subgroup_banner(mode, k.subgroup, subgroup_count):
+                subgroup_key: GroupKey = (k.project, k.subgroup)
                 cur_subgroup_collapsed = registry.is_collapsed(subgroup_key)
                 entries.append(
                     TreeEntry(
@@ -371,10 +403,14 @@ def build_agent_tree(
                             level=1,
                             group_key=subgroup_key,
                             agent_indices=tuple(
-                                subgroup_indices[(k.project, k.date_subgroup)]
+                                subgroup_indices[(k.project, k.subgroup)]
                             ),
                             is_collapsed=cur_subgroup_collapsed,
-                            has_child_groups=False,
+                            has_child_groups=(
+                                subgroup_has_root_groups(k.project, k.subgroup)
+                                if mode is GroupingMode.BY_MACHINE
+                                else False
+                            ),
                         ),
                     )
                 )

@@ -62,7 +62,7 @@ class GroupingKeys:
     name_root: str
     name_prefix: str
     name_prefix_member_rank: int = 1  # exact prefix marker before descendants
-    date_subgroup: str = ""  # populated only under BY_DATE; "" otherwise
+    subgroup: str = ""  # BY_DATE time bucket or BY_MACHINE status bucket; "" otherwise
     anchor: datetime | None = None  # subgroup sort anchor under BY_DATE
     changespec: str = ""  # legacy compatibility alias for ``patch``
 
@@ -132,10 +132,20 @@ def status_grouping_signature(
 
 def machine_grouping_signature(
     agent: Agent,
-) -> tuple[str, str, str, int, datetime | None]:
-    """Return the ``BY_MACHINE`` grouping determinants for a single agent."""
+) -> tuple[str, str, str, str, int, datetime | None]:
+    """Return the ``BY_MACHINE`` grouping determinants for a single agent.
+
+    Captures exactly the fields that decide which machine, status subgroup,
+    and name-root / name-prefix position a row renders under: the machine
+    alias, status bucket, name root, name prefix, exact-prefix member rank,
+    and launch anchor. Used by the in-place row-patch guard to confirm a
+    badge-only change leaves the row in the same group and position before
+    patching its Option in place; a status-bucket move means the row may have
+    moved to a different subgroup, so the caller must rebuild instead.
+    """
     return (
         _machine_name(agent),
+        status_bucket_for(agent),
         _name_root(agent),
         _name_prefix(agent),
         _name_prefix_member_rank(agent),
@@ -187,17 +197,23 @@ def _name_root_sort_key(name_root: str, in_group: bool) -> tuple[int, str]:
     return (1, name_root.lower()) if in_group else (0, "")
 
 
-def _date_subgroup_sort_key(
-    date_bucket: str, subgroup: str, anchor: datetime | None
+def _subgroup_sort_key(
+    mode: GroupingMode, l0: str, subgroup: str, anchor: datetime | None
 ) -> tuple[int, int]:
-    """Sort key for BY_DATE L1 subgroups within a date bucket.
+    """Sort key for L1 subgroups within an L0 bucket.
 
-    Empty ``subgroup`` is the non-BY_DATE neutral (``(0, 0)``) so existing
-    orderings under STANDARD / BY_STATUS are preserved byte-for-byte.
+    Empty ``subgroup`` is the neutral value (``(0, 0)``) used by every mode
+    that doesn't populate it (STANDARD, BY_STATUS), so their orderings are
+    preserved byte-for-byte. ``BY_DATE`` sorts subgroups newest-first via
+    :func:`date_subgroup_sort_key`. ``BY_MACHINE`` sorts status subgroups in
+    fixed priority order via :func:`bucket_sort_index`, with unknown labels
+    last.
     """
     if subgroup == "":
         return (0, 0)
-    return date_subgroup_sort_key(date_bucket, subgroup, anchor)
+    if mode is GroupingMode.BY_MACHINE:
+        return (0, bucket_sort_index(mode, subgroup))
+    return date_subgroup_sort_key(l0, subgroup, anchor)
 
 
 def _machine_name(agent: Agent) -> str:
@@ -253,8 +269,12 @@ def grouping_keys_for(
         name_prefix_member_rank=(
             1 if mode is GroupingMode.BY_DATE else _name_prefix_member_rank(target)
         ),
-        date_subgroup=(
-            date_subgroup_bucket_for(target, l0) if mode is GroupingMode.BY_DATE else ""
+        subgroup=(
+            date_subgroup_bucket_for(target, l0)
+            if mode is GroupingMode.BY_DATE
+            else status_bucket_for(target)
+            if mode is GroupingMode.BY_MACHINE
+            else ""
         ),
         anchor=(date_anchor_time(target) if mode is GroupingMode.BY_DATE else None),
     )
@@ -371,7 +391,7 @@ def walk_order(
 ) -> list[int]:
     """Return a stable permutation, optionally treating root trees atomically."""
     parent_keys: list[tuple[str, str]] = [
-        (k.project, k.patch) if use_patch_level else (k.project, "")
+        (k.project, k.patch) if use_patch_level else (k.project, k.subgroup)
         for k in keys_per_agent
     ]
     root_counts: dict[tuple[tuple[str, str], str], int] = {}
@@ -493,12 +513,13 @@ def walk_order(
         key=lambda i: (
             _project_sort_key(mode, keys_per_agent[i].project),
             (_patch_sort_key(keys_per_agent[i].patch) if use_patch_level else (0, "")),
-            status_sort_keys[i],
-            _date_subgroup_sort_key(
+            _subgroup_sort_key(
+                mode,
                 keys_per_agent[i].project,
-                keys_per_agent[i].date_subgroup,
+                keys_per_agent[i].subgroup,
                 keys_per_agent[i].anchor,
             ),
+            status_sort_keys[i],
             _name_root_sort_key(
                 keys_per_agent[i].name_root,
                 in_group=bool(keys_per_agent[i].name_root)

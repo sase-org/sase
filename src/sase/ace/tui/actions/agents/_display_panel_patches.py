@@ -44,7 +44,15 @@ def _status_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
 
 
 def _machine_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
-    """Whether a ``BY_MACHINE`` row may be patched in place for *new_agent*."""
+    """Whether a ``BY_MACHINE`` row may be patched in place for *new_agent*.
+
+    The patch is safe only when the row identity is unchanged and the
+    machine alias, status bucket, name-root / name-prefix subgroup, and
+    launch anchor are identical — i.e. the change is badge-only. A
+    status-bucket move means the row's status subgroup (and therefore its
+    position) may have changed, so it forces a rebuild fallback just like a
+    ``BY_STATUS`` bucket move.
+    """
     if old_agent.identity != new_agent.identity:
         return False
     return machine_grouping_signature(old_agent) == machine_grouping_signature(

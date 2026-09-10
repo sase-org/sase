@@ -28,8 +28,10 @@ status bucket, standalone sase agents render before visible name-root subgroups;
 launch recency sorts units only within those two partitions. The same rule
 places lanes directly under a name-root before its visible dotted-prefix
 subgroups. Subgroups use their outer/root agent's ``start_time`` and remain
-contiguous. ``BY_MACHINE`` uses the same name grouping inside each machine
-bucket, with local rows under ``here``. ``BY_DATE`` replaces the tree with date
+contiguous. ``BY_MACHINE`` uses the machine alias at L0 (local rows under
+``here``), sub-groups each machine by the same priority-ordered status bucket
+as ``BY_STATUS`` at L1, then applies the same name-root / name-prefix layers
+within each (machine, status) pair. ``BY_DATE`` replaces the tree with date
 bucket → time subgroup and intentionally suppresses name-root/name-prefix grouping.
 
 Tribe-level grouping is not part of this tree — tribes drive the dynamic

@@ -6,6 +6,7 @@ from datetime import datetime
 
 import pytest
 
+from sase.agent.status_buckets import QUEUED_STATUS_COLOR
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.core.time import local_now
 from sase.ace.tui.widgets._agent_list_styling import (
@@ -257,6 +258,55 @@ def test_by_status_name_root_banner_uses_existing_palette() -> None:
     spans = {s.style for s in name_root_text.spans}  # type: ignore[union-attr]
     assert _NAME_ROOT_BANNER_LABEL_STYLE in spans
     assert _NAME_ROOT_BANNER_BRANCH_STYLE in spans
+
+
+def test_by_machine_status_subgroup_banner_carries_status_glyph() -> None:
+    """BY_MACHINE L1 status banners render the middle-tier bar + status glyph."""
+    widget = AgentList()
+    widget.update_list(
+        [make_agent(status="RUNNING")],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_MACHINE,
+    )
+    options = list(widget._options)
+    plain = options[1].prompt.plain  # type: ignore[union-attr]
+    assert f"▎ {_STATUS_BUCKET_GLYPHS['Running']} Running" in plain
+    spans = {s.style for s in options[1].prompt.spans}  # type: ignore[union-attr]
+    assert _PATCH_BANNER_BAR_STYLE in spans
+    assert _PATCH_BANNER_RULE_STYLE in spans
+
+
+def test_by_machine_status_subgroup_banner_queued_carries_accent_color() -> None:
+    """The Queued bucket's glyph (not the bar) carries the accent color."""
+    widget = AgentList()
+    widget.update_list(
+        [make_agent(status="QUEUED")],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_MACHINE,
+    )
+    options = list(widget._options)
+    plain = options[1].prompt.plain  # type: ignore[union-attr]
+    assert f"▎ {_STATUS_BUCKET_GLYPHS['Queued']} Queued" in plain
+    spans = {s.style for s in options[1].prompt.spans}  # type: ignore[union-attr]
+    assert f"bold {QUEUED_STATUS_COLOR}" in spans
+    # The bar itself keeps the normal middle-tier accent, not the Queued color.
+    assert _PATCH_BANNER_BAR_STYLE in spans
+
+
+def test_by_machine_status_subgroup_banner_always_middle_tier_with_no_children() -> (
+    None
+):
+    """A singleton status subgroup with no name-root children still uses
+    the middle-tier register (unlike BY_STATUS name-roots)."""
+    widget = AgentList()
+    widget.update_list(
+        [make_agent(status="RUNNING")],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_MACHINE,
+    )
+    options = list(widget._options)
+    plain = options[1].prompt.plain  # type: ignore[union-attr]
+    assert "▎" in plain
 
 
 def test_standard_mode_banner_unchanged_after_phase_2() -> None:

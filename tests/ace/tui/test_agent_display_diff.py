@@ -661,10 +661,32 @@ def test_by_status_launch_anchor_change_refuses_row_patch(monkeypatch: Any) -> N
     )
 
 
-def test_by_machine_status_change_patches_after_finalize(monkeypatch: Any) -> None:
+def test_by_machine_status_bucket_move_refuses_row_patch(monkeypatch: Any) -> None:
+    # A status-bucket crossing change (Running -> Done) moves the row to a
+    # different status subgroup, so the strengthened machine_grouping_signature
+    # must force a rebuild rather than patch the stale-positioned row in place.
     old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
     old_agent.fleet_origin_alias = "apollo"
     new_agent = replace(old_agent, status="DONE")
+    app = _by_machine_app([old_agent], monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    app._agents = [new_agent]
+
+    assert app._try_patch_agent_row(new_agent) is False
+    assert app._agents_refresh_trace_records[-1].fallback_reason == (
+        "unsupported_grouping"
+    )
+
+
+def test_by_machine_badge_only_change_patches_after_finalize(monkeypatch: Any) -> None:
+    # A same-bucket, badge-only change (e.g. a deferred live-hint pencil)
+    # leaves every machine_grouping_signature field unchanged, so it still
+    # patches in place.
+    old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
+    old_agent.fleet_origin_alias = "apollo"
+    new_agent = replace(old_agent, status="RUNNING")
+    new_agent.live_file_change_hint = True
     app = _by_machine_app([old_agent], monkeypatch)
     app._agents_refresh_trace_records.clear()
 

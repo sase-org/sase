@@ -64,6 +64,25 @@ def test_grouping_keys_for_agents_by_machine_uses_machine_at_l0() -> None:
     assert [k.name_root for k in keys] == ["local", "remote"]
 
 
+def test_grouping_keys_for_agents_by_machine_uses_status_at_subgroup() -> None:
+    """A machine with agents in 2+ status buckets nests (machine, status, root)."""
+    from sase.ace.tui.models.agent_groups import _grouping_keys_for_agents
+
+    running = _agent(agent_name="coder.claude", status="RUNNING")
+    done = _agent(agent_name="coder.codex", status="DONE")
+
+    keys = _grouping_keys_for_agents([running, done], GroupingMode.BY_MACHINE, _NOW)
+
+    assert [k.project for k in keys] == ["here", "here"]
+    assert [k.subgroup for k in keys] == ["Running", "Done"]
+    assert [k.name_root for k in keys] == ["coder", "coder"]
+    assert enumerate_group_keys([running, done], GroupingMode.BY_MACHINE, _NOW) == [
+        ("here",),
+        ("here", "Running"),
+        ("here", "Done"),
+    ]
+
+
 def test_panel_uses_patch_level_skipped_in_non_standard_modes() -> None:
     """Non-STANDARD modes never use the Patch layer, even when present."""
     from sase.ace.tui.models.agent_groups import _panel_uses_patch_level
@@ -114,7 +133,7 @@ def test_clan_descendants_inherit_outer_anchor_keys_in_every_mode() -> None:
         GroupingMode.STANDARD: ("root", "", ""),
         GroupingMode.BY_STATUS: ("Running", "", ""),
         GroupingMode.BY_DATE: ("Today", "", "08:00"),
-        GroupingMode.BY_MACHINE: ("here", "", ""),
+        GroupingMode.BY_MACHINE: ("here", "", "Running"),
     }
 
     for mode, (l0, patch, subgroup) in expectations.items():
@@ -123,7 +142,7 @@ def test_clan_descendants_inherit_outer_anchor_keys_in_every_mode() -> None:
         assert {key.patch for key in keys} == {patch}
         assert {key.name_root for key in keys} == {""}
         assert {key.name_prefix for key in keys} == {""}
-        assert {key.date_subgroup for key in keys} == {subgroup}
+        assert {key.subgroup for key in keys} == {subgroup}
 
     assert enumerate_group_keys(agents, GroupingMode.STANDARD, _NOW) == [("root",)]
     assert enumerate_group_keys(agents, GroupingMode.BY_STATUS, _NOW) == [("Running",)]
@@ -131,4 +150,7 @@ def test_clan_descendants_inherit_outer_anchor_keys_in_every_mode() -> None:
         ("Today",),
         ("Today", "08:00"),
     ]
-    assert enumerate_group_keys(agents, GroupingMode.BY_MACHINE, _NOW) == [("here",)]
+    assert enumerate_group_keys(agents, GroupingMode.BY_MACHINE, _NOW) == [
+        ("here",),
+        ("here", "Running"),
+    ]

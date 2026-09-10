@@ -48,14 +48,18 @@ class GroupingMode(Enum):
       ``Running`` / ``Queued`` / ``Waiting`` / ``Done`` / ``Starting``)
       derived from each agent's ``status``.
     - ``BY_MACHINE``: L0 is the fleet machine alias, with local rows under
-      ``here``.
+      ``here``.  Each machine bucket is further sub-grouped by the same
+      priority-ordered status bucket used by ``BY_STATUS``, then by
+      name-root / name-prefix within each (machine, status) pair.
 
     In ``BY_DATE``, ``BY_STATUS``, and ``BY_MACHINE`` modes the project and Patch
     levels disappear.  ``BY_DATE`` renders date bucket → date-aware
     subgroup (1-hour under Today/Yesterday, calendar day under This Week,
-    Monday-start week under Earlier), while ``BY_STATUS`` and ``BY_MACHINE``
-    render bucket → name-root with the same singleton-suppression rule as
-    ``STANDARD`` mode.
+    Monday-start week under Earlier), while ``BY_STATUS`` renders
+    bucket → name-root with the same singleton-suppression rule as
+    ``STANDARD`` mode.  ``BY_MACHINE`` renders machine → status subgroup →
+    name-root, with every status subgroup banner always visible (no
+    singleton suppression, since every real status bucket is meaningful).
     """
 
     STANDARD = "standard"

@@ -69,7 +69,13 @@ def format_banner_option(
       project bar — the bucket name is the visual anchor.
     - BY_STATUS L0 (status bucket): leading status glyph (``▲`` for
       ``Stopped``) + bold sky-blue label + heavy rule.
-    - L1/L2 (name-root) in any mode: dim-gray ``▸`` branch glyph, teal
+    - BY_MACHINE L1 (status subgroup): ``▎`` bar + status glyph (e.g.
+      ``▎ ▶ Running``) + label, light rule ``─`` — always the middle-tier
+      register, even when the subgroup has no name-root children.  The
+      ``Queued`` bucket's glyph (not the bar) carries the
+      ``QUEUED_STATUS_COLOR`` accent, mirroring the BY_STATUS L0 special
+      case.
+    - L1/L2/L3 (name-root) in any mode: dim-gray ``▸`` branch glyph, teal
       label, dim-gray light rule ``─`` and chip.
 
     Banner Options are marked ``disabled`` while expanded so OptionList
@@ -91,6 +97,7 @@ def format_banner_option(
     is_middle_tier_banner = (
         is_patch_banner
         or (group.level == 1 and mode is GroupingMode.BY_DATE)
+        or (group.level == 1 and mode is GroupingMode.BY_MACHINE)
         or (group.level > 0 and group.has_child_groups)
     )
     if group.level == 0 and mode is GroupingMode.STANDARD:
@@ -126,6 +133,25 @@ def format_banner_option(
         label_style = _NAME_ROOT_BANNER_LABEL_STYLE
         rule_style = _NAME_ROOT_BANNER_BRANCH_STYLE
 
+    # Status subgroup banners (BY_MACHINE L1) insert the bucket's status
+    # glyph between the ``▎`` bar and the label, echoing the glyphs
+    # BY_STATUS L0 banners already use.  The Queued bucket keeps its accent
+    # color on just the glyph, not the whole bar+glyph prefix.
+    prefix_segments: list[tuple[str, str]] = [(prefix, prefix_style)]
+    if (
+        group.level == 1
+        and mode is GroupingMode.BY_MACHINE
+        and label in _STATUS_BUCKET_GLYPHS
+    ):
+        glyph = _STATUS_BUCKET_GLYPHS[label]
+        glyph_style = (
+            f"bold {QUEUED_STATUS_COLOR}"
+            if label == QUEUED_STATUS_BUCKET
+            else prefix_style
+        )
+        prefix_segments = [(prefix, prefix_style), (f"{glyph} ", glyph_style)]
+        prefix = f"{prefix}{glyph} "
+
     text = render_tier_gutter(tier_styles)
     gutter_cells = len(tier_styles) * _TIER_GUIDE_SEGMENT_WIDTH
     if hint_char is not None:
@@ -136,7 +162,8 @@ def format_banner_option(
     elif mark_state == "partial":
         text.append("[~] ", style="dim #00D700")
     mark_cells = 4 if mark_state != "none" else 0
-    text.append(prefix, style=prefix_style)
+    for segment_text, segment_style in prefix_segments:
+        text.append(segment_text, style=segment_style)
     text.append(label, style=label_style)
     if chip:
         # ``<gutter><hint><prefix><label> <rule…>  <chip>``: 1-cell gap
