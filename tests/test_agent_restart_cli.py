@@ -311,7 +311,7 @@ def test_wipe_failed_exits_1_and_prints_recovery_dir(
         stop_action="killed",
         stop_result=successful_kill(),
         error="Failed to wipe agent name '02p': boom",
-        recovery_command=f'sase run "$(cat {recovery / "rewritten.md"})"',
+        recovery_command=None,
         recovery_dir=str(recovery),
     )
     rc = handle_agents_restart(
@@ -325,6 +325,8 @@ def test_wipe_failed_exits_1_and_prints_recovery_dir(
     assert "Recovery directory" in stderr
     assert recovery.name in stderr
     assert "never released" in stderr
+    assert "ACE" in stderr
+    assert "sase run" not in stderr
 
 
 def test_related_wipe_requests_confirmation(tmp_path: Path) -> None:

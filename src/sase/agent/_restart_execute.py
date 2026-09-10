@@ -75,7 +75,7 @@ def execute_agent_restart(
     try:
         with contextlib.chdir(Path.home()):
             results = launch_agents_from_cwd(
-                plan.rewritten_prompt,
+                plan.force_reuse_plan.rewritten_prompt,
                 segment_extra_env=plan.force_reuse_plan.segment_envs,
             )
     except Exception as exc:

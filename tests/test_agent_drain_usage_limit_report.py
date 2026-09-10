@@ -28,16 +28,24 @@ def _move(name: str, target_provider: str = "codex") -> dict[str, Any]:
     }
 
 
-def _result(name: str, status: str = "ok") -> dict[str, Any]:
+def _result(
+    name: str,
+    status: str = "ok",
+    *,
+    error: str | None = None,
+    recovery_dir: str | None = None,
+    recovery_prompt: str | None = None,
+) -> dict[str, Any]:
     return {
         "name": name,
         "status": status,
         "stopped": {},
         "launched": None,
-        "recovery_dir": None,
+        "recovery_dir": recovery_dir,
         "recovery_command": None,
+        "recovery_prompt": recovery_prompt,
         "renamed_to": None,
-        "error": None,
+        "error": error,
     }
 
 
@@ -91,10 +99,70 @@ def test_relaunched_line_when_no_move_completed() -> None:
     payload = {
         "moves": [_move("sase-mf")],
         "skips": [],
-        "results": [_result("sase-mf", status="kill_failed")],
+        "results": [
+            _result(
+                "sase-mf",
+                status="kill_failed",
+                error="Permission denied killing agent",
+                recovery_dir="/tmp/restarts/sase-mf",
+            )
+        ],
     }
     notes = usage_limit_drain_report_notes(payload)
-    assert notes == ["Relaunch attempted for 1 agent(s); none completed."]
+    assert notes == [
+        "Relaunch attempted for 1 agent(s); none completed.",
+        "Failed 1 replacement(s): sase-mf (Permission denied killing agent). "
+        "Recovery context: /tmp/restarts/sase-mf",
+    ]
+
+
+def test_mixed_relaunch_success_and_failure_reports_both() -> None:
+    payload = {
+        "moves": [_move("sase-mf"), _move("ace-01")],
+        "skips": [],
+        "results": [
+            _result("sase-mf"),
+            _result("ace-01", status="partial", error="spawn failed"),
+        ],
+    }
+    notes = usage_limit_drain_report_notes(payload)
+    assert notes == [
+        "Relaunched 1 agent(s) on CODEX: sase-mf",
+        "Failed 1 replacement(s): ace-01 (spawn failed). "
+        "See the drain proc log for the complete result.",
+    ]
+
+
+def test_planning_error_payload_reports_the_error() -> None:
+    payload = {
+        "moves": [],
+        "skips": [],
+        "results": [],
+        "error": {
+            "reason": "not_disabled",
+            "message": "'claude' has no active disable; nothing to drain.",
+        },
+    }
+    assert usage_limit_drain_report_notes(payload) == [
+        "Drain planning failed: 'claude' has no active disable; nothing to drain."
+    ]
+
+
+def test_inline_recovery_prompt_is_not_dropped() -> None:
+    payload = {
+        "moves": [_move("sase-mf")],
+        "skips": [],
+        "results": [
+            _result(
+                "sase-mf",
+                status="partial",
+                error="spawn failed",
+                recovery_prompt="%id:!sase-mf\nDo work",
+            )
+        ],
+    }
+    notes = usage_limit_drain_report_notes(payload)
+    assert notes[-1].endswith("Inline recovery prompt is in the drain result.")
 
 
 def test_left_alone_line_groups_by_reason_and_sorts() -> None:

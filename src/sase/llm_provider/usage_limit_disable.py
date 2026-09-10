@@ -247,6 +247,7 @@ def _submit_drain(
             "expires_at": detection.expires_at,
             "used_reset_hint": detection.used_reset_hint,
             "trigger_agent": _agent_name_from_artifacts_dir(artifacts_dir),
+            "trigger_artifacts_dir": artifacts_dir,
             "trigger_model": model,
         }
         submit_proc_request(

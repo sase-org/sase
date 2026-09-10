@@ -566,7 +566,40 @@ class TestUsageLimitDrainSubmission:
         assert request.operation == "agent.drain"
         assert request.operation_payload["notify"] is True
         assert request.operation_payload["provider"] == "claude"
+        assert request.operation_payload["trigger_artifacts_dir"] is None
         assert request.concurrency_keys == ["provider-drain:claude"]
+        mock_notify.assert_not_called()
+
+    @patch("sase.procs.submit_proc_request")
+    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
+    @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
+    def test_flag_on_submits_drain_with_trigger_artifacts_dir(
+        self,
+        mock_detect: MagicMock,
+        mock_notify: MagicMock,
+        mock_submit: MagicMock,
+        registered_providers: None,
+        tmp_path,
+    ) -> None:
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        (artifacts_dir / "agent_meta.json").write_text(
+            '{"name": "sase-mf"}', encoding="utf-8"
+        )
+        mock_detect.return_value = _detection()
+
+        with override_flags(provider_drain=True):
+            result = handle_possible_usage_limit(
+                provider="claude",
+                error_text="usage limit reached",
+                artifacts_dir=str(artifacts_dir),
+            )
+
+        assert result is not None
+        mock_submit.assert_called_once()
+        payload = mock_submit.call_args.args[0].operation_payload
+        assert payload["trigger_agent"] == "sase-mf"
+        assert payload["trigger_artifacts_dir"] == str(artifacts_dir)
         mock_notify.assert_not_called()
 
     @patch("sase.procs.submit_proc_request")

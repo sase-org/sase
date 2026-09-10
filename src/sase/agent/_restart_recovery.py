@@ -2,7 +2,8 @@
 
 A restart stops the agent and wipes its name before relaunching, so the
 rewritten prompt is snapshotted under ``~/.sase/restarts`` first: if the wipe
-or the relaunch fails, the operator still has a command that reruns it.
+or the relaunch fails, the operator still has the reviewed prompt and launch
+context needed to recover it through the normal ACE launch surface.
 """
 
 from __future__ import annotations
@@ -26,9 +27,7 @@ def prepare_recovery(
     if dest is None:
         emit("recovery", "warn", "could not persist a recovery bundle")
         return None, None, plan.rewritten_prompt
-    rewritten = dest / "rewritten.md"
-    command = f'sase run "$(cat {rewritten})"'
-    return str(dest), command, None
+    return str(dest), None, None
 
 
 def _persist_recovery_bundle(plan: AgentRestartPlan) -> Path | None:
@@ -61,6 +60,9 @@ def _write_recovery_files(plan: AgentRestartPlan, dest: Path) -> None:
     else:
         (dest / "raw_xprompt.md").write_text(plan.original_prompt, encoding="utf-8")
     (dest / "rewritten.md").write_text(plan.rewritten_prompt, encoding="utf-8")
+    (dest / "execution.md").write_text(
+        plan.force_reuse_plan.rewritten_prompt, encoding="utf-8"
+    )
     meta_src = plan.artifacts_dir / "agent_meta.json"
     if meta_src.is_file():
         shutil.copy2(meta_src, dest / "agent_meta.json")
@@ -76,6 +78,12 @@ def _write_recovery_files(plan: AgentRestartPlan, dest: Path) -> None:
         "timestamps": {
             "restarted_at": restarted_at,
             "source": plan.artifacts_dir.name,
+        },
+        "recovery": {
+            "saved_prompt": "rewritten.md",
+            "execution_prompt": "execution.md",
+            "direct_cli_supported": False,
+            "procedure": "Review rewritten.md in ACE before relaunching forced reuse.",
         },
     }
     (dest / "restart.json").write_text(

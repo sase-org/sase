@@ -2,15 +2,60 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.agent.wait_watch import WaitTarget, WaitTargetKind, WaitTargetResolutionError
+from sase.core.agent_scan_wire import (
+    AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    AgentArtifactRecordWire,
+    AgentArtifactScanOptionsWire,
+    AgentArtifactScanStatsWire,
+    AgentArtifactScanWire,
+    AgentMetaWire,
+    DoneMarkerWire,
+)
 from sase.ops.commands._agent_drain_notify import (
     send_usage_limit_drain_notification,
     settle_drain_trigger_agent,
 )
 
 _TARGET = WaitTarget(raw_name="sase-mf", name="sase-mf", kind=WaitTargetKind.AGENT)
+
+
+def _snapshot(*records: AgentArtifactRecordWire) -> AgentArtifactScanWire:
+    return AgentArtifactScanWire(
+        schema_version=AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        projects_root="/tmp/sase/projects",
+        options=AgentArtifactScanOptionsWire(),
+        stats=AgentArtifactScanStatsWire(),
+        records=list(records),
+    )
+
+
+def _record(
+    artifact_dir: str,
+    *,
+    name: str = "sase-mf",
+    outcome: str | None = "failed",
+    retried_as_timestamp: str | None = None,
+) -> AgentArtifactRecordWire:
+    return AgentArtifactRecordWire(
+        project_name="sase",
+        project_dir="/tmp/sase/projects/sase",
+        project_file="/tmp/sase/projects/sase/sase.gp",
+        workflow_dir_name="ace-run",
+        artifact_dir=artifact_dir,
+        timestamp=Path(artifact_dir).name,
+        agent_meta=AgentMetaWire(name=name),
+        done=DoneMarkerWire(
+            outcome=outcome,
+            retried_as_timestamp=retried_as_timestamp,
+        )
+        if outcome is not None
+        else None,
+        has_done_marker=outcome is not None,
+    )
 
 
 class TestSettleDrainTriggerAgent:
@@ -61,6 +106,59 @@ class TestSettleDrainTriggerAgent:
         config = mock_watch.call_args.args[0]
         assert config.timeout_seconds == 45.0
         assert config.targets == (_TARGET,)
+
+    @patch("sase.agent.wait_watch.resolve_wait_targets")
+    @patch("sase.core.agent_scan_facade.scan_agent_artifacts")
+    @patch("sase.core.paths.sase_projects_dir", return_value=Path("/tmp/sase/projects"))
+    @patch("sase.core.agent_scan_facade.scan_agent_artifact_dirs")
+    def test_artifact_identity_uses_exact_scan_and_no_name_resolution(
+        self,
+        mock_scan_dirs: MagicMock,
+        _mock_root: MagicMock,
+        mock_scan_all: MagicMock,
+        mock_resolve: MagicMock,
+    ) -> None:
+        trigger_dir = "/tmp/sase/projects/sase/artifacts/ace-run/20260910130000"
+        mock_scan_dirs.return_value = _snapshot(
+            _record(
+                trigger_dir,
+                outcome="failed",
+                retried_as_timestamp="20260910130100",
+            )
+        )
+
+        settle_drain_trigger_agent(
+            "sase-mf",
+            trigger_artifacts_dir=trigger_dir,
+            timeout_seconds=45.0,
+        )
+
+        mock_scan_dirs.assert_called()
+        assert mock_scan_dirs.call_args.args[1] == [Path(trigger_dir)]
+        mock_scan_all.assert_not_called()
+        mock_resolve.assert_not_called()
+
+    @patch("sase.agent.wait_watch.resolve_wait_targets")
+    @patch("sase.core.paths.sase_projects_dir", return_value=Path("/tmp/sase/projects"))
+    @patch("sase.core.agent_scan_facade.scan_agent_artifact_dirs")
+    def test_missing_artifact_identity_does_not_fall_back_to_name(
+        self,
+        mock_scan_dirs: MagicMock,
+        _mock_root: MagicMock,
+        mock_resolve: MagicMock,
+    ) -> None:
+        mock_scan_dirs.return_value = _snapshot()
+
+        settle_drain_trigger_agent(
+            "newer-same-name",
+            trigger_artifacts_dir=(
+                "/tmp/sase/projects/sase/artifacts/ace-run/20260910130000"
+            ),
+            timeout_seconds=0.0,
+        )
+
+        mock_scan_dirs.assert_called_once()
+        mock_resolve.assert_not_called()
 
     @patch(
         "sase.agent.wait_watch.resolve_wait_targets",

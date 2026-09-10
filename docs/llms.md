@@ -2320,6 +2320,19 @@ given. `-m/--model` is the way to move an agent the plan would otherwise report 
 reroute. `-l/--limit` caps how many agents move at once; anything dropped by the limit
 is reported, never silently skipped.
 
+Automatic usage-limit drains send one notification for the disable window. The drain
+notes report completed relaunches, failed replacement moves, and rows left alone; the
+durable proc output has the complete JSON envelope. Inspect a bad drain with
+`sase proc show <proc-id> --all-lines --output-only` and look at each result's `error`,
+`recovery_dir`, and `recovery_prompt` fields.
+
+Restart recovery bundles live under `~/.sase/restarts/<timestamp>-<agent>/`. For a
+failed forced-reuse restart, open the saved `rewritten.md` prompt from that bundle in
+ACE and relaunch through the reviewed launch flow so name reuse, bead context, family or
+clan membership, and scoped authorization are reconstructed. Do not recover forced reuse
+by running a bare `sase run "$(cat rewritten.md)"`; `execution.md` is retained for audit
+of the already-prepared launch text, not as a privileged replay path.
+
 ## Environment Variables
 
 Complete reference of environment variables used by the LLM provider layer.

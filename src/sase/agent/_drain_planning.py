@@ -100,7 +100,7 @@ def _plan_one(
             detail=exc.message,
         )
 
-    route = _classify_route(plan.rewritten_prompt)
+    route = _classify_route(plan.force_reuse_plan.rewritten_prompt)
     if route.kind == "stranded":
         target = _route_label(route, provider)
         return ProviderDrainSkip(

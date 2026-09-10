@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 from rich import box
@@ -280,9 +281,23 @@ def _print_recovery(err: Console, outcome: AgentRestartOutcome) -> None:
         err.print(Text("Recover with:", style="dim"))
         err.print(Text(f"  {outcome.recovery_command}", style="bold"))
     elif outcome.recovery_prompt:
-        err.print(Text("Recover by relaunching this prompt:", style="dim"))
+        err.print(
+            Text(
+                "Review this prompt in ACE before relaunching forced reuse:",
+                style="dim",
+            )
+        )
         err.print(Text(outcome.recovery_prompt, style="bold"))
     if outcome.recovery_dir:
+        saved_prompt = Path(outcome.recovery_dir) / "rewritten.md"
+        err.print(
+            Text(
+                "Recovery prompt saved; review it in ACE before relaunching "
+                "forced reuse:",
+                style="dim",
+            )
+        )
+        err.print(Text(f"  {saved_prompt}", style="bold"))
         err.print(Text(f"Recovery directory: {outcome.recovery_dir}", style="dim"))
 
 

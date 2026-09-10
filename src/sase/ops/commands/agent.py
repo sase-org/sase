@@ -98,7 +98,10 @@ def _run_drain(args: argparse.Namespace) -> OperationCommandResult:
     trigger = dict(request.payload) if request.payload.get("notify") else None
     report_fn: Callable[[Any], None] | None = None
     if trigger is not None:
-        settle_drain_trigger_agent(trigger.get("trigger_agent"))
+        settle_drain_trigger_agent(
+            trigger.get("trigger_agent"),
+            trigger_artifacts_dir=trigger.get("trigger_artifacts_dir"),
+        )
         report_fn = partial(send_usage_limit_drain_notification, trigger)
 
     result = run_agents_drain(args, report_fn=report_fn)

@@ -19,11 +19,13 @@ this sandbox (codex) still count as "available" for routing purposes.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import json
 import os
 import sys
 import time
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -55,6 +57,37 @@ _SECOND_TIMESTAMP = "20260810090000"
 _USAGE_LIMIT_ERROR = "FAKEY-USAGE-LIMIT hit"
 
 
+def _wait_for_file(path: Path, *, timeout: float = 30.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.is_file():
+            return
+        time.sleep(0.01)
+    raise AssertionError(f"timed out waiting for {path}")
+
+
+def _wait_for_json(
+    path: Path,
+    predicate: Callable[[dict[str, Any]], bool],
+    *,
+    timeout: float = 30.0,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    last_error: Exception | None = None
+    while time.monotonic() < deadline:
+        if path.is_file():
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                last_error = exc
+            else:
+                if isinstance(payload, dict) and predicate(payload):
+                    return payload
+        time.sleep(0.01)
+    suffix = f": {last_error}" if last_error is not None else ""
+    raise AssertionError(f"timed out waiting for matching JSON in {path}{suffix}")
+
+
 def _write_alias_overlay(config_dir: Path) -> None:
     """Publish a custom model alias whose ``||`` fallback reroutes off fakey.
 
@@ -67,6 +100,9 @@ def _write_alias_overlay(config_dir: Path) -> None:
     config_dir.mkdir(parents=True, exist_ok=True)
     overlay = config_dir / "sase_drain_e2e.yml"
     overlay.write_text(
+        "id:\n"
+        "  username: fakeyuser\n"
+        "  machine_name: fakey_host\n"
         "llm_provider:\n"
         "  model_aliases:\n"
         "    custom:\n"
@@ -100,6 +136,7 @@ def _configure_reroute_environment(
     """
     fake_home = harness.root / "operator-home"
     fake_home.mkdir(parents=True, exist_ok=True)
+    (harness.home / "machine_name").write_text("fakey_host\n", encoding="utf-8")
     monkeypatch.setenv("HOME", str(fake_home))
     _write_alias_overlay(fake_home / ".config" / "sase")
     venv_bin = Path(sys.executable).parent
@@ -241,6 +278,7 @@ def test_provider_drain_e2e_flag_on_relaunches_stranded_agent(
     assert request.concurrency_keys == ["provider-drain:fakey"]
     assert request.operation_payload is not None
     assert request.operation_payload["notify"] is True
+    assert request.operation_payload["trigger_artifacts_dir"] == str(harness.artifacts)
 
     proc = captured_procs[0]
     finished = wait_for_proc(proc.proc_id, timeout=_DRAIN_WAIT_TIMEOUT)
@@ -261,51 +299,52 @@ def test_provider_drain_e2e_flag_on_relaunches_stranded_agent(
     assert moved["route"]["target_provider"] == "codex"
 
     # The second agent's original row is gone: it was really stopped
-    # (dismissed) and its artifacts wiped as part of the real restart,
-    # even though the relaunch itself does not complete -- see below.
+    # (dismissed) and its artifacts wiped as part of the real restart.
     assert not second_artifacts.exists()
 
-    # KNOWN BUG, found by this drill and NOT fixed here per this task's
-    # brief ("stop and report it instead of fixing it"): execute_agent_restart
-    # (src/sase/agent/_restart_execute.py) launches ``plan.rewritten_prompt``,
-    # which -- per sase.agent._restart_planning._plan_name_reuse -- still
-    # carries the raw ``%id(!name)`` forced-reuse marker. Every other caller
-    # that runs a forced-name-reuse prompt (sase.main.query_handler._launch's
-    # ``sase run --allow-force-reuse`` path) launches
-    # ``force_reuse_plan.rewritten_prompt`` instead -- the already-"!"-stripped
-    # prompt -- specifically because ``launch_agents_from_cwd``'s single-agent
-    # path (sase.agent.launch_cwd_agents) always calls
-    # ``validate_launch_name_requests`` with the default ``allow_force_reuse=
-    # False`` and has no way to learn that force reuse was already confirmed
-    # upstream. The result: this move (and, by the same code path, EVERY
-    # real ``sase agent restart`` / ``sase agent drain`` / ACE ",x" relaunch)
-    # fails at the launch step with "Agent name '<name>' uses forced reuse;
-    # confirmation is required." This reproduces with no drain/alias
-    # machinery at all -- a bare ``plan_agent_restart`` + real
-    # ``execute_agent_restart`` on a freshly named agent hits it too -- so it
-    # is not specific to this drill. The fix is one line: execute_agent_restart
-    # should launch ``plan.force_reuse_plan.rewritten_prompt``, matching
-    # ``_launch.py``'s pattern, not ``plan.rewritten_prompt``.
-    assert finished.status == "error"
-    assert result.success is False
+    assert finished.status == "success"
+    assert result.success is True
     assert payload["counts"] == {
         "moves": 1,
-        "relaunched": 0,
-        "failed": 1,
+        "relaunched": 1,
+        "failed": 0,
         "skipped": 0,
     }
-    assert "confirmation is required" in payload["results"][0]["error"]
+    replacement = payload["results"][0]
+    assert replacement["status"] == "ok"
+    launched = replacement["launched"]
+    assert launched is not None
+    assert isinstance(launched["pid"], int)
+    assert launched["pid"] > 0
+    assert launched["artifacts_dir"] != str(second_artifacts)
+    replacement_artifacts = Path(launched["artifacts_dir"])
+    replacement_meta_path = replacement_artifacts / "agent_meta.json"
+    replacement_meta = _wait_for_json(
+        replacement_meta_path,
+        lambda payload: (
+            payload.get("name") == _SECOND_AGENT_NAME
+            and payload.get("llm_provider") == "codex"
+        ),
+    )
+    assert replacement_meta["name"] == _SECOND_AGENT_NAME
+    assert replacement_meta["llm_provider"] == "codex"
+    # The child may later fail because this hermetic drill forces actual
+    # execution back through the disabled fakey binary; that must not turn the
+    # already-completed drain relaunch into a failed drain move.
+    replacement_done_path = replacement_artifacts / "done.json"
+    _wait_for_file(replacement_done_path)
+    replacement_done = json.loads(replacement_done_path.read_text(encoding="utf-8"))
+    assert "LLM provider 'fakey' is temporarily disabled" in replacement_done["error"]
 
     # The drain still owns exactly one notification for this disable window,
-    # honestly reporting that the relaunch attempt did not complete -- the
-    # "one notification, never silent" contract holds even though the
-    # relaunch itself is blocked by the bug documented above.
+    # reporting the completed relaunch through the enriched drain notes.
     notifications = [
         note for note in load_notifications() if note.sender == "llm.usage_limit"
     ]
     assert len(notifications) == 1
     notes = notifications[0].notes
-    assert any("none completed" in line for line in notes)
+    assert any("Relaunched 1 agent(s) on CODEX" in line for line in notes)
+    assert not any("Failed" in line for line in notes)
 
 
 def test_provider_drain_e2e_flag_off_leaves_agents_alone(

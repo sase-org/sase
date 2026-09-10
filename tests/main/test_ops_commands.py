@@ -420,6 +420,7 @@ def test_agent_drain_operation_owns_notification_when_payload_says_notify(
                 "expires_at": None,
                 "used_reset_hint": False,
                 "trigger_agent": "sase-mf",
+                "trigger_artifacts_dir": "/tmp/sase-mf-artifacts",
                 "trigger_model": "opus@high",
             },
         ),
@@ -441,7 +442,9 @@ def test_agent_drain_operation_owns_notification_when_payload_says_notify(
     monkeypatch.setattr("sase.agents.cli_drain.run_agents_drain", fake_run)
     monkeypatch.setattr(
         "sase.ops.commands._agent_drain_notify.settle_drain_trigger_agent",
-        lambda name, **_k: settled.append(name),
+        lambda name, **kwargs: settled.append(
+            (name, kwargs.get("trigger_artifacts_dir"))
+        ),
     )
     monkeypatch.setattr(
         "sase.ops.commands._agent_drain_notify.send_usage_limit_drain_notification",
@@ -462,7 +465,7 @@ def test_agent_drain_operation_owns_notification_when_payload_says_notify(
     monkeypatch.setenv("SASE_PROC_ID", "proc-auto-drain")
 
     assert handle_agent_operation(args) == 0
-    assert settled == ["sase-mf"]
+    assert settled == [("sase-mf", "/tmp/sase-mf-artifacts")]
     assert len(notified) == 1
     trigger, result = notified[0]
     assert trigger["trigger_agent"] == "sase-mf"

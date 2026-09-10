@@ -11,6 +11,7 @@ import pytest
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.restart import execute_agent_restart
 from tests._agent_restart_helpers import (
+    dummy_force_plan,
     dummy_plan,
     failed_kill,
     make_restartable_agent,
@@ -128,9 +129,12 @@ def test_launch_failure_after_stop_is_partial(tmp_path: Path) -> None:
     rewritten = Path(outcome.recovery_dir) / "rewritten.md"
     assert rewritten.is_file()
     assert rewritten.read_text(encoding="utf-8") == plan.rewritten_prompt
-    assert outcome.recovery_command is not None
-    assert "sase run" in outcome.recovery_command
-    assert str(rewritten) in outcome.recovery_command
+    assert outcome.recovery_command is None
+    execution = Path(outcome.recovery_dir) / "execution.md"
+    assert execution.is_file()
+    assert execution.read_text(encoding="utf-8") == (
+        plan.force_reuse_plan.rewritten_prompt
+    )
 
 
 def test_successful_run_wipes_and_launches_once(tmp_path: Path) -> None:
@@ -167,10 +171,39 @@ def test_successful_run_wipes_and_launches_once(tmp_path: Path) -> None:
     assert outcome.status == "ok"
     assert calls == ["kill", "apply", "launch"]
     assert apply_args == [plan.force_reuse_plan]
-    assert launch_args == [(plan.rewritten_prompt, plan.force_reuse_plan.segment_envs)]
+    assert launch_args == [
+        (plan.force_reuse_plan.rewritten_prompt, plan.force_reuse_plan.segment_envs)
+    ]
     assert outcome.launched_pid == 492011
     assert outcome.launched_workspace_num == 14
     dismiss.assert_not_called()
+
+
+def test_launch_uses_prepared_prompt_that_passes_normal_name_preflight(
+    tmp_path: Path,
+) -> None:
+    from sase.agent.launch_validation import preflight_launch_name_requests
+
+    artifacts = make_restartable_agent(tmp_path)
+    plan = dummy_plan(
+        artifacts,
+        rewritten_prompt="%id:!02p\n#gh:sase\nDo the work",
+        force_reuse_plan=dummy_force_plan("%id:02p\n#gh:sase\nDo the work"),
+    )
+
+    def launch(prompt: object, **_kwargs: object) -> list[AgentLaunchResult]:
+        assert isinstance(prompt, str)
+        preflight_launch_name_requests([prompt])
+        return [_launch_result()]
+
+    with (
+        patch("sase.agent.running.kill_named_agent", return_value=successful_kill()),
+        patch("sase.agent.force_reuse_launch.apply_force_reuse_launch"),
+        patch("sase.agent.launch_cwd.launch_agents_from_cwd", side_effect=launch),
+    ):
+        outcome = execute_agent_restart(plan)
+
+    assert outcome.status == "ok"
 
 
 def test_preflight_is_required_before_execute(tmp_path: Path) -> None:
@@ -234,8 +267,7 @@ def test_recovery_survives_real_artifact_wipe(tmp_path: Path) -> None:
     rewritten = Path(outcome.recovery_dir) / "rewritten.md"
     assert rewritten.is_file()
     assert rewritten.read_text(encoding="utf-8") == plan.rewritten_prompt
-    assert outcome.recovery_command is not None
-    assert str(rewritten) in outcome.recovery_command
+    assert outcome.recovery_command is None
 
 
 def test_recovery_bundle_is_written_before_kill(tmp_path: Path) -> None:

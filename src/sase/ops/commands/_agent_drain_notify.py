@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import logging
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,10 @@ _SETTLE_TIMEOUT_SECONDS = 60.0
 
 
 def settle_drain_trigger_agent(
-    name: str | None, *, timeout_seconds: float = _SETTLE_TIMEOUT_SECONDS
+    name: str | None,
+    *,
+    trigger_artifacts_dir: object = None,
+    timeout_seconds: float = _SETTLE_TIMEOUT_SECONDS,
 ) -> None:
     """Best-effort wait for *name* to reach a terminal state before draining.
 
@@ -29,6 +33,11 @@ def settle_drain_trigger_agent(
     natural FAILED state. Never raises; a timeout is not an error and
     planning proceeds with whatever state the agent is in.
     """
+    if isinstance(trigger_artifacts_dir, str) and trigger_artifacts_dir:
+        _settle_drain_trigger_artifact(
+            trigger_artifacts_dir, timeout_seconds=timeout_seconds
+        )
+        return
     if not name:
         return
     from sase.agent.wait_watch import (
@@ -61,6 +70,45 @@ def settle_drain_trigger_agent(
         logger.warning(
             "failed to settle drain trigger agent %r before draining",
             name,
+            exc_info=True,
+        )
+
+
+def _settle_drain_trigger_artifact(
+    artifacts_dir: str, *, timeout_seconds: float
+) -> None:
+    from sase.agent.wait_watch import (
+        WaitTarget,
+        WaitTargetKind,
+        WaitWatchConfig,
+        wait_scan_options,
+        watch_wait_targets,
+    )
+    from sase.core.agent_scan_facade import scan_agent_artifact_dirs
+    from sase.core.paths import sase_projects_dir
+
+    try:
+        root = sase_projects_dir()
+        artifact_path = Path(artifacts_dir).expanduser()
+        options = wait_scan_options()
+        target = WaitTarget(
+            raw_name=str(artifact_path),
+            name=artifact_path.name,
+            kind=WaitTargetKind.AGENT,
+            artifact_dir=str(artifact_path),
+        )
+
+        def provider() -> Any:
+            return scan_agent_artifact_dirs(root, [artifact_path], options)
+
+        config = WaitWatchConfig(targets=(target,), timeout_seconds=timeout_seconds)
+        for tick in watch_wait_targets(config, provider):
+            if tick.settled:
+                break
+    except Exception:
+        logger.warning(
+            "failed to settle drain trigger artifact %r before draining",
+            artifacts_dir,
             exc_info=True,
         )
 

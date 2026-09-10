@@ -299,11 +299,18 @@ def usage_limit_drain_report_notes(payload: dict[str, Any] | None) -> list[str]:
         return ["Drain did not finish; see the drain proc log for details."]
     moves = payload.get("moves") or []
     skips = payload.get("skips") or []
+    error = payload.get("error")
     if not moves and not skips:
+        if isinstance(error, dict) and error.get("message"):
+            return [f"Drain planning failed: {error['message']}"]
         return ["Drain found no agents on this provider to relaunch or leave alone."]
     lines: list[str] = []
+    results = payload.get("results") or []
     if moves:
-        lines.append(_relaunched_line(moves, payload.get("results") or []))
+        lines.append(_relaunched_line(moves, results))
+        failed_line = _failed_relaunch_line(moves, results)
+        if failed_line is not None:
+            lines.append(failed_line)
     if skips:
         lines.append(_left_alone_line(skips))
     return lines
@@ -340,6 +347,58 @@ def _left_alone_line(skips: list[dict[str, Any]]) -> str:
         for reason, rows in sorted(grouped.items())
     ]
     return "Left alone: " + ", ".join(parts)
+
+
+def _failed_relaunch_line(
+    moves: list[dict[str, Any]], results: list[dict[str, Any]]
+) -> str | None:
+    failed = [result for result in results if result.get("status") != "ok"]
+    if not failed:
+        return None
+    moves_by_name = {str(move.get("name") or ""): move for move in moves}
+    details: list[str] = []
+    for result in failed[:5]:
+        name = str(result.get("name") or "")
+        move = moves_by_name.get(name)
+        display = str((move or {}).get("presented_name") or name or "unknown")
+        detail = _failure_detail(result)
+        details.append(f"{display} ({detail})")
+    if len(failed) > 5:
+        details.append(f"+{len(failed) - 5} more")
+    return (
+        f"Failed {len(failed)} replacement(s): {', '.join(details)}. "
+        f"{_failed_recovery_hint(failed)}"
+    )
+
+
+def _failure_detail(result: dict[str, Any]) -> str:
+    error = str(result.get("error") or "").strip()
+    if error:
+        return _truncate_error(error)
+    status = str(result.get("status") or "failed").replace("_", " ")
+    return status or "failed"
+
+
+def _truncate_error(error: str, *, limit: int = 96) -> str:
+    compact = " ".join(error.split())
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 1].rstrip() + "..."
+
+
+def _failed_recovery_hint(failed: list[dict[str, Any]]) -> str:
+    recovery_dirs = [
+        str(result.get("recovery_dir"))
+        for result in failed
+        if result.get("recovery_dir")
+    ]
+    if len(recovery_dirs) == 1:
+        return f"Recovery context: {recovery_dirs[0]}"
+    if recovery_dirs:
+        return "Recovery directories were retained; see the drain proc output."
+    if any(result.get("recovery_prompt") for result in failed):
+        return "Inline recovery prompt is in the drain result."
+    return "See the drain proc log for the complete result."
 
 
 def _skip_reason_label(reason: str, row: dict[str, Any]) -> str:
@@ -422,6 +481,7 @@ def _result_json(result: AgentRestartOutcome) -> dict[str, Any]:
         "launched": launched,
         "recovery_dir": result.recovery_dir,
         "recovery_command": result.recovery_command,
+        "recovery_prompt": result.recovery_prompt,
         "renamed_to": result.renamed_to,
         "error": result.error,
     }
