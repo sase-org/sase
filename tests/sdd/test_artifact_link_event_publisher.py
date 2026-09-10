@@ -146,3 +146,65 @@ def test_publish_event_rejects_same_path_with_different_bytes(
         )
 
     assert _commit_count(plans) == 1
+
+
+def test_publish_event_rejects_committed_operation_id_collision_before_persistence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    plans = tmp_path / "plans"
+    _init_repo(plans, "202609/a.md")
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans},
+    )
+    operation_id = "c" * 32
+    first = observation_or_put_event_from_row(
+        _row(
+            source="agent:reader",
+            relation="read",
+            target="plan:202609/a.md",
+            origin="read",
+            description="first read",
+        ),
+        project_key=store.project_key,
+        operation_id=operation_id,
+    )
+    second = observation_or_put_event_from_row(
+        _row(
+            source="agent:reader",
+            relation="read",
+            target="plan:202609/a.md",
+            origin="read",
+            description="changed read",
+        ),
+        project_key=store.project_key,
+        operation_id=operation_id,
+    )
+    publish_artifact_link_events(
+        store,
+        (first,),
+        push_after_commit=False,
+        mutation_origin="machine",
+    )
+    before_paths = sorted(path.relative_to(plans) for path in plans.rglob("*.json"))
+
+    with pytest.raises(
+        ArtifactLinkEventCorruptionError,
+        match="reused for different artifact-link event bytes",
+    ):
+        publish_artifact_link_events(
+            store,
+            (second,),
+            push_after_commit=False,
+            mutation_origin="machine",
+        )
+
+    assert (
+        sorted(path.relative_to(plans) for path in plans.rglob("*.json"))
+        == before_paths
+    )
+    assert _commit_count(plans) == 2
+    assert _status(plans) == ""

@@ -21,7 +21,11 @@ from sase.sdd._artifact_link_outbox_types import (
     sidecar_refs as _sidecar_refs,
 )
 from sase.sdd._artifact_link_store_support import kind_of_ref
-from sase.sdd.artifact_link_event_publisher import publish_artifact_link_events
+from sase.sdd.artifact_link_event_publisher import (
+    artifact_link_alias_producer_id,
+    artifact_link_derived_producer_id,
+    publish_artifact_link_events,
+)
 from sase.sdd.artifact_link_store import ArtifactLinkStore, resolve_artifact_link_store
 
 _TERMINAL_AGENT_STATES = frozenset({"completed", "failed", "stopped", "dismissed"})
@@ -247,7 +251,13 @@ def _entry_is_trusted_machine_event(entry: _ArtifactLinkOutboxEntry) -> bool:
     origin = str(event.get("origin") or "")
     if origin not in {"derived", "migrated"}:
         return False
-    return entry.agent_name in {"sase", "machine", "artifact_link_backfill"}
+    return entry.agent_name in {
+        "sase",
+        "machine",
+        "artifact_link_backfill",
+        artifact_link_derived_producer_id(),
+        artifact_link_alias_producer_id(),
+    }
 
 
 def _terminal_cutoff() -> float | None:

@@ -14,6 +14,10 @@ from sase.sdd._artifact_link_commit import (
     commit_artifact_link_indexes,
 )
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
+from sase.sdd.artifact_link_event_publisher import (
+    artifact_link_alias_producer_id,
+    artifact_link_machine_run_id,
+)
 from sase.sdd.artifact_link_outbox import read_artifact_link_outbox_entries
 from sase.sdd._artifact_link_store_support import sidecar_index_path
 from tests.sdd._artifact_link_store_helpers import _store
@@ -129,8 +133,12 @@ def test_rename_repair_queues_stable_alias_event(
         "sase.sdd._artifact_link_renames._historical_rename_map",
         lambda _root, *, kind: {f"{kind}:202608/old.md": f"{kind}:202608/new.md"},
     )
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent:first")
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-1")
 
     first = repair_historical_artifact_renames(store, ("plan:202608/old.md",))
+    monkeypatch.setenv("SASE_AGENT_NAME", "agent:second")
+    monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "run-2")
     second = repair_historical_artifact_renames(store, ("plan:202608/old.md",))
     entries = read_artifact_link_outbox_entries("gh_sase-org__sase")
 
@@ -138,7 +146,13 @@ def test_rename_repair_queues_stable_alias_event(
     assert second.alias_events_queued == 1
     assert len(entries) == 2
     assert entries[0].id == entries[1].id
+    assert entries[0].agent_name == artifact_link_alias_producer_id()
+    assert entries[1].agent_name == artifact_link_alias_producer_id()
+    assert entries[0].run_id == artifact_link_machine_run_id()
+    assert entries[1].run_id == artifact_link_machine_run_id()
     assert entries[0].event is not None
+    assert entries[0].event == entries[1].event
+    assert entries[0].event["created_by"] == artifact_link_alias_producer_id()
     assert entries[0].event["kind"] == {
         "type": "alias",
         "old_ref": "plan:202608/old.md",

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-import hashlib
-import json
 from pathlib import Path
 from typing import Any
 
@@ -73,8 +71,31 @@ def canonical_artifact_link_event_object(
 def stable_artifact_link_operation_id(*parts: object) -> str:
     """Return a deterministic 128-bit operation id for replayable writers."""
 
-    payload = json.dumps(parts, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(payload).hexdigest()[:32]
+    return str(require_rust_binding("artifact_link_stable_operation_id")(list(parts)))
+
+
+def artifact_link_derived_producer_id() -> str:
+    """Return the stable producer id for derived-fact link events."""
+
+    return str(require_rust_binding("artifact_link_derived_producer_id")())
+
+
+def artifact_link_alias_producer_id() -> str:
+    """Return the stable producer id for alias link events."""
+
+    return str(require_rust_binding("artifact_link_alias_producer_id")())
+
+
+def artifact_link_machine_run_id() -> str:
+    """Return the stable machine run marker for replayable background facts."""
+
+    return str(require_rust_binding("artifact_link_machine_run_id")())
+
+
+def artifact_link_stable_fact_created_at() -> str:
+    """Return the frozen created_at value for replayable derived facts."""
+
+    return str(require_rust_binding("artifact_link_stable_fact_created_at")())
 
 
 def observation_or_put_event_from_row(

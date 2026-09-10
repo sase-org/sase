@@ -13,7 +13,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
 from sase.artifact_links.derive import (
@@ -27,6 +26,9 @@ from sase.sdd._artifact_link_store_support import (
     validate_artifact_link_row,
 )
 from sase.sdd.artifact_link_event_publisher import (
+    artifact_link_derived_producer_id,
+    artifact_link_machine_run_id,
+    artifact_link_stable_fact_created_at,
     observation_or_put_event_from_row,
     stable_artifact_link_operation_id,
 )
@@ -131,7 +133,9 @@ def _persist_derived_link_candidates_as_events(
     artifacts_dir: str | Path | None,
     mutation_origin: str,
 ) -> _ArtifactLinkDerivationOutcome:
-    now = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    producer = artifact_link_derived_producer_id()
+    created_at = artifact_link_stable_fact_created_at()
+    run_id = artifact_link_machine_run_id()
     errors: list[str] = []
     queued_ids: set[str] = set()
     for candidate in candidates:
@@ -142,8 +146,8 @@ def _persist_derived_link_candidates_as_events(
             "target_ref": candidate.target_ref,
             "description": candidate.description,
             "origin": candidate.origin,
-            "created_by": created_by,
-            "created_at": now,
+            "created_by": producer,
+            "created_at": created_at,
             "uses": 1,
         }
         try:
@@ -156,7 +160,6 @@ def _persist_derived_link_candidates_as_events(
                 validated["target_ref"],
                 validated["description"],
                 validated["origin"],
-                created_by,
             )
             event = observation_or_put_event_from_row(
                 validated,
@@ -167,8 +170,8 @@ def _persist_derived_link_candidates_as_events(
 
             append_artifact_link_outbox_event(
                 project_key=store.project_key,
-                agent_name="sase",
-                run_id="machine",
+                agent_name=producer,
+                run_id=run_id,
                 event=event,
             )
             queued_ids.add(operation_id)
@@ -184,7 +187,7 @@ def _persist_derived_link_candidates_as_events(
 
             report = drain_artifact_link_outbox(
                 store=store,
-                agent_name="sase",
+                agent_name=producer,
                 push_after_commit="async",
             )
             errors.extend(report.skip_diagnostics)

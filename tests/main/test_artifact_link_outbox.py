@@ -19,7 +19,16 @@ from sase.sdd._artifact_link_outbox_io import (
 from sase.sdd.artifact_link_outbox import (
     ARTIFACT_LINK_OUTBOX_FILENAME,
     append_artifact_link_outbox_entry,
+    append_artifact_link_outbox_event,
     drain_artifact_link_outbox,
+)
+from sase.sdd.artifact_link_event_publisher import (
+    artifact_link_alias_producer_id,
+    artifact_link_machine_run_id,
+    artifact_link_stable_fact_created_at,
+    canonical_event,
+    observation_or_put_event_from_row,
+    stable_artifact_link_operation_id,
 )
 from sase.sdd.artifact_link_release_evidence import (
     record_artifact_link_release_evidence,
@@ -110,6 +119,99 @@ def _outbox_lines(home: Path, project_key: str) -> list[dict[str, object]]:
         for line in path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+
+
+def test_outbox_rejects_reused_operation_id_with_different_event_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, home)
+    project_key = "gh_sase-org__sase"
+    operation_id = "a" * 32
+    first = observation_or_put_event_from_row(
+        _row(source="agent:reader", target="plan:doc.md", origin="read"),
+        project_key=project_key,
+        operation_id=operation_id,
+    )
+    second = observation_or_put_event_from_row(
+        _row(source="agent:reader", target="plan:other.md", origin="read"),
+        project_key=project_key,
+        operation_id=operation_id,
+    )
+
+    append_artifact_link_outbox_event(
+        project_key=project_key,
+        agent_name="reader",
+        run_id="run-1",
+        event=first,
+    )
+    with pytest.raises(RuntimeError, match="reused for different event bytes"):
+        append_artifact_link_outbox_event(
+            project_key=project_key,
+            agent_name="reader",
+            run_id="run-1",
+            event=second,
+        )
+
+    assert len(_outbox_lines(home, project_key)) == 1
+
+
+def test_drain_publishes_machine_alias_but_retains_unreleased_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
+    )
+    producer = artifact_link_alias_producer_id()
+    append_artifact_link_outbox_event(
+        project_key=store.project_key,
+        agent_name=producer,
+        run_id=artifact_link_machine_run_id(),
+        event=canonical_event(
+            {
+                "schema_version": 1,
+                "project_key": store.project_key,
+                "operation_id": stable_artifact_link_operation_id(
+                    "artifact-link-alias",
+                    store.project_key,
+                    "plan:old.md",
+                    "plan:new.md",
+                ),
+                "created_by": producer,
+                "origin": "migrated",
+                "created_at": artifact_link_stable_fact_created_at(),
+                "kind": {
+                    "type": "alias",
+                    "old_ref": "plan:old.md",
+                    "new_ref": "plan:new.md",
+                },
+            }
+        ),
+    )
+    append_artifact_link_outbox_entry(
+        project_key=store.project_key,
+        agent_name="reader",
+        run_id="run-1",
+        row=_row(source="agent:reader", target="plan:doc.md", origin="read"),
+    )
+
+    report = drain_artifact_link_outbox(
+        store=store,
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+
+    assert report.drained == 1
+    assert len(report.event_paths) == 1
+    [remaining] = read_artifact_link_outbox_entries(store.project_key)
+    assert remaining.agent_name == "reader"
 
 
 def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(

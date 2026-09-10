@@ -55,6 +55,11 @@ REQUIRED_BINDINGS = (
     "migration_wire_schema_version",
     "federation_worker_main",
     "artifact_link_event_schema_version",
+    "artifact_link_derived_producer_id",
+    "artifact_link_alias_producer_id",
+    "artifact_link_machine_run_id",
+    "artifact_link_stable_fact_created_at",
+    "artifact_link_stable_operation_id",
     "artifact_link_event_canonicalize",
     "artifact_link_event_canonical_json",
     "artifact_link_event_digest",
@@ -100,9 +105,7 @@ class _CallCollector(ast.NodeVisitor):
         self.calls: list[_CallSite] = []
         self._function_stack: list[tuple[str, frozenset[str]]] = []
 
-    def _visit_function(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef
-    ) -> None:
+    def _visit_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         arguments = node.args
         params = frozenset(
             arg.arg
@@ -237,8 +240,10 @@ def main(argv: list[str] | None = None) -> int:
             print(problem, file=sys.stderr)
         return 2
     if not names:
-        print(f"no {RUST_BINDING_FUNCTION} call sites found under {args.src}",
-              file=sys.stderr)
+        print(
+            f"no {RUST_BINDING_FUNCTION} call sites found under {args.src}",
+            file=sys.stderr,
+        )
         return 2
 
     if args.list:

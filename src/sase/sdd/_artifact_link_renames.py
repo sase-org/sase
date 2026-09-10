@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import os
 import time
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
@@ -24,6 +22,12 @@ from sase.sdd._artifact_link_store_support import (
     validate_artifact_link_row,
 )
 from sase.sdd._git import run_sdd_git
+from sase.sdd.artifact_link_event_publisher import (
+    artifact_link_alias_producer_id,
+    artifact_link_machine_run_id,
+    artifact_link_stable_fact_created_at,
+    stable_artifact_link_operation_id,
+)
 from sase.sdd.referenced_by_index import REFERENCED_BY_LINKS_DIR
 
 
@@ -217,14 +221,16 @@ def _queue_alias_events(
 
     from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_event
 
+    producer = artifact_link_alias_producer_id()
+    run_id = artifact_link_machine_run_id()
     queued = 0
     errors: list[str] = []
     for rename in renames:
         try:
             append_artifact_link_outbox_event(
                 project_key=str(store.project_key),
-                agent_name=_alias_event_agent_name(),
-                run_id=_alias_event_run_id(),
+                agent_name=producer,
+                run_id=run_id,
                 event=_alias_event_for_rename(str(store.project_key), rename),
             )
             queued += 1
@@ -238,15 +244,16 @@ def _alias_event_for_rename(
     rename: _ArtifactLinkRename,
 ) -> dict[str, Any]:
     operation_id = _alias_operation_id(project_key, rename)
+    producer = artifact_link_alias_producer_id()
     event = {
         "schema_version": int(
             require_rust_binding("artifact_link_event_schema_version")()
         ),
         "project_key": project_key,
         "operation_id": operation_id,
-        "created_by": _alias_event_agent_name(),
+        "created_by": producer,
         "origin": "migrated",
-        "created_at": "1970-01-01T00:00:00Z",
+        "created_at": artifact_link_stable_fact_created_at(),
         "kind": {
             "type": "alias",
             "old_ref": rename.old_ref,
@@ -257,22 +264,9 @@ def _alias_event_for_rename(
 
 
 def _alias_operation_id(project_key: str, rename: _ArtifactLinkRename) -> str:
-    payload = "\0".join(
-        (project_key, "artifact-link-alias", rename.old_ref, rename.new_ref)
+    return stable_artifact_link_operation_id(
+        "artifact-link-alias", project_key, rename.old_ref, rename.new_ref
     )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:32]
-
-
-def _alias_event_agent_name() -> str:
-    return (
-        os.environ.get("SASE_AGENT_NAME")
-        or os.environ.get("SASE_AGENT_ID")
-        or "sase.artifact-link-renames"
-    )
-
-
-def _alias_event_run_id() -> str:
-    return os.environ.get("SASE_AGENT_TIMESTAMP") or os.environ.get("SASE_RUN_ID") or ""
 
 
 @dataclass(frozen=True)

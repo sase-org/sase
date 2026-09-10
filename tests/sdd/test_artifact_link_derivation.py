@@ -7,11 +7,20 @@ from typing import Any
 
 import pytest
 
-from sase.artifact_links.derive import DerivableDocument
+from sase.artifact_links.derive import DerivableDocument, DerivedLinkCandidate
 from sase.sdd import artifact_link_derivation as artifact_link_derivation_module
 from sase.sdd._store_types import SddStore
-from sase.sdd.artifact_link_derivation import derive_and_persist_artifact_links
-from sase.sdd.artifact_link_event_publisher import rows_from_events
+from sase.sdd.artifact_link_derivation import (
+    derive_and_persist_artifact_links,
+    persist_derived_link_candidates,
+)
+from sase.sdd.artifact_link_event_publisher import (
+    artifact_link_derived_producer_id,
+    artifact_link_machine_run_id,
+    artifact_link_stable_fact_created_at,
+    rows_from_events,
+)
+from sase.sdd.artifact_link_outbox import read_artifact_link_outbox_entries
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from sase.sdd.plan_header_block import (
     PlanHeaderEntry,
@@ -84,7 +93,7 @@ def test_derives_and_persists_research_lineage(
     assert row["relation"] == "derives-from"
     assert row["target_ref"] == "research:202608/widget/widget__a.md"
     assert row["origin"] == "derived"
-    assert row["created_by"] == "sase-agent.1"
+    assert row["created_by"] == artifact_link_derived_producer_id()
 
 
 def test_derives_and_persists_plan_implements(
@@ -124,6 +133,50 @@ def test_a_second_pass_over_the_same_documents_is_idempotent(
 
     assert second.persisted == 1
     assert len(store.load_artifact_rows("research:202608/widget/widget.md")) == 1
+
+
+def test_derived_events_freeze_payload_across_clock_and_discovering_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    candidate = DerivedLinkCandidate(
+        "plan:202609/a.md",
+        "implements",
+        "bead:sase-yy.8.1",
+        "same derived fact",
+    )
+    queue_times = iter((1.0, 2.0))
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_outbox_io.time.time",
+        lambda: next(queue_times),
+    )
+
+    persist_derived_link_candidates(
+        store,
+        (candidate,),
+        created_by="agent:first",
+    )
+    persist_derived_link_candidates(
+        store,
+        (candidate,),
+        created_by="agent:second",
+    )
+
+    entries = read_artifact_link_outbox_entries(store.project_key)
+    assert len(entries) == 2
+    assert entries[0].id == entries[1].id
+    assert entries[0].event == entries[1].event
+    assert entries[0].created_at != entries[1].created_at
+    assert {entry.agent_name for entry in entries} == {
+        artifact_link_derived_producer_id()
+    }
+    assert {entry.run_id for entry in entries} == {artifact_link_machine_run_id()}
+    assert entries[0].event is not None
+    assert entries[0].event["created_by"] == artifact_link_derived_producer_id()
+    assert entries[0].event["created_at"] == artifact_link_stable_fact_created_at()
+    [row] = rows_from_events(entry.event for entry in entries)
+    assert row["uses"] == 1
 
 
 def test_a_persist_failure_is_reported_not_raised(

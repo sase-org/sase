@@ -47,6 +47,11 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
         "artifact_link_publication_due",
         "artifact_link_publication_mark_attempt",
         "artifact_link_event_schema_version",
+        "artifact_link_derived_producer_id",
+        "artifact_link_alias_producer_id",
+        "artifact_link_machine_run_id",
+        "artifact_link_stable_fact_created_at",
+        "artifact_link_stable_operation_id",
         "artifact_link_event_canonicalize",
         "artifact_link_event_canonical_json",
         "artifact_link_event_digest",
@@ -137,6 +142,11 @@ def test_validate_sase_core_rs_probes_artifact_link_event_contract() -> None:
             "digest": digest,
             "path": value,
         },
+        artifact_link_derived_producer_id=lambda: "sase.artifact-link-derived",
+        artifact_link_alias_producer_id=lambda: "sase.artifact-link-renames",
+        artifact_link_machine_run_id=lambda: "machine",
+        artifact_link_stable_fact_created_at=lambda: "1970-01-01T00:00:00Z",
+        artifact_link_stable_operation_id=lambda parts: "c" * 32,
         artifact_link_event_resolve_aliases=lambda aliases, refs: {
             "resolved_refs": {
                 "plan:202609/old.md": "plan:202609/new.md",

@@ -27,6 +27,9 @@ from sase.sdd._artifact_link_outbox_types import (
     required_text as _required_text,
     rows_from_events as _rows_from_events,
 )
+from sase.sdd._artifact_link_event_canonical import (
+    canonical_artifact_link_event_object as _canonical_event_object,
+)
 from sase.sdd.artifact_link_event_publisher import (
     canonical_event as _canonical_event,
     stable_artifact_link_operation_id as _stable_operation_id,
@@ -96,6 +99,12 @@ def append_artifact_link_outbox_entry(
     path = _artifact_link_outbox_path(project_key)
     path.parent.mkdir(parents=True, exist_ok=True)
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
+        _reject_outbox_operation_collision(
+            path,
+            project_key,
+            operation_id=parsed_operation_id,
+            event=event,
+        )
         with path.open("a", encoding="utf-8") as output_file:
             json.dump(entry.to_json_dict(), output_file, sort_keys=True)
             output_file.write("\n")
@@ -132,6 +141,12 @@ def append_artifact_link_outbox_event(
     path = _artifact_link_outbox_path(project_key)
     path.parent.mkdir(parents=True, exist_ok=True)
     with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
+        _reject_outbox_operation_collision(
+            path,
+            project_key,
+            operation_id=parsed_operation_id,
+            event=canonical,
+        )
         with path.open("a", encoding="utf-8") as output_file:
             json.dump(entry.to_json_dict(), output_file, sort_keys=True)
             output_file.write("\n")
@@ -367,6 +382,25 @@ def _read_entries_unlocked(
         if entry is not None:
             entries.append(entry)
     return tuple(entries)
+
+
+def _reject_outbox_operation_collision(
+    path: Path,
+    project_key: str,
+    *,
+    operation_id: str,
+    event: Mapping[str, Any],
+) -> None:
+    incoming = _canonical_event_object(event)
+    for entry in _read_entries_unlocked(path, project_key):
+        if entry.id != operation_id or entry.event is None:
+            continue
+        existing = _canonical_event_object(entry.event)
+        if existing.payload != incoming.payload:
+            raise RuntimeError(
+                f"artifact-link outbox operation_id `{operation_id}` "
+                "was reused for different event bytes"
+            )
 
 
 def _excluded_operation_ids(values: Iterable[str]) -> frozenset[str]:

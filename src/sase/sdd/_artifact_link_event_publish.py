@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 import fcntl
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -243,6 +244,7 @@ def _publish_root_events(
             )
         paths: list[Path] = []
         created_paths: set[Path] = set()
+        _reject_existing_operation_collisions(root, objects)
         for item in objects:
             path = root / item.relative_path
             if _create_event_file(path, item.payload):
@@ -446,3 +448,38 @@ def _dedupe_event_objects(
         by_operation[operation_id] = item
         order.append(operation_id)
     return tuple(by_operation[operation_id] for operation_id in order)
+
+
+def _reject_existing_operation_collisions(
+    root: Path,
+    objects: Sequence[_ArtifactLinkEventObject],
+) -> None:
+    by_operation = {str(item.event["operation_id"]): item for item in objects}
+    event_root = root / "link-events" / "v1"
+    if not event_root.is_dir():
+        return
+    for path in sorted(event_root.rglob("*.json")):
+        if not path.is_file():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        operation_id = str(data.get("operation_id") or "")
+        incoming = by_operation.get(operation_id)
+        if incoming is None:
+            continue
+        try:
+            existing = _canonical_artifact_link_event_object(data)
+        except Exception as exc:  # noqa: BLE001 - corrupt history blocks reuse.
+            raise _ArtifactLinkEventCorruptionError(
+                f"artifact-link event path for operation_id `{operation_id}` "
+                f"is invalid: {path}: {exc}"
+            ) from exc
+        if existing.payload != incoming.payload:
+            raise _ArtifactLinkEventCorruptionError(
+                f"operation_id `{operation_id}` was reused for different "
+                f"artifact-link event bytes already present at {path}"
+            )

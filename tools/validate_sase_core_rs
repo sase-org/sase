@@ -143,6 +143,11 @@ REQUIRED_BINDINGS = (
     "artifact_link_publication_due",
     "artifact_link_publication_mark_attempt",
     "artifact_link_event_schema_version",
+    "artifact_link_derived_producer_id",
+    "artifact_link_alias_producer_id",
+    "artifact_link_machine_run_id",
+    "artifact_link_stable_fact_created_at",
+    "artifact_link_stable_operation_id",
     "artifact_link_event_canonicalize",
     "artifact_link_event_canonical_json",
     "artifact_link_event_digest",
@@ -457,8 +462,16 @@ def _validate_artifact_link_event_contract(module: ModuleType) -> bool:
         resolved = module.artifact_link_event_resolve_aliases(
             aliases, ["plan:202609/old.md"]
         )
-        reduction = module.artifact_link_events_reduce(
-            [put, event, event], aliases
+        reduction = module.artifact_link_events_reduce([put, event, event], aliases)
+        derived_producer = module.artifact_link_derived_producer_id()
+        alias_producer = module.artifact_link_alias_producer_id()
+        machine_run_id = module.artifact_link_machine_run_id()
+        stable_created_at = module.artifact_link_stable_fact_created_at()
+        stable_id = module.artifact_link_stable_operation_id(
+            ["derived", {"b": 2, "a": 1}]
+        )
+        stable_id_replay = module.artifact_link_stable_operation_id(
+            ["derived", {"a": 1, "b": 2}]
         )
     except Exception as exc:
         _error(f"artifact-link event contract probe failed: {exc}")
@@ -490,6 +503,25 @@ def _validate_artifact_link_event_contract(module: ModuleType) -> bool:
         or any(ch not in "0123456789abcdef" for ch in digest)
     ):
         _error(f"artifact-link event digest probe returned {digest!r}")
+        valid = False
+    if derived_producer != "sase.artifact-link-derived":
+        _error("artifact-link derived producer probe returned stale identity")
+        valid = False
+    if alias_producer != "sase.artifact-link-renames":
+        _error("artifact-link alias producer probe returned stale identity")
+        valid = False
+    if machine_run_id != "machine":
+        _error("artifact-link machine run probe returned stale identity")
+        valid = False
+    if stable_created_at != "1970-01-01T00:00:00Z":
+        _error("artifact-link stable fact timestamp probe returned stale value")
+        valid = False
+    if (
+        not isinstance(stable_id, str)
+        or len(stable_id) != 32
+        or stable_id != stable_id_replay
+    ):
+        _error(f"artifact-link stable operation-id probe returned {stable_id!r}")
         valid = False
     if validated_path != path or not path.endswith(f"{digest}.json"):
         _error(
