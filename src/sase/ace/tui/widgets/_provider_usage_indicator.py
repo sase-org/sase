@@ -21,6 +21,9 @@ from ._usage_indicator_format import (
     format_usage_specifier,
 )
 from ._usage_indicator_palette import (
+    usage_badge_base_style,
+    usage_disclosure_style,
+    usage_gap_style,
     usage_neutral_color,
     usage_percent_color,
     usage_rejected_style,
@@ -100,33 +103,32 @@ def build_usage_indicator_segment(
     """Return the richest whole-badge packing of *badges* that fits *budget*."""
     if not badges:
         return Text("")
-    secondary = usage_secondary_style(dark=dark)
+    gap_style = usage_gap_style(dark=dark)
+    disclosure_style = usage_disclosure_style(dark=dark)
     leading = " " if leading_space else ""
-    full = _join_badges(badges, leading=leading)
+    full = _join_badges(badges, leading=leading, dark=dark)
     if budget is None or full.cell_len <= budget:
         return full
     total = len(badges)
     for keep in range(total - 1, 0, -1):
-        candidate = _join_badges(badges[:keep], leading=leading)
-        candidate.append("  ", style=secondary)
-        candidate.append(f"+{total - keep}", style=secondary)
+        candidate = _join_badges(badges[:keep], leading=leading, dark=dark)
+        candidate.append("  ", style=gap_style)
+        candidate.append(f"+{total - keep}", style=disclosure_style)
         if candidate.cell_len <= budget:
             return candidate
-    for text in (
-        Text(f"{leading}usage {total}", style=secondary),
-        Text(f"{leading}{total}", style=secondary),
-        Text(f"{leading}…", style=secondary),
-    ):
+    for suffix in (f"usage {total}", str(total), "…"):
+        text = Text(leading, style=gap_style)
+        text.append(suffix, style=disclosure_style)
         if text.cell_len <= budget:
             return text
     return Text("")
 
 
-def _join_badges(badges: Sequence[UsageBadge], *, leading: str) -> Text:
-    text = Text(leading)
+def _join_badges(badges: Sequence[UsageBadge], *, leading: str, dark: bool) -> Text:
+    text = Text(leading, style=usage_gap_style(dark=dark))
     for index, badge in enumerate(badges):
         if index:
-            text.append("  ")
+            text.append("  ", style=usage_gap_style(dark=dark))
         text.append_text(badge.text)
     return text
 
@@ -144,17 +146,18 @@ def _entry_badge(
     stale = freshness in {"stale", "unknown"}
     passed = reset_state == "passed"
     secondary_style = usage_secondary_style(dark=dark)
+    base_style = usage_badge_base_style(dark=dark)
 
     if passed:
         percent_text = "?%"
-        percent_style = usage_neutral_color(dark=dark)
+        value_color = usage_neutral_color(dark=dark)
     else:
         percent_text = format_usage_percent_text(remaining)
         if stale:
             percent_text = f"{percent_text}~"
-            percent_style = usage_neutral_color(dark=dark)
+            value_color = usage_neutral_color(dark=dark)
         else:
-            percent_style = usage_percent_color(remaining, dark=dark)
+            value_color = usage_percent_color(remaining, dark=dark)
 
     countdown_text = format_usage_countdown(
         resets_at=_optional_float(entry.get("resets_at")),
@@ -170,7 +173,7 @@ def _entry_badge(
     elif _optional_text(entry.get("vendor_state")) == "rejected":
         marker, marker_style = "!", usage_rejected_style(dark=dark)
 
-    text = Text(_provider_icon(provider))
+    text = Text(_provider_icon(provider), style=base_style)
     if marker:
         text.append(" ")
         text.append(marker, style=marker_style)
@@ -178,9 +181,9 @@ def _entry_badge(
         text.append(" ")
         text.append(specifier, style=secondary_style)
     text.append(" ")
-    text.append(percent_text, style=f"bold {percent_style}")
+    text.append(percent_text, style=f"bold {value_color}")
     text.append(" ")
-    text.append(countdown_text, style=secondary_style)
+    text.append(countdown_text, style=f"bold {value_color}")
 
     tooltip = _entry_tooltip_lines(
         entry,
@@ -282,7 +285,7 @@ def _collector_only_badge(
     dark: bool,
     now: float,
 ) -> tuple[tuple[Any, ...], UsageBadge]:
-    text = Text(_provider_icon(provider))
+    text = Text(_provider_icon(provider), style=usage_badge_base_style(dark=dark))
     text.append(" ")
     text.append("⚠", style=usage_warning_style(dark=dark))
     lines = [f"{provider.upper()} - usage collection is failing"]

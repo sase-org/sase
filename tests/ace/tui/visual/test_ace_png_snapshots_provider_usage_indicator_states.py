@@ -340,6 +340,66 @@ async def test_top_bar_usage_palette_png_snapshot(
     )
 
 
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "top_bar_disable_pill_usage_dark_160x24",
+            "ACE disable pill beside usage badges - dark theme",
+        ),
+        (
+            "textual-light",
+            "top_bar_disable_pill_usage_light_160x24",
+            "ACE disable pill beside usage badges - light theme",
+        ),
+    ],
+)
+async def test_top_bar_disable_pill_usage_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    """An orange disable pill sits beside low, stale, and healthy usage badges."""
+    patch_startup_loaders(monkeypatch)
+    quiet_top_bar(monkeypatch, disables={"claude": disable("claude")})
+
+    low = entry(
+        provider="claude",
+        window_key="weekly:claude-fable-5",
+        window_label="Claude weekly Fable",
+        weekly_all=False,
+        period_kind="weekly",
+        duration_seconds=None,
+        entry_scope=scope(
+            kind="product", product="claude", model_ids=("claude-fable-5",)
+        ),
+        remaining_percent=7.0,
+        seconds_until_reset=115_200.0,
+        resets_at=FROZEN_NOW + 115_200.0,
+        display_attention="very_low",
+    )
+    healthy = entry(provider="claude", window_key="weekly", remaining_percent=62.0)
+    stale = entry(
+        provider="grok",
+        window_key="included_weekly",
+        remaining_percent=50.0,
+        freshness="stale",
+    )
+
+    patch_projection(monkeypatch, _entries_projection(low, healthy, stale))
+
+    await _snapshot_top_bar(
+        ace_png_visual,
+        size=(160, 24),
+        name=snapshot_name,
+        title=title,
+        theme=theme,
+    )
+
+
 async def test_top_bar_usage_no_observation_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

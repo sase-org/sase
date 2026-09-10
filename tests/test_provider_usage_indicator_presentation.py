@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
 from rich.cells import cell_len
+from rich.console import Console
+from rich.style import Style
+from rich.text import Text
 
 from sase.ace.tui.widgets._provider_usage_indicator import (
     build_usage_indicator_segment,
@@ -10,9 +14,58 @@ from sase.ace.tui.widgets._provider_usage_indicator import (
     usage_indicator_open_provider,
     usage_indicator_tooltip_lines,
 )
-from sase.ace.tui.widgets._usage_indicator_palette import usage_percent_color
+from sase.ace.tui.widgets._usage_indicator_format import format_usage_percent_text
+from sase.ace.tui.widgets._usage_indicator_palette import (
+    _usage_badge_surface_color,
+    _usage_gap_surface_color,
+    usage_neutral_color,
+    usage_percent_color,
+    usage_rejected_style,
+    usage_warning_style,
+)
 
 FROZEN_NOW = 1_800_000_000.0
+
+_CONSOLE = Console(width=200)
+
+
+def _rendered_segments(text: Text) -> list[tuple[str, Style | None]]:
+    """Return the fully resolved (base + span) style for each rendered run."""
+    return [(segment.text, segment.style) for segment in text.render(_CONSOLE)]
+
+
+def _style_for(text: Text, token: str) -> Style:
+    """Return the resolved style of the one segment rendering exactly *token*."""
+    matches = [
+        style for rendered, style in _rendered_segments(text) if rendered == token
+    ]
+    assert len(matches) == 1, (
+        f"expected exactly one {token!r} segment in {text.plain!r}"
+    )
+    style = matches[0]
+    assert style is not None
+    return style
+
+
+def _hex_to_rgb(value: str) -> tuple[int, int, int]:
+    stripped = value.lstrip("#")
+    return tuple(int(stripped[i : i + 2], 16) for i in (0, 2, 4))  # type: ignore[return-value]
+
+
+def _srgb_to_linear(channel: int) -> float:
+    c = channel / 255
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+
+def _relative_luminance(value: str) -> float:
+    r, g, b = (_srgb_to_linear(c) for c in _hex_to_rgb(value))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+
+
+def _contrast_ratio(a: str, b: str) -> float:
+    la = _relative_luminance(a) + 0.05
+    lb = _relative_luminance(b) + 0.05
+    return max(la, lb) / min(la, lb)
 
 
 def _scope(
@@ -366,3 +419,227 @@ def test_unknown_provider_falls_back_to_id_marker() -> None:
     segment = build_usage_indicator_segment(_badges(entry))
 
     assert segment.plain.strip() == "ACME 62% 3d4h"
+
+
+@pytest.mark.parametrize("dark", [True, False])
+@pytest.mark.parametrize("decile", range(10))
+def test_fresh_percent_and_countdown_share_bold_bucket_color(
+    dark: bool, decile: int
+) -> None:
+    remaining = decile * 10.0 + 5.0
+    entry = _entry(provider="claude", remaining_percent=remaining)
+    badge = _badges(entry, dark=dark)[0]
+    bucket_color = usage_percent_color(remaining, dark=dark)
+    badge_surface = _usage_badge_surface_color(dark=dark)
+
+    percent_style = _style_for(badge.text, format_usage_percent_text(remaining))
+    countdown_style = _style_for(badge.text, "3d4h")
+
+    for style in (percent_style, countdown_style):
+        assert style.bold is True
+        assert style.color is not None
+        assert style.color.get_truecolor().hex == bucket_color.lower()
+        assert style.bgcolor is not None
+        assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
+    assert percent_style.color == countdown_style.color
+    assert percent_style.bgcolor == countdown_style.bgcolor
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_stale_percent_and_countdown_use_bold_neutral_color(dark: bool) -> None:
+    entry = _entry(provider="claude", remaining_percent=62.0, freshness="stale")
+    badge = _badges(entry, dark=dark)[0]
+    neutral = usage_neutral_color(dark=dark)
+    badge_surface = _usage_badge_surface_color(dark=dark)
+
+    percent_style = _style_for(badge.text, "62%~")
+    countdown_style = _style_for(badge.text, "3d4h")
+
+    for style in (percent_style, countdown_style):
+        assert style.bold is True
+        assert style.color is not None
+        assert style.color.get_truecolor().hex == neutral.lower()
+        assert style.bgcolor is not None
+        assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_passed_reset_percent_and_countdown_use_bold_neutral_color(dark: bool) -> None:
+    entry = _entry(
+        provider="claude",
+        remaining_percent=62.0,
+        reset_state="passed",
+        seconds_until_reset=0.0,
+        resets_at=FROZEN_NOW - 10.0,
+    )
+    badge = _badges(entry, dark=dark)[0]
+    neutral = usage_neutral_color(dark=dark)
+
+    percent_style = _style_for(badge.text, "?%")
+    countdown_style = _style_for(badge.text, "0h0m↻")
+
+    for style in (percent_style, countdown_style):
+        assert style.bold is True
+        assert style.color is not None
+        assert style.color.get_truecolor().hex == neutral.lower()
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_fresh_unknown_reset_countdown_matches_percent_bucket_color(dark: bool) -> None:
+    entry = _entry(
+        provider="claude",
+        remaining_percent=62.0,
+        reset_state="unknown",
+        seconds_until_reset=None,
+        resets_at=None,
+    )
+    badge = _badges(entry, dark=dark)[0]
+    bucket_color = usage_percent_color(62.0, dark=dark)
+
+    percent_style = _style_for(badge.text, "62%")
+    countdown_style = _style_for(badge.text, "?")
+
+    for style in (percent_style, countdown_style):
+        assert style.bold is True
+        assert style.color is not None
+        assert style.color.get_truecolor().hex == bucket_color.lower()
+
+
+@pytest.mark.parametrize(
+    ("remaining", "expected_text"),
+    [(0.0, "0%"), (0.4, "<1%"), (100.0, "100%")],
+)
+@pytest.mark.parametrize("dark", [True, False])
+def test_percent_text_edge_values_share_color_with_countdown(
+    dark: bool, remaining: float, expected_text: str
+) -> None:
+    entry = _entry(provider="claude", remaining_percent=remaining)
+    badge = _badges(entry, dark=dark)[0]
+    bucket_color = usage_percent_color(remaining, dark=dark)
+
+    percent_style = _style_for(badge.text, expected_text)
+    countdown_style = _style_for(badge.text, "3d4h")
+
+    assert percent_style.color is not None
+    assert percent_style.color.get_truecolor().hex == bucket_color.lower()
+    assert percent_style == countdown_style
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_specifier_and_separators_use_normal_weight_neutral_on_badge_surface(
+    dark: bool,
+) -> None:
+    entry = _entry(
+        provider="claude",
+        window_key="weekly:claude-fable-5",
+        window_label="Claude weekly Fable",
+        weekly_all=False,
+        period_kind="weekly",
+        duration_seconds=None,
+        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
+        remaining_percent=7.0,
+    )
+    badge = _badges(entry, dark=dark)[0]
+    neutral = usage_neutral_color(dark=dark)
+    badge_surface = _usage_badge_surface_color(dark=dark)
+
+    specifier_style = _style_for(badge.text, "wk/fable")
+    icon_style = _style_for(badge.text, "🎭 ")
+
+    for style in (specifier_style, icon_style):
+        assert not style.bold
+        assert style.color is not None
+        assert style.color.get_truecolor().hex == neutral.lower()
+        assert style.bgcolor is not None
+        assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_warning_and_rejected_markers_render_bold_on_badge_surface(dark: bool) -> None:
+    warning_entry = _entry(
+        provider="codex", remaining_percent=50.0, collector_problem=True
+    )
+    rejected_entry = _entry(
+        provider="grok",
+        remaining_percent=4.0,
+        vendor_state="rejected",
+        display_attention="rejected",
+    )
+    warning_badge = _badges(warning_entry, dark=dark)[0]
+    rejected_badge = _badges(rejected_entry, dark=dark)[0]
+    badge_surface = _usage_badge_surface_color(dark=dark)
+
+    base_style = Style.parse(f"not bold not dim not reverse on {badge_surface}")
+    warning_style = _style_for(warning_badge.text, "⚠")
+    rejected_style = _style_for(rejected_badge.text, "!")
+
+    assert warning_style == Style.combine(
+        [base_style, Style.parse(usage_warning_style(dark=dark))]
+    )
+    assert rejected_style == Style.combine(
+        [base_style, Style.parse(usage_rejected_style(dark=dark))]
+    )
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_badge_gaps_use_the_app_background_not_the_badge_surface(dark: bool) -> None:
+    grok = _entry(provider="grok", remaining_percent=4.0, display_attention="rejected")
+    claude = _entry(provider="claude", remaining_percent=62.0)
+    segment = build_usage_indicator_segment(_badges(grok, claude, dark=dark), dark=dark)
+    gap_surface = _usage_gap_surface_color(dark=dark)
+    badge_surface = _usage_badge_surface_color(dark=dark)
+
+    segments = _rendered_segments(segment)
+    # The leading run (before the first badge) and any exact two-space run
+    # (between badges) are gaps; single-space runs elsewhere are a badge's
+    # own internal separators, painted on the badge surface instead.
+    gap_runs = [segments[0][1]] + [
+        style for text, style in segments[1:] if text == "  "
+    ]
+    assert gap_runs, "expected at least one blank gap run"
+    for gap_style in gap_runs:
+        assert gap_style is not None
+        assert gap_style.bgcolor is not None
+        assert gap_style.bgcolor.get_truecolor().hex == gap_surface.lower()
+        assert gap_style.bgcolor.get_truecolor().hex != badge_surface.lower()
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_overflow_and_fallback_disclosure_render_bold_neutral_on_badge_surface(
+    dark: bool,
+) -> None:
+    grok = _entry(provider="grok", remaining_percent=4.0, display_attention="rejected")
+    codex = _entry(provider="codex", remaining_percent=50.0)
+    claude = _entry(provider="claude", remaining_percent=62.0)
+    badges = _badges(grok, codex, claude, dark=dark)
+    full = build_usage_indicator_segment(badges, dark=dark)
+    neutral = usage_neutral_color(dark=dark)
+    badge_surface = _usage_badge_surface_color(dark=dark)
+
+    overflow = build_usage_indicator_segment(
+        badges, budget=full.cell_len - 1, dark=dark
+    )
+    plus_one_style = _style_for(overflow, "+1")
+
+    count_only = build_usage_indicator_segment(
+        badges, budget=cell_len(" usage 3"), dark=dark
+    )
+    count_style = _style_for(count_only, "usage 3")
+
+    for style in (plus_one_style, count_style):
+        assert style.bold is True
+        assert style.color is not None
+        assert style.color.get_truecolor().hex == neutral.lower()
+        assert style.bgcolor is not None
+        assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
+
+
+def test_defined_colors_meet_minimum_contrast_on_badge_surface() -> None:
+    for dark in (True, False):
+        badge_surface = _usage_badge_surface_color(dark=dark)
+        colors = [usage_percent_color(decile * 10.0, dark=dark) for decile in range(10)]
+        colors.append(usage_neutral_color(dark=dark))
+        colors.append(usage_warning_style(dark=dark).rsplit(" ", 1)[-1])
+        colors.append(usage_rejected_style(dark=dark).rsplit(" ", 1)[-1])
+        for color in colors:
+            assert _contrast_ratio(color, badge_surface) >= 4.5, (dark, color)

@@ -6,18 +6,26 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
+from rich.color import Color
+from rich.console import Console
+from rich.style import Style
 from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets._override_pill import (
+    PROVIDER_DISABLE_PALETTE,
     PROVIDER_PRIORITY_PALETTE,
     PROVIDER_SOFT_DISABLE_PALETTE,
 )
 from sase.ace.tui.widgets.provider_disables_indicator import (
     ProviderDisablesIndicator,
     _ACTIVE_STYLE,
+    _text_signature,
 )
-from sase.ace.tui.widgets._provider_usage_indicator import UsageBadge
+from sase.ace.tui.widgets._provider_usage_indicator import (
+    UsageBadge,
+    usage_indicator_badges,
+)
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_SOFT,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
@@ -31,6 +39,46 @@ from sase.llm_provider.provider_priority import (
 )
 
 _MODULE = "sase.ace.tui.widgets.provider_disables_indicator"
+_CONSOLE = Console(width=200)
+_FROZEN_NOW = 1_800_000_000.0
+
+
+def _segments_with_offsets(text: Text) -> list[tuple[int, int, Style | None]]:
+    """Return each non-empty rendered run's resolved style, keyed by text offsets."""
+    offset = 0
+    result: list[tuple[int, int, Style | None]] = []
+    for segment in text.render(_CONSOLE):
+        length = len(segment.text)
+        if length:
+            result.append((offset, offset + length, segment.style))
+        offset += length
+    return result
+
+
+def _usage_entry(
+    *,
+    provider: str,
+    remaining_percent: float,
+) -> dict[str, object]:
+    return {
+        "provider": provider,
+        "window_key": "weekly",
+        "window_label": "Week - all",
+        "weekly_all": True,
+        "period": {"kind": "weekly", "duration_seconds": 604_800.0},
+        "scope": {"kind": "all_models"},
+        "remaining_percent": remaining_percent,
+        "used_percent": max(0.0, 100.0 - remaining_percent),
+        "freshness": "fresh",
+        "reset_state": "future",
+        "seconds_until_reset": 273_840.0,
+        "resets_at": _FROZEN_NOW + 273_840.0,
+        "vendor_state": "allowed",
+        "display_attention": "none",
+        "collector_problem": False,
+        "policy_source": "weekly_all",
+        "effective_policy": {"kind": "always"},
+    }
 
 
 def _disable(
@@ -513,3 +561,232 @@ async def test_click_opens_provider_usage_when_attention_is_present(
         await page.pause()
 
     assert calls == ["open_provider_usage"]
+
+
+@pytest.mark.parametrize(
+    ("disables", "priority", "accent"),
+    [
+        pytest.param(
+            {"claude": _disable("claude")},
+            None,
+            PROVIDER_DISABLE_PALETTE.accent,
+            id="hard-disable",
+        ),
+        pytest.param(
+            {"claude": _disable("claude", mode=PROVIDER_DISABLE_MODE_SOFT)},
+            None,
+            PROVIDER_SOFT_DISABLE_PALETTE.accent,
+            id="soft-disable",
+        ),
+        pytest.param(
+            {},
+            _priority("codex", expires_at=3_820.0),
+            PROVIDER_PRIORITY_PALETTE.accent,
+            id="priority",
+        ),
+        pytest.param({}, None, None, id="no-routing"),
+    ],
+)
+def test_routing_prefix_keeps_its_style_and_usage_never_inherits_its_background(
+    disables: dict[str, TemporaryProviderDisable],
+    priority: TemporaryProviderPriority | None,
+    accent: str | None,
+) -> None:
+    badges = usage_indicator_badges(
+        [_usage_entry(provider="grok", remaining_percent=7.0)],
+        dark=True,
+        now=_FROZEN_NOW,
+    )
+    routing = ProviderDisablesIndicator._build_routing_content(
+        disables, priority=priority, now=100.0
+    )
+    content = ProviderDisablesIndicator._build_content(
+        disables,
+        priority=priority,
+        usage_badges=badges,
+        dark=True,
+        now=100.0,
+    )
+
+    assert content.plain.startswith(routing.plain)
+    prefix_len = len(routing.plain)
+    routing_segments = _segments_with_offsets(routing)
+    content_segments = _segments_with_offsets(content)
+    content_prefix = [seg for seg in content_segments if seg[1] <= prefix_len]
+    assert content_prefix == routing_segments
+
+    if accent is not None:
+        accent_color = Color.parse(accent)
+        for start, _end, style in content_segments:
+            if start >= prefix_len:
+                assert style is not None
+                assert style.bgcolor != accent_color
+
+
+def test_composed_percent_and_countdown_pairs_agree_after_composition() -> None:
+    badges = usage_indicator_badges(
+        [_usage_entry(provider="grok", remaining_percent=7.0)],
+        dark=True,
+        now=_FROZEN_NOW,
+    )
+    content = ProviderDisablesIndicator._build_content(
+        {"claude": _disable("claude")},
+        usage_badges=badges,
+        dark=True,
+        now=100.0,
+    )
+
+    segments = {segment.text: segment.style for segment in content.render(_CONSOLE)}
+    percent_style = segments["7%"]
+    countdown_style = segments["3d4h"]
+    assert percent_style is not None
+    assert countdown_style is not None
+    assert percent_style.color == countdown_style.color
+    assert percent_style.bold and countdown_style.bold
+
+
+def test_collector_only_usage_badge_survives_composition_with_routing() -> None:
+    badge = usage_indicator_badges(
+        [],
+        providers=({"provider": "grok", "collector_problem": True},),
+        dark=True,
+        now=100.0,
+    )[0]
+    content = ProviderDisablesIndicator._build_content(
+        {"claude": _disable("claude")},
+        usage_badges=(badge,),
+        dark=True,
+        now=100.0,
+    )
+
+    segments = {segment.text: segment.style for segment in content.render(_CONSOLE)}
+    marker_style = segments["⚠"]
+    assert marker_style is not None
+    accent_color = Color.parse(PROVIDER_DISABLE_PALETTE.accent)
+    assert marker_style.bgcolor != accent_color
+    assert marker_style.bold
+
+
+def test_text_signature_changes_when_only_the_base_style_changes() -> None:
+    dark_text = Text("usage 3", style="bold #B8C0CC on #242830")
+    light_text = Text("usage 3", style="bold #4B535F on #E0E0E0")
+
+    assert dark_text.plain == light_text.plain
+    assert dark_text.spans == light_text.spans == []
+    assert _text_signature(dark_text) != _text_signature(light_text)
+
+
+def _mock_usage_projection(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Serve one fixed usage entry through the real badge-building pipeline."""
+    projection = SimpleNamespace(
+        entries=(_usage_entry(provider="grok", remaining_percent=7.0),),
+        providers=(),
+        generated_at=_FROZEN_NOW,
+    )
+    monkeypatch.setattr(
+        f"{_MODULE}.cached_usage_indicator_projection",
+        lambda **_kwargs: projection,
+    )
+
+
+async def test_theme_switch_repaints_usage_gaps_with_identical_plain_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_usage_projection(monkeypatch)
+    dark_badges = usage_indicator_badges(
+        [_usage_entry(provider="grok", remaining_percent=7.0)],
+        dark=True,
+        now=_FROZEN_NOW,
+    )
+    dark_reference = ProviderDisablesIndicator._build_content(
+        {}, usage_badges=dark_badges, dark=True, now=100.0
+    )
+    assert "7%" in dark_reference.plain
+
+    updates: list[Text] = []
+    async with AcePage() as page:
+        indicator = page.query_one_widget(
+            "#provider-disables-indicator",
+            ProviderDisablesIndicator,
+        )
+        indicator._apply_content()
+        assert indicator._content_signature == _text_signature(dark_reference)
+
+        original_update = indicator.update
+        monkeypatch.setattr(
+            indicator,
+            "update",
+            lambda renderable: (
+                updates.append(renderable),
+                original_update(renderable),
+            )[1],
+        )
+
+        page.app.theme = "textual-light"
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        await page.pause()
+
+    assert len(updates) == 1
+    repainted = updates[0]
+    assert repainted.plain == dark_reference.plain
+    assert _segments_with_offsets(repainted) != _segments_with_offsets(dark_reference)
+
+
+async def test_unchanged_apply_content_does_not_reissue_static_update(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _mock_usage_projection(monkeypatch)
+    async with AcePage() as page:
+        indicator = page.query_one_widget(
+            "#provider-disables-indicator",
+            ProviderDisablesIndicator,
+        )
+        indicator._apply_content()
+
+        calls: list[Text] = []
+        original_update = indicator.update
+        monkeypatch.setattr(
+            indicator,
+            "update",
+            lambda renderable: (calls.append(renderable), original_update(renderable))[
+                1
+            ],
+        )
+
+        indicator._apply_content()
+        indicator._apply_content()
+
+    assert calls == []
+
+
+def test_narrow_budget_collapses_then_wide_budget_restores_full_badge_packing() -> None:
+    badges = usage_indicator_badges(
+        [
+            _usage_entry(provider="grok", remaining_percent=4.0),
+            _usage_entry(provider="codex", remaining_percent=50.0),
+            _usage_entry(provider="claude", remaining_percent=62.0),
+        ],
+        dark=True,
+        now=_FROZEN_NOW,
+    )
+    full = ProviderDisablesIndicator._build_content(
+        {}, usage_badges=badges, dark=True, now=100.0
+    )
+    narrow = ProviderDisablesIndicator._build_content(
+        {}, usage_badges=badges, usage_budget=len(" usage 3"), dark=True, now=100.0
+    )
+    wide_again = ProviderDisablesIndicator._build_content(
+        {}, usage_badges=badges, dark=True, now=100.0
+    )
+
+    assert narrow.plain.strip() == "usage 3"
+    assert wide_again.plain == full.plain
+    assert "🛰️" in full.plain and "🤖" in full.plain and "🎭" in full.plain
+
+    tooltip = ProviderDisablesIndicator._build_tooltip(
+        {}, usage_badges=badges, now=100.0
+    )
+    assert tooltip is not None
+    for provider_upper in ("GROK", "CODEX", "CLAUDE"):
+        assert provider_upper in tooltip

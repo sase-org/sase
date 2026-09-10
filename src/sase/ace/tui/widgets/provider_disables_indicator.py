@@ -406,7 +406,8 @@ class ProviderDisablesIndicator(Static):
             leading_space=not bool(routing.plain),
             dark=dark,
         )
-        combined = routing.copy() if routing.plain else Text()
+        combined = Text()
+        combined.append_text(routing)
         combined.append_text(usage)
         return combined
 
@@ -578,10 +579,13 @@ def _rendered_cell_width(widget: Any) -> int:
     return Text(str(renderable)).cell_len
 
 
-def _text_signature(text: Text) -> tuple[str, tuple[tuple[int, int, str], ...]]:
-    """Return a stable equality key for Rich text content and styles."""
+def _text_signature(
+    text: Text,
+) -> tuple[str, str, tuple[tuple[int, int, str], ...]]:
+    """Return a stable equality key for Rich text content, base style, and spans."""
     return (
         text.plain,
+        str(text.style),
         tuple((span.start, span.end, str(span.style)) for span in text.spans),
     )
 
