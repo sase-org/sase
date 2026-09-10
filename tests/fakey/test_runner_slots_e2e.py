@@ -40,6 +40,8 @@ class _Agent:
     release: Path
     wait_runners: int | None = None
     wait_priority: int | None = None
+    queue_weight: float = 1.0
+    queue_weight_explicit: bool = False
     crash: bool = False
     killed: bool = False
     thread: threading.Thread | None = None
@@ -100,6 +102,8 @@ class _RunnerSlotFakeyHarness:
         name: str | None = None,
         wait_runners: int | None = None,
         wait_priority: int | None = None,
+        queue_weight: float = 1.0,
+        queue_weight_explicit: bool = False,
         parent_timestamp: str | None = None,
         agent_family: str | None = None,
         monitor_id: str | None = None,
@@ -113,7 +117,13 @@ class _RunnerSlotFakeyHarness:
             "pid": os.getpid(),
             "model": "fakey-large",
             "llm_provider": "fakey",
+            "queue_weight": queue_weight,
+            "queue_weight_explicit": queue_weight_explicit,
         }
+        if wait_runners is not None:
+            meta["wait_runners"] = wait_runners
+        if wait_priority is not None:
+            meta["wait_priority"] = wait_priority
         if parent_timestamp is not None:
             meta["parent_timestamp"] = parent_timestamp
         if agent_family is not None:
@@ -129,6 +139,8 @@ class _RunnerSlotFakeyHarness:
             release=self.root / "signals" / f"{timestamp}.release",
             wait_runners=wait_runners,
             wait_priority=wait_priority,
+            queue_weight=queue_weight,
+            queue_weight_explicit=queue_weight_explicit,
             crash=crash,
         )
 
@@ -170,6 +182,16 @@ class _RunnerSlotFakeyHarness:
             is_slot_waiter,
             f"agent {agent.name} to park for a runner slot",
             diagnostics=lambda: self._diagnostics(agent),
+        )
+
+    def agent_meta(self, agent: _Agent) -> dict[str, object]:
+        return json.loads(
+            (agent.artifacts_dir / "agent_meta.json").read_text(encoding="utf-8")
+        )
+
+    def waiting_marker(self, agent: _Agent) -> dict[str, object]:
+        return json.loads(
+            (agent.artifacts_dir / "waiting.json").read_text(encoding="utf-8")
         )
 
     def assert_parked_not_started(self, agent: _Agent) -> None:
@@ -227,6 +249,8 @@ class _RunnerSlotFakeyHarness:
                 agent.meta,
                 wait_runners=agent.wait_runners,
                 wait_priority=agent.wait_priority,
+                queue_weight=agent.queue_weight,
+                queue_weight_explicit=agent.queue_weight_explicit,
                 claim=lambda: self._claim(agent),
             )
             try:
@@ -396,6 +420,200 @@ def test_fakey_priority_admission_differs_from_park_order(
     harness.join(older)
 
     assert harness.claim_order == ["running", "newer", "older"]
+
+
+def test_fractional_fakey_agents_fill_capacity_exactly_and_live_reload_allows_heavy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
+    quarter_agents = [
+        harness.create_agent(
+            index,
+            name=f"quarter-{index}",
+            queue_weight=0.25,
+            queue_weight_explicit=True,
+        )
+        for index in range(4)
+    ]
+
+    for agent in quarter_agents:
+        harness.start(agent)
+        harness.wait_started(agent)
+
+    heavy = harness.create_agent(
+        10,
+        name="heavy",
+        wait_priority=0,
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+    )
+    lighter = harness.create_agent(
+        11,
+        name="lighter",
+        queue_weight=0.25,
+        queue_weight_explicit=True,
+    )
+    harness.start(heavy)
+    harness.wait_parked(heavy)
+    harness.start(lighter)
+    harness.wait_parked(lighter)
+
+    heavy_marker = harness.waiting_marker(heavy)
+    assert heavy_marker["queue_weight"] == pytest.approx(2.0)
+    assert heavy_marker["queue_weight_explicit"] is True
+    assert heavy_marker["wait_priority"] == 0
+    assert heavy_marker["wait_priority_explicit"] is True
+
+    harness.release_agent(quarter_agents[0])
+    harness.join(quarter_agents[0])
+    harness.wait_started(lighter)
+    assert not heavy.started.exists(), harness._diagnostics(heavy)
+
+    harness.release_agent(lighter)
+    harness.join(lighter)
+    assert not heavy.started.exists(), harness._diagnostics(heavy)
+
+    for agent in quarter_agents[1:]:
+        harness.release_agent(agent)
+        harness.join(agent)
+    harness.assert_parked_not_started(heavy)
+
+    harness.write_cap(2)
+    harness.wait_started(heavy)
+    harness.release_agent(heavy)
+    harness.join(heavy)
+
+    assert harness.claim_order == [
+        *(agent.name for agent in quarter_agents),
+        "lighter",
+        "heavy",
+    ]
+    assert harness.max_active_roots == 4
+    assert harness.agent_meta(heavy)["queue_weight"] == pytest.approx(2.0)
+    assert (
+        harness.agent_meta(heavy)["runner_claim_owner_key"] == heavy.artifacts_dir.name
+    )
+
+
+def test_explicit_zero_runner_priority_and_weight_survive_real_parking(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
+    running = harness.create_agent(0, name="running")
+    barrier = harness.create_agent(
+        1,
+        name="zero-directives",
+        wait_runners=0,
+        wait_priority=0,
+        queue_weight=0.25,
+        queue_weight_explicit=True,
+    )
+
+    harness.start(running)
+    harness.wait_started(running)
+    harness.start(barrier)
+    harness.wait_parked(barrier)
+
+    marker = harness.waiting_marker(barrier)
+    assert marker["wait_runners"] == 0
+    assert marker["wait_runners_explicit"] is True
+    assert marker["wait_priority"] == 0
+    assert marker["wait_priority_explicit"] is True
+    assert marker["queue_weight"] == pytest.approx(0.25)
+    assert marker["queue_weight_explicit"] is True
+
+    harness.release_agent(running)
+    harness.join(running)
+    harness.wait_started(barrier)
+
+    meta = harness.agent_meta(barrier)
+    assert meta["wait_runners"] == 0
+    assert meta["wait_priority"] == 0
+    assert meta["queue_weight"] == pytest.approx(0.25)
+    assert meta["queue_weight_explicit"] is True
+    assert meta["runner_claim_owner_key"] == barrier.artifacts_dir.name
+    harness.release_agent(barrier)
+    harness.join(barrier)
+
+
+def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("sase_research_artifacts")
+
+    from sase.agent.launch_request_planning import expand_prompt_for_typed_launch
+    from sase.core.agent_launch_facade import plan_typed_launch_units
+    from sase.xprompt.loader import get_all_xprompts
+
+    catalog = get_all_xprompts()
+    research_swarm = catalog["research_swarm"]
+    assert (
+        research_swarm.source_path == "plugin:sase_research_artifacts/research_swarm.md"
+    )
+
+    default_plan = plan_typed_launch_units(
+        expand_prompt_for_typed_launch("#research_swarm:: weighted queue acceptance"),
+        selected_project="sase",
+    )
+    assert len(default_plan.units) == 4
+    assert [
+        (unit.payload.queue_weight, unit.payload.queue_weight_explicit)
+        for unit in default_plan.units
+    ] == [(0.25, True)] * 4
+    assert [unit.payload.wait_runners for unit in default_plan.units] == [None] * 4
+    assert [unit.payload.wait_priority for unit in default_plan.units] == [None] * 4
+    assert [
+        [wait.logical_id for wait in unit.waits] for unit in default_plan.units
+    ] == [
+        [],
+        [],
+        ["unit-1", "unit-2"],
+        ["unit-3"],
+    ]
+
+    explicit_zero_plan = plan_typed_launch_units(
+        expand_prompt_for_typed_launch(
+            "#research_swarm("
+            "prompt='weighted queue acceptance', "
+            "runners=0, priority=0, wait='upstream'"
+            ")"
+        ),
+        selected_project="sase",
+    )
+    assert len(explicit_zero_plan.units) == 4
+    for unit in explicit_zero_plan.units:
+        assert unit.payload.queue_weight == pytest.approx(0.25)
+        assert unit.payload.queue_weight_explicit is True
+        assert unit.payload.wait_runners == 0
+        assert unit.payload.wait_priority == 0
+    assert [wait.name for wait in explicit_zero_plan.units[0].waits] == ["upstream"]
+    assert [wait.name for wait in explicit_zero_plan.units[1].waits] == ["upstream"]
+
+    harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
+    agents = [
+        harness.create_agent(
+            40 + index,
+            name=f"research-unit-{index + 1}",
+            queue_weight=float(unit.payload.queue_weight),
+            queue_weight_explicit=unit.payload.queue_weight_explicit,
+        )
+        for index, unit in enumerate(default_plan.units)
+    ]
+
+    for agent in agents:
+        harness.start(agent)
+        harness.wait_started(agent)
+    assert harness.max_active_roots == 4
+    assert [
+        harness.agent_meta(agent)["queue_weight"] for agent in agents
+    ] == pytest.approx([0.25, 0.25, 0.25, 0.25])
+
+    for agent in agents:
+        harness.release_agent(agent)
+    harness.join_all(agents)
 
 
 def test_live_config_raise_releases_fakey_waiter_without_axe(
