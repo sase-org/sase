@@ -93,6 +93,122 @@ def test_changed_identity_reexecs_original_argv(
     assert os.environ[RUNNER_CODE_REFRESHED_ENV] == "1"
 
 
+def test_refresh_handoff_preserves_current_agent_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    monkeypatch.setenv("SASE_AGENT_PLANNED_NAME", "stale-parent")
+    prompt_file = tmp_path / "submitted-prompt.md"
+
+    def assert_exec_handoff(*_args: object) -> None:
+        assert os.environ[RUNNER_CODE_REFRESHED_ENV] == "1"
+        assert os.environ["SASE_AGENT_PLANNED_NAME"] == "builder.w0"
+
+    with (
+        patch(
+            "sase.axe.run_agent_runner_refresh.runner_code_identity",
+            return_value="b" * 40,
+        ),
+        patch(
+            "sase.axe.run_agent_runner_refresh._validated_continuation_planned_name",
+            return_value="builder.w0",
+        ),
+        patch(
+            "sase.axe.run_agent_runner_refresh.os.execv",
+            side_effect=assert_exec_handoff,
+        ),
+    ):
+        refresh_runner_code_after_wait(
+            "a" * 40,
+            blocking_wait_occurred=True,
+            killed=False,
+            prompt_file=str(prompt_file),
+            submitted_xprompt="%wait:builder\nDo work",
+            agent_name="builder.w0",
+            artifacts_dir=str(tmp_path / "artifacts"),
+        )
+
+    assert os.environ["SASE_AGENT_PLANNED_NAME"] == "builder.w0"
+
+
+def test_refresh_handoff_drops_stale_planned_name_without_current_ownership(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    monkeypatch.setenv("SASE_AGENT_PLANNED_NAME", "stale-parent")
+    prompt_file = tmp_path / "submitted-prompt.md"
+
+    def assert_exec_handoff(*_args: object) -> None:
+        assert os.environ[RUNNER_CODE_REFRESHED_ENV] == "1"
+        assert "SASE_AGENT_PLANNED_NAME" not in os.environ
+
+    with (
+        patch(
+            "sase.axe.run_agent_runner_refresh.runner_code_identity",
+            return_value="b" * 40,
+        ),
+        patch(
+            "sase.axe.run_agent_runner_refresh._validated_continuation_planned_name",
+            return_value=None,
+        ),
+        patch(
+            "sase.axe.run_agent_runner_refresh.os.execv",
+            side_effect=assert_exec_handoff,
+        ),
+    ):
+        refresh_runner_code_after_wait(
+            "a" * 40,
+            blocking_wait_occurred=True,
+            killed=False,
+            prompt_file=str(prompt_file),
+            submitted_xprompt="%wait:builder\nDo work",
+            agent_name="foreign.w0",
+            artifacts_dir=str(tmp_path / "artifacts"),
+        )
+
+    assert "SASE_AGENT_PLANNED_NAME" not in os.environ
+
+
+def test_exec_failure_restores_prior_planned_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    monkeypatch.setenv("SASE_AGENT_PLANNED_NAME", "stale-parent")
+    prompt_file = tmp_path / "prompt.md"
+    with (
+        patch(
+            "sase.axe.run_agent_runner_refresh.runner_code_identity",
+            return_value="b" * 40,
+        ),
+        patch(
+            "sase.axe.run_agent_runner_refresh._validated_continuation_planned_name",
+            return_value="builder.w0",
+        ),
+        patch(
+            "sase.axe.run_agent_runner_refresh.os.execv",
+            side_effect=OSError("exec failed"),
+        ),
+    ):
+        refresh_runner_code_after_wait(
+            "a" * 40,
+            blocking_wait_occurred=True,
+            killed=False,
+            prompt_file=str(prompt_file),
+            submitted_xprompt="prompt",
+            agent_name="builder.w0",
+            artifacts_dir=str(tmp_path / "artifacts"),
+        )
+
+    assert RUNNER_CODE_REFRESHED_ENV not in os.environ
+    assert os.environ["SASE_AGENT_PLANNED_NAME"] == "stale-parent"
+    assert not prompt_file.exists()
+    assert "continuing: exec failed" in capsys.readouterr().err
+
+
 def test_prompt_rewrite_failure_skips_refresh(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

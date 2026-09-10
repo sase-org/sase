@@ -35,8 +35,13 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
         self.refresh_calls = 0
         self.pushed_screens: list[tuple[object, object]] = []
         self.killed_agents: list[Agent] = []
+        self.kill_settlers: list[Any] = []
         self.launch_prompts: list[str] = []
-        self.prompt_contexts: list[dict[str, str | None]] = []
+        self.prompt_contexts: list[dict[str, object]] = []
+        self.auto_settle_kill = True
+        self._prompt_context = None
+        self._prompt_session = None
+        self.selected_agent: Agent | None = None
 
     def notify(self, message: str, *, severity: str = "information") -> None:
         self.notifications.append((message, severity))
@@ -49,6 +54,9 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
 
     def push_screen(self, screen: object, callback: object = None) -> None:
         self.pushed_screens.append((screen, callback))
+
+    def _get_selected_agent(self) -> Agent | None:
+        return self.selected_agent
 
     def _submit_durable_proc(
         self,
@@ -139,23 +147,73 @@ class FakeWaitResumeApp(AgentWaitResumeMixin):
             )
         return proc_info
 
-    def _do_kill_agent(self, agent: Agent) -> None:
+    def _do_kill_agent(
+        self,
+        agent: Agent,
+        cleanup_plan: Any = None,
+        *,
+        on_settled: Any = None,
+    ) -> bool:
+        del cleanup_plan
         self.killed_agents.append(agent)
+        if on_settled is not None:
+            if self.auto_settle_kill:
+                on_settled()
+            else:
+                self.kill_settlers.append(on_settled)
+        return True
 
     def _setup_home_prompt_context(
         self,
         *,
         display_name: str | None,
         history_sort_key: str | None,
+        relaunch_operation: Any = None,
     ) -> None:
+        from sase.ace.tui.actions.agent_workflow._types import (
+            PromptContext,
+            begin_prompt_session,
+        )
+
+        begin_prompt_session(
+            self,
+            PromptContext(
+                project_name="home",
+                cl_name=None,
+                project_file="/tmp/projects/home/home.sase",
+                workspace_dir="/tmp",
+                workspace_num=0,
+                workflow_name="ace(run)-20240101_120000",
+                timestamp="20240101_120000",
+                history_sort_key=history_sort_key or "wait",
+                display_name=display_name or "~",
+                update_target="",
+                is_home_mode=True,
+            ),
+            relaunch_operation=relaunch_operation,
+        )
         self.prompt_contexts.append(
             {
                 "display_name": display_name,
                 "history_sort_key": history_sort_key,
+                "relaunch_operation": relaunch_operation,
             }
         )
 
     def _finish_agent_launch(self, prompt: str) -> None:
+        from sase.ace.tui.actions.agent_workflow._relaunch_barrier import (
+            hold_launch_for_relaunch_cleanup,
+        )
+        from sase.ace.tui.actions.agent_workflow._types import current_prompt_session
+
+        session = current_prompt_session(self)
+        if session is not None and hold_launch_for_relaunch_cleanup(
+            self,
+            lambda: self.launch_prompts.append(prompt),
+            owner_id=session.session_id,
+            operation=session.relaunch_operation,
+        ):
+            return
         self.launch_prompts.append(prompt)
 
 

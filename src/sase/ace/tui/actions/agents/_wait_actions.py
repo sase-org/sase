@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+from sase.agent.relaunch_prompt import KillAndEditPromptError
 from sase.agent.status_buckets import runner_slot_display_status
 from sase.ace.tui.agent_completion import (
     AgentCompletionCandidate,
@@ -31,6 +33,53 @@ from ._wait_helpers import (
 if TYPE_CHECKING:
     from ...models import Agent
     from ...modals import WaitModalResult
+
+
+def _prepare_wait_relaunch_prompt(
+    agent: Agent,
+    agents: Sequence[Agent],
+    result: WaitModalResult,
+) -> str | None:
+    """Return a replacement prompt preserving *agent*'s resolved identity."""
+    wait_spec = prompt_wait_spec(result)
+    if wait_spec is None:
+        return None
+
+    from ..agent_workflow._entry_relaunch import prepare_kill_edit_agent_prompt
+
+    prepared = prepare_kill_edit_agent_prompt(agent, agents)
+    if prepared is None:
+        return None
+
+    agent_name = agent.agent_name
+    if agent_name and not _prompt_forces_name_reuse(prepared):
+        from sase.agent.relaunch_prompt import (
+            ensure_forced_name_reuse,
+            prompt_facing_agent_name,
+        )
+
+        facing_name = prompt_facing_agent_name(agent_name)
+        try:
+            prepared = ensure_forced_name_reuse(prepared, facing_name)
+        except ValueError as exc:
+            raise KillAndEditPromptError(
+                str(exc),
+                agent_name=agent_name,
+                produced=prepared,
+            ) from exc
+
+    return set_prompt_wait_and_queue(prepared, wait_spec)
+
+
+def _prompt_forces_name_reuse(prompt: str) -> bool:
+    """Return whether *prompt* already carries a trusted force-reuse identity."""
+    from sase.xprompt.directives import DirectiveError, extract_prompt_directives
+
+    try:
+        _, directives = extract_prompt_directives(prompt)
+    except DirectiveError:
+        return False
+    return directives.name_force_reuse
 
 
 class AgentWaitActionsMixin:
@@ -424,12 +473,59 @@ class AgentWaitActionsMixin:
         result: WaitModalResult,
     ) -> None:
         """Confirm-kill and relaunch an agent with a replacement wait directive."""
-        raw_content = agent.get_raw_xprompt_content()
-        if not raw_content:
-            self.notify("No prompt found for agent", severity="warning")  # type: ignore[attr-defined]
+        if prompt_wait_spec(result) is None:
+            self.notify("No wait spec to apply", severity="warning")  # type: ignore[attr-defined]
             return
 
+        identity = getattr(agent, "identity", agent)
+        loaded_agents = (
+            getattr(self, "_agents_with_children", None)
+            or getattr(self, "_agents", None)
+            or (agent,)
+        )
+
+        def on_prompt_resolved(new_prompt: str | None) -> None:
+            from ..agent_workflow._entry_relaunch import resolve_agent_identity
+
+            current = resolve_agent_identity(self, identity)
+            if current is None:
+                self.notify(  # type: ignore[attr-defined]
+                    "Selected agent is no longer available; nothing killed",
+                    severity="warning",
+                )
+                return
+            if new_prompt is None:
+                self.notify("No prompt found for agent", severity="warning")  # type: ignore[attr-defined]
+                return
+            self._confirm_wait_relaunch(current, identity, result, new_prompt)
+
+        from ..agent_workflow._entry_relaunch import (
+            schedule_relaunch_prompt_resolution,
+        )
+
+        schedule_relaunch_prompt_resolution(
+            self,
+            lambda: _prepare_wait_relaunch_prompt(agent, tuple(loaded_agents), result),
+            on_prompt_resolved,
+            worker_name="agent-wait-relaunch-prompt",
+            failure_message="Unable to prepare wait relaunch prompt",
+        )
+
+    def _confirm_wait_relaunch(
+        self,
+        agent: Agent,
+        identity: object,
+        result: WaitModalResult,
+        new_prompt: str,
+    ) -> None:
+        """Confirm and submit a prepared wait replacement launch."""
         from ...modals import ConfirmKillModal
+        from ..agent_workflow._entry_relaunch import resolve_agent_identity
+        from ..agent_workflow._relaunch_barrier import (
+            open_relaunch_cleanup_barrier,
+            settle_relaunch_cleanup_barrier,
+        )
+        from ..agent_workflow._types import RelaunchOperation
         from ._confirmation_sase_agents import (
             confirmation_sase_agent_entries,
             format_confirmation_entries,
@@ -458,17 +554,29 @@ class AgentWaitActionsMixin:
         def on_confirm(confirmed: bool | None) -> None:
             if not confirmed:
                 return
-
-            self._do_kill_agent(agent)  # type: ignore[attr-defined]
-
-            wait_spec = prompt_wait_spec(result)
-            if wait_spec is None:
+            current = resolve_agent_identity(self, identity)
+            if current is None:
+                self.notify(  # type: ignore[attr-defined]
+                    "Selected agent is no longer available; nothing killed",
+                    severity="warning",
+                )
                 return
-            new_prompt = set_prompt_wait_and_queue(raw_content, wait_spec)
+
+            operation = RelaunchOperation(f"wait relaunch {current.display_name}")
+            barrier = open_relaunch_cleanup_barrier(
+                self,
+                f"wait relaunch {current.display_name}",
+                operation=operation,
+            )
+            settle = lambda: settle_relaunch_cleanup_barrier(self, barrier)  # noqa: E731
+            if not self._do_kill_agent(current, on_settled=settle):  # type: ignore[attr-defined]
+                settle()
+                return
 
             self._setup_home_prompt_context(  # type: ignore[attr-defined]
-                display_name=agent.display_name or agent.cl_name,
-                history_sort_key=agent.cl_name or "wait",
+                display_name=current.display_name or current.cl_name,
+                history_sort_key=current.cl_name or "wait",
+                relaunch_operation=operation,
             )
             self._finish_agent_launch(new_prompt)  # type: ignore[attr-defined]
 

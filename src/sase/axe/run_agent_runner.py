@@ -211,6 +211,8 @@ def _run_agent(state: RunnerRunState) -> None:
         killed=was_killed(),
         prompt_file=state.prompt_file,
         submitted_xprompt=state.submitted_xprompt,
+        agent_name=state.agent_name,
+        artifacts_dir=state.artifacts_dir,
     )
 
     repeat_stop: RepeatStopDecision | None = None

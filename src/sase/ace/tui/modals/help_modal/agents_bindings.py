@@ -102,7 +102,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.reword),
-                    "Edit one current agent's wait deps/beads/time / run now",
+                    "Edit wait deps/beads/time; keep name / run now",
                 ),
                 (d(a.save_marked_agents), "Save/dismiss marked agents"),
                 (d(a.kill_agent), "Stop/clean row/panel/group/clan/marks"),

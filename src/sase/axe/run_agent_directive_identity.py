@@ -121,7 +121,7 @@ def resolve_agent_identity(
         )
 
         machine_identity = AgentIdentitySnapshot.current()
-        if planned_name and not _planned_name_is_reserved_for_artifacts(
+        if planned_name and not planned_name_is_reserved_for_artifacts(
             planned_name, artifacts_dir
         ):
             log.warning(
@@ -345,7 +345,7 @@ def _planned_name_matches_resume_target(planned_name: str, resume_name: str) -> 
         return False
 
 
-def _planned_name_is_reserved_for_artifacts(
+def planned_name_is_reserved_for_artifacts(
     planned_name: str, artifacts_dir: str
 ) -> bool:
     """Return whether *planned_name* is durably reserved for this run."""

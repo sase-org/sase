@@ -367,6 +367,8 @@ def test_runner_forwards_blocking_wait_result_to_code_refresh(tmp_path: Path) ->
         killed=False,
         prompt_file=str(tmp_path / "prompt.md"),
         submitted_xprompt="%i(reviewer, family=foo)\nDo work",
+        agent_name="foo--reviewer",
+        artifacts_dir=str(tmp_path / "artifacts"),
     )
 
 

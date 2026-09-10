@@ -23,6 +23,7 @@ from sase.version._sources import (
 )
 
 RUNNER_CODE_REFRESHED_ENV = "SASE_RUNNER_CODE_REFRESHED"
+_PLANNED_AGENT_NAME_ENV = "SASE_AGENT_PLANNED_NAME"
 
 
 def _editable_sase_source_root() -> Path | None:
@@ -67,6 +68,8 @@ def refresh_runner_code_after_wait(
     killed: bool,
     prompt_file: str,
     submitted_xprompt: str,
+    agent_name: str | None = None,
+    artifacts_dir: str | None = None,
 ) -> None:
     """Re-exec the runner when its editable source HEAD moved during a wait.
 
@@ -99,11 +102,29 @@ def refresh_runner_code_after_wait(
         )
         return
 
+    previous_planned_name = os.environ.get(_PLANNED_AGENT_NAME_ENV)
+    planned_name_changed = False
+    continuation_planned_name = _validated_continuation_planned_name(
+        agent_name,
+        artifacts_dir,
+    )
+    if agent_name is not None:
+        planned_name_changed = True
+        if continuation_planned_name is not None:
+            os.environ[_PLANNED_AGENT_NAME_ENV] = continuation_planned_name
+        else:
+            os.environ.pop(_PLANNED_AGENT_NAME_ENV, None)
+
     os.environ[RUNNER_CODE_REFRESHED_ENV] = "1"
     try:
         os.execv(sys.executable, [sys.executable, *sys.argv])
     except OSError as exc:
         os.environ.pop(RUNNER_CODE_REFRESHED_ENV, None)
+        if planned_name_changed:
+            if previous_planned_name is None:
+                os.environ.pop(_PLANNED_AGENT_NAME_ENV, None)
+            else:
+                os.environ[_PLANNED_AGENT_NAME_ENV] = previous_planned_name
         try:
             os.unlink(prompt_file)
         except OSError:
@@ -113,3 +134,22 @@ def refresh_runner_code_after_wait(
             file=sys.stderr,
             flush=True,
         )
+
+
+def _validated_continuation_planned_name(
+    agent_name: str | None,
+    artifacts_dir: str | None,
+) -> str | None:
+    """Return the current run name only when this artifact directory owns it."""
+    if not agent_name or not artifacts_dir:
+        return None
+    try:
+        from sase.axe.run_agent_directive_identity import (
+            planned_name_is_reserved_for_artifacts,
+        )
+
+        if planned_name_is_reserved_for_artifacts(agent_name, artifacts_dir):
+            return agent_name
+    except Exception:
+        return None
+    return None

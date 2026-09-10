@@ -308,6 +308,8 @@ class PromptBarMountMixin:
         self,
         display_name: str = "~",
         history_sort_key: str = "home",
+        *,
+        relaunch_operation: RelaunchOperation | None = None,
     ) -> None:
         """Set up prompt context for home directory mode without showing UI.
 
@@ -339,6 +341,7 @@ class PromptBarMountMixin:
                 update_target="",
                 is_home_mode=True,
             ),
+            relaunch_operation=relaunch_operation,
         )
 
     def _load_editor_markdown_into_bar(self, markdown: str) -> None:
