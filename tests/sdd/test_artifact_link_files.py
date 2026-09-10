@@ -14,10 +14,8 @@ from sase.sdd._artifact_link_files import (
     is_canonical_artifact_link_index,
     is_canonical_artifact_link_index_location,
 )
-from sase.sdd.artifact_link_event_publisher import (
-    _canonical_artifact_link_event_object,
-    observation_or_put_event_from_row,
-)
+from sase.sdd._artifact_link_event_canonical import canonical_artifact_link_event_object
+from sase.sdd.artifact_link_event_publisher import observation_or_put_event_from_row
 from sase.sdd.artifact_link_store import ARTIFACT_LINK_ROW_SCHEMA_VERSION
 
 
@@ -66,7 +64,7 @@ def _write_event(repo: Path) -> Path:
         project_key="gh_sase-org__sase",
         operation_id="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     )
-    event_object = _canonical_artifact_link_event_object(event)
+    event_object = canonical_artifact_link_event_object(event)
     path = repo / event_object.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(event_object.payload)

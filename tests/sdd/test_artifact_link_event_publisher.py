@@ -7,9 +7,11 @@ from pathlib import Path
 
 import pytest
 
+from sase.sdd._artifact_link_event_canonical import (
+    ArtifactLinkEventCorruptionError,
+    canonical_artifact_link_event_object,
+)
 from sase.sdd.artifact_link_event_publisher import (
-    _ArtifactLinkEventCorruptionError,
-    _canonical_artifact_link_event_object,
     observation_or_put_event_from_row,
     publish_artifact_link_events,
 )
@@ -71,7 +73,7 @@ def test_publish_event_writes_dual_document_roots_and_replays_idempotently(
         project_key=store.project_key,
         operation_id="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     )
-    event_object = _canonical_artifact_link_event_object(event)
+    event_object = canonical_artifact_link_event_object(event)
 
     report = publish_artifact_link_events(
         store,
@@ -130,12 +132,12 @@ def test_publish_event_rejects_same_path_with_different_bytes(
         project_key=store.project_key,
         operation_id="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     )
-    event_object = _canonical_artifact_link_event_object(event)
+    event_object = canonical_artifact_link_event_object(event)
     path = plans / event_object.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("{}\n", encoding="utf-8")
 
-    with pytest.raises(_ArtifactLinkEventCorruptionError):
+    with pytest.raises(ArtifactLinkEventCorruptionError):
         publish_artifact_link_events(
             store,
             (event,),
