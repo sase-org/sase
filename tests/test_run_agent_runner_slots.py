@@ -41,11 +41,13 @@ def test_uncontended_gate_claims_without_parking(tmp_path: Path) -> None:
     sleep.assert_not_called()
 
 
-def test_serial_child_agent_is_exempt_from_scanning_and_queueing(
+def test_serial_child_agent_uses_locked_admission(
     tmp_path: Path,
 ) -> None:
     child = artifact(tmp_path, "20260712120000", 101)
-    with patch.object(run_agent_wait_slots, "_scan_runner_slot_records") as scan:
+    with patch.object(
+        run_agent_wait_slots, "_scan_runner_slot_records", return_value=[]
+    ) as scan:
         started_at = run_agent_wait_slots.wait_for_runner_slot(
             str(child),
             "cl",
@@ -56,15 +58,17 @@ def test_serial_child_agent_is_exempt_from_scanning_and_queueing(
         )
 
     assert started_at == "started"
-    scan.assert_not_called()
+    scan.assert_called_once_with()
     assert not (child / "waiting.json").exists()
 
 
-def test_monitor_followup_agent_is_exempt_from_scanning_and_queueing(
+def test_monitor_followup_agent_uses_locked_admission(
     tmp_path: Path,
 ) -> None:
     followup = artifact(tmp_path, "20260812120000", 101)
-    with patch.object(run_agent_wait_slots, "_scan_runner_slot_records") as scan:
+    with patch.object(
+        run_agent_wait_slots, "_scan_runner_slot_records", return_value=[]
+    ) as scan:
         started_at = run_agent_wait_slots.wait_for_runner_slot(
             str(followup),
             "cl",
@@ -79,7 +83,7 @@ def test_monitor_followup_agent_is_exempt_from_scanning_and_queueing(
         )
 
     assert started_at == "started"
-    scan.assert_not_called()
+    scan.assert_called_once_with()
     assert not (followup / "waiting.json").exists()
 
 

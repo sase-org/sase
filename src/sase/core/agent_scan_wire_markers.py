@@ -250,6 +250,7 @@ class WaitingMarkerWire:
     queue_weight_invalid: bool = False
     queue_weight_error: str | None = None
     slot_requested_at: str | None = None
+    eligible_since: str | None = None
 
 
 @dataclass(frozen=True)

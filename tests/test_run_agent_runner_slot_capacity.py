@@ -7,6 +7,8 @@ import threading
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.axe import run_agent_wait_markers, run_agent_wait_slots
 from sase.core import process_identity
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
@@ -114,6 +116,213 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
     assert second == "started"
     assert not parked
     assert not (waiter / "waiting.json").exists()
+
+
+def test_fractional_agents_fill_capacity_exactly_and_block_next(
+    tmp_path: Path,
+) -> None:
+    agents = [
+        artifact(
+            tmp_path,
+            f"2026091012000{index}",
+            100 + index,
+            queue_weight=0.25,
+            queue_weight_explicit=True,
+        )
+        for index in range(5)
+    ]
+    started: set[str] = set()
+
+    def scan() -> list[AgentArtifactRecordWire]:
+        return [record(path, started=str(path) in started) for path in agents]
+
+    with (
+        patch.object(
+            run_agent_wait_slots, "_scan_runner_slot_records", side_effect=scan
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=1),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        for path in agents[:4]:
+            result, parked = run_agent_wait_slots._try_claim_runner_slot(
+                artifacts_dir=str(path),
+                cl_name="cl",
+                timestamp=path.name,
+                directive_threshold=None,
+                directive_queue_weight=0.25,
+                directive_queue_weight_explicit=True,
+                claim=lambda path=path: started.add(str(path)) or "started",
+            )
+            assert result == "started"
+            assert not parked
+
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(agents[4]),
+            cl_name="cl",
+            timestamp=agents[4].name,
+            directive_threshold=None,
+            directive_queue_weight=0.25,
+            directive_queue_weight_explicit=True,
+            claim=lambda: "unexpected",
+        )
+
+    assert result is None
+    assert parked
+    assert len(started) == 4
+    marker = json.loads((agents[4] / "waiting.json").read_text())
+    assert marker["queue_weight"] == 0.25
+    assert marker["wait_runners_explicit"] is False
+
+
+def test_heavy_weight_cannot_start_with_only_one_unit_free(tmp_path: Path) -> None:
+    running = artifact(tmp_path, "20260910121000", 100, queue_weight=1.0)
+    heavy = artifact(
+        tmp_path,
+        "20260910121001",
+        101,
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+    )
+
+    with (
+        patch.object(
+            run_agent_wait_slots,
+            "_scan_runner_slot_records",
+            return_value=[record(running, started=True), record(heavy)],
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=2),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(heavy),
+            cl_name="cl",
+            timestamp=heavy.name,
+            directive_threshold=None,
+            directive_queue_weight=2.0,
+            directive_queue_weight_explicit=True,
+            claim=lambda: "unexpected",
+        )
+
+    assert result is None
+    assert parked
+    marker = json.loads((heavy / "waiting.json").read_text())
+    assert marker["queue_weight"] == 2.0
+    assert marker["wait_runners_explicit"] is False
+
+
+def test_high_explicit_runner_condition_cannot_bypass_capacity(
+    tmp_path: Path,
+) -> None:
+    running = artifact(tmp_path, "20260910122000", 100)
+    waiter = artifact(tmp_path, "20260910122001", 101)
+
+    with (
+        patch.object(
+            run_agent_wait_slots,
+            "_scan_runner_slot_records",
+            return_value=[record(running, started=True), record(waiter)],
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=1),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(waiter),
+            cl_name="cl",
+            timestamp=waiter.name,
+            directive_threshold=99,
+            directive_queue_weight=0.25,
+            directive_queue_weight_explicit=True,
+            claim=lambda: "unexpected",
+        )
+
+    assert result is None
+    assert parked
+    marker = json.loads((waiter / "waiting.json").read_text())
+    assert marker["wait_runners"] == 99
+    assert marker["wait_runners_explicit"] is True
+    assert marker["queue_weight"] == 0.25
+
+
+def test_lighter_waiter_can_pass_non_fitting_heavy_waiter(
+    tmp_path: Path,
+) -> None:
+    occupied = artifact(tmp_path, "20260910123000", 100, queue_weight=0.75)
+    heavy = artifact(
+        tmp_path,
+        "20260910123001",
+        101,
+        queue_weight=0.5,
+        queue_weight_explicit=True,
+    )
+    light = artifact(
+        tmp_path,
+        "20260910123002",
+        102,
+        queue_weight=0.25,
+        queue_weight_explicit=True,
+    )
+    light_started = False
+
+    def scan() -> list[AgentArtifactRecordWire]:
+        return [
+            record(occupied, started=True),
+            record(heavy),
+            record(light, started=light_started),
+        ]
+
+    with (
+        patch.object(
+            run_agent_wait_slots, "_scan_runner_slot_records", side_effect=scan
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=1),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        heavy_result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(heavy),
+            cl_name="cl",
+            timestamp=heavy.name,
+            directive_threshold=None,
+            directive_queue_weight=0.5,
+            directive_queue_weight_explicit=True,
+            claim=lambda: "unexpected",
+        )
+        assert heavy_result is None
+        assert parked
+
+        light_result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(light),
+            cl_name="cl",
+            timestamp=light.name,
+            directive_threshold=None,
+            directive_queue_weight=0.25,
+            directive_queue_weight_explicit=True,
+            claim=lambda: "started",
+        )
+
+    assert light_result == "started"
+    assert not parked
+    assert (heavy / "waiting.json").exists()
+    assert not (light / "waiting.json").exists()
 
 
 def test_running_monitor_occupying_last_slot_parks_new_launch(tmp_path: Path) -> None:
@@ -447,3 +656,146 @@ def test_answered_root_reacquires_after_yield_without_oversubscribing(
     assert not parked
     assert not (paused / "pending_question.json").exists()
     assert not (paused / "waiting.json").exists()
+
+
+def test_serial_child_reuses_active_family_weighted_claim(
+    tmp_path: Path,
+) -> None:
+    parent = artifact(
+        tmp_path,
+        "20260910130000",
+        100,
+        agent_family="fam",
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+    )
+    child = artifact(
+        tmp_path,
+        "20260910130001",
+        101,
+        parent_timestamp=parent.name,
+        agent_family="fam",
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+    )
+
+    with (
+        patch.object(
+            run_agent_wait_slots,
+            "_scan_runner_slot_records",
+            return_value=[record(parent, started=True), record(child)],
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=2),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(child),
+            cl_name="cl",
+            timestamp=child.name,
+            directive_threshold=None,
+            directive_queue_weight=2.0,
+            directive_queue_weight_explicit=True,
+            claim=lambda: "child-started",
+        )
+
+    assert result == "child-started"
+    assert not parked
+    assert not (child / "waiting.json").exists()
+
+
+def test_conflicting_active_family_weight_fails_clearly(tmp_path: Path) -> None:
+    parent = artifact(
+        tmp_path,
+        "20260910131000",
+        100,
+        agent_family="fam",
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+    )
+    child = artifact(
+        tmp_path,
+        "20260910131001",
+        101,
+        parent_timestamp=parent.name,
+        agent_family="fam",
+        queue_weight=1.0,
+        queue_weight_explicit=True,
+    )
+
+    with (
+        patch.object(
+            run_agent_wait_slots,
+            "_scan_runner_slot_records",
+            return_value=[record(parent, started=True), record(child)],
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=2),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+        pytest.raises(run_agent_wait_slots._RunnerSlotAdmissionError) as exc_info,
+    ):
+        run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(child),
+            cl_name="cl",
+            timestamp=child.name,
+            directive_threshold=None,
+            directive_queue_weight=1.0,
+            directive_queue_weight_explicit=True,
+            claim=lambda: "unexpected",
+        )
+
+    assert "active family already holds 2" in str(exc_info.value)
+    assert not (child / "waiting.json").exists()
+
+
+def test_released_serial_successor_reacquires_capacity(
+    tmp_path: Path,
+) -> None:
+    occupied = artifact(tmp_path, "20260910132000", 100, queue_weight=1.0)
+    successor = artifact(
+        tmp_path,
+        "20260910132001",
+        101,
+        parent_timestamp="20260910129999",
+        agent_family="fam",
+        queue_weight=2.0,
+        queue_weight_explicit=False,
+    )
+
+    with (
+        patch.object(
+            run_agent_wait_slots,
+            "_scan_runner_slot_records",
+            return_value=[record(occupied, started=True), record(successor)],
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=2),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(successor),
+            cl_name="cl",
+            timestamp=successor.name,
+            directive_threshold=None,
+            directive_queue_weight=2.0,
+            directive_queue_weight_explicit=False,
+            claim=lambda: "unexpected",
+        )
+
+    assert result is None
+    assert parked
+    marker = json.loads((successor / "waiting.json").read_text())
+    assert marker["queue_weight"] == 2.0
+    assert marker["queue_weight_explicit"] is False

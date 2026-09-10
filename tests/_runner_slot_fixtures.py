@@ -53,6 +53,19 @@ def record(
             parent_timestamp=meta.get("parent_timestamp"),
             family_shell=family_shell_from_mapping(meta),
             wait_priority=meta_wait_priority,
+            queue_weight=(
+                meta["queue_weight"]
+                if isinstance(meta.get("queue_weight"), (int, float))
+                and not isinstance(meta.get("queue_weight"), bool)
+                else None
+            ),
+            queue_weight_explicit=bool(meta.get("queue_weight_explicit", False)),
+            queue_weight_invalid=bool(meta.get("queue_weight_invalid", False)),
+            queue_weight_error=(
+                meta["queue_weight_error"]
+                if isinstance(meta.get("queue_weight_error"), str)
+                else None
+            ),
             run_started_at=("2026-07-12T12:00:00+00:00" if started else None),
         ),
         waiting=(
@@ -66,7 +79,16 @@ def record(
                 wait_priority_explicit=bool(
                     waiting_data.get("wait_priority_explicit", False)
                 ),
+                queue_weight=waiting_data.get("queue_weight"),
+                queue_weight_explicit=bool(
+                    waiting_data.get("queue_weight_explicit", False)
+                ),
+                queue_weight_invalid=bool(
+                    waiting_data.get("queue_weight_invalid", False)
+                ),
+                queue_weight_error=waiting_data.get("queue_weight_error"),
                 slot_requested_at=waiting_data.get("slot_requested_at"),
+                eligible_since=waiting_data.get("eligible_since"),
             )
             if waiting_data is not None
             else None

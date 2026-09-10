@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from importlib import import_module
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
 
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
@@ -16,6 +19,19 @@ from sase.monitor_state import is_real_monitor_member
 RecordLiveness = Callable[[AgentArtifactRecordWire], bool]
 DEFAULT_WAIT_PRIORITY = 10
 GATE_FAMILY_ROLE = "gate"
+DEFAULT_QUEUE_WEIGHT = 1.0
+_RUNNER_CAPACITY_HELPER_LIMIT = 1.0e300
+_CANDIDATE_OVERRIDE_FIELDS = {
+    "live",
+    "queue_weight",
+    "queue_weight_explicit",
+    "queue_weight_invalid",
+    "slot_requested_at",
+    "wait_runners",
+    "wait_runners_explicit",
+    "wait_priority",
+    "eligible_since",
+}
 
 
 def _family_shell_of_kind(
@@ -135,6 +151,254 @@ class RunnerSlotWaiter:
     timestamp: str
     threshold: int = 0
     priority: int = DEFAULT_WAIT_PRIORITY
+    requested_weight: float = DEFAULT_QUEUE_WEIGHT
+    eligible: bool = False
+    blockers: tuple[dict[str, Any], ...] = ()
+
+
+def _core_runner_capacity_snapshot(request: dict[str, Any]) -> dict[str, Any]:
+    """Return the Rust runner-capacity projection for *request*."""
+    try:
+        snapshot = import_module("sase_core_rs").runner_capacity_snapshot
+    except (ImportError, AttributeError) as exc:
+        raise RuntimeError(
+            "sase_core_rs.runner_capacity_snapshot is required for weighted "
+            "runner-slot admission; rebuild sase_core_rs from the matching "
+            "sase-core checkout."
+        ) from exc
+    result = snapshot(request)
+    if not isinstance(result, dict):
+        raise RuntimeError("sase_core_rs returned an invalid runner capacity snapshot")
+    return result
+
+
+def _finite_positive_float(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    weight = float(value)
+    if not weight or not weight > 0 or not weight < float("inf"):
+        return None
+    return weight
+
+
+def _record_queue_weight(
+    record: AgentArtifactRecordWire,
+) -> tuple[float | None, bool, bool]:
+    """Return effective scan weight fields, with waiting markers overriding meta."""
+    waiting = record.waiting
+    if waiting is not None:
+        if waiting.queue_weight_invalid:
+            return None, waiting.queue_weight_explicit, True
+        weight = _finite_positive_float(waiting.queue_weight)
+        if weight is not None:
+            return weight, waiting.queue_weight_explicit, False
+        if waiting.queue_weight is not None:
+            return None, waiting.queue_weight_explicit, True
+
+    meta = record.agent_meta
+    if meta is None:
+        return None, False, False
+    if meta.queue_weight_invalid:
+        return None, meta.queue_weight_explicit, True
+    weight = _finite_positive_float(meta.queue_weight)
+    if weight is not None:
+        return weight, meta.queue_weight_explicit, False
+    if meta.queue_weight is not None:
+        return None, meta.queue_weight_explicit, True
+    return None, False, False
+
+
+def _record_wait_priority(record: AgentArtifactRecordWire) -> int | None:
+    waiting = record.waiting
+    if (
+        waiting is not None
+        and type(waiting.wait_priority) is int
+        and waiting.wait_priority >= 0
+    ):
+        return waiting.wait_priority
+    meta = record.agent_meta
+    if meta is None or type(meta.wait_priority) is not int or meta.wait_priority < 0:
+        return None
+    return meta.wait_priority
+
+
+def _record_wait_runners(record: AgentArtifactRecordWire) -> int | None:
+    waiting = record.waiting
+    if (
+        waiting is not None
+        and type(waiting.wait_runners) is int
+        and waiting.wait_runners >= 0
+    ):
+        return waiting.wait_runners
+    return None
+
+
+def _record_pid(record: AgentArtifactRecordWire) -> int | None:
+    meta = record.agent_meta
+    if meta is not None and meta.pid is not None:
+        return meta.pid
+    running = record.running
+    return None if running is None else running.pid
+
+
+def _capacity_record_from_scan(
+    record: AgentArtifactRecordWire,
+    is_live: RecordLiveness,
+) -> dict[str, Any]:
+    meta = record.agent_meta
+    state = record.workflow_state
+    waiting = record.waiting
+    shell = None if meta is None else meta.family_shell
+    queue_weight, queue_weight_explicit, queue_weight_invalid = _record_queue_weight(
+        record
+    )
+    return {
+        "artifact_dir": record.artifact_dir,
+        "project_name": record.project_name,
+        "workflow_dir_name": record.workflow_dir_name,
+        "timestamp": record.timestamp,
+        "has_agent_meta": meta is not None,
+        "has_done_marker": record.has_done_marker,
+        "appears_as_agent": True if state is None else state.appears_as_agent,
+        "live": is_live(record),
+        "pending_question": record.pending_question is not None,
+        "pid": _record_pid(record),
+        "run_started_at": None if meta is None else meta.run_started_at,
+        "parent_timestamp": None if meta is None else meta.parent_timestamp,
+        "agent_family": None if meta is None else meta.agent_family,
+        "agent_family_role": None if meta is None else meta.agent_family_role,
+        "agent_family_parallel": (
+            False if meta is None else meta.agent_family_parallel
+        ),
+        "family_shell_kind": None if shell is None else shell.kind,
+        "family_shell_id": None if shell is None else shell.id,
+        "family_shell_state": None if shell is None else shell.state,
+        "queue_weight": queue_weight,
+        "queue_weight_explicit": queue_weight_explicit,
+        "queue_weight_invalid": queue_weight_invalid,
+        "slot_requested_at": None if waiting is None else waiting.slot_requested_at,
+        "wait_runners": _record_wait_runners(record),
+        "wait_runners_explicit": (
+            False if waiting is None else waiting.wait_runners_explicit
+        ),
+        "wait_priority": _record_wait_priority(record),
+        "eligible_since": None if waiting is None else waiting.eligible_since,
+    }
+
+
+def _project_name_from_artifact_dir(artifacts_dir: str) -> str:
+    path = Path(artifacts_dir)
+    try:
+        return path.parents[2].name
+    except IndexError:
+        return ""
+
+
+def _synthetic_capacity_record(
+    *,
+    artifacts_dir: str,
+    timestamp: str,
+    slot_requested_at: str,
+    wait_runners: int | None,
+    wait_runners_explicit: bool,
+    wait_priority: int,
+    queue_weight: float,
+    queue_weight_explicit: bool,
+    eligible_since: str | None,
+) -> dict[str, Any]:
+    return {
+        "artifact_dir": artifacts_dir,
+        "project_name": _project_name_from_artifact_dir(artifacts_dir),
+        "workflow_dir_name": "ace-run",
+        "timestamp": timestamp,
+        "has_agent_meta": True,
+        "has_done_marker": False,
+        "appears_as_agent": True,
+        "live": True,
+        "pending_question": False,
+        "pid": None,
+        "run_started_at": None,
+        "parent_timestamp": None,
+        "agent_family": None,
+        "agent_family_role": None,
+        "agent_family_parallel": False,
+        "family_shell_kind": None,
+        "family_shell_id": None,
+        "family_shell_state": None,
+        "queue_weight": queue_weight,
+        "queue_weight_explicit": queue_weight_explicit,
+        "queue_weight_invalid": False,
+        "slot_requested_at": slot_requested_at,
+        "wait_runners": wait_runners,
+        "wait_runners_explicit": wait_runners_explicit,
+        "wait_priority": wait_priority,
+        "eligible_since": eligible_since,
+    }
+
+
+def runner_capacity_snapshot(
+    records: Iterable[AgentArtifactRecordWire],
+    is_live: RecordLiveness,
+    *,
+    effective_limit: float,
+    now: str | None = None,
+    deference_seconds_per_step: int = 0,
+    deference_max_seconds: int = 0,
+    candidate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return the authoritative weighted runner-capacity snapshot."""
+    capacity_records: list[dict[str, Any]] = []
+    candidate_dir = None if candidate is None else str(candidate["artifact_dir"])
+    candidate_seen = False
+    for record in records:
+        capacity_record = _capacity_record_from_scan(record, is_live)
+        if candidate_dir is not None and record.artifact_dir == candidate_dir:
+            assert candidate is not None
+            capacity_record.update(
+                {
+                    key: value
+                    for key, value in candidate.items()
+                    if key in _CANDIDATE_OVERRIDE_FIELDS
+                }
+            )
+            candidate_seen = True
+        capacity_records.append(capacity_record)
+    if candidate is not None and not candidate_seen:
+        capacity_records.append(candidate)
+    request = {
+        "effective_limit": float(effective_limit),
+        "records": capacity_records,
+        "now": now,
+        "deference_seconds_per_step": int(deference_seconds_per_step),
+        "deference_max_seconds": int(deference_max_seconds),
+    }
+    return _core_runner_capacity_snapshot(request)
+
+
+def runner_slot_candidate_record(
+    *,
+    artifacts_dir: str,
+    timestamp: str,
+    slot_requested_at: str,
+    wait_runners: int | None,
+    wait_runners_explicit: bool,
+    wait_priority: int,
+    queue_weight: float,
+    queue_weight_explicit: bool,
+    eligible_since: str | None,
+) -> dict[str, Any]:
+    """Build the synthetic candidate override for a locked admission attempt."""
+    return _synthetic_capacity_record(
+        artifacts_dir=artifacts_dir,
+        timestamp=timestamp,
+        slot_requested_at=slot_requested_at,
+        wait_runners=wait_runners,
+        wait_runners_explicit=wait_runners_explicit,
+        wait_priority=wait_priority,
+        queue_weight=queue_weight,
+        queue_weight_explicit=queue_weight_explicit,
+        eligible_since=eligible_since,
+    )
 
 
 def is_root_user_agent_record(record: AgentArtifactRecordWire) -> bool:
@@ -288,31 +552,14 @@ def running_agent_slot_count(
     records: Iterable[AgentArtifactRecordWire],
     is_live: RecordLiveness,
 ) -> int:
-    """Count runner slots held right now, one per occupied family.
-
-    A family holds one slot while any of its non-parallel members is
-    occupying (see `is_runner_slot_occupying_record`) -- covering a live
-    root, a live serial child, a live monitor member, or a live
-    post-handoff follow-up agent, in any combination and regardless of
-    which of them is the one currently live. Each live parallel member
-    (``agent_family_parallel`` is ``True``) additionally holds its own
-    slot, on top of that, matching admission's per-member treatment of
-    parallel family fan-out.
-    """
-    count = 0
-    for group in group_records_by_runner_slot_family(records).values():
-        serial_occupying = False
-        parallel_occupying = 0
-        for candidate in group:
-            if not is_runner_slot_occupying_record(candidate, is_live):
-                continue
-            meta = candidate.agent_meta
-            if meta is not None and meta.agent_family_parallel:
-                parallel_occupying += 1
-            else:
-                serial_occupying = True
-        count += (1 if serial_occupying else 0) + parallel_occupying
-    return count
+    """Count occupied runner lanes from the shared Rust capacity projection."""
+    snapshot = runner_capacity_snapshot(
+        tuple(records),
+        is_live,
+        effective_limit=_RUNNER_CAPACITY_HELPER_LIMIT,
+    )
+    occupied = snapshot.get("occupied_lanes", 0)
+    return occupied if type(occupied) is int else 0
 
 
 def live_runner_slot_waiters(
@@ -320,30 +567,34 @@ def live_runner_slot_waiters(
     is_live: RecordLiveness,
 ) -> tuple[RunnerSlotWaiter, ...]:
     """Derive the live priority/FIFO queue from waiting-marker projections."""
-    waiters: list[RunnerSlotWaiter] = []
-    for record in records:
-        waiting = record.waiting
-        if (
-            not is_runner_slot_user_agent_record(record)
-            or waiting is None
-            or not waiting.slot_requested_at
-            or not is_live(record)
-        ):
-            continue
-        waiters.append(
-            RunnerSlotWaiter(
-                artifact_dir=record.artifact_dir,
-                slot_requested_at=waiting.slot_requested_at,
-                timestamp=record.timestamp,
-                threshold=(
-                    waiting.wait_runners
-                    if type(waiting.wait_runners) is int and waiting.wait_runners >= 0
-                    else 0
-                ),
-                priority=normalize_wait_priority(waiting.wait_priority),
-            )
+    snapshot = runner_capacity_snapshot(
+        tuple(records),
+        is_live,
+        effective_limit=_RUNNER_CAPACITY_HELPER_LIMIT,
+    )
+    waiters = [
+        RunnerSlotWaiter(
+            artifact_dir=str(waiter.get("artifact_dir") or ""),
+            slot_requested_at=str(waiter.get("slot_requested_at") or ""),
+            timestamp=str(waiter.get("timestamp") or ""),
+            threshold=(
+                int(waiter["wait_runners"])
+                if type(waiter.get("wait_runners")) is int
+                and waiter["wait_runners"] >= 0
+                else 0
+            ),
+            priority=normalize_wait_priority(waiter.get("priority")),
+            requested_weight=float(waiter.get("requested_weight") or 1.0),
+            eligible=waiter.get("eligible") is True,
+            blockers=tuple(
+                blocker
+                for blocker in waiter.get("blockers", [])
+                if isinstance(blocker, dict)
+            ),
         )
-    waiters.sort(key=_waiter_sort_key)
+        for waiter in snapshot.get("waiters", [])
+        if isinstance(waiter, dict)
+    ]
     return tuple(waiters)
 
 
@@ -367,14 +618,3 @@ def may_start(
         None,
     )
     return first_eligible is None or first_eligible.artifact_dir == me
-
-
-def _waiter_sort_key(
-    waiter: RunnerSlotWaiter,
-) -> tuple[int, int, datetime, str, str]:
-    return runner_slot_waiter_sort_key(
-        priority=waiter.priority,
-        slot_requested_at=waiter.slot_requested_at,
-        timestamp=waiter.timestamp,
-        artifact_dir=waiter.artifact_dir,
-    )

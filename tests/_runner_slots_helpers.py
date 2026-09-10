@@ -57,6 +57,7 @@ def _record(
         waiting=(
             WaitingMarkerWire(
                 wait_runners=wait_runners,
+                wait_runners_explicit=wait_runners is not None,
                 wait_priority=wait_priority,
                 slot_requested_at=requested_at,
             )

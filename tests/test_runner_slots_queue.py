@@ -144,7 +144,9 @@ def test_drain_waiter_wins_deterministically_once_count_reaches_zero() -> None:
     assert not may_start(0, 25, (first, second), "/second")
 
 
-def test_live_waiter_queue_excludes_non_root_and_terminal_records() -> None:
+def test_live_waiter_queue_excludes_terminal_records_and_includes_reacquiring_child() -> (
+    None
+):
     requested_at = "2026-07-12T12:00:00+00:00"
     records = [
         _record("/root", requested_at=requested_at, wait_runners=4),
@@ -169,10 +171,11 @@ def test_live_waiter_queue_excludes_non_root_and_terminal_records() -> None:
         lambda record: record.agent_meta.pid != 9,  # type: ignore[union-attr]
     )
 
-    assert queue == (RunnerSlotWaiter("/root", requested_at, "root", threshold=4),)
+    assert [waiter.artifact_dir for waiter in queue] == ["/child", "/root"]
+    assert [waiter.threshold for waiter in queue] == [4, 4]
 
 
-def test_parallel_member_joins_fifo_queue_while_serial_child_stays_exempt() -> None:
+def test_released_serial_successor_and_parallel_member_join_fifo_queue() -> None:
     records = [
         _record(
             "/serial",
@@ -190,6 +193,37 @@ def test_parallel_member_joins_fifo_queue_while_serial_child_stays_exempt() -> N
 
     queue = live_runner_slot_waiters(records, lambda _record: True)
 
-    assert [waiter.artifact_dir for waiter in queue] == ["/parallel", "/root"]
-    assert may_start(0, 0, queue, "/parallel")
+    assert [waiter.artifact_dir for waiter in queue] == [
+        "/serial",
+        "/parallel",
+        "/root",
+    ]
+    assert may_start(0, 0, queue, "/serial")
     assert not may_start(0, 0, queue, "/root")
+
+
+def test_serial_child_reuses_active_family_claim_without_queue_entry() -> None:
+    records = [
+        _record(
+            "/parent",
+            run_started=True,
+            agent_family="fam",
+        ),
+        _record(
+            "/serial",
+            requested_at="2026-07-12T12:00:00+00:00",
+            parent_timestamp="parent",
+            agent_family="fam",
+        ),
+        _record(
+            "/parallel",
+            requested_at="2026-07-12T12:00:01+00:00",
+            parent_timestamp="parent",
+            agent_family="fam",
+            agent_family_parallel=True,
+        ),
+    ]
+
+    queue = live_runner_slot_waiters(records, lambda _record: True)
+
+    assert [waiter.artifact_dir for waiter in queue] == ["/parallel"]

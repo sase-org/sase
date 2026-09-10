@@ -306,7 +306,7 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
             artifacts_dir=str(tmp_path),
             cl_name="test_cl",
             timestamp="20240101120000",
-            directive_threshold=0,
+            directive_threshold=None,
             directive_priority=None,
             claim=lambda: "started",
         )

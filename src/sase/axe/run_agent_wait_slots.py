@@ -34,12 +34,9 @@ from sase.core.agent_scan_wire import (
 from sase.core.paths import sase_home, sase_projects_dir
 from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
-    better_priority_agent_pending,
-    deference_satisfied,
     deference_window_seconds,
-    live_runner_slot_waiters,
-    may_start,
-    running_agent_slot_count,
+    runner_capacity_snapshot,
+    runner_slot_candidate_record,
 )
 
 _RUNNER_SLOT_POLL_INTERVAL = 2
@@ -97,20 +94,22 @@ def _record_liveness_probe() -> Callable[[AgentArtifactRecordWire], bool]:
     return is_live
 
 
-def _marker_threshold(
+class _RunnerSlotAdmissionError(RuntimeError):
+    """Raised when a serial continuation requests an incompatible live claim."""
+
+
+def _marker_runner_condition_state(
     waiting_data: dict[str, Any] | None,
     directive_threshold: int | None,
-) -> tuple[int, bool]:
+) -> tuple[int | None, bool]:
     if waiting_data is not None and "slot_requested_at" in waiting_data:
         explicit = waiting_data.get("wait_runners_explicit") is True
         marker_value = waiting_data.get("wait_runners")
         if explicit and type(marker_value) is int and marker_value >= 0:
             return marker_value, True
-        if not explicit:
-            return get_max_running_agents() - 1, False
     if directive_threshold is not None:
         return directive_threshold, True
-    return get_max_running_agents() - 1, False
+    return None, False
 
 
 def _legacy_marker_priority_explicit(waiting_data: dict[str, Any]) -> bool:
@@ -199,6 +198,8 @@ def _park_for_unavailable_limit(
     priority_explicit: bool,
     queue_weight: float,
     queue_weight_explicit: bool,
+    wait_runners: int | None,
+    wait_runners_explicit: bool,
     error: Exception,
 ) -> tuple[None, bool]:
     """Republish the queue marker when the runner limit cannot be read."""
@@ -208,16 +209,14 @@ def _park_for_unavailable_limit(
     if not isinstance(requested_at, str) or not requested_at:
         requested_at = datetime.now(UTC).isoformat()
     marker = dict(waiting_data or {})
-    previous_threshold = marker.get("wait_runners")
-    if type(previous_threshold) is not int or previous_threshold < 0:
-        previous_threshold = 0
+    marker_wait_runners = wait_runners if wait_runners is not None else 0
     marker.update(
         {
             "patch_name": cl_name,
             "cl_name": cl_name,
             "timestamp": timestamp,
-            "wait_runners": previous_threshold,
-            "wait_runners_explicit": False,
+            "wait_runners": marker_wait_runners,
+            "wait_runners_explicit": wait_runners_explicit,
             "wait_priority": priority,
             "wait_priority_explicit": priority_explicit,
             "queue_weight": queue_weight,
@@ -230,6 +229,116 @@ def _park_for_unavailable_limit(
     if waiting_data != marker:
         write_waiting_marker(artifacts_dir, marker)
     return None, parked
+
+
+def _candidate_waiter(
+    snapshot: dict[str, Any],
+    artifacts_dir: str,
+) -> dict[str, Any] | None:
+    for waiter in snapshot.get("waiters", []):
+        if isinstance(waiter, dict) and waiter.get("artifact_dir") == artifacts_dir:
+            return waiter
+    return None
+
+
+def _candidate_blocker_codes(waiter: dict[str, Any] | None) -> set[str]:
+    if waiter is None:
+        return set()
+    return {
+        str(blocker.get("code"))
+        for blocker in waiter.get("blockers", [])
+        if isinstance(blocker, dict) and blocker.get("code")
+    }
+
+
+def _weight_equal(left: float, right: float) -> bool:
+    limit = max(abs(left), abs(right), 1.0)
+    return abs(left - right) <= 4.0 * math.ulp(limit)
+
+
+def _serial_family_owner_key(candidate: dict[str, Any]) -> str | None:
+    if (
+        candidate.get("parent_timestamp") is None
+        or candidate.get("agent_family_parallel") is True
+    ):
+        return None
+    project = str(candidate.get("project_name") or "")
+    family = candidate.get("agent_family")
+    if not isinstance(family, str) or not family:
+        return None
+    return f"{project}:{family}"
+
+
+def _active_serial_claim(
+    snapshot: dict[str, Any],
+    candidate: dict[str, Any],
+) -> dict[str, Any] | None:
+    owner_key = _serial_family_owner_key(candidate)
+    if owner_key is None:
+        return None
+    for claim in snapshot.get("claims", []):
+        if (
+            isinstance(claim, dict)
+            and claim.get("claim_kind") == "serial_family"
+            and claim.get("owner_key") == owner_key
+        ):
+            return claim
+    return None
+
+
+def _enrich_candidate_from_records(
+    candidate: dict[str, Any],
+    records: list[AgentArtifactRecordWire],
+) -> dict[str, Any]:
+    for record in records:
+        if record.artifact_dir != candidate.get("artifact_dir"):
+            continue
+        meta = record.agent_meta
+        enriched = dict(candidate)
+        enriched.update(
+            {
+                "project_name": record.project_name,
+                "workflow_dir_name": record.workflow_dir_name,
+                "timestamp": record.timestamp,
+                "has_agent_meta": meta is not None,
+                "has_done_marker": record.has_done_marker,
+                "appears_as_agent": (
+                    True
+                    if record.workflow_state is None
+                    else record.workflow_state.appears_as_agent
+                ),
+                "parent_timestamp": None if meta is None else meta.parent_timestamp,
+                "agent_family": None if meta is None else meta.agent_family,
+                "agent_family_role": None if meta is None else meta.agent_family_role,
+                "agent_family_parallel": (
+                    False if meta is None else meta.agent_family_parallel
+                ),
+            }
+        )
+        return enriched
+    return candidate
+
+
+def _assert_active_family_weight_is_compatible(
+    *,
+    claim: dict[str, Any],
+    requested_weight: float,
+    requested_weight_explicit: bool,
+) -> None:
+    if not requested_weight_explicit:
+        return
+    occupied = claim.get("occupied_capacity")
+    if not isinstance(occupied, (int, float)) or not math.isfinite(float(occupied)):
+        raise _RunnerSlotAdmissionError(
+            "Active serial family has an invalid runner capacity claim."
+        )
+    if not _weight_equal(requested_weight, float(occupied)):
+        raise _RunnerSlotAdmissionError(
+            "Serial continuation requested queue_weight "
+            f"{requested_weight:g}, but its active family already holds "
+            f"{float(occupied):g}; use the existing family weight or start an "
+            "independent agent."
+        )
 
 
 def _try_claim_runner_slot(
@@ -264,10 +373,13 @@ def _try_claim_runner_slot(
                 directive_queue_weight,
                 directive_queue_weight_explicit,
             )
+            wait_runners: int | None = None
+            wait_runners_explicit = False
             try:
-                threshold, explicit = _marker_threshold(
+                wait_runners, wait_runners_explicit = _marker_runner_condition_state(
                     waiting_data, directive_threshold
                 )
+                effective_limit = float(get_max_running_agents())
             except Exception as error:  # noqa: BLE001 - admission fails closed.
                 return _park_for_unavailable_limit(
                     artifacts_dir=artifacts_dir,
@@ -278,56 +390,10 @@ def _try_claim_runner_slot(
                     priority_explicit=priority_explicit,
                     queue_weight=queue_weight,
                     queue_weight_explicit=queue_weight_explicit,
+                    wait_runners=wait_runners,
+                    wait_runners_explicit=wait_runners_explicit,
                     error=error,
                 )
-            records = _scan_runner_slot_records()
-            is_live = _record_liveness_probe()
-            queue = live_runner_slot_waiters(records, is_live)
-            running_count = running_agent_slot_count(records, is_live)
-            eligible = may_start(running_count, threshold, queue, artifacts_dir)
-            eligible_since: str | None = None
-            entered_deference = False
-            deference_window = 0.0
-            if eligible:
-                if priority <= DEFAULT_WAIT_PRIORITY:
-                    run_started_at = claim()
-                    remove_waiting_marker(artifacts_dir)
-                    return run_started_at, False
-                deference_window = deference_window_seconds(
-                    priority,
-                    seconds_per_step=get_runner_slot_deference_seconds_per_step(),
-                    max_seconds=get_runner_slot_deference_max_seconds(),
-                )
-                if deference_window <= 0 or not better_priority_agent_pending(
-                    records,
-                    is_live,
-                    priority=priority,
-                    me=artifacts_dir,
-                ):
-                    run_started_at = claim()
-                    remove_waiting_marker(artifacts_dir)
-                    return run_started_at, False
-                now = datetime.now(UTC)
-                marker_eligible_since = (
-                    waiting_data.get("eligible_since")
-                    if waiting_data is not None
-                    else None
-                )
-                if deference_satisfied(
-                    marker_eligible_since
-                    if isinstance(marker_eligible_since, str)
-                    else None,
-                    now,
-                    deference_window,
-                ):
-                    run_started_at = claim()
-                    remove_waiting_marker(artifacts_dir)
-                    return run_started_at, False
-                eligible_since, entered_deference = _continuous_eligibility_start(
-                    marker_eligible_since,
-                    now,
-                )
-
             requested_at = (
                 waiting_data.get("slot_requested_at")
                 if waiting_data is not None
@@ -335,6 +401,75 @@ def _try_claim_runner_slot(
             )
             if not isinstance(requested_at, str) or not requested_at:
                 requested_at = datetime.now(UTC).isoformat()
+            marker_eligible_since = (
+                waiting_data.get("eligible_since") if waiting_data is not None else None
+            )
+            candidate = runner_slot_candidate_record(
+                artifacts_dir=artifacts_dir,
+                timestamp=timestamp,
+                slot_requested_at=requested_at,
+                wait_runners=wait_runners,
+                wait_runners_explicit=wait_runners_explicit,
+                wait_priority=priority,
+                queue_weight=queue_weight,
+                queue_weight_explicit=queue_weight_explicit,
+                eligible_since=(
+                    marker_eligible_since
+                    if isinstance(marker_eligible_since, str)
+                    else None
+                ),
+            )
+            records = _scan_runner_slot_records()
+            candidate = _enrich_candidate_from_records(candidate, records)
+            is_live = _record_liveness_probe()
+            now = datetime.now(UTC)
+            snapshot = runner_capacity_snapshot(
+                records,
+                is_live,
+                effective_limit=effective_limit,
+                now=now.isoformat(),
+                deference_seconds_per_step=(
+                    get_runner_slot_deference_seconds_per_step()
+                    if priority > DEFAULT_WAIT_PRIORITY
+                    else 0
+                ),
+                deference_max_seconds=(
+                    get_runner_slot_deference_max_seconds()
+                    if priority > DEFAULT_WAIT_PRIORITY
+                    else 0
+                ),
+                candidate=candidate,
+            )
+            active_claim = _active_serial_claim(snapshot, candidate)
+            if active_claim is not None:
+                _assert_active_family_weight_is_compatible(
+                    claim=active_claim,
+                    requested_weight=queue_weight,
+                    requested_weight_explicit=queue_weight_explicit,
+                )
+                run_started_at = claim()
+                remove_waiting_marker(artifacts_dir)
+                return run_started_at, False
+            candidate_waiter = _candidate_waiter(snapshot, artifacts_dir)
+            eligible = snapshot.get("first_eligible_artifact_dir") == artifacts_dir
+            eligible_since: str | None = None
+            entered_deference = False
+            deference_window = 0.0
+            if eligible:
+                run_started_at = claim()
+                remove_waiting_marker(artifacts_dir)
+                return run_started_at, False
+            blocker_codes = _candidate_blocker_codes(candidate_waiter)
+            if "deference-window" in blocker_codes:
+                deference_window = deference_window_seconds(
+                    priority,
+                    seconds_per_step=get_runner_slot_deference_seconds_per_step(),
+                    max_seconds=get_runner_slot_deference_max_seconds(),
+                )
+                eligible_since, entered_deference = _continuous_eligibility_start(
+                    marker_eligible_since,
+                    now,
+                )
             marker = dict(waiting_data or {})
             marker.pop("runner_limit_unavailable", None)
             if eligible_since is None:
@@ -346,8 +481,8 @@ def _try_claim_runner_slot(
                     "patch_name": cl_name,
                     "cl_name": cl_name,
                     "timestamp": timestamp,
-                    "wait_runners": threshold,
-                    "wait_runners_explicit": explicit,
+                    "wait_runners": wait_runners if wait_runners is not None else 0,
+                    "wait_runners_explicit": wait_runners_explicit,
                     "wait_priority": priority,
                     "wait_priority_explicit": priority_explicit,
                     "queue_weight": queue_weight,
@@ -381,25 +516,10 @@ def wait_for_runner_slot(
 ) -> str:
     """Pass the final participating-agent gate and atomically claim RUNNING.
 
-    Serial family follow-ups are exempt so a parent waiting on its children can
-    never deadlock while holding a slot. Parallel family members participate in
-    the global cap independently.
-
-    This exemption is now purely about *waiting*, not about *occupancy*: the
-    family's slot is already counted by `running_agent_slot_count` off
-    whichever of its shells is currently live (root, serial child, monitor,
-    or monitor follow-up), so an exempt member here is riding a slot its
-    family already holds rather than escaping the cap. Making it wait too
-    would reintroduce the deadlock this exemption exists to prevent, and
-    would strand a monitor follow-up whose starter root is already dead no
-    matter what the gate decides.
+    Serial family continuations reuse a still-live family claim under the
+    runner-slot lock. Once that family has released its claim, the successor
+    queues and reacquires capacity like any other launch.
     """
-    if (
-        agent_meta.get("parent_timestamp")
-        and agent_meta.get("agent_family_parallel") is not True
-    ):
-        return claim()
-
     while not was_killed():
         run_started_at, parked = _try_claim_runner_slot(
             artifacts_dir=artifacts_dir,

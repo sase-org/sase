@@ -63,7 +63,7 @@ def test_repeated_slot_polls_preserve_foreign_waiting_marker_fields(
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
-        for expected_threshold in (1, 0):
+        for _limit in (2, 1):
             claimed, parked = run_agent_wait_slots._try_claim_runner_slot(
                 artifacts_dir=str(waiter),
                 cl_name="fresh-cl",
@@ -80,7 +80,7 @@ def test_repeated_slot_polls_preserve_foreign_waiting_marker_fields(
                 assert marker[key] == value
             assert marker["cl_name"] == "fresh-cl"
             assert marker["timestamp"] == waiter.name
-            assert marker["wait_runners"] == expected_threshold
+            assert marker["wait_runners"] == 0
             assert marker["wait_runners_explicit"] is False
             assert marker["wait_priority"] == 4
             assert marker["wait_priority_explicit"] is True
@@ -122,6 +122,7 @@ def test_parked_marker_edit_overrides_original_directive(tmp_path: Path) -> None
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
+        get_config.return_value = 3
         result, parked = run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(waiter),
             cl_name="cl",
@@ -132,4 +133,4 @@ def test_parked_marker_edit_overrides_original_directive(tmp_path: Path) -> None
 
     assert result == "started"
     assert not parked
-    get_config.assert_not_called()
+    get_config.assert_called_once_with()
