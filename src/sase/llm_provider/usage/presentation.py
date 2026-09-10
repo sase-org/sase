@@ -428,12 +428,26 @@ def _collector_health_label(
     return " · ".join(parts)
 
 
+def collector_health_label(
+    health: Mapping[str, Any] | None,
+    *,
+    reason: Any = None,
+) -> str | None:
+    """Return the public label for a ``collector_health`` block."""
+    return _collector_health_label(health, reason=reason)
+
+
 def _collector_health_style(health: Mapping[str, Any] | None) -> str:
     """Return the Rich style associated with a collector-health block."""
     if health is None:
         return ""
     state = str(health.get("state") or "")
     return _COLLECTOR_HEALTH_STYLES.get(state, "")
+
+
+def collector_health_style(health: Mapping[str, Any] | None) -> str:
+    """Return the public Rich style for a ``collector_health`` block."""
+    return _collector_health_style(health)
 
 
 def _window_status_label_for_provider(
@@ -643,6 +657,8 @@ def _string_list(value: Any) -> tuple[str, ...]:
 __all__ = [
     "age_label",
     "applicability_label",
+    "collector_health_label",
+    "collector_health_style",
     "diagnostic_line",
     "duration_label",
     "provider_status_label",
