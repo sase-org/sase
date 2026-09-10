@@ -11,34 +11,25 @@ from textual import on
 from textual.widgets import Static
 
 from sase.config import get_machine_name
-from sase.dispatch.federation import (
-    FederationConfig,
-    FederationConfigError,
-    FederationFacade,
-    FederationWorkerResponseError,
-    FederationWorkerUnavailable,
-    build_federation_facade,
-    load_federation_config,
-)
-from sase.dispatch.follow_store import (
-    FollowStoreError,
-    FollowStoreMutationOutcome,
-    FollowStoreSnapshot,
-    load_follow_snapshot,
-    reconcile_follow_store,
-    record_follow,
-    unfollow,
-)
+from sase.dispatch.federation import (FederationConfig, FederationConfigError,
+                                      FederationFacade,
+                                      FederationWorkerResponseError,
+                                      FederationWorkerUnavailable,
+                                      build_federation_facade,
+                                      load_federation_config)
+from sase.dispatch.follow_store import (FollowStoreError,
+                                        FollowStoreMutationOutcome,
+                                        FollowStoreSnapshot,
+                                        load_follow_snapshot,
+                                        reconcile_follow_store, record_follow,
+                                        unfollow)
 from sase.feature_flags import FeatureFlag, current_flags
 
-from ...models.fleet_agents import (
-    FleetRowsProjection,
-    catalog_next_cursors_by_host,
-    followed_batch_family_promotions,
-    followed_logical_keys,
-    merge_catalog_pages,
-    project_fleet_agents,
-)
+from ...models.fleet_agents import (FleetRowsProjection,
+                                    catalog_next_cursors_by_host,
+                                    followed_batch_family_promotions,
+                                    followed_logical_keys, merge_catalog_pages,
+                                    project_fleet_agents)
 from ...util.pump_tasks import spawn_pump_free_task
 from ...widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
@@ -243,14 +234,10 @@ class AgentFleetMixin:
         self._select_agent_identity_after_projection(identity)
 
     def action_connect_agent_machine(self) -> None:
-        """Surface the selected remote machine identity."""
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        alias = getattr(agent, "fleet_origin_alias", None)
-        if not alias:
-            self.notify("Select a remote fleet agent")  # type: ignore[attr-defined]
-            return
-        health = getattr(agent, "fleet_connection_health", None) or "unknown health"
-        self.notify(f"{alias}: {health}")  # type: ignore[attr-defined]
+        """Open the persistent Machines administration pane."""
+        opener = getattr(self, "_open_config_center", None)
+        if callable(opener):
+            opener("machines")
 
     def action_setup_agent_machine(self) -> None:
         """Open enrollment guidance while no remote machine is configured."""

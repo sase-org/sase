@@ -92,6 +92,7 @@ class AdminCenterSessionState:
 
     config: SelectionBookmark = field(default_factory=SelectionBookmark)
     logs: SelectionBookmark = field(default_factory=SelectionBookmark)
+    machines: SelectionBookmark = field(default_factory=SelectionBookmark)
     procs: ProcsSessionState = field(default_factory=ProcsSessionState)
     projects: ProjectsSessionState = field(default_factory=ProjectsSessionState)
     updates: UpdatesSessionState = field(default_factory=UpdatesSessionState)

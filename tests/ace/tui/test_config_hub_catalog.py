@@ -68,18 +68,19 @@ def test_catalog_drops_top_level_xprompts_and_maps_legacy_resume() -> None:
     assert tuple(spec.id for spec in _TAB_SPECS) == (
         "config",
         "logs",
+        "machines",
         "procs",
         "projects",
         "statistics",
         "updates",
     )
-    assert tuple(spec.number for spec in _TAB_SPECS) == tuple(range(1, 7))
+    assert tuple(spec.number for spec in _TAB_SPECS) == tuple(range(1, 8))
     assert "xprompts" not in {spec.id for spec in _TAB_SPECS}
     assert _TAB_SPECS[0].pane_identity == "ConfigHubPane"
     assert validated_center_tab("xprompts") == "config"
     assert validated_center_tab("config") == "config"
     assert validated_center_tab("missing") is None
-    assert admin_center_opener_help_label() == "Admin Center: 1-6 jump, # back"
+    assert admin_center_opener_help_label() == "Admin Center: 1-7 jump, # back"
 
 
 def test_registered_catalog_is_alphabetized_with_all_first() -> None:

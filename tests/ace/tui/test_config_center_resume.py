@@ -73,7 +73,7 @@ async def test_generic_reopen_is_home_first_then_repeated_opener_resumes(
         assert isinstance(first, ConfigCenterModal)
         assert first._active_tab is None
 
-        await page.press("3")
+        await page.press("4")
         await page.wait_for(lambda _state: first._active_tab == "procs")
         await page.press("escape")
         await page.expect_no_modal()
@@ -160,7 +160,7 @@ async def test_new_process_loads_remembered_admin_center_section(
         await page.expect_modal("ConfigCenterModal")
         first = page.app.screen
         assert isinstance(first, ConfigCenterModal)
-        await page.press("3")
+        await page.press("4")
         await page.wait_for(lambda _state: first._active_tab == "procs")
         await page.press("escape")
         await page.expect_no_modal()
@@ -268,9 +268,9 @@ async def test_blocked_write_keeps_navigation_responsive_and_persists_latest(
             timeout=1.5,
         )
         try:
-            await page.press("3")
+            await page.press("4")
             await page.wait_for(lambda _state: modal._active_tab == "procs")
-            await page.press("6")
+            await page.press("7")
             await page.wait_for(lambda _state: modal._active_tab == "updates")
             assert page.app._last_admin_center_tab == "updates"
             assert writes == []

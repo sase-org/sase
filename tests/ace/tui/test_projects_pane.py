@@ -95,11 +95,16 @@ async def test_admin_center_reaches_projects_tab_from_config(
         switcher = modal.query_one("#config-center-switcher", ContentSwitcher)
         assert switcher.current == "config"
 
-        # ``Tab`` from Config lands on Logs, then Procs, then Projects without
-        # switching the hidden ACE main tab.
+        # ``Tab`` from Config lands on Logs, Machines, Procs, then Projects
+        # without switching the hidden ACE main tab.
         await page.press("tab")
         await page.wait_for(lambda _s: modal._active_tab == "logs")
         assert switcher.current == "logs"
+        assert page.app.current_tab == "artifacts"
+
+        await page.press("tab")
+        await page.wait_for(lambda _s: modal._active_tab == "machines")
+        assert switcher.current == "machines"
         assert page.app.current_tab == "artifacts"
 
         await page.press("tab")
@@ -226,7 +231,7 @@ async def test_admin_center_digit_owns_hidden_member_jump_state(
         page.app.push_screen(modal)
         await page.expect_modal("ConfigCenterModal")
 
-        await page.press("4")
+        await page.press("5")
         await page.wait_for(lambda _s: modal._active_tab == "projects")
 
         assert page.app._member_jump_pending_digit is None

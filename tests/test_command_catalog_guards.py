@@ -164,6 +164,7 @@ def test_every_command_spec_has_label_and_key_display() -> None:
         assert spec.label, f"{spec.id}: empty label"
         if spec.id in {
             "logs",
+            "machines",
             "projects",
             "tasks",
             "statistics",

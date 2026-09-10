@@ -321,6 +321,7 @@ def test_command_specs_are_well_formed() -> None:
         assert spec.tabs
         if spec.id in {
             "logs",
+            "machines",
             "projects",
             "tasks",
             "statistics",

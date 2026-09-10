@@ -7,6 +7,7 @@ from sase.ace.tui.keymaps.defaults import load_builtin_app_defaults
 from sase.ace.tui.keymaps.scopes import (
     load_config_keymaps,
     load_gate_keymaps,
+    load_machines_keymaps,
     load_memory_keymaps,
     load_projects_keymaps,
     load_snippets_keymaps,
@@ -387,6 +388,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
     config_km = load_config_keymaps(keymaps_cfg)
     statistics_km = load_statistics_keymaps(keymaps_cfg)
     gate_km = load_gate_keymaps(keymaps_cfg)
+    machines_km = load_machines_keymaps(keymaps_cfg)
     memory_km = load_memory_keymaps(keymaps_cfg)
     snippets_km = load_snippets_keymaps(keymaps_cfg)
     projects_km = load_projects_keymaps(keymaps_cfg)
@@ -490,6 +492,7 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         config=config_km,
         statistics=statistics_km,
         gate=gate_km,
+        machines=machines_km,
         memory=memory_km,
         snippets=snippets_km,
         projects=projects_km,

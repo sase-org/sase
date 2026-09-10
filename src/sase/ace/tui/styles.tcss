@@ -7599,6 +7599,7 @@ ConfigCenterModal #admin-center-home.-compact #admin-center-home-hint {
 ConfigCenterModal ConfigPane,
 ConfigCenterModal ProcsPane,
 ConfigCenterModal LogsPane,
+ConfigCenterModal MachinesPane,
 ConfigCenterModal ProjectsPane,
 ConfigCenterModal StatisticsPane,
 ConfigCenterModal PluginsBrowserPane,
@@ -7992,6 +7993,65 @@ ProjectsPane #workspaces-detail {
 ProjectsPane #projects-hints,
 ProjectsPane #repos-hints,
 ProjectsPane #workspaces-hints {
+    height: 1;
+    color: $text-muted;
+    text-align: center;
+    margin-top: 1;
+}
+
+/* Machines tab: local/enrolled machine administration */
+MachinesPane #machines-summary {
+    height: auto;
+    color: $text-muted;
+    text-align: center;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+    margin-bottom: 1;
+}
+
+MachinesPane #machines-filter {
+    height: 3;
+    margin-bottom: 1;
+}
+
+MachinesPane #machines-box {
+    height: 1fr;
+    min-height: 7;
+    border: solid $secondary;
+    padding: 0 1;
+}
+
+MachinesPane #machines-columns {
+    height: 1;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+MachinesPane #machines-list {
+    height: 1fr;
+    border: none;
+    padding: 0;
+    background: $surface;
+    text-wrap: nowrap;
+    text-overflow: clip;
+}
+
+MachinesPane #machines-detail-scroll,
+MachinesPane #machines-flow-scroll {
+    height: 25%;
+    min-height: 5;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+    padding: 0 1;
+    margin-top: 1;
+}
+
+MachinesPane #machines-detail,
+MachinesPane #machines-flow {
+    height: auto;
+}
+
+MachinesPane #machines-hints {
     height: 1;
     color: $text-muted;
     text-align: center;

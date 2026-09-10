@@ -1,4 +1,4 @@
-"""Fleet setup command teaches canonical init rather than discover+add."""
+"""Fleet setup command opens persistent Machines administration."""
 
 from __future__ import annotations
 
@@ -6,35 +6,24 @@ from sase.ace.tui.actions.agents._fleet import AgentFleetMixin
 
 
 class _SetupHost:
-    def __init__(self, *, available: bool) -> None:
-        self._available = available
-        self.messages: list[str] = []
+    def __init__(self) -> None:
+        self.opened_tabs: list[str] = []
 
-    def _fleet_mode_available(self) -> bool:
-        return self._available
+    def _open_config_center(self, tab: str) -> None:
+        self.opened_tabs.append(tab)
 
     def notify(self, message: str, timeout: object = None) -> None:
         del timeout
-        self.messages.append(message)
+        raise AssertionError(f"setup should not use toast-only guidance: {message}")
 
 
-def test_setup_agent_machine_teaches_bootstrap_and_canonical_init() -> None:
-    host = _SetupHost(available=False)
+def test_setup_agent_machine_opens_machines_pane() -> None:
+    host = _SetupHost()
     AgentFleetMixin.action_setup_agent_machine(host)  # type: ignore[arg-type]
-    assert len(host.messages) == 1
-    message = host.messages[0]
-    assert "sase machine bootstrap --json" in message
-    assert "sase machine init -B" in message
-    assert "sase machine discover" not in message
-    assert "sase machine add" not in message
+    assert host.opened_tabs == ["machines"]
 
 
-def test_setup_agent_machine_teaches_rescan_when_machines_exist() -> None:
-    host = _SetupHost(available=True)
-    AgentFleetMixin.action_setup_agent_machine(host)  # type: ignore[arg-type]
-    assert len(host.messages) == 1
-    message = host.messages[0]
-    assert "sase machine init" in message
-    assert "rescan" in message
-    assert "sase machine list" in message
-    assert "sase machine status" in message
+def test_connect_agent_machine_opens_machines_pane() -> None:
+    host = _SetupHost()
+    AgentFleetMixin.action_connect_agent_machine(host)  # type: ignore[arg-type]
+    assert host.opened_tabs == ["machines"]

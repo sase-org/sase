@@ -299,6 +299,23 @@ class ProjectsPaneKeymaps:
 
 
 @dataclass
+class MachinesPaneKeymaps:
+    """Focused actions for the Admin Center Machines tab."""
+
+    next_option: str = "j,down,ctrl+n"
+    prev_option: str = "k,up,ctrl+p"
+    focus_filter: str = "slash"
+    connect_machine: str = "c"
+    check_status: str = "s"
+    repair_machine: str = "r"
+    rename_machine: str = "R"
+    remove_machine: str = "x"
+    show_agents: str = "enter"
+    copy_command: str = "y"
+    reload: str = "U"
+
+
+@dataclass
 class GateModalKeymaps:
     """Focused actions shared by plan and custom gate modals."""
 

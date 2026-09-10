@@ -8,6 +8,7 @@ from typing import Any
 from sase.ace.tui.keymaps.defaults import (
     load_builtin_config_defaults,
     load_builtin_gate_defaults,
+    load_builtin_machines_defaults,
     load_builtin_memory_defaults,
     load_builtin_projects_defaults,
     load_builtin_snippets_defaults,
@@ -16,6 +17,7 @@ from sase.ace.tui.keymaps.defaults import (
 from sase.ace.tui.keymaps.app_keymaps import (
     ConfigHubKeymaps,
     GateModalKeymaps,
+    MachinesPaneKeymaps,
     MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
     SnippetPanelKeymaps,
@@ -224,4 +226,15 @@ def load_projects_keymaps(keymaps_cfg: dict[str, Any]) -> ProjectsPaneKeymaps:
         scope="projects",
         dataclass_type=ProjectsPaneKeymaps,
         defaults=load_builtin_projects_defaults(),
+    )
+
+
+def load_machines_keymaps(keymaps_cfg: dict[str, Any]) -> MachinesPaneKeymaps:
+    """Load and validate the focused Admin Center Machines binding scope."""
+
+    return _load_scope_keymaps(
+        keymaps_cfg,
+        scope="machines",
+        dataclass_type=MachinesPaneKeymaps,
+        defaults=load_builtin_machines_defaults(),
     )

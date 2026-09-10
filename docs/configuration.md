@@ -1167,6 +1167,23 @@ value may list more than one key, separated by commas:
 Like gate, statistics, and memory keys, Projects-tab keys are scoped to the pane and may
 overlap app-level bindings.
 
+**`machines`** — focused Admin Center Machines-tab keybindings. These bindings are
+scoped to the Machines pane and do not become app-level ACE shortcuts.
+
+| Field             | Default         | Action                                                      |
+| ----------------- | --------------- | ----------------------------------------------------------- |
+| `next_option`     | `j,down,ctrl+n` | Select the next machine row.                                |
+| `prev_option`     | `k,up,ctrl+p`   | Select the previous machine row.                            |
+| `focus_filter`    | `slash`         | Focus the machine filter input.                             |
+| `connect_machine` | `c`             | Show the persistent Connect flow.                           |
+| `check_status`    | `s`             | Run a bounded authenticated status check for the selection. |
+| `repair_machine`  | `r`             | Show repair guidance for the selected remote machine.       |
+| `rename_machine`  | `R`             | Show the rename command for the selected remote machine.    |
+| `remove_machine`  | `x`             | Show removal guidance for the selected remote machine.      |
+| `show_agents`     | `enter`         | Open Agents filtered to the selected machine.               |
+| `copy_command`    | `y`             | Copy the current Machines action command.                   |
+| `reload`          | `U`             | Reload the machine inventory.                               |
+
 **`app`** — App-level keybindings. Each key is an action name mapped to a key string.
 See `src/sase/default_config.yml` for the full list of configurable actions and their
 defaults. Rebinding `open_config_center` also changes the Admin Center's home-page

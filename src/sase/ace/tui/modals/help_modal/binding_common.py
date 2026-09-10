@@ -23,7 +23,7 @@ _Sections = Sections
 
 def admin_center_opener_help_label() -> str:
     """Return the opener help summary for the active Admin Center catalog."""
-    return "Admin Center: 1-6 jump, # back"
+    return "Admin Center: 1-7 jump, # back"
 
 
 PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
@@ -142,6 +142,16 @@ def admin_center_projects_section(
             (d(p.reload), "Reload records or inventory"),
         ],
     )
+
+
+def admin_center_machines_section(
+    km: KeymapRegistry,
+) -> tuple[str, list[tuple[str, str]]]:
+    """Build the Admin Center Machines keybinding section from configured keys."""
+
+    from ..machines_pane import machines_help_bindings
+
+    return ("Admin Center Machines", machines_help_bindings(km.machines))
 
 
 def sk(keys: dict[str, str | dict[str, str]], name: str) -> str:

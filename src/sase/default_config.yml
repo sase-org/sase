@@ -441,6 +441,20 @@ ace:
       set_current_project: "c"
       initialize_project: "i"
       initialize_all_projects: "I"
+    # Focused Admin Center Machines-tab bindings. These keys are inactive
+    # everywhere else, even when they overlap app-level actions.
+    machines:
+      next_option: "j,down,ctrl+n"
+      prev_option: "k,up,ctrl+p"
+      focus_filter: "slash"
+      connect_machine: "c"
+      check_status: "s"
+      repair_machine: "r"
+      rename_machine: "R"
+      remove_machine: "x"
+      show_agents: "enter"
+      copy_command: "y"
+      reload: "U"
     app:
       # Navigation
       next_patch: "j"

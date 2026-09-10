@@ -45,7 +45,7 @@ from tests.ace.tui._config_center_tabs_helpers import (
 
 def test_catalog_is_the_single_numbered_alphabetical_source() -> None:
     assert tuple(spec.id for spec in _TAB_SPECS) == _TAB_ORDER
-    assert tuple(spec.number for spec in _TAB_SPECS) == tuple(range(1, 7))
+    assert tuple(spec.number for spec in _TAB_SPECS) == tuple(range(1, 8))
     assert tuple((spec.id, spec.label) for spec in _TAB_SPECS) == tuple(_TAB_LABELS)
     assert tuple(spec.id for spec in _TAB_SPECS) == tuple(_TAB_COLORS)
     assert tuple(spec.id for spec in _TAB_SPECS) == tuple(_TAB_DESCRIPTIONS)
@@ -56,6 +56,7 @@ def test_catalog_is_the_single_numbered_alphabetical_source() -> None:
     assert [spec.description for spec in _TAB_SPECS] == [
         "Browse flags, glossary, launch, memory, snippets, XPrompts, and settings.",
         "Inspect TUI activity, launch failures, and notification history.",
+        "Connect, inspect, repair, rename, and remove dispatch machines.",
         "Follow procs, inspect live output, and manage running jobs.",
         "Manage projects and inspect their repositories and workspaces.",
         "Explore runners, projects, activity, and trends over time.",
@@ -167,7 +168,7 @@ def test_resume_tab_validation_accepts_only_catalog_ids() -> None:
 def test_home_hint_explains_no_history_and_uses_catalog_resume_style() -> None:
     no_history = _home_hint_text(None, "number_sign", compact=False)
     assert no_history.plain.startswith(" #  resumes after your first section visit")
-    assert "1-6/click · Tab cycle" in no_history.plain
+    assert "1-7/click · Tab cycle" in no_history.plain
 
     resume_ready = _home_hint_text("procs", "f2", compact=False)
     assert resume_ready.plain.startswith(" f2  resume Procs")
@@ -297,7 +298,7 @@ async def test_home_tab_directions_and_digits_mount_only_requested_panes(
             assert page.app.current_tab == "agents"
 
         before = list(calls)
-        for digit in ("7", "8", "9", "0"):
+        for digit in ("8", "9", "0"):
             await page.press(digit)
             await page.pause()
         assert calls == before
@@ -361,7 +362,7 @@ async def test_landing_is_keyboard_transparent_and_digits_work_immediately(
         landing_widgets = [landing, *landing.query("*")]
         assert all(not widget.can_focus for widget in landing_widgets)
 
-        await pilot.press("5")
+        await pilot.press("6")
         await wait_for(pilot, lambda: modal._active_tab == "statistics")
 
         assert calls == ["statistics"]

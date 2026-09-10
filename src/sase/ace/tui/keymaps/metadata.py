@@ -242,6 +242,21 @@ _PROJECTS_INVENTORY_BINDING_META: tuple[tuple[str, str, str], ...] = (
     ("clear_project_filter", "clear_project_filter", "Clear Project"),
 )
 
+# Scoped bindings owned by the focused Admin Center Machines pane.
+_MACHINES_BINDING_META: tuple[tuple[str, str, str], ...] = (
+    ("next_option", "next_option", "Next"),
+    ("prev_option", "prev_option", "Previous"),
+    ("focus_filter", "focus_filter", "Filter"),
+    ("connect_machine", "connect_machine", "Connect"),
+    ("check_status", "check_status", "Check Status"),
+    ("repair_machine", "repair_machine", "Repair"),
+    ("rename_machine", "rename_machine", "Rename"),
+    ("remove_machine", "remove_machine", "Remove"),
+    ("show_agents", "show_agents", "Show Agents"),
+    ("copy_command", "copy_machine_command", "Copy Command"),
+    ("reload", "reload_machines", "Reload"),
+)
+
 # Shared bindings owned by the branch renderer inside gate-review modals.
 # ``next_input`` / ``previous_input`` live on the input panel, not the gate
 # modal, so they are omitted here and bound by ``build_gate_input_panel_bindings``.

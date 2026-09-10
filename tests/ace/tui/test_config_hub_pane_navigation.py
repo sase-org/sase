@@ -22,7 +22,7 @@ from tests.ace.tui._config_hub_pane_helpers import (
 )
 
 
-async def test_home_digits_stop_at_six(
+async def test_home_digits_stop_at_seven(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from tests.ace.tui._config_center_tabs_helpers import _patch_stub_panes
@@ -33,15 +33,15 @@ async def test_home_digits_stop_at_six(
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        await pilot.press("7")
+        await pilot.press("8")
         await pilot.pause()
         assert modal._active_tab is None
 
-        await pilot.press("6")
+        await pilot.press("7")
         await wait_for(pilot, lambda: modal._active_tab == "updates")
 
         landing = modal.query_one("#admin-center-home-hint", Static)
-        assert "1-6" in str(landing.render().plain)
+        assert "1-7" in str(landing.render().plain)
         assert list(modal.query("#xprompts")) == []
 
 

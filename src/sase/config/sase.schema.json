@@ -2367,6 +2367,57 @@
                 }
               }
             },
+            "machines": {
+              "type": "object",
+              "description": "Bindings active only while the Admin Center Machines tab is focused",
+              "additionalProperties": false,
+              "properties": {
+                "next_option": {
+                  "type": "string",
+                  "description": "Select the next machine row"
+                },
+                "prev_option": {
+                  "type": "string",
+                  "description": "Select the previous machine row"
+                },
+                "focus_filter": {
+                  "type": "string",
+                  "description": "Focus the machine filter input"
+                },
+                "connect_machine": {
+                  "type": "string",
+                  "description": "Open the persistent Connect flow"
+                },
+                "check_status": {
+                  "type": "string",
+                  "description": "Run a bounded status check for the selected machine"
+                },
+                "repair_machine": {
+                  "type": "string",
+                  "description": "Show repair guidance for the selected machine"
+                },
+                "rename_machine": {
+                  "type": "string",
+                  "description": "Show rename guidance for the selected machine"
+                },
+                "remove_machine": {
+                  "type": "string",
+                  "description": "Show removal guidance for the selected machine"
+                },
+                "show_agents": {
+                  "type": "string",
+                  "description": "Show Agents filtered to the selected machine"
+                },
+                "copy_command": {
+                  "type": "string",
+                  "description": "Copy the current machine action command"
+                },
+                "reload": {
+                  "type": "string",
+                  "description": "Reload machine inventory"
+                }
+              }
+            },
             "app": {
               "type": "object",
               "description": "Top-level application keybindings (action name to key string)",

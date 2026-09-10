@@ -369,7 +369,7 @@ async def test_list_focused_out_of_range_digits_are_no_ops(
         modal, pane = await _open_xprompts_tab(page, monkeypatch, prompts)
         filter_input = pane.query_one("#browser-filter-input", BrowserFilterInput)
 
-        for digit in ("7", "8", "9", "0"):
+        for digit in ("8", "9", "0"):
             await page.press(digit)
             await page.pause()
 

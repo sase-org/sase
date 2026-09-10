@@ -8,6 +8,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
     ConfigHubKeymaps,
     GateModalKeymaps,
+    MachinesPaneKeymaps,
     MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
     SnippetPanelKeymaps,
@@ -19,6 +20,7 @@ from sase.ace.tui.keymaps.metadata import (
     _CONFIG_HUB_BINDING_META,
     _GATE_BINDING_META,
     _GATE_INPUT_PANEL_BINDING_META,
+    _MACHINES_BINDING_META,
     _MEMORY_BINDING_META,
     _PROJECTS_BINDING_META,
     _PROJECTS_INVENTORY_BINDING_META,
@@ -211,6 +213,20 @@ def build_projects_inventory_bindings(keymaps: ProjectsPaneKeymaps) -> list[Bind
             show=False,
         )
         for field, action, description in _PROJECTS_INVENTORY_BINDING_META
+    ]
+
+
+def build_machines_bindings(keymaps: MachinesPaneKeymaps) -> list[Binding]:
+    """Build instance-local bindings for the Admin Center Machines pane."""
+
+    return [
+        Binding(
+            getattr(keymaps, field),
+            action,
+            description,
+            show=False,
+        )
+        for field, action, description in _MACHINES_BINDING_META
     ]
 
 

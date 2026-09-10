@@ -176,6 +176,28 @@ def _iter_logs_command() -> Iterator[CommandSpec]:
     )
 
 
+def _iter_machines_command() -> Iterator[CommandSpec]:
+    """Yield the keyless Admin Center Machines-tab command."""
+
+    yield CommandSpec(
+        id="machines",
+        label="Open machines",
+        key_sequence=(),
+        key_display="",
+        category="Display",
+        tabs=ALL_TABS,
+        executor=CommandExecutor(kind="app_action", action="open_machines_panel"),
+        aliases=(
+            "machines",
+            "machine status",
+            "connect machine",
+            "remote dispatch",
+            "enrollment",
+            "admin center",
+        ),
+    )
+
+
 def _iter_tasks_command() -> Iterator[CommandSpec]:
     """Yield the keyless Tasks-tab command.
 
@@ -264,6 +286,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     catalog.extend(iter_saved_query_commands(registry))
     catalog.extend(_iter_artifacts_subtab_commands())
     catalog.extend(_iter_tasks_command())
+    catalog.extend(_iter_machines_command())
     catalog.extend(_iter_statistics_command())
     catalog.extend(_iter_logs_command())
     catalog.extend(_iter_projects_command())

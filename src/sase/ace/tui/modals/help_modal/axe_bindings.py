@@ -4,6 +4,7 @@ from ...keymaps import KeymapRegistry, key_display_name
 from .binding_common import (
     ADMIN_CENTER_TASKS_SECTION,
     ADMIN_CENTER_UPDATES_SECTION,
+    admin_center_machines_section,
     PROMPT_INPUT_SECTION,
     admin_center_opener_help_label,
     admin_center_projects_section,
@@ -155,6 +156,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
     sections.append(memory_panel_section(km))
     sections.append(snippets_panel_section(km))
     sections.append(ADMIN_CENTER_TASKS_SECTION)
+    sections.append(admin_center_machines_section(km))
     sections.append(admin_center_projects_section(km))
     sections.append(ADMIN_CENTER_UPDATES_SECTION)
     sections.append(

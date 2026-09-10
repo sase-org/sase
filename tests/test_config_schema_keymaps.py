@@ -192,3 +192,41 @@ def test_config_schema_rejects_invalid_scoped_snippets_keymaps(
 ) -> None:
     with pytest.raises(ValidationError):
         Draft7Validator(schema()).validate({"ace": {"keymaps": {"snippets": snippets}}})
+
+
+def test_config_schema_accepts_scoped_machines_keymaps() -> None:
+    Draft7Validator(schema()).validate(
+        {
+            "ace": {
+                "keymaps": {
+                    "machines": {
+                        "next_option": "down",
+                        "prev_option": "up",
+                        "focus_filter": "f12",
+                        "connect_machine": "c",
+                        "check_status": "s",
+                        "repair_machine": "r",
+                        "rename_machine": "R",
+                        "remove_machine": "x",
+                        "show_agents": "enter",
+                        "copy_command": "y",
+                        "reload": "U",
+                    }
+                }
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "machines",
+    [
+        {"next_option": 12},
+        {"unknown_action": "x"},
+    ],
+)
+def test_config_schema_rejects_invalid_scoped_machines_keymaps(
+    machines: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate({"ace": {"keymaps": {"machines": machines}}})

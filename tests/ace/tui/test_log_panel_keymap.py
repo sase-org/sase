@@ -93,6 +93,7 @@ def test_admin_center_tabs_are_alphabetical_by_label() -> None:
     assert _TAB_ORDER == (
         "config",
         "logs",
+        "machines",
         "procs",
         "projects",
         "statistics",

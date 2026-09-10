@@ -10,6 +10,7 @@ from sase.ace.tui.keymaps.app_keymaps import (
     AppKeymaps,
     ConfigHubKeymaps,
     GateModalKeymaps,
+    MachinesPaneKeymaps,
     MemoryPanelKeymaps,
     ProjectsPaneKeymaps,
     SnippetPanelKeymaps,
@@ -56,6 +57,7 @@ __all__ = [
     "GateModalKeymaps",
     "KeymapRegistry",
     "LeaderModeKeymaps",
+    "MachinesPaneKeymaps",
     "MemoryPanelKeymaps",
     "ModeKeymaps",
     "ProjectsPaneKeymaps",
@@ -103,6 +105,7 @@ class KeymapRegistry:
     config: ConfigHubKeymaps = field(default_factory=ConfigHubKeymaps)
     statistics: StatisticsPaneKeymaps = field(default_factory=StatisticsPaneKeymaps)
     gate: GateModalKeymaps = field(default_factory=GateModalKeymaps)
+    machines: MachinesPaneKeymaps = field(default_factory=MachinesPaneKeymaps)
     memory: MemoryPanelKeymaps = field(default_factory=MemoryPanelKeymaps)
     snippets: SnippetPanelKeymaps = field(default_factory=SnippetPanelKeymaps)
     projects: ProjectsPaneKeymaps = field(default_factory=ProjectsPaneKeymaps)

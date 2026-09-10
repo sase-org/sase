@@ -74,6 +74,7 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.open_saved_query_picker",
         "projects",
         "logs",
+        "machines",
         "tasks",
     }
 )

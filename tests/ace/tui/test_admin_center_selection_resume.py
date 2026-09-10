@@ -67,15 +67,15 @@ class _ResumeCase:
 _CASES = (
     _ResumeCase("config", "1"),
     _ResumeCase("logs", "2"),
-    _ResumeCase("projects", "4"),
-    _ResumeCase("repos", "4", ("right_square_bracket",)),
+    _ResumeCase("projects", "5"),
+    _ResumeCase("repos", "5", ("right_square_bracket",)),
     _ResumeCase(
         "workspaces",
-        "4",
+        "5",
         ("right_square_bracket", "right_square_bracket"),
     ),
-    _ResumeCase("procs", "3"),
-    _ResumeCase("updates", "6"),
+    _ResumeCase("procs", "4"),
+    _ResumeCase("updates", "7"),
     _ResumeCase("xprompts", "1", move_key="ctrl+n"),
 )
 

@@ -14,7 +14,15 @@ if TYPE_CHECKING:
     from .config_center_modal import ConfigCenterModal
 
 
-CenterTab = Literal["config", "logs", "procs", "projects", "statistics", "updates"]
+CenterTab = Literal[
+    "config",
+    "logs",
+    "machines",
+    "procs",
+    "projects",
+    "statistics",
+    "updates",
+]
 PaneFactory = Callable[["ConfigCenterModal"], Widget]
 
 
@@ -76,6 +84,18 @@ def _logs_pane_factory(_modal: ConfigCenterModal) -> Widget:
     )
 
 
+def _machines_pane_factory(_modal: ConfigCenterModal) -> Widget:
+    from .machines_pane import MachinesPane
+
+    registry = getattr(_modal.app, "_keymap_registry", None)
+    keymaps = getattr(registry, "machines", None)
+    return MachinesPane(
+        session_state=_modal._session_state.machines,
+        keymaps=keymaps,
+        id="machines",
+    )
+
+
 def _projects_pane_factory(_modal: ConfigCenterModal) -> Widget:
     from .projects_pane import ProjectsPane
 
@@ -131,8 +151,17 @@ _TAB_SPECS: tuple[CenterTabSpec, ...] = (
         _logs_pane_factory,
     ),
     CenterTabSpec(
-        "procs",
+        "machines",
         3,
+        "Machines",
+        "#87D7FF",
+        "Connect, inspect, repair, rename, and remove dispatch machines.",
+        "MachinesPane",
+        _machines_pane_factory,
+    ),
+    CenterTabSpec(
+        "procs",
+        4,
         "Procs",
         "#5FD75F",
         "Follow procs, inspect live output, and manage running jobs.",
@@ -141,7 +170,7 @@ _TAB_SPECS: tuple[CenterTabSpec, ...] = (
     ),
     CenterTabSpec(
         "projects",
-        4,
+        5,
         "Projects",
         "#FFAF5F",
         "Manage projects and inspect their repositories and workspaces.",
@@ -150,7 +179,7 @@ _TAB_SPECS: tuple[CenterTabSpec, ...] = (
     ),
     CenterTabSpec(
         "statistics",
-        5,
+        6,
         "Statistics",
         "#FF87D7",
         "Explore runners, projects, activity, and trends over time.",
@@ -159,7 +188,7 @@ _TAB_SPECS: tuple[CenterTabSpec, ...] = (
     ),
     CenterTabSpec(
         "updates",
-        6,
+        7,
         "Updates",
         "#AF87FF",
         "Update SASE, plugins, and supported agent CLIs from one place.",
