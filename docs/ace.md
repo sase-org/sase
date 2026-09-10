@@ -3317,12 +3317,24 @@ collection status, last observation, and per-window remaining percentage, reset,
 state, and source. The layout drops the meter and combines detail columns as the
 terminal narrows.
 
+Rows reserve the orange `⚠ failing` badge for collectors with three or more consecutive
+probe failures. The selected provider detail shows collector health for both degraded
+and failing states, including the failure streak, failing-since age when known, and last
+successful probe age when known. This health describes the collector pipeline only:
+stale-but-numeric allowance data can still render, passive stream observations do not
+hide a dead probe pipeline, and the indicator never changes launch routing.
+
 When an included allowance needs attention, the top bar shows the leading provider in a
 compact form such as `! GROK 14% left · wk/all +2`. `wk`, `mo`, `5h`, and `session` name
 the allowance window; `all` means account-wide, and `scope?` means the provider did not
 expose exact applicability. `+N` counts additional providers needing attention. In very
 tight space ACE may show `!3` or `?3`, where the number is the total attention count;
 hover or open Providers · Usage for the full labels and per-window details.
+
+When the leading attention is a consistently failing collector, the same indicator uses
+the `⚠` marker and normal-width text like `CODEX usage failing`; tight layouts still
+roll up to counts. The tooltip includes collector-health lines, and model picker hints
+use the same `⚠ usage failing` identity so the warning is not color-only.
 
 Press `u` inside the view to submit or join bounded refresh work for eligible providers.
 The modal stays responsive, reattaches to an in-flight refresh when reopened, reloads

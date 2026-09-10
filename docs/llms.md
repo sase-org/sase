@@ -2143,6 +2143,22 @@ The cache can therefore distinguish no observation, stale data, unsupported coll
 authentication failure, and a real low-capacity window rather than collapsing them into
 one percentage.
 
+Provider summaries also include collector health when SASE has attempted a probe for the
+provider's current account generation. Collector health describes the probe pipeline,
+not the freshness of cached allowance windows: passive observations can keep windows
+fresh, but they do not reset a broken probe streak. `ok` means the latest probe attempt
+succeeded, `degraded` means one or two consecutive probe failures, and `failing` means
+three or more consecutive failures. A failing collector surfaces with the streak count,
+the first failure time when known, and the last successful probe time when known.
+
+`vendor_drift` is the reason code used when a provider CLI rejects the request shape
+SASE sends, such as an unknown flag, invalid JSON-RPC params, an unsupported method, or
+an ACP method-not-found response. A fallback strategy that recovers from drift records
+an `ok` observation with a bounded diagnostic naming the failed primary strategy and the
+strategy that recovered. Collector health and diagnostics are display and
+troubleshooting signals only; they never disable providers, change routing eligibility,
+or alter round-robin/provider-priority decisions.
+
 Configuration controls refresh cadence (minimum 60 seconds) and warning/critical
 thresholds as percentages used; UI copy converts those to percentage left. See
 [`llm_provider.usage_metrics`](configuration.md#llm_providerusage_metrics) and the

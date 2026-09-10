@@ -428,3 +428,13 @@ tests/pager/test_rendered_link_contract.py::test_kitchen_follow_copy_edit_and_me
 # Focused rerun passed; sase-yz.2 recorded a proposed follow-up and corroborated
 # the existing pager flake task on sase-yp.
 tests/pager/test_app_actions.py::test_y_then_label_copies_the_links_resolved_path
+#
+# sase-yz.5: check-full selection-health promoted five historical dirty-tree
+# full-run nodes during usage collector health verification. All five pass
+# focused on this tree; the phase recorded a proposed follow-up for the land
+# agent because phase workers cannot file flake tasks directly.
+tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_batch_predecessor_context_binds_bare_wait
+tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_batch_predecessor_context_binds_local_xprompt_wait
+tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_preserved_batch_predecessor_context_rebinds_refreshed_wait
+tests/test_check_sase_core_rs_bindings_tool.py::test_dev_extension_exposes_every_collected_name
+tests/test_xprompt_directive_contract.py::test_runtime_directive_vocabulary_matches_core_contract
