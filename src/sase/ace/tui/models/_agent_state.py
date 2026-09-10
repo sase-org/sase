@@ -536,6 +536,12 @@ class AgentState:
     fleet_freshness: str | None = field(default=None, compare=False)
     fleet_connection_health: str | None = field(default=None, compare=False)
     fleet_observed_at_unix: float | None = field(default=None, compare=False)
+    # Authoritative counts for this row's origin host, sourced from the
+    # host's own `authoritative_counts` envelope rather than a client-side
+    # recount of loaded rows. Every row from the same host carries the same
+    # pair, so a group banner can read either member row for host totals.
+    fleet_host_running_count: int | None = field(default=None, compare=False)
+    fleet_host_total_count: int | None = field(default=None, compare=False)
     fleet_capabilities: dict[str, Any] | None = field(
         default=None,
         compare=False,

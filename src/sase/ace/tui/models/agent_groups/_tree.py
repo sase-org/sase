@@ -62,6 +62,14 @@ class _BannerSummary:
     running: int
     failed: int
     awaiting: int
+    # Set for a remote-machine L0 banner sourced from the host's
+    # authoritative counts rather than a recount of loaded rows: ``unknown``
+    # is the honest remainder outside the authoritative ``running`` count,
+    # and ``failed``/``awaiting`` are not broken out (the counts wire does
+    # not carry them), so the chip renders "N agents · R running · U
+    # unknown" instead of implying a full status breakdown it cannot back.
+    unknown: int = 0
+    authoritative: bool = False
 
 
 @dataclass(frozen=True)
@@ -475,13 +483,23 @@ def build_agent_tree(
     return entries
 
 
-def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSummary:
+def compute_banner_summary(
+    group: GroupRow,
+    agents: list[Agent],
+    *,
+    mode: GroupingMode = GroupingMode.STANDARD,
+) -> _BannerSummary:
     """Aggregate status counts for the agents referenced by *group*.
 
     Only non-workflow-child agents are counted so the summary mirrors
     the user's mental model of "agents in this group".  Counts are
     derived from the shared concrete-agent projection so family handoffs and
-    container counts agree with the other summary surfaces.
+    container counts agree with the other summary surfaces, *except* for a
+    remote-machine L0 banner in ``BY_MACHINE`` mode: that banner sources its
+    counts from the host's own authoritative counts instead, so a bounded or
+    partially-stale page of rows can never under/over-count a remote
+    machine's real running total. The local ("here") machine banner keeps
+    the recount path unchanged.
     """
     roots: list[Agent] = []
     for idx in group.agent_indices:
@@ -492,6 +510,11 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
             continue
         roots.append(agent)
 
+    if group.level == 0 and mode is GroupingMode.BY_MACHINE:
+        authoritative = _authoritative_machine_summary(roots)
+        if authoritative is not None:
+            return authoritative
+
     projected = sase_agent_status_counts(roots, ())
     return _BannerSummary(
         count=projected.total,
@@ -499,6 +522,31 @@ def compute_banner_summary(group: GroupRow, agents: list[Agent]) -> _BannerSumma
         failed=projected.failed,
         awaiting=projected.stopped,
     )
+
+
+def _authoritative_machine_summary(roots: list[Agent]) -> _BannerSummary | None:
+    """Authoritative running/unknown summary for a remote-machine L0 banner.
+
+    Returns ``None`` for the local ("here") group, or when no row in the
+    group yet carries host counts, so the caller falls back to the ordinary
+    recount.
+    """
+    for agent in roots:
+        if not agent.fleet_origin_alias:
+            return None
+        total = agent.fleet_host_total_count
+        running = agent.fleet_host_running_count
+        if total is None or running is None:
+            continue
+        return _BannerSummary(
+            count=total,
+            running=running,
+            failed=0,
+            awaiting=0,
+            unknown=max(0, total - running),
+            authoritative=True,
+        )
+    return None
 
 
 def banner_label_for_group_key(group_key: tuple[str, ...]) -> str:
@@ -533,12 +581,23 @@ def banner_label(group: GroupRow) -> str:
 def banner_summary_text(summary: _BannerSummary) -> str:
     """Compact ``"N agents · 2 running · 1 failed"``-style label.
 
+    An authoritative remote-machine summary uses honest scope wording
+    instead: ``"N agents · R running · U unknown"``. The counts wire does
+    not break failed/awaiting out, so this never claims a status breakdown
+    it cannot back.
+
     Returns an empty string when the summary is empty (count == 0).
     """
     if summary.count <= 0:
         return ""
     plural = "s" if summary.count != 1 else ""
     parts = [f"{summary.count} agent{plural}"]
+    if summary.authoritative:
+        if summary.running:
+            parts.append(f"{summary.running} running")
+        if summary.unknown:
+            parts.append(f"{summary.unknown} unknown")
+        return " · ".join(parts)
     if summary.running:
         parts.append(f"{summary.running} running")
     if summary.failed:

@@ -45,19 +45,26 @@ def rows_from_response(
             host.get("freshness") if isinstance(host.get("freshness"), str) else None,
             host.get("status"),
         )
+        viewer_freshness = _viewer_observed_freshness(host)
         observed_at = float_or_none(
             host.get("observed_at_unix"),
             host.get("observed_at"),
         )
+        host_counts = mapping(host.get("authoritative_counts"))
+        host_running_count = int_or_none(host_counts.get("running"))
+        host_total_count = int_or_none(host_counts.get("logical_agent_total"))
         for summary_index, summary in enumerate(summary_payloads(host)):
             agent = _agent_from_summary(
                 summary,
                 host_alias=host_alias,
                 origin_installation_id=origin_installation_id,
                 host_freshness=host_freshness,
+                viewer_freshness=viewer_freshness,
                 host_health=optional_str(host.get("status")),
                 host_diagnostic=_host_diagnostic(host),
                 observed_at_unix=observed_at,
+                host_running_count=host_running_count,
+                host_total_count=host_total_count,
                 summary_index=summary_index,
                 attention_by_logical_key=attention_by_logical_key,
             )
@@ -75,9 +82,12 @@ def _agent_from_summary(
     host_alias: str,
     origin_installation_id: str | None,
     host_freshness: str | None,
+    viewer_freshness: str | None,
     host_health: str | None,
     host_diagnostic: str | None,
     observed_at_unix: float | None,
+    host_running_count: int | None,
+    host_total_count: int | None,
     summary_index: int,
     attention_by_logical_key: Mapping[str, Mapping[str, Any]],
 ) -> Agent:
@@ -111,14 +121,16 @@ def _agent_from_summary(
         summary_index,
     )
     attention = attention_by_logical_key.get(logical_key) if logical_key else None
+    liveness_token = summary.get("liveness")
     status = _status_from_summary(
         summary,
         lifecycle,
         liveness,
         attention,
         lifecycle_token=summary.get("lifecycle"),
-        liveness_token=summary.get("liveness"),
+        liveness_token=liveness_token,
     )
+    status_bucket = _status_bucket_from_wire(summary.get("status_bucket"))
     revision = int_or_none(
         summary.get("revision"),
         row_revision.get("revision"),
@@ -135,9 +147,12 @@ def _agent_from_summary(
         summary.get("finished_at_unix"),
         lifecycle.get("stopped_at_unix"),
     )
-    freshness = optional_str(
-        summary.get("freshness"),
-        host_freshness,
+    freshness = _combine_freshness(
+        optional_str(
+            summary.get("freshness"),
+            host_freshness,
+        ),
+        viewer_freshness,
     )
     health = optional_str(
         summary.get("connection_health"),
@@ -157,6 +172,7 @@ def _agent_from_summary(
         cl_name=patch_name,
         project_file=project_file,
         status=status,
+        status_bucket=status_bucket,
         start_time=start_time,
         stop_time=stop_time,
         raw_suffix=raw_suffix_value,
@@ -181,6 +197,8 @@ def _agent_from_summary(
         fleet_freshness=freshness,
         fleet_connection_health=health,
         fleet_observed_at_unix=observed_at_unix,
+        fleet_host_running_count=host_running_count,
+        fleet_host_total_count=host_total_count,
         fleet_capabilities=dict(capabilities) if capabilities else None,
         fleet_content=dict(content) if content else None,
         fleet_bounded_intent=bounded_intent,
@@ -332,8 +350,9 @@ def _status_from_summary(
         liveness.get("status"),
         liveness.get("state"),
     )
+    dead = _liveness_stops(liveness_token, liveness)
     if not value:
-        return "RUNNING"
+        return "WAS RUNNING" if dead else "RUNNING"
     normalized = value.casefold().replace("-", "_").replace(" ", "_")
     status_map = {
         "active": "RUNNING",
@@ -363,4 +382,106 @@ def _status_from_summary(
     }
     if normalized not in status_map and bool(summary.get("needs_attention")):
         return "WAITING INPUT"
-    return status_map.get(normalized, value.upper())
+    resolved = status_map.get(normalized, value.upper())
+    # Owner-resolved liveness overrides a stale RUNNING/STARTING claim: the
+    # process is confirmed gone, so the row presents "was running" instead
+    # of fabricating an active state. Never demote other statuses (a real
+    # completion, failure, or pending-input pause stays as reported).
+    if dead and resolved in {"RUNNING", "STARTING"}:
+        return "WAS RUNNING"
+    return resolved
+
+
+_LIVENESS_STOPPED_VALUES = frozenset({"dead", "not_process"})
+
+
+def _liveness_stops(liveness_token: object, liveness: Mapping[str, Any]) -> bool:
+    """Whether owner-resolved liveness definitively rules out an active row.
+
+    Mirrors sase-core's ``bucket_for_lifecycle`` liveness_stops predicate:
+    only a definitively Dead/NotProcess liveness may demote a row. Alive or
+    genuinely Unknown liveness never hides a potentially live agent.
+    """
+    value = optional_str(
+        liveness_token if isinstance(liveness_token, str) else None,
+        liveness.get("liveness"),
+        liveness.get("status"),
+        liveness.get("state"),
+    )
+    if not value:
+        return False
+    return value.casefold() in _LIVENESS_STOPPED_VALUES
+
+
+_FLEET_STATUS_BUCKET_WIRE_MAP: dict[str, str] = {
+    "stopped": "Stopped",
+    "failed": "Failed",
+    "starting": "Starting",
+    "running": "Running",
+    "queued": "Queued",
+    "waiting": "Waiting",
+    "done": "Done",
+}
+
+
+def _status_bucket_from_wire(value: object) -> str | None:
+    """Map the wire's liveness-aware ``status_bucket`` to a display bucket.
+
+    The wire enum is a deliberate 1:1 mirror of
+    ``sase.agent.status_buckets.AGENT_STATUS_BUCKETS``, so setting
+    ``Agent.status_bucket`` from it overrides the local text-derived bucket
+    fallback everywhere that already consults ``agent_status_bucket()``
+    (banners, folding, filters) with the owner's liveness-aware bucket.
+    """
+    if not isinstance(value, str):
+        return None
+    return _FLEET_STATUS_BUCKET_WIRE_MAP.get(value.casefold())
+
+
+_FRESHNESS_RANK: dict[str, int] = {"fresh": 0, "aging": 1, "stale": 2, "unknown": 3}
+# Owner-side snapshot freshness thresholds (sase-core
+# FLEET_SNAPSHOT_FRESH_SECONDS / FLEET_SNAPSHOT_STALE_SECONDS), reused here
+# for the viewer's own cache-age classification so both sides agree on what
+# "fresh" means.
+_FLEET_VIEWER_FRESH_SECONDS = 5.0
+_FLEET_VIEWER_STALE_SECONDS = 60.0
+
+
+def _combine_freshness(*values: str | None) -> str | None:
+    """Return the least-fresh of the given freshness labels.
+
+    A row must never look fresher than the worst signal available: an
+    honestly-stamped owner freshness can still be undercut by a viewer-side
+    cache serving an aged copy of that same payload.
+    """
+    ranked = [value for value in values if value in _FRESHNESS_RANK]
+    if not ranked:
+        for value in values:
+            if value:
+                return value
+        return None
+    return max(ranked, key=lambda value: _FRESHNESS_RANK[value])
+
+
+def _viewer_observed_freshness(host: Mapping[str, Any]) -> str | None:
+    """Classify the viewer's own cache age for *host*, or ``None`` when live.
+
+    ``cached`` marks a response the federation worker served from its local
+    cache rather than a live fetch; ``age_seconds`` is how long ago that
+    cached copy was fetched. A live (non-cached) response carries no viewer
+    cache age to fold in.
+    """
+    if not bool(host.get("cached")):
+        return None
+    age_seconds = float_or_none(host.get("age_seconds"))
+    from sase.dispatch.counts import classify_cache_freshness
+
+    decision = classify_cache_freshness(
+        {
+            "schema_version": 1,
+            "viewer_monotonic_elapsed_seconds": age_seconds,
+            "fresh_threshold_seconds": _FLEET_VIEWER_FRESH_SECONDS,
+            "stale_threshold_seconds": _FLEET_VIEWER_STALE_SECONDS,
+        }
+    )
+    return optional_str(decision.get("freshness"))

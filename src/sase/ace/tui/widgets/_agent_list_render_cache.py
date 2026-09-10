@@ -382,6 +382,9 @@ def banner_render_key(
         (
             a.identity,
             a.status,
+            a.status_bucket,
+            a.fleet_host_running_count,
+            a.fleet_host_total_count,
             a.hidden,
             a.is_workflow_child,
             a.is_clan_container,

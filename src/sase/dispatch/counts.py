@@ -42,7 +42,16 @@ def count_focus_and_fleet_from_federation(
     return payload
 
 
+def classify_cache_freshness(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the shared owner/viewer observation-age freshness classification."""
+    payload = require_rust_binding("fleet_classify_cache_freshness")(dict(request))
+    if not isinstance(payload, dict):
+        raise TypeError("fleet_classify_cache_freshness returned a non-object payload")
+    return payload
+
+
 __all__ = [
+    "classify_cache_freshness",
     "count_focus_and_fleet",
     "count_focus_and_fleet_from_federation",
     "normalize_fleet_federation_response",

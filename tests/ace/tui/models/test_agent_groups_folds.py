@@ -5,6 +5,7 @@ from __future__ import annotations
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import (
+    GroupingMode,
     GroupRow,
     banner_summary_text,
     build_agent_tree,
@@ -367,6 +368,63 @@ def test_banner_summary_text_empty_when_count_is_zero() -> None:
     group = GroupRow(level=0, group_key=("proj",), agent_indices=())
     summary = compute_banner_summary(group, agents)
     assert banner_summary_text(summary) == ""
+
+
+def test_compute_banner_summary_by_machine_l0_uses_authoritative_host_counts() -> None:
+    """A remote-machine banner sources counts from the host, not a recount.
+
+    Loaded rows say 2 agents both look RUNNING; the host's own authoritative
+    counts (as apollo itself would report) say only 1 is really running, so
+    the banner must show the host's numbers, not the client recount.
+    """
+    stale = _agent(cl_name="a", status="RUNNING")
+    stale.fleet_origin_alias = "apollo"
+    stale.fleet_host_running_count = 1
+    stale.fleet_host_total_count = 2
+    live = _agent(cl_name="b", status="RUNNING")
+    live.fleet_origin_alias = "apollo"
+    live.fleet_host_running_count = 1
+    live.fleet_host_total_count = 2
+    agents = [stale, live]
+    group = GroupRow(level=0, group_key=("apollo",), agent_indices=(0, 1))
+
+    summary = compute_banner_summary(group, agents, mode=GroupingMode.BY_MACHINE)
+
+    assert summary.authoritative is True
+    assert summary.count == 2
+    assert summary.running == 1
+    assert summary.unknown == 1
+    text = banner_summary_text(summary)
+    assert "2 agents" in text
+    assert "1 running" in text
+    assert "1 unknown" in text
+    assert "failed" not in text
+    assert "awaiting" not in text
+
+
+def test_compute_banner_summary_by_machine_l0_keeps_recount_for_here_group() -> None:
+    """The local ``here`` machine banner keeps its ordinary recount."""
+    agents = [_agent(cl_name="a", status="RUNNING"), _agent(cl_name="b", status="DONE")]
+    group = GroupRow(level=0, group_key=("here",), agent_indices=(0, 1))
+
+    summary = compute_banner_summary(group, agents, mode=GroupingMode.BY_MACHINE)
+
+    assert summary.authoritative is False
+    assert summary.count == 2
+    assert summary.running == 1
+
+
+def test_compute_banner_summary_by_machine_l0_falls_back_without_host_counts() -> None:
+    """A remote machine with no authoritative counts yet still recounts."""
+    agent = _agent(cl_name="a", status="RUNNING")
+    agent.fleet_origin_alias = "apollo"
+    group = GroupRow(level=0, group_key=("apollo",), agent_indices=(0,))
+
+    summary = compute_banner_summary(group, [agent], mode=GroupingMode.BY_MACHINE)
+
+    assert summary.authoritative is False
+    assert summary.count == 1
+    assert summary.running == 1
 
 
 # --- Snap-to-ancestor helper ---

@@ -282,6 +282,12 @@ class AgentFleetRefreshMixin:
         timeout_seconds: float | None,
     ) -> Mapping[str, Any] | None:
         merged: Mapping[str, Any] | None = None
+        # `include_terminal` no longer requests an unbounded terminal
+        # window: the owner-side snapshot now serves terminal rows under
+        # its own bounded recent-completion policy (count- and age-bounded),
+        # so this stays the same "bounded recent-completion scope" the local
+        # agent list shows by default. Older history beyond that window
+        # remains reachable through this same cursor continuation loop.
         base_query: dict[str, Any] = {
             "schema_version": 1,
             "limit": _FLEET_CATALOG_PAGE_LIMIT,

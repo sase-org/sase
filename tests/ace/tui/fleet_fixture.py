@@ -135,6 +135,7 @@ def fleet_summary(
         "logical_key": logical_key,
         "exact_key": exact_key,
         "row_kind": "agent_shell",
+        "family_role": "root",
         "labels": {
             "schema_version": 1,
             "project_label": project_name,

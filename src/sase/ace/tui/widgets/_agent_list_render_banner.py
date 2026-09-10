@@ -83,7 +83,7 @@ def format_banner_option(
     the cursor flow as selectable rows.
     """
     label = banner_label(group)
-    summary = compute_banner_summary(group, agents)
+    summary = compute_banner_summary(group, agents, mode=mode)
     chip = banner_summary_text(summary)
 
     # Only STANDARD mode uses agents' Patch names for banner rows;

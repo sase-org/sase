@@ -298,18 +298,50 @@ def _freshness_value(value: object) -> object:
     return value
 
 
+def _snapshot_generation(host: Mapping[str, Any]) -> str | None:
+    """Return the owner snapshot generation *host*'s page was built from.
+
+    ``None`` when the generation can't be determined (missing/malformed
+    cursor), in which case the caller falls back to the old union behavior
+    rather than risk dropping rows it can't prove are stale.
+    """
+    catalog = _catalog(host)
+    if catalog is None:
+        return None
+    cursor = catalog.get("snapshot_cursor")
+    if not isinstance(cursor, Mapping):
+        return None
+    generation = cursor.get("store_generation")
+    return generation if isinstance(generation, str) and generation else None
+
+
 def _merge_normalized_host_pages(
     first: Mapping[str, Any],
     second: Mapping[str, Any],
 ) -> dict[str, Any]:
-    rows = [dict(item) for item in summary_payloads(first)]
-    seen = {_summary_identity(item) for item in rows}
-    for item in summary_payloads(second):
-        key = _summary_identity(item)
-        if key in seen:
-            continue
-        rows.append(dict(item))
-        seen.add(key)
+    first_generation = _snapshot_generation(first)
+    second_generation = _snapshot_generation(second)
+    if (
+        first_generation is not None
+        and second_generation is not None
+        and first_generation != second_generation
+    ):
+        # `second` was fetched later and belongs to a newer owner snapshot
+        # build than the rows already accumulated in `first`. A page from an
+        # older generation must never resurrect a row the newer generation
+        # no longer serves (dismissed, demoted, or aged out since), so the
+        # newer page's own rows replace the stale accumulation instead of
+        # being unioned with it.
+        rows = [dict(item) for item in summary_payloads(second)]
+    else:
+        rows = [dict(item) for item in summary_payloads(first)]
+        seen = {_summary_identity(item) for item in rows}
+        for item in summary_payloads(second):
+            key = _summary_identity(item)
+            if key in seen:
+                continue
+            rows.append(dict(item))
+            seen.add(key)
 
     merged = dict(first)
     merged.update(

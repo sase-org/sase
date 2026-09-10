@@ -596,3 +596,166 @@ def test_catalog_next_cursors_by_host_keeps_continuations_separate() -> None:
         first_installation: "off:100",
         third_installation: "off:300",
     }
+
+
+def test_project_fleet_agents_never_renders_running_for_a_dead_liveness_row() -> None:
+    """A definitively-dead owner liveness never presents as RUNNING.
+
+    Simulates a demoted dead-active-tier record: the raw display status
+    still says "running" (sase-core's ``status_for_record`` does not
+    consult liveness), but the owner-resolved ``liveness``/``status_bucket``
+    already say the process is gone. The viewer must not fabricate an
+    active state from the stale status text.
+    """
+    summary = fleet_summary(status="running")
+    summary["liveness"] = "dead"
+    summary["status_bucket"] = "stopped"
+    response = fleet_host_response(alias="apollo", summaries=(summary,))
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    assert len(projection.fleet_rows) == 1
+    row = projection.fleet_rows[0]
+    assert row.status == "WAS RUNNING"
+    assert row.status_bucket == "Stopped"
+
+
+def test_project_fleet_agents_keeps_running_for_alive_liveness() -> None:
+    """A genuinely alive/running row keeps its ordinary RUNNING status."""
+    summary = fleet_summary(status="running")
+    response = fleet_host_response(alias="apollo", summaries=(summary,))
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    row = projection.fleet_rows[0]
+    assert row.status == "RUNNING"
+    assert row.status_bucket == "Running"
+
+
+def test_project_fleet_agents_sources_host_running_and_total_counts() -> None:
+    """Every row from a host carries that host's own authoritative counts."""
+    running = fleet_summary(agent_id="running-agent", status="running")
+    done = fleet_summary(agent_id="done-agent", status="done")
+    counts = fleet_counts((running, done), running=1)
+    response = fleet_host_response(
+        alias="apollo",
+        summaries=(running, done),
+        counts=counts,
+    )
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    assert len(projection.fleet_rows) == 2
+    for row in projection.fleet_rows:
+        assert row.fleet_host_running_count == 1
+        assert row.fleet_host_total_count == 2
+
+
+def test_project_fleet_agents_downgrades_fresh_chip_for_a_cached_aged_host() -> None:
+    """A cached, aged client response must not render the fresh chip.
+
+    The owner honestly stamped this row "fresh" at build time, but the
+    viewer's own federation-worker cache is serving a copy fetched 120s
+    ago, well past the fresh/stale thresholds - the rendered freshness must
+    reflect the worse (viewer) signal, not the owner's stamp alone.
+    """
+    summary = fleet_summary(status="running", freshness="fresh")
+    response = fleet_host_response(
+        alias="apollo", summaries=(summary,), freshness="fresh"
+    )
+    response["hosts"][0]["cached"] = True
+    response["hosts"][0]["age_seconds"] = 120.0
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    assert projection.fleet_rows[0].fleet_freshness == "stale"
+
+
+def test_project_fleet_agents_keeps_fresh_chip_for_a_live_fetch() -> None:
+    """A live (non-cached) fetch keeps the owner's honest freshness stamp."""
+    summary = fleet_summary(status="running", freshness="fresh")
+    response = fleet_host_response(
+        alias="apollo", summaries=(summary,), freshness="fresh"
+    )
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    assert projection.fleet_rows[0].fleet_freshness == "fresh"
+
+
+def _normalized_host(
+    *,
+    alias: str,
+    generation: str,
+    rows: list[dict[str, object]],
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "alias": alias,
+        "status": "ok",
+        "cached": False,
+        "age_seconds": None,
+        "summaries": rows,
+        "catalog": {
+            "schema_version": 1,
+            "snapshot_cursor": {
+                "schema_version": 1,
+                "store_generation": generation,
+                "sequence": 1,
+            },
+            "limit": 100,
+            "total_matching_rows": len(rows),
+            "next_cursor": None,
+            "has_more": False,
+            "state": "finished",
+        },
+    }
+
+
+def _normalized_response(*hosts: dict[str, object]) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "operation": "catalog",
+        "configured_host_count": len(hosts),
+        "hosts": list(hosts),
+        "count_hosts": [],
+    }
+
+
+def test_merge_catalog_pages_drops_rows_absent_from_a_newer_snapshot_generation() -> (
+    None
+):
+    """A page from an older owner snapshot build never resurrects vanished rows."""
+    vanished: dict[str, object] = {"logical_key": "vanished", "exact_key": "vanished-1"}
+    kept: dict[str, object] = {"logical_key": "kept", "exact_key": "kept-1"}
+    older = _normalized_response(
+        _normalized_host(alias="apollo", generation="gen-1", rows=[vanished, kept])
+    )
+    newer = _normalized_response(
+        _normalized_host(alias="apollo", generation="gen-2", rows=[kept])
+    )
+
+    merged = merge_catalog_pages(older, newer)
+
+    assert merged is not None
+    assert [row["logical_key"] for row in merged["summaries"]] == ["kept"]
+
+
+def test_merge_catalog_pages_unions_pages_within_the_same_snapshot_generation() -> None:
+    """Two continuation pages of the same snapshot build still union."""
+    page_one: dict[str, object] = {"logical_key": "page-one", "exact_key": "page-one-1"}
+    page_two: dict[str, object] = {"logical_key": "page-two", "exact_key": "page-two-1"}
+    first = _normalized_response(
+        _normalized_host(alias="apollo", generation="gen-1", rows=[page_one])
+    )
+    second = _normalized_response(
+        _normalized_host(alias="apollo", generation="gen-1", rows=[page_two])
+    )
+
+    merged = merge_catalog_pages(first, second)
+
+    assert merged is not None
+    assert {row["logical_key"] for row in merged["summaries"]} == {
+        "page-one",
+        "page-two",
+    }
