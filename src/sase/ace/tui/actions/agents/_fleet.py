@@ -11,25 +11,34 @@ from textual import on
 from textual.widgets import Static
 
 from sase.config import get_machine_name
-from sase.dispatch.federation import (FederationConfig, FederationConfigError,
-                                      FederationFacade,
-                                      FederationWorkerResponseError,
-                                      FederationWorkerUnavailable,
-                                      build_federation_facade,
-                                      load_federation_config)
-from sase.dispatch.follow_store import (FollowStoreError,
-                                        FollowStoreMutationOutcome,
-                                        FollowStoreSnapshot,
-                                        load_follow_snapshot,
-                                        reconcile_follow_store, record_follow,
-                                        unfollow)
+from sase.dispatch.federation import (
+    FederationConfig,
+    FederationConfigError,
+    FederationFacade,
+    FederationWorkerResponseError,
+    FederationWorkerUnavailable,
+    build_federation_facade,
+    load_federation_config,
+)
+from sase.dispatch.follow_store import (
+    FollowStoreError,
+    FollowStoreMutationOutcome,
+    FollowStoreSnapshot,
+    load_follow_snapshot,
+    reconcile_follow_store,
+    record_follow,
+    unfollow,
+)
 from sase.feature_flags import FeatureFlag, current_flags
 
-from ...models.fleet_agents import (FleetRowsProjection,
-                                    catalog_next_cursors_by_host,
-                                    followed_batch_family_promotions,
-                                    followed_logical_keys, merge_catalog_pages,
-                                    project_fleet_agents)
+from ...models.fleet_agents import (
+    FleetRowsProjection,
+    catalog_next_cursors_by_host,
+    followed_batch_family_promotions,
+    followed_logical_keys,
+    merge_catalog_pages,
+    project_fleet_agents,
+)
 from ...util.pump_tasks import spawn_pump_free_task
 from ...widgets.panel_tab_strip import PanelTab, PanelTabStrip
 
