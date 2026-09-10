@@ -413,6 +413,39 @@ def add_link(
     return _issue_payload(payload), payload
 
 
+def set_link_projection(
+    beads_dir: Path | str,
+    issue_id: str,
+    target_ref: str,
+    relation: str,
+    *,
+    direction: str,
+    present: bool,
+    operation_id: str,
+    description: str | None = None,
+    origin: str | None = None,
+    uses: int = 1,
+    now: str | None = None,
+) -> tuple[Issue, dict[str, Any]]:
+    _guard_bead_store_write(beads_dir, "set_link_projection")
+    binding = require_rust_binding("bead_set_link_projection")
+    payload = _call_issue_operation(
+        binding,
+        str(beads_dir),
+        issue_id,
+        target_ref,
+        relation,
+        direction,
+        present,
+        operation_id,
+        description,
+        origin,
+        uses,
+        now,
+    )
+    return _issue_payload(payload), payload
+
+
 def remove_link(
     beads_dir: Path | str,
     issue_id: str,
@@ -605,6 +638,7 @@ __all__ = [
     "remove_dependencies",
     "remove_link",
     "remove_many",
+    "set_link_projection",
     "snooze",
     "unmark_ready_to_work",
     "update",

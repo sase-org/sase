@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 import json
 import os
@@ -337,16 +338,20 @@ def _publication_store(checkout_store: ArtifactLinkStore) -> ArtifactLinkStore:
         resolve_machine_artifact_link_store
         is not _DEFAULT_RESOLVE_MACHINE_ARTIFACT_LINK_STORE
     ):
-        return resolve_machine_artifact_link_store(
+        store = resolve_machine_artifact_link_store(
             checkout_store.project_key,
             Path.cwd(),
         )
-    from sase.sdd import artifact_link_store as artifact_link_store_module
+    else:
+        from sase.sdd import artifact_link_store as artifact_link_store_module
 
-    return artifact_link_store_module.resolve_machine_artifact_link_store(
-        checkout_store.project_key,
-        Path.cwd(),
-    )
+        store = artifact_link_store_module.resolve_machine_artifact_link_store(
+            checkout_store.project_key,
+            Path.cwd(),
+        )
+    if store.beads_dir is None and checkout_store.beads_dir is not None:
+        return replace(store, beads_dir=checkout_store.beads_dir)
+    return store
 
 
 def _cli_writable_relation(slug: str) -> str:

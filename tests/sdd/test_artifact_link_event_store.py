@@ -21,7 +21,12 @@ from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
     artifact_link_aggregate_path,
 )
-from tests.sdd._artifact_link_store_helpers import _row, _store
+from tests._conftest_environment import redirect_sase_home
+from tests.sdd._artifact_link_store_helpers import (
+    _row,
+    _store,
+    allow_machine_sidecar_writes,
+)
 
 
 PROJECT_KEY = "gh_sase-org__sase"
@@ -42,6 +47,59 @@ def test_duplicate_endpoint_event_objects_reduce_once(
     assert snapshot.durable_event_count == 2
     assert len(rows) == 1
     assert rows[0]["description"] == "canonical event row"
+
+
+def test_reconciliation_reduces_event_union_before_deduping_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    left, right = _paired_stores(tmp_path, monkeypatch)
+    _write_event(
+        left.sidecar_roots["plan"],
+        _edge_event(
+            "a" * 32,
+            source="agent:reader.athena.worker",
+            relation="read",
+            target="plan:202609/hot.md",
+            origin="read",
+            occurrences=1,
+        ),
+    )
+    _write_event(
+        right.sidecar_roots["plan"],
+        _edge_event(
+            "b" * 32,
+            source="agent:reader.athena.worker",
+            relation="read",
+            target="plan:202609/hot.md",
+            origin="read",
+            occurrences=1,
+        ),
+    )
+    _patch_reconciliation_stores(monkeypatch, left, right)
+
+    [row] = left.preview_reconciled_aggregate()["rows"]
+
+    assert row["source_ref"] == "agent:reader.athena.worker"
+    assert row["target_ref"] == "plan:202609/hot.md"
+    assert row["uses"] == 2
+
+
+def test_reconciliation_unions_tombstones_with_sibling_observations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    left, right = _paired_stores(tmp_path, monkeypatch)
+    _write_event(left.sidecar_roots["plan"], _edge_event("1" * 32))
+    _write_event(
+        right.sidecar_roots["plan"],
+        _remove_event("2" * 32, observed=("1" * 32,)),
+    )
+    _patch_reconciliation_stores(monkeypatch, left, right)
+
+    aggregate = left.preview_reconciled_aggregate()
+
+    assert aggregate["rows"] == []
 
 
 def test_event_ordering_chooses_newest_edge_put(
@@ -384,3 +442,37 @@ def _write_imported_marker(store: ArtifactLinkStore) -> None:
         path = artifact_link_cutover_marker_path(root)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(marker_bytes)
+
+
+def _paired_stores(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[ArtifactLinkStore, ArtifactLinkStore]:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    stores: list[ArtifactLinkStore] = []
+    for name in ("left", "right"):
+        plans = tmp_path / name / "plans"
+        research = tmp_path / name / "research"
+        plans.mkdir(parents=True)
+        research.mkdir(parents=True)
+        stores.append(
+            ArtifactLinkStore(
+                project_key=PROJECT_KEY,
+                sidecar_roots={"plan": plans, "research": research},
+            )
+        )
+    return stores[0], stores[1]
+
+
+def _patch_reconciliation_stores(
+    monkeypatch: pytest.MonkeyPatch,
+    left: ArtifactLinkStore,
+    right: ArtifactLinkStore,
+) -> None:
+    def _stores(self: ArtifactLinkStore) -> tuple[ArtifactLinkStore, ...]:
+        if self is left:
+            return (left, right)
+        return (self,)
+
+    monkeypatch.setattr(ArtifactLinkStore, "_iter_reconciliation_stores", _stores)

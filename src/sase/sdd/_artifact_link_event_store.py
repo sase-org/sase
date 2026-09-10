@@ -49,6 +49,8 @@ class ArtifactLinkEventSnapshot:
     rows: tuple[dict[str, Any], ...] = ()
     durable_rows: tuple[dict[str, Any], ...] = ()
     pending_rows: tuple[dict[str, Any], ...] = ()
+    durable_events: tuple[dict[str, Any], ...] = ()
+    pending_events: tuple[dict[str, Any], ...] = ()
     aliases: tuple[dict[str, str], ...] = ()
     edges: tuple[dict[str, Any], ...] = ()
     validation_findings: tuple[ArtifactLinkEventValidationFinding, ...] = ()
@@ -147,60 +149,13 @@ class ArtifactLinkEventStoreAdapter:
             if include_pending
             else ((), _ArtifactLinkPendingStats())
         )
-        reduction_events = (*durable_events, *pending_events)
-        rows: tuple[dict[str, Any], ...] = ()
-        durable_rows: tuple[dict[str, Any], ...] = ()
-        pending_rows: tuple[dict[str, Any], ...] = ()
-        aliases: tuple[dict[str, str], ...] = ()
-        edges: tuple[dict[str, Any], ...] = ()
-        reduction_errors: tuple[str, ...] = ()
-        orphaned: tuple[str, ...] = ()
-        if durable_events:
-            try:
-                durable_reduction = require_rust_binding("artifact_link_events_reduce")(
-                    list(durable_events),
-                    [],
-                )
-                durable_rows = _reduced_rows(durable_reduction)
-            except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
-                reduction_errors = (*reduction_errors, str(exc))
-        if pending_events:
-            try:
-                pending_reduction = require_rust_binding("artifact_link_events_reduce")(
-                    [*_alias_events(durable_events), *pending_events],
-                    [],
-                )
-                pending_rows = _reduced_rows(pending_reduction)
-            except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
-                reduction_errors = (*reduction_errors, str(exc))
-        if reduction_events:
-            try:
-                reduction = require_rust_binding("artifact_link_events_reduce")(
-                    list(reduction_events),
-                    [],
-                )
-                rows = _reduced_rows(reduction)
-                aliases = _reduced_aliases(reduction)
-                edges = _reduced_edges(reduction)
-                orphaned = _orphaned_tombstones(edges)
-            except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
-                reduction_errors = (str(exc),)
-        snapshot = ArtifactLinkEventSnapshot(
-            rows=rows,
-            durable_rows=durable_rows,
-            pending_rows=pending_rows,
-            aliases=aliases,
-            edges=edges,
+        return reduce_artifact_link_event_inputs(
+            durable_events=durable_events,
+            pending_events=pending_events,
             validation_findings=findings,
-            reduction_errors=reduction_errors,
-            orphaned_tombstones=orphaned,
             pending_stats=pending_stats,
-            durable_event_count=len(durable_events),
-            pending_event_count=len(pending_events),
+            strict=strict,
         )
-        if strict:
-            snapshot.assert_healthy()
-        return snapshot
 
     def _durable_events(
         self,
@@ -277,6 +232,76 @@ class ArtifactLinkEventStoreAdapter:
                 now=now,
             ),
         )
+
+
+def reduce_artifact_link_event_inputs(
+    *,
+    durable_events: Iterable[Mapping[str, Any]],
+    pending_events: Iterable[Mapping[str, Any]] = (),
+    validation_findings: Iterable[ArtifactLinkEventValidationFinding] = (),
+    pending_stats: _ArtifactLinkPendingStats | None = None,
+    strict: bool = False,
+) -> ArtifactLinkEventSnapshot:
+    """Reduce already-validated durable and pending event inputs."""
+
+    durable = tuple(dict(event) for event in durable_events)
+    pending = tuple(dict(event) for event in pending_events)
+    reduction_events = (*durable, *pending)
+    rows: tuple[dict[str, Any], ...] = ()
+    durable_rows: tuple[dict[str, Any], ...] = ()
+    pending_rows: tuple[dict[str, Any], ...] = ()
+    aliases: tuple[dict[str, str], ...] = ()
+    edges: tuple[dict[str, Any], ...] = ()
+    reduction_errors: tuple[str, ...] = ()
+    orphaned: tuple[str, ...] = ()
+    if durable:
+        try:
+            durable_reduction = require_rust_binding("artifact_link_events_reduce")(
+                list(durable),
+                [],
+            )
+            durable_rows = _reduced_rows(durable_reduction)
+        except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
+            reduction_errors = (*reduction_errors, str(exc))
+    if pending:
+        try:
+            pending_reduction = require_rust_binding("artifact_link_events_reduce")(
+                [*_alias_events(durable), *pending],
+                [],
+            )
+            pending_rows = _reduced_rows(pending_reduction)
+        except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
+            reduction_errors = (*reduction_errors, str(exc))
+    if reduction_events:
+        try:
+            reduction = require_rust_binding("artifact_link_events_reduce")(
+                list(reduction_events),
+                [],
+            )
+            rows = _reduced_rows(reduction)
+            aliases = _reduced_aliases(reduction)
+            edges = _reduced_edges(reduction)
+            orphaned = _orphaned_tombstones(edges)
+        except (TypeError, ValueError, RuntimeError, AttributeError) as exc:
+            reduction_errors = (str(exc),)
+    snapshot = ArtifactLinkEventSnapshot(
+        rows=rows,
+        durable_rows=durable_rows,
+        pending_rows=pending_rows,
+        durable_events=durable,
+        pending_events=pending,
+        aliases=aliases,
+        edges=edges,
+        validation_findings=tuple(validation_findings),
+        reduction_errors=reduction_errors,
+        orphaned_tombstones=orphaned,
+        pending_stats=pending_stats or _ArtifactLinkPendingStats(),
+        durable_event_count=len(durable),
+        pending_event_count=len(pending),
+    )
+    if strict:
+        snapshot.assert_healthy()
+    return snapshot
 
 
 def _iter_event_object_paths(root: Path) -> Iterable[Path]:
@@ -457,4 +482,5 @@ __all__ = [
     "ArtifactLinkEventSnapshot",
     "ArtifactLinkEventStoreAdapter",
     "ArtifactLinkEventValidationFinding",
+    "reduce_artifact_link_event_inputs",
 ]

@@ -516,6 +516,51 @@ def test_import_replay_and_managed_markdown_projection_remain_event_consistent(
     }
 
 
+def test_baseline_event_projects_multiple_edges_to_one_bead(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cluster = _cluster(tmp_path, monkeypatch)
+    machine = cluster.machine_a
+    tracked_bead = cluster.bead_project.create("Baseline target", IssueType.PLAN)
+    first = _row(
+        source="plan:202609/baseline-a.md",
+        relation="implements",
+        target=f"bead:{tracked_bead.id}",
+        origin="migrated",
+        description="first imported edge",
+        created_by="agent:importer.athena.worker",
+        created_at="2026-09-10T00:00:00Z",
+    )
+    second = _row(
+        source="plan:202609/baseline-b.md",
+        relation="implements",
+        target=f"bead:{tracked_bead.id}",
+        origin="migrated",
+        description="second imported edge",
+        created_by="agent:importer.athena.worker",
+        created_at="2026-09-10T00:00:00Z",
+    )
+
+    report = publish_artifact_link_events(
+        machine.store,
+        (_baseline_event("eeeeeeeeeeeeeeeeeeeeeeeeeeee2222", (first, second)),),
+        push_after_commit=False,
+        mutation_origin="machine",
+    )
+
+    assert report.publication_error is None
+    assert report.published == 1
+    issue = cluster.bead_project.show(tracked_bead.id)
+    projected = {
+        (link.target_ref, link.relation, link.direction) for link in issue.links
+    }
+    assert projected == {
+        ("plan:202609/baseline-a.md", "implements", "in"),
+        ("plan:202609/baseline-b.md", "implements", "in"),
+    }
+
+
 def _cluster(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _AcceptanceCluster:
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     allow_machine_sidecar_writes(monkeypatch)
@@ -725,6 +770,29 @@ def _alias_event(operation_id: str, *, old_ref: str, new_ref: str) -> dict[str, 
             "type": "alias",
             "old_ref": old_ref,
             "new_ref": new_ref,
+        },
+    }
+    return dict(require_rust_binding("artifact_link_event_canonicalize")(event))
+
+
+def _baseline_event(
+    operation_id: str,
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    event = {
+        "schema_version": int(
+            require_rust_binding("artifact_link_event_schema_version")()
+        ),
+        "project_key": PROJECT_KEY,
+        "operation_id": operation_id,
+        "created_by": "agent:importer.athena.worker",
+        "origin": "migrated",
+        "created_at": "2026-09-10T00:00:00Z",
+        "kind": {
+            "type": "baseline-import",
+            "import_id": f"baseline-{operation_id}",
+            "source_head": "sha256:" + "b" * 64,
+            "rows": [dict(row) for row in rows],
         },
     }
     return dict(require_rust_binding("artifact_link_event_canonicalize")(event))

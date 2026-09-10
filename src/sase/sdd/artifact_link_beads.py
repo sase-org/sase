@@ -101,6 +101,48 @@ def remove_bead_endpoint_link(
     return outcome
 
 
+def set_bead_endpoint_projection(
+    beads_dir: Path,
+    *,
+    issue_id: str,
+    target_ref: str,
+    relation: str,
+    direction: str,
+    operation_id: str,
+    row: Mapping[str, Any] | None,
+    now: str | None = None,
+) -> dict[str, Any]:
+    """Install the exact event-reduced projection for one bead endpoint."""
+    from sase.core import bead_mutation_facade as rust_beads
+
+    if row is None:
+        _issue, outcome = rust_beads.set_link_projection(
+            beads_dir,
+            issue_id,
+            target_ref,
+            relation,
+            direction=direction,
+            present=False,
+            operation_id=operation_id,
+            now=now,
+        )
+        return outcome
+    _issue, outcome = rust_beads.set_link_projection(
+        beads_dir,
+        issue_id,
+        target_ref,
+        relation,
+        direction=direction,
+        present=True,
+        operation_id=operation_id,
+        description=str(row.get("description") or ""),
+        origin=str(row.get("origin") or ""),
+        uses=_row_uses(row),
+        now=now,
+    )
+    return outcome
+
+
 def rows_from_bead_issues(
     issues: Sequence[Issue],
     *,
@@ -200,6 +242,14 @@ def _row_identity(row: Mapping[str, Any]) -> tuple[str, ...]:
     return ("undirected", relation, left, right)
 
 
+def _row_uses(row: Mapping[str, Any]) -> int:
+    try:
+        uses = int(row.get("uses") or 0)
+    except (TypeError, ValueError):
+        return 1
+    return max(1, uses)
+
+
 def _unique_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     seen: dict[tuple[str, ...], dict[str, Any]] = {}
     order: list[tuple[str, ...]] = []
@@ -219,4 +269,5 @@ __all__ = [
     "remove_bead_endpoint_link",
     "rows_from_bead_issues",
     "rows_touching_bead",
+    "set_bead_endpoint_projection",
 ]

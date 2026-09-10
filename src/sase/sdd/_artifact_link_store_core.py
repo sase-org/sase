@@ -116,6 +116,8 @@ class ArtifactLinkStoreCoreMixin:
     def _authoritative_source_was_consulted_for_pass(
         self,
         stores: Iterable[ArtifactLinkStoreCoreMixin] | None = None,
+        *,
+        event_snapshot: ArtifactLinkEventSnapshot | None = None,
     ) -> Callable[[Mapping[str, Any]], bool]:
         """Return a row predicate with pass-local freshness caches."""
 
@@ -123,10 +125,13 @@ class ArtifactLinkStoreCoreMixin:
         observed_stores = tuple(stores or (self,))
 
         def predicate(row: Mapping[str, Any]) -> bool:
+            if event_snapshot is not None and event_snapshot.covers_row(row):
+                return True
             return any(
                 store._authoritative_source_was_consulted(  # noqa: SLF001
                     row,
                     freshness=freshness,
+                    include_events=event_snapshot is None,
                 )
                 for store in observed_stores
             )
@@ -138,6 +143,7 @@ class ArtifactLinkStoreCoreMixin:
         row: Mapping[str, Any],
         *,
         freshness: _FreshnessEvidence | None = None,
+        include_events: bool = True,
     ) -> bool:
         """Return whether a missing prior row is proven deleted here."""
 
@@ -151,10 +157,13 @@ class ArtifactLinkStoreCoreMixin:
                 row,
                 freshness=active_freshness,
             )
-            or self.artifact_link_event_snapshot(
-                include_pending=True,
-                strict=True,
-            ).covers_row(row)
+            or (
+                include_events
+                and self.artifact_link_event_snapshot(
+                    include_pending=True,
+                    strict=True,
+                ).covers_row(row)
+            )
         )
 
 

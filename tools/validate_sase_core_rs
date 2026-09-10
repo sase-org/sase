@@ -181,6 +181,7 @@ REQUIRED_BINDINGS = (
     "companion_md_path",
     "artifact_link_frontmatter_inlet",
     "bead_add_link",
+    "bead_set_link_projection",
     "bead_remove_link",
     "artifact_ref_file_index_parse",
     "artifact_ref_file_row_render",

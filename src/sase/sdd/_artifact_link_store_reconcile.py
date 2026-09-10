@@ -8,6 +8,10 @@ from typing import TYPE_CHECKING, Any
 
 from sase.artifact_ref_models import ArtifactRefContext
 
+from sase.sdd._artifact_link_event_store import (
+    ArtifactLinkEventSnapshot,
+    reduce_artifact_link_event_inputs,
+)
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     BEAD_KIND,
@@ -38,7 +42,7 @@ class ArtifactLinkStoreReconcileMixin:
     _load_sidecar_truth_rows: Callable[..., tuple[dict[str, Any], ...]]
     _authoritative_source_was_consulted: Callable[[Mapping[str, Any]], bool]
     _authoritative_source_was_consulted_for_pass: Callable[
-        [Iterable[ArtifactLinkStore]], Callable[[Mapping[str, Any]], bool]
+        ..., Callable[[Mapping[str, Any]], bool]
     ]
     _upsert_bead: Callable[[Mapping[str, Any]], dict[str, Any] | None]
     projected_rows: Callable[[], tuple[dict[str, Any], ...]]
@@ -56,11 +60,24 @@ class ArtifactLinkStoreReconcileMixin:
         """
 
         context = self._resolved_pass_context()
+        stores = tuple(self._iter_reconciliation_stores())
+        event_snapshot = self._reconciliation_event_snapshot(
+            stores,
+            include_local_pending=False,
+        )
         cache: dict[str, bool] = {}
         deduped = unique_rows(
-            row
-            for store in self._iter_reconciliation_stores()
-            for row in self._iter_reconciliation_sidecar_truth_rows(store)
+            (
+                *event_snapshot.rows,
+                *(
+                    row
+                    for store in stores
+                    for row in self._iter_reconciliation_legacy_sidecar_rows(
+                        store,
+                        event_snapshot=event_snapshot,
+                    )
+                ),
+            )
         )
         return tuple(
             row
@@ -83,11 +100,16 @@ class ArtifactLinkStoreReconcileMixin:
         prior = self.load_aggregate()
         collected: list[dict[str, Any]] = []
         stores = tuple(self._iter_reconciliation_stores())
+        event_snapshot = self._reconciliation_event_snapshot(
+            stores,
+            include_local_pending=True,
+        )
+        collected.extend(event_snapshot.rows)
         for store in stores:
             collected.extend(
-                self._iter_reconciliation_store_truth_rows(
+                self._iter_reconciliation_compatibility_rows(
                     store,
-                    include_pending=store._store_identity() == self._store_identity(),
+                    event_snapshot=event_snapshot,
                 )
             )
         return {
@@ -97,7 +119,10 @@ class ArtifactLinkStoreReconcileMixin:
                 collected=collected,
                 prior_rows=prior["rows"],
                 authoritative_source_was_consulted=(
-                    self._authoritative_source_was_consulted_for_pass(stores)
+                    self._authoritative_source_was_consulted_for_pass(
+                        stores,
+                        event_snapshot=event_snapshot,
+                    )
                 ),
                 projected_rows=self.projected_rows(),
             ),
@@ -288,6 +313,70 @@ class ArtifactLinkStoreReconcileMixin:
         except Exception:  # noqa: BLE001 - sibling clones prove nothing.
             if store._store_identity() == self._store_identity():
                 raise
+
+    def _reconciliation_event_snapshot(
+        self,
+        stores: Iterable[ArtifactLinkStore],
+        *,
+        include_local_pending: bool,
+    ) -> ArtifactLinkEventSnapshot:
+        durable_events: list[dict[str, Any]] = []
+        pending_events: list[dict[str, Any]] = []
+        local_identity = self._store_identity()
+        for store in stores:
+            is_local = store._store_identity() == local_identity
+            try:
+                snapshot = store.artifact_link_event_snapshot(
+                    include_pending=include_local_pending and is_local,
+                    strict=False,
+                )
+            except Exception:  # noqa: BLE001 - sibling clones prove nothing.
+                if is_local:
+                    raise
+                continue
+            if snapshot.validation_findings or snapshot.reduction_errors:
+                if is_local:
+                    snapshot.assert_healthy()
+                continue
+            durable_events.extend(snapshot.durable_events)
+            if include_local_pending and is_local:
+                pending_events.extend(snapshot.pending_events)
+        return reduce_artifact_link_event_inputs(
+            durable_events=durable_events,
+            pending_events=pending_events,
+            strict=True,
+        )
+
+    def _iter_reconciliation_compatibility_rows(
+        self,
+        store: ArtifactLinkStore,
+        *,
+        event_snapshot: ArtifactLinkEventSnapshot,
+    ) -> Iterable[dict[str, Any]]:
+        yield from self._iter_reconciliation_legacy_sidecar_rows(
+            store,
+            event_snapshot=event_snapshot,
+        )
+        for row in self._iter_reconciliation_bead_rows(store):
+            if not event_snapshot.covers_row(row):
+                yield row
+
+    def _iter_reconciliation_legacy_sidecar_rows(
+        self,
+        store: ArtifactLinkStore,
+        *,
+        event_snapshot: ArtifactLinkEventSnapshot,
+    ) -> Iterable[dict[str, Any]]:
+        try:
+            if store._legacy_indexes_imported():  # noqa: SLF001
+                return
+            for row in store._iter_sidecar_rows():
+                if not event_snapshot.covers_row(row):
+                    yield row
+        except Exception:  # noqa: BLE001 - sibling clones prove nothing.
+            if store._store_identity() == self._store_identity():
+                raise
+            return
 
     def _iter_reconciliation_store_truth_rows(
         self,

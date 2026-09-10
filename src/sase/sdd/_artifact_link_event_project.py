@@ -16,10 +16,10 @@ from sase.sdd._artifact_link_event_canonical import (
     event_remove_row as _event_remove_row,
     probe_row_from_edge as _probe_row_from_edge,
     reduce_events as _reduce_events,
-    row_uses as _row_uses,
     rows_from_events,
 )
 from sase.sdd._artifact_link_event_local_store import artifact_link_local_event_root
+from sase.sdd._artifact_link_event_store import reduce_artifact_link_event_inputs
 from sase.sdd._artifact_link_store_support import validate_artifact_link_row
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 
@@ -88,10 +88,7 @@ def apply_events_to_beads(
             receipt=False,
             diagnostic="artifact-link bead store is unavailable",
         )
-    from sase.sdd.artifact_link_beads import (
-        add_bead_endpoint_link,
-        remove_bead_endpoint_link,
-    )
+    from sase.sdd.artifact_link_beads import set_bead_endpoint_projection
     from sase.sdd._artifact_link_commit import (
         ArtifactLinkPersistError,
         commit_bead_link_events,
@@ -99,44 +96,42 @@ def apply_events_to_beads(
 
     try:
         changed = False
-        for item in objects:
-            event = item.event
-            operation_id = str(event["operation_id"])
-            event_kind = event.get("kind")
-            if not isinstance(event_kind, dict):
+        union_events = (
+            *(event.event for event in _iter_event_objects(store)),
+            *(item.event for item in objects),
+        )
+        snapshot = reduce_artifact_link_event_inputs(
+            durable_events=union_events,
+            strict=True,
+        )
+        desired, active_operations, affected = _desired_endpoint_projections(
+            snapshot.edges
+        )
+        raw_operations = _raw_endpoint_operations(union_events)
+        affected.update(raw_operations)
+        for key in sorted(affected):
+            issue_id, target_ref, relation, direction = key
+            row = desired.get(key)
+            operation_ids = (
+                active_operations.get(key) or raw_operations.get(key, ())
+                if row is not None
+                else raw_operations.get(key, ())
+            )
+            if not operation_ids:
                 continue
-            event_type = str(event_kind.get("type") or "")
-            if event_type == "edge-remove":
-                row = _event_remove_row(event)
-                if row is None:
-                    continue
-                for issue_id, target_ref, direction in _bead_endpoint_writes(row):
-                    outcome = remove_bead_endpoint_link(
-                        store.beads_dir,
-                        issue_id=issue_id,
-                        target_ref=target_ref,
-                        relation=str(row.get("relation") or ""),
-                        direction=direction,
-                        now=str(event.get("created_at") or "") or None,
-                        operation_id=operation_id,
-                    )
-                    changed = changed or bool(outcome.get("changed"))
-                continue
-            for row in _event_rows_for_beads(event):
-                for issue_id, target_ref, direction in _bead_endpoint_writes(row):
-                    outcome = add_bead_endpoint_link(
-                        store.beads_dir,
-                        issue_id=issue_id,
-                        target_ref=target_ref,
-                        relation=str(row.get("relation") or ""),
-                        description=str(row.get("description") or ""),
-                        origin=str(row.get("origin") or ""),
-                        direction=direction,
-                        uses=_row_uses(row),
-                        now=str(row.get("created_at") or "") or None,
-                        operation_id=operation_id,
-                    )
-                    changed = changed or bool(outcome.get("changed"))
+            now = str(row.get("created_at") or "") or None if row is not None else None
+            for operation_id in operation_ids:
+                outcome = set_bead_endpoint_projection(
+                    store.beads_dir,
+                    issue_id=issue_id,
+                    target_ref=target_ref,
+                    relation=relation,
+                    direction=direction,
+                    operation_id=operation_id,
+                    row=row,
+                    now=now,
+                )
+                changed = changed or bool(outcome.get("changed"))
 
         if changed or _bead_store_has_uncommitted_changes(store.beads_dir):
             commit_bead_link_events(
@@ -173,7 +168,86 @@ def _event_rows_for_beads(event: Mapping[str, Any]) -> tuple[dict[str, Any], ...
             return tuple(
                 validate_artifact_link_row(row) for row in rows if isinstance(row, dict)
             )
+    if isinstance(kind, dict) and str(kind.get("type") or "") == "edge-remove":
+        row = _event_remove_row(event)
+        return () if row is None else (row,)
     return rows_from_events((event,))
+
+
+_EndpointKey = tuple[str, str, str, str]
+
+
+def _desired_endpoint_projections(
+    reduced_edges: Iterable[Mapping[str, Any]],
+) -> tuple[
+    dict[_EndpointKey, dict[str, Any]],
+    dict[_EndpointKey, tuple[str, ...]],
+    set[_EndpointKey],
+]:
+    desired: dict[_EndpointKey, dict[str, Any]] = {}
+    active_operations: dict[_EndpointKey, tuple[str, ...]] = {}
+    affected: set[_EndpointKey] = set()
+    for edge_record in reduced_edges:
+        if not isinstance(edge_record, Mapping):
+            continue
+        row = edge_record.get("row")
+        active_row = (
+            validate_artifact_link_row(row) if isinstance(row, Mapping) else None
+        )
+        probe = active_row
+        if probe is None:
+            edge = edge_record.get("edge")
+            if not isinstance(edge, Mapping):
+                continue
+            try:
+                probe = validate_artifact_link_row(_probe_row_from_edge(edge))
+            except (TypeError, ValueError, RuntimeError):
+                continue
+        keys = tuple(_endpoint_keys_for_row(probe))
+        affected.update(keys)
+        if active_row is None:
+            continue
+        operation_ids = _active_version_operation_ids(edge_record)
+        for key in keys:
+            desired[key] = active_row
+            active_operations[key] = operation_ids
+    return desired, active_operations, affected
+
+
+def _raw_endpoint_operations(
+    events: Iterable[Mapping[str, Any]],
+) -> dict[_EndpointKey, tuple[str, ...]]:
+    operations: dict[_EndpointKey, list[str]] = {}
+    for event in events:
+        operation_id = str(event.get("operation_id") or "")
+        if not operation_id:
+            continue
+        for row in _event_rows_for_beads(event):
+            for key in _endpoint_keys_for_row(row):
+                operations.setdefault(key, []).append(operation_id)
+    return {
+        key: tuple(dict.fromkeys(operation_ids))
+        for key, operation_ids in operations.items()
+    }
+
+
+def _active_version_operation_ids(edge_record: Mapping[str, Any]) -> tuple[str, ...]:
+    versions = edge_record.get("versions")
+    if not isinstance(versions, list):
+        return ()
+    return tuple(
+        dict.fromkeys(
+            str(version.get("operation_id") or "")
+            for version in versions
+            if isinstance(version, Mapping) and bool(version.get("active"))
+        )
+    )
+
+
+def _endpoint_keys_for_row(row: Mapping[str, Any]) -> Iterable[_EndpointKey]:
+    relation = str(row.get("relation") or "")
+    for issue_id, target_ref, direction in _bead_endpoint_writes(row):
+        yield (issue_id, target_ref, relation, direction)
 
 
 def _bead_endpoint_writes(
