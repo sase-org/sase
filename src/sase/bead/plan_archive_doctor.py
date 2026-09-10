@@ -163,12 +163,12 @@ def inspect_plan_archive_health(
                 continue
             local_only.setdefault(
                 plan_ref,
-                _PlanArchiveFinding(
-                    category="local-only-canonical",
-                    plan_ref=plan_ref,
-                    relpath=relpath,
-                    sidecar_path=sidecar_path,
-                    source_path=source_path,
+                _finding(
+                    "local-only-canonical",
+                    plan_ref,
+                    relpath,
+                    sidecar_path,
+                    source_roots,
                 ),
             )
 
@@ -344,10 +344,17 @@ def _finding(
     source_path = _source_path_for_relpath(relpath, source_roots)
     owner = bead_id or (issue.id if issue is not None else None)
     detail = ""
+    plan_tier = _issue_plan_tier(issue)
     if source_path is not None and owner is not None:
         source_owner = _read_plan_bead_id(source_path)
         if source_owner not in (None, owner):
             detail = f"source frontmatter names another bead: {source_owner}"
+    if source_path is not None and not detail:
+        detail = _archive_validation_detail(
+            source_path,
+            relpath=relpath,
+            fallback_tier=plan_tier,
+        )
     return _PlanArchiveFinding(
         category=category,
         plan_ref=plan_ref,
@@ -355,7 +362,7 @@ def _finding(
         sidecar_path=sidecar_path,
         source_path=source_path,
         bead_id=owner,
-        plan_tier=_issue_plan_tier(issue),
+        plan_tier=plan_tier,
         source_machine=(
             _source_machine_from_creator(issue.created_by)
             if issue is not None
@@ -427,6 +434,13 @@ def _tier_for_archive(
     source_path: Path,
     finding: _PlanArchiveFinding,
 ) -> Literal["tale", "epic"]:
+    return _tier_for_source(source_path, finding.plan_tier)
+
+
+def _tier_for_source(
+    source_path: Path,
+    fallback_tier: Literal["tale", "epic"] | None,
+) -> Literal["tale", "epic"]:
     try:
         content = source_path.read_text(encoding="utf-8")
     except OSError:
@@ -436,7 +450,48 @@ def _tier_for_archive(
         return "tale"
     if tier == "epic":
         return "epic"
-    return finding.plan_tier or "tale"
+    return fallback_tier or "tale"
+
+
+def _archive_validation_detail(
+    source_path: Path,
+    *,
+    relpath: str,
+    fallback_tier: Literal["tale", "epic"] | None,
+) -> str:
+    month, _filename = relpath.split("/", 1)
+    tier = _tier_for_source(source_path, fallback_tier)
+    try:
+        content = source_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        return f"source content could not be read: {exc}"
+
+    from sase.llm_provider._plan_utils import add_create_time_frontmatter
+    from sase.sdd.committed_plan_validation import inspect_committed_plan
+
+    content = add_create_time_frontmatter(content)
+    authored_tier = read_plan_tier_from_content(content)
+    frontmatter, _body, _had_frontmatter = parse_frontmatter(content)
+    normalized_fields: dict[str, str] = {"tier": tier}
+    if tier == "tale" and authored_tier != "tale" and "size" not in frontmatter:
+        normalized_fields["size"] = "medium"
+    content = set_frontmatter_fields(content, normalized_fields)
+    errors = tuple(
+        issue
+        for issue in inspect_committed_plan(
+            content,
+            tier=tier,
+            path=source_path,
+            yyyymm=month,
+        )
+        if issue.is_error
+    )
+    if not errors:
+        return ""
+    details = "; ".join(f"{issue.code}: {issue.message}" for issue in errors[:3])
+    if len(errors) > 3:
+        details += f"; {len(errors) - 3} more"
+    return f"committed plan validation failed: {details}"
 
 
 def _issue_plan_tier(issue: Issue | None) -> Literal["tale", "epic"] | None:

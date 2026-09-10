@@ -64,6 +64,40 @@ def test_plan_archive_doctor_reports_missing_categories(tmp_path: Path) -> None:
     assert report.local_only_canonical[0].source_path == draft_source
 
 
+def test_plan_archive_doctor_marks_invalid_sources_unrecoverable(
+    tmp_path: Path,
+) -> None:
+    plans = tmp_path / "plans"
+    local = tmp_path / "local-plans"
+    plans.mkdir()
+    store = SddStore("sidecar_repos", plans, plans)
+    path = local / "202608/invalid.md"
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        """---
+tier: tale
+title: Invalid implementation
+goal: Deliver the implementation
+---
+# Plan
+
+Implement the requested change.
+""",
+        encoding="utf-8",
+    )
+
+    report = inspect_plan_archive_health((), store, plan_roots=(plans, local))
+
+    assert [finding.plan_ref for finding in report.local_only_canonical] == [
+        "plan:202608/invalid.md"
+    ]
+    finding = report.local_only_canonical[0]
+    assert not finding.recoverable
+    assert "committed plan validation failed" in finding.detail
+    assert "tale-size-missing" in finding.detail
+    assert report.recoverable_findings == ()
+
+
 def test_plan_archive_repair_restores_bead_id_and_publishes(
     tmp_path: Path,
     monkeypatch,
