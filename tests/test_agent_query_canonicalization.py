@@ -27,6 +27,7 @@ CORPUS = [
     "name:bar",
     "model:opus",
     "provider:anthropic",
+    "machine:apollo.local",
     "tribe:pinned",
     "type:workflow",
     "source:axe",
@@ -86,7 +87,11 @@ def test_implicit_and_canonicalizes_to_explicit() -> None:
 
 
 def test_property_value_with_spaces_canonicalizes_quoted() -> None:
-    from sase.ace.agent_query import PropertyMatch, project_query_term
+    from sase.ace.agent_query import (
+        PropertyMatch,
+        machine_query_term,
+        project_query_term,
+    )
 
     assert (
         to_canonical_string(PropertyMatch("project", "Internal Tools"))
@@ -94,5 +99,6 @@ def test_property_value_with_spaces_canonicalizes_quoted() -> None:
     )
     assert project_query_term("Internal Tools") == 'project:"Internal Tools"'
     assert project_query_term("sase") == "project:sase"
+    assert machine_query_term("apollo.local") == "machine:apollo.local"
     parsed = parse_agent_query(project_query_term("Internal Tools"))
     assert to_canonical_string(parsed) == 'project:"Internal Tools"'

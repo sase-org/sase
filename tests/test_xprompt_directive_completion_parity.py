@@ -186,6 +186,8 @@ def test_wait_keywords_exclude_queue_fields(
     assert "runners=" not in insertions
     assert "priority=" not in insertions
     assert "p=" not in insertions
+    assert "weight=" not in insertions
+    assert "w=" not in insertions
 
 
 def test_wait_colon_form_never_advertises_structured_keywords(

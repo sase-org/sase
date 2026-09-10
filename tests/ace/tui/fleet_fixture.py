@@ -9,6 +9,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from sase.core.rust import require_rust_binding
 from sase.dispatch.federation import (
     FederationConfig,
     FederationHostConfig,
@@ -47,23 +48,36 @@ def fleet_logical_locator(
 
 
 def fleet_logical_key(locator: Mapping[str, Any]) -> str:
-    """Return the fixture logical key corresponding to a locator."""
-    project = locator.get("project")
-    origin: object = None
-    if isinstance(project, Mapping):
-        origin = project.get("origin")
-    installation_id = (
-        origin.get("installation_id")
-        if isinstance(origin, Mapping)
-        else locator.get("installation_id")
-    )
-    agent_id = locator.get("agent_id")
-    return f"{installation_id}:{agent_id}"
+    """Return the core logical key corresponding to a locator."""
+    return str(require_rust_binding("fleet_logical_locator_key")(dict(locator)))
+
+
+def fleet_exact_locator(
+    logical: Mapping[str, Any],
+    *,
+    agent_id: str,
+    run_id: str,
+) -> dict[str, Any]:
+    """Build the exact instance-locator shape consumed by fleet projections."""
+    return {
+        "schema_version": 1,
+        "logical": copy.deepcopy(dict(logical)),
+        "shell_id": f"shell-{agent_id}",
+        "run_id": run_id,
+        "attempt_id": "attempt-1",
+    }
+
+
+def fleet_exact_key(locator: Mapping[str, Any]) -> str:
+    """Return the core exact key corresponding to an instance locator."""
+    return str(require_rust_binding("fleet_instance_locator_key")(dict(locator)))
 
 
 def fleet_summary(
     *,
     installation_id: str | None = None,
+    project_id: str = "sase-main",
+    project_name: str = "SASE",
     agent_id: str = "agent-1",
     run_id: str = "run-1",
     logical_key: str | None = None,
@@ -73,55 +87,89 @@ def fleet_summary(
     patch_name: str = "remote-dispatch",
     agent_name: str | None = None,
     model: str = "gpt-5",
+    provider: str = "codex",
     bounded_intent: str = "exercise fleet projection",
     needs_attention: bool = False,
+    family_id: str | None = "family-1",
+    freshness: str = "fresh",
+    connection_health: str = "online",
+    observed_at_unix: float = 1_800_000_000.0,
+    occupied_runner_slot: bool | None = None,
 ) -> dict[str, Any]:
-    """Build one resolved remote row summary without Rust bindings."""
+    """Build one valid resolved remote row summary."""
+    del patch_name  # Remote summaries expose project labels, not Patch labels.
     origin_id = installation_id or fleet_installation_id()
     logical = fleet_logical_locator(
         installation_id=origin_id,
+        project_id=project_id,
         agent_id=agent_id,
+        family_id=family_id,
     )
-    logical_key = logical_key or f"{origin_id}:{agent_id}"
-    exact_key = exact_key or f"{logical_key}:{run_id}"
+    exact = fleet_exact_locator(logical, agent_id=agent_id, run_id=run_id)
+    logical_key = logical_key or fleet_logical_key(logical)
+    exact_key = exact_key or fleet_exact_key(exact)
     row_revision = {
         "schema_version": 1,
         "logical_key": logical_key,
         "revision": revision,
     }
+    bucket = _status_bucket(status)
+    lifecycle = _lifecycle_for_status(status)
+    liveness = _liveness_for_status(status)
+    current_instance = liveness == "alive"
+    if occupied_runner_slot is None:
+        occupied_runner_slot = current_instance and bucket in {
+            "running",
+            "starting",
+            "waiting",
+            "queued",
+        }
     return {
         "schema_version": 1,
         "logical_locator": logical,
-        "exact_locator": {
-            "schema_version": 1,
-            "logical": logical,
-            "shell_id": f"shell-{agent_id}",
-            "run_id": run_id,
-            "attempt_id": "attempt-1",
-        },
+        "exact_locator": exact,
         "logical_key": logical_key,
         "exact_key": exact_key,
-        "status": status,
-        "needs_attention": needs_attention,
-        "revision": revision,
-        "row_revision": row_revision,
-        "liveness": {
+        "row_kind": "agent_shell",
+        "labels": {
             "schema_version": 1,
-            "status": "alive" if status in {"running", "asking"} else "stopped",
-            "connection_health": "online",
+            "project_label": project_name,
+            "agent_label": agent_name or agent_id,
+            "family_label": family_id,
+            "owner_label": "bryan",
+            "alias": None,
         },
-        "content": {
-            "agent_name": agent_name or agent_id,
-            "patch_name": patch_name,
-            "model": model,
-            "bounded_intent": bounded_intent,
-        },
+        "project_name": project_name,
+        "model": model,
+        "provider": provider,
+        "status": _display_status(status),
+        "status_bucket": bucket,
+        "intent": bounded_intent,
+        "observed_at_unix": observed_at_unix,
+        "row_revision": row_revision,
+        "lifecycle": lifecycle,
+        "liveness": liveness,
+        "connection_health": _connection_health(connection_health),
+        "freshness": _freshness(freshness),
         "capabilities": {
             "schema_version": 1,
             "resource": ["content.read", "stop"],
             "host": [],
             "protocol": ["fleet.v1"],
         },
+        "content": {
+            "schema_version": 1,
+            "handle_count": 1,
+            "total_byte_len": len(bounded_intent),
+            "kinds": ["transcript"],
+            "supports_range": True,
+            "supports_growth": current_instance,
+        },
+        "current_instance": current_instance,
+        "dismissable": not current_instance,
+        "needs_attention": needs_attention,
+        "occupied_runner_slot": bool(occupied_runner_slot),
+        "container_projected_concrete_agent": False,
     }
 
 
@@ -136,34 +184,64 @@ def fleet_host_response(
     counts: Mapping[str, Any] | None = None,
     diagnostics: Iterable[Mapping[str, Any]] = (),
     partial: bool = False,
+    operation: str = "catalog",
 ) -> dict[str, Any]:
     """Build a federation read response containing one host."""
     origin_id = installation_id or fleet_installation_id()
-    summary_list = [dict(summary) for summary in summaries or ()]
-    host_counts = dict(counts) if counts is not None else _counts_for(summary_list)
+    summary_list = [
+        _summary_with_host_observation(
+            dict(summary),
+            freshness=freshness,
+            connection_health=connection_health,
+            observed_at_unix=observed_at_unix,
+        )
+        for summary in summaries or ()
+    ]
+    host_counts = (
+        dict(counts)
+        if counts is not None
+        else fleet_counts(summary_list, observed_at_unix=observed_at_unix)
+    )
     response: dict[str, Any] = {
         "schema_version": 1,
+        "operation": operation,
         "configured_hosts": 1,
-        "counts": {"hosts": 1, **host_counts},
         "hosts": [
             {
                 "schema_version": 1,
                 "alias": alias,
-                "origin": {
+                "provider_ref": f"{alias}-provider",
+                "installation_id": origin_id,
+                "endpoint": f"https://{alias}.example.test",
+                "status": "ok",
+                "cached": _freshness(freshness) != "fresh",
+                "age_seconds": None,
+                "payload": {
                     "schema_version": 1,
-                    "alias": alias,
-                    "installation_id": origin_id,
+                    "cursor": _store_cursor(alias),
+                    "counts": host_counts,
+                    "count_revision": _max_revision(summary_list),
+                    "freshness": _freshness_wire(
+                        freshness,
+                        observed_at_unix=observed_at_unix,
+                        partial=partial,
+                    ),
+                    "page": {
+                        "schema_version": 1,
+                        "rows": summary_list,
+                        "limit": 100,
+                        "total_matching_rows": host_counts["logical_agent_total"],
+                        "next_cursor": None,
+                        "has_more": False,
+                    },
                 },
-                "origin_installation_id": origin_id,
-                "freshness": freshness,
-                "connection_health": connection_health,
-                "observed_at_unix": observed_at_unix,
-                "counts": host_counts,
-                "summaries": summary_list,
+                "error": None,
             }
         ],
     }
-    diagnostic_list = [dict(diagnostic) for diagnostic in diagnostics]
+    diagnostic_list = [
+        _diagnostic(diagnostic, operation=operation) for diagnostic in diagnostics
+    ]
     if diagnostic_list:
         response["diagnostics"] = diagnostic_list
     if partial:
@@ -203,35 +281,17 @@ def fleet_multi_host_response(
 ) -> dict[str, Any]:
     """Build a deterministic federation response spanning multiple hosts."""
     host_list = [copy.deepcopy(dict(host)) for host in hosts]
-    total = 0
-    running = 0
-    for host in host_list:
-        counts = host.get("counts")
-        if isinstance(counts, Mapping):
-            total += int(counts.get("total", 0) or 0)
-            running += int(counts.get("running", 0) or 0)
-            continue
-        summaries = _summary_payloads(host)
-        host_counts = _counts_for(summaries)
-        host["counts"] = host_counts
-        total += host_counts["total"]
-        running += host_counts["running"]
-
     response: dict[str, Any] = {
         "schema_version": 1,
+        "operation": "catalog",
         "configured_hosts": configured_hosts
         if configured_hosts is not None
         else len(host_list),
-        "counts": {
-            "hosts": configured_hosts
-            if configured_hosts is not None
-            else len(host_list),
-            "total": total,
-            "running": running,
-        },
         "hosts": host_list,
     }
-    diagnostic_list = [dict(diagnostic) for diagnostic in diagnostics]
+    diagnostic_list = [
+        _diagnostic(diagnostic, operation="catalog") for diagnostic in diagnostics
+    ]
     if diagnostic_list:
         response["diagnostics"] = diagnostic_list
     if partial:
@@ -246,9 +306,10 @@ def fleet_fault_diagnostic(
     code: str,
     message: str,
     severity: str = "warning",
-) -> dict[str, str]:
+) -> dict[str, Any]:
     """Build a host-scoped fault diagnostic for offline Fleet tests."""
     return {
+        "schema_version": 1,
         "alias": alias,
         "operation": operation,
         "code": code,
@@ -258,26 +319,210 @@ def fleet_fault_diagnostic(
 
 
 def _summary_payloads(host: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
-    summaries = host.get("summaries")
-    if isinstance(summaries, Iterable) and not isinstance(
-        summaries,
-        (str, bytes, bytearray),
-    ):
-        return tuple(item for item in summaries if isinstance(item, Mapping))
+    payload = host.get("payload")
+    if isinstance(payload, Mapping):
+        page = payload.get("page")
+        if isinstance(page, Mapping):
+            rows = page.get("rows")
+            if isinstance(rows, Iterable) and not isinstance(
+                rows,
+                (str, bytes, bytearray),
+            ):
+                return tuple(item for item in rows if isinstance(item, Mapping))
     return ()
 
 
-def _counts_for(summaries: Iterable[Mapping[str, Any]]) -> dict[str, int]:
-    running_statuses = {"active", "alive", "asking", "running", "started", "starting"}
+def fleet_counts(
+    summaries: Iterable[Mapping[str, Any]],
+    *,
+    running: int | None = None,
+    observed_at_unix: float | None = None,
+) -> dict[str, Any]:
+    """Build valid authoritative logical-agent counts for fixture summaries."""
     summary_list = list(summaries)
+    total = len(summary_list)
+    max_revision = _max_revision(summary_list)
+    observed = (
+        observed_at_unix
+        if observed_at_unix is not None
+        else _max_observed_at_unix(summary_list)
+    )
+    running_count = (
+        running
+        if running is not None
+        else sum(1 for summary in summary_list if _summary_counts_as_running(summary))
+    )
+    attention_count = sum(
+        1 for summary in summary_list if summary.get("needs_attention")
+    )
+    waiting_count = sum(
+        1
+        for summary in summary_list
+        if str(summary.get("status_bucket") or "").casefold()
+        in {"waiting", "queued", "stopped"}
+    )
+    occupied_count = (
+        running_count
+        if running is not None
+        else sum(
+            1 for summary in summary_list if bool(summary.get("occupied_runner_slot"))
+        )
+    )
     return {
-        "total": len(summary_list),
-        "running": sum(
-            1
-            for summary in summary_list
-            if str(summary.get("status") or "").casefold() in running_statuses
-        ),
+        "schema_version": 1,
+        "basis": {
+            "schema_version": 1,
+            "input_rows": total,
+            "selected_rows": total,
+            "max_revision": max_revision,
+            "observed_at_unix_max": observed,
+        },
+        "logical_agent_total": total,
+        "running": running_count,
+        "waiting": waiting_count,
+        "attention": attention_count,
+        "occupied_runner_slots": occupied_count,
     }
+
+
+def _store_cursor(alias: str) -> dict[str, Any]:
+    safe_alias = "".join(
+        character if character.isalnum() or character in "_-" else "_"
+        for character in alias
+    )
+    return {
+        "schema_version": 1,
+        "store_generation": f"gen-{safe_alias or 'fleet'}",
+        "sequence": 1,
+    }
+
+
+def _status_bucket(status: str) -> str:
+    normalized = status.casefold().replace("-", "_").replace(" ", "_")
+    if normalized in {"failed", "error"}:
+        return "failed"
+    if normalized in {"done", "complete", "completed", "terminal"}:
+        return "done"
+    if normalized in {"stopped", "cancelled", "canceled"}:
+        return "stopped"
+    if normalized == "starting":
+        return "starting"
+    if normalized in {"queued", "pending"}:
+        return "queued"
+    if normalized in {"waiting", "waiting_input", "needs_input", "blocked"}:
+        return "stopped"
+    if normalized in {"asking", "question"}:
+        return "stopped"
+    return "running"
+
+
+def _lifecycle_for_status(status: str) -> str:
+    normalized = status.casefold().replace("-", "_").replace(" ", "_")
+    if normalized in {"failed", "error"}:
+        return "failed"
+    if normalized in {"done", "complete", "completed", "terminal"}:
+        return "terminal"
+    if normalized in {"stopped", "cancelled", "canceled"}:
+        return "terminal"
+    if normalized == "starting":
+        return "starting"
+    if normalized in {"waiting", "waiting_input", "needs_input", "blocked", "queued"}:
+        return "waiting"
+    if normalized in {"asking", "question"}:
+        return "asking"
+    return "running"
+
+
+def _liveness_for_status(status: str) -> str:
+    lifecycle = _lifecycle_for_status(status)
+    if lifecycle in {"starting", "running", "waiting", "asking"}:
+        return "alive"
+    return "dead"
+
+
+def _display_status(status: str) -> str:
+    return status.replace("-", " ").replace("_", " ").upper()
+
+
+def _freshness(value: str) -> str:
+    normalized = value.casefold().strip()
+    if normalized in {"fresh", "aging", "stale", "unknown"}:
+        return normalized
+    if normalized.startswith("cached"):
+        return "stale"
+    return "unknown"
+
+
+def _connection_health(value: str) -> str:
+    normalized = value.casefold().strip()
+    if normalized in {"online", "degraded", "offline", "unknown"}:
+        return normalized
+    if normalized in {"reconnecting", "reconnect", "slow"}:
+        return "degraded"
+    return "unknown"
+
+
+def _freshness_wire(
+    value: str,
+    *,
+    observed_at_unix: float | None,
+    partial: bool,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "freshness": _freshness(value),
+        "partial": partial,
+        "refreshed_at_unix": observed_at_unix,
+        "error": "partial" if partial else None,
+    }
+
+
+def _summary_with_host_observation(
+    summary: dict[str, Any],
+    *,
+    freshness: str,
+    connection_health: str,
+    observed_at_unix: float | None,
+) -> dict[str, Any]:
+    summary["freshness"] = _freshness(freshness)
+    summary["connection_health"] = _connection_health(connection_health)
+    if observed_at_unix is not None:
+        summary["observed_at_unix"] = observed_at_unix
+    return summary
+
+
+def _max_revision(summaries: Iterable[Mapping[str, Any]]) -> int | None:
+    revisions: list[int] = []
+    for summary in summaries:
+        revision = summary.get("row_revision")
+        if isinstance(revision, Mapping):
+            value = revision.get("revision")
+            if isinstance(value, int) and not isinstance(value, bool):
+                revisions.append(value)
+    return max(revisions) if revisions else None
+
+
+def _max_observed_at_unix(summaries: Iterable[Mapping[str, Any]]) -> float | None:
+    values: list[float] = []
+    for summary in summaries:
+        value = summary.get("observed_at_unix")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            values.append(float(value))
+    return max(values) if values else None
+
+
+def _summary_counts_as_running(summary: Mapping[str, Any]) -> bool:
+    if bool(summary.get("dismissable")):
+        return False
+    return str(summary.get("status_bucket") or "").casefold() == "running"
+
+
+def _diagnostic(diagnostic: Mapping[str, Any], *, operation: str) -> dict[str, Any]:
+    value = dict(diagnostic)
+    value.setdefault("schema_version", 1)
+    value.setdefault("alias", None)
+    value.setdefault("operation", operation)
+    return value
 
 
 def fleet_attention_response(

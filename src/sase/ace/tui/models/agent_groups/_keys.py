@@ -130,6 +130,19 @@ def status_grouping_signature(
     )
 
 
+def machine_grouping_signature(
+    agent: Agent,
+) -> tuple[str, str, str, int, datetime | None]:
+    """Return the ``BY_MACHINE`` grouping determinants for a single agent."""
+    return (
+        _machine_name(agent),
+        _name_root(agent),
+        _name_prefix(agent),
+        _name_prefix_member_rank(agent),
+        agent.start_time,
+    )
+
+
 def _patch_name_for_grouping(agent: Agent) -> str:
     """Return the real Patch name for grouping, if any.
 
@@ -147,13 +160,18 @@ def _patch_name_for_grouping(agent: Agent) -> str:
 def _project_sort_key(mode: GroupingMode, project: str) -> tuple[int, str | int]:
     """Sort key for L0 banners.
 
-    STANDARD: named projects first, ``(no project)`` last.
-    BY_DATE / BY_STATUS: fixed bucket order (newest-first / priority-first).
+    STANDARD: named projects first, ``(no project)`` last. BY_DATE / BY_STATUS:
+    fixed bucket order (newest-first / priority-first). BY_MACHINE: local rows
+    first, then remote aliases alphabetically.
     """
     if mode is GroupingMode.STANDARD:
         if project:
             return (0, project.lower())
         return (1, "")
+    if mode is GroupingMode.BY_MACHINE:
+        if project == "here":
+            return (0, "")
+        return (1, project.casefold())
     return (0, bucket_sort_index(mode, project))
 
 
@@ -182,17 +200,24 @@ def _date_subgroup_sort_key(
     return date_subgroup_sort_key(date_bucket, subgroup, anchor)
 
 
+def _machine_name(agent: Agent) -> str:
+    return getattr(agent, "fleet_origin_alias", None) or "here"
+
+
 def _l0_value_for(agent: Agent, mode: GroupingMode, now: datetime) -> str:
     """Compute the L0 string value for *agent* under *mode*.
 
     For STANDARD this is the project name; for BY_DATE / BY_STATUS it's
-    the bucket name.  Stored in :class:`GroupingKeys.project` so the
+    the bucket name, and for BY_MACHINE it is the machine alias. Stored in
+    :class:`GroupingKeys.project` so the
     rest of the tree-building plumbing stays unchanged.
     """
     if mode is GroupingMode.STANDARD:
         return _project_name(agent)
     if mode is GroupingMode.BY_DATE:
         return date_bucket_for(agent, now)
+    if mode is GroupingMode.BY_MACHINE:
+        return _machine_name(agent)
     return status_bucket_for(agent)
 
 
@@ -308,7 +333,11 @@ def walk_anchors(
     Agents with no usable anchor sort last within their bucket (``+inf``
     in the negated-epoch slot).
     """
-    if mode not in {GroupingMode.BY_DATE, GroupingMode.BY_STATUS}:
+    if mode not in {
+        GroupingMode.BY_DATE,
+        GroupingMode.BY_STATUS,
+        GroupingMode.BY_MACHINE,
+    }:
         return [(0.0, 0)] * len(agents)
     anchor_lookup = (
         anchors
@@ -365,7 +394,7 @@ def walk_order(
     else:
         sortable_indices = list(range(len(keys_per_agent)))
 
-    # BY_STATUS partitions each status bucket into standalone sase agents followed
+    # BY_STATUS / BY_MACHINE partition each L0 bucket into standalone sase agents followed
     # by visible name-root subgroups. Recency applies only inside those two
     # partitions, so an older standalone cannot fall below a newer subgroup.
     # Apply the same rule inside each visible name-root: direct lanes precede
@@ -377,7 +406,7 @@ def walk_order(
     status_sort_keys: list[tuple[int, float, str, int, float, str, int]] = [
         (0, 0.0, "", 0, 0.0, "", 0)
     ] * len(keys_per_agent)
-    if mode is GroupingMode.BY_STATUS:
+    if mode in {GroupingMode.BY_STATUS, GroupingMode.BY_MACHINE}:
         root_units: dict[tuple[object, ...], list[int]] = {}
         for i in sortable_indices:
             k = keys_per_agent[i]

@@ -15,8 +15,10 @@ from ._fleet_agents_payload import (
     catalog_next_cursor,
     catalog_next_cursors_by_host,
     configured_host_count,
+    diagnostics_from_attention_response,
     diagnostics_from_response,
     merge_catalog_pages,
+    normalize_response,
     response_is_partial,
 )
 from ._fleet_agents_promotion import followed_batch_family_promotions
@@ -47,14 +49,17 @@ def project_fleet_agents(
 ) -> FleetRowsProjection:
     """Project federation responses into Focus and Fleet Agent rows."""
     active_keys, active_locator_ids = active_follow_state(follow_snapshot)
+    summary_normalized = normalize_response(summary_response)
+    catalog_normalized = normalize_response(catalog_response)
+    followed_normalized = normalize_response(followed_response)
     diagnostics = [
-        *diagnostics_from_response(summary_response),
-        *diagnostics_from_response(catalog_response),
-        *diagnostics_from_response(followed_response),
-        *diagnostics_from_response(attention_response),
+        *diagnostics_from_response(summary_normalized),
+        *diagnostics_from_response(catalog_normalized),
+        *diagnostics_from_response(followed_normalized),
+        *diagnostics_from_attention_response(attention_response),
     ]
     attention_by_logical_key = attention_index_by_logical_key(attention_response)
-    fleet_source = catalog_response or summary_response
+    fleet_source = catalog_normalized or summary_normalized
     fleet_rows = tuple(
         dedupe_rows(
             rows_from_response(
@@ -66,7 +71,7 @@ def project_fleet_agents(
             )
         )
     )
-    followed_source = followed_response or summary_response
+    followed_source = followed_normalized or summary_normalized
     focus_rows = tuple(
         dedupe_rows(
             rows_from_response(
@@ -79,9 +84,9 @@ def project_fleet_agents(
         )
     )
     host_count = max(
-        configured_host_count(summary_response),
-        configured_host_count(catalog_response),
-        configured_host_count(followed_response),
+        configured_host_count(summary_normalized),
+        configured_host_count(catalog_normalized),
+        configured_host_count(followed_normalized),
     )
     fallback_counts: dict[str, Any] = {
         "local": local_agent_count,
@@ -90,10 +95,14 @@ def project_fleet_agents(
         "fleet": len(fleet_rows),
         "hosts": host_count,
     }
+    fleet_count_source = catalog_response or summary_response
     counts = rust_counts_or_fallback(
         fallback_counts,
         followed_response=followed_response,
-        fleet_response=fleet_source,
+        fleet_response=fleet_count_source,
+    )
+    attention_partial = bool(
+        attention_response is not None and attention_response.get("partial")
     )
     return FleetRowsProjection(
         focus_rows=focus_rows,
@@ -103,12 +112,12 @@ def project_fleet_agents(
         partial=any(
             response_is_partial(response)
             for response in (
-                summary_response,
-                catalog_response,
-                followed_response,
-                attention_response,
+                summary_normalized,
+                catalog_normalized,
+                followed_normalized,
             )
-        ),
+        )
+        or attention_partial,
         counts=counts,
     )
 

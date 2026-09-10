@@ -28,8 +28,9 @@ status bucket, standalone sase agents render before visible name-root subgroups;
 launch recency sorts units only within those two partitions. The same rule
 places lanes directly under a name-root before its visible dotted-prefix
 subgroups. Subgroups use their outer/root agent's ``start_time`` and remain
-contiguous. ``BY_DATE`` replaces the tree with date bucket → time subgroup and
-intentionally suppresses name-root/name-prefix grouping.
+contiguous. ``BY_MACHINE`` uses the same name grouping inside each machine
+bucket, with local rows under ``here``. ``BY_DATE`` replaces the tree with date
+bucket → time subgroup and intentionally suppresses name-root/name-prefix grouping.
 
 Tribe-level grouping is not part of this tree — tribes drive the dynamic
 side panels (see :mod:`sase.ace.tui.models.agent_panels`), so each panel
@@ -75,6 +76,7 @@ from ._buckets import (
 )
 from ._keys import (
     grouping_keys_for_agents,
+    machine_grouping_signature,
     panel_uses_patch_level,
     status_grouping_signature,
 )
@@ -120,6 +122,7 @@ __all__ = [
     "enumerate_group_keys",
     "find_visible_ancestor_banner",
     "grouping_keys_for_agents",
+    "machine_grouping_signature",
     "panel_uses_patch_level",
     "status_bucket_for",
     "status_grouping_signature",

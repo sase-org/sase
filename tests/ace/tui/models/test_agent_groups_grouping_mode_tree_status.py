@@ -560,3 +560,60 @@ def test_build_agent_tree_single_bucket_still_renders_banner() -> None:
         if e.kind == "group" and e.group is not None and e.group.level == 0
     ]
     assert l0_banners == [("Done",)]
+
+
+def test_build_agent_tree_by_machine_orders_here_first_then_aliases() -> None:
+    local = _agent(
+        cl_name="local",
+        agent_name="local.agent",
+        start_time=datetime(2026, 4, 26, 8, 0, 0),
+    )
+    zeus = _agent(
+        cl_name="zeus",
+        agent_name="zeus.agent",
+        start_time=datetime(2026, 4, 26, 12, 0, 0),
+    )
+    zeus.fleet_origin_alias = "zeus"
+    apollo = _agent(
+        cl_name="apollo",
+        agent_name="apollo.agent",
+        start_time=datetime(2026, 4, 26, 10, 0, 0),
+    )
+    apollo.fleet_origin_alias = "apollo"
+
+    entries = build_agent_tree(
+        [zeus, local, apollo],
+        mode=GroupingMode.BY_MACHINE,
+        now=_NOW,
+    )
+
+    assert _group_keys(entries, level=0) == [("here",), ("apollo",), ("zeus",)]
+    assert [entry.agent_idx for entry in entries if entry.kind == "agent"] == [
+        1,
+        2,
+        0,
+    ]
+
+
+def test_build_agent_tree_by_machine_groups_name_roots_within_machine() -> None:
+    first = _agent(cl_name="x", agent_name="coder.claude", status="RUNNING")
+    first.fleet_origin_alias = "apollo"
+    second = _agent(cl_name="y", agent_name="coder.codex", status="RUNNING")
+    second.fleet_origin_alias = "apollo"
+    solo = _agent(cl_name="z", agent_name="solo.gemini", status="RUNNING")
+    solo.fleet_origin_alias = "apollo"
+
+    entries = build_agent_tree(
+        [first, second, solo],
+        mode=GroupingMode.BY_MACHINE,
+        now=_NOW,
+    )
+
+    assert _kinds(entries) == [
+        ("group", 0),
+        ("agent", 2),
+        ("group", 1),
+        ("agent", 0),
+        ("agent", 1),
+    ]
+    assert _group_keys(entries, level=1) == [("apollo", "coder")]

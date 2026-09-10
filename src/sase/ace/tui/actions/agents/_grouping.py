@@ -36,14 +36,20 @@ GroupingSaveTarget = Literal[  # legacy compatibility alias
 log = logging.getLogger(__name__)
 
 #: Agents-tab cycle order — STANDARD is included so a single press from
-#: BY_STATUS lands the user back at the project default.
-_GROUPING_CYCLE: tuple[str, ...] = ("STANDARD", "BY_DATE", "BY_STATUS")
+#: BY_MACHINE lands the user back at the project default.
+_GROUPING_CYCLE: tuple[str, ...] = (
+    "STANDARD",
+    "BY_DATE",
+    "BY_STATUS",
+    "BY_MACHINE",
+)
 
 #: Human-readable labels for the Agents-tab toast emitted on each step.
 _MODE_LABELS: dict[str, str] = {
     "STANDARD": "by project",
     "BY_DATE": "by date",
     "BY_STATUS": "by status",
+    "BY_MACHINE": "by machine",
 }
 
 #: Patches-tab cycle order — BY_PROJECT is the first-paint default; the cycle

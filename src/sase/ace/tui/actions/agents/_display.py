@@ -246,10 +246,10 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         if getattr(self, "_agent_search_query", ""):
             self._record_display_full_rebuild_fallback("active_search")
             return False
-        if (
-            getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-            is not GroupingMode.STANDARD
-        ):
+        if getattr(self, "_grouping_mode", GroupingMode.STANDARD) not in {
+            GroupingMode.STANDARD,
+            GroupingMode.BY_MACHINE,
+        }:
             self._record_display_full_rebuild_fallback("unsupported_grouping")
             return False
         if not self._agent_display_widgets_match_grouping_mode():

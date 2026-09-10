@@ -20,6 +20,7 @@ from tests.ace.tui.fleet_fixture import (
     fleet_host_response,
     fleet_installation_id,
     fleet_logical_locator,
+    fleet_multi_host_response,
     fleet_summary,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
@@ -139,37 +140,35 @@ def _fleet_visual_responses() -> tuple[
         status="running",
         revision=4,
     )
-    cached["liveness"]["connection_health"] = "offline"
-    summary_response = {
-        "schema_version": 1,
-        "configured_hosts": 2,
-        "counts": {"hosts": 2, "total": 3, "running": 2},
-        "partial": True,
-        "diagnostics": (
+    cached["connection_health"] = "offline"
+    cached["freshness"] = "stale"
+    summary_response = fleet_multi_host_response(
+        fleet_host_response(
+            alias="apollo",
+            installation_id=apollo_installation,
+            summaries=(followed, queued),
+            freshness="fresh",
+            connection_health="online",
+        )["hosts"][0],
+        fleet_host_response(
+            alias="mac",
+            installation_id=mac_installation,
+            summaries=(cached,),
+            freshness="cached 12m",
+            connection_health="offline",
+            observed_at_unix=1_783_076_400.0,
+        )["hosts"][0],
+        configured_hosts=2,
+        partial=True,
+        diagnostics=(
             {
+                "schema_version": 1,
                 "code": "host_partial",
                 "severity": "warning",
                 "message": "mac returned cached rows only",
             },
         ),
-        "hosts": [
-            fleet_host_response(
-                alias="apollo",
-                installation_id=apollo_installation,
-                summaries=(followed, queued),
-                freshness="fresh",
-                connection_health="online",
-            )["hosts"][0],
-            fleet_host_response(
-                alias="mac",
-                installation_id=mac_installation,
-                summaries=(cached,),
-                freshness="cached 12m",
-                connection_health="offline",
-                observed_at_unix=1_783_076_400.0,
-            )["hosts"][0],
-        ],
-    }
+    )
     attention_response = fleet_attention_response(
         (
             {

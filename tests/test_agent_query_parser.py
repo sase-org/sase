@@ -44,6 +44,12 @@ def test_parses_dotted_tribe_property_match() -> None:
     )
 
 
+def test_parses_machine_property_match() -> None:
+    assert parse_agent_query("machine:apollo.local") == PropertyMatch(
+        key="machine", value="apollo.local"
+    )
+
+
 def test_parses_age_comparisons() -> None:
     assert parse_agent_query("age>2h") == DurationCompare(
         key="age", op=">", seconds=7200

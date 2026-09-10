@@ -25,6 +25,7 @@ from .types import (
     PropertyMatch,
     QueryExpr,
     StringMatch,
+    machine_query_term,
     project_query_term,
     to_canonical_string,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "StringMatch",
     "evaluate_agent_query",
     "compile_agent_query_pushdown",
+    "machine_query_term",
     "parse_agent_query",
     "project_query_term",
     "to_canonical_string",

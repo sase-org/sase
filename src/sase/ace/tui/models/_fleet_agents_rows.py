@@ -35,27 +35,14 @@ def rows_from_response(
         host_alias = _host_alias(host, host_index)
         origin = mapping(host.get("origin"))
         origin_installation_id = optional_str(
-            host.get("installation_id"),
-            host.get("origin_installation_id"),
             origin.get("installation_id"),
             origin.get("id"),
         )
-        payload = mapping(host.get("payload"))
-        payload_freshness = mapping(payload.get("freshness"))
+        host_freshness_wire = mapping(host.get("freshness"))
         host_freshness = optional_str(
-            host.get("freshness")
-            if isinstance(host.get("freshness"), str)
-            else mapping(host.get("freshness")).get("freshness"),
-            payload_freshness.get("freshness"),
-            payload.get("freshness")
-            if isinstance(payload.get("freshness"), str)
-            else None,
+            host_freshness_wire.get("freshness"),
+            host.get("freshness") if isinstance(host.get("freshness"), str) else None,
             host.get("status"),
-        )
-        host_health = optional_str(
-            host.get("connection_health"),
-            host.get("health"),
-            host.get("state"),
         )
         observed_at = float_or_none(
             host.get("observed_at_unix"),
@@ -67,7 +54,8 @@ def rows_from_response(
                 host_alias=host_alias,
                 origin_installation_id=origin_installation_id,
                 host_freshness=host_freshness,
-                host_health=host_health,
+                host_health=optional_str(host.get("status")),
+                host_diagnostic=_host_diagnostic(host),
                 observed_at_unix=observed_at,
                 summary_index=summary_index,
                 attention_by_logical_key=attention_by_logical_key,
@@ -87,6 +75,7 @@ def _agent_from_summary(
     origin_installation_id: str | None,
     host_freshness: str | None,
     host_health: str | None,
+    host_diagnostic: str | None,
     observed_at_unix: float | None,
     summary_index: int,
     attention_by_logical_key: Mapping[str, Mapping[str, Any]],
@@ -99,9 +88,9 @@ def _agent_from_summary(
     exact_locator = mapping(summary.get("exact_locator"))
     logical_key = optional_str(summary.get("logical_key"))
     exact_key = optional_str(summary.get("exact_key"))
+    row_revision = mapping(summary.get("row_revision"))
     agent_name = _agent_name(
         summary,
-        content,
         labels,
         logical_key,
         exact_key,
@@ -109,11 +98,12 @@ def _agent_from_summary(
     )
     patch_name = _patch_name(
         summary,
-        content,
         labels,
         logical_locator,
         agent_name,
     )
+    project_display_name = _project_display_name(summary, labels, logical_locator)
+    project_file = _project_file(logical_locator, project_display_name)
     raw_suffix_value = raw_suffix(
         host_alias,
         exact_key or logical_key or locator_id(exact_locator or logical_locator),
@@ -130,63 +120,55 @@ def _agent_from_summary(
     )
     revision = int_or_none(
         summary.get("revision"),
-        lifecycle.get("revision"),
-        content.get("revision"),
+        row_revision.get("revision"),
     )
     start_time = datetime_from_unix(
         summary.get("started_at_unix"),
         summary.get("start_time_unix"),
         lifecycle.get("started_at_unix"),
-        content.get("started_at_unix"),
+        summary.get("observed_at_unix"),
         observed_at_unix,
     )
     stop_time = datetime_from_unix(
         summary.get("stopped_at_unix"),
         summary.get("finished_at_unix"),
         lifecycle.get("stopped_at_unix"),
-        content.get("stopped_at_unix"),
     )
     freshness = optional_str(
         summary.get("freshness"),
-        lifecycle.get("freshness"),
         host_freshness,
     )
     health = optional_str(
         summary.get("connection_health"),
         liveness.get("connection_health"),
+        summary.get("liveness") if isinstance(summary.get("liveness"), str) else None,
         host_health,
     )
     bounded_intent = optional_str(
         summary.get("intent"),
-        content.get("bounded_intent"),
-        content.get("intent"),
         summary.get("bounded_intent"),
     )
     capabilities = mapping(summary.get("capabilities"))
-    row_revision = mapping(summary.get("row_revision"))
     if revision is None:
         revision = int_or_none(row_revision.get("revision"))
     agent = Agent(
         agent_type=AgentType.RUNNING,
         cl_name=patch_name,
-        project_file=f"/fleet/{host_alias}/project.yml",
+        project_file=project_file,
         status=status,
         start_time=start_time,
         stop_time=stop_time,
         raw_suffix=raw_suffix_value,
         agent_name=agent_name,
-        model=optional_str(summary.get("model"), content.get("model")),
+        model=optional_str(summary.get("model")),
         llm_provider=optional_str(
             summary.get("provider"),
-            content.get("llm_provider"),
-            content.get("provider"),
             summary.get("llm_provider"),
         ),
         reasoning_effort=optional_str(
-            content.get("reasoning_effort"),
             summary.get("reasoning_effort"),
         ),
-        project_display_name=host_alias,
+        project_display_name=project_display_name,
         fleet_origin_alias=host_alias,
         fleet_origin_installation_id=origin_installation_id,
         fleet_logical_locator=dict(logical_locator) if logical_locator else None,
@@ -201,6 +183,7 @@ def _agent_from_summary(
         fleet_capabilities=dict(capabilities) if capabilities else None,
         fleet_content=dict(content) if content else None,
         fleet_bounded_intent=bounded_intent,
+        fleet_diagnostic=host_diagnostic,
         fleet_attention=dict(attention) if attention else None,
     )
     return agent
@@ -223,7 +206,6 @@ def _host_alias(host: Mapping[str, Any], host_index: int) -> str:
 
 def _agent_name(
     summary: Mapping[str, Any],
-    content: Mapping[str, Any],
     labels: Mapping[str, Any],
     logical_key: str | None,
     exact_key: str | None,
@@ -232,8 +214,6 @@ def _agent_name(
     name = optional_str(
         labels.get("agent_label"),
         summary.get("agent_label"),
-        content.get("agent_name"),
-        content.get("name"),
         summary.get("agent_name"),
         summary.get("name"),
     )
@@ -247,7 +227,6 @@ def _agent_name(
 
 def _patch_name(
     summary: Mapping[str, Any],
-    content: Mapping[str, Any],
     labels: Mapping[str, Any],
     logical_locator: Mapping[str, Any],
     agent_name: str,
@@ -255,18 +234,58 @@ def _patch_name(
     project = logical_locator.get("project")
     project_id = project.get("project_id") if isinstance(project, Mapping) else project
     patch = optional_str(
-        labels.get("project_label"),
-        summary.get("project_name"),
-        content.get("patch"),
-        content.get("patch_name"),
-        content.get("cl_name"),
+        project_id,
         summary.get("patch"),
         summary.get("patch_name"),
         logical_locator.get("patch"),
         logical_locator.get("patch_name"),
-        project_id,
+        summary.get("project_name"),
+        labels.get("project_label"),
     )
     return display_token(patch or agent_name)
+
+
+def _project_display_name(
+    summary: Mapping[str, Any],
+    labels: Mapping[str, Any],
+    logical_locator: Mapping[str, Any],
+) -> str:
+    return display_token(
+        optional_str(
+            summary.get("project_name"),
+            labels.get("project_label"),
+            _logical_project_id(logical_locator),
+        )
+        or "fleet"
+    )
+
+
+def _project_file(
+    logical_locator: Mapping[str, Any],
+    project_display_name: str,
+) -> str:
+    project_id = _logical_project_id(logical_locator) or project_display_name
+    return f"/fleet/{display_token(project_id)}/project.yml"
+
+
+def _logical_project_id(logical_locator: Mapping[str, Any]) -> str | None:
+    project = logical_locator.get("project")
+    if isinstance(project, Mapping):
+        return optional_str(project.get("project_id"))
+    return optional_str(project)
+
+
+def _host_diagnostic(host: Mapping[str, Any]) -> str | None:
+    diagnostics = host.get("diagnostics")
+    if not isinstance(diagnostics, list):
+        return None
+    for item in diagnostics:
+        if not isinstance(item, Mapping):
+            continue
+        message = optional_str(item.get("message"), item.get("code"))
+        if message:
+            return message
+    return None
 
 
 def _status_from_summary(

@@ -109,6 +109,18 @@ def test_bare_tribe_means_any_tribe_assigned_agent() -> None:
     assert tokens[0].value == ""
 
 
+def test_bare_machine_means_any_remote_agent() -> None:
+    tokens = list(tokenize("machine:"))
+    assert tokens[0].type == TokenType.PROPERTY
+    assert tokens[0].property_key == "machine"
+    assert tokens[0].value == ""
+
+    tokens = list(tokenize("machine: "))
+    assert tokens[0].type == TokenType.PROPERTY
+    assert tokens[0].property_key == "machine"
+    assert tokens[0].value == ""
+
+
 def test_property_value_can_be_quoted() -> None:
     tokens = list(tokenize('text:"hello world"'))
     assert tokens[0].type == TokenType.PROPERTY
@@ -121,6 +133,14 @@ def test_property_value_can_be_dotted() -> None:
     assert tokens[0].type == TokenType.PROPERTY
     assert tokens[0].property_key == "tribe"
     assert tokens[0].value == "sase-42.3"
+    assert tokens[1].type == TokenType.EOF
+
+
+def test_machine_property_value_can_be_dotted() -> None:
+    tokens = list(tokenize("machine:apollo.local"))
+    assert tokens[0].type == TokenType.PROPERTY
+    assert tokens[0].property_key == "machine"
+    assert tokens[0].value == "apollo.local"
     assert tokens[1].type == TokenType.EOF
 
 

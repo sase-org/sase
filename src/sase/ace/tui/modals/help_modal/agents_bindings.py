@@ -434,6 +434,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ("name:VAL", "Substring on agent name"),
                 ("model:VAL", "Substring on model"),
                 ("provider:VAL", "Substring on llm provider"),
+                ("machine:VAL  machine:", "Exact machine/here / any remote"),
                 ("type:VAL", "workflow | run | running"),
                 ("source:VAL", "axe | manual"),
                 ("needs:input", "Question / waiting input"),
@@ -453,9 +454,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 (
                     f"{d(a.cycle_grouping_mode)} / {d(a.cycle_grouping_mode_reverse)}",
-                    "Cycle: project → date → status",
+                    "Cycle: project -> date -> status -> machine",
                 ),
                 ("by date", "Sub-grouped by hour, day, or week"),
+                ("by machine", "Local rows under here; remotes by alias"),
                 ("⏳ Waiting", "Timer or dependency wait"),
                 ("▲ Stopped", "User must act"),
                 ("▶ Running", "Actively executing"),

@@ -35,6 +35,16 @@ _BANNER_CACHE_MAX = 128
 BannerMarkState = Literal["none", "partial", "all"]
 
 
+def _freeze_jsonish(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return tuple(
+            sorted((str(key), _freeze_jsonish(item)) for key, item in value.items())
+        )
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_jsonish(item) for item in value)
+    return value
+
+
 def _bounded_lru_get(cache: "OrderedDict[Any, Any]", key: Any) -> Any:
     """Move *key* to most-recent if present and return its value, else ``None``.
 
@@ -306,10 +316,21 @@ def agent_render_key(
         agent.hidden,
         agent.retry_attempt,
         agent.fleet_origin_alias,
+        agent.fleet_origin_installation_id,
+        agent.fleet_logical_key,
+        agent.fleet_exact_key,
+        agent.fleet_revision,
+        _freeze_jsonish(agent.fleet_row_revision),
         agent.fleet_followed,
         agent.fleet_freshness,
         agent.fleet_connection_health,
+        agent.fleet_observed_at_unix,
+        _freeze_jsonish(agent.fleet_capabilities),
+        _freeze_jsonish(agent.fleet_content),
         agent.fleet_bounded_intent,
+        agent.fleet_diagnostic,
+        _freeze_jsonish(agent.fleet_attention),
+        agent.project_display_name,
         agent.is_workflow_child,
         agent.appears_as_agent,
         agent.is_anonymous,

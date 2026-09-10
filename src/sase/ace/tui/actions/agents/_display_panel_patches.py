@@ -8,6 +8,7 @@ from sase.core.time import local_now
 
 from ...models.agent_groups import (
     GroupingMode,
+    machine_grouping_signature,
     status_bucket_for,
     status_grouping_signature,
 )
@@ -40,6 +41,15 @@ def _status_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
     if old_agent.identity != new_agent.identity:
         return False
     return status_grouping_signature(old_agent) == status_grouping_signature(new_agent)
+
+
+def _machine_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
+    """Whether a ``BY_MACHINE`` row may be patched in place for *new_agent*."""
+    if old_agent.identity != new_agent.identity:
+        return False
+    return machine_grouping_signature(old_agent) == machine_grouping_signature(
+        new_agent
+    )
 
 
 def _clan_row_patch_preserves_order(old_agent: Agent, new_agent: Agent) -> bool:
@@ -98,10 +108,10 @@ class PanelPatchMixin:
                 count=len(removed_identities),
             )
             return False
-        if (
-            getattr(self, "_grouping_mode", GroupingMode.STANDARD)
-            is not GroupingMode.STANDARD
-        ):
+        if getattr(self, "_grouping_mode", GroupingMode.STANDARD) not in {
+            GroupingMode.STANDARD,
+            GroupingMode.BY_MACHINE,
+        }:
             self._record_display_patch_trace(
                 display_cost="row_remove",
                 fallback_reason="unsupported_grouping",
@@ -298,9 +308,8 @@ class PanelPatchMixin:
             )
             return False
 
-        if getattr(
-            self, "_grouping_mode", GroupingMode.STANDARD
-        ) is GroupingMode.BY_STATUS and not _status_row_patch_is_safe(
+        grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        if grouping_mode is GroupingMode.BY_STATUS and not _status_row_patch_is_safe(
             widget._agents[local_idx], agent
         ):
             # Under BY_STATUS a row patch is only safe for a non-structural
@@ -308,6 +317,15 @@ class PanelPatchMixin:
             # the same status bucket, name-root/name-prefix subgroup, and launch
             # anchor so its cached visual position is still valid. A bucket,
             # hierarchy, or recency change requires a panel rebuild.
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="unsupported_grouping",
+                count=1,
+            )
+            return False
+        if grouping_mode is GroupingMode.BY_MACHINE and not _machine_row_patch_is_safe(
+            widget._agents[local_idx], agent
+        ):
             self._record_display_patch_trace(
                 display_cost="row_patch",
                 fallback_reason="unsupported_grouping",

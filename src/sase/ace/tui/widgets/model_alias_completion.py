@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Literal
 
 from sase.ace.tui.util.editor_offsets import editor_range_to_offsets, utf16_character
 from sase.ace.tui.widgets._directive_completion_models import (
@@ -12,7 +12,11 @@ from sase.ace.tui.widgets._directive_completion_models import (
 )
 from sase.ace.tui.widgets._directive_completion_types import ModelCompletionMetadata
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.core.rust import require_rust_binding
+from sase.ace.tui.widgets._model_shortcut_marker import (
+    MODEL_ALIAS_SHORTCUT_MARKER,
+    model_shortcut_context_payload,
+    model_shortcut_edit_payload,
+)
 from sase.xprompt.model_completion import (
     ModelCompletionEntry,
     model_completion_entry_wire_rows,
@@ -59,9 +63,12 @@ def detect_model_alias_completion_context(
     position = _editor_position(text, cursor_location)
     if position is None:
         return None
-    payload: Any = require_rust_binding("model_alias_shortcut_context")(
+    payload = model_shortcut_context_payload(
         text,
+        cursor_location,
         position,
+        binding_name="model_alias_shortcut_context",
+        marker=MODEL_ALIAS_SHORTCUT_MARKER,
     )
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
         return None
@@ -145,11 +152,14 @@ def plan_model_alias_completion_edit(
     if position is None:
         return None
 
-    payload: Any = require_rust_binding("model_alias_shortcut_edit")(
+    payload = model_shortcut_edit_payload(
         text,
+        cursor_location,
         position,
         model_completion_entry_wire_rows(entries),
         selected.insertion,
+        binding_name="model_alias_shortcut_edit",
+        marker=MODEL_ALIAS_SHORTCUT_MARKER,
     )
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
         return None

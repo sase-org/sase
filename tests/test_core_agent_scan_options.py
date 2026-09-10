@@ -105,6 +105,9 @@ def test_waiting_runner_slot_fields_match_filesystem_marker(tmp_path: Path) -> N
                 "wait_runners_explicit": True,
                 "wait_priority": 5,
                 "wait_priority_explicit": True,
+                "queue_weight": 0.25,
+                "queue_weight_explicit": True,
+                "eligible_since": "2026-07-12T19:20:01Z",
                 "slot_requested_at": "2026-07-12T19:20:00Z",
             }
         ),
@@ -124,6 +127,11 @@ def test_waiting_runner_slot_fields_match_filesystem_marker(tmp_path: Path) -> N
     assert waiting.wait_runners_explicit is raw["wait_runners_explicit"]
     assert waiting.wait_priority == raw["wait_priority"]
     assert waiting.wait_priority_explicit is raw["wait_priority_explicit"]
+    assert waiting.queue_weight == raw["queue_weight"]
+    assert waiting.queue_weight_explicit is raw["queue_weight_explicit"]
+    assert waiting.queue_weight_invalid is False
+    assert waiting.queue_weight_error is None
+    assert waiting.eligible_since == raw["eligible_since"]
     assert waiting.slot_requested_at == raw["slot_requested_at"]
 
 
@@ -136,7 +144,14 @@ def test_agent_meta_wait_priority_scan_preserves_explicit_and_legacy_values(
     explicit.mkdir(parents=True)
     legacy.mkdir(parents=True)
     (explicit / "agent_meta.json").write_text(
-        json.dumps({"name": "priority-waiter", "wait_priority": 4}),
+        json.dumps(
+            {
+                "name": "priority-waiter",
+                "wait_priority": 4,
+                "queue_weight": 0.5,
+                "queue_weight_explicit": True,
+            }
+        ),
         encoding="utf-8",
     )
     (legacy / "agent_meta.json").write_text(
@@ -151,8 +166,13 @@ def test_agent_meta_wait_priority_scan_preserves_explicit_and_legacy_values(
     legacy_meta = by_timestamp[legacy.name].agent_meta
     assert explicit_meta is not None
     assert explicit_meta.wait_priority == 4
+    assert explicit_meta.queue_weight == 0.5
+    assert explicit_meta.queue_weight_explicit is True
+    assert explicit_meta.queue_weight_invalid is False
+    assert explicit_meta.queue_weight_error is None
     assert legacy_meta is not None
     assert legacy_meta.wait_priority is None
+    assert legacy_meta.queue_weight is None
 
 
 def test_scan_agent_artifact_dirs_honors_project_and_workflow_filters(

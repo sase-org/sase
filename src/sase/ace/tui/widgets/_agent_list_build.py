@@ -467,7 +467,8 @@ def try_remove_rows(
     Returns ``False`` (caller falls back to a full ``update_list`` rebuild)
     when any conservative gate makes the in-place path unsafe:
 
-    - grouping mode is not :data:`GroupingMode.STANDARD`;
+    - grouping mode is neither :data:`GroupingMode.STANDARD` nor
+      :data:`GroupingMode.BY_MACHINE`;
     - a removed agent is a workflow/clan parent with visible folded children
       (orphan child rows would be left behind);
     - the panel's per-row trackers don't have an entry for an identity we
@@ -476,7 +477,7 @@ def try_remove_rows(
     Banner chip counts are not refreshed on the fast path — they heal on
     the next full refresh.
     """
-    if widget._grouping_mode is not GroupingMode.STANDARD:
+    if widget._grouping_mode not in {GroupingMode.STANDARD, GroupingMode.BY_MACHINE}:
         return False
 
     rows_to_remove: list[tuple[int, int]] = []

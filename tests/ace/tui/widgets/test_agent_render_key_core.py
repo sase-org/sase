@@ -325,3 +325,36 @@ def test_render_key_changes_when_bead_agent_name_changes() -> None:
 
     assert "sase-x.land" in k2
     assert k1 != k2
+
+
+def test_render_key_changes_when_fleet_visible_metadata_changes() -> None:
+    a = _agent()
+    a.fleet_origin_alias = "apollo"
+    a.fleet_row_revision = {"schema_version": 1, "logical_key": "k", "revision": 1}
+    a.fleet_diagnostic = "first"
+    k1 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    a.fleet_row_revision = {"schema_version": 1, "logical_key": "k", "revision": 2}
+    a.fleet_diagnostic = "second"
+    a.fleet_attention = {"kind": "question", "state": "pending"}
+    k2 = agent_render_key(
+        a,
+        0,
+        is_selected=False,
+        fold_annotation="",
+        is_expanded=False,
+        is_marked=False,
+        hint_char=None,
+        now=None,
+    )
+
+    assert k1 != k2

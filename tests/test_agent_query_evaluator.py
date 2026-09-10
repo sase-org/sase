@@ -238,6 +238,23 @@ def test_bare_tribe_no_match_when_without_tribe() -> None:
     assert not _eval("tribe:", agent)
 
 
+def test_machine_exact_match() -> None:
+    agent = _make_agent(fleet_origin_alias="apollo")
+    assert _eval("machine:apollo", agent)
+    assert _eval("machine:APOLLO", agent)
+    assert not _eval("machine:app", agent)
+
+
+def test_machine_here_matches_local_only() -> None:
+    assert _eval("machine:here", _make_agent(fleet_origin_alias=None))
+    assert not _eval("machine:here", _make_agent(fleet_origin_alias="apollo"))
+
+
+def test_bare_machine_matches_any_remote_agent() -> None:
+    assert _eval("machine:", _make_agent(fleet_origin_alias="apollo"))
+    assert not _eval("machine:", _make_agent(fleet_origin_alias=None))
+
+
 def test_pinned_true() -> None:
     agent = _make_agent(tribe="pinned")
     assert _eval("pinned:true", agent)

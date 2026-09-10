@@ -3,7 +3,7 @@
 Covers Phase 3 of the cyclable grouping/sorting modes feature
 (``sdd/plans/202604/agents_tab_grouping_modes.md``):
 
-* Cycle order ``STANDARD → BY_DATE → BY_STATUS → STANDARD``.
+* Cycle order ``STANDARD -> BY_DATE -> BY_STATUS -> BY_MACHINE -> STANDARD``.
 * Per-mode fold-state preservation across mode cycles.
 * Tree shape after cycling matches the new mode's L0 (project /
   date bucket / status bucket).
@@ -122,20 +122,30 @@ def test_cycle_advances_by_date_to_by_status() -> None:
 
 def test_cycle_wraps_back_to_standard() -> None:
     app = _StubApp([_agent()])
-    app._grouping_mode = GroupingMode.BY_STATUS
-    app._group_fold_registry = app._ensure_mode_registry(GroupingMode.BY_STATUS)
+    app._grouping_mode = GroupingMode.BY_MACHINE
+    app._group_fold_registry = app._ensure_mode_registry(GroupingMode.BY_MACHINE)
     app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.STANDARD
     assert app.refilter_calls == 1
 
 
-def test_three_cycles_returns_to_standard() -> None:
+def test_cycle_advances_by_status_to_by_machine() -> None:
+    app = _StubApp([_agent()])
+    app._grouping_mode = GroupingMode.BY_STATUS
+    app._group_fold_registry = app._ensure_mode_registry(GroupingMode.BY_STATUS)
+    app.action_cycle_grouping_mode()
+    assert app._grouping_mode is GroupingMode.BY_MACHINE
+    assert app.refilter_calls == 1
+
+
+def test_four_cycles_returns_to_standard() -> None:
     app = _StubApp([_agent()])
     app.action_cycle_grouping_mode()
     app.action_cycle_grouping_mode()
     app.action_cycle_grouping_mode()
+    app.action_cycle_grouping_mode()
     assert app._grouping_mode is GroupingMode.STANDARD
-    assert app.refilter_calls == 3
+    assert app.refilter_calls == 4
 
 
 # ---------------------------------------------------------------------------
@@ -161,8 +171,9 @@ def test_fold_state_preserved_after_cycle_round_trip() -> None:
 
     by_date_registry.collapse(("Today",))
 
-    app.action_cycle_grouping_mode()  # → BY_STATUS
-    app.action_cycle_grouping_mode()  # → STANDARD
+    app.action_cycle_grouping_mode()  # -> BY_STATUS
+    app.action_cycle_grouping_mode()  # -> BY_MACHINE
+    app.action_cycle_grouping_mode()  # -> STANDARD
     assert app._grouping_mode is GroupingMode.STANDARD
     assert app._group_fold_registry is standard_registry
     assert app._group_fold_registry.is_collapsed(("projA",)) is True
@@ -182,6 +193,12 @@ def test_per_mode_registry_dict_grows_lazily() -> None:
         GroupingMode.BY_DATE,
     }
     app.action_cycle_grouping_mode()  # → BY_STATUS
+    assert set(app._group_fold_registries) == {
+        GroupingMode.STANDARD,
+        GroupingMode.BY_DATE,
+        GroupingMode.BY_STATUS,
+    }
+    app.action_cycle_grouping_mode()  # -> BY_MACHINE
     assert set(app._group_fold_registries) == set(GroupingMode)
 
 
@@ -304,6 +321,7 @@ def test_rapid_agent_cycles_save_latest_mode() -> None:
 
     app.action_cycle_grouping_mode()  # STANDARD -> BY_DATE; starts in-flight save.
     app.action_cycle_grouping_mode()  # -> BY_STATUS; pending only.
+    app.action_cycle_grouping_mode()  # -> BY_MACHINE; pending only.
     app.action_cycle_grouping_mode()  # -> STANDARD; latest pending.
 
     assert len(app.scheduled) == 1
@@ -327,8 +345,17 @@ def test_rapid_agent_cycles_save_latest_mode() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_reverse_cycle_advances_standard_to_by_status() -> None:
+def test_reverse_cycle_advances_standard_to_by_machine() -> None:
     app = _StubApp([_agent()])
+    app.action_cycle_grouping_mode_reverse()
+    assert app._grouping_mode is GroupingMode.BY_MACHINE
+    assert app.refilter_calls == 1
+
+
+def test_reverse_cycle_advances_by_machine_to_by_status() -> None:
+    app = _StubApp([_agent()])
+    app._grouping_mode = GroupingMode.BY_MACHINE
+    app._group_fold_registry = app._ensure_mode_registry(GroupingMode.BY_MACHINE)
     app.action_cycle_grouping_mode_reverse()
     assert app._grouping_mode is GroupingMode.BY_STATUS
     assert app.refilter_calls == 1
@@ -352,13 +379,14 @@ def test_reverse_cycle_wraps_back_to_standard() -> None:
     assert app.refilter_calls == 1
 
 
-def test_three_reverse_cycles_returns_to_standard() -> None:
+def test_four_reverse_cycles_returns_to_standard() -> None:
     app = _StubApp([_agent()])
     app.action_cycle_grouping_mode_reverse()
     app.action_cycle_grouping_mode_reverse()
     app.action_cycle_grouping_mode_reverse()
+    app.action_cycle_grouping_mode_reverse()
     assert app._grouping_mode is GroupingMode.STANDARD
-    assert app.refilter_calls == 3
+    assert app.refilter_calls == 4
 
 
 def test_forward_then_reverse_returns_to_standard() -> None:

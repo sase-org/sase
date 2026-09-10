@@ -13,6 +13,7 @@ from sase.ace.tui.models.fleet_agents import (
 from sase.dispatch.follow_store import FollowStoreSnapshot
 from tests.ace.tui.fleet_fixture import (
     fleet_attention_response,
+    fleet_counts,
     fleet_follow_snapshot,
     fleet_host_response,
     fleet_installation_id,
@@ -22,63 +23,37 @@ from tests.ace.tui.fleet_fixture import (
 
 
 def test_project_fleet_agents_marks_followed_and_preserves_machine_sections() -> None:
-    logical_a = {"schema_version": 1, "project": "sase", "agent_id": "agent-a"}
-    logical_b = {"schema_version": 1, "project": "sase", "agent_id": "agent-b"}
-    follow_snapshot = FollowStoreSnapshot(
-        schema_version=1,
-        records=(
-            {
-                "schema_version": 1,
-                "state": "active",
-                "logical_key": "logical-a",
-                "logical_locator": logical_a,
-            },
-        ),
-        tombstones=(),
-        path="/tmp/follows.json",
+    installation_id = fleet_installation_id("a")
+    logical_a = fleet_logical_locator(
+        installation_id=installation_id,
+        project_id="sase",
+        agent_id="agent-a",
     )
-    response = {
-        "schema_version": 1,
-        "hosts": [
-            {
-                "schema_version": 1,
-                "alias": "apollo",
-                "origin": {"installation_id": "sase_inst_v1_" + "a" * 64},
-                "freshness": "fresh",
-                "connection_health": "online",
-                "observed_at_unix": 1_800_000_000,
-                "summaries": [
-                    {
-                        "schema_version": 1,
-                        "logical_locator": logical_a,
-                        "exact_locator": {"run_id": "run-a", "logical": logical_a},
-                        "logical_key": "logical-a",
-                        "exact_key": "exact-a",
-                        "status": "running",
-                        "revision": 4,
-                        "content": {
-                            "agent_name": "same.name",
-                            "patch_name": "fleet-ui",
-                            "model": "gpt-5",
-                            "bounded_intent": "hydrate",
-                        },
-                    },
-                    {
-                        "schema_version": 1,
-                        "logical_locator": logical_b,
-                        "exact_locator": {"run_id": "run-b", "logical": logical_b},
-                        "logical_key": "logical-b",
-                        "exact_key": "exact-b",
-                        "status": "done",
-                        "content": {
-                            "agent_name": "same.name",
-                            "patch_name": "fleet-ui",
-                        },
-                    },
-                ],
-            }
-        ],
-    }
+    first = fleet_summary(
+        installation_id=installation_id,
+        project_id="sase",
+        project_name="SASE",
+        agent_id="agent-a",
+        run_id="run-a",
+        agent_name="same.name",
+        bounded_intent="hydrate",
+        revision=4,
+    )
+    second = fleet_summary(
+        installation_id=installation_id,
+        project_id="sase",
+        project_name="SASE",
+        agent_id="agent-b",
+        run_id="run-b",
+        agent_name="same.name",
+        status="done",
+    )
+    follow_snapshot = fleet_follow_snapshot(logical_a, path="/tmp/follows.json")
+    response = fleet_host_response(
+        alias="apollo",
+        installation_id=installation_id,
+        summaries=(first, second),
+    )
 
     projection = project_fleet_agents(
         catalog_response=response,
@@ -91,10 +66,11 @@ def test_project_fleet_agents_marks_followed_and_preserves_machine_sections() ->
     assert len(projection.focus_rows) == 1
     assert projection.counts["local"] == 3
     assert projection.counts["focus_total"] == 4
-    assert projection.counts["fleet"] == 2
+    assert projection.counts["fleet"] == 1
     followed = projection.focus_rows[0]
     assert followed.fleet_origin_alias == "apollo"
-    assert followed.project_display_name == "apollo"
+    assert followed.project_display_name == "SASE"
+    assert followed.project_file == "/fleet/sase/project.yml"
     assert followed.fleet_followed is True
     assert followed.fleet_revision == 4
     assert followed.fleet_bounded_intent == "hydrate"
@@ -105,55 +81,24 @@ def test_project_fleet_agents_marks_followed_and_preserves_machine_sections() ->
 
 
 def test_project_fleet_agents_maps_pending_attention_onto_local_statuses() -> None:
-    logical_a = {"schema_version": 1, "project": "sase", "agent_id": "agent-a"}
-    logical_b = {"schema_version": 1, "project": "sase", "agent_id": "agent-b"}
-    response = {
-        "schema_version": 1,
-        "hosts": [
+    first = fleet_summary(agent_id="agent-a")
+    second = fleet_summary(agent_id="agent-b", status="asking")
+    response = fleet_host_response(alias="apollo", summaries=(first, second))
+    attention_response = fleet_attention_response(
+        (
             {
-                "schema_version": 1,
-                "alias": "apollo",
-                "summaries": [
-                    {
-                        "schema_version": 1,
-                        "logical_locator": logical_a,
-                        "logical_key": "logical-a",
-                        "exact_key": "exact-a",
-                        "status": "running",
-                    },
-                    {
-                        "schema_version": 1,
-                        "logical_locator": logical_b,
-                        "logical_key": "logical-b",
-                        "exact_key": "exact-b",
-                        "status": "asking",
-                    },
-                ],
-            }
-        ],
-    }
-    attention_response = {
-        "schema_version": 1,
-        "hosts": [
+                "kind": "question",
+                "state": "pending",
+                "logical_key": first["logical_key"],
+            },
             {
-                "alias": "apollo",
-                "payload": {
-                    "entries": [
-                        {
-                            "kind": "question",
-                            "state": "pending",
-                            "logical_key": "logical-a",
-                        },
-                        {
-                            "kind": "gate",
-                            "state": "settled",
-                            "logical_key": "logical-b",
-                        },
-                    ],
-                },
-            }
-        ],
-    }
+                "kind": "gate",
+                "state": "settled",
+                "logical_key": second["logical_key"],
+            },
+        ),
+        alias="apollo",
+    )
 
     projection = project_fleet_agents(
         catalog_response=response,
@@ -161,16 +106,16 @@ def test_project_fleet_agents_maps_pending_attention_onto_local_statuses() -> No
     )
 
     by_key = {row.fleet_logical_key: row for row in projection.fleet_rows}
-    assert by_key["logical-a"].status == "QUESTION"
-    assert by_key["logical-a"].fleet_attention == {
+    assert by_key[first["logical_key"]].status == "QUESTION"
+    assert by_key[first["logical_key"]].fleet_attention == {
         "kind": "question",
         "state": "pending",
-        "logical_key": "logical-a",
+        "logical_key": first["logical_key"],
     }
     # A settled attention entry never overrides status; the row's own
     # lifecycle ("asking") is the fallback signal instead.
-    assert by_key["logical-b"].status == "WAITING INPUT"
-    assert by_key["logical-b"].fleet_attention is not None
+    assert by_key[second["logical_key"]].status == "WAITING INPUT"
+    assert by_key[second["logical_key"]].fleet_attention is not None
 
 
 def test_followed_logical_keys_reads_active_records_only() -> None:
@@ -252,23 +197,14 @@ def test_offline_fleet_fixture_projects_rows_counts_and_diagnostics() -> None:
     assert projection.counts["local"] == 2
     assert projection.counts["focus_total"] == 3
     assert projection.counts["fleet"] == 1
-    assert projection.diagnostics == (
-        {
-            "code": "fixture_warning",
-            "severity": "warning",
-            "message": "offline fixture diagnostic",
-        },
-        {
-            "code": "fixture_warning",
-            "severity": "warning",
-            "message": "offline fixture diagnostic",
-        },
-        {
-            "code": "fixture_warning",
-            "severity": "warning",
-            "message": "offline fixture diagnostic",
-        },
-    )
+    assert [diagnostic["code"] for diagnostic in projection.diagnostics] == [
+        "fixture_warning",
+        "fleet_host_partial",
+        "fixture_warning",
+        "fleet_host_partial",
+        "fixture_warning",
+        "fleet_host_partial",
+    ]
     row = projection.focus_rows[0]
     assert row.fleet_origin_alias == "apollo"
     assert row.fleet_followed is True
@@ -374,65 +310,21 @@ def _worker_summary(
     lifecycle: str = "running",
     revision: int = 3,
 ) -> dict[str, object]:
-    logical = fleet_logical_locator(installation_id=installation_id, agent_id=agent_id)
-    logical_key = f"{installation_id}:{agent_id}"
-    return {
-        "schema_version": 1,
-        "logical_locator": logical,
-        "exact_locator": {
-            "schema_version": 1,
-            "logical": logical,
-            "shell_id": f"shell-{agent_id}",
-            "run_id": f"run-{agent_id}",
-            "attempt_id": "attempt-1",
-        },
-        "logical_key": logical_key,
-        "exact_key": f"{logical_key}:run-{agent_id}",
-        "row_kind": "agent_shell",
-        "labels": {
-            "schema_version": 1,
-            "project_label": "sase",
-            "agent_label": agent_label,
-            "family_label": None,
-            "owner_label": "bryan",
-            "alias": None,
-        },
-        "project_name": "sase",
-        "model": "grok-4",
-        "provider": "xai",
-        "status": status,
-        "status_bucket": "running" if status == "running" else "done",
-        "intent": "observe apollo",
-        "observed_at_unix": 1_800_000_000.0,
-        "row_revision": {
-            "schema_version": 1,
-            "logical_key": logical_key,
-            "revision": revision,
-        },
-        "lifecycle": lifecycle,
-        "liveness": "alive" if status == "running" else "dead",
-        "connection_health": "online",
-        "freshness": "fresh",
-        "capabilities": {
-            "schema_version": 1,
-            "resource": ["content.read", "stop"],
-            "host": [],
-            "protocol": ["fleet.v1"],
-        },
-        "content": {
-            "schema_version": 1,
-            "handle_count": 1,
-            "total_byte_len": 24,
-            "kinds": ["output"],
-            "supports_range": True,
-            "supports_growth": True,
-        },
-        "current_instance": status == "running",
-        "dismissable": False,
-        "needs_attention": False,
-        "occupied_runner_slot": False,
-        "container_projected_concrete_agent": False,
-    }
+    del lifecycle
+    return fleet_summary(
+        installation_id=installation_id,
+        project_id="sase",
+        project_name="sase",
+        agent_id=agent_id,
+        run_id=f"run-{agent_id}",
+        agent_name=agent_label,
+        status=status,
+        revision=revision,
+        model="grok-4",
+        provider="xai",
+        bounded_intent="observe apollo",
+        occupied_runner_slot=False,
+    )
 
 
 def _worker_catalog_response(
@@ -442,7 +334,8 @@ def _worker_catalog_response(
     status: str = "ok",
     error: dict[str, object] | None = None,
 ) -> dict[str, object]:
-    installation_id = fleet_installation_id("w")
+    installation_id = fleet_installation_id("a")
+    counts = fleet_counts(summaries, running=running, observed_at_unix=1_800_000_000.0)
     return {
         "schema_version": 1,
         "operation": "catalog",
@@ -461,14 +354,7 @@ def _worker_catalog_response(
                 if error is not None
                 else {
                     "schema_version": 1,
-                    "counts": {
-                        "schema_version": 1,
-                        "running": running,
-                        "waiting": 0,
-                        "attention": 0,
-                        "occupied_runner_slots": 0,
-                        "logical_agent_total": len(summaries),
-                    },
+                    "counts": counts,
                     "freshness": {
                         "schema_version": 1,
                         "freshness": "fresh",
@@ -492,7 +378,7 @@ def _worker_catalog_response(
 
 
 def test_project_fleet_agents_reads_worker_catalog_page_rows() -> None:
-    installation_id = fleet_installation_id("w")
+    installation_id = fleet_installation_id("a")
     running = _worker_summary(
         installation_id=installation_id,
         agent_id="live",
@@ -525,7 +411,7 @@ def test_project_fleet_agents_reads_worker_catalog_page_rows() -> None:
 
 
 def test_project_fleet_agents_reads_followed_batch_entry_summaries() -> None:
-    installation_id = fleet_installation_id("w")
+    installation_id = fleet_installation_id("a")
     summary = _worker_summary(
         installation_id=installation_id,
         agent_id="live",
@@ -544,7 +430,7 @@ def test_project_fleet_agents_reads_followed_batch_entry_summaries() -> None:
                 "status": "ok",
                 "payload": {
                     "schema_version": 1,
-                    "counts": {"running": 1},
+                    "counts": fleet_counts((summary,), running=1),
                     "entries": [
                         {
                             "schema_version": 1,
@@ -601,7 +487,7 @@ def test_project_fleet_agents_surfaces_host_errors_instead_of_empty_success() ->
 
 
 def test_merge_catalog_pages_keeps_authoritative_counts_and_second_page_rows() -> None:
-    installation_id = fleet_installation_id("w")
+    installation_id = fleet_installation_id("a")
     first_row = _worker_summary(
         installation_id=installation_id,
         agent_id="page-one",
@@ -629,62 +515,28 @@ def test_merge_catalog_pages_keeps_authoritative_counts_and_second_page_rows() -
 def test_catalog_next_cursors_by_host_keeps_continuations_separate() -> None:
     first_installation = fleet_installation_id("a")
     second_installation = fleet_installation_id("b")
+    third_installation = fleet_installation_id("c")
+    first = fleet_host_response(alias="apollo", installation_id=first_installation)
+    first["hosts"][0]["payload"]["page"]["total_matching_rows"] = 250
+    first["hosts"][0]["payload"]["page"]["next_cursor"] = "off:100"
+    first["hosts"][0]["payload"]["page"]["has_more"] = True
+    second = fleet_host_response(alias="zeus", installation_id=second_installation)
+    third = fleet_host_response(alias="hera", installation_id=third_installation)
+    third["hosts"][0]["payload"]["page"]["total_matching_rows"] = 400
+    third["hosts"][0]["payload"]["page"]["next_cursor"] = "off:300"
+    third["hosts"][0]["payload"]["page"]["has_more"] = True
     response = {
         "schema_version": 1,
         "operation": "catalog",
+        "configured_hosts": 3,
         "hosts": [
-            {
-                "schema_version": 1,
-                "alias": "apollo",
-                "installation_id": first_installation,
-                "status": "ok",
-                "payload": {
-                    "page": {
-                        "schema_version": 1,
-                        "rows": [],
-                        "limit": 100,
-                        "total_matching_rows": 250,
-                        "next_cursor": "a:100",
-                        "has_more": True,
-                    }
-                },
-            },
-            {
-                "schema_version": 1,
-                "alias": "zeus",
-                "origin": {"installation_id": second_installation},
-                "status": "ok",
-                "payload": {
-                    "page": {
-                        "schema_version": 1,
-                        "rows": [],
-                        "limit": 100,
-                        "total_matching_rows": 90,
-                        "next_cursor": None,
-                        "has_more": False,
-                    }
-                },
-            },
-            {
-                "schema_version": 1,
-                "alias": "hera",
-                "installation_id": fleet_installation_id("c"),
-                "status": "ok",
-                "payload": {
-                    "page": {
-                        "schema_version": 1,
-                        "rows": [],
-                        "limit": 100,
-                        "total_matching_rows": 400,
-                        "next_cursor": "c:100",
-                        "has_more": True,
-                    }
-                },
-            },
+            first["hosts"][0],
+            second["hosts"][0],
+            third["hosts"][0],
         ],
     }
 
     assert catalog_next_cursors_by_host(response) == {
-        first_installation: "a:100",
-        fleet_installation_id("c"): "c:100",
+        first_installation: "off:100",
+        third_installation: "off:300",
     }

@@ -47,18 +47,21 @@ class GroupingMode(Enum):
     - ``BY_STATUS``: L0 is a status bucket (``Stopped`` / ``Failed`` /
       ``Running`` / ``Queued`` / ``Waiting`` / ``Done`` / ``Starting``)
       derived from each agent's ``status``.
+    - ``BY_MACHINE``: L0 is the fleet machine alias, with local rows under
+      ``here``.
 
-    In ``BY_DATE`` and ``BY_STATUS`` modes the project and Patch
+    In ``BY_DATE``, ``BY_STATUS``, and ``BY_MACHINE`` modes the project and Patch
     levels disappear.  ``BY_DATE`` renders date bucket → date-aware
     subgroup (1-hour under Today/Yesterday, calendar day under This Week,
-    Monday-start week under Earlier), while ``BY_STATUS`` renders status
-    bucket → name-root with the same singleton-suppression rule as
+    Monday-start week under Earlier), while ``BY_STATUS`` and ``BY_MACHINE``
+    render bucket → name-root with the same singleton-suppression rule as
     ``STANDARD`` mode.
     """
 
     STANDARD = "standard"
     BY_DATE = "by_date"
     BY_STATUS = "by_status"
+    BY_MACHINE = "by_machine"
 
 
 _DATE_BUCKETS: tuple[str, ...] = ("Today", "Yesterday", "This Week", "Earlier")

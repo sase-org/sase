@@ -23,6 +23,10 @@ def _is_bare_word_char(char: str) -> bool:
     return char.isalnum() or char in "_-"
 
 
+def _is_property_value_char(char: str) -> bool:
+    return _is_bare_word_char(char) or char == "."
+
+
 def tokenize_agent_query_for_display(query: str) -> list[tuple[str, str]]:
     """Tokenize an agent query string for syntax highlighting.
 
@@ -113,9 +117,9 @@ def tokenize_agent_query_for_display(query: str) -> list[tuple[str, str]]:
                     if i < len(query):
                         i += 1
                     tokens.append((query[v_start:i], "property_value"))
-                elif i < len(query) and _is_bare_word_char(query[i]):
+                elif i < len(query) and _is_property_value_char(query[i]):
                     v_start = i
-                    while i < len(query) and _is_bare_word_char(query[i]):
+                    while i < len(query) and _is_property_value_char(query[i]):
                         i += 1
                     tokens.append((query[v_start:i], "property_value"))
                 continue

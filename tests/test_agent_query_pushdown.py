@@ -63,6 +63,14 @@ def test_compile_agent_query_pushdown_keeps_unsupported_queries_unbounded() -> N
     assert plan.unsupported_reason == "unsupported_query"
 
 
+def test_compile_agent_query_pushdown_keeps_machine_queries_unbounded() -> None:
+    plan = compile_agent_query_pushdown("machine:apollo")
+
+    assert plan.window_safe is False
+    assert plan.candidate_filter is None
+    assert plan.unsupported_reason == "unsupported_query"
+
+
 def test_compile_agent_query_pushdown_maps_run_type_alias() -> None:
     plan = compile_agent_query_pushdown("type:run")
 

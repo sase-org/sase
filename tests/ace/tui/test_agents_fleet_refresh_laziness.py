@@ -16,6 +16,7 @@ from sase.dispatch.follow_store import FollowStoreMutationOutcome, FollowStoreSn
 from tests.ace.tui.fleet_fixture import (
     OfflineFleetFacade,
     fleet_attention_response,
+    fleet_counts,
     fleet_config,
     fleet_follow_snapshot,
     fleet_host_response,
@@ -214,24 +215,19 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
 ) -> None:
     summary = fleet_summary(agent_id="agent-a")
     page_one = fleet_host_response(summaries=(summary,))
-    page_one["hosts"][0]["payload"] = {
-        "page": {
-            "rows": [summary],
-            "next_cursor": "off:100",
-            "has_more": True,
-        },
-        "counts": {"running": 1},
-    }
+    page_one["hosts"][0]["payload"]["page"]["next_cursor"] = "off:100"
+    page_one["hosts"][0]["payload"]["page"]["has_more"] = True
+    page_one["hosts"][0]["payload"]["page"]["total_matching_rows"] = 2
+    page_one["hosts"][0]["payload"]["counts"] = fleet_counts(
+        (summary,),
+        running=1,
+    )
     page_two_summary = fleet_summary(agent_id="agent-b", status="done")
     page_two = fleet_host_response(summaries=(page_two_summary,))
-    page_two["hosts"][0]["payload"] = {
-        "page": {
-            "rows": [page_two_summary],
-            "next_cursor": None,
-            "has_more": False,
-        },
-        "counts": {"running": 1},
-    }
+    page_two["hosts"][0]["payload"]["counts"] = fleet_counts(
+        (page_two_summary,),
+        running=1,
+    )
 
     class _PagingFacade(OfflineFleetFacade):
         async def catalog(

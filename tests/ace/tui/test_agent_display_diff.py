@@ -559,6 +559,14 @@ def _by_status_app(agents: list[Agent], monkeypatch: Any) -> _DisplayDiffApp:
     return app
 
 
+def _by_machine_app(agents: list[Agent], monkeypatch: Any) -> _DisplayDiffApp:
+    """Build a single-panel app rendered under the BY_MACHINE bucket tree."""
+    app = _DisplayDiffApp(agents, monkeypatch)
+    app._grouping_mode = GroupingMode.BY_MACHINE
+    app._refresh_panel_widgets(jump_hints=None)
+    return app
+
+
 def _clan_projection(status: str) -> list[Agent]:
     member = _agent("research.member", tribe=None, suffix="member", status=status)
     member.agent_clan = "research"
@@ -645,6 +653,41 @@ def test_by_status_launch_anchor_change_refuses_row_patch(monkeypatch: Any) -> N
         old_agent,
         start_time=datetime(2026, 6, 8, 12, 1, 0),
     )
+    app._agents = [new_agent]
+
+    assert app._try_patch_agent_row(new_agent) is False
+    assert app._agents_refresh_trace_records[-1].fallback_reason == (
+        "unsupported_grouping"
+    )
+
+
+def test_by_machine_status_change_patches_after_finalize(monkeypatch: Any) -> None:
+    old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
+    old_agent.fleet_origin_alias = "apollo"
+    new_agent = replace(old_agent, status="DONE")
+    app = _by_machine_app([old_agent], monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    app._agents = [new_agent]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[old_agent],
+        defer_detail=True,
+    )
+
+    assert app.full_rebuilds == 0
+    assert "row_patch" in _display_costs(app)
+    assert "display_full_rebuild" not in _display_costs(app)
+    assert app._agents_refresh_trace_records[-1].fallback_reason is None
+
+
+def test_by_machine_origin_move_refuses_row_patch(monkeypatch: Any) -> None:
+    old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
+    old_agent.fleet_origin_alias = "apollo"
+    app = _by_machine_app([old_agent], monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    new_agent = replace(old_agent)
+    new_agent.fleet_origin_alias = "zeus"
     app._agents = [new_agent]
 
     assert app._try_patch_agent_row(new_agent) is False

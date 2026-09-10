@@ -116,6 +116,11 @@ def project_query_term(display_name: str) -> str:
     return to_canonical_string(PropertyMatch(key="project", value=display_name))
 
 
+def machine_query_term(machine_name: str) -> str:
+    """Build a ``machine:`` term through the agent-query grammar."""
+    return to_canonical_string(PropertyMatch(key="machine", value=machine_name))
+
+
 def to_canonical_string(expr: QueryExpr) -> str:
     """Convert a query expression to its canonical string representation.
 

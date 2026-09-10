@@ -39,6 +39,7 @@ SUBSTRING_PROPERTY_KEYS = frozenset(
         "name",
         "model",
         "provider",
+        "machine",
         "tribe",
         "text",
     }
@@ -307,16 +308,16 @@ def tokenize(query: str) -> Iterator[Token]:
                         start,
                     )
                 pos += 1  # consume ':'
-                # Bare "tribe:" with no value matches any agent in a tribe — emit
-                # an empty PROPERTY value so the evaluator can dispatch on it.
-                if word_lower == "tribe" and (
+                # Bare "tribe:" / "machine:" mean any assigned tribe / any
+                # remote machine. Emit an empty PROPERTY value for the evaluator.
+                if word_lower in {"tribe", "machine"} and (
                     pos >= length or query[pos] in " \t\r\n)"
                 ):
                     yield Token(
                         type=TokenType.PROPERTY,
                         value="",
                         position=start,
-                        property_key="tribe",
+                        property_key=word_lower,
                     )
                     continue
                 value_pos = pos

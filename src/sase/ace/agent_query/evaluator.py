@@ -126,6 +126,20 @@ def _match_tribe(prop: PropertyMatch, agent: Agent) -> bool:
     return agent_tribe == prop.value.lower()
 
 
+def _match_machine(prop: PropertyMatch, agent: Agent) -> bool:
+    """Exact machine match over fleet origin metadata.
+
+    ``machine:here`` matches local rows. Bare ``machine:`` matches any remote
+    row, mirroring bare ``tribe:`` as "any non-empty value".
+    """
+    machine = (getattr(agent, "fleet_origin_alias", None) or "").lower()
+    if not prop.value:
+        return bool(machine)
+    if prop.value.lower() == "here":
+        return not machine
+    return machine == prop.value.lower()
+
+
 def _match_bool_property(prop: PropertyMatch, agent: Agent) -> bool:
     """Match a boolean-shaped key (``pinned``/``hidden``/``attention``)."""
     from ..tui.models.agent_groups import _STOPPED_STATUSES
@@ -185,6 +199,8 @@ def _match_property(
         return _match_substring_property(prop, agent)
     if key == "tribe":
         return _match_tribe(prop, agent)
+    if key == "machine":
+        return _match_machine(prop, agent)
     if key in ("pinned", "hidden", "attention"):
         return _match_bool_property(prop, agent)
     if key == "type":
