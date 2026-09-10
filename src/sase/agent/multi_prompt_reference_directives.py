@@ -130,7 +130,7 @@ def has_bare_wait_directive(prompt: str) -> bool:
         if match.group(2) is not None:
             paren_start = match.end() - 1
             paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is not None and protected[paren_start + 1 : paren_end]:
+            if paren_end is not None and protected[paren_start + 1 : paren_end].strip():
                 continue
         elif match.group(3) is not None or match.group(4) is not None:
             continue
@@ -167,7 +167,7 @@ def rewrite_bare_wait_directives(prompt: str, agent_name: str) -> str:
         if match.group(2) is not None:
             paren_start = match.end() - 1
             paren_end = find_matching_paren_for_args(protected, paren_start)
-            if paren_end is not None and protected[paren_start + 1 : paren_end]:
+            if paren_end is not None and protected[paren_start + 1 : paren_end].strip():
                 continue
             end = paren_end + 1 if paren_end is not None else match.end()
         elif match.group(3) is not None or match.group(4) is not None:

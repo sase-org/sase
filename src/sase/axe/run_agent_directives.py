@@ -35,7 +35,7 @@ class AgentInfo(NamedTuple):
     name: str | None
     bead_id: str | None
     wait_names: list[str]
-    wait_identity_deps: list[dict[str, str]]
+    wait_identity_deps: list[dict[str, Any]]
     wait_fork_sources: list[dict[str, str]]
     wait_beads: list[str]
     wait_duration: float | None
@@ -125,6 +125,23 @@ def extract_directives_and_write_meta(
             "The parent launch pipeline failed to resolve keyed markers before "
             "starting the runner."
         )
+    from sase.agent.batch_predecessor import (
+        consume_batch_predecessor_context_from_env,
+        preserved_batch_predecessor_context,
+    )
+
+    batch_predecessor_binding = None
+    predecessor_context = consume_batch_predecessor_context_from_env()
+    if predecessor_context is None:
+        predecessor_context = preserved_batch_predecessor_context(preserved_metadata)
+    if predecessor_context is not None:
+        from sase.core.agent_launch_facade import bind_batch_predecessor_waits
+
+        batch_predecessor_binding = bind_batch_predecessor_waits(
+            expanded_for_directives,
+            predecessor_context,
+        )
+        expanded_for_directives = batch_predecessor_binding.prompt
     _, directives = extract_prompt_directives(expanded_for_directives)
     bead_id = directives.bead_id
     if bead_id is not None:
@@ -199,7 +216,19 @@ def extract_directives_and_write_meta(
     from sase.agent.names import fork_agent_names
 
     wait_names = list(directives.wait)
-    wait_identity_deps: list[dict[str, str]] = []
+    wait_identity_deps: list[dict[str, Any]] = []
+    batch_predecessor_context_payload: dict[str, Any] | None = None
+    if batch_predecessor_binding is not None and (
+        batch_predecessor_binding.bound_wait_count
+    ):
+        wait_names.extend(batch_predecessor_binding.wait_names)
+        wait_identity_deps.extend(
+            dict(item) for item in batch_predecessor_binding.wait_for_artifacts
+        )
+        if batch_predecessor_binding.wait_for_artifacts:
+            batch_predecessor_context_payload = dict(
+                batch_predecessor_binding.wait_for_artifacts[0]
+            )
     wait_fork_sources: list[dict[str, str]] = []
     wait_beads = list(directives.wait_beads)
     from sase.core.agent_tribe import (
@@ -404,6 +433,8 @@ def extract_directives_and_write_meta(
     agent_tribe = identity.tribe
     clan_membership_plan = identity.clan_membership_plan
     agent_meta = identity.meta
+    if batch_predecessor_context_payload is not None:
+        agent_meta["batch_predecessor_context"] = batch_predecessor_context_payload
     clan_summary_resolution: ClanSummaryResolutionRequest | None = None
 
     if clan_membership_plan and (directives.clan_declared or epic_clan_summary_script):

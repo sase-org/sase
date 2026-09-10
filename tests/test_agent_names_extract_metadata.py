@@ -7,7 +7,27 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agent.batch_predecessor import (
+    SASE_AGENT_PREDECESSOR_CONTEXT_ENV,
+    batch_predecessor_context,
+    encode_batch_predecessor_context,
+)
+from sase.xprompt.models import XPrompt
 from tests._agent_names_extract_fixtures import mock_provider, run_extract
+
+
+def _predecessor_context_payload(
+    tmp_path: Path,
+    *,
+    name: str | None = "builder",
+) -> dict[str, object]:
+    context = batch_predecessor_context(
+        project_name="test",
+        timestamp="260501_120000",
+        artifact_dir=str(tmp_path / "previous_artifacts"),
+        name=name,
+    )
+    return json.loads(encode_batch_predecessor_context(context))
 
 
 class TestExtractDirectivesMetadata:
@@ -82,6 +102,122 @@ class TestExtractDirectivesMetadata:
         assert result["info"].wait_names == []
         assert result["meta"]["wait_for_beads"] == ["sase-87.2"]
         assert "wait_for" not in result["meta"]
+
+    def test_batch_predecessor_context_binds_bare_wait(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        payload = _predecessor_context_payload(tmp_path)
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    SASE_AGENT_PREDECESSOR_CONTEXT_ENV: json.dumps(payload),
+                },
+                clear=False,
+            ),
+            patch(
+                "sase.agent.names.get_most_recent_agent_name",
+                side_effect=AssertionError("global wait resolver should not run"),
+            ),
+        ):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=True,
+                prompt="%wait\nReview",
+            )
+
+        assert result["info"].wait_names == ["builder"]
+        assert result["info"].wait_identity_deps == [payload]
+        assert result["meta"]["wait_for"] == ["builder"]
+        assert result["meta"]["wait_for_artifacts"] == [payload]
+        assert result["meta"]["batch_predecessor_context"] == payload
+
+    def test_preserved_batch_predecessor_context_rebinds_refreshed_wait(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        artifacts = tmp_path / "artifacts"
+        artifacts.mkdir()
+        payload = _predecessor_context_payload(tmp_path)
+        (artifacts / "agent_meta.json").write_text(
+            json.dumps({"pid": 123, "batch_predecessor_context": payload}),
+            encoding="utf-8",
+        )
+
+        with patch(
+            "sase.agent.names.get_most_recent_agent_name",
+            side_effect=AssertionError("global wait resolver should not run"),
+        ):
+            result = run_extract(
+                tmp_path,
+                env_auto_dismiss=True,
+                prompt="%wait\nReview",
+            )
+
+        assert result["info"].wait_names == ["builder"]
+        assert result["info"].wait_identity_deps == [payload]
+        assert result["meta"]["batch_predecessor_context"] == payload
+
+    def test_batch_predecessor_context_binds_local_xprompt_wait(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        from sase.agent.multi_prompt_launcher import _serialize_local_xprompts
+        from sase.axe.run_agent_phases import extract_directives_and_write_meta
+
+        workspace = tmp_path / "workspace"
+        artifacts = tmp_path / "artifacts"
+        workspace.mkdir()
+        artifacts.mkdir()
+        xprompts_path = _serialize_local_xprompts(
+            {"_review": XPrompt(name="_review", content="%w()\nReview")}
+        )
+        payload = _predecessor_context_payload(tmp_path, name=None)
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "SASE_AGENT_AUTO_DISMISS": "1",
+                    "SASE_AGENT_LOCAL_XPROMPTS": xprompts_path,
+                    SASE_AGENT_PREDECESSOR_CONTEXT_ENV: json.dumps(payload),
+                },
+                clear=False,
+            ),
+            patch(
+                "sase.agent.names.get_most_recent_agent_name",
+                side_effect=AssertionError("global wait resolver should not run"),
+            ),
+            patch(
+                "sase.llm_provider.registry.get_default_provider_name",
+                return_value="test",
+            ),
+            patch(
+                "sase.llm_provider.registry.get_provider", return_value=mock_provider()
+            ),
+            patch(
+                "sase.llm_provider.registry.resolve_model_provider",
+                return_value=("test", "test-model"),
+            ),
+            patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        ):
+            info = extract_directives_and_write_meta(
+                "#_review",
+                str(workspace),
+                str(artifacts),
+            )
+            assert SASE_AGENT_PREDECESSOR_CONTEXT_ENV not in os.environ
+            assert "SASE_AGENT_LOCAL_XPROMPTS" not in os.environ
+
+        meta = json.loads((artifacts / "agent_meta.json").read_text(encoding="utf-8"))
+        assert info.wait_names == []
+        assert info.wait_identity_deps == [payload]
+        assert meta["wait_for_artifacts"] == [payload]
+        assert meta["batch_predecessor_context"] == payload
+        assert "wait_for" not in meta
+        assert not os.path.exists(xprompts_path)
 
     def test_skips_auto_name_when_auto_dismiss(self, tmp_path: Path) -> None:
         """Auto-dismiss agents should not get an auto-assigned name."""

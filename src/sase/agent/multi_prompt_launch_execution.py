@@ -4,6 +4,11 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
+from sase.agent.batch_predecessor import (
+    SASE_AGENT_PREDECESSOR_CONTEXT_ENV,
+    batch_predecessor_context,
+    encode_batch_predecessor_context,
+)
 from sase.agent.clan_membership import CLAN_MEMBERSHIP_ENV
 from sase.agent.launch_executor_types import LaunchNameReservationEvidence
 from sase.agent.launch_types import AgentLaunchResult
@@ -35,7 +40,10 @@ from sase.agent.output_variable_context import (
     encode_agent_var_upstreams,
 )
 from sase.core.agent_launch_facade import LaunchTimestampBatchAllocator
-from sase.core.agent_launch_wire import LaunchFanoutPlanWire
+from sase.core.agent_launch_wire import (
+    BatchPredecessorContextWire,
+    LaunchFanoutPlanWire,
+)
 from sase.history.multi_agent_prompt import (
     MULTI_AGENT_PROMPT_FILE_ENV,
     save_multi_agent_prompt_file,
@@ -158,6 +166,7 @@ def spawn_segments_into(
         name_allocator.release_uncommitted_template_reservations()
         raise
     previous_agent_name: str | None = None
+    previous_agent_context: BatchPredecessorContextWire | None = None
     upstreams: list[dict[str, Any]] = []
     pending_family_parents: list[Any] = []
     multi_agent_prompt_file: str | None = None
@@ -169,6 +178,7 @@ def spawn_segments_into(
         segment_env = (
             dict(segment_extra_env[i] or {}) if segment_extra_env is not None else {}
         )
+        inherited_predecessor_context = previous_agent_context
         segment_swarm_names = (
             () if segment_swarm_xprompts is None else segment_swarm_xprompts[i]
         )
@@ -346,6 +356,10 @@ def spawn_segments_into(
                     else slot_planned_name
                 )
                 slot_env = dict(segment_env)
+                if inherited_predecessor_context is not None:
+                    slot_env[SASE_AGENT_PREDECESSOR_CONTEXT_ENV] = (
+                        encode_batch_predecessor_context(inherited_predecessor_context)
+                    )
                 if upstreams_json is not None:
                     slot_env[SASE_AGENT_VAR_UPSTREAMS_ENV] = upstreams_json
                 if env_name_to_inject is not None:
@@ -475,6 +489,7 @@ def spawn_segments_into(
         last_record = execution.records[-1]
         last_timestamp = last_record.request.timestamp
         last_project_name = last_record.request.project_name
+        last_artifacts_dir = slot_artifacts_dirs[last_record.slot.slot_index]
         last_planned_name = planned_names.get(last_record.slot.slot_index)
 
         previous_agent_name = last_planned_name
@@ -497,6 +512,12 @@ def spawn_segments_into(
                 print(f"  Agent {i + 1}/{len(segments)} named '{agent_name}'")
             else:
                 print(f"  Agent {i + 1}/{len(segments)} naming timed out, continuing")
+        previous_agent_context = batch_predecessor_context(
+            project_name=last_project_name,
+            timestamp=last_timestamp,
+            artifact_dir=str(last_artifacts_dir),
+            name=previous_agent_name,
+        )
     timer.finish(outcome="ok", launched=len(results))
 
 

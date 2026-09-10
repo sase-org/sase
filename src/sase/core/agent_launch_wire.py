@@ -13,6 +13,7 @@ from typing import Any
 AGENT_LAUNCH_WIRE_SCHEMA_VERSION = 1
 LAUNCH_PLAN_WIRE_SCHEMA_VERSION = 1
 LAUNCH_ADMISSION_JOURNAL_SCHEMA_VERSION = 1
+BATCH_PREDECESSOR_CONTEXT_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -93,6 +94,28 @@ class LaunchFanoutPlanWire:
     slots: list[LaunchFanoutSlotWire] = field(default_factory=list)
     requires_sequential_naming_wait: bool = False
     fanout_sleep_seconds: float = 0.0
+
+
+@dataclass(frozen=True)
+class BatchPredecessorContextWire:
+    """Identity for the previous segment in one prompt-stack launch batch."""
+
+    schema_version: int
+    project_name: str
+    timestamp: str
+    artifact_dir: str
+    name: str | None = None
+
+
+@dataclass(frozen=True)
+class BatchPredecessorWaitBindingWire:
+    """Result of binding bare waits to a prompt-stack predecessor."""
+
+    schema_version: int
+    prompt: str
+    wait_names: list[str] = field(default_factory=list)
+    wait_for_artifacts: list[dict[str, Any]] = field(default_factory=list)
+    bound_wait_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -297,6 +320,27 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
         return condition
     if isinstance(record, WaitTargetWire):
         return _wait_target_to_json_dict(record)
+    if isinstance(record, BatchPredecessorContextWire):
+        context = {
+            "schema_version": record.schema_version,
+            "project_name": record.project_name,
+            "timestamp": record.timestamp,
+            "artifact_dir": record.artifact_dir,
+        }
+        if record.name is not None:
+            context["name"] = record.name
+        return context
+    if isinstance(record, BatchPredecessorWaitBindingWire):
+        return {
+            "schema_version": record.schema_version,
+            "prompt": record.prompt,
+            "wait_names": list(record.wait_names),
+            "wait_for_artifacts": [
+                agent_launch_wire_to_json_dict(item)
+                for item in record.wait_for_artifacts
+            ],
+            "bound_wait_count": record.bound_wait_count,
+        }
     if isinstance(record, LaunchPlanWire):
         return {
             "schema_version": record.schema_version,
@@ -421,6 +465,33 @@ def launch_fanout_plan_from_dict(data: dict[str, Any]) -> LaunchFanoutPlanWire:
             data.get("requires_sequential_naming_wait", False)
         ),
         fanout_sleep_seconds=float(data.get("fanout_sleep_seconds", 0.0)),
+    )
+
+
+def batch_predecessor_context_from_dict(
+    data: dict[str, Any],
+) -> BatchPredecessorContextWire:
+    return BatchPredecessorContextWire(
+        schema_version=int(data["schema_version"]),
+        project_name=str(data["project_name"]),
+        timestamp=str(data["timestamp"]),
+        artifact_dir=str(data["artifact_dir"]),
+        name=None if data.get("name") is None else str(data["name"]),
+    )
+
+
+def batch_predecessor_wait_binding_from_dict(
+    data: dict[str, Any],
+) -> BatchPredecessorWaitBindingWire:
+    return BatchPredecessorWaitBindingWire(
+        schema_version=int(data["schema_version"]),
+        prompt=str(data["prompt"]),
+        wait_names=[str(item) for item in data.get("wait_names", [])],
+        wait_for_artifacts=[
+            agent_launch_wire_to_json_dict(dict(item))
+            for item in data.get("wait_for_artifacts", [])
+        ],
+        bound_wait_count=int(data.get("bound_wait_count") or 0),
     )
 
 
@@ -590,6 +661,9 @@ __all__ = [
     "AgentLaunchPreparedWire",
     "AgentLaunchRequestWire",
     "AgentUnitWire",
+    "BATCH_PREDECESSOR_CONTEXT_SCHEMA_VERSION",
+    "BatchPredecessorContextWire",
+    "BatchPredecessorWaitBindingWire",
     "LAUNCH_ADMISSION_JOURNAL_SCHEMA_VERSION",
     "LaunchAdmissionSummaryWire",
     "LaunchConditionWire",
@@ -604,6 +678,8 @@ __all__ = [
     "WorkspaceClaimRequestWire",
     "agent_launch_prepared_from_dict",
     "agent_launch_wire_to_json_dict",
+    "batch_predecessor_context_from_dict",
+    "batch_predecessor_wait_binding_from_dict",
     "launch_admission_summary_from_dict",
     "launch_fanout_plan_from_dict",
     "launch_plan_from_dict",

@@ -70,3 +70,13 @@ def test_bead_only_wait_does_not_hide_separate_bare_wait() -> None:
     assert rewrite_bare_wait_directives(prompt, "previous") == (
         "%w(bead=sase-87.1)\n%wait:previous\nDo work"
     )
+
+
+@pytest.mark.parametrize("source", ["%wait( )", "%w( \t )"])
+def test_whitespace_parenthesized_wait_is_bare(source: str) -> None:
+    prompt = f"{source}\nDo work"
+
+    assert has_bare_wait_directive(prompt) is True
+    assert rewrite_bare_wait_directives(prompt, "previous") == (
+        f"%{source[1:].split('(')[0]}:previous\nDo work"
+    )

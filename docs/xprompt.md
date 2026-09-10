@@ -2812,6 +2812,17 @@ same `---`-separator convention also applies inside an xprompt body -- see
 [Xprompt Swarms (Library-Defined Fan-Out)](#xprompt-swarms-library-defined-fan-out)
 below.
 
+Within one multi-agent launch, bare `%wait` / `%w` in any segment after the first means
+"wait for the previous launched segment." Empty or whitespace-only parentheses
+(`%wait()`, `%wait( )`) count as bare, including when the wait is introduced by xprompt
+expansion. If the previous segment fans out, the dependency targets that segment's last
+launched child; siblings in the current segment all inherit the same previous-segment
+dependency. Explicit waits such as `%wait:agent`, bead/time waits, `%queue`, and waits
+inside fenced code or disabled xprompt regions keep their normal meanings. If the
+predecessor name is not known yet, SASE records the predecessor artifact identity and
+waits on that agent or family completion instead of resolving bare `%wait` against the
+global latest agent.
+
 ### Frontmatter Panel (ACE TUI)
 
 In the `sase ace` prompt input, ad hoc prompt frontmatter has a structured **Frontmatter

@@ -42,7 +42,7 @@ class AgentMetadataInputs:
     output_path: str | None
     bead_id: str | None
     wait_names: list[str]
-    wait_identity_deps: list[dict[str, str]]
+    wait_identity_deps: list[dict[str, Any]]
     wait_fork_sources: list[dict[str, str]]
     wait_beads: list[str]
     model: str | None
@@ -98,6 +98,9 @@ def preserved_agent_metadata(artifacts_dir: str) -> dict[str, Any]:
     model_alias_reservation = existing_meta.get("model_alias_reservation")
     if isinstance(model_alias_reservation, dict):
         preserved["model_alias_reservation"] = dict(model_alias_reservation)
+    batch_predecessor_context = existing_meta.get("batch_predecessor_context")
+    if isinstance(batch_predecessor_context, dict):
+        preserved["batch_predecessor_context"] = dict(batch_predecessor_context)
     workspace_num = existing_meta.get("workspace_num")
     if isinstance(workspace_num, int):
         preserved["workspace_num"] = workspace_num

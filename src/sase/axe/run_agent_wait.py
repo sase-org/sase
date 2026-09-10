@@ -61,6 +61,20 @@ def _opportunistic_ensure_axe() -> None:
         pass
 
 
+def _identity_dep_label(dep: dict[str, Any]) -> str:
+    name = dep.get("name")
+    if isinstance(name, str) and name:
+        return name
+    project_name = dep.get("project_name")
+    timestamp = dep.get("timestamp")
+    if isinstance(project_name, str) and project_name and isinstance(timestamp, str):
+        return f"{project_name}:{timestamp}"
+    artifact_dir = dep.get("artifact_dir")
+    if isinstance(artifact_dir, str) and artifact_dir:
+        return artifact_dir
+    return "artifact dependency"
+
+
 def wait_for_dependencies(
     wait_names: list[str],
     artifacts_dir: str,
@@ -69,7 +83,7 @@ def wait_for_dependencies(
     agent_meta: dict[str, Any],
     *,
     project_name: str | None = None,
-    wait_identity_deps: list[dict[str, str]] | None = None,
+    wait_identity_deps: list[dict[str, Any]] | None = None,
     wait_fork_sources: list[dict[str, str]] | None = None,
     wait_beads: list[str] | None = None,
     duration: float | None = None,
@@ -165,6 +179,11 @@ def wait_for_dependencies(
         parts = []
         if wait_names:
             parts.append(f"agents: {', '.join(wait_names)}")
+        if wait_identity_deps:
+            parts.append(
+                "artifacts: "
+                + ", ".join(_identity_dep_label(dep) for dep in wait_identity_deps)
+            )
         if wait_beads:
             parts.append(f"beads: {', '.join(wait_beads)}")
         if duration is not None:

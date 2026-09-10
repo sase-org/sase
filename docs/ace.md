@@ -5476,7 +5476,10 @@ segment-local directives. A selected-pane TODO warning counts only that pane; a
 whole-stack warning counts visible markers across all non-empty submitted panes.
 Choosing **Keep editing**, `n`, `Escape`, or `q` leaves pane order, selection,
 frontmatter, and source binding intact. Segment order alone does not make later agents
-wait; add `%wait` to the later pane when it must start after an earlier agent succeeds.
+wait; add `%wait` to a later pane when it must start after the immediately preceding
+submitted pane succeeds. That bare wait binding also applies when the wait comes from a
+frontmatter-local or file-backed xprompt referenced by the pane. Explicit waits,
+`%queue`, and waits inside literal code/disabled regions keep their normal meanings.
 
 The `Enter` submit chooser accepts `a` or `Ctrl+S` for all panes, `c` for the current
 pane, and `Esc`/`q` to cancel without changing the stack. Outside that chooser, `Ctrl+S`

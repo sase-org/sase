@@ -1,10 +1,13 @@
 """Tests for multi-prompt wait rewriting and VCS metadata."""
 
+import json
 import os
 import re
 from unittest.mock import MagicMock, patch
 
+from sase.agent.batch_predecessor import SASE_AGENT_PREDECESSOR_CONTEXT_ENV
 from sase.agent.multi_prompt_launcher import launch_multi_prompt_agents
+from sase.xprompt.models import XPrompt
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")
@@ -85,6 +88,100 @@ def test_launch_multi_prompt_plans_auto_name_for_bare_wait_predecessor(
         == "0"
     )
     assert mock_spawn.call_args_list[1].kwargs["prompt"] == "%wait:0\nReview"
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming")
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_passes_predecessor_context_for_xprompt_wait(
+    mock_ws_dir: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Xprompt-introduced waits bind in the runner via predecessor context."""
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    launch_multi_prompt_agents(
+        segments=["%id:builder\nBuild", "#_review"],
+        local_xprompts={
+            "_review": XPrompt(name="_review", content="%wait( )\nReview"),
+        },
+        cl_name="test",
+        project_file="/test.sase",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    second_call = mock_spawn.call_args_list[1]
+    context = json.loads(
+        second_call.kwargs["extra_env"][SASE_AGENT_PREDECESSOR_CONTEXT_ENV]
+    )
+    assert second_call.kwargs["prompt"] == "#_review"
+    assert context["schema_version"] == 1
+    assert context["project_name"] == "test"
+    assert context["timestamp"] == "260501_120000"
+    assert context["artifact_dir"].endswith("20260501120000")
+    assert context["name"] == "builder"
+    assert mock_wait.call_count == 0
+    assert mock_create_artifacts.call_count == 0
+
+
+@patch("sase.agent.launcher.spawn_agent_subprocess")
+@patch("sase.agent.multi_prompt_launcher._wait_for_agent_naming", return_value=None)
+@patch("sase.core.time.generate_timestamp", return_value="260501_120000")
+@patch("sase.artifacts.create_artifacts_directory", return_value="/a")
+@patch("sase.running_field.claim_next_axe_workspace", side_effect=[100, 101])
+@patch("sase.running_field.get_workspace_directory", return_value="/ws/main")
+@patch(
+    "sase.running_field.get_workspace_directory_for_num",
+    side_effect=[("/ws1", None), ("/ws2", None)],
+)
+def test_launch_multi_prompt_preserves_timeout_predecessor_identity(
+    mock_ws_dir: MagicMock,
+    mock_wait_ws_dir: MagicMock,
+    mock_first_ws: MagicMock,
+    mock_create_artifacts: MagicMock,
+    mock_timestamp: MagicMock,
+    mock_wait: MagicMock,
+    mock_spawn: MagicMock,
+) -> None:
+    """Name polling timeout still leaves the next segment an artifact wait."""
+    mock_spawn.return_value = MagicMock(pid=1)
+
+    launch_multi_prompt_agents(
+        segments=["#_build", "%wait\nReview"],
+        local_xprompts={
+            "_build": XPrompt(name="_build", content="Build"),
+        },
+        cl_name="test",
+        project_file="/test.sase",
+        project_name="test",
+        is_home_mode=False,
+        vcs_ref=None,
+    )
+
+    second_call = mock_spawn.call_args_list[1]
+    context = json.loads(
+        second_call.kwargs["extra_env"][SASE_AGENT_PREDECESSOR_CONTEXT_ENV]
+    )
+    assert second_call.kwargs["prompt"] == "%wait\nReview"
+    assert context["project_name"] == "test"
+    assert context["timestamp"] == "260501_120000"
+    assert context["artifact_dir"].endswith("20260501120000")
+    assert "name" not in context or context["name"] is None
+    assert mock_wait.call_count == 1
 
 
 @patch("sase.agent.launcher.spawn_agent_subprocess")

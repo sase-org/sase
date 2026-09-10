@@ -12,6 +12,8 @@ from sase.core.agent_launch_wire import (
     AgentLaunchPreparedWire,
     AgentLaunchRequestWire,
     AgentUnitWire,
+    BatchPredecessorContextWire,
+    BatchPredecessorWaitBindingWire,
     LaunchAdmissionSummaryWire,
     LaunchFanoutPlanWire,
     LaunchFanoutSlotWire,
@@ -20,6 +22,7 @@ from sase.core.agent_launch_wire import (
     LaunchUnitWire,
     agent_launch_prepared_from_dict,
     agent_launch_wire_to_json_dict,
+    batch_predecessor_wait_binding_from_dict,
     launch_admission_summary_from_dict,
     launch_fanout_plan_from_dict,
     launch_plan_from_dict,
@@ -152,6 +155,17 @@ def plan_agent_launch_fanout(
     binding = require_rust_binding("plan_agent_launch_fanout")
     payload = binding(prompt, launch_kind)
     return launch_fanout_plan_from_dict(dict(payload))
+
+
+def bind_batch_predecessor_waits(
+    prompt: str,
+    predecessor: BatchPredecessorContextWire,
+) -> BatchPredecessorWaitBindingWire:
+    """Bind bare wait directives in *prompt* to one batch predecessor."""
+
+    binding = require_rust_binding("bind_batch_predecessor_waits")
+    payload = binding(prompt, agent_launch_wire_to_json_dict(predecessor))
+    return batch_predecessor_wait_binding_from_dict(dict(payload))
 
 
 def plan_typed_launch_units(
