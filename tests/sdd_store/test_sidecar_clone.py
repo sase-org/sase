@@ -633,6 +633,112 @@ def test_sidecar_clone_timeout_retries_only_once_without_reference(
     assert not clone_dir.exists()
 
 
+def test_sidecar_clone_checkout_failure_retries_without_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = "git@example.test:private/plans.git"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    reference = tmp_path / "primary" / "sase" / "repos" / "plans"
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+
+    def checkout_failure_then_success(args: list[str], **_kwargs):
+        calls.append(list(args))
+        if len(calls) == 1:
+            clone_dir.mkdir(parents=True)
+            (clone_dir / "partial").write_text("incomplete", encoding="utf-8")
+            return subprocess.CompletedProcess(
+                args=["git", "clone"],
+                returncode=128,
+                stdout="",
+                stderr=(
+                    "fatal: unable to parse commit "
+                    "8c09ae950bbf8201016911d1c9c90726b426e11b\n"
+                    "warning: Clone succeeded, but checkout failed."
+                ),
+            )
+        assert not (clone_dir / "partial").exists()
+        (clone_dir / ".git").mkdir(parents=True)
+        return subprocess.CompletedProcess(
+            args=["git", "clone"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr(
+        "sase.sdd._store_clone_ops._matching_clone_reference",
+        lambda _reference_repo, _remote_url: reference,
+    )
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", checkout_failure_then_success)
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", sleeps.append)
+
+    assert (
+        clone_sdd_store(
+            remote,
+            clone_dir,
+            reference_repo=reference,
+            strict=True,
+        )
+        is True
+    )
+
+    assert "--reference-if-able" in calls[0]
+    assert "--reference-if-able" not in calls[1]
+    assert sleeps == []
+
+
+def test_sidecar_clone_reference_fallback_is_capped(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = "git@example.test:private/plans.git"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    reference = tmp_path / "primary" / "sase" / "repos" / "plans"
+    calls: list[list[str]] = []
+    diagnostic = (
+        "fatal: unable to parse commit "
+        "8c09ae950bbf8201016911d1c9c90726b426e11b\n"
+        "warning: Clone succeeded, but checkout failed."
+    )
+
+    def always_fail(args: list[str], **_kwargs):
+        calls.append(list(args))
+        clone_dir.mkdir(parents=True, exist_ok=True)
+        (clone_dir / "partial").write_text("incomplete", encoding="utf-8")
+        return subprocess.CompletedProcess(
+            args=["git", "clone"],
+            returncode=128,
+            stdout="",
+            stderr=diagnostic,
+        )
+
+    monkeypatch.setattr(
+        "sase.sdd._store_clone_ops._matching_clone_reference",
+        lambda _reference_repo, _remote_url: reference,
+    )
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", always_fail)
+
+    with pytest.raises(SddMaterializationError, match="unable to parse commit"):
+        clone_sdd_store(
+            remote,
+            clone_dir,
+            reference_repo=reference,
+            strict=True,
+        )
+
+    assert calls == [
+        [
+            "clone",
+            "--reference-if-able",
+            str(reference),
+            "--dissociate",
+            remote,
+            str(clone_dir),
+        ],
+        ["clone", remote, str(clone_dir)],
+    ]
+    assert not clone_dir.exists()
+
+
 def _build_unrebasable_sidecar(tmp_path: Path) -> tuple[Path, Path, Path]:
     remote = tmp_path / "plans.git"
     seed = tmp_path / "seed"

@@ -19,7 +19,7 @@ from sase.sdd._store_types import SddMaterializationError
 _logger = logging.getLogger(__name__)
 
 _REMOTE_CLONE_RETRY_DELAYS = (0.25, 1.0, 2.0)
-_MAX_TIMEOUT_RETRIES_WITHOUT_REFERENCE = 1
+_MAX_RETRIES_WITHOUT_REFERENCE = 1
 _TRANSIENT_REMOTE_CLONE_ERRORS = (
     "broken pipe",
     "closed by remote host",
@@ -63,7 +63,7 @@ def clone_sdd_store(
     clone_env["GIT_TERMINAL_PROMPT"] = "0"
     reference = _matching_clone_reference(reference_repo, remote_url)
     clone_args = _remote_clone_args(remote_url, workspace_sdd, reference=reference)
-    timeout_retries_without_reference = 0
+    retries_without_reference = 0
 
     for attempt in range(len(_REMOTE_CLONE_RETRY_DELAYS) + 1):
         timeout = _deadline_timeout(network_git_timeout(), deadline)
@@ -89,13 +89,12 @@ def clone_sdd_store(
         except SddGitCommandTimeout as exc:
             can_retry_without_reference = (
                 reference is not None
-                and timeout_retries_without_reference
-                < _MAX_TIMEOUT_RETRIES_WITHOUT_REFERENCE
+                and retries_without_reference < _MAX_RETRIES_WITHOUT_REFERENCE
                 and attempt < len(_REMOTE_CLONE_RETRY_DELAYS)
             )
             if can_retry_without_reference:
                 _remove_partial_sdd_clone(workspace_sdd)
-                timeout_retries_without_reference += 1
+                retries_without_reference += 1
                 _logger.warning(
                     "Timed out cloning SDD store %s into %s with local object "
                     "reference %s; retrying without the reference",
@@ -126,6 +125,28 @@ def clone_sdd_store(
             return True
 
         detail = (result.stderr or result.stdout or "").strip()
+        can_retry_without_reference = (
+            reference is not None
+            and retries_without_reference < _MAX_RETRIES_WITHOUT_REFERENCE
+            and attempt < len(_REMOTE_CLONE_RETRY_DELAYS)
+        )
+        if can_retry_without_reference:
+            _remove_partial_sdd_clone(workspace_sdd)
+            retries_without_reference += 1
+            _logger.warning(
+                "Failed cloning SDD store %s into %s with local object "
+                "reference %s; retrying without the reference: %s",
+                remote_url,
+                workspace_sdd,
+                reference,
+                detail or f"git clone exited {result.returncode}",
+            )
+            reference = None
+            clone_args = _remote_clone_args(
+                remote_url, workspace_sdd, reference=reference
+            )
+            continue
+
         if not _is_transient_remote_clone_failure(detail) or attempt >= len(
             _REMOTE_CLONE_RETRY_DELAYS
         ):
