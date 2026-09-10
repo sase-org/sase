@@ -6,13 +6,17 @@ from rich.cells import cell_len
 
 from sase.pager._labels import LabelWindowScope
 from sase.pager._trail_chrome import (
-    _PagerTrailDisplayEntry,
-    PagerTrailSnapshot,
     build_pager_help_content,
     build_pager_trail_snapshot,
-    _render_compact_trail_row,
     render_trail_band,
-    _render_trail_path_row,
+)
+from sase.pager._trail_chrome_band import _render_compact_trail_row
+from sase.pager._trail_chrome_model import (
+    PagerTrailDisplayEntry as _PagerTrailDisplayEntry,
+)
+from sase.pager._trail_chrome_model import PagerTrailSnapshot
+from sase.pager._trail_chrome_path import (
+    render_trail_path_row as _render_trail_path_row,
 )
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.trail import PagerSearchState, PagerTrailEntry
