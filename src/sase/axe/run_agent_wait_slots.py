@@ -1,15 +1,14 @@
 """Runner-slot admission control for the run agent runner.
 
 The global participating-agent cap is enforced by a check-and-claim under a
-single host-wide lock: each candidate rescans live agents, decides whether it
-may start, and either claims RUNNING atomically or publishes a ``waiting.json``
-queue marker and retries.
+single host-wide lock: each candidate reads the shared capacity-only scan,
+decides whether it may start, and either claims RUNNING atomically or
+publishes a ``waiting.json`` queue marker and retries with jittered backoff.
 """
 
 import fcntl
 import math
 import sys
-import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,6 +20,7 @@ from sase.axe.run_agent_wait_markers import (
     remove_waiting_marker,
     write_waiting_marker,
 )
+from sase.axe.run_agent_wait_slot_poll import advance_runner_slot_poll
 from sase.axe.runner_signals import was_killed
 from sase.config.core import (
     get_max_running_agents,
@@ -35,8 +35,11 @@ from sase.core.paths import sase_home, sase_projects_dir
 from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
     deference_window_seconds,
+    load_or_refresh_runner_slot_scan,
+    notify_runner_slot_state_changed,
     runner_capacity_snapshot,
     runner_slot_candidate_record,
+    runner_slot_state_token,
 )
 
 _RUNNER_SLOT_POLL_INTERVAL = 2
@@ -46,6 +49,7 @@ _RUNNER_SLOT_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     include_raw_prompt_snippets=False,
     only_workflow_dirs=("ace-run",),
     include_done_markers=False,
+    capacity_only=True,
 )
 
 
@@ -53,10 +57,17 @@ def _runner_slot_lock_path() -> Path:
     return sase_home() / "runner_slots.lock"
 
 
-def _scan_runner_slot_records() -> list[AgentArtifactRecordWire]:
+def _collect_runner_slot_records() -> list[AgentArtifactRecordWire]:
     from sase.core.agent_scan_facade import scan_agent_artifacts
 
     return scan_agent_artifacts(sase_projects_dir(), _RUNNER_SLOT_SCAN_OPTIONS).records
+
+
+def _scan_runner_slot_records() -> list[AgentArtifactRecordWire]:
+    return load_or_refresh_runner_slot_scan(
+        _collect_runner_slot_records,
+        max_age=float(_RUNNER_SLOT_POLL_INTERVAL),
+    )
 
 
 def _record_liveness_probe() -> Callable[[AgentArtifactRecordWire], bool]:
@@ -557,6 +568,7 @@ def _try_claim_runner_slot(
                     queue_weight_explicit=queue_weight_explicit,
                 )
                 run_started_at = claim()
+                notify_runner_slot_state_changed()
                 remove_waiting_marker(artifacts_dir)
                 return run_started_at, False
             candidate_waiter = _candidate_waiter(snapshot, artifacts_dir)
@@ -572,6 +584,7 @@ def _try_claim_runner_slot(
                     queue_weight_explicit=queue_weight_explicit,
                 )
                 run_started_at = claim()
+                notify_runner_slot_state_changed()
                 remove_waiting_marker(artifacts_dir)
                 return run_started_at, False
             blocker_codes = _candidate_blocker_codes(candidate_waiter)
@@ -635,6 +648,8 @@ def wait_for_runner_slot(
     runner-slot lock. Once that family has released its claim, the successor
     queues and reacquires capacity like any other launch.
     """
+    poll_attempt = 0
+    seen_token = runner_slot_state_token()
     while not was_killed():
         run_started_at, parked = _try_claim_runner_slot(
             artifacts_dir=artifacts_dir,
@@ -651,7 +666,14 @@ def wait_for_runner_slot(
             return run_started_at
         if parked:
             print("Waiting for a runner slot")
-        time.sleep(_RUNNER_SLOT_POLL_INTERVAL)
+            poll_attempt = 0
+        poll_attempt, seen_token = advance_runner_slot_poll(
+            poll_attempt,
+            seen_token,
+            base=float(_RUNNER_SLOT_POLL_INTERVAL),
+            killed=was_killed,
+            token=runner_slot_state_token,
+        )
 
     lock_path = _runner_slot_lock_path()
     lock_path.parent.mkdir(parents=True, exist_ok=True)

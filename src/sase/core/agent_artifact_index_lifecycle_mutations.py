@@ -22,6 +22,16 @@ from sase.core.agent_scan_facade import (
 log = logging.getLogger(__name__)
 
 
+def _notify_runner_slot_state_changed() -> None:
+    """Wake parked slot waiters; never fail the marker-index update."""
+    try:
+        from sase.core.runner_slots import notify_runner_slot_state_changed
+
+        notify_runner_slot_state_changed()
+    except Exception:  # noqa: BLE001 - waiters must not fail marker updates.
+        log.debug("runner-slot state notify failed", exc_info=True)
+
+
 def _projects_root_for_artifact_dir(artifact_dir: Path | str) -> Path:
     """Resolve the projects root that contains *artifact_dir* when possible."""
     path = Path(artifact_dir).expanduser()
@@ -37,6 +47,7 @@ def delete_agent_artifact_index_artifacts(
     index_path: Path | str | None = None,
 ) -> int:
     """Best-effort delete of artifact rows from the SQLite index."""
+    _notify_runner_slot_state_changed()
     with agent_artifact_index_operation_lock():
         index = (
             Path(index_path).expanduser()
@@ -77,6 +88,7 @@ def delete_agent_artifact_index_artifacts_bounded(
     already-absent index). A process-lock miss, SQLite busy timeout, or stale
     binding returns ``False`` so self-healing callers retry on their next pass.
     """
+    _notify_runner_slot_state_changed()
     index = (
         Path(index_path).expanduser()
         if index_path is not None
@@ -113,6 +125,7 @@ def upsert_agent_artifact_index_artifacts(
     index_path: Path | str | None = None,
 ) -> int:
     """Best-effort upsert of restored or changed artifact rows."""
+    _notify_runner_slot_state_changed()
     with agent_artifact_index_operation_lock():
         index = (
             Path(index_path).expanduser()

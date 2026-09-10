@@ -22,7 +22,7 @@ def test_uncontended_gate_claims_without_parking(tmp_path: Path) -> None:
             run_agent_wait_markers,
             "update_agent_artifact_index_for_marker_mutation",
         ),
-        patch.object(run_agent_wait_slots.time, "sleep") as sleep,
+        patch.object(run_agent_wait_slots, "advance_runner_slot_poll") as sleep,
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
     ):
         started_at = run_agent_wait_slots.wait_for_runner_slot(
@@ -39,6 +39,7 @@ def test_uncontended_gate_claims_without_parking(tmp_path: Path) -> None:
     assert not (waiter / "waiting.json").exists()
     scan.assert_called_once_with()
     sleep.assert_not_called()
+    assert run_agent_wait_slots._RUNNER_SLOT_SCAN_OPTIONS.capacity_only is True
 
 
 def test_serial_child_agent_uses_locked_admission(
