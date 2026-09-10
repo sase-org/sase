@@ -152,8 +152,19 @@ def fixture_rows() -> list[dict[str, Any] | str]:
     ]
 
 
-def synthetic_rows(count: int) -> Iterable[dict[str, Any]]:
-    """Yield a deterministic synthetic corpus with varied state/action rows."""
+def synthetic_rows(
+    count: int, *, dismissed_fraction: float | None = None
+) -> Iterable[dict[str, Any]]:
+    """Yield a deterministic synthetic corpus with varied state/action rows.
+
+    ``dismissed_fraction`` overrides the default ~1/19 dismissed ratio so
+    callers can generate a mostly-dismissed corpus (matching the
+    history-heavy shape notification-store perf floors guard against)
+    without duplicating the row-building logic.
+    """
+    dismissed_pct = (
+        None if dismissed_fraction is None else round(dismissed_fraction * 100)
+    )
     actions = [
         None,
         "JumpToAgent",
@@ -184,7 +195,11 @@ def synthetic_rows(count: int) -> Iterable[dict[str, Any]]:
             "action": action,
             "action_data": {},
             "read": idx % 3 == 0,
-            "dismissed": idx % 19 == 0,
+            "dismissed": (
+                (idx % 19 == 0)
+                if dismissed_pct is None
+                else (idx % 100) < dismissed_pct
+            ),
             "silent": idx % 23 == 0,
             "muted": idx % 11 == 0,
             "snooze_until": SNOOZE_TIMESTAMP if idx % 29 == 0 else None,

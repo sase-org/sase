@@ -219,6 +219,9 @@ def _bench_agent_scan(
                     "scan_rust_dict_to_wire": scenarios.get(
                         "scan_rust_dict_to_wire", {}
                     ),
+                    "capacity_scan_facade": scenarios.get(
+                        "scan_rust_capacity_facade", {}
+                    ),
                 },
             }
         )

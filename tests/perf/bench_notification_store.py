@@ -52,6 +52,16 @@ pytestmark = pytest.mark.slow
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FLOOR_WORKLOAD_LABEL = "synthetic_5k"
 
+# Mostly-dismissed workload: matches the production shape that motivated
+# notification-store compaction (~96% dismissed) while staying under the
+# Rust store's compaction thresholds (1,000 dismissed rows or 4 MiB) so the
+# read cost measured here reflects an uncompacted history-heavy file rather
+# than a compaction pass.
+MOSTLY_DISMISSED_WORKLOAD_LABEL = "mostly_dismissed_900"
+MOSTLY_DISMISSED_SCENARIO = "notification_store_mostly_dismissed_load_snapshot"
+MOSTLY_DISMISSED_COUNT = 900
+MOSTLY_DISMISSED_FRACTION = 0.96
+
 
 def _notification_fixture_module() -> Any:
     module_path = REPO_ROOT / "tests" / "fixtures" / "notifications" / "generate.py"
@@ -117,9 +127,14 @@ def _patched_store(path: Path):
         store._LOAD_CACHE.update(old_cache)
 
 
-def _prepare_corpus(path: Path, count: int) -> None:
+def _prepare_corpus(
+    path: Path, count: int, *, dismissed_fraction: float | None = None
+) -> None:
     fixture_module = _notification_fixture_module()
-    fixture_module.write_jsonl(path, fixture_module.synthetic_rows(count))
+    fixture_module.write_jsonl(
+        path,
+        fixture_module.synthetic_rows(count, dismissed_fraction=dismissed_fraction),
+    )
 
 
 def _copy_corpus(source: Path, destination: Path) -> None:
@@ -174,6 +189,23 @@ def _run_modal_dismiss_burst() -> int:
     notifications = load_notifications()
     modal = NotificationModal(notifications)
     return modal._bulk_dismiss_notifications_by_index(25)
+
+
+def _time_mostly_dismissed_load_snapshot(
+    *, runs: int, warmup: int, count: int, dismissed_fraction: float
+) -> dict[str, float]:
+    """Time a snapshot read on a store shaped like the production incident.
+
+    Unlike ``run_bench``'s ``synthetic_5k`` workload (~5% dismissed), this
+    corpus is mostly-dismissed so a regression in how the read path scans
+    or classifies dead rows fails loudly even before compaction thresholds
+    are crossed.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "notifications.jsonl"
+        _prepare_corpus(path, count, dismissed_fraction=dismissed_fraction)
+        with _patched_store(path):
+            return _time_calls(_snapshot_counts, runs=runs, warmup=warmup)
 
 
 def run_bench(
@@ -247,6 +279,12 @@ def run_phase7_floor_payload(
 ) -> dict[str, Any]:
     """Return a Phase 7 checker-compatible payload for notification anchors."""
     report = run_bench(runs=runs, warmup=warmup, count=count)
+    mostly_dismissed_summary = _time_mostly_dismissed_load_snapshot(
+        runs=runs,
+        warmup=warmup,
+        count=MOSTLY_DISMISSED_COUNT,
+        dismissed_fraction=MOSTLY_DISMISSED_FRACTION,
+    )
     return {
         "notification_store": {
             "workloads": [
@@ -254,7 +292,14 @@ def run_phase7_floor_payload(
                     "label": FLOOR_WORKLOAD_LABEL,
                     "baseline": {},
                     "candidate": report["scenarios"],
-                }
+                },
+                {
+                    "label": MOSTLY_DISMISSED_WORKLOAD_LABEL,
+                    "baseline": {},
+                    "candidate": {
+                        MOSTLY_DISMISSED_SCENARIO: mostly_dismissed_summary,
+                    },
+                },
             ]
         }
     }
@@ -287,9 +332,11 @@ def test_bench_smoke() -> None:
 
 def test_phase7_floor_payload_shape() -> None:
     payload = run_phase7_floor_payload(runs=1, warmup=0, count=100)
-    workload = payload["notification_store"]["workloads"][0]
-    assert workload["label"] == FLOOR_WORKLOAD_LABEL
-    assert "notification_modal_dismiss_burst" in workload["candidate"]
+    workloads = payload["notification_store"]["workloads"]
+    assert workloads[0]["label"] == FLOOR_WORKLOAD_LABEL
+    assert "notification_modal_dismiss_burst" in workloads[0]["candidate"]
+    assert workloads[1]["label"] == MOSTLY_DISMISSED_WORKLOAD_LABEL
+    assert MOSTLY_DISMISSED_SCENARIO in workloads[1]["candidate"]
 
 
 def main(argv: list[str] | None = None) -> int:

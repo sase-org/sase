@@ -387,6 +387,18 @@ def _run_scenarios(
             return 0
         return len(scan_agent_artifacts(projects_root).records)
 
+    # Phase 4 (sase-za.4): capacity-only mode (sase-za.1) skips done artifact
+    # dirs before parsing, so on this mostly-done synthetic tree it should
+    # both run faster and return far fewer records than the full facade
+    # scan above. Guards the runner-slot admission scan against regressing
+    # back toward O(history).
+    capacity_options = AgentArtifactScanOptionsWire(capacity_only=True)
+
+    def s_scan_rust_capacity_facade() -> int:
+        if not rust_active:
+            return 0
+        return len(scan_agent_artifacts(projects_root, capacity_options).records)
+
     scenarios: dict[str, Callable[[], int]] = {
         "find_named_agent": s_find,
         "is_workflow_complete": s_workflow_complete,
@@ -398,6 +410,7 @@ def _run_scenarios(
         "scan_rust_to_dict": s_scan_rust_to_dict,
         "scan_rust_dict_to_wire": s_scan_rust_dict_to_wire,
         "scan_rust_facade": s_scan_rust_facade,
+        "scan_rust_capacity_facade": s_scan_rust_capacity_facade,
     }
 
     results: dict[str, Any] = {
@@ -416,6 +429,7 @@ def _run_scenarios(
         "scan_rust_to_dict",
         "scan_rust_dict_to_wire",
         "scan_rust_facade",
+        "scan_rust_capacity_facade",
     }
 
     for name, fn in scenarios.items():
@@ -558,6 +572,7 @@ def test_bench_agent_scan_smoke(tmp_path: Path) -> None:
     assert report["workloads"], "expected at least one workload"
     workload = report["workloads"][0]
     assert "scan_rust_facade" in workload["scenarios"]
+    assert "scan_rust_capacity_facade" in workload["scenarios"]
     assert (tmp_path / "bench.json").exists()
 
 
