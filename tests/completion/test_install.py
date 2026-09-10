@@ -5,13 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 
 from sase.completion.install import (
+    CompletionInstallError,
     CompletionRefreshReport,
     ForeignInstallError,
     InstallResult,
     RefreshShellOutcome,
+    _ExpectedCompletion,
     install_completion,
     list_shell_statuses,
     maybe_refresh_installed_completions,
+    refresh_stamped_completions,
     _refresh_stamped_completions,
     zwc_path,
 )
@@ -20,6 +23,14 @@ from sase.completion.install_stamp import InstallStamp, read_stamp, write_stamp
 
 def _emit(shell: str) -> tuple[str, str]:
     return f"# generated {shell}\n", f"digest-{shell}"
+
+
+def _expected(shells: tuple[str, ...] | list[str]):
+    return {
+        shell: _ExpectedCompletion(script, digest)
+        for shell in shells
+        for script, digest in (_emit(shell),)
+    }
 
 
 def _zcompile(path: Path) -> None:
@@ -170,26 +181,114 @@ def test_list_status_resolves_installed_stale_missing_and_zwc(
 ) -> None:
     installed = _install(tmp_path)
     assert installed.ok
-    rows = {row.shell: row for row in list_shell_statuses(version="0.16.0")}
+    rows = {
+        row.shell: row
+        for row in list_shell_statuses(version="0.16.0", expected_fn=_expected)
+    }
     assert rows["zsh"].status == "installed"
     assert rows["zsh"].zwc == "fresh"
     assert rows["zsh"].stamp_version == "0.16.0"
     assert rows["zsh"].owner == "local"
+    assert rows["zsh"].drift_reasons == ()
     assert rows["bash"].status == "not installed"
     assert rows["bash"].owner is None
 
-    stale = {row.shell: row for row in list_shell_statuses(version="0.17.0")}
+    stale = {
+        row.shell: row
+        for row in list_shell_statuses(version="0.17.0", expected_fn=_expected)
+    }
     assert stale["zsh"].status == "stale"
+    assert "stamp version" in stale["zsh"].drift_reasons[0]
 
     script = tmp_path / "zfunc" / "_sase"
     zwc_path(script).unlink()
-    missing_zwc = {row.shell: row for row in list_shell_statuses(version="0.16.0")}
+    missing_zwc = {
+        row.shell: row
+        for row in list_shell_statuses(version="0.16.0", expected_fn=_expected)
+    }
     assert missing_zwc["zsh"].status == "zwc stale"
     assert missing_zwc["zsh"].zwc == "missing"
 
     script.unlink()
-    missing = {row.shell: row for row in list_shell_statuses(version="0.16.0")}
+    missing = {
+        row.shell: row
+        for row in list_shell_statuses(version="0.16.0", expected_fn=_expected)
+    }
     assert missing["zsh"].status == "missing"
+
+
+def test_list_status_detects_same_version_command_tree_drift(tmp_path: Path) -> None:
+    assert _install(tmp_path).ok
+
+    rows = {
+        row.shell: row
+        for row in list_shell_statuses(
+            version="0.16.0",
+            expected_fn=lambda shells: {
+                shell: _ExpectedCompletion("# generated zsh\n", "digest-new")
+                for shell in shells
+            },
+        )
+    }
+
+    assert rows["zsh"].status == "stale"
+    assert any("stamp digest" in reason for reason in rows["zsh"].drift_reasons)
+
+
+def test_list_status_detects_emitter_only_drift(tmp_path: Path) -> None:
+    assert _install(tmp_path).ok
+
+    rows = {
+        row.shell: row
+        for row in list_shell_statuses(
+            version="0.16.0",
+            expected_fn=lambda shells: {
+                shell: _ExpectedCompletion("# regenerated differently\n", "digest-zsh")
+                for shell in shells
+            },
+        )
+    }
+
+    assert rows["zsh"].status == "stale"
+    assert any("script differs" in reason for reason in rows["zsh"].drift_reasons)
+
+
+def test_list_status_detects_damaged_script(tmp_path: Path) -> None:
+    assert _install(tmp_path).ok
+    script = tmp_path / "zfunc" / "_sase"
+    script.write_text("# damaged\n", encoding="utf-8")
+
+    rows = {
+        row.shell: row
+        for row in list_shell_statuses(version="0.16.0", expected_fn=_expected)
+    }
+
+    assert rows["zsh"].status == "stale"
+    assert any("script differs" in reason for reason in rows["zsh"].drift_reasons)
+
+
+def test_zcompile_failure_preserves_previous_script_and_stamp(tmp_path: Path) -> None:
+    assert _install(tmp_path).ok
+    script = tmp_path / "zfunc" / "_sase"
+    before = script.read_text(encoding="utf-8")
+    stamp_before = read_stamp("zsh")
+    assert stamp_before is not None
+
+    def _fail_zcompile(_path: Path) -> None:
+        raise CompletionInstallError("zcompile exploded")
+
+    result = _install(
+        tmp_path,
+        emit_fn=lambda shell: (f"# broken {shell}\n", "digest-broken"),
+        zcompile_fn=_fail_zcompile,
+    )
+
+    assert result.exit_code == 1
+    assert any(
+        step.name == "zcompile" and step.status == "fail" for step in result.steps
+    )
+    assert script.read_text(encoding="utf-8") == before
+    assert read_stamp("zsh") == stamp_before
 
 
 def test_refresh_rewrites_every_stamped_shell(tmp_path: Path) -> None:
@@ -234,6 +333,23 @@ def test_refresh_skips_zsh_registration_probe(tmp_path: Path) -> None:
     assert verify_fns[0]() is None  # type: ignore[operator]
 
 
+def test_refresh_dry_run_does_not_reinstall(tmp_path: Path) -> None:
+    assert _install(tmp_path).ok
+    calls: list[object] = []
+
+    def _installer(**kwargs: object) -> InstallResult:
+        calls.append(kwargs)
+        raise AssertionError("dry-run must not reinstall")
+
+    dry_run = refresh_stamped_completions(dry_run=True, install_fn=_installer)
+    assert dry_run.outcomes[0].ok is True
+    assert (
+        "would refresh" in dry_run.outcomes[0].detail
+        or "already current" in dry_run.outcomes[0].detail
+    )
+    assert calls == []
+
+
 def test_chezmoi_owned_stamp_refuses_local_takeover_without_force(
     tmp_path: Path,
 ) -> None:
@@ -267,7 +383,9 @@ def test_chezmoi_owned_stamp_refuses_local_takeover_without_force(
     assert stamp.owner == "local"
 
 
-def test_refresh_skips_chezmoi_owned_stamps(tmp_path: Path) -> None:
+def test_refresh_reports_chezmoi_owned_stamps_without_success(
+    tmp_path: Path,
+) -> None:
     target = tmp_path / "zfunc"
     script = target / "_sase"
     target.mkdir()
@@ -291,11 +409,10 @@ def test_refresh_skips_chezmoi_owned_stamps(tmp_path: Path) -> None:
 
     report = _refresh_stamped_completions(install_fn=_installer)
 
-    assert report.outcomes == (
-        RefreshShellOutcome(
-            "zsh", True, f"skipped chezmoi-managed {script}", str(script)
-        ),
-    )
+    assert report.outcomes[0].shell == "zsh"
+    assert report.outcomes[0].ok is False
+    assert "legacy chezmoi-managed" in report.outcomes[0].detail
+    assert report.outcomes[0].target == str(script)
     assert seen == []
 
 

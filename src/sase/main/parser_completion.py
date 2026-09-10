@@ -39,6 +39,8 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase completion install                 # detect the shell and install\n"
             "  sase completion install zsh             # write, zcompile, verify, stamp\n"
             "  sase completion list                    # shells, path, zwc, stamp\n"
+            "  sase completion refresh                 # refresh stamped local installs\n"
+            "  sase completion refresh zsh -d          # show the zsh refresh plan\n"
             "  sase completion spec                    # structural JSON\n"
             "  sase completion spec -j -o spec.json    # write the snapshot artifact\n"
             "  sase completion zsh                     # print a compsys script\n"
@@ -49,7 +51,7 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
     completion_sub = completion_parser.add_subparsers(
         dest="completion_subcommand",
         help="Completion subcommands",
-        metavar="{bash,candidates,deploy-chezmoi,fish,install,list,spec,zsh}",
+        metavar="{bash,candidates,deploy-chezmoi,fish,install,list,refresh,spec,zsh}",
     )
 
     _register_bash_parser(completion_sub)
@@ -58,6 +60,7 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
     _register_fish_parser(completion_sub)
     _register_install_parser(completion_sub)
     _register_list_parser(completion_sub)
+    _register_refresh_parser(completion_sub)
     _register_spec_parser(completion_sub)
     _register_zsh_parser(completion_sub)
 
@@ -125,6 +128,45 @@ def _register_list_parser(subparsers: argparse._SubParsersAction) -> None:
         epilog=("examples:\n  sase completion list\n  sase completion list --json"),
     )
     list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON",
+    )
+
+
+def _register_refresh_parser(subparsers: argparse._SubParsersAction) -> None:
+    refresh_parser = subparsers.add_parser(
+        "refresh",
+        help="Regenerate existing stamped local completion installs",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Refresh stamped local completion scripts from the running sase "
+            "CLI. With no SHELL, refreshes every stamped supported shell. "
+            "Legacy chezmoi-owned stamps are reported but not overwritten."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase completion refresh\n"
+            "  sase completion refresh zsh\n"
+            "  sase completion refresh bash --dry-run\n"
+            "  sase completion refresh --json"
+        ),
+    )
+    refresh_parser.add_argument(
+        "shell",
+        nargs="?",
+        choices=("bash", "fish", "zsh"),
+        default=None,
+        help="Shell to refresh (default: every stamped shell)",
+    )
+    refresh_parser.add_argument(
+        "-d",
+        "--dry-run",
+        action="store_true",
+        help="Print the refresh plan without touching scripts, stamps, or bytecode",
+    )
+    refresh_parser.add_argument(
         "-j",
         "--json",
         action="store_true",

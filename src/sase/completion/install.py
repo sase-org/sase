@@ -47,6 +47,7 @@ zstyle ':completion:*' use-cache on
 """
 
 EmitFn = Callable[[str], tuple[str, str]]
+ExpectedFn = Callable[[Sequence[str]], Mapping[str, "_ExpectedCompletion"]]
 ZcompileFn = Callable[[Path], None]
 VerifyFn = Callable[[], str | None]
 WritableFn = Callable[[Path], bool]
@@ -87,6 +88,22 @@ class ShellInstallStatus:
     zwc: str
     stamp_version: str | None
     owner: str | None
+    drift_reasons: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _ExpectedCompletion:
+    """Current generated completion script and structural digest for one shell."""
+
+    script: str
+    digest: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ScriptPublication:
+    """A staged script publication result."""
+
+    wrote_script: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,17 +143,9 @@ def _utc_timestamp() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def _atomic_write_text(path: Path, text: str) -> None:
-    """Write *text* to *path* via a same-directory replace."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = text if text.endswith("\n") else f"{text}\n"
-    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        tmp.write_text(payload, encoding="utf-8")
-        os.replace(tmp, path)
-    except OSError:
-        tmp.unlink(missing_ok=True)
-        raise
+def _completion_payload(text: str) -> str:
+    """Return generated completion text with the on-disk trailing newline."""
+    return text if text.endswith("\n") else f"{text}\n"
 
 
 def zwc_path(script: Path) -> Path:
@@ -163,24 +172,45 @@ def _zwc_freshness(shell: str, script: Path) -> str:
 
 def _emit_script_and_digest(shell: str) -> tuple[str, str]:
     """Build the live spec once and return ``(script, digest)`` for *shell*."""
+    expected = _expected_scripts_for_shells((shell,))[shell]
+    return expected.script, expected.digest
+
+
+def _expected_scripts_for_shells(
+    shells: Sequence[str],
+) -> Mapping[str, _ExpectedCompletion]:
+    """Build the live spec once and emit current completion scripts for *shells*."""
     from sase.completion.build import build_spec
 
     spec = build_spec()
+    digest = spec.structural_digest()
+    return {
+        shell: _ExpectedCompletion(_emit_script(shell, spec), digest)
+        for shell in shells
+    }
+
+
+def _emit_script(shell: str, spec: object) -> str:
+    """Emit the current completion script for *shell* from *spec*."""
+    from sase.completion.model import CompletionSpec
+
+    if not isinstance(spec, CompletionSpec):
+        raise CompletionInstallError("completion spec has an unexpected type")
+
     if shell == "bash":
         from sase.completion.emit_bash import emit_bash
 
-        text = emit_bash(spec)
+        return emit_bash(spec)
     elif shell == "fish":
         from sase.completion.emit_fish import emit_fish
 
-        text = emit_fish(spec)
+        return emit_fish(spec)
     elif shell == "zsh":
         from sase.completion.emit_zsh import emit_zsh
 
-        text = emit_zsh(spec)
+        return emit_zsh(spec)
     else:
         raise CompletionInstallError(f"unsupported shell: {shell}")
-    return text, spec.structural_digest()
 
 
 def _zcompile_script(
@@ -208,6 +238,56 @@ def _zcompile_script(
     if completed.returncode != 0:
         err = (completed.stderr or completed.stdout or "unknown error").strip()
         raise CompletionInstallError(f"zcompile failed for {path}: {err}")
+
+
+def _publish_script(
+    script: Path,
+    text: str,
+    *,
+    shell: str,
+    zcompile_fn: ZcompileFn | None,
+) -> _ScriptPublication:
+    """Stage and publish generated completion bytes for one shell."""
+    script.parent.mkdir(parents=True, exist_ok=True)
+    payload = _completion_payload(text)
+    tmp = script.with_name(f".{script.name}.{os.getpid()}.tmp")
+    tmp_zwc = zwc_path(tmp)
+    final_zwc = zwc_path(script)
+    wrote_script = False
+    try:
+        tmp.write_text(payload, encoding="utf-8")
+        if shell == "zsh":
+            try:
+                (zcompile_fn or _zcompile_script)(tmp)
+            except OSError as exc:
+                raise CompletionInstallError(
+                    f"zcompile failed for {tmp}: {exc}"
+                ) from exc
+            if not tmp_zwc.is_file():
+                raise CompletionInstallError(f"zcompile did not create {tmp_zwc}")
+
+        current = _read_text(script)
+        if current != payload:
+            os.replace(tmp, script)
+            wrote_script = True
+        else:
+            tmp.unlink(missing_ok=True)
+
+        if shell == "zsh":
+            os.replace(tmp_zwc, final_zwc)
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        tmp_zwc.unlink(missing_ok=True)
+        raise
+    return _ScriptPublication(wrote_script=wrote_script)
+
+
+def _read_text(path: Path) -> str | None:
+    """Return text for *path*, or ``None`` when it is absent or unreadable."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
 
 
 def _remove_superseded_script(
@@ -331,24 +411,23 @@ def install_completion(
     emit = emit_fn or _emit_script_and_digest
     try:
         text, digest = emit(detected.name)
-        _atomic_write_text(script, text)
+        publication = _publish_script(
+            script,
+            text,
+            shell=detected.name,
+            zcompile_fn=zcompile_fn,
+        )
     except OSError as exc:
         steps.append(InstallStep("write", "fail", f"cannot write {script}: {exc}"))
         return _result(detected, choice, script, steps, ok=False, exit_code=1)
     except CompletionInstallError as exc:
-        steps.append(InstallStep("write", "fail", str(exc)))
+        step_name = "zcompile" if detected.name == "zsh" else "write"
+        steps.append(InstallStep(step_name, "fail", str(exc)))
         return _result(detected, choice, script, steps, ok=False, exit_code=1)
-    steps.append(InstallStep("write", "ok", str(script)))
-
-    zcompile_ok = True
+    write_detail = str(script) if publication.wrote_script else f"{script} unchanged"
+    steps.append(InstallStep("write", "ok", write_detail))
     if detected.name == "zsh":
-        try:
-            (zcompile_fn or _zcompile_script)(script)
-        except CompletionInstallError as exc:
-            steps.append(InstallStep("zcompile", "fail", str(exc)))
-            zcompile_ok = False
-        else:
-            steps.append(InstallStep("zcompile", "ok", str(zwc_path(script))))
+        steps.append(InstallStep("zcompile", "ok", str(zwc_path(script))))
     else:
         steps.append(InstallStep("zcompile", "skip", "not required"))
 
@@ -387,7 +466,7 @@ def install_completion(
         env=env,
     )
     steps.append(verify_step)
-    ok = zcompile_ok and not verify_failed
+    ok = not verify_failed
     return _result(
         detected,
         choice,
@@ -404,11 +483,27 @@ def install_completion(
 def list_shell_statuses(
     *,
     version: str | None = None,
+    expected_fn: ExpectedFn | None = None,
 ) -> tuple[ShellInstallStatus, ...]:
     """Return the resolved install status of every supported shell."""
     running = sase.__version__ if version is None else version
+    stamps = {shell: read_stamp(shell) for shell in SUPPORTED_SHELLS}
+    stamped_shells = tuple(
+        shell for shell, stamp in stamps.items() if stamp is not None
+    )
+    expected = (
+        (expected_fn or _expected_scripts_for_shells)(stamped_shells)
+        if stamped_shells
+        else {}
+    )
     return tuple(
-        _status_for_shell(shell, running=running) for shell in SUPPORTED_SHELLS
+        _status_for_shell(
+            shell,
+            running=running,
+            stamp=stamps[shell],
+            expected=expected.get(shell),
+        )
+        for shell in SUPPORTED_SHELLS
     )
 
 
@@ -417,23 +512,56 @@ def _skip_refresh_verify() -> str | None:
     return None
 
 
-def _refresh_stamped_completions(
+def refresh_stamped_completions(
     *,
+    shell: str | None = None,
+    dry_run: bool = False,
     install_fn: Callable[..., InstallResult] | None = None,
 ) -> CompletionRefreshReport:
     """Regenerate, zcompile, and restamp every shell that already has a stamp."""
     stamps = list_stamps()
+    if shell is not None and shell not in SUPPORTED_SHELLS:
+        raise CompletionInstallError(f"unsupported shell: {shell}")
+    if shell is not None:
+        stamps = tuple(stamp for stamp in stamps if stamp.shell == shell)
     if not stamps:
+        if shell is not None:
+            return CompletionRefreshReport(
+                attempted=True,
+                outcomes=(
+                    RefreshShellOutcome(
+                        shell=shell,
+                        ok=True,
+                        detail=f"no stamped {shell} completion install",
+                        target=None,
+                    ),
+                ),
+            )
         return CompletionRefreshReport(attempted=True, outcomes=())
     installer = install_fn or install_completion
+    statuses = {row.shell: row for row in list_shell_statuses()}
     outcomes: list[RefreshShellOutcome] = []
     for stamp in stamps:
+        status = statuses[stamp.shell]
         if stamp_is_chezmoi(stamp):
             outcomes.append(
                 RefreshShellOutcome(
                     shell=stamp.shell,
+                    ok=False,
+                    detail=(
+                        f"legacy chezmoi-managed {stamp.target} is not refreshed "
+                        "automatically; migrate the managed install first"
+                    ),
+                    target=stamp.target,
+                )
+            )
+            continue
+        if dry_run:
+            outcomes.append(
+                RefreshShellOutcome(
+                    shell=stamp.shell,
                     ok=True,
-                    detail=f"skipped chezmoi-managed {stamp.target}",
+                    detail=_refresh_dry_run_detail(status),
                     target=stamp.target,
                 )
             )
@@ -468,6 +596,23 @@ def _refresh_stamped_completions(
     return CompletionRefreshReport(attempted=True, outcomes=tuple(outcomes))
 
 
+def _refresh_stamped_completions(
+    *,
+    install_fn: Callable[..., InstallResult] | None = None,
+) -> CompletionRefreshReport:
+    """Backward-compatible wrapper for existing injected refresh hooks."""
+    return refresh_stamped_completions(install_fn=install_fn)
+
+
+def _refresh_dry_run_detail(status: ShellInstallStatus) -> str:
+    target = status.path or "<unset>"
+    if status.status == "installed":
+        return f"already current at {target}"
+    reasons = "; ".join(status.drift_reasons)
+    suffix = f" ({reasons})" if reasons else ""
+    return f"would refresh {target}{suffix}"
+
+
 def maybe_refresh_installed_completions(
     refresh_fn: Callable[[], CompletionRefreshReport] | None = None,
 ) -> CompletionRefreshReport:
@@ -492,8 +637,15 @@ def maybe_refresh_installed_completions(
         )
 
 
-def _status_for_shell(shell: str, *, running: str) -> ShellInstallStatus:
-    stamp = read_stamp(shell)
+def _status_for_shell(
+    shell: str,
+    *,
+    running: str,
+    stamp: InstallStamp | None = None,
+    expected: _ExpectedCompletion | None = None,
+) -> ShellInstallStatus:
+    if stamp is None:
+        stamp = read_stamp(shell)
     if stamp is None:
         return ShellInstallStatus(
             shell=shell,
@@ -507,12 +659,44 @@ def _status_for_shell(shell: str, *, running: str) -> ShellInstallStatus:
     script = resolve_stamp_target(stamp.target)
     present = script.is_file()
     freshness = _zwc_freshness(shell, script)
+    drift_reasons: list[str] = []
     if not present:
         status = "missing"
-    elif stamp.version != running:
+        drift_reasons.append("stamped script is missing")
+    else:
+        if stamp.version != running:
+            drift_reasons.append(
+                f"stamp version {stamp.version} differs from running {running}"
+            )
+        if expected is None:
+            drift_reasons.append("current generated completion could not be assessed")
+        elif stamp.digest != expected.digest:
+            drift_reasons.append(
+                f"stamp digest {stamp.digest} differs from running {expected.digest}"
+            )
+        if expected is not None:
+            current = _read_text(script)
+            if current is None:
+                drift_reasons.append("installed script cannot be read")
+            elif current != _completion_payload(expected.script):
+                drift_reasons.append("installed script differs from current generator")
+
+    if present and stamp_is_chezmoi(stamp):
+        drift_reasons.append(
+            "legacy chezmoi-managed install is not refreshed automatically"
+        )
+
+    if not present:
+        status = "missing"
+    elif stamp_is_chezmoi(stamp) and drift_reasons:
+        status = "managed stale"
+    elif stamp_is_chezmoi(stamp):
+        status = "managed"
+    elif drift_reasons:
         status = "stale"
     elif freshness == "stale" or freshness == "missing":
         status = "zwc stale"
+        drift_reasons.append(f".zwc is {freshness}")
     else:
         status = "installed"
     return ShellInstallStatus(
@@ -523,6 +707,7 @@ def _status_for_shell(shell: str, *, running: str) -> ShellInstallStatus:
         zwc=freshness,
         stamp_version=stamp.version,
         owner=stamp.owner,
+        drift_reasons=tuple(drift_reasons),
     )
 
 
@@ -658,5 +843,6 @@ __all__ = [
     "install_completion",
     "list_shell_statuses",
     "maybe_refresh_installed_completions",
+    "refresh_stamped_completions",
     "zwc_path",
 ]

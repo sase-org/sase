@@ -38,12 +38,16 @@ def test_completion_help_lists_sorted_subcommands() -> None:
         "fish",
         "install",
         "list",
+        "refresh",
         "spec",
         "zsh",
     }
 
     assert help_subcommand_rows(help_text, expected) == sorted(expected)
-    assert "{bash,candidates,deploy-chezmoi,fish,install,list,spec,zsh}" in help_text
+    assert (
+        "{bash,candidates,deploy-chezmoi,fish,install,list,refresh,spec,zsh}"
+        in help_text
+    )
     assert "defaults to `sase completion list`" in help_text
     assert 'eval "$(sase completion zsh)"' in help_text
 
@@ -83,6 +87,19 @@ def test_completion_install_accepts_shell_and_modifiers() -> None:
     assert zsh.target == "~/.zfunc"
 
 
+def test_completion_refresh_accepts_shell_and_modifiers() -> None:
+    all_shells = parse_sase_args(["completion", "refresh"])
+    zsh = parse_sase_args(["completion", "refresh", "zsh", "-d", "-j"])
+
+    assert all_shells.completion_subcommand == "refresh"
+    assert all_shells.shell is None
+    assert all_shells.dry_run is False
+    assert all_shells.json is False
+    assert zsh.shell == "zsh"
+    assert zsh.dry_run is True
+    assert zsh.json is True
+
+
 def test_completion_candidates_kind_is_limited_to_shipped_kinds() -> None:
     parsed = parse_sase_args(["completion", "candidates", "memory", "glossary:"])
 
@@ -105,6 +122,9 @@ def test_completion_child_help_documents_short_aliases() -> None:
     install_help = flat_help(
         parser_for(("sase", "completion", "install")).format_help()
     )
+    refresh_help = flat_help(
+        parser_for(("sase", "completion", "refresh")).format_help()
+    )
 
     assert "-j, --json" in list_help
     assert "-j, --json" in spec_help
@@ -113,6 +133,8 @@ def test_completion_child_help_documents_short_aliases() -> None:
     assert_metavar_option_documented(fish_help, "-o", "--output", "FILE")
     assert_metavar_option_documented(zsh_help, "-o", "--output", "FILE")
     assert "-d, --dry-run" in install_help
+    assert "-d, --dry-run" in refresh_help
+    assert "-j, --json" in refresh_help
     assert "-f, --force" in install_help
     assert_metavar_option_documented(install_help, "-t", "--target", "DIR")
     assert "complete -o default" in bash_help

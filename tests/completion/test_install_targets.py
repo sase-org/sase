@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -9,11 +10,14 @@ import pytest
 from sase.completion.install_targets import (
     CannotDetectShell,
     CompletionInstallError,
+    ZshRegistrationProbe,
     _conventional_dir,
     _normalize_shell_name,
     _script_filename,
     detect_shell,
     fpath_hint_line,
+    probe_zsh_comps,
+    probe_zsh_registration,
     resolve_target,
     script_path,
 )
@@ -259,3 +263,87 @@ def test_script_names_and_fpath_hint(tmp_path: Path) -> None:
     assert fpath_hint_line(zfunc, home=home) == (
         "fpath=(~/.zfunc $fpath)   # must appear BEFORE compinit"
     )
+
+
+def test_probe_zsh_comps_uses_framed_successful_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        assert argv[1] == "-ic"
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout=(
+                "startup noise\n"
+                "__SASE_COMPLETION_PROBE_BEGIN__\n"
+                "_sase\n"
+                "__SASE_COMPLETION_PROBE_END__\n"
+                "shutdown noise\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/zsh")
+    monkeypatch.setattr("subprocess.run", _run)
+
+    assert probe_zsh_comps() == "_sase"
+
+
+def test_probe_zsh_comps_rejects_nonzero_or_unframed_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    results = iter(
+        (
+            subprocess.CompletedProcess(["zsh"], 2, stdout="", stderr="boom"),
+            subprocess.CompletedProcess(["zsh"], 0, stdout="_sase\n", stderr=""),
+        )
+    )
+
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/zsh")
+    monkeypatch.setattr("subprocess.run", lambda *_args, **_kwargs: next(results))
+
+    assert probe_zsh_comps() is None
+    assert probe_zsh_comps() is None
+
+
+def test_probe_zsh_registration_reports_shadowing_fpath_entry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shadow_dir = tmp_path / "shadow"
+    expected_dir = tmp_path / "expected"
+    shadow_dir.mkdir()
+    expected_dir.mkdir()
+    shadow = shadow_dir / "_sase"
+    expected = expected_dir / "_sase"
+    shadow.write_text("# old\n", encoding="utf-8")
+    expected.write_text("# new\n", encoding="utf-8")
+
+    def _run(argv: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        if "print -rl -- $fpath" in argv:
+            return subprocess.CompletedProcess(
+                argv,
+                0,
+                stdout=f"{shadow_dir}\n{expected_dir}\n",
+                stderr="",
+            )
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout=(
+                "__SASE_COMPLETION_PROBE_BEGIN__\n"
+                "_sase\n"
+                "__SASE_COMPLETION_PROBE_END__\n"
+            ),
+            stderr="",
+        )
+
+    monkeypatch.setattr("shutil.which", lambda _name: "/bin/zsh")
+    monkeypatch.setattr("subprocess.run", _run)
+
+    result = probe_zsh_registration(expected)
+
+    assert isinstance(result, ZshRegistrationProbe)
+    assert result.comps == "_sase"
+    assert result.effective_script == shadow
+    assert result.conflicting_script == shadow

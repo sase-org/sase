@@ -19,6 +19,8 @@ SCRIPT_NAMES: dict[str, str] = {
 }
 
 ZSH_PROBE_TIMEOUT_SECONDS = 5.0
+_ZSH_PROBE_BEGIN = "__SASE_COMPLETION_PROBE_BEGIN__"
+_ZSH_PROBE_END = "__SASE_COMPLETION_PROBE_END__"
 
 _SHELL_BASENAMES: dict[str, str] = {
     "bash": "bash",
@@ -58,6 +60,17 @@ class TargetChoice:
 
     directory: Path
     reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class ZshRegistrationProbe:
+    """Interactive zsh registration evidence for a stamped ``_sase`` script."""
+
+    comps: str | None
+    expected_script: Path
+    effective_script: Path | None
+    conflicting_script: Path | None
+    fpath: tuple[Path, ...]
 
 
 def _script_filename(shell: str) -> str:
@@ -293,9 +306,14 @@ def probe_zsh_comps(
     binary = zsh or shutil.which("zsh")
     if binary is None:
         return None
+    probe = (
+        f"print -r -- {_ZSH_PROBE_BEGIN}; "
+        "print -r -- ${_comps[sase]:-UNSET}; "
+        f"print -r -- {_ZSH_PROBE_END}"
+    )
     try:
         completed = subprocess.run(
-            [binary, "-ic", "print -r -- ${_comps[sase]:-UNSET}"],
+            [binary, "-ic", probe],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -304,8 +322,66 @@ def probe_zsh_comps(
         )
     except (OSError, subprocess.TimeoutExpired):
         return None
-    value = completed.stdout.strip()
+    if completed.returncode != 0:
+        return None
+    value = _framed_probe_value(completed.stdout)
     return value or None
+
+
+def probe_zsh_registration(
+    expected_script: str | Path,
+    *,
+    timeout: float = ZSH_PROBE_TIMEOUT_SECONDS,
+    env: Mapping[str, str] | None = None,
+    zsh: str | None = None,
+) -> ZshRegistrationProbe:
+    """Probe zsh registration and which ``_sase`` file wins on ``fpath``."""
+    expected = Path(expected_script).expanduser()
+    fpath = _probe_zsh_fpath(timeout=timeout, env=env, zsh=zsh)
+    effective = _first_zsh_completion_script(fpath)
+    conflict = (
+        effective
+        if effective is not None and not _same_path(effective, expected)
+        else None
+    )
+    return ZshRegistrationProbe(
+        comps=probe_zsh_comps(timeout=timeout, env=env, zsh=zsh),
+        expected_script=expected,
+        effective_script=effective,
+        conflicting_script=conflict,
+        fpath=fpath,
+    )
+
+
+def _framed_probe_value(stdout: str) -> str | None:
+    lines = [line.strip() for line in stdout.splitlines()]
+    try:
+        start = lines.index(_ZSH_PROBE_BEGIN)
+        end = lines.index(_ZSH_PROBE_END, start + 1)
+    except ValueError:
+        return None
+    values = tuple(line for line in lines[start + 1 : end] if line)
+    if len(values) != 1:
+        return None
+    return values[0]
+
+
+def _first_zsh_completion_script(fpath: Sequence[Path]) -> Path | None:
+    for directory in fpath:
+        script = Path(directory).expanduser() / SCRIPT_NAMES["zsh"]
+        try:
+            if script.is_file():
+                return script
+        except OSError:
+            continue
+    return None
+
+
+def _same_path(left: Path, right: Path) -> bool:
+    try:
+        return left.expanduser().resolve() == right.expanduser().resolve()
+    except OSError:
+        return left.expanduser() == right.expanduser()
 
 
 def _default_scanned_dirs(
@@ -430,6 +506,8 @@ __all__ = [
     "detect_shell",
     "fpath_hint_line",
     "probe_zsh_comps",
+    "probe_zsh_registration",
     "resolve_target",
     "script_path",
+    "ZshRegistrationProbe",
 ]

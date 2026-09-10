@@ -15,11 +15,14 @@ from rich.text import Text
 from sase.completion.install import (
     RECOMMENDED_ZSTYLE,
     CompletionInstallError,
+    CompletionRefreshReport,
     InstallResult,
     InstallStep,
+    RefreshShellOutcome,
     ShellInstallStatus,
     install_completion,
     list_shell_statuses,
+    refresh_stamped_completions,
 )
 from sase.completion.install_targets import CannotDetectShell
 from sase.completion.model import CompletionSpec
@@ -40,13 +43,15 @@ def handle_completion_command(args: argparse.Namespace) -> int:
         return _handle_completion_install(args)
     if sub == "list":
         return _handle_completion_list(args)
+    if sub == "refresh":
+        return _handle_completion_refresh(args)
     if sub == "spec":
         return _handle_completion_spec(args)
     if sub == "zsh":
         return _handle_completion_zsh(args)
     print(
         "Usage: sase completion "
-        "{bash,candidates,deploy-chezmoi,fish,install,list,spec,zsh}",
+        "{bash,candidates,deploy-chezmoi,fish,install,list,refresh,spec,zsh}",
         file=sys.stderr,
     )
     return 2
@@ -116,6 +121,28 @@ def _handle_completion_install(
     return result.exit_code
 
 
+def _handle_completion_refresh(
+    args: argparse.Namespace,
+    *,
+    console: Console | None = None,
+    refresh_fn: Callable[..., CompletionRefreshReport] | None = None,
+) -> int:
+    """Run ``sase completion refresh``."""
+    try:
+        report = (refresh_fn or refresh_stamped_completions)(
+            shell=getattr(args, "shell", None),
+            dry_run=bool(getattr(args, "dry_run", False)),
+        )
+    except CompletionInstallError as exc:
+        print(f"sase completion refresh: {exc}", file=sys.stderr)
+        return 1
+    if bool(getattr(args, "json", False)):
+        print(json.dumps(report.to_json(), indent=2, sort_keys=True))
+        return _refresh_exit_code(report)
+    _render_refresh(report, console=console or Console(highlight=False))
+    return _refresh_exit_code(report)
+
+
 def _handle_completion_deploy_chezmoi(args: argparse.Namespace) -> int:
     """Run ``sase completion deploy-chezmoi``."""
     from sase.completion.deploy_chezmoi import deploy_chezmoi_completion
@@ -179,6 +206,7 @@ def _list_json(rows: Sequence[ShellInstallStatus]) -> dict[str, object]:
         "schema_version": 1,
         "shells": [
             {
+                "drift_reasons": list(row.drift_reasons),
                 "generator": row.generator,
                 "path": row.path,
                 "shell": row.shell,
@@ -207,6 +235,7 @@ def _render_list(rows: Sequence[ShellInstallStatus], *, console: Console) -> Non
     table.add_column("ZWC", no_wrap=True)
     table.add_column("STAMP", no_wrap=True)
     table.add_column("OWNER", no_wrap=True)
+    table.add_column("DETAIL", overflow="fold")
     for row in rows:
         table.add_row(
             Text(row.shell, style="bold"),
@@ -219,8 +248,42 @@ def _render_list(rows: Sequence[ShellInstallStatus], *, console: Console) -> Non
                 style="dim" if row.stamp_version is None else "",
             ),
             Text(row.owner or "—", style="dim" if row.owner is None else ""),
+            Text("; ".join(row.drift_reasons) or "—", style="dim"),
         )
     console.print(table)
+
+
+def _render_refresh(report: CompletionRefreshReport, *, console: Console) -> None:
+    if not report.outcomes:
+        console.print("No stamped completion installs to refresh.")
+        return
+    table = Table(
+        box=None,
+        expand=False,
+        pad_edge=False,
+        show_edge=False,
+        header_style="bold",
+    )
+    table.add_column("SHELL", no_wrap=True)
+    table.add_column("STATUS", no_wrap=True)
+    table.add_column("TARGET", overflow="fold")
+    table.add_column("DETAIL", overflow="fold")
+    for outcome in report.outcomes:
+        table.add_row(
+            Text(outcome.shell, style="bold"),
+            Text("ok" if outcome.ok else "warn", style=_refresh_style(outcome)),
+            Text(outcome.target or "—", style="dim" if outcome.target is None else ""),
+            Text(outcome.detail),
+        )
+    console.print(table)
+
+
+def _refresh_exit_code(report: CompletionRefreshReport) -> int:
+    return 0 if all(outcome.ok for outcome in report.outcomes) else 1
+
+
+def _refresh_style(outcome: RefreshShellOutcome) -> str:
+    return "green" if outcome.ok else "yellow"
 
 
 def _render_install(result: InstallResult, *, console: Console) -> None:

@@ -162,8 +162,8 @@ def test_chezmoi_managed_scripts_are_skipped(
 
     payload = successful_update(tmp_path, capsys)
     by_shell = refresh_by_shell(payload)
-    assert by_shell["fish"]["ok"] is True
-    assert "skipped chezmoi-managed" in by_shell["fish"]["detail"]
+    assert by_shell["fish"]["ok"] is False
+    assert "legacy chezmoi-managed" in by_shell["fish"]["detail"]
     assert fish_script.read_text(encoding="utf-8") == "# chezmoi-managed fish\n"
     fish_stamp = read_stamp("fish")
     assert fish_stamp is not None

@@ -10,6 +10,7 @@ from typing import Any
 import sase
 from sase.completion.install import (
     CompletionRefreshReport,
+    _refresh_stamped_completions,
     install_completion,
     zwc_path,
 )
@@ -84,7 +85,7 @@ def successful_update(
     *,
     refresh_fn: Callable[[], CompletionRefreshReport] | None = None,
 ) -> dict[str, Any]:
-    """Run a successful managed ``sase update`` with the production refresh hook."""
+    """Run a successful managed ``sase update`` with the stamped refresh hook."""
     code = handle_update_command(
         _args(json=True),
         probe_fn=lambda: _uv_tool_install(tmp_path / "uv-tool"),
@@ -92,7 +93,7 @@ def successful_update(
         axe_running_fn=lambda: False,
         version_fn=_versions,
         clock=lambda: 0.0,
-        refresh_completions_fn=refresh_fn,
+        refresh_completions_fn=refresh_fn or _refresh_stamped_completions,
     )
     assert code == 0
     payload = json.loads(capsys.readouterr().out)

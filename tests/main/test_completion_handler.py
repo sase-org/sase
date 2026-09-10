@@ -12,15 +12,18 @@ from rich.console import Console
 
 from sase.completion.snapshot import current_structural_view
 from sase.completion.install import (
+    CompletionRefreshReport,
     DetectedShell,
     InstallResult,
     InstallStep,
+    RefreshShellOutcome,
     ShellInstallStatus,
     TargetChoice,
 )
 from sase.main.completion_handler import (
     _handle_completion_install,
     _handle_completion_list,
+    _handle_completion_refresh,
     handle_completion_command,
 )
 from sase.main.parser import create_parser
@@ -58,6 +61,7 @@ def test_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
     assert payload["schema_version"] == 1
     shells = {row["shell"]: row for row in payload["shells"]}
     expected = {
+        "drift_reasons": [],
         "generator": True,
         "path": None,
         "owner": None,
@@ -89,6 +93,64 @@ def test_list_accepts_injected_rows_for_later_columns() -> None:
     assert "bash" in text
     assert "0.15.0" in text
     assert "chezmoi" in text
+
+
+def test_refresh_renders_outcomes_and_returns_failure() -> None:
+    console, buf = _console()
+    args = create_parser().parse_args(["completion", "refresh", "zsh"])
+    report = CompletionRefreshReport(
+        attempted=True,
+        outcomes=(
+            RefreshShellOutcome(
+                shell="zsh",
+                ok=False,
+                detail="legacy chezmoi-managed install is not refreshed automatically",
+                target="/tmp/_sase",
+            ),
+        ),
+    )
+
+    code = _handle_completion_refresh(
+        args,
+        console=console,
+        refresh_fn=lambda **_kwargs: report,
+    )
+
+    assert code == 1
+    text = buf.getvalue()
+    assert "zsh" in text
+    assert "warn" in text
+    assert "chezmoi-managed" in text
+
+
+def test_refresh_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
+    args = create_parser().parse_args(["completion", "refresh", "--json"])
+    report = CompletionRefreshReport(
+        attempted=True,
+        outcomes=(
+            RefreshShellOutcome(
+                shell="bash",
+                ok=True,
+                detail="refreshed /tmp/sase",
+                target="/tmp/sase",
+            ),
+        ),
+    )
+
+    assert _handle_completion_refresh(args, refresh_fn=lambda **_kwargs: report) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {
+        "attempted": True,
+        "shells": [
+            {
+                "detail": "refreshed /tmp/sase",
+                "ok": True,
+                "shell": "bash",
+                "target": "/tmp/sase",
+            }
+        ],
+    }
 
 
 def test_spec_prints_structural_snapshot(

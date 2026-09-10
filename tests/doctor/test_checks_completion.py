@@ -6,6 +6,7 @@ from pathlib import Path
 
 from sase.completion.install import ShellInstallStatus
 from sase.completion.install_stamp import InstallStamp
+from sase.completion.install_targets import ZshRegistrationProbe
 from sase.doctor.checks_completion import (
     _check_completion_install,
     _check_completion_registration,
@@ -22,8 +23,18 @@ def _row(
     zwc: str = "fresh",
     stamp: str | None = "0.16.0",
     owner: str | None = "local",
+    drift_reasons: tuple[str, ...] = (),
 ) -> ShellInstallStatus:
-    return ShellInstallStatus(shell, True, status, path, zwc, stamp, owner)
+    return ShellInstallStatus(
+        shell,
+        True,
+        status,
+        path,
+        zwc,
+        stamp,
+        owner,
+        drift_reasons,
+    )
 
 
 def test_completion_check_specs_register_default_and_deep() -> None:
@@ -48,6 +59,7 @@ def test_install_check_ok_when_stamp_version_and_zwc_match() -> None:
     check = _check_completion_install(statuses=(_row("zsh", status="installed"),))
     assert check.status == "OK"
     assert "1 stamped" in check.summary
+    assert "generator" in check.summary
 
 
 def test_install_check_warns_for_missing_script() -> None:
@@ -59,10 +71,36 @@ def test_install_check_warns_for_missing_script() -> None:
 
 def test_install_check_warns_for_stale_version() -> None:
     check = _check_completion_install(
-        statuses=(_row("zsh", status="stale", stamp="0.15.0"),)
+        statuses=(
+            _row(
+                "zsh",
+                status="stale",
+                stamp="0.15.0",
+                drift_reasons=("stamp version 0.15.0 differs from running 0.16.0",),
+            ),
+        )
     )
     assert check.status == "WARN"
-    assert "stale" in check.summary
+    assert "stamp version" in check.summary
+    assert any("completion refresh" in step for step in check.next_steps)
+
+
+def test_install_check_warns_with_managed_migration_step() -> None:
+    check = _check_completion_install(
+        statuses=(
+            _row(
+                "fish",
+                status="managed stale",
+                owner="chezmoi",
+                drift_reasons=(
+                    "legacy chezmoi-managed install is not refreshed automatically",
+                ),
+            ),
+        )
+    )
+    assert check.status == "WARN"
+    assert "chezmoi-managed" in check.summary
+    assert any("managed completion install" in step for step in check.next_steps)
 
 
 def test_install_check_warns_for_stale_zwc() -> None:
@@ -103,6 +141,48 @@ def test_registration_ok_when_comps_resolve() -> None:
     check = _check_completion_registration(stamps=(stamp,), probe=lambda: "_sase")
     assert check.status == "OK"
     assert check.data["comps"] == "_sase"
+
+
+def test_registration_warns_when_comps_resolves_to_unexpected_function() -> None:
+    stamp = InstallStamp(
+        shell="zsh",
+        version="0.16.0",
+        digest="x",
+        target="/home/u/.zfunc/_sase",
+        timestamp="2026-08-17T12:00:00Z",
+    )
+    check = _check_completion_registration(stamps=(stamp,), probe=lambda: "_old_sase")
+
+    assert check.status == "WARN"
+    assert "expected _sase" in check.summary
+
+
+def test_registration_warns_when_fpath_shadows_stamped_script() -> None:
+    stamp = InstallStamp(
+        shell="zsh",
+        version="0.16.0",
+        digest="x",
+        target="/home/u/.zfunc/_sase",
+        timestamp="2026-08-17T12:00:00Z",
+    )
+    probe = ZshRegistrationProbe(
+        comps="_sase",
+        expected_script=Path("/home/u/.zfunc/_sase"),
+        effective_script=Path("/home/u/.oh-my-zsh/completions/_sase"),
+        conflicting_script=Path("/home/u/.oh-my-zsh/completions/_sase"),
+        fpath=(
+            Path("/home/u/.oh-my-zsh/completions"),
+            Path("/home/u/.zfunc"),
+        ),
+    )
+    check = _check_completion_registration(
+        stamps=(stamp,),
+        registration_probe=lambda _target: probe,
+    )
+
+    assert check.status == "WARN"
+    assert "before" in check.summary
+    assert check.data["conflicting_script"] == str(probe.conflicting_script)
 
 
 def test_registration_skips_when_probe_unavailable() -> None:

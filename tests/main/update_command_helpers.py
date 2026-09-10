@@ -52,6 +52,16 @@ Resolved 3 packages in 120ms
 def _install(tmp_path: Path, receipt: str = _RECEIPT) -> UvToolInstall:
     sase_dir = tmp_path / "sase"
     sase_dir.mkdir(parents=True, exist_ok=True)
+    bin_dir = sase_dir / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    executable = bin_dir / "sase"
+    executable.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json\n"
+        "print(json.dumps({'attempted': True, 'shells': []}))\n",
+        encoding="utf-8",
+    )
+    executable.chmod(0o755)
     receipt_path = sase_dir / "uv-receipt.toml"
     receipt_path.write_text(receipt, encoding="utf-8")
     return UvToolInstall(
