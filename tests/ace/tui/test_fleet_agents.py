@@ -3,11 +3,11 @@ from __future__ import annotations
 import copy
 from datetime import datetime
 
+from sase.ace.tui.actions.agents._fleet_follow import followed_logical_keys
 from sase.ace.tui.models.fleet_agents import (
     catalog_next_cursor,
     catalog_next_cursors_by_host,
     followed_batch_family_promotions,
-    followed_logical_keys,
     merge_catalog_pages,
     project_fleet_agents,
 )
@@ -132,7 +132,19 @@ def test_project_fleet_agents_carries_remote_queue_weight_without_local_charge()
         queue_weight=0.25,
         queue_weight_explicit=True,
     )
-    response = fleet_host_response(alias="apollo", summaries=(summary,))
+    response = {
+        "schema_version": 1,
+        "operation": "catalog",
+        "configured_host_count": 1,
+        "hosts": [
+            {
+                "schema_version": 1,
+                "alias": "apollo",
+                "summaries": [summary],
+            }
+        ],
+        "count_hosts": [],
+    }
 
     projection = project_fleet_agents(catalog_response=response)
     row = projection.fleet_rows[0]

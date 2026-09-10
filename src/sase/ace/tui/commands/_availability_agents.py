@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 from sase.ace.tui.agent_completion import agent_prompt_name
 from sase.ace.tui.commands.types import CommandContext, CommandSpec
@@ -102,23 +101,6 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
             except ValueError:
                 return False
             return fold_level_at_position(position, summary_scale) is not None
-
-    if spec.id in {"app.cycle_agents_subtab", "app.cycle_agents_subtab_reverse"}:
-        if current_flags().enabled(FeatureFlag.ace_unified_agents):
-            return False
-        return ctx.fleet_enabled
-
-    if spec.id == "app.toggle_agent_follow":
-        return ctx.selected_agent_followable
-
-    if spec.id == "app.view_agent_in_focus":
-        if current_flags().enabled(FeatureFlag.ace_unified_agents):
-            return False
-        return (
-            ctx.agents_subtab == "fleet"
-            and ctx.selected_agent_remote
-            and ctx.selected_agent_followed
-        )
 
     if spec.id == "app.connect_agent_machine":
         return ctx.selected_agent_remote

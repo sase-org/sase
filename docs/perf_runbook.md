@@ -472,16 +472,16 @@ opt out.
 
 ### Offline Fleet fault j/k benchmark
 
-Use the committed offline Fleet fault benchmark when changing Focus/Fleet projection,
-federation refresh, follow reconciliation, remote lifecycle row metadata, or Agents
-navigation around remote rows:
+Use the committed offline Fleet fault benchmark when changing unified remote projection,
+federation refresh, remote lifecycle row metadata, or Agents navigation around remote
+rows:
 
 ```bash
 just test-slow tests/ace/tui/bench_tui_jk.py -k fleet_jk_fault_scenarios
 ```
 
 The benchmark uses in-memory federation fixtures only: no enrolled machines, network
-access, or real federation worker are involved. It warms the rendered Fleet list, then
+access, or real federation worker are involved. It warms the rendered remote rows, then
 records Agents-tab `j`/`k` key-to-paint samples while each fault script is active:
 
 - `hung_host` keeps a healthy host's rows while a second host contributes a deadline
@@ -491,8 +491,8 @@ records Agents-tab `j`/`k` key-to-paint samples while each fault script is activ
 
 Read the printed p50/p95/max tables per scenario. Every `next` and `prev` p95 must be
 `< 16 ms`, and the run must leave no `tui_stalls.jsonl` rows. A p95 failure points at
-the Agents/Fleet key-to-paint path; any stall row means the event loop or Textual pump
-was blocked and must be investigated before landing.
+the Agents remote-row key-to-paint path; any stall row means the event loop or Textual
+pump was blocked and must be investigated before landing.
 
 ## Freeze and hitch capture
 

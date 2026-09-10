@@ -47,7 +47,7 @@ def project_fleet_agents(
     follow_snapshot: FollowStoreSnapshot | None = None,
     local_agent_count: int = 0,
 ) -> FleetRowsProjection:
-    """Project federation responses into Focus and Fleet Agent rows."""
+    """Project federation responses into remote Agent rows."""
     active_keys, active_locator_ids = active_follow_state(follow_snapshot)
     summary_normalized = normalize_response(summary_response)
     catalog_normalized = normalize_response(catalog_response)
@@ -122,26 +122,11 @@ def project_fleet_agents(
     )
 
 
-def followed_logical_keys(
-    snapshot: FollowStoreSnapshot | None,
-) -> tuple[str, ...]:
-    """Return active logical keys for a bounded attention read."""
-    if snapshot is None:
-        return ()
-    keys: list[str] = []
-    for record in snapshot.active_records:
-        key = record.get("logical_key")
-        if isinstance(key, str) and key:
-            keys.append(key)
-    return tuple(keys)
-
-
 __all__ = [
     "FleetRowsProjection",
     "catalog_next_cursor",
     "catalog_next_cursors_by_host",
     "followed_batch_family_promotions",
-    "followed_logical_keys",
     "merge_catalog_pages",
     "project_fleet_agents",
 ]

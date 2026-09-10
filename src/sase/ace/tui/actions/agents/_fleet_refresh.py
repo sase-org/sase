@@ -21,7 +21,6 @@ from sase.dispatch.follow_store import FollowStoreError
 from ...models.fleet_agents import (
     FleetRowsProjection,
     catalog_next_cursors_by_host,
-    followed_logical_keys,
     merge_catalog_pages,
     project_fleet_agents,
 )
@@ -30,9 +29,9 @@ from ._fleet_common import (
     _FLEET_CATALOG_MAX_PAGES,
     _FLEET_CATALOG_PAGE_LIMIT,
     fleet_public_override,
-    unified_agents_enabled,
 )
 from ._fleet_follow import (
+    followed_logical_keys,
     load_reconciled_follow_snapshot,
     reconcile_followed_batch_family_promotions,
 )
@@ -87,9 +86,9 @@ class AgentFleetRefreshMixin:
             self._update_agents_header()  # type: ignore[attr-defined]
 
     async def _run_agents_fleet_refresh(self, *, generation: int, source: str) -> None:
+        del source
         deferred_apply = False
         try:
-            unified_agents = unified_agents_enabled()
             load_config = fleet_public_override(
                 "load_federation_config",
                 load_federation_config,
@@ -154,15 +153,10 @@ class AgentFleetRefreshMixin:
                             timeout_seconds=timeout,
                         ),
                     )
-                if (
-                    unified_agents
-                    or self.current_agents_subtab == "fleet"
-                    or source == "manual"
-                ):
-                    catalog_response = await self._fetch_fleet_catalog(
-                        facade,
-                        timeout_seconds=timeout,
-                    )
+                catalog_response = await self._fetch_fleet_catalog(
+                    facade,
+                    timeout_seconds=timeout,
+                )
             projection = project_fleet_agents(
                 summary_response=summary_response,
                 catalog_response=catalog_response,
@@ -377,10 +371,7 @@ class AgentFleetRefreshMixin:
             config.hosts or config.diagnostics or projection.configured_host_count
         )
         self._agents_fleet_last_error = None
-        if unified_agents_enabled():
-            self.current_agents_subtab = "focus"
-        elif not self._agents_fleet_available and self.current_agents_subtab == "fleet":
-            self.current_agents_subtab = "focus"
+        self.current_agents_subtab = "focus"
         self._reproject_agents_from_current_mode(source="fleet_refresh")  # type: ignore[attr-defined]
         self._announce_remote_attention(projection)  # type: ignore[attr-defined]
 

@@ -283,7 +283,7 @@ class AceApp(
         return normalize_tab_name(value)
 
     def validate_current_agents_subtab(self, value: object) -> AgentsSubTab:
-        """Normalize the Agents Focus/Fleet mode."""
+        """Normalize legacy Agents mode state."""
         return "fleet" if value == "fleet" else "focus"
 
     def __init__(

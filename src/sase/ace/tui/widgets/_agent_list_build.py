@@ -15,8 +15,6 @@ from typing import Any, Literal
 from rich.text import Text
 from textual.widgets.option_list import Option
 
-from sase.feature_flags import FeatureFlag, current_flags
-
 from ..agent_completion import (
     AgentWaitStatusMaps,
     WaitDependencyStatusCounts,
@@ -217,9 +215,6 @@ def _agent_row_chrome_mode(
     grouping_mode: GroupingMode,
 ) -> tuple[bool, bool]:
     """Return ``(show_machine_chip, show_fleet_badge)`` for agent rows."""
-    snapshot = current_flags()
-    if not snapshot.enabled(FeatureFlag.ace_unified_agents):
-        return False, True
     if grouping_mode is GroupingMode.BY_MACHINE:
         return False, False
     return any(getattr(agent, "fleet_origin_alias", None) for agent in agents), False
@@ -677,7 +672,7 @@ def patch_row(
         has_unresolvable_wait_target=ctx.get("has_unresolvable_wait_target", False),
         unread_agent_ids=effective_unread,
         show_machine_chip=bool(ctx.get("show_machine_chip", False)),
-        show_fleet_badge=bool(ctx.get("show_fleet_badge", True)),
+        show_fleet_badge=bool(ctx.get("show_fleet_badge", False)),
     )
 
     gap = 2 if suffix.cell_len else 0

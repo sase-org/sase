@@ -88,10 +88,6 @@ class AppKeymaps:
     agents_next: str
     agents_prev: str
     agents_revive: str
-    cycle_agents_subtab: str
-    cycle_agents_subtab_reverse: str
-    toggle_agent_follow: str
-    view_agent_in_focus: str
     connect_agent_machine: str
     setup_agent_machine: str
     retry_remote_agent: str

@@ -4365,11 +4365,6 @@
           "default": true,
           "deprecated": true
         },
-        "ace_unified_agents": {
-          "type": "boolean",
-          "description": "Show one unified Agents list across local and enrolled machines.",
-          "default": false
-        },
         "admin_center_flags": {
           "type": "boolean",
           "description": "The Config catalog exposes the Flags pane for persistent feature-flag control.",

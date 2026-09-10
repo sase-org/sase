@@ -1,4 +1,4 @@
-"""Rust-backed Focus/Fleet running-count calculations."""
+"""Rust-backed local/remote running-count calculations."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from sase.core.rust import require_rust_binding
 
 
 def count_focus_and_fleet(request: Mapping[str, Any]) -> dict[str, Any]:
-    """Return shared Focus and Fleet count projections."""
+    """Return shared local and remote count projections."""
     payload = require_rust_binding("fleet_count_focus_and_fleet")(dict(request))
     if not isinstance(payload, dict):
         raise TypeError("fleet_count_focus_and_fleet returned a non-object payload")
@@ -31,7 +31,7 @@ def normalize_fleet_federation_response(response: Mapping[str, Any]) -> dict[str
 def count_focus_and_fleet_from_federation(
     request: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Return shared Focus and Fleet counts from raw federation envelopes."""
+    """Return shared local and remote counts from raw federation envelopes."""
     payload = require_rust_binding("fleet_count_focus_and_fleet_from_federation")(
         dict(request)
     )

@@ -227,18 +227,20 @@ A submitted request is durable and idempotent; an acceptance-uncertain response 
 retried without intentionally duplicating the launch.
 
 ACE consumes the same fleet records. `sase ace --tmux` prints the tmux target for the
-session. Once a machine is enrolled, the Agents tab gains a **Focus / Fleet** strip:
+session. Once a machine is enrolled, the Agents tab shows local and remote rows in one
+list with machine chips such as `here`, `apollo`, or `mac`.
 
-- **Focus** keeps local agents plus the remote rows you explicitly follow.
-- **Fleet** loads the bounded remote catalog across enrolled machines. Follow or
-  unfollow a row from the command palette, then use **View followed remote row in
-  Focus** to return to the quieter view.
-- Remote stop, retry, fork, bounded content, machine status, and pending question/gate
-  actions appear only when the selected row advertises the matching capability.
+- The list loads the bounded remote catalog across enrolled machines and keeps host
+  failures visible as diagnostics rather than hiding healthy hosts.
+- Remote stop, retry, fork, bounded content, machine status, launch-outcome checks, and
+  pending question/gate actions appear only when the selected row advertises the
+  matching capability.
+- Pending remote attention is reconciled through the durable notification inbox rather
+  than inferred from row-follow state.
 
 Those operations are journaled through `sase machine agent` and
-`sase machine attention`. The Focus/Fleet actions ship unbound, so use the ACE command
-palette or configure the corresponding `ace.keymaps.app` fields.
+`sase machine attention`. Use the ACE command palette or configure the corresponding
+`ace.keymaps.app` fields for direct keys.
 
 To prove restart resilience, restart the target gateway service, then rerun:
 

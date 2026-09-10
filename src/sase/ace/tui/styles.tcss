@@ -3651,12 +3651,6 @@ HintInputBar #hint-escape-hint {
     padding: 0 1;
 }
 
-#agents-mode-tabs {
-    width: auto;
-    min-width: 22;
-    height: 1;
-}
-
 #agents-fleet-status {
     width: 1fr;
     height: 1;

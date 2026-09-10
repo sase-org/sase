@@ -1,4 +1,4 @@
-"""Shared helpers for Agents Focus/Fleet projection."""
+"""Shared helpers for unified Agents fleet projection."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from sase.config import get_machine_name
-from sase.feature_flags import FeatureFlag, current_flags
 
 from ...models.fleet_agents import FleetRowsProjection
 
@@ -52,11 +51,6 @@ def fleet_public_override(name: str, default: Any) -> Any:
     if module is None:
         return default
     return getattr(module, name, default)
-
-
-def unified_agents_enabled() -> bool:
-    snapshot = current_flags()
-    return snapshot.enabled(FeatureFlag.ace_unified_agents)
 
 
 def local_machine_label() -> str:
@@ -129,7 +123,6 @@ __all__ = [
     "agent_counts_as_active",
     "fleet_public_override",
     "local_machine_label",
-    "unified_agents_enabled",
     "unified_attention_count",
     "unified_diagnostic_text",
 ]

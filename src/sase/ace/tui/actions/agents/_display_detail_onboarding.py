@@ -46,10 +46,8 @@ class AgentsOnboardingMixin:
             return False
         if (getattr(self, "_agent_search_query", "") or "").strip():
             return False
-        if getattr(self, "current_agents_subtab", "focus") == "fleet" and (
-            getattr(self, "_agents_fleet_available", False)
-            or getattr(self, "_agents_fleet_loading", False)
-            or getattr(self, "_agents_fleet_last_error", None)
+        if getattr(self, "_agents_fleet_available", False) or getattr(
+            self, "_agents_fleet_last_error", None
         ):
             return False
         return not bool(getattr(self, "_agents", []))

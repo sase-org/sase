@@ -1128,31 +1128,21 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 
 ## Keybindings: Agents Tab
 
-### Focus and Fleet
+### Machines
 
-When at least one remote machine is enrolled, the Agents header shows a two-tab **Focus
-/ Fleet** strip with row counts and a loading, host, issue, or partial status. It stays
-hidden in an entirely local setup.
+When at least one remote machine is enrolled, the Agents tab shows local and remote rows
+in one list. Machine identity appears as a short row chip such as `here`, `apollo`, or
+`mac`; grouping by machine suppresses repeated chips under an unambiguous machine
+header. The header reports the local machine, active rows, pending attention when known,
+enrolled-machine count, and any partial or unavailable-machine state. An entirely local
+setup keeps the compact local view and exposes the machine connection route.
 
-- **Focus** is the default. It combines local agents with only the remote rows you have
-  explicitly followed, keeping normal day-to-day navigation small.
-- **Fleet** loads a bounded catalog of up to 250 remote rows across enrolled machines.
-  Switching to it forces a remote refresh; failures remain visible as diagnostics rather
-  than hiding healthy hosts.
-- Follow state is durable and keyed by a logical remote locator. When a stand-alone row
-  becomes a family, ACE reconciles the follow to the promoted family identity.
-
-Click the strip to switch modes, or use **Agents: next/previous Focus/Fleet mode** from
-the command palette. On a Fleet row, the palette offers follow/unfollow and, once
-followed, **View followed remote row in Focus**. It also exposes machine status, retry,
-bounded remote content, and pending question/gate handling when the row carries the
-matching capability. The normal `x` stop and `F` fork actions work on capable remote
-rows; actions that require local files, tmux, or local Patch state stay unavailable.
-
-All dedicated Focus/Fleet actions ship unbound. Configure their `ace.keymaps.app` fields
-if you want direct keys; see the [configuration reference](configuration.md#acekeymaps).
-Remote mutations are durable requests, optimistically annotate the row while in flight,
-and refresh Fleet after they settle. Setup and recovery commands are covered by the
+Remote rows use the same visible operations where the owner advertises support: machine
+status, retry, bounded remote content, pending question/gate handling, stop, and fork.
+The normal `x` stop and `F` fork actions work on capable remote rows; actions that
+require local files, tmux, or local Patch state stay unavailable. Remote mutations are
+durable requests, optimistically annotate the row while in flight, and refresh the
+Agents list after they settle. Setup and recovery commands are covered by the
 [Remote Dispatch Runbook](remote_dispatch.md).
 
 ### Navigation

@@ -14,7 +14,7 @@ def rust_counts_or_fallback(
     followed_response: Mapping[str, Any] | None,
     fleet_response: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    """Return local plus Rust-projected remote Focus/Fleet running counts."""
+    """Return local plus Rust-projected remote running counts."""
     from sase.dispatch.counts import (
         count_focus_and_fleet,
         count_focus_and_fleet_from_federation,

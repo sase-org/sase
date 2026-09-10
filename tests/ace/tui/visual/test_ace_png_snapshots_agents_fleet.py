@@ -11,15 +11,11 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents import _fleet as fleet_mod
 from sase.ace.tui.models.fleet_agents import FleetRowsProjection
 from sase.dispatch.federation import FederationConfig, FederationWorkerSettings
-from sase.dispatch.follow_store import FollowStoreSnapshot
 from tests.ace.tui.fleet_fixture import (
     OfflineFleetFacade,
-    fleet_attention_response,
     fleet_config,
-    fleet_follow_snapshot,
     fleet_host_response,
     fleet_installation_id,
-    fleet_logical_locator,
     fleet_multi_host_response,
     fleet_summary,
 )
@@ -38,20 +34,10 @@ from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 pytestmark = pytest.mark.visual
 
 
-def _empty_follow_snapshot() -> FollowStoreSnapshot:
-    return FollowStoreSnapshot(
-        schema_version=1,
-        records=(),
-        tombstones=(),
-        path="/tmp/sase-fleet-follows.json",
-    )
-
-
 def _patch_fleet_refresh(
     monkeypatch: pytest.MonkeyPatch,
     *,
     config: FederationConfig | None = None,
-    follow_snapshot: FollowStoreSnapshot | None = None,
     facade: OfflineFleetFacade | None = None,
     config_error: str | None = None,
 ) -> None:
@@ -69,13 +55,6 @@ def _patch_fleet_refresh(
         monkeypatch.setattr(fleet_mod, "load_federation_config", _raise_config_error)
     monkeypatch.setattr(
         fleet_mod,
-        "_load_reconciled_follow_snapshot",
-        lambda: (
-            follow_snapshot if follow_snapshot is not None else _empty_follow_snapshot()
-        ),
-    )
-    monkeypatch.setattr(
-        fleet_mod,
         "build_federation_facade",
         lambda _config: facade if facade is not None else OfflineFleetFacade(),
     )
@@ -89,27 +68,18 @@ async def _open_agents(page: AcePage) -> None:
 
 
 async def _show_fleet(page: AcePage, *, expected_count: int) -> None:
-    page.app._set_agents_subtab("fleet")
     await page.wait_for(
         lambda _s: (
-            page.app.current_agents_subtab == "fleet"
+            page.app.current_agents_subtab == "focus"
             and not page.app._agents_fleet_loading
         )
     )
     await page.expect_state("agent_count", expected_count)
 
 
-def _fleet_visual_responses() -> tuple[
-    Mapping[str, Any],
-    Mapping[str, Any],
-    FollowStoreSnapshot,
-]:
+def _fleet_visual_responses() -> Mapping[str, Any]:
     apollo_installation = fleet_installation_id("a")
     mac_installation = fleet_installation_id("b")
-    followed_locator = fleet_logical_locator(
-        installation_id=apollo_installation,
-        agent_id="remote-auth",
-    )
     followed = fleet_summary(
         installation_id=apollo_installation,
         agent_id="remote-auth",
@@ -169,51 +139,29 @@ def _fleet_visual_responses() -> tuple[
             },
         ),
     )
-    attention_response = fleet_attention_response(
-        (
-            {
-                "kind": "question",
-                "state": "pending",
-                "logical_key": followed["logical_key"],
-            },
-        ),
-        alias="apollo",
-    )
-    return (
-        summary_response,
-        attention_response,
-        fleet_follow_snapshot(followed_locator),
-    )
+    return summary_response
 
 
 async def test_agents_fleet_followed_partial_offline_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    summary_response, attention_response, follow_snapshot = _fleet_visual_responses()
+    summary_response = _fleet_visual_responses()
     facade = OfflineFleetFacade(
         summary_response=summary_response,
-        followed_response=summary_response,
         catalog_response=summary_response,
-        attention_response=attention_response,
     )
     patch_startup_loaders(monkeypatch, agents=agents())
-    _patch_fleet_refresh(
-        monkeypatch,
-        follow_snapshot=follow_snapshot,
-        facade=facade,
-    )
+    _patch_fleet_refresh(monkeypatch, facade=facade)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
         await _show_fleet(page, expected_count=3)
         await wait_for_visual_idle(page)
 
-        assert facade.calls[:3] == ["summary", "followed_batch", "attention"]
-        assert "catalog" in facade.calls
-        assert_page_svg_contains(page, "★apollo")
-        assert_page_svg_contains(page, "☆apollo")
-        assert_page_svg_contains(page, "☆mac")
+        assert facade.calls[:2] == ["summary", "catalog"]
+        assert_page_svg_contains(page, "apollo")
+        assert_page_svg_contains(page, "mac")
         assert_page_svg_contains(page, "partial")
         assert_page_svg_contains(page, "offline")
         assert_page_svg_contains(page, "stale")
@@ -228,35 +176,22 @@ async def test_agents_fleet_keyboard_focus_and_narrow_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    summary_response, attention_response, follow_snapshot = _fleet_visual_responses()
+    summary_response = _fleet_visual_responses()
     facade = OfflineFleetFacade(
         summary_response=summary_response,
-        followed_response=summary_response,
         catalog_response=summary_response,
-        attention_response=attention_response,
     )
     patch_startup_loaders(monkeypatch, agents=agents())
-    _patch_fleet_refresh(
-        monkeypatch,
-        follow_snapshot=follow_snapshot,
-        facade=facade,
-    )
+    _patch_fleet_refresh(monkeypatch, facade=facade)
 
     async with AcePage(query='"visual"', patches=patches(), size=(82, 28)) as page:
         await _open_agents(page)
         await _show_fleet(page, expected_count=3)
-        page.app.action_view_agent_in_focus()
-        await page.wait_for(
-            lambda _s: (
-                page.app.current_agents_subtab == "focus"
-                and any(row.fleet_followed for row in page.app._agents)
-            )
-        )
         await wait_for_visual_idle(page)
 
         assert page.app.current_agents_subtab == "focus"
-        assert_page_svg_contains(page, "★apollo")
-        assert_page_svg_contains(page, "Focus")
+        assert_page_svg_contains(page, "apollo")
+        assert_page_svg_contains(page, "mac")
         ace_png_visual.assert_page_png(
             page,
             "agents_fleet_keyboard_focus_narrow_82x28",

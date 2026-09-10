@@ -1,13 +1,8 @@
-"""Focus/Fleet tab actions and row projection."""
+"""Unified Agents row projection."""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
-
-from textual import on
-
-from ...widgets.panel_tab_strip import PanelTabStrip
-from ._fleet_common import _AGENTS_SUBTABS, unified_agents_enabled
 
 if TYPE_CHECKING:
     from ...app import AgentsSubTab
@@ -16,7 +11,7 @@ if TYPE_CHECKING:
 
 
 class AgentFleetProjectionMixin:
-    """Focus/Fleet mode switching and row reprojection."""
+    """Unified Agents row reprojection."""
 
     if TYPE_CHECKING:
         current_agents_subtab: AgentsSubTab
@@ -30,66 +25,22 @@ class AgentFleetProjectionMixin:
         _agents_fleet_focus_rows: list[Agent]
         _agents_refresh_active_source: str
 
-    @on(PanelTabStrip.TabClicked)
-    def _on_agents_mode_tab_clicked(self, event: PanelTabStrip.TabClicked) -> None:
-        if event.tab_id not in _AGENTS_SUBTABS:
-            return
-        event.stop()
-        if unified_agents_enabled():
-            return
-        self._set_agents_subtab(event.tab_id)
-
     def watch_current_agents_subtab(
         self,
         old_mode: AgentsSubTab,
         new_mode: AgentsSubTab,
     ) -> None:
-        """Reproject cached Agents rows when Focus/Fleet mode changes."""
+        """Normalize restored legacy Agents mode state to the unified list."""
         if old_mode == new_mode:
             return
-        if unified_agents_enabled():
-            if new_mode == "fleet":
-                self.current_agents_subtab = "focus"
-                return
-            self._reproject_agents_from_current_mode(source="mode_switch")
-            self._schedule_agents_fleet_refresh(  # type: ignore[attr-defined]
-                source="mode_switch",
-                force=True,
-            )
-            return
-        if new_mode == "fleet" and not self._fleet_mode_available():  # type: ignore[attr-defined]
+        if new_mode == "fleet":
             self.current_agents_subtab = "focus"
-            self.notify("Fleet view is not configured")  # type: ignore[attr-defined]
             return
         self._reproject_agents_from_current_mode(source="mode_switch")
         self._schedule_agents_fleet_refresh(  # type: ignore[attr-defined]
             source="mode_switch",
-            force=new_mode == "fleet",
+            force=True,
         )
-
-    def action_cycle_agents_subtab(self) -> None:
-        """Cycle between Focus and Fleet agent modes."""
-        self._cycle_agents_subtab(reverse=False)
-
-    def action_cycle_agents_subtab_reverse(self) -> None:
-        """Cycle between Focus and Fleet agent modes in reverse."""
-        self._cycle_agents_subtab(reverse=True)
-
-    def action_view_agent_in_focus(self) -> None:
-        """Switch to Focus mode on the selected followed remote row."""
-        if unified_agents_enabled():
-            self.notify("Remote agents are already in the unified Agents list")  # type: ignore[attr-defined]
-            return
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        if agent is None or not getattr(agent, "fleet_origin_alias", None):
-            self.notify("Select a remote fleet agent")  # type: ignore[attr-defined]
-            return
-        if not getattr(agent, "fleet_followed", False):
-            self.notify("Follow the remote agent before viewing it in Focus")  # type: ignore[attr-defined]
-            return
-        identity = agent.identity
-        self.current_agents_subtab = "focus"
-        self._select_agent_identity_after_projection(identity)
 
     def action_connect_agent_machine(self) -> None:
         """Open the persistent Machines administration pane."""
@@ -113,8 +64,6 @@ class AgentFleetProjectionMixin:
             return
         visible_after_enrollment = (
             "The Agents list includes it once a machine is enrolled."
-            if unified_agents_enabled()
-            else "The Focus/Fleet strip appears once a machine is enrolled."
         )
         self.notify(  # type: ignore[attr-defined]
             "No remote machines are enrolled. On the target, run "
@@ -124,25 +73,9 @@ class AgentFleetProjectionMixin:
             timeout=12,
         )
 
-    def _cycle_agents_subtab(self, *, reverse: bool) -> None:
-        if unified_agents_enabled():
-            self.notify("Agents already includes enrolled machines")  # type: ignore[attr-defined]
-            return
-        if not self._fleet_mode_available():  # type: ignore[attr-defined]
-            self.notify("Fleet view is not configured")  # type: ignore[attr-defined]
-            return
-        current = self.current_agents_subtab
-        if reverse:
-            next_mode = "focus" if current == "fleet" else "fleet"
-        else:
-            next_mode = "fleet" if current == "focus" else "focus"
-        self._set_agents_subtab(next_mode)
-
     def _set_agents_subtab(self, mode: str) -> None:
-        if unified_agents_enabled():
-            self.current_agents_subtab = "focus"
-            return
-        self.current_agents_subtab = "fleet" if mode == "fleet" else "focus"
+        del mode
+        self.current_agents_subtab = "focus"
 
     def _project_agents_for_current_mode_after_load(
         self,
@@ -158,8 +91,6 @@ class AgentFleetProjectionMixin:
 
     def _sync_agents_local_source_from_current(self) -> None:
         """Mirror local-only rows after existing in-memory mutations."""
-        if self.current_agents_subtab == "fleet" and not unified_agents_enabled():
-            return
         self._agents_local_with_children = self._local_agents_from_mixed(
             getattr(self, "_agents_with_children", [])
         )
@@ -171,19 +102,9 @@ class AgentFleetProjectionMixin:
         fleet_rows = self._fleet_rows_with_dispatch_provisionals(  # type: ignore[attr-defined]
             list(getattr(self, "_agents_fleet_rows", []))
         )
-        focus_rows = self._fleet_rows_with_dispatch_provisionals(  # type: ignore[attr-defined]
-            list(getattr(self, "_agents_fleet_focus_rows", []))
-        )
-        if unified_agents_enabled():
-            return [
-                *local_agents,
-                *fleet_rows,
-            ]
-        if self.current_agents_subtab == "fleet":
-            return fleet_rows
         return [
             *local_agents,
-            *focus_rows,
+            *fleet_rows,
         ]
 
     @staticmethod
@@ -223,15 +144,6 @@ class AgentFleetProjectionMixin:
         finally:
             self._agents_refresh_active_source = "unknown"  # type: ignore[attr-defined]
         self._update_agents_header()  # type: ignore[attr-defined]
-
-    def _select_agent_identity_after_projection(
-        self,
-        identity: tuple[AgentType, str, str | None],
-    ) -> None:
-        for index, agent in enumerate(getattr(self, "_agents", [])):
-            if agent.identity == identity:
-                self.current_idx = index
-                return
 
     def _fleet_mode_available(self) -> bool:
         return bool(

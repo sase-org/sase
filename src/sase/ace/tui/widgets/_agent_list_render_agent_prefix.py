@@ -141,7 +141,7 @@ def append_agent_row_prefix(
     tribe_colors: Mapping[str, str] | None = None,
     tier_styles: tuple[str, ...] = (),
     show_machine_chip: bool = False,
-    show_fleet_badge: bool = True,
+    show_fleet_badge: bool = False,
 ) -> Text:
     """Build the left-side chrome that precedes the status parenthetical."""
     text = render_tier_gutter(tier_styles)

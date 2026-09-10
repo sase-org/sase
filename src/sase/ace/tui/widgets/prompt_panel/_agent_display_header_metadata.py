@@ -250,8 +250,6 @@ def _append_fleet_fields(text: Text, agent: Agent) -> None:
         return
     text.append("Machine: ", style="bold #87D7FF")
     text.append(agent.fleet_origin_alias, style="bold #5FD7FF")
-    if agent.fleet_followed:
-        text.append(" followed", style="dim #5FD7FF")
     text.append("\n")
 
     fields = [
@@ -266,7 +264,7 @@ def _append_fleet_fields(text: Text, agent: Agent) -> None:
     if agent.fleet_revision is not None:
         fields.append(f"rev {agent.fleet_revision}")
     if fields:
-        text.append("Fleet: ", style="bold #87D7FF")
+        text.append("Remote: ", style="bold #87D7FF")
         text.append(" · ".join(dict.fromkeys(fields)), style="#87D7D7")
         text.append("\n")
     _append_remote_action_fields(text, agent)

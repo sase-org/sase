@@ -346,9 +346,9 @@ def _status_from_summary(
         "waiting_input": "WAITING INPUT",
         "needs_input": "WAITING INPUT",
         "blocked": "WAITING INPUT",
-        # No attention entry has arrived yet (or this row isn't followed, so
-        # none was fetched at all); fall back to the generic remote-blocked
-        # status the owner's own lifecycle/needs_attention signal implies.
+        # No row-scoped attention entry has arrived; fall back to the generic
+        # remote-blocked status the owner's lifecycle/needs_attention signal
+        # implies.
         "asking": "WAITING INPUT",
         "failed": "FAILED",
         "error": "FAILED",

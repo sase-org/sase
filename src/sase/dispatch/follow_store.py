@@ -63,7 +63,7 @@ class FollowStoreSnapshot:
 
 
 @dataclass(frozen=True)
-class FollowStoreMutationOutcome:
+class _FollowStoreMutationOutcome:
     """Result of a follow-store mutation."""
 
     changed: bool
@@ -91,7 +91,7 @@ def load_follow_snapshot(path: Path | None = None) -> FollowStoreSnapshot:
     return _snapshot_from_reconciled(reconciled, path=store_path)
 
 
-def record_follow(
+def _record_follow(
     logical_locator: Mapping[str, Any],
     *,
     created_by: FollowCreatedBy = "explicit",
@@ -99,7 +99,7 @@ def record_follow(
     operation_key: Mapping[str, Any] | None = None,
     now_unix: float | None = None,
     path: Path | None = None,
-) -> FollowStoreMutationOutcome:
+) -> _FollowStoreMutationOutcome:
     """Persist an explicit or dispatch-created follow record."""
     if created_by not in {"explicit", "dispatch"}:
         raise FollowStoreError(f"invalid follow created_by: {created_by!r}")
@@ -149,9 +149,9 @@ def prewrite_dispatch_follow(
     *,
     now_unix: float | None = None,
     path: Path | None = None,
-) -> FollowStoreMutationOutcome:
+) -> _FollowStoreMutationOutcome:
     """Prewrite a pending dispatch follow before launch submission."""
-    return record_follow(
+    return _record_follow(
         logical_locator,
         created_by="dispatch",
         state="pending",
@@ -167,7 +167,7 @@ def activate_dispatch_follow(
     operation_key: Mapping[str, Any] | None = None,
     activated_at_unix: float | None = None,
     path: Path | None = None,
-) -> FollowStoreMutationOutcome:
+) -> _FollowStoreMutationOutcome:
     """Activate a pending dispatch follow after receipt binding."""
     store_path = path or _follow_store_path()
     now = _now(activated_at_unix)
@@ -192,54 +192,13 @@ def activate_dispatch_follow(
         return _finish_mutation(store_path, payload, reconciled)
 
 
-def unfollow(
-    logical_locator: Mapping[str, Any],
-    *,
-    unfollowed_at_unix: float | None = None,
-    path: Path | None = None,
-) -> FollowStoreMutationOutcome:
-    """Remove local follow records and add an explicit unfollow tombstone."""
-    store_path = path or _follow_store_path()
-    now = _now(unfollowed_at_unix)
-    locator = _copy_mapping(logical_locator)
-    logical_key = _logical_locator_key(locator, path=store_path)
-    tombstone = {
-        "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
-        "logical_locator": locator,
-        "logical_key": logical_key,
-        "unfollowed_at_unix": now,
-    }
-    with _store_lock(store_path):
-        payload = _read_store_unlocked(store_path)
-        records = [
-            record
-            for record in payload["records"]
-            if record.get("logical_key") != logical_key
-        ]
-        tombstones = [
-            existing
-            for existing in payload["tombstones"]
-            if existing.get("logical_key") != logical_key
-        ]
-        tombstones.append(tombstone)
-        reconciled = _reconcile(
-            records,
-            tombstones,
-            promotions=(),
-            activations=(),
-            now_unix=now,
-            path=store_path,
-        )
-        return _finish_mutation(store_path, payload, reconciled)
-
-
 def promote_family_follow(
     singleton_locator: Mapping[str, Any],
     family_locator: Mapping[str, Any],
     *,
     now_unix: float | None = None,
     path: Path | None = None,
-) -> FollowStoreMutationOutcome:
+) -> _FollowStoreMutationOutcome:
     """Promote a singleton follow to the durable family identity."""
     store_path = path or _follow_store_path()
     now = _now(now_unix)
@@ -255,29 +214,6 @@ def promote_family_follow(
             payload["tombstones"],
             promotions=(promotion,),
             activations=(),
-            now_unix=now,
-            path=store_path,
-        )
-        return _finish_mutation(store_path, payload, reconciled)
-
-
-def reconcile_follow_store(
-    *,
-    promotions: Iterable[Mapping[str, Any]] = (),
-    activations: Iterable[Mapping[str, Any]] = (),
-    now_unix: float | None = None,
-    path: Path | None = None,
-) -> FollowStoreMutationOutcome:
-    """Normalize persisted state after remote reconciliation."""
-    store_path = path or _follow_store_path()
-    now = _now(now_unix)
-    with _store_lock(store_path):
-        payload = _read_store_unlocked(store_path)
-        reconciled = _reconcile(
-            payload["records"],
-            payload["tombstones"],
-            promotions=tuple(copy.deepcopy(tuple(promotions))),
-            activations=tuple(copy.deepcopy(tuple(activations))),
             now_unix=now,
             path=store_path,
         )
@@ -339,7 +275,7 @@ def _finish_mutation(
     path: Path,
     before: Mapping[str, Any],
     reconciled: Mapping[str, Any],
-) -> FollowStoreMutationOutcome:
+) -> _FollowStoreMutationOutcome:
     snapshot = _snapshot_from_reconciled(reconciled, path=path)
     after = _payload_from_snapshot(snapshot)
     changed = after != {
@@ -349,7 +285,7 @@ def _finish_mutation(
     }
     if changed:
         _write_store_atomic(path, after)
-    return FollowStoreMutationOutcome(
+    return _FollowStoreMutationOutcome(
         changed=changed,
         snapshot=snapshot,
         diagnostics=snapshot.diagnostics,
@@ -559,13 +495,9 @@ __all__ = [
     "FOLLOW_STORE_FILENAME",
     "FOLLOW_STORE_SCHEMA_VERSION",
     "FollowStoreError",
-    "FollowStoreMutationOutcome",
     "FollowStoreSnapshot",
     "activate_dispatch_follow",
     "load_follow_snapshot",
     "prewrite_dispatch_follow",
     "promote_family_follow",
-    "reconcile_follow_store",
-    "record_follow",
-    "unfollow",
 ]

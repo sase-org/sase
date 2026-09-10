@@ -1202,20 +1202,16 @@ Remote Agents actions are also app-level fields. They intentionally ship as `unb
 the command palette exposes them contextually, and a configured key becomes active only
 when the Agents tab and selected remote row support that action.
 
-| Field                         | Default   | Action                                                       |
-| ----------------------------- | --------- | ------------------------------------------------------------ |
-| `cycle_agents_subtab`         | `unbound` | Cycle Focus → Fleet.                                         |
-| `cycle_agents_subtab_reverse` | `unbound` | Cycle Fleet → Focus.                                         |
-| `toggle_agent_follow`         | `unbound` | Follow or unfollow the selected remote row.                  |
-| `view_agent_in_focus`         | `unbound` | Switch a followed Fleet row into Focus.                      |
-| `connect_agent_machine`       | `unbound` | Show the selected row's machine alias and connection health. |
-| `setup_agent_machine`         | `unbound` | Show canonical `sase machine init` enrollment guidance.      |
-| `retry_remote_agent`          | `unbound` | Retry the selected row on its owning host.                   |
-| `view_remote_agent_content`   | `unbound` | Fetch bounded remote chat, output, or diff content.          |
-| `answer_remote_attention`     | `unbound` | Answer a pending remote question or approve a pending gate.  |
+| Field                       | Default   | Action                                                       |
+| --------------------------- | --------- | ------------------------------------------------------------ |
+| `connect_agent_machine`     | `unbound` | Show the selected row's machine alias and connection health. |
+| `setup_agent_machine`       | `unbound` | Show canonical `sase machine init` enrollment guidance.      |
+| `retry_remote_agent`        | `unbound` | Retry the selected row on its owning host.                   |
+| `view_remote_agent_content` | `unbound` | Fetch bounded remote chat, output, or diff content.          |
+| `answer_remote_attention`   | `unbound` | Answer a pending remote question or approve a pending gate.  |
 
 Remote stop and fork reuse the ordinary `kill_agent` and `edit_hooks` actions when the
-row advertises those capabilities. See [Focus and Fleet](ace.md#focus-and-fleet).
+row advertises those capabilities. See [Machines](ace.md#machines).
 
 **`modes`** — Prefix-key mode definitions. Built-in modes (`fold_mode`, `copy_mode`,
 `leader_mode`, `bang_mode`) can be reconfigured, and custom modes can be added. Each
@@ -4875,7 +4871,7 @@ accept a bundle on piped stdin when `--bootstrap-file` is omitted.
 | `sase machine attention {answer,approve}` | action-specific arguments, `-j`, `-t`               | Answer a remote question or approve a gate through the same durable operation path.         |
 
 See the [Remote Dispatch Runbook](remote_dispatch.md) for gateway supervision, Tailscale
-Serve, enrollment, launch constraints, and ACE Focus/Fleet operation.
+Serve, enrollment, launch constraints, and ACE machine-row operation.
 
 ### `sase memory agent-docs`
 

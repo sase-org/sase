@@ -284,12 +284,6 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         and agent is not None
         and getattr(agent, "fleet_origin_alias", None)
     )
-    selected_followable = bool(
-        selected_remote and getattr(agent, "fleet_logical_locator", None)
-    )
-    selected_followed = bool(
-        selected_remote and getattr(agent, "fleet_followed", False)
-    )
     link_edges_present: bool | None = None
     try:
         available = getattr(app, "link_follow_available_for_selection", None)
@@ -333,10 +327,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         has_artifact_files=has_artifact_files,
         agents_metadata_search_active=metadata_search_active,
         fleet_enabled=bool(fleet_available()) if callable(fleet_available) else False,
-        agents_subtab=getattr(app, "current_agents_subtab", "focus"),
         selected_agent_remote=selected_remote,
-        selected_agent_followable=selected_followable,
-        selected_agent_followed=selected_followed,
         link_edges_present=link_edges_present,
         axe_running=bool(getattr(app, "axe_running", False)),
         selected_axe_slot_done=done and isinstance(axe_item, BgCmdItem),

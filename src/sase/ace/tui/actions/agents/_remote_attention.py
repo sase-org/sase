@@ -57,7 +57,7 @@ class RemoteAttentionMixin:
     async def _poll_fleet_attention_inventory(self, *, source: str) -> bool:
         """Reconcile global remote attention into the durable inbox.
 
-        This is intentionally independent of the Agents tab and followed-row
+        This is intentionally independent of the Agents tab's visible row
         projection. It stays cheap for zero-machine configs because the
         dispatch helper returns the disabled read shape before building a
         federation worker facade.

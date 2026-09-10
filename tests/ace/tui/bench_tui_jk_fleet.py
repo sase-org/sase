@@ -13,7 +13,6 @@ from sase.ace.tui.actions.agents import _fleet as fleet_mod
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.models.fleet_agents import project_fleet_agents
 from sase.dispatch.federation import FederationConfig
-from sase.dispatch.follow_store import FollowStoreSnapshot
 from tests.ace.tui._bench_tui_jk_helpers import (
     _print_table,
     _read_samples,
@@ -81,11 +80,6 @@ async def test_bench_agents_fleet_jk_fault_scenarios(
     )
 
     monkeypatch.setattr(fleet_mod, "load_federation_config", lambda: config)
-    monkeypatch.setattr(
-        fleet_mod,
-        "_load_reconciled_follow_snapshot",
-        _empty_follow_snapshot,
-    )
     monkeypatch.setattr(
         fleet_mod,
         "build_federation_facade",
@@ -386,7 +380,6 @@ def _install_fleet_rows(
     app._agents_fleet_focus_rows = list(projection.focus_rows)
     app._agents_fleet_available = True
     app.current_idx = 0
-    app.current_agents_subtab = "fleet"
     app._apply_fleet_projection(
         projection,
         config=config,
@@ -401,12 +394,3 @@ async def _wait_for_fleet_refresh(app: AceApp) -> None:
         if asyncio.get_running_loop().time() >= deadline:
             raise AssertionError("Fleet benchmark refresh did not settle within 5s")
         await asyncio.sleep(0.01)  # sase-test-wait: poll Fleet refresh task completion
-
-
-def _empty_follow_snapshot() -> FollowStoreSnapshot:
-    return FollowStoreSnapshot(
-        schema_version=1,
-        records=(),
-        tombstones=(),
-        path="/tmp/sase-fleet-follows.json",
-    )

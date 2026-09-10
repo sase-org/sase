@@ -159,9 +159,8 @@ def test_agents_onboarding_predicate_hides_for_active_query() -> None:
     assert app._should_show_agents_onboarding() is False
 
 
-def test_agents_onboarding_predicate_hides_for_active_empty_fleet() -> None:
+def test_agents_onboarding_predicate_hides_for_active_empty_remote_catalog() -> None:
     app = _PredicateApp(loaded=True)
-    app.current_agents_subtab = "fleet"
     app._agents_fleet_available = True
     app._agents_fleet_loading = False
     app._agents_fleet_last_error = None

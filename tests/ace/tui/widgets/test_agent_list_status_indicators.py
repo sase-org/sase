@@ -145,7 +145,7 @@ class TestAgentListAutoApproveIcon:
 
 
 class TestAgentListFleetMarker:
-    def test_remote_rows_use_star_shape_for_follow_state(self) -> None:
+    def test_remote_rows_do_not_use_star_shape_for_follow_state(self) -> None:
         followed = make_agent(
             fleet_origin_alias="apollo",
             fleet_followed=True,
@@ -160,8 +160,9 @@ class TestAgentListFleetMarker:
         followed_left, _, _ = format_agent_option(followed, 0, is_selected=False)
         unfollowed_left, _, _ = format_agent_option(unfollowed, 1, is_selected=False)
 
-        assert "★apollo" in followed_left.plain
-        assert "☆apollo" in unfollowed_left.plain
+        assert "★apollo" not in followed_left.plain
+        assert "☆apollo" not in unfollowed_left.plain
+        assert followed_left.plain == unfollowed_left.plain
 
     def test_unified_rows_use_machine_chips_for_local_and_remote(self) -> None:
         local = make_agent(llm_provider=None)

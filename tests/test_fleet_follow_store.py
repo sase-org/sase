@@ -12,9 +12,6 @@ from sase.dispatch.follow_store import (
     _follow_store_path,
     prewrite_dispatch_follow,
     promote_family_follow,
-    reconcile_follow_store,
-    record_follow,
-    unfollow,
 )
 from tests.conftest import redirect_sase_home
 
@@ -100,39 +97,7 @@ def _tombstone(logical_locator: dict[str, Any], timestamp: float) -> dict[str, A
     }
 
 
-def test_follow_store_persists_explicit_follow_and_unfollow(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
-    redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    logical = _logical_locator(_known_installation_id("a"))
-
-    followed = record_follow(logical, now_unix=10.0)
-
-    assert followed.changed is True
-    assert _is_followed(followed.snapshot, logical)
-    assert _follow_store_path().is_file()
-
-    removed = unfollow(logical, unfollowed_at_unix=11.0)
-
-    assert removed.changed is True
-    assert removed.snapshot.records == ()
-    assert len(removed.snapshot.tombstones) == 1
-    assert not _is_followed(removed.snapshot, logical)
-
-    refollowed = record_follow(logical, now_unix=12.0)
-
-    assert refollowed.changed is True
-    assert _is_followed(refollowed.snapshot, logical)
-    assert refollowed.snapshot.tombstones == ()
-    assert json.loads(_follow_store_path().read_text(encoding="utf-8")) == {
-        "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
-        "records": list(refollowed.snapshot.records),
-        "tombstones": [],
-    }
-
-
-def test_dispatch_follow_activation_family_promotion_and_unfollow_wins(
+def test_dispatch_follow_activation_family_promotion_and_legacy_tombstone_wins(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -159,7 +124,14 @@ def test_dispatch_follow_activation_family_promotion_and_unfollow_wins(
     assert promoted.snapshot.records[0]["logical_locator"] == family
     assert _is_followed(promoted.snapshot, family)
 
-    removed = unfollow(family, unfollowed_at_unix=23.0)
+    path = _follow_store_path()
+    legacy_tombstone_payload = {
+        "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
+        "records": [],
+        "tombstones": [_tombstone(family, 23.0)],
+    }
+    path.write_text(json.dumps(legacy_tombstone_payload), encoding="utf-8")
+
     resurrected = prewrite_dispatch_follow(
         family,
         _operation_key("op-2"),
@@ -167,13 +139,14 @@ def test_dispatch_follow_activation_family_promotion_and_unfollow_wins(
     )
     assert resurrected.changed is False
     assert resurrected.snapshot.records == ()
-    assert resurrected.snapshot.tombstones == removed.snapshot.tombstones
+    assert resurrected.snapshot.tombstones == tuple(
+        legacy_tombstone_payload["tombstones"]
+    )
     assert any(
         diagnostic["code"] == "follow_tombstone_blocked"
         for diagnostic in resurrected.diagnostics
     )
 
-    path = _follow_store_path()
     stale_payload = {
         "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
         "records": [
@@ -190,16 +163,7 @@ def test_dispatch_follow_activation_family_promotion_and_unfollow_wins(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(stale_payload), encoding="utf-8")
 
-    reconciled = reconcile_follow_store(
-        promotions=(
-            {
-                "schema_version": FOLLOW_STORE_SCHEMA_VERSION,
-                "from": singleton,
-                "to": family,
-            },
-        ),
-        now_unix=32.0,
-    )
+    reconciled = promote_family_follow(singleton, family, now_unix=32.0)
 
     assert reconciled.changed is True
     assert reconciled.snapshot.records == ()
