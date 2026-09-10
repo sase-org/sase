@@ -15,6 +15,7 @@ import pytest
 import sase.dispatch.federation as federation
 from sase.dispatch.credentials import LocalCredentialStore
 from sase.dispatch.models import CredentialRecord, MachineDiagnostic
+from tests.ace.tui.fleet_fixture import fleet_host_response, fleet_summary
 from tests.conftest import redirect_sase_home
 
 
@@ -386,6 +387,27 @@ def test_facade_read_deadline_preserves_healthy_partial_host(
     tmp_path: Path,
 ) -> None:
     calls: list[dict[str, Any]] = []
+    healthy = fleet_summary(
+        installation_id=_installation_id("a"),
+        agent_id="healthy",
+    )
+    worker_response = fleet_host_response(
+        alias="apollo",
+        installation_id=_installation_id("a"),
+        summaries=(healthy,),
+        partial=True,
+        operation="summary",
+        diagnostics=(
+            {
+                "alias": "zeus",
+                "operation": "summary",
+                "code": "host_deadline_exceeded",
+                "severity": "warning",
+                "message": "zeus summary exceeded the read deadline",
+            },
+        ),
+    )
+    worker_response["configured_hosts"] = 2
 
     class Supervisor:
         def request(
@@ -402,30 +424,7 @@ def test_facade_read_deadline_preserves_healthy_partial_host(
                     "retry": retry,
                 }
             )
-            return {
-                "schema_version": federation.FEDERATION_IPC_SCHEMA_VERSION,
-                "operation": "summary",
-                "configured_hosts": 2,
-                "partial": True,
-                "hosts": [
-                    {
-                        "schema_version": 1,
-                        "alias": "apollo",
-                        "origin_installation_id": _installation_id("a"),
-                        "connection_health": "online",
-                        "summaries": [{"logical_key": "healthy", "status": "running"}],
-                    }
-                ],
-                "diagnostics": [
-                    {
-                        "alias": "zeus",
-                        "operation": "summary",
-                        "code": "host_deadline_exceeded",
-                        "severity": "warning",
-                        "message": "zeus summary exceeded the read deadline",
-                    }
-                ],
-            }
+            return json.loads(json.dumps(worker_response))
 
     config = federation.FederationConfig(
         worker=federation.FederationWorkerSettings(
@@ -465,7 +464,10 @@ def test_facade_read_deadline_preserves_healthy_partial_host(
     assert response["partial"] is True
     assert response["configured_hosts"] == 2
     assert response["hosts"][0]["alias"] == "apollo"
-    assert response["hosts"][0]["summaries"][0]["logical_key"] == "healthy"
+    assert (
+        response["hosts"][0]["payload"]["page"]["rows"][0]["logical_key"]
+        == healthy["logical_key"]
+    )
     assert response["diagnostics"][0]["code"] == "host_deadline_exceeded"
 
 

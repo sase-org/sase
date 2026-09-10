@@ -216,7 +216,7 @@ async def test_agents_fleet_followed_partial_offline_png_snapshot(
         assert_page_svg_contains(page, "☆mac")
         assert_page_svg_contains(page, "partial")
         assert_page_svg_contains(page, "offline")
-        assert_page_svg_contains(page, "cached 12m")
+        assert_page_svg_contains(page, "stale")
         ace_png_visual.assert_page_png(
             page,
             "agents_fleet_followed_partial_offline_120x40",
@@ -268,10 +268,7 @@ async def test_agents_fleet_state_strip_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    zero_response = fleet_host_response(
-        summaries=(),
-        counts={"total": 0, "running": 0},
-    )
+    zero_response = fleet_host_response(summaries=())
     facade = OfflineFleetFacade(
         summary_response=zero_response,
         catalog_response=zero_response,

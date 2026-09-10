@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+import json
+from collections.abc import Callable, Iterable, Mapping
 from typing import Any
 
 import pytest
@@ -14,6 +15,7 @@ from sase.ace.tui.models.fleet_agents import FleetRowsProjection
 from sase.dispatch.federation import FederationConfig, FederationWorkerSettings
 from sase.dispatch.follow_store import FollowStoreMutationOutcome, FollowStoreSnapshot
 from sase.feature_flags import override_flags
+from sase.ace.tui.util.nav_gate import NavigationGate
 from tests.ace.tui.fleet_fixture import (
     OfflineFleetFacade,
     fleet_attention_response,
@@ -49,6 +51,8 @@ class _FleetRefreshHarness(AgentFleetMixin):
         self.header_updates = 0
         self.reproject_sources: list[str] = []
         self.attention_announcements: list[FleetRowsProjection] = []
+        self._nav_gate = NavigationGate()
+        self.timers: list[tuple[float, Callable[[], None]]] = []
 
     def _update_agents_header(self) -> None:
         self.header_updates += 1
@@ -70,6 +74,9 @@ class _FleetRefreshHarness(AgentFleetMixin):
 
     def notify(self, *_args: object, **_kwargs: object) -> None:
         pass
+
+    def set_timer(self, delay: float, callback: Callable[[], None]) -> None:
+        self.timers.append((delay, callback))
 
 
 def test_fleet_status_text_labels_partial_and_zero_results() -> None:
@@ -268,6 +275,46 @@ async def test_zero_machine_config_refresh_performs_no_remote_work(
 
 
 @pytest.mark.asyncio
+async def test_fleet_refresh_apply_defers_behind_active_navigation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    summary = fleet_summary(agent_id="agent-a")
+    response = fleet_host_response(summaries=(summary,))
+    facade = OfflineFleetFacade(summary_response=response, catalog_response=response)
+    app = _FleetRefreshHarness(mode="fleet")
+    app._nav_gate.record()
+
+    monkeypatch.setattr(fleet_mod, "load_federation_config", fleet_config)
+    monkeypatch.setattr(
+        fleet_mod,
+        "_load_reconciled_follow_snapshot",
+        lambda: FollowStoreSnapshot(
+            schema_version=1,
+            records=(),
+            tombstones=(),
+            path="/tmp/sase-fleet-follows.json",
+        ),
+    )
+    monkeypatch.setattr(fleet_mod, "build_federation_facade", lambda _config: facade)
+
+    await app._run_agents_fleet_refresh(generation=1, source="manual")
+
+    assert app._agents == []
+    assert app._agents_fleet_loading is True
+    assert len(app.timers) == 1
+
+    app._nav_gate = NavigationGate(window_s=0)
+    _delay, callback = app.timers.pop()
+    callback()
+
+    assert [row.fleet_logical_key for row in app._agents_fleet_rows] == [
+        summary["logical_key"]
+    ]
+    assert app._agents_fleet_loading is False
+    assert app.reproject_sources == ["fleet_refresh"]
+
+
+@pytest.mark.asyncio
 async def test_empty_follow_snapshot_skips_hydration_and_reconciliation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -303,6 +350,9 @@ async def test_empty_follow_snapshot_skips_hydration_and_reconciliation(
 async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    def serialized(response: Mapping[str, Any]) -> dict[str, Any]:
+        return json.loads(json.dumps(response))
+
     summary = fleet_summary(agent_id="agent-a")
     page_one = fleet_host_response(summaries=(summary,))
     page_one["hosts"][0]["payload"]["page"]["next_cursor"] = "off:100"
@@ -320,6 +370,18 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
     )
 
     class _PagingFacade(OfflineFleetFacade):
+        async def summary(
+            self,
+            *,
+            cache_only: bool = False,
+            timeout_seconds: float | None = None,
+        ) -> dict[str, Any]:
+            response = await super().summary(
+                cache_only=cache_only,
+                timeout_seconds=timeout_seconds,
+            )
+            return serialized(response)
+
         async def catalog(
             self,
             query: dict[str, Any],
@@ -337,8 +399,8 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
                 }
             )
             if query.get("cursor") == "off:100":
-                return dict(page_two)
-            return dict(page_one)
+                return serialized(page_two)
+            return serialized(page_one)
 
         async def catalog_hosts(
             self,
@@ -359,8 +421,36 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
             )
             query = request[0]["query"] if request else {}
             if query.get("cursor") == "off:100":
-                return dict(page_two)
-            return dict(page_one)
+                return serialized(page_two)
+            return serialized(page_one)
+
+        async def followed_batch(
+            self,
+            request: Mapping[str, Any],
+            *,
+            cache_only: bool = False,
+            timeout_seconds: float | None = None,
+        ) -> dict[str, Any]:
+            response = await super().followed_batch(
+                request,
+                cache_only=cache_only,
+                timeout_seconds=timeout_seconds,
+            )
+            return serialized(response)
+
+        async def attention(
+            self,
+            request: Mapping[str, Any],
+            *,
+            cache_only: bool = False,
+            timeout_seconds: float | None = None,
+        ) -> dict[str, Any]:
+            response = await super().attention(
+                request,
+                cache_only=cache_only,
+                timeout_seconds=timeout_seconds,
+            )
+            return serialized(response)
 
     facade = _PagingFacade(
         summary_response=page_one,

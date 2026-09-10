@@ -406,6 +406,7 @@ class AgentFleetMixin(AgentFleetDispatchLaunchMixin):
             self._update_agents_header()
 
     async def _run_agents_fleet_refresh(self, *, generation: int, source: str) -> None:
+        deferred_apply = False
         try:
             unified_agents = _unified_agents_enabled()
             config = await asyncio.to_thread(load_federation_config)
@@ -483,18 +484,73 @@ class AgentFleetMixin(AgentFleetDispatchLaunchMixin):
                     partial=projection.partial,
                     counts=dict(projection.counts),
                 )
-            self._apply_fleet_projection(
+            if self._defer_fleet_projection_apply_if_navigating(
                 projection,
                 config=config,
                 generation=generation,
-            )
+            ):
+                deferred_apply = True
+            else:
+                self._apply_fleet_projection(
+                    projection,
+                    config=config,
+                    generation=generation,
+                )
         except (FederationConfigError, FollowStoreError) as exc:
             log.debug("fleet refresh failed", exc_info=True)
             self._apply_fleet_error(str(exc), generation=generation)
         finally:
-            if generation == getattr(self, "_agents_fleet_refresh_generation", 0):
+            if (
+                generation == getattr(self, "_agents_fleet_refresh_generation", 0)
+                and not deferred_apply
+            ):
                 self._agents_fleet_loading = False
                 self._update_agents_header()
+
+    def _defer_fleet_projection_apply_if_navigating(
+        self,
+        projection: FleetRowsProjection,
+        *,
+        config: FederationConfig,
+        generation: int,
+    ) -> bool:
+        nav_gate = getattr(self, "_nav_gate", None)
+        if nav_gate is None or not nav_gate.is_navigating():
+            return False
+        delay = nav_gate.time_until_idle() + 0.05
+        self.set_timer(  # type: ignore[attr-defined]
+            delay,
+            lambda: self._apply_deferred_fleet_projection(
+                projection,
+                config=config,
+                generation=generation,
+            ),
+        )
+        return True
+
+    def _apply_deferred_fleet_projection(
+        self,
+        projection: FleetRowsProjection,
+        *,
+        config: FederationConfig,
+        generation: int,
+    ) -> None:
+        if generation != getattr(self, "_agents_fleet_refresh_generation", 0):
+            return
+        if self._defer_fleet_projection_apply_if_navigating(
+            projection,
+            config=config,
+            generation=generation,
+        ):
+            return
+        self._apply_fleet_projection(
+            projection,
+            config=config,
+            generation=generation,
+        )
+        if generation == getattr(self, "_agents_fleet_refresh_generation", 0):
+            self._agents_fleet_loading = False
+            self._update_agents_header()
 
     def _fleet_catalog_request(
         self,

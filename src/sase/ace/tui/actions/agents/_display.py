@@ -591,9 +591,6 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         with tui_trace("agents.refresh_debounced", agents=len(self._agents)):
             self._refresh_panel_highlights()
             self._update_agents_info_panel()
-            update_agents_header = getattr(self, "_update_agents_header", None)
-            if callable(update_agents_header):
-                update_agents_header()
             if self._apply_agent_detail_immediate():
                 self._agent_detail_debouncer.cancel()
             else:

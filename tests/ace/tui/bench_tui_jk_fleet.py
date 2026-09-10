@@ -307,10 +307,12 @@ def _fault_sequence(
         # Hold row counts fixed across steps (unlike a host gaining/losing
         # agents) and instead flip `status` for a rotating eighth of each
         # host's rows every step: a burst of a few agents starting/finishing
-        # at once, not a fleet that is growing. `status` is a compared
-        # `Agent` field, so this drives the same per-row patch path as
-        # `reconnect_churn`, just spread across both hosts, rather than the
-        # far costlier full-list rebuild a row-count change
+        # at once, not a fleet that is growing. Keep revision churn scoped
+        # to the rows whose lifecycle state changes; dirtying every row
+        # would measure a full-page update rather than an event burst.
+        # `status` is a compared `Agent` field, so this drives the same
+        # per-row patch path as `reconnect_churn`, just spread across both
+        # hosts, rather than the far costlier full-list rebuild a row-count change
         # (`has_collection_changes`) triggers because Fleet rows from every
         # host share one merged, ungrouped panel. The rotation fraction is
         # narrower than `reconnect_churn`'s because this scenario touches
@@ -326,8 +328,8 @@ def _fault_sequence(
                             installation_id=apollo_id,
                             agent_id=f"apollo-agent-{index:03d}",
                             run_id=f"apollo-run-{index:03d}",
-                            revision=index + 1 + step,
-                            status=("starting" if index % 8 == step % 8 else "running"),
+                            revision=_event_burst_revision(index, step),
+                            status=_event_burst_status(index, step),
                             patch_name="apollo-fleet",
                             bounded_intent="exercise Fleet j/k under faults",
                         )
@@ -342,8 +344,8 @@ def _fault_sequence(
                             installation_id=zeus_id,
                             agent_id=f"zeus-agent-{index:03d}",
                             run_id=f"zeus-run-{index:03d}",
-                            revision=index + 1 + step,
-                            status=("starting" if index % 8 == step % 8 else "running"),
+                            revision=_event_burst_revision(index, step),
+                            status=_event_burst_status(index, step),
                             patch_name="zeus-fleet",
                             bounded_intent="exercise Fleet j/k under faults",
                         )
@@ -355,6 +357,19 @@ def _fault_sequence(
             for step in range(_FLEET_FAULT_STEPS)
         ]
     raise AssertionError(f"unknown Fleet fault scenario: {scenario}")
+
+
+def _event_burst_status(index: int, step: int) -> str:
+    return "starting" if index % 8 == step % 8 else "running"
+
+
+def _event_burst_revision(index: int, step: int) -> int:
+    row_bucket = index % 8
+    revision = index + 1
+    for transition_step in range(1, step + 1):
+        if row_bucket in {transition_step % 8, (transition_step - 1) % 8}:
+            revision = index + 1 + transition_step
+    return revision
 
 
 def _install_fleet_rows(
