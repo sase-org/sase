@@ -35,6 +35,7 @@ WAIT_UNKNOWN_GLYPH = "?"
 WAIT_UNKNOWN_GLYPH_STYLE = "bold #FFAF5F"
 WAIT_UNRESOLVABLE_GLYPH = "!"
 WAIT_UNRESOLVABLE_GLYPH_STYLE = "bold #FF5F5F"
+WAIT_BEAD_ID_STYLE = "#FF87D7"
 
 # Glyphs mirror ``AGENT_STATUS_BUCKET_GLYPHS``; colors mirror the established
 # agent-row status accents.
@@ -124,7 +125,7 @@ def _append_wait_bead_status_count(
     text.append(f"{token}{count}", style=style)
 
 
-def format_wait_dependency_status_counts(
+def _format_wait_dependency_status_counts(
     counts: WaitDependencyStatusCounts | None,
 ) -> Text:
     """Format a zero-suppressed compact wait dependency status-count summary."""
@@ -169,7 +170,47 @@ def format_wait_dependency_status_counts(
     return rendered
 
 
+def _sole_bead_status(
+    counts: WaitDependencyStatusCounts | None,
+) -> str | None:
+    """Return the sole counted bead status for a singleton wait, if unambiguous."""
+    if counts is None or not counts.has_any:
+        return None
+    if counts.agents.has_any:
+        return ""
+    statuses = tuple(counts.beads.nonzero_statuses())
+    if len(statuses) != 1:
+        return ""
+    status, count = statuses[0]
+    return status if count == 1 else ""
+
+
+def format_wait_dependency_summary(
+    counts: WaitDependencyStatusCounts | None,
+    *,
+    single_bead_id: str | None = None,
+) -> Text:
+    """Format a wait dependency summary, optionally naming one waited-on bead."""
+    if not single_bead_id:
+        return _format_wait_dependency_status_counts(counts)
+
+    sole_status = _sole_bead_status(counts)
+    if sole_status == "":
+        return _format_wait_dependency_status_counts(counts)
+
+    rendered = Text()
+    if sole_status is not None:
+        token, style = _wait_bead_status_token(
+            None if sole_status == "unknown" else sole_status
+        )
+        rendered.append(token, style=style)
+        rendered.append(" ")
+    rendered.append(single_bead_id, style=WAIT_BEAD_ID_STYLE)
+    return rendered
+
+
 __all__ = [
+    "WAIT_BEAD_ID_STYLE",
     "WAIT_STATUS_BADGES",
     "WAIT_STATUS_COUNT_BUCKETS",
     "WAIT_UNKNOWN_GLYPH",
@@ -178,5 +219,5 @@ __all__ = [
     "WAIT_UNRESOLVABLE_GLYPH_STYLE",
     "append_wait_bead_status_badge",
     "append_wait_status_badge",
-    "format_wait_dependency_status_counts",
+    "format_wait_dependency_summary",
 ]

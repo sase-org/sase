@@ -197,7 +197,7 @@ async def test_patch_row_replaces_stale_bead_wait_counts() -> None:
 
         row = agent_row_index(widget, 0)
         before = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
-        assert "(WAITING)" in before
+        assert "(WAITING run-bead)" in before
         assert "◐1" not in before
 
         widget._target_width = max(widget._target_width, 80)
@@ -211,7 +211,7 @@ async def test_patch_row_replaces_stale_bead_wait_counts() -> None:
 
         after = widget.get_option_at_index(row).prompt.plain  # type: ignore[union-attr]
         assert patched is True
-        assert "(WAITING ◐1)" in after
+        assert "(WAITING ◐ run-bead)" in after
         assert widget._row_render_ctx[0]["wait_dependency_counts"] == (
             WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(in_progress=1))
         )

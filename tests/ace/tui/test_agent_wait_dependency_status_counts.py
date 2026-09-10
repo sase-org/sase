@@ -18,9 +18,11 @@ from sase.ace.tui.models.agent_wait_beads import (
     _WaitBeadStatusSnapshotEntry,
 )
 from sase.ace.tui.wait_status_presentation import (
+    WAIT_BEAD_ID_STYLE,
     WAIT_UNKNOWN_GLYPH,
     WAIT_UNKNOWN_GLYPH_STYLE,
-    format_wait_dependency_status_counts,
+    format_wait_dependency_summary,
+    _format_wait_dependency_status_counts,
 )
 from sase.bead_status_presentation import (
     bead_status_display_order,
@@ -116,7 +118,7 @@ def test_counts_keep_agent_and_bead_domains_separate() -> None:
             unknown=1,
         ),
     )
-    rendered = format_wait_dependency_status_counts(counts)
+    rendered = _format_wait_dependency_status_counts(counts)
     assert rendered.plain == ("▲1 ✗1 ◐1 ◎1 ▶1 ◐1 …1 ⏳1 ○1 ✓1 ●1 ?1 ?1 ◇1 ◈1")
     assert "·" not in rendered.plain
     assert "▶2" not in rendered.plain
@@ -135,7 +137,7 @@ def test_similar_agent_and_bead_statuses_do_not_merge() -> None:
     )
 
     counts = wait_dependency_status_counts(waiter, maps, bead_snapshot)
-    rendered = format_wait_dependency_status_counts(counts)
+    rendered = _format_wait_dependency_status_counts(counts)
 
     assert counts == WaitDependencyStatusCounts(
         agents=WaitAgentStatusCounts(starting=1),
@@ -163,7 +165,7 @@ def test_formatter_groups_every_corresponding_status_pair() -> None:
         ),
     )
 
-    rendered = format_wait_dependency_status_counts(counts)
+    rendered = _format_wait_dependency_status_counts(counts)
 
     assert rendered.plain == "◐1 ◎6 ▶2 ◐7 ⏳3 ○8 ✓4 ●9 ?5 ?10"
     assert "▶9" not in rendered.plain
@@ -175,7 +177,7 @@ def test_formatter_suppresses_zeroes_and_keeps_multi_digit_counts() -> None:
         agents=WaitAgentStatusCounts(running=12, done=3, unknown=1)
     )
 
-    rendered = format_wait_dependency_status_counts(counts)
+    rendered = _format_wait_dependency_status_counts(counts)
     assert rendered.plain == "▶12 ✓3 ?1"
     assert "bold #FFD700" in _styles_covering(rendered, "▶12")
     assert "bold #5FD75F" in _styles_covering(rendered, "✓3")
@@ -183,21 +185,21 @@ def test_formatter_suppresses_zeroes_and_keeps_multi_digit_counts() -> None:
 
 
 def test_formatter_uses_single_sequence_for_mixed_domains() -> None:
-    agent_only = format_wait_dependency_status_counts(
+    agent_only = _format_wait_dependency_status_counts(
         WaitDependencyStatusCounts(agents=WaitAgentStatusCounts(running=2, done=1))
     )
-    bead_only = format_wait_dependency_status_counts(
+    bead_only = _format_wait_dependency_status_counts(
         WaitDependencyStatusCounts(
             beads=WaitBeadStatusCounts(open=2, in_progress=1),
         )
     )
-    mixed = format_wait_dependency_status_counts(
+    mixed = _format_wait_dependency_status_counts(
         WaitDependencyStatusCounts(
             agents=WaitAgentStatusCounts(running=1),
             beads=WaitBeadStatusCounts(in_progress=2),
         )
     )
-    unknown_mixed = format_wait_dependency_status_counts(
+    unknown_mixed = _format_wait_dependency_status_counts(
         WaitDependencyStatusCounts(
             agents=WaitAgentStatusCounts(unknown=1),
             beads=WaitBeadStatusCounts(unknown=2),
@@ -228,7 +230,7 @@ def test_unpaired_bead_statuses_trail_in_canonical_bead_order() -> None:
         ),
     )
 
-    rendered = format_wait_dependency_status_counts(counts)
+    rendered = _format_wait_dependency_status_counts(counts)
 
     assert rendered.plain == "▶1 ○2 ◎3 ◇4 ◈5 ●6 ?7"
 
@@ -245,7 +247,7 @@ def test_bead_tokens_use_canonical_glyph_color_and_unbroken_style() -> None:
             unknown=3,
         )
     )
-    rendered = format_wait_dependency_status_counts(counts)
+    rendered = _format_wait_dependency_status_counts(counts)
 
     assert rendered.plain == "○1 ◎1 ◇1 ◈1 ◐2 ●1 ?3"
     assert "◆" not in rendered.plain
@@ -263,13 +265,13 @@ def test_bead_tokens_use_canonical_glyph_color_and_unbroken_style() -> None:
 
 def test_documented_wait_summary_examples_match_formatter() -> None:
     docs = Path("docs/ace.md").read_text(encoding="utf-8")
-    mixed = format_wait_dependency_status_counts(
+    mixed = _format_wait_dependency_status_counts(
         WaitDependencyStatusCounts(
             agents=WaitAgentStatusCounts(running=1),
             beads=WaitBeadStatusCounts(in_progress=2),
         )
     )
-    unknown_mixed = format_wait_dependency_status_counts(
+    unknown_mixed = _format_wait_dependency_status_counts(
         WaitDependencyStatusCounts(
             agents=WaitAgentStatusCounts(unknown=1),
             beads=WaitBeadStatusCounts(unknown=2),
@@ -297,7 +299,7 @@ def test_cold_bead_cache_miss_is_omitted_until_warm() -> None:
     counts = wait_dependency_status_counts(waiter, maps, bead_snapshot)
 
     assert counts == WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(unknown=1))
-    assert format_wait_dependency_status_counts(counts).plain == "?1"
+    assert _format_wait_dependency_status_counts(counts).plain == "?1"
 
 
 def test_stale_bead_status_stays_visible_during_revalidation() -> None:
@@ -312,7 +314,7 @@ def test_stale_bead_status_stays_visible_during_revalidation() -> None:
     assert counts == WaitDependencyStatusCounts(
         beads=WaitBeadStatusCounts(in_progress=1)
     )
-    assert format_wait_dependency_status_counts(counts).plain == "◐1"
+    assert _format_wait_dependency_status_counts(counts).plain == "◐1"
 
 
 def test_clan_wait_counts_expanded_members_not_aggregate() -> None:
@@ -386,14 +388,14 @@ def test_tribe_time_and_runner_waits_do_not_enter_dependency_counts() -> None:
 
 def test_bead_status_tokens_are_semantically_readable() -> None:
     unknown = WAIT_UNKNOWN_GLYPH
-    rendered_unknown = format_wait_dependency_status_counts(
+    rendered_unknown = _format_wait_dependency_status_counts(
         WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(unknown=1))
     )
     assert rendered_unknown.plain == "?1"
     for status in bead_status_display_order():
         presentation = bead_status_presentation(status)
         token = presentation.tui_glyph
-        rendered = format_wait_dependency_status_counts(
+        rendered = _format_wait_dependency_status_counts(
             WaitDependencyStatusCounts(
                 beads=WaitBeadStatusCounts(**{status: 1}),
             )
@@ -401,3 +403,35 @@ def test_bead_status_tokens_are_semantically_readable() -> None:
         assert rendered.plain == f"{token}1"
         assert token != unknown
         assert _styles_covering(rendered, f"{token}1") == {presentation.rich_style}
+
+
+def test_single_bead_summary_names_id_without_changing_count_formatter() -> None:
+    counts = WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(in_progress=1))
+
+    named = format_wait_dependency_summary(counts, single_bead_id="sase-yz")
+    counted = _format_wait_dependency_status_counts(counts)
+
+    assert named.plain == "◐ sase-yz"
+    assert _styles_covering(named, "◐") == {
+        bead_status_presentation("in_progress").rich_style
+    }
+    assert _styles_covering(named, "sase-yz") == {WAIT_BEAD_ID_STYLE}
+    assert counted.plain == "◐1"
+
+
+def test_single_bead_summary_without_counts_does_not_invent_unknown_status() -> None:
+    rendered = format_wait_dependency_summary(None, single_bead_id="sase-yz")
+
+    assert rendered.plain == "sase-yz"
+    assert "?" not in rendered.plain
+    assert _styles_covering(rendered, "sase-yz") == {WAIT_BEAD_ID_STYLE}
+
+
+def test_single_bead_summary_falls_back_when_counts_contradict_singleton() -> None:
+    rendered = format_wait_dependency_summary(
+        WaitDependencyStatusCounts(beads=WaitBeadStatusCounts(in_progress=2)),
+        single_bead_id="sase-yz",
+    )
+
+    assert rendered.plain == "◐2"
+    assert "sase-yz" not in rendered.plain

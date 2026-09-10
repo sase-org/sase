@@ -39,6 +39,7 @@ from sase.ace.tui.models.agent_bead import (
 )
 from sase.ace.tui.models.agent_wait_beads import _WAIT_BEAD_STATUS_CACHE
 from sase.ace.tui.util.nav_gate import NavigationGate
+from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.bead.model import Issue
 
 
@@ -439,6 +440,43 @@ def test_apply_wait_bead_status_results_passes_fresh_count_override() -> None:
             )
         }
     ]
+
+
+def test_apply_wait_bead_status_results_keeps_singleton_id_and_adds_warm_glyph() -> (
+    None
+):
+    app = _FakeApp()
+    waiter = _agent(
+        status="WAITING",
+        waiting_for_beads=["sase-1"],
+        cl_name="waiter",
+        raw_suffix="waiter",
+    )
+    cold_left, _, _ = format_agent_option(waiter, 0, is_selected=False)
+    _WAIT_BEAD_STATUS_CACHE.set(("proj", "sase-1"), "in_progress")
+    app._agents = [waiter]
+    app._agents_with_children = [waiter]
+
+    app._apply_bead_warmup_results(_AgentBeadWarmupResults({}, {waiter.identity}))
+
+    assert "waiter (WAITING sase-1)" in cold_left.plain
+    assert app._patched == [waiter]
+    assert app._patch_kwargs == [
+        {
+            "wait_dependency_counts": WaitDependencyStatusCounts(
+                beads=WaitBeadStatusCounts(in_progress=1)
+            )
+        }
+    ]
+    wait_counts = app._patch_kwargs[0]["wait_dependency_counts"]
+    assert isinstance(wait_counts, WaitDependencyStatusCounts)
+    warm_left, _, _ = format_agent_option(
+        waiter,
+        0,
+        is_selected=False,
+        wait_dependency_counts=wait_counts,
+    )
+    assert "waiter (WAITING ◐ sase-1)" in warm_left.plain
 
 
 def test_apply_wait_bead_status_results_rebuilds_once_on_patch_failure() -> None:

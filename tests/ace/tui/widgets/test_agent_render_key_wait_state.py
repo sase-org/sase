@@ -176,6 +176,78 @@ def test_render_key_changes_when_agent_or_bead_wait_counts_change() -> None:
     )
 
 
+def test_render_key_changes_when_single_wait_bead_id_changes() -> None:
+    agent = _agent(status="WAITING")
+    agent.waiting_for_beads = ["sase-a"]
+    key_kwargs = {
+        "index": 0,
+        "is_selected": False,
+        "fold_annotation": "",
+        "is_expanded": False,
+        "is_marked": False,
+        "hint_char": None,
+        "now": None,
+        "wait_dependency_counts": WaitDependencyStatusCounts(
+            beads=WaitBeadStatusCounts(in_progress=1)
+        ),
+    }
+
+    first = agent_render_key(agent, **key_kwargs)
+    agent.waiting_for_beads = ["sase-b"]
+    second = agent_render_key(agent, **key_kwargs)
+
+    assert first != second
+
+
+def test_render_key_changes_when_inherited_single_wait_bead_id_changes() -> None:
+    root = _agent(status="WAITING")
+    child = _agent(
+        cl_name="child",
+        status="WAITING",
+        raw_suffix="20260425143100",
+    )
+    child.waiting_for_beads = ["sase-a"]
+    root.wait_display_source = child
+    key_kwargs = {
+        "index": 0,
+        "is_selected": False,
+        "fold_annotation": "",
+        "is_expanded": False,
+        "is_marked": False,
+        "hint_char": None,
+        "now": None,
+        "wait_dependency_counts": WaitDependencyStatusCounts(
+            beads=WaitBeadStatusCounts(in_progress=1)
+        ),
+    }
+
+    first = agent_render_key(root, **key_kwargs)
+    child.waiting_for_beads = ["sase-b"]
+    second = agent_render_key(root, **key_kwargs)
+
+    assert first != second
+
+
+def test_render_key_changes_between_singleton_and_mixed_waits() -> None:
+    agent = _agent(status="WAITING")
+    agent.waiting_for_beads = ["sase-a"]
+    key_kwargs = {
+        "index": 0,
+        "is_selected": False,
+        "fold_annotation": "",
+        "is_expanded": False,
+        "is_marked": False,
+        "hint_char": None,
+        "now": None,
+    }
+
+    singleton = agent_render_key(agent, **key_kwargs)
+    agent.waiting_for = ["@default"]
+    mixed = agent_render_key(agent, **key_kwargs)
+
+    assert singleton != mixed
+
+
 def test_render_key_changes_when_unresolvable_wait_target_flag_flips() -> None:
     agent = _agent(status="WAITING")
     agent.waiting_for = ["@default"]

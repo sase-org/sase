@@ -29,7 +29,7 @@ from ..models.agent_status import (
     STOPPED_GLYPH,
     STOPPED_STATUS,
 )
-from ..wait_status_presentation import format_wait_dependency_status_counts
+from ..wait_status_presentation import format_wait_dependency_summary
 from ._agent_list_helpers import short_model_name
 from ._agent_list_styling import (
     _GATE_FAILURE_GLYPH_STYLE,
@@ -120,7 +120,15 @@ def append_agent_row_status(
     elif agent.status == "WAITING":
         text.append(display_status, style="bold #AF87FF")  # Amethyst
         wait_agent = wait_display_agent(agent)
-        count_text = format_wait_dependency_status_counts(wait_dependency_counts)
+        single_bead_id = (
+            wait_agent.waiting_for_beads[0]
+            if not wait_agent.waiting_for and len(wait_agent.waiting_for_beads) == 1
+            else None
+        )
+        count_text = format_wait_dependency_summary(
+            wait_dependency_counts,
+            single_bead_id=single_bead_id,
+        )
         if count_text.cell_len:
             text.append(" ")
             text.append_text(count_text)

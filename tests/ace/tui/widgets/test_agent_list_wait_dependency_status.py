@@ -12,8 +12,13 @@ from sase.ace.tui.agent_completion import (
     WaitBeadStatusCounts,
     WaitDependencyStatusCounts,
 )
+from sase.ace.tui.wait_status_presentation import WAIT_BEAD_ID_STYLE
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
+from sase.bead_status_presentation import (
+    bead_status_display_order,
+    bead_status_presentation,
+)
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
@@ -81,10 +86,6 @@ class TestMissingWaitTargetIndicator:
     @pytest.mark.parametrize(
         "agent",
         [
-            make_agent(
-                status="WAITING",
-                waiting_for_beads=["sase-87.2"],
-            ),
             make_agent(status="WAITING", wait_duration=300),
             make_agent(
                 status="WAITING",
@@ -106,6 +107,19 @@ class TestMissingWaitTargetIndicator:
         )
 
         assert "?" not in left.plain
+
+    def test_single_cold_bead_wait_renders_id_without_unknown_marker(self) -> None:
+        agent = make_agent(status="WAITING", waiting_for_beads=["sase-87.2"])
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+        )
+
+        assert left.plain.endswith("test_cl (WAITING sase-87.2)")
+        assert "?" not in left.plain
+        assert _styles_covering(left, "sase-87.2") == {WAIT_BEAD_ID_STYLE}
 
     def test_counts_do_not_render_on_non_waiting_rows(self) -> None:
         agent = make_agent(status="RUNNING", waiting_for=["ghost_deploy"])
@@ -181,8 +195,55 @@ class TestMissingWaitTargetIndicator:
 
         assert left.plain.endswith("test_cl (WAITING ?1 (until 14:15, 1m29s))")
 
-    def test_waiting_row_renders_bead_only_counts_after_warmup(self) -> None:
-        agent = make_agent(status="WAITING", waiting_for_beads=["run-bead"])
+    @pytest.mark.parametrize("status", bead_status_display_order())
+    def test_waiting_row_renders_single_bead_id_with_status_glyph(
+        self,
+        status: str,
+    ) -> None:
+        agent = make_agent(status="WAITING", waiting_for_beads=["sase-yz"])
+        presentation = bead_status_presentation(status)
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                beads=WaitBeadStatusCounts(**{status: 1})
+            ),
+        )
+
+        assert left.plain.endswith(
+            f"test_cl (WAITING {presentation.tui_glyph} sase-yz)"
+        )
+        assert _styles_covering(left, presentation.tui_glyph) == {
+            presentation.rich_style
+        }
+        assert _styles_covering(left, "sase-yz") == {WAIT_BEAD_ID_STYLE}
+
+    def test_waiting_row_renders_single_unknown_bead_id_with_unknown_glyph(
+        self,
+    ) -> None:
+        agent = make_agent(status="WAITING", waiting_for_beads=["sase-yz"])
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                beads=WaitBeadStatusCounts(unknown=1)
+            ),
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ? sase-yz)")
+        assert "bold #FFAF5F" in _styles_covering(left, "?")
+        assert _styles_covering(left, "sase-yz") == {WAIT_BEAD_ID_STYLE}
+
+    def test_single_bead_label_precedes_relative_duration_annotation(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            waiting_for_beads=["sase-yz"],
+            wait_duration=300,
+        )
 
         left, _, _ = format_agent_option(
             agent,
@@ -193,8 +254,24 @@ class TestMissingWaitTargetIndicator:
             ),
         )
 
-        assert left.plain.endswith("test_cl (WAITING ◐1)")
-        assert "bold #FFD700" in _styles_covering(left, "◐1")
+        assert left.plain.endswith("test_cl (WAITING ◐ sase-yz +5m)")
+
+    def test_waiting_row_uses_wait_display_source_single_bead_id(self) -> None:
+        root = make_agent(status="WAITING", waiting_for_beads=["root-bead"])
+        child = make_agent(status="WAITING", waiting_for_beads=["child-bead"])
+        root.wait_display_source = child
+
+        left, _, _ = format_agent_option(
+            root,
+            0,
+            is_selected=False,
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                beads=WaitBeadStatusCounts(in_progress=1)
+            ),
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ◐ child-bead)")
+        assert "root-bead" not in left.plain
 
     def test_waiting_row_renders_mixed_domains_before_annotations(self) -> None:
         agent = make_agent(
@@ -218,6 +295,45 @@ class TestMissingWaitTargetIndicator:
         assert left.plain.endswith("test_cl (WAITING ▶1 ●1 ! +5m)")
         assert "bold #FFD700" in _styles_covering(left, "▶1")
         assert "bold #5FD787" in _styles_covering(left, "●1")
+
+    def test_group_reference_disqualifies_single_bead_label_even_without_agent_count(
+        self,
+    ) -> None:
+        agent = make_agent(
+            status="WAITING",
+            waiting_for=["@default"],
+            waiting_for_beads=["sase-yz"],
+        )
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                beads=WaitBeadStatusCounts(in_progress=1)
+            ),
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ◐1)")
+        assert "sase-yz" not in left.plain
+
+    def test_multiple_beads_stay_count_based_when_only_one_status_is_warm(self) -> None:
+        agent = make_agent(
+            status="WAITING",
+            waiting_for_beads=["warm-bead", "cold-bead"],
+        )
+
+        left, _, _ = format_agent_option(
+            agent,
+            0,
+            is_selected=False,
+            wait_dependency_counts=WaitDependencyStatusCounts(
+                beads=WaitBeadStatusCounts(in_progress=1)
+            ),
+        )
+
+        assert left.plain.endswith("test_cl (WAITING ◐1)")
+        assert "warm-bead" not in left.plain
 
     def test_waiting_row_keeps_unknown_agent_and_bead_tokens_distinct(
         self,
