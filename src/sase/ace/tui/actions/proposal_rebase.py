@@ -345,9 +345,14 @@ class ProposalRebaseMixin:
 
         # Check if we're on agents tab
         if hasattr(self, "current_tab") and self.current_tab == "agents":  # type: ignore[attr-defined]
+            from .agents._remote_lifecycle import is_remote_fleet_agent
+
             agents: list[Agent] = getattr(self, "_agents", [])
             if agents and 0 <= self.current_idx < len(agents):
                 agent = agents[self.current_idx]
+                if is_remote_fleet_agent(agent):
+                    self.action_answer_remote_attention()  # type: ignore[attr-defined]
+                    return
                 if agent.status == "WAITING INPUT":
                     self._answer_workflow_hitl(agent)  # type: ignore[attr-defined]
                     return

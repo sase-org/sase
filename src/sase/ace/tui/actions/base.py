@@ -56,6 +56,14 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             return
 
         if self.current_tab == "agents":
+            from .agents._remote_lifecycle import is_remote_fleet_agent
+
+            get_selected = getattr(self, "_get_selected_agent", None)
+            if callable(get_selected):
+                selected_agent = get_selected()
+                if is_remote_fleet_agent(selected_agent):
+                    self.action_retry_remote_agent()  # type: ignore[attr-defined]
+                    return
             self._retry_edit_agent()  # type: ignore[attr-defined]
             return
 

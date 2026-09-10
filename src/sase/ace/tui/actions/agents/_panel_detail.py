@@ -66,6 +66,12 @@ class AgentPanelDetailMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
+        from ._remote_lifecycle import is_remote_fleet_agent
+
+        if is_remote_fleet_agent(agent):
+            self.action_view_remote_agent_content()  # type: ignore[attr-defined]
+            return
+
         # Only available for completed agents
         if not is_resumable_done_status(agent.status):
             self.notify("Agent not finished yet", severity="warning")  # type: ignore[attr-defined]

@@ -162,7 +162,7 @@ def test_run_workflow_command_is_contextual_retry_on_agents() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.run_workflow"]
 
-    assert spec.label == "Run workflow / retry agent / re-run"
+    assert spec.label == "Run workflow / retry local or remote agent / re-run"
     assert spec.tabs == ("artifacts", "agents", "axe")
     assert spec.key_sequence == ("r",)
     assert spec.key_display == "r"

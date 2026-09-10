@@ -53,6 +53,9 @@ def test_fleet_commands_are_contextual_for_remote_rows() -> None:
     assert is_command_available(catalog["app.connect_agent_machine"], ctx)
     assert is_command_available(catalog["app.retry_remote_agent"], ctx)
     assert is_command_available(catalog["app.view_remote_agent_content"], ctx)
+    assert is_command_available(catalog["app.run_workflow"], ctx)
+    assert is_command_available(catalog["app.edit_hooks"], ctx)
+    assert is_command_available(catalog["app.edit_spec"], ctx)
 
 
 def test_unified_agents_hides_legacy_focus_fleet_commands() -> None:
@@ -72,6 +75,11 @@ def test_unified_agents_hides_legacy_focus_fleet_commands() -> None:
         },
         fleet_followed=True,
         fleet_content={"handles": [{"id": "ch1"}]},
+        fleet_row_revision={
+            "schema_version": 1,
+            "logical_key": "k",
+            "revision": 1,
+        },
     )
     ctx = CommandContext(
         tab="agents",
@@ -116,6 +124,7 @@ def test_answer_remote_attention_requires_pending_entry() -> None:
         selected_agent_remote=True,
     )
     assert is_command_available(spec, ctx)
+    assert is_command_available(catalog["app.accept_proposal"], ctx)
 
     settled = Agent(
         agent_type=AgentType.RUNNING,
@@ -169,9 +178,10 @@ def test_remote_rows_hide_local_agent_actions() -> None:
 
     assert is_command_available(catalog["app.kill_agent"], ctx)
     assert is_command_available(catalog["app.edit_hooks"], ctx)
+    assert is_command_available(catalog["app.run_workflow"], ctx)
+    assert not is_command_available(catalog["app.edit_spec"], ctx)
+    assert not is_command_available(catalog["app.accept_proposal"], ctx)
     for command_id in {
-        "app.run_workflow",
-        "app.edit_spec",
         "app.open_tmux",
         "app.open_artifact_files",
         "app.jump_to_agent_patch",

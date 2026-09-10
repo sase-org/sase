@@ -102,23 +102,17 @@ class AgentRemoteLifecycleMixin:
     def _confirm_remote_stop(self, agents: Sequence[Agent]) -> None:
         from ...modals import ConfirmKillModal
 
-        alias = getattr(agents[0], "fleet_origin_alias", "remote")
-        names = ", ".join(
-            str(agent.agent_name or agent.raw_suffix)
-            for agent in agents
-            if agent.agent_name or agent.raw_suffix
-        )
-        description = f"Stop {names} on {alias}?"
+        description = _remote_stop_description(agents)
 
         def on_dismiss(confirmed: bool | None) -> None:
             selected = self._get_selected_agent()  # type: ignore[attr-defined]
             if not confirmed:
                 return
-            current = [
-                agent
-                for agent in agents
-                if is_remote_fleet_agent(self._agent_by_identity(agent.identity))
-            ]
+            current: list[Agent] = []
+            for agent in agents:
+                live = self._agent_by_identity(agent.identity)
+                if is_remote_fleet_agent(live):
+                    current.append(live)  # type: ignore[arg-type]
             if selected is not None:
                 current = [
                     agent
@@ -182,9 +176,8 @@ class AgentRemoteLifecycleMixin:
         if isinstance(results, list) and results:
             for item in results:
                 if isinstance(item, Mapping):
-                    self.notify(  # type: ignore[attr-defined]
-                        str(item.get("message") or "remote mutation settled")
-                    )
+                    notice, severity = _remote_result_notice(item)
+                    self.notify(notice, severity=severity)  # type: ignore[attr-defined]
         elif completion.message:
             self.notify(completion.message)  # type: ignore[attr-defined]
         overrides = getattr(self, "_agent_status_overrides", None)
@@ -215,6 +208,41 @@ def _snapshot_for_agent(agent: Agent) -> dict[str, Any]:
         "row_revision": row_revision,
         "capabilities": getattr(agent, "fleet_capabilities", None) or {},
     }
+
+
+def _remote_stop_description(agents: Sequence[Agent]) -> str:
+    groups: dict[str, list[str]] = {}
+    for agent in agents:
+        alias = str(getattr(agent, "fleet_origin_alias", None) or "remote")
+        name = str(
+            getattr(agent, "agent_name", None)
+            or getattr(agent, "raw_suffix", None)
+            or "agent"
+        )
+        groups.setdefault(alias, []).append(name)
+    if not groups:
+        return "Stop remote agent?"
+    if len(groups) == 1:
+        alias, names = next(iter(groups.items()))
+        label = ", ".join(names)
+        return f"Stop {label} on {alias}?"
+    lines = ["Stop remote agents:"]
+    for alias in sorted(groups):
+        lines.append(f"{alias}: {', '.join(groups[alias])}")
+    return "\n".join(lines)
+
+
+def _remote_result_notice(item: Mapping[str, Any]) -> tuple[str, str | None]:
+    ok_outcomes = {"applied", "already_settled"}
+    alias = item.get("alias")
+    outcome = str(item.get("outcome") or "")
+    message = str(item.get("message") or "remote mutation settled")
+    if alias and str(alias) not in message:
+        message = f"{alias}: {message}"
+    if outcome and outcome not in ok_outcomes and outcome not in message:
+        message = f"{message} ({outcome})"
+    severity = None if not outcome or outcome in ok_outcomes else "warning"
+    return message, severity
 
 
 __all__ = [

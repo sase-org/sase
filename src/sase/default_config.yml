@@ -537,6 +537,8 @@ ace:
       view_agent_in_focus: "unbound"
       connect_agent_machine: "unbound"
       setup_agent_machine: "unbound"
+      # Compatibility action ids. Remote rows use the shared row actions by
+      # default: run_workflow/edit_spec/accept_proposal/edit_hooks/kill_agent.
       retry_remote_agent: "unbound"
       view_remote_agent_content: "unbound"
       answer_remote_attention: "unbound"

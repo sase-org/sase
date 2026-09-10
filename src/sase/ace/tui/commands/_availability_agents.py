@@ -138,8 +138,16 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if ctx.selected_agent_remote:
         if spec.id == "app.kill_agent":
             return _remote_lifecycle_command_available(ctx, "lifecycle.stop")
+        if spec.id == "app.run_workflow":
+            return _remote_lifecycle_command_available(ctx, "lifecycle.retry")
         if spec.id == "app.edit_hooks":
             return _remote_lifecycle_command_available(ctx, "lifecycle.fork")
+        if spec.id == "app.edit_spec":
+            if ctx.mark_count > 0:
+                return True
+            return _remote_content_command_available(ctx)
+        if spec.id == "app.accept_proposal":
+            return _remote_attention_command_available(ctx)
         if spec.id in _REMOTE_AGENT_LOCAL_COMMANDS:
             return False
         if spec.id in {"copy.agents.chat", "copy.agents.file_path"}:
@@ -338,12 +346,10 @@ def _remote_attention_command_available(ctx: CommandContext) -> bool:
 
 
 def _remote_content_command_available(ctx: CommandContext) -> bool:
+    from sase.ace.tui.actions.agents._remote_content import (
+        remote_content_available,
+    )
+
     if not ctx.selected_agent_remote:
         return False
-    agent = ctx.agent
-    if agent is None:
-        return False
-    return bool(
-        getattr(agent, "fleet_content", None)
-        or getattr(agent, "fleet_row_revision", None)
-    )
+    return remote_content_available(ctx.agent)

@@ -123,23 +123,22 @@ def check_app_action(
         if action == "retry_remote_agent":
             return _remote_lifecycle_available(selected_agent, "lifecycle.retry")
         if action == "view_remote_agent_content":
-            return bool(
-                selected_agent_remote
-                and (
-                    getattr(selected_agent, "fleet_content", None)
-                    or getattr(selected_agent, "fleet_row_revision", None)
-                )
-            )
+            return _remote_content_available(selected_agent)
         if action == "answer_remote_attention":
-            from sase.ace.tui.actions.agents._remote_attention import (
-                has_pending_remote_attention,
-            )
-
-            return bool(has_pending_remote_attention(selected_agent))
+            return _remote_attention_available(selected_agent)
     if selected_agent_remote and action == "kill_agent":
         return _remote_lifecycle_available(selected_agent, "lifecycle.stop")
+    if selected_agent_remote and action == "run_workflow":
+        return _remote_lifecycle_available(selected_agent, "lifecycle.retry")
     if selected_agent_remote and action == "edit_hooks":
         return _remote_lifecycle_available(selected_agent, "lifecycle.fork")
+    if selected_agent_remote and action == "edit_spec":
+        marked = getattr(app, "_marked_agents", None)
+        if marked:
+            return True
+        return _remote_content_available(selected_agent)
+    if selected_agent_remote and action == "accept_proposal":
+        return _remote_attention_available(selected_agent)
     if selected_agent_remote and action in _LOCAL_AGENT_ROW_ACTIONS:
         return False
     if action == "open_config_center" and getattr(
@@ -449,3 +448,19 @@ def _remote_lifecycle_available(agent: Any, capability: str) -> bool:
     if agent is None:
         return False
     return is_remote_fleet_agent(agent) and remote_capability_enabled(agent, capability)
+
+
+def _remote_attention_available(agent: Any) -> bool:
+    from sase.ace.tui.actions.agents._remote_attention import (
+        has_pending_remote_attention,
+    )
+
+    return bool(has_pending_remote_attention(agent))
+
+
+def _remote_content_available(agent: Any) -> bool:
+    from sase.ace.tui.actions.agents._remote_content import (
+        remote_content_available,
+    )
+
+    return bool(remote_content_available(agent))

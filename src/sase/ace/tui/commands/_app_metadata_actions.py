@@ -22,10 +22,10 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("change_status", "Change Patch status", "Patch Actions", CL_ONLY, ()),
     (
         "run_workflow",
-        "Run workflow / retry agent / re-run",
+        "Run workflow / retry local or remote agent / re-run",
         "Patch Actions",
         ALL_TABS,
-        ("retry", "relaunch", "edit prompt"),
+        ("retry", "remote retry", "relaunch", "edit prompt"),
     ),
     ("mail", "Mail Patch", "Patch Actions", CL_ONLY, ("send",)),
     ("show_diff", "Show diff", "Patch Actions", CL_ONLY, ()),
@@ -46,10 +46,10 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("view_files", "View Patch files", "Patch Actions", CL_ONLY, ()),
     (
         "edit_spec",
-        "Edit spec / chat / AXE config",
+        "Edit spec / chat / remote content / AXE config",
         "Patch Actions",
         ALL_TABS,
-        ("edit lumberjack", "edit chop config"),
+        ("remote content", "edit lumberjack", "edit chop config"),
     ),
     (
         "add_axe_item",
@@ -70,10 +70,10 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
     # Patch edits
     (
         "edit_hooks",
-        "Edit hooks / fork agent, clan, or tribe",
+        "Edit hooks / fork local or remote agent, clan, or tribe",
         "Patch Edits",
         CL_AGENTS,
-        ("fork",),
+        ("fork", "remote fork"),
     ),
     (
         "mark_pr_origin",
@@ -83,7 +83,13 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("origin", "adopt"),
     ),
     # Proposals & Sync
-    ("accept_proposal", "Accept proposal", "Proposals & Sync", CL_AGENTS, ()),
+    (
+        "accept_proposal",
+        "Accept proposal / answer local or remote attention",
+        "Proposals & Sync",
+        CL_AGENTS,
+        ("remote attention", "answer question", "approve gate"),
+    ),
     ("rebase", "Rebase Patch", "Proposals & Sync", CL_ONLY, ()),
     (
         "start_rewind",

@@ -219,10 +219,13 @@ def test_agents_help_uses_edit_hooks_for_fork_not_r_for_resume() -> None:
         for key, label in bindings
     }
 
-    assert (key_display_name(reg.app.edit_hooks), "Fork chat as agent") in agent_pairs
+    assert (
+        key_display_name(reg.app.edit_hooks),
+        "Fork local or remote agent",
+    ) in agent_pairs
     assert ("r", "Resume chat as agent") not in agent_pairs
-    assert ("r", "Retry: edit prompt & relaunch") in agent_pairs
-    assert ("e", "Edit chat(s) in editor") in agent_pairs
+    assert ("r", "Retry local or remote agent") in agent_pairs
+    assert ("e", "Edit chat(s) / open remote content") in agent_pairs
     assert ("e", "Edit chat in editor") not in agent_pairs
 
 
@@ -318,7 +321,7 @@ def test_agents_help_lists_save_dismiss_marked_agents() -> None:
     }
 
     assert ("s", "Save/dismiss marked agents") in agent_pairs
-    assert ("x", "Clean row/panel/group/clan/marks") in agent_pairs
+    assert ("x", "Stop/clean row/panel/group/clan/marks") in agent_pairs
     assert ("S", "Bulk status change (marked Patches)") in cls_pairs
 
 
@@ -519,7 +522,7 @@ def test_help_modal_labels_lowercase_a_as_agent_artifacts() -> None:
         for key, label in bindings
     }
     assert ("a", "Artifact files (or marked set)") in agent_pairs
-    assert ("A", "Open auto-approve menu / answer HITL") in agent_pairs
+    assert ("A", "Auto-approve / answer local or remote attention") in agent_pairs
     assert (",j", "Jump to next unread done agent") in agent_pairs
     assert ("U", "Toggle unread marker") in agent_pairs
     for sections in (cls_sections, axe_sections):

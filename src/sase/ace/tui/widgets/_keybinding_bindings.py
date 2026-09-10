@@ -355,6 +355,39 @@ class KeybindingBindingsMixin:
                 )
             return bindings
 
+        if getattr(agent, "fleet_origin_alias", None):
+            if marked_count == 0 and not panel_focused and not group_focused:
+                from ..actions.agents._remote_attention import (
+                    has_pending_remote_attention,
+                )
+                from ..actions.agents._remote_content import remote_content_available
+                from ..actions.agents._remote_lifecycle import remote_capability_enabled
+
+                alias = str(getattr(agent, "fleet_origin_alias", None) or "remote")
+                if remote_capability_enabled(agent, "lifecycle.stop"):
+                    bindings.append((x, f"stop {alias}"))
+                if remote_capability_enabled(agent, "lifecycle.retry"):
+                    bindings.append((self._kd("run_workflow"), "retry"))
+                if remote_capability_enabled(agent, "lifecycle.fork"):
+                    bindings.append((self._kd("edit_hooks"), "fork"))
+                if remote_content_available(agent):
+                    bindings.append((self._kd("edit_spec"), "content"))
+                if has_pending_remote_attention(agent):
+                    attention = getattr(agent, "fleet_attention", None)
+                    kind = (
+                        attention.get("kind") if isinstance(attention, dict) else None
+                    )
+                    label = "approve" if kind == "gate" else "answer"
+                    bindings.append((self._kd("accept_proposal"), label))
+            if completed_count > 0:
+                bindings.append(
+                    (
+                        self._kd("open_agent_cleanup_panel"),
+                        f"cleanup ({completed_count} done)",
+                    )
+                )
+            return bindings
+
         if not panel_focused and not group_focused:
             if agent.is_clan_container:
                 bindings.append(("0-9", "member"))

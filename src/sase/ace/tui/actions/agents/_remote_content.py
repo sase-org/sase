@@ -44,6 +44,14 @@ class AgentRemoteContentMixin:
         )
 
 
+def remote_content_available(agent: Agent | None) -> bool:
+    """Return whether *agent* advertises a fetchable remote content handle."""
+    if not is_remote_fleet_agent(agent):
+        return False
+    handle, row_revision = _content_handle_for(agent)  # type: ignore[arg-type]
+    return handle is not None and row_revision is not None
+
+
 def _content_handle_for(
     agent: Agent,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -55,10 +63,23 @@ def _content_handle_for(
             first = raw_handles[0]
             if isinstance(first, Mapping):
                 handles = dict(first)
+    row_revision = _row_revision_for(agent)
+    return handles, row_revision
+
+
+def _row_revision_for(agent: Agent) -> dict[str, Any] | None:
     row_revision = getattr(agent, "fleet_row_revision", None)
     if isinstance(row_revision, Mapping):
-        return handles, dict(row_revision)
-    return handles, None
+        return dict(row_revision)
+    logical_key = getattr(agent, "fleet_logical_key", None)
+    revision = getattr(agent, "fleet_revision", None)
+    if logical_key is not None and revision is not None:
+        return {
+            "schema_version": 1,
+            "logical_key": logical_key,
+            "revision": int(revision),
+        }
+    return None
 
 
 def _observation_age(observed_at_unix: float | None) -> str:
@@ -72,4 +93,4 @@ def _observation_age(observed_at_unix: float | None) -> str:
     return f"{int(elapsed // 3600)}h"
 
 
-__all__ = ["AgentRemoteContentMixin"]
+__all__ = ["AgentRemoteContentMixin", "remote_content_available"]
