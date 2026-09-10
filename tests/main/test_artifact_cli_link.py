@@ -55,6 +55,10 @@ def _patch_store(monkeypatch: pytest.MonkeyPatch, store: ArtifactLinkStore) -> N
         lambda: store,
     )
     monkeypatch.setattr(
+        "sase.artifact_cli.link_ops.resolve_machine_artifact_link_store",
+        lambda _project_key, _cwd: store,
+    )
+    monkeypatch.setattr(
         "sase.artifact_cli.link_ops._created_by",
         lambda: "bbugyi200.athena.y2",
     )

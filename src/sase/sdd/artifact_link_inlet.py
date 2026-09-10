@@ -27,6 +27,7 @@ from sase.sdd.artifact_link_store import (
     assembled_artifact_relations,
     canonicalize_artifact_link_ref,
     resolve_artifact_link_store,
+    resolve_machine_artifact_link_store,
 )
 from sase.sdd.frontmatter import remove_frontmatter_fields
 
@@ -116,6 +117,7 @@ def publish_plan_artifact_link_inlet(
     source_ref: str,
     inlet: _ArtifactLinkFrontmatterInlet,
     store: ArtifactLinkStore | None = None,
+    publication_store: ArtifactLinkStore | None = None,
 ) -> tuple[dict[str, Any], ...]:
     """Persist inlet rows and refresh the archived plan's managed links block."""
 
@@ -128,6 +130,13 @@ def publish_plan_artifact_link_inlet(
         raise ArtifactLinkFrontmatterInletError(
             "artifact-link frontmatter ingestion requires an SDD store"
         )
+    try:
+        event_store = publication_store or resolve_machine_artifact_link_store(
+            link_store.project_key,
+            Path.cwd(),
+        )
+    except Exception as exc:  # noqa: BLE001 - preserve inlet error contract.
+        raise ArtifactLinkFrontmatterInletError(str(exc)) from exc
 
     rows = tuple(
         _row_for_entry(
@@ -148,7 +157,7 @@ def publish_plan_artifact_link_inlet(
         store=link_store.sdd_store,
     )
 
-    _persist_link_events(link_store, rows)
+    _persist_link_events(event_store, rows)
     if updated != current:
         document.parent.mkdir(parents=True, exist_ok=True)
         document.write_text(updated, encoding="utf-8")

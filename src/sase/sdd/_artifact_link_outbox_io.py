@@ -109,6 +109,7 @@ def append_artifact_link_outbox_entry(
             json.dump(entry.to_json_dict(), output_file, sort_keys=True)
             output_file.write("\n")
             output_file.flush()
+            os.fsync(output_file.fileno())
     return entry
 
 
@@ -151,6 +152,7 @@ def append_artifact_link_outbox_event(
             json.dump(entry.to_json_dict(), output_file, sort_keys=True)
             output_file.write("\n")
             output_file.flush()
+            os.fsync(output_file.fileno())
     return entry
 
 
@@ -346,6 +348,7 @@ def _append_dropped(
                 json.dump(payload, output_file, sort_keys=True)
                 output_file.write("\n")
             output_file.flush()
+            os.fsync(output_file.fileno())
 
 
 def _write_jsonl(path: Path, rows: Iterable[Mapping[str, Any]]) -> None:
@@ -357,7 +360,9 @@ def _write_jsonl(path: Path, rows: Iterable[Mapping[str, Any]]) -> None:
                 json.dump(dict(row), output_file, sort_keys=True)
                 output_file.write("\n")
             output_file.flush()
+            os.fsync(output_file.fileno())
         os.replace(tmp, path)
+        _fsync_directory(path.parent)
     finally:
         try:
             tmp.unlink()
@@ -417,6 +422,17 @@ def _count_jsonl_rows(path: Path) -> int:
             )
         except OSError:
             return 0
+
+
+def _fsync_directory(path: Path) -> None:
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 __all__ = [

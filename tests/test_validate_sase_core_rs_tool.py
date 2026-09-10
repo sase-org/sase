@@ -60,6 +60,9 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
         "artifact_link_event_validate_bytes",
         "artifact_link_event_resolve_aliases",
         "artifact_link_events_reduce",
+        "artifact_link_publication_ownership_wire_schema_version",
+        "artifact_link_event_owner_requirements",
+        "artifact_link_publication_receipt",
         "artifact_link_ref_parts",
         "artifact_row_index_keys",
         "artifact_row_ref_lookup_keys",
@@ -92,6 +95,7 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
             artifact_link_event_schema_version=lambda: 1,
             artifact_row_resolution_wire_schema_version=lambda: 1,
             artifact_link_publication_state_wire_schema_version=lambda: 1,
+            artifact_link_publication_ownership_wire_schema_version=lambda: 1,
         )
     )
     assert not validator._validate_artifact_link_schema(
@@ -100,6 +104,7 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
             artifact_link_event_schema_version=lambda: 1,
             artifact_row_resolution_wire_schema_version=lambda: 1,
             artifact_link_publication_state_wire_schema_version=lambda: 1,
+            artifact_link_publication_ownership_wire_schema_version=lambda: 1,
         )
     )
     assert not validator._validate_artifact_link_schema(
@@ -108,6 +113,7 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
             artifact_link_event_schema_version=lambda: 2,
             artifact_row_resolution_wire_schema_version=lambda: 1,
             artifact_link_publication_state_wire_schema_version=lambda: 1,
+            artifact_link_publication_ownership_wire_schema_version=lambda: 1,
         )
     )
     assert not validator._validate_artifact_link_schema(
@@ -116,6 +122,7 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
             artifact_link_event_schema_version=lambda: 1,
             artifact_row_resolution_wire_schema_version=lambda: 2,
             artifact_link_publication_state_wire_schema_version=lambda: 1,
+            artifact_link_publication_ownership_wire_schema_version=lambda: 1,
         )
     )
     assert not validator._validate_artifact_link_schema(
@@ -124,6 +131,16 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
             artifact_link_event_schema_version=lambda: 1,
             artifact_row_resolution_wire_schema_version=lambda: 1,
             artifact_link_publication_state_wire_schema_version=lambda: 2,
+            artifact_link_publication_ownership_wire_schema_version=lambda: 1,
+        )
+    )
+    assert not validator._validate_artifact_link_schema(
+        SimpleNamespace(
+            artifact_link_row_schema_version=lambda: 2,
+            artifact_link_event_schema_version=lambda: 1,
+            artifact_row_resolution_wire_schema_version=lambda: 1,
+            artifact_link_publication_state_wire_schema_version=lambda: 1,
+            artifact_link_publication_ownership_wire_schema_version=lambda: 2,
         )
     )
 
@@ -151,6 +168,25 @@ def test_validate_sase_core_rs_probes_artifact_link_event_contract() -> None:
             "resolved_refs": {
                 "plan:202609/old.md": "plan:202609/new.md",
             }
+        },
+        artifact_link_event_owner_requirements=lambda event, document_kinds: {
+            "schema_version": 1,
+            "operation_id": event["operation_id"],
+            "document_refs": [{"reference": "plan:202609/old.md", "kind": "plan"}],
+            "bead_refs": [],
+            "unowned_refs": ["agent:reader"],
+        },
+        artifact_link_publication_receipt=lambda requirements, evidence: {
+            "schema_version": 1,
+            "operation_id": requirements["operation_id"],
+            "acknowledged": bool(evidence["durable_roots"]),
+            "pending_reasons": (
+                []
+                if evidence["durable_roots"]
+                else [
+                    "artifact-link event owner plan:202609/old.md of kind plan has no resolved sidecar root"
+                ]
+            ),
         },
         artifact_link_events_reduce=lambda events, aliases: {
             "rows": [

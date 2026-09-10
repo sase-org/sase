@@ -156,6 +156,9 @@ REQUIRED_BINDINGS = (
     "artifact_link_event_validate_bytes",
     "artifact_link_event_resolve_aliases",
     "artifact_link_events_reduce",
+    "artifact_link_publication_ownership_wire_schema_version",
+    "artifact_link_event_owner_requirements",
+    "artifact_link_publication_receipt",
     "pending_commit_checkpoint_wire_schema_version",
     "decide_pending_commit_checkpoint_recovery",
     "artifact_link_ref_parts",
@@ -376,6 +379,7 @@ def _validate_artifact_link_schema(module: ModuleType) -> bool:
         "artifact_link_event_schema_version": 1,
         "artifact_row_resolution_wire_schema_version": 1,
         "artifact_link_publication_state_wire_schema_version": 1,
+        "artifact_link_publication_ownership_wire_schema_version": 1,
     }
     valid = True
     for binding_name, expected_version in expected.items():
@@ -463,6 +467,33 @@ def _validate_artifact_link_event_contract(module: ModuleType) -> bool:
             aliases, ["plan:202609/old.md"]
         )
         reduction = module.artifact_link_events_reduce([put, event, event], aliases)
+        requirements = module.artifact_link_event_owner_requirements(event, ["plan"])
+        pending_receipt = module.artifact_link_publication_receipt(
+            requirements,
+            {
+                "schema_version": 1,
+                "operation_id": observation_id,
+                "resolved_roots": {},
+                "forced_roots": [],
+                "durable_roots": [],
+                "bead_owner": False,
+                "bead_receipt": False,
+                "local_receipt": False,
+            },
+        )
+        acknowledged_receipt = module.artifact_link_publication_receipt(
+            requirements,
+            {
+                "schema_version": 1,
+                "operation_id": observation_id,
+                "resolved_roots": {"plan": "/tmp/plans"},
+                "forced_roots": [],
+                "durable_roots": ["/tmp/plans"],
+                "bead_owner": False,
+                "bead_receipt": False,
+                "local_receipt": False,
+            },
+        )
         derived_producer = module.artifact_link_derived_producer_id()
         alias_producer = module.artifact_link_alias_producer_id()
         machine_run_id = module.artifact_link_machine_run_id()
@@ -545,6 +576,31 @@ def _validate_artifact_link_event_contract(module: ModuleType) -> bool:
         != "plan:202609/new.md"
     ):
         _error(f"artifact-link event alias probe returned {resolved!r}")
+        valid = False
+    if not isinstance(requirements, dict) or requirements.get("document_refs") != [
+        {"reference": "plan:202609/old.md", "kind": "plan"}
+    ]:
+        _error(f"artifact-link publication ownership probe returned {requirements!r}")
+        valid = False
+    if (
+        not isinstance(pending_receipt, dict)
+        or pending_receipt.get("acknowledged") is not False
+        or not pending_receipt.get("pending_reasons")
+    ):
+        _error(
+            "artifact-link publication pending receipt probe returned "
+            f"{pending_receipt!r}"
+        )
+        valid = False
+    if (
+        not isinstance(acknowledged_receipt, dict)
+        or acknowledged_receipt.get("acknowledged") is not True
+        or acknowledged_receipt.get("pending_reasons") != []
+    ):
+        _error(
+            "artifact-link publication acknowledged receipt probe returned "
+            f"{acknowledged_receipt!r}"
+        )
         valid = False
     rows = reduction.get("rows") if isinstance(reduction, dict) else None
     row = rows[0] if isinstance(rows, list) and rows else None

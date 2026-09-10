@@ -9,7 +9,7 @@ layer stays in its own small file.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from sase.sdd._artifact_link_project_key import (
@@ -54,6 +54,7 @@ class ArtifactLinkStore(
 
     project_key: str
     sidecar_roots: Mapping[str, Path]
+    unresolved_document_kinds: Mapping[str, str] = field(default_factory=dict)
     beads_dir: Path | None = None
     sdd_store: SddStore | None = None
 
@@ -67,14 +68,16 @@ class ArtifactLinkStore(
         """Build an adapter from one resolved SDD store."""
 
         roots: dict[str, Path] = {}
+        unresolved: dict[str, str] = {}
         roles = document_sidecar_roles(store.split_sidecar_roles(), include_plans=True)
         for role in roles:
+            kind = sidecar_kind_for_role(role)
             try:
-                roots[sidecar_kind_for_role(role)] = (
+                roots[kind] = (
                     store.repo_root_for_kind(role).expanduser().resolve(strict=False)
                 )
-            except Exception:  # noqa: BLE001 - skip unresolved sidecars
-                continue
+            except Exception as exc:  # noqa: BLE001 - surface unresolved owners later
+                unresolved[kind] = str(exc)
         beads_dir = store.beads_dir
         if beads_dir is not None:
             resolved = beads_dir.expanduser().resolve(strict=False)
@@ -82,6 +85,7 @@ class ArtifactLinkStore(
         return cls(
             project_key=project_key,
             sidecar_roots=roots,
+            unresolved_document_kinds=unresolved,
             beads_dir=beads_dir,
             sdd_store=store,
         )

@@ -6,10 +6,11 @@ from pathlib import Path
 
 
 ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN = "/links/**/*.lock"
+ARTIFACT_LINK_EVENT_STAGING_GITIGNORE_PATTERN = "/link-events/**/.staging/"
 
 
 def ensure_artifact_link_lock_gitignore(repo_root: str | Path) -> Path | None:
-    """Ensure ``links/**/*.lock`` sentinels are ignored in a document sidecar.
+    """Ensure local artifact-link sentinels are ignored in a document sidecar.
 
     Preserves existing ``.gitignore`` content and appends only the missing
     rooted pattern. Returns the ``.gitignore`` path when it was created or
@@ -25,7 +26,10 @@ def ensure_artifact_link_lock_gitignore(repo_root: str | Path) -> Path | None:
     except OSError:
         existing = ""
 
-    patterns = (ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN,)
+    patterns = (
+        ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN,
+        ARTIFACT_LINK_EVENT_STAGING_GITIGNORE_PATTERN,
+    )
     existing_lines = {line.strip() for line in existing.splitlines()}
     missing = [pattern for pattern in patterns if pattern not in existing_lines]
     if not missing and gitignore.exists():
@@ -43,6 +47,7 @@ def ensure_artifact_link_lock_gitignore(repo_root: str | Path) -> Path | None:
 
 
 __all__ = [
+    "ARTIFACT_LINK_EVENT_STAGING_GITIGNORE_PATTERN",
     "ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN",
     "ensure_artifact_link_lock_gitignore",
 ]

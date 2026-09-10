@@ -194,12 +194,14 @@ def _group_valid_artifact_link_paths(
                 group.needs_lock_ignore = True
             elif is_canonical_artifact_link_event(path, owner):
                 group.events.append(path.expanduser().resolve(strict=False))
+                group.needs_lock_ignore = True
         else:
             if is_canonical_artifact_link_index_location(path, owner):
                 group.indexes.append(path.expanduser().resolve(strict=False))
                 group.needs_lock_ignore = True
             elif is_canonical_artifact_link_event_location(path, owner):
                 group.events.append(path.expanduser().resolve(strict=False))
+                group.needs_lock_ignore = True
         if not group.paths() and not group.needs_lock_ignore:
             grouped.pop(owner, None)
     return grouped

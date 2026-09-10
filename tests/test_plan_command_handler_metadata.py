@@ -258,6 +258,7 @@ def test_plan_command_consumes_links_frontmatter_into_artifact_links(
     sidecar_root.mkdir()
     sdd_store = SddStore("sidecar_repos", sidecar_root, sidecar_root)
     link_store = ArtifactLinkStore.from_sdd_store(sdd_store, "demo")
+    publication_store = ArtifactLinkStore(project_key="demo", sidecar_roots={})
     plan_file = tmp_path / "linked.md"
     plan_file.write_text(
         VALID_TALE.replace(
@@ -277,9 +278,14 @@ def test_plan_command_consumes_links_frontmatter_into_artifact_links(
         "sase.sdd.artifact_link_inlet.resolve_artifact_link_store",
         lambda: link_store,
     )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_inlet.resolve_machine_artifact_link_store",
+        lambda _project_key, _cwd: publication_store,
+    )
     published: list[dict[str, object]] = []
 
     def _publish_events(_store: object, events: object, **_kwargs: object) -> object:
+        assert _store is publication_store
         batch = tuple(dict(event) for event in events)  # type: ignore[arg-type]
         published.extend(batch)
         return SimpleNamespace(

@@ -5,10 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 import fcntl
-import json
-import os
 from pathlib import Path
-import subprocess
 from typing import Any, Literal
 
 from sase.core.paths import sase_projects_dir
@@ -20,16 +17,32 @@ from sase.sdd._artifact_link_commit import (
 from sase.sdd._artifact_link_event_canonical import (
     ARTIFACT_LINK_EVENT_COMMIT_MESSAGE,
     ARTIFACT_LINK_EVENT_LOCK_FILENAME,
-    ArtifactLinkEventCorruptionError as _ArtifactLinkEventCorruptionError,
     ArtifactLinkEventObject as _ArtifactLinkEventObject,
     ArtifactLinkEventPublishError as _ArtifactLinkEventPublishError,
     canonical_artifact_link_event_object as _canonical_artifact_link_event_object,
+)
+from sase.sdd._artifact_link_event_install import (
+    clean_artifact_link_event_staging as _clean_artifact_link_event_staging,
+    event_object_is_durable as _event_object_is_durable,
+    install_artifact_link_event_object as _install_artifact_link_event_object,
+    reject_existing_operation_collisions as _reject_existing_operation_collisions,
+)
+from sase.sdd._artifact_link_event_local_store import (
+    artifact_link_local_event_root as _artifact_link_local_event_root,
+    install_local_artifact_link_event as _install_local_artifact_link_event,
+    local_artifact_link_event_is_durable as _local_artifact_link_event_is_durable,
+)
+from sase.sdd._artifact_link_event_ownership import (
+    document_kinds_for_store as _document_kinds_for_store,
+    event_owner_requirements as _event_owner_requirements,
+    publication_evidence as _publication_evidence,
+    publication_receipt as _publication_receipt,
+    resolved_document_roots_for_store as _resolved_document_roots_for_store,
 )
 from sase.sdd._artifact_link_event_project import (
     apply_events_to_aggregate as _apply_events_to_aggregate,
     apply_events_to_beads as _apply_events_to_beads,
 )
-from sase.sdd._artifact_link_store_support import kind_of_ref
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 
 
@@ -69,6 +82,23 @@ class _RootPublishReport:
     root_outcomes: tuple[_ArtifactLinkEventRootOutcome, ...]
     publication_error: str | None = None
     skip_diagnostics: tuple[str, ...] = ()
+
+
+@dataclass(slots=True)
+class _OperationPublicationState:
+    """Mutable receipt state for one canonical event operation."""
+
+    item: _ArtifactLinkEventObject
+    requirements: dict[str, Any]
+    resolved_roots: dict[str, Path]
+    forced_roots: tuple[Path, ...]
+    bead_owner: bool
+    durable_roots: set[Path]
+    local_receipt: bool = False
+
+    @property
+    def operation_id(self) -> str:
+        return str(self.item.event["operation_id"])
 
 
 def publish_artifact_link_events(
@@ -121,11 +151,8 @@ def _publish_event_objects_locked(
     artifacts_dir: str | Path | None,
     extra_roots: Sequence[Path] = (),
 ) -> _ArtifactLinkEventPublishReport:
-    roots_by_operation = _roots_by_operation(store, objects, extra_roots=extra_roots)
-    grouped = _objects_by_root_for(objects, roots_by_operation)
-    durable: dict[str, set[Path]] = {
-        str(item.event["operation_id"]): set() for item in objects
-    }
+    states = _operation_states(store, objects, extra_roots=extra_roots)
+    grouped = _objects_by_root_for(states)
     event_paths: list[Path] = []
     durable_paths: list[Path] = []
     diagnostics: list[str] = []
@@ -149,59 +176,66 @@ def _publish_event_objects_locked(
             event_paths.append(root_outcome.path)
             if root_outcome.durable:
                 durable_paths.append(root_outcome.path)
-                operation_id = str(
-                    next(
-                        event.event["operation_id"]
-                        for event in root_objects
-                        if event.relative_path == root_outcome.relative_path
-                    )
-                )
-                durable[operation_id].add(root)
+                digest = root_outcome.path.name[: -len(".json")]
+                for state in states.values():
+                    if state.item.digest == digest:
+                        state.durable_roots.add(root)
+                        break
 
-    doc_ready = {
-        operation_id
-        for operation_id, roots in roots_by_operation.items()
-        if set(roots) == durable.get(operation_id, set())
-    }
-    ready_objects = [
-        item for item in objects if str(item.event["operation_id"]) in doc_ready
+    local_created = _install_ownerless_local_events(store, states.values())
+    committed = committed or local_created
+    for state in states.values():
+        if state.local_receipt:
+            path = (
+                _artifact_link_local_event_root(store.project_key)
+                / state.item.relative_path
+            )
+            event_paths.append(path)
+            durable_paths.append(path)
+
+    bead_objects = [
+        state.item
+        for state in states.values()
+        if state.bead_owner and _documents_ready(state)
     ]
-
-    bead_ready = True
-    beads_changed = False
-    try:
-        beads_changed = _apply_events_to_beads(
-            store,
-            ready_objects,
-            mutation_origin=mutation_origin,
-            artifacts_dir=artifacts_dir,
+    bead_result = _apply_events_to_beads(
+        store,
+        bead_objects,
+        mutation_origin=mutation_origin,
+        artifacts_dir=artifacts_dir,
+    )
+    if bead_result.diagnostic:
+        diagnostics.append(
+            f"artifact-link bead event publication failed: {bead_result.diagnostic}"
         )
-    except Exception as exc:  # noqa: BLE001 - outbox replay must retry cleanly.
-        bead_ready = False
-        diagnostics.append(f"artifact-link bead event publication failed: {exc}")
 
+    published_ids = _published_operation_ids(
+        states.values(),
+        bead_receipt=bead_result.receipt,
+        diagnostics=diagnostics,
+    )
+    ready_objects = [
+        state.item for state in states.values() if state.operation_id in published_ids
+    ]
     aggregate_rows: tuple[dict[str, Any], ...] = ()
-    aggregate_ready = bead_ready
-    if bead_ready:
+    aggregate_ready = True
+    if ready_objects:
         try:
             aggregate_rows = _apply_events_to_aggregate(store, ready_objects)
         except Exception as exc:  # noqa: BLE001 - durable events replay idempotently.
             aggregate_ready = False
             diagnostics.append(f"artifact-link aggregate projection failed: {exc}")
 
-    published_ids = (
-        tuple(str(item.event["operation_id"]) for item in ready_objects)
-        if aggregate_ready
-        else ()
-    )
+    if not aggregate_ready:
+        published_ids = ()
     return _ArtifactLinkEventPublishReport(
         attempted=len(objects),
         published=len(published_ids),
-        committed=committed or beads_changed,
+        committed=committed or bead_result.changed,
         event_paths=tuple(dict.fromkeys(event_paths)),
         durable_event_paths=tuple(dict.fromkeys(durable_paths)),
         published_operation_ids=published_ids,
-        beads_changed=beads_changed,
+        beads_changed=bead_result.changed,
         aggregate_rows=aggregate_rows,
         publication_error="\n".join(publication_errors) or None,
         skip_diagnostics=tuple(dict.fromkeys(diagnostics)),
@@ -244,10 +278,11 @@ def _publish_root_events(
             )
         paths: list[Path] = []
         created_paths: set[Path] = set()
+        _clean_artifact_link_event_staging(root)
         _reject_existing_operation_collisions(root, objects)
         for item in objects:
             path = root / item.relative_path
-            if _create_event_file(path, item.payload):
+            if _install_artifact_link_event_object(root, item):
                 created_paths.add(path)
             paths.append(path)
         result = commit_artifact_link_indexes(
@@ -268,7 +303,7 @@ def _publish_root_events(
                 relative_path=item.relative_path,
                 created=(root / item.relative_path) in created_paths,
                 committed=result.committed,
-                durable=_head_contains_event(root, item),
+                durable=_event_object_is_durable(root, item),
             )
             for item in objects
         )
@@ -296,139 +331,114 @@ def _publish_root_events(
     )
 
 
-def _create_event_file(path: Path, payload: bytes) -> bool:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
-    except FileExistsError as file_exists_exc:
-        if path.is_symlink():
-            raise _ArtifactLinkEventCorruptionError(
-                f"artifact-link event path is a symlink: {path}"
-            ) from file_exists_exc
-        try:
-            existing = path.read_bytes()
-        except OSError as read_exc:
-            raise _ArtifactLinkEventPublishError(
-                f"could not read existing artifact-link event {path}: {read_exc}"
-            ) from read_exc
-        if existing == payload:
-            return False
-        raise _ArtifactLinkEventCorruptionError(
-            f"artifact-link event path already exists with different bytes: {path}"
-        ) from file_exists_exc
-    try:
-        with os.fdopen(fd, "wb") as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-    except BaseException:
-        try:
-            path.unlink()
-        except OSError:
-            pass
-        raise
-    return True
-
-
-def _head_contains_event(root: Path, event: _ArtifactLinkEventObject) -> bool:
-    if not (root / ".git").is_dir():
-        try:
-            return (root / event.relative_path).read_bytes() == event.payload
-        except OSError:
-            return False
-    result = subprocess.run(
-        ["git", "show", f"HEAD:{event.relative_path.as_posix()}"],
-        cwd=root,
-        capture_output=True,
-        check=False,
-    )
-    return result.returncode == 0 and result.stdout == event.payload
-
-
-def _roots_by_operation(
+def _operation_states(
     store: ArtifactLinkStore,
     objects: Sequence[_ArtifactLinkEventObject],
     *,
     extra_roots: Sequence[Path] = (),
-) -> dict[str, tuple[Path, ...]]:
+) -> dict[str, _OperationPublicationState]:
+    document_kinds = _document_kinds_for_store(store)
     forced = tuple(
-        dict.fromkeys(root.expanduser().resolve(strict=False) for root in extra_roots)
+        dict.fromkeys(
+            Path(root).expanduser().resolve(strict=False) for root in extra_roots
+        )
     )
-    roots: dict[str, tuple[Path, ...]] = {}
+    states: dict[str, _OperationPublicationState] = {}
     for item in objects:
         operation_id = str(item.event["operation_id"])
-        roots[operation_id] = tuple(
-            dict.fromkeys((*_document_roots_for_event(store, item.event), *forced))
+        requirements = _event_owner_requirements(item.event, document_kinds)
+        bead_refs = requirements.get("bead_refs")
+        states[operation_id] = _OperationPublicationState(
+            item=item,
+            requirements=requirements,
+            resolved_roots=_resolved_document_roots_for_store(store, requirements),
+            forced_roots=forced,
+            bead_owner=bool(bead_refs),
+            durable_roots=set(),
         )
-    return roots
+    return states
 
 
 def _objects_by_root_for(
-    objects: Sequence[_ArtifactLinkEventObject],
-    roots_by_operation: Mapping[str, Sequence[Path]],
+    states: Mapping[str, _OperationPublicationState],
 ) -> dict[Path, list[_ArtifactLinkEventObject]]:
     grouped: dict[Path, list[_ArtifactLinkEventObject]] = {}
-    for item in objects:
-        operation_id = str(item.event["operation_id"])
-        for root in roots_by_operation.get(operation_id, ()):
+    for state in states.values():
+        for root in _required_roots(state):
             resolved = root.expanduser().resolve(strict=False)
-            grouped.setdefault(resolved, []).append(item)
+            grouped.setdefault(resolved, []).append(state.item)
     return grouped
 
 
-def _document_roots_for_event(
+def _required_roots(state: _OperationPublicationState) -> tuple[Path, ...]:
+    return tuple(dict.fromkeys((*state.resolved_roots.values(), *state.forced_roots)))
+
+
+def _documents_ready(state: _OperationPublicationState) -> bool:
+    refs = state.requirements.get("document_refs")
+    if isinstance(refs, list):
+        for owner in refs:
+            if not isinstance(owner, Mapping):
+                continue
+            kind = str(owner.get("kind") or "")
+            if kind and kind not in state.resolved_roots:
+                return False
+    return all(root in state.durable_roots for root in _required_roots(state))
+
+
+def _install_ownerless_local_events(
     store: ArtifactLinkStore,
-    event: Mapping[str, Any],
-) -> tuple[Path, ...]:
-    roots: list[Path] = []
-    for ref in _document_refs_for_event(event):
-        root = store.sidecar_root_for(ref)
-        if root is None:
+    states: Iterable[_OperationPublicationState],
+) -> bool:
+    created = False
+    for state in states:
+        if not _needs_local_receipt(state):
             continue
-        resolved = root.expanduser().resolve(strict=False)
-        if resolved not in roots:
-            roots.append(resolved)
-    return tuple(roots)
+        try:
+            created = (
+                _install_local_artifact_link_event(store.project_key, state.item)
+                or created
+            )
+            state.local_receipt = _local_artifact_link_event_is_durable(
+                store.project_key,
+                state.item,
+            )
+        except Exception:
+            state.local_receipt = False
+    return created
 
 
-def _document_refs_for_event(event: Mapping[str, Any]) -> tuple[str, ...]:
-    refs: list[str] = []
-    kind = event.get("kind")
-    if not isinstance(kind, dict):
-        return ()
-    event_type = str(kind.get("type") or "")
-    if event_type in {"observation", "edge-put", "edge-remove"}:
-        edge = kind.get("edge")
-        if isinstance(edge, dict):
-            refs.extend(_edge_refs(edge))
-    elif event_type == "alias":
-        refs.extend([str(kind.get("old_ref") or ""), str(kind.get("new_ref") or "")])
-    elif event_type == "baseline-import":
-        rows = kind.get("rows")
-        if isinstance(rows, list):
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                refs.extend(
-                    [
-                        str(row.get("source_ref") or ""),
-                        str(row.get("target_ref") or ""),
-                    ]
-                )
-    return tuple(
-        ref
-        for ref in dict.fromkeys(refs)
-        if ref and kind_of_ref(ref) not in {"agent", "bead", "stitch"}
-    )
+def _needs_local_receipt(state: _OperationPublicationState) -> bool:
+    refs = state.requirements.get("document_refs")
+    return not refs and not state.forced_roots and not state.bead_owner
 
 
-def _edge_refs(edge: Mapping[str, Any]) -> tuple[str, str]:
-    edge_kind = str(edge.get("kind") or "")
-    if edge_kind == "directed":
-        return str(edge.get("source_ref") or ""), str(edge.get("target_ref") or "")
-    if edge_kind == "undirected":
-        return str(edge.get("left_ref") or ""), str(edge.get("right_ref") or "")
-    return "", ""
+def _published_operation_ids(
+    states: Iterable[_OperationPublicationState],
+    *,
+    bead_receipt: bool,
+    diagnostics: list[str],
+) -> tuple[str, ...]:
+    published: list[str] = []
+    for state in states:
+        receipt = _publication_receipt(
+            state.requirements,
+            _publication_evidence(
+                operation_id=state.operation_id,
+                resolved_roots=state.resolved_roots,
+                forced_roots=state.forced_roots,
+                durable_roots=tuple(state.durable_roots),
+                bead_owner=state.bead_owner,
+                bead_receipt=state.bead_owner and bead_receipt,
+                local_receipt=state.local_receipt,
+            ),
+        )
+        reasons = receipt.get("pending_reasons")
+        if isinstance(reasons, list):
+            diagnostics.extend(str(reason) for reason in reasons if str(reason))
+        if bool(receipt.get("acknowledged")):
+            published.append(state.operation_id)
+    return tuple(published)
 
 
 def _dedupe_event_objects(
@@ -448,38 +458,3 @@ def _dedupe_event_objects(
         by_operation[operation_id] = item
         order.append(operation_id)
     return tuple(by_operation[operation_id] for operation_id in order)
-
-
-def _reject_existing_operation_collisions(
-    root: Path,
-    objects: Sequence[_ArtifactLinkEventObject],
-) -> None:
-    by_operation = {str(item.event["operation_id"]): item for item in objects}
-    event_root = root / "link-events" / "v1"
-    if not event_root.is_dir():
-        return
-    for path in sorted(event_root.rglob("*.json")):
-        if not path.is_file():
-            continue
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(data, dict):
-            continue
-        operation_id = str(data.get("operation_id") or "")
-        incoming = by_operation.get(operation_id)
-        if incoming is None:
-            continue
-        try:
-            existing = _canonical_artifact_link_event_object(data)
-        except Exception as exc:  # noqa: BLE001 - corrupt history blocks reuse.
-            raise _ArtifactLinkEventCorruptionError(
-                f"artifact-link event path for operation_id `{operation_id}` "
-                f"is invalid: {path}: {exc}"
-            ) from exc
-        if existing.payload != incoming.payload:
-            raise _ArtifactLinkEventCorruptionError(
-                f"operation_id `{operation_id}` was reused for different "
-                f"artifact-link event bytes already present at {path}"
-            )

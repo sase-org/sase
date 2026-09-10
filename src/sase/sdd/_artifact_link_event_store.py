@@ -15,6 +15,7 @@ from sase.sdd._artifact_link_store_support import (
     canonicalize_artifact_link_ref,
     validate_artifact_link_row,
 )
+from sase.sdd._artifact_link_event_local_store import artifact_link_local_event_root
 
 ARTIFACT_LINK_EVENT_DIR = "link-events/v1"
 
@@ -208,7 +209,16 @@ class ArtifactLinkEventStoreAdapter:
     ]:
         events: list[dict[str, Any]] = []
         findings: list[ArtifactLinkEventValidationFinding] = []
-        for root in self.sidecar_roots.values():
+        seen_roots: set[Path] = set()
+        roots = (
+            *self.sidecar_roots.values(),
+            artifact_link_local_event_root(self.project_key),
+        )
+        for root in roots:
+            root = root.expanduser().resolve(strict=False)
+            if root in seen_roots:
+                continue
+            seen_roots.add(root)
             for path in _iter_event_object_paths(root):
                 try:
                     relpath = path.relative_to(root).as_posix()

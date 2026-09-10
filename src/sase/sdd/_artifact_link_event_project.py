@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
+import os
 from pathlib import Path
+import subprocess
 from typing import Any
 
 from sase.core.rust import require_rust_binding
@@ -16,8 +19,18 @@ from sase.sdd._artifact_link_event_canonical import (
     row_uses as _row_uses,
     rows_from_events,
 )
+from sase.sdd._artifact_link_event_local_store import artifact_link_local_event_root
 from sase.sdd._artifact_link_store_support import validate_artifact_link_row
 from sase.sdd.artifact_link_store import ArtifactLinkStore
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactLinkBeadProjectionResult:
+    """Durability receipt for bead endpoint projection."""
+
+    changed: bool
+    receipt: bool
+    diagnostic: str | None = None
 
 
 def active_operation_ids_for_row(
@@ -66,70 +79,90 @@ def apply_events_to_beads(
     *,
     mutation_origin: str,
     artifacts_dir: str | Path | None,
-) -> bool:
-    if store.beads_dir is None or not objects:
-        return False
+) -> ArtifactLinkBeadProjectionResult:
+    if not objects:
+        return ArtifactLinkBeadProjectionResult(changed=False, receipt=True)
+    if store.beads_dir is None:
+        return ArtifactLinkBeadProjectionResult(
+            changed=False,
+            receipt=False,
+            diagnostic="artifact-link bead store is unavailable",
+        )
     from sase.sdd.artifact_link_beads import (
         add_bead_endpoint_link,
         remove_bead_endpoint_link,
     )
-
-    changed = False
-    for item in objects:
-        event = item.event
-        operation_id = str(event["operation_id"])
-        event_kind = event.get("kind")
-        if not isinstance(event_kind, dict):
-            continue
-        event_type = str(event_kind.get("type") or "")
-        if event_type == "edge-remove":
-            row = _event_remove_row(event)
-            if row is None:
-                continue
-            for issue_id, target_ref, direction in _bead_endpoint_writes(row):
-                outcome = remove_bead_endpoint_link(
-                    store.beads_dir,
-                    issue_id=issue_id,
-                    target_ref=target_ref,
-                    relation=str(row.get("relation") or ""),
-                    direction=direction,
-                    now=str(event.get("created_at") or "") or None,
-                    operation_id=operation_id,
-                )
-                changed = changed or bool(outcome.get("changed"))
-            continue
-        for row in _event_rows_for_beads(event):
-            for issue_id, target_ref, direction in _bead_endpoint_writes(row):
-                outcome = add_bead_endpoint_link(
-                    store.beads_dir,
-                    issue_id=issue_id,
-                    target_ref=target_ref,
-                    relation=str(row.get("relation") or ""),
-                    description=str(row.get("description") or ""),
-                    origin=str(row.get("origin") or ""),
-                    direction=direction,
-                    uses=_row_uses(row),
-                    now=str(row.get("created_at") or "") or None,
-                    operation_id=operation_id,
-                )
-                changed = changed or bool(outcome.get("changed"))
-
-    if not changed:
-        return False
     from sase.sdd._artifact_link_commit import (
         ArtifactLinkPersistError,
         commit_bead_link_events,
     )
 
     try:
-        commit_bead_link_events(
-            store,
-            artifacts_dir=artifacts_dir,
-            mutation_origin=mutation_origin,
+        changed = False
+        for item in objects:
+            event = item.event
+            operation_id = str(event["operation_id"])
+            event_kind = event.get("kind")
+            if not isinstance(event_kind, dict):
+                continue
+            event_type = str(event_kind.get("type") or "")
+            if event_type == "edge-remove":
+                row = _event_remove_row(event)
+                if row is None:
+                    continue
+                for issue_id, target_ref, direction in _bead_endpoint_writes(row):
+                    outcome = remove_bead_endpoint_link(
+                        store.beads_dir,
+                        issue_id=issue_id,
+                        target_ref=target_ref,
+                        relation=str(row.get("relation") or ""),
+                        direction=direction,
+                        now=str(event.get("created_at") or "") or None,
+                        operation_id=operation_id,
+                    )
+                    changed = changed or bool(outcome.get("changed"))
+                continue
+            for row in _event_rows_for_beads(event):
+                for issue_id, target_ref, direction in _bead_endpoint_writes(row):
+                    outcome = add_bead_endpoint_link(
+                        store.beads_dir,
+                        issue_id=issue_id,
+                        target_ref=target_ref,
+                        relation=str(row.get("relation") or ""),
+                        description=str(row.get("description") or ""),
+                        origin=str(row.get("origin") or ""),
+                        direction=direction,
+                        uses=_row_uses(row),
+                        now=str(row.get("created_at") or "") or None,
+                        operation_id=operation_id,
+                    )
+                    changed = changed or bool(outcome.get("changed"))
+
+        if changed or _bead_store_has_uncommitted_changes(store.beads_dir):
+            commit_bead_link_events(
+                store,
+                artifacts_dir=artifacts_dir,
+                mutation_origin=mutation_origin,
+            )
+        if _bead_store_has_uncommitted_changes(store.beads_dir):
+            return ArtifactLinkBeadProjectionResult(
+                changed=changed,
+                receipt=False,
+                diagnostic="artifact-link bead projection has uncommitted changes",
+            )
+        return ArtifactLinkBeadProjectionResult(changed=changed, receipt=True)
+    except ArtifactLinkPersistError as exc:
+        return ArtifactLinkBeadProjectionResult(
+            changed=changed,
+            receipt=False,
+            diagnostic=exc.diagnostic,
         )
-    except ArtifactLinkPersistError:
-        raise
-    return True
+    except Exception as exc:  # noqa: BLE001 - outbox replay must retry cleanly.
+        return ArtifactLinkBeadProjectionResult(
+            changed=changed,
+            receipt=False,
+            diagnostic=str(exc),
+        )
 
 
 def _event_rows_for_beads(event: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
@@ -160,6 +193,45 @@ def _bead_endpoint_writes(
     return tuple(writes)
 
 
+def _bead_store_has_uncommitted_changes(beads_dir: Path) -> bool:
+    git_root = _git_root_for(beads_dir)
+    if git_root is None:
+        return False
+    try:
+        scope = os.path.relpath(beads_dir, git_root)
+    except ValueError:
+        scope = "."
+    result = subprocess.run(
+        [
+            "git",
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            "--",
+            scope,
+        ],
+        cwd=git_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return result.returncode != 0 or bool(result.stdout.strip())
+
+
+def _git_root_for(path: Path) -> Path | None:
+    result = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    root = result.stdout.strip()
+    return Path(root) if root else None
+
+
 def apply_events_to_aggregate(
     store: ArtifactLinkStore,
     objects: Sequence[_ArtifactLinkEventObject],
@@ -185,7 +257,11 @@ def _event_type(event: Mapping[str, Any]) -> str:
 
 def _iter_event_objects(store: ArtifactLinkStore) -> Iterable[_ArtifactLinkEventObject]:
     seen_roots: set[Path] = set()
-    for root in store.sidecar_roots.values():
+    roots = (
+        *store.sidecar_roots.values(),
+        artifact_link_local_event_root(store.project_key),
+    )
+    for root in roots:
         resolved = root.expanduser().resolve(strict=False)
         if resolved in seen_roots:
             continue
@@ -212,3 +288,11 @@ def _iter_event_objects(store: ArtifactLinkStore) -> Iterable[_ArtifactLinkEvent
                 digest=str(validated["digest"]),
                 relative_path=Path(str(validated["path"])),
             )
+
+
+__all__ = [
+    "ArtifactLinkBeadProjectionResult",
+    "active_operation_ids_for_row",
+    "apply_events_to_aggregate",
+    "apply_events_to_beads",
+]

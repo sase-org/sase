@@ -11,6 +11,7 @@ from sase.sdd._artifact_link_event_canonical import (
     ArtifactLinkEventCorruptionError,
     canonical_artifact_link_event_object,
 )
+from sase.sdd._artifact_link_event_local_store import artifact_link_local_event_root
 from sase.sdd.artifact_link_event_publisher import (
     observation_or_put_event_from_row,
     publish_artifact_link_events,
@@ -208,3 +209,120 @@ def test_publish_event_rejects_committed_operation_id_collision_before_persisten
     )
     assert _commit_count(plans) == 2
     assert _status(plans) == ""
+
+
+def test_publish_ownerless_event_gets_machine_local_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={},
+    )
+    event = observation_or_put_event_from_row(
+        _row(
+            source="agent:reader",
+            relation="related",
+            target="agent:planner",
+            origin="manual",
+        ),
+        project_key=store.project_key,
+        operation_id="dddddddddddddddddddddddddddddddd",
+    )
+    event_object = canonical_artifact_link_event_object(event)
+    local_root = artifact_link_local_event_root(store.project_key)
+
+    report = publish_artifact_link_events(
+        store,
+        (event,),
+        push_after_commit=False,
+        mutation_origin="machine",
+    )
+
+    assert report.published_operation_ids == ("dddddddddddddddddddddddddddddddd",)
+    assert report.published == 1
+    assert (
+        local_root / event_object.relative_path
+    ).read_bytes() == event_object.payload
+    assert (local_root / event_object.relative_path) in report.durable_event_paths
+    [row] = store.load_aggregate()["rows"]
+    assert {row["source_ref"], row["target_ref"]} == {
+        "agent:reader",
+        "agent:planner",
+    }
+
+
+def test_publish_event_with_unresolved_document_owner_stays_pending(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={},
+        unresolved_document_kinds={"plan": "plans hidden clone is unavailable"},
+    )
+    event = observation_or_put_event_from_row(
+        _row(
+            source="plan:202609/a.md",
+            relation="related",
+            target="agent:planner",
+            origin="manual",
+        ),
+        project_key=store.project_key,
+        operation_id="eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    )
+
+    report = publish_artifact_link_events(
+        store,
+        (event,),
+        push_after_commit=False,
+        mutation_origin="machine",
+    )
+
+    assert report.published == 0
+    assert report.published_operation_ids == ()
+    assert report.event_paths == ()
+    assert report.durable_event_paths == ()
+    assert any("plan:202609/a.md" in item for item in report.skip_diagnostics)
+    assert store.load_aggregate().get("rows", ()) == []
+
+
+def test_publish_bead_owner_without_bead_store_stays_pending(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    plans = tmp_path / "plans"
+    _init_repo(plans, "202609/a.md")
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": plans},
+    )
+    event = observation_or_put_event_from_row(
+        _row(
+            source="plan:202609/a.md",
+            relation="implements",
+            target="bead:sase-yy.4",
+            origin="derived",
+        ),
+        project_key=store.project_key,
+        operation_id="ffffffffffffffffffffffffffffffff",
+    )
+
+    report = publish_artifact_link_events(
+        store,
+        (event,),
+        push_after_commit=False,
+        mutation_origin="machine",
+    )
+
+    assert report.published == 0
+    assert report.published_operation_ids == ()
+    assert report.event_paths
+    assert any("bead store is unavailable" in item for item in report.skip_diagnostics)
+    assert store.load_aggregate().get("rows", ()) == []

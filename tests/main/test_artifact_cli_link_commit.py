@@ -65,6 +65,10 @@ def _patch_store(monkeypatch: pytest.MonkeyPatch, store: ArtifactLinkStore) -> N
         lambda: store,
     )
     monkeypatch.setattr(
+        "sase.artifact_cli.link_ops.resolve_machine_artifact_link_store",
+        lambda _project_key, _cwd: store,
+    )
+    monkeypatch.setattr(
         "sase.artifact_cli.link_ops._created_by",
         lambda: "bbugyi200.athena.y2",
     )
@@ -301,3 +305,58 @@ def test_bead_to_bead_commits_only_the_bead_store(
         assert _commit_count(beads_repo) == beads_before + 1
         assert list(plans.rglob("*.json")) == []
         assert _run_git(plans, "status", "--porcelain") == ""
+
+
+def test_add_publishes_through_machine_store_not_checkout_store(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    checkout_plans = tmp_path / "checkout-plans"
+    machine_plans = tmp_path / "machine-plans"
+    _init_git(checkout_plans)
+    _init_git(machine_plans)
+    checkout_store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": checkout_plans},
+    )
+    publication_store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": machine_plans},
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_ops.resolve_artifact_link_store",
+        lambda: checkout_store,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_ops.resolve_machine_artifact_link_store",
+        lambda _project_key, _cwd: publication_store,
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_ops._created_by",
+        lambda: "bbugyi200.athena.y2",
+    )
+    monkeypatch.setattr(
+        "sase.artifact_cli.link_ops._created_at",
+        lambda: "2026-08-21T00:00:00Z",
+    )
+    checkout_before = _commit_count(checkout_plans)
+    machine_before = _commit_count(machine_plans)
+
+    assert (
+        handle_link_add(
+            _add_args(
+                "plan:202608/a.md",
+                "related",
+                "plan:202608/b.md",
+                "shares a root cause",
+            )
+        )
+        == 0
+    )
+
+    assert _commit_count(checkout_plans) == checkout_before
+    assert _commit_count(machine_plans) == machine_before + 1
+    assert _head_event_files(machine_plans)
+    assert not _head_event_files(checkout_plans)
+    assert _run_git(checkout_plans, "status", "--porcelain") == ""
+    assert _run_git(machine_plans, "status", "--porcelain") == ""

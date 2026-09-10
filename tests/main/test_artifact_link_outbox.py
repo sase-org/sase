@@ -281,7 +281,10 @@ def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(
     assert report.drained == 2
     assert report.committed is True
     assert _commit_count(repo) == before + 1
-    assert all(path.startswith("link-events/v1/") for path in _head_files(repo))
+    assert all(
+        path == ".gitignore" or path.startswith("link-events/v1/")
+        for path in _head_files(repo)
+    )
     assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
     assert not list((repo / "links").rglob("*"))
     [row] = store.load_aggregate()["rows"]
@@ -586,35 +589,43 @@ def test_drain_allows_trusted_machine_derived_events_without_evidence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.bead.model import IssueType
+    from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
+
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     allow_machine_sidecar_writes(monkeypatch)
     repo = tmp_path / "plans"
+    beads_repo = tmp_path / "beads"
     _init_plans_repo(repo)
-    store = ArtifactLinkStore(
-        project_key="gh_sase-org__sase",
-        sidecar_roots={"plan": repo},
-    )
-    append_artifact_link_outbox_entry(
-        project_key="gh_sase-org__sase",
-        agent_name="sase",
-        run_id="machine",
-        row=_row(
-            source="plan:doc.md",
-            relation="implements",
-            target="bead:sase-yy.4",
-            origin="derived",
-            created_by="sase",
-        ),
-    )
+    _init_plans_repo(beads_repo)
+    with BeadProject.init(beads_repo, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        issue = project.create("Linked plan", IssueType.PLAN)
+        store = ArtifactLinkStore(
+            project_key="gh_sase-org__sase",
+            sidecar_roots={"plan": repo},
+            beads_dir=project.beads_dir,
+        )
+        append_artifact_link_outbox_entry(
+            project_key="gh_sase-org__sase",
+            agent_name="sase",
+            run_id="machine",
+            row=_row(
+                source="plan:doc.md",
+                relation="implements",
+                target=f"bead:{issue.id}",
+                origin="derived",
+                created_by="sase",
+            ),
+        )
 
-    report = drain_artifact_link_outbox(
-        store=store,
-        agent_name="sase",
-        drop_stale_terminal=False,
-        push_after_commit=False,
-    )
+        report = drain_artifact_link_outbox(
+            store=store,
+            agent_name="sase",
+            drop_stale_terminal=False,
+            push_after_commit=False,
+        )
 
-    assert report.drained == 1
-    assert len(report.event_paths) == 1
-    assert not list((repo / "links").rglob("*"))
-    assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
+        assert report.drained == 1
+        assert len(report.event_paths) == 1
+        assert not list((repo / "links").rglob("*"))
+        assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()

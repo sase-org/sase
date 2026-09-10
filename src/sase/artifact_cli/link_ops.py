@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 import json
 import os
+from pathlib import Path
 import sys
 from typing import Any
 from uuid import uuid4
@@ -36,9 +37,11 @@ from sase.sdd.artifact_link_store import (
     assembled_artifact_relations,
     canonicalize_artifact_link_ref,
     resolve_artifact_link_store,
+    resolve_machine_artifact_link_store,
 )
 
 _DEFAULT_RESOLVE_ARTIFACT_LINK_STORE = resolve_artifact_link_store
+_DEFAULT_RESOLVE_MACHINE_ARTIFACT_LINK_STORE = resolve_machine_artifact_link_store
 
 _CLI_ORIGIN = "manual"
 
@@ -80,7 +83,8 @@ def add_artifact_link(
     if not target:
         raise ValueError("target artifact reference is required")
     relation = _cli_writable_relation(relation)
-    store = _store()
+    checkout_store = _store()
+    store = _publication_store(checkout_store)
     identity = _created_by()
     row = {
         "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
@@ -201,7 +205,8 @@ def remove_artifact_link(
         relation = str(
             require_rust_binding("artifact_relation_lookup")(str(relation))["slug"]
         )
-    store = _store()
+    checkout_store = _store()
+    store = _publication_store(checkout_store)
     return _remove_artifact_link_event(
         store,
         source_ref=source_ref,
@@ -325,6 +330,23 @@ def _store() -> ArtifactLinkStore:
     from sase.sdd import artifact_link_store as artifact_link_store_module
 
     return artifact_link_store_module.resolve_artifact_link_store()
+
+
+def _publication_store(checkout_store: ArtifactLinkStore) -> ArtifactLinkStore:
+    if (
+        resolve_machine_artifact_link_store
+        is not _DEFAULT_RESOLVE_MACHINE_ARTIFACT_LINK_STORE
+    ):
+        return resolve_machine_artifact_link_store(
+            checkout_store.project_key,
+            Path.cwd(),
+        )
+    from sase.sdd import artifact_link_store as artifact_link_store_module
+
+    return artifact_link_store_module.resolve_machine_artifact_link_store(
+        checkout_store.project_key,
+        Path.cwd(),
+    )
 
 
 def _cli_writable_relation(slug: str) -> str:

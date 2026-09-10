@@ -26,6 +26,7 @@ class ArtifactLinkStoreCoreMixin:
 
     project_key: str
     sidecar_roots: Mapping[str, Path]
+    unresolved_document_kinds: Mapping[str, str]
     beads_dir: Path | None
 
     def sidecar_root_for(self, artifact_ref: str) -> Path | None:
