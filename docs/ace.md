@@ -3379,14 +3379,13 @@ commit/pull/push offer with `chore: update default model effort`. An active temp
 override remains launch-effective after this write until it expires or is cleared; the
 preview and success notification both make that explicit.
 
-### Max running agents controls
+### Runner capacity controls
 
 `Ctrl+R` is a fixed Launch Control binding and works from every alias, collapsed bucket,
-and open bucket. It is not a leader-keymap setting. The **Max Running Agents** card
-shows the current effective capacity budget and, while a temporary override is active,
-its remaining time plus the configured value. Press `e` to edit the user-base
-configuration, `o` to set a temporary machine-wide override, or `x` to clear an active
-override.
+and open bucket. It is not a leader-keymap setting. The **Runner Capacity** card shows
+the current effective capacity budget and, while a temporary override is active, its
+remaining time plus the configured value. Press `e` to edit the user-base configuration,
+`o` to set a temporary machine-wide override, or `x` to clear an active override.
 
 Edit and Override open a focused positive-integer card. Edit is prefilled with the
 configured value; Override is prefilled with the current effective value. The input

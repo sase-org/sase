@@ -101,6 +101,12 @@ slot-participating launches become admitted before primary and linked-workspace
 preparation; dependency, time, and fork waiters do not consume a slot until those
 prerequisites resolve.
 
+After upgrading from a build that did not enforce weighted capacity, restart ACE and
+AXE, then let old runner processes drain or relaunch them. The new runtime treats legacy
+records with absent `queue_weight` as `1.0`, but that storage compatibility does not
+make a mixed old/new scheduler fleet safe: an old runner binary cannot enforce weighted
+claims for new work.
+
 A modern unanswered `QUESTION` is a gate shell and consumes no runner capacity. On
 answer, its next family member transfers or reacquires the family capacity claim through
 the locked queue. Existing compatibility runs may instead carry `pending_question.json`;

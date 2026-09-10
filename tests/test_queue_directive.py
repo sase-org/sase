@@ -19,7 +19,7 @@ from sase.xprompt.queue_directive import collect_queue_fields, format_queue_dire
 
 
 ROOT = Path(__file__).resolve().parents[1]
-WEIGHTED_CAPACITY_CORE_FLOOR = (0, 32, 61)
+WEIGHTED_CAPACITY_CORE_FLOOR = (0, 33, 0)
 _CORE_FLOOR_RE = re.compile(r"^sase-core-rs>=(\d+(?:\.\d+)*),<\d+(?:\.\d+)*$")
 
 

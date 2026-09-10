@@ -2240,6 +2240,11 @@ hold zero capacity while waiting for a human, and their follow-up work must eith
 transfer a live claim or re-enter admission. Workflow Python/bash steps and axe Patch
 runners are outside this budget.
 
+Roll out this change by replacing long-lived ACE/AXE and runner processes, or by letting
+old work drain before launching weighted workloads. Records written before
+`queue_weight` existed remain readable as `1.0`; that compatibility is for storage, not
+for safely mixing old admission binaries with new weighted scheduling.
+
 Absolute time waits cannot be combined with duration waits or with each other.
 
 The old `%time:<value>` spelling is no longer accepted; use `#t:<value>` or

@@ -3381,7 +3381,7 @@ max_running_agents: 10
 | `max_running_agents` | int  | `10`    | `1`     | Configured runner-capacity units available on this host. |
 
 The effective cap is an active machine-wide temporary override first and this merged
-configured value second. In Launch Control, fixed `Ctrl+R` opens **Max Running Agents**:
+configured value second. In Launch Control, fixed `Ctrl+R` opens **Runner Capacity**:
 `e` previews and writes the user-base/chezmoi source, `o` chooses a relative, custom,
 until-cleared, or exact-time override, and `x` clears it. Temporary state is stored as a
 versioned record at `~/.sase/max_running_agents_override.json`; a new set replaces the
@@ -3391,6 +3391,12 @@ agents continue and new launches wait for occupied capacity to drain. Parked wai
 question continuations reread the effective cap on each normal poll. An explicit
 `%queue(runners=N)` keeps its own runner-count condition, but it cannot bypass the
 global capacity budget.
+
+When upgrading from an unweighted scheduler build, restart ACE and AXE and let already
+running agent processes finish or relaunch them under the new binary. Legacy records
+without `queue_weight` still read as `1.0`, but mixed old and new admission processes do
+not provide a safe weighted-capacity rollout because old binaries do not enforce
+weighted claims.
 
 ### max_agent_pipe_chain
 
