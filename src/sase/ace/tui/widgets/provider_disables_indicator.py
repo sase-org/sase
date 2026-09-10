@@ -61,8 +61,8 @@ class ProviderDisablesIndicator(Static):
         self._usage_open_provider: str | None = None
         self._usage_peek_in_flight = False
         self._usage_peek_loaded = False
-        self._usage_peek_token: tuple[int, int] | None = None
-        self._pending_usage_token: tuple[int, int] | None = None
+        self._usage_peek_token: tuple[Any, ...] | None = None
+        self._pending_usage_token: tuple[Any, ...] | None = None
         self._usage_layout_refresh_scheduled = False
         context = self._active_provider_routing_context()
         priority_state = self._priority_availability(context)

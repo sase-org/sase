@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import pytest
 
+from sase.llm_provider.usage import config as usage_config
 from sase.llm_provider.usage.config import (
     collection_skip_reason,
+    get_usage_indicator_settings,
     get_usage_metrics_settings,
 )
 from sase.llm_provider.usage.probe import (
@@ -23,6 +25,7 @@ from sase.llm_provider.usage.types import (
     observation_schema_version,
     validated_status_observation,
 )
+from tests._rust_extension_module_helpers import install_fake_rust_extension
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
 
@@ -58,6 +61,111 @@ def test_usage_metrics_parses_per_provider_override(
     assert settings.critical_percent == 85.0
     assert settings.provider_enabled("synth") is False
     assert settings.provider_enabled("claude") is True
+
+
+def test_usage_indicator_defaults_and_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[object] = []
+
+    def provider_usage_validate_indicator_config(
+        indicator: object | None = None,
+    ) -> dict[str, object]:
+        calls.append(indicator)
+        return {
+            "schema_version": 1,
+            "config": {
+                "enabled": True,
+                "default": {
+                    "kind": "below_remaining_percent",
+                    "below_remaining_percent": 20.0,
+                },
+                "weekly_all": {"kind": "always"},
+                "providers": {
+                    "claude": {
+                        "default": None,
+                        "windows": {"session": {"kind": "always"}},
+                    }
+                },
+            },
+            "diagnostics": [],
+        }
+
+    install_fake_rust_extension(
+        monkeypatch,
+        provider_usage_validate_indicator_config=provider_usage_validate_indicator_config,
+    )
+    monkeypatch.setattr(
+        usage_config, "current_config_token", lambda: ("config", "indicator-defaults")
+    )
+    monkeypatch.setattr(usage_config, "_indicator_settings_cache", None)
+    monkeypatch.setattr(usage_config, "_indicator_diagnostics_token", None)
+    mock_provider_config(
+        monkeypatch,
+        {
+            "usage_metrics": {
+                "indicator": {
+                    "providers": {
+                        "claude": {"windows": {"session": "always"}},
+                    }
+                }
+            }
+        },
+    )
+
+    settings = get_usage_indicator_settings()
+
+    assert settings.enabled is True
+    assert settings.raw == {"providers": {"claude": {"windows": {"session": "always"}}}}
+    assert settings.config["providers"]["claude"]["windows"]["session"] == {
+        "kind": "always"
+    }
+    assert calls == [settings.raw]
+
+
+def test_usage_indicator_settings_are_cached_by_config_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = ("config", 1)
+    calls = 0
+
+    def current_config_token() -> tuple[str, int]:
+        return token
+
+    def provider_usage_validate_indicator_config(
+        indicator: object | None = None,
+    ) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        return {
+            "schema_version": 1,
+            "config": {
+                "enabled": False,
+                "default": {"kind": "never"},
+                "weekly_all": {"kind": "always"},
+                "providers": {},
+            },
+            "diagnostics": [
+                {"path": "indicator.default", "message": "override was ignored"}
+            ],
+        }
+
+    install_fake_rust_extension(
+        monkeypatch,
+        provider_usage_validate_indicator_config=provider_usage_validate_indicator_config,
+    )
+    monkeypatch.setattr(usage_config, "current_config_token", current_config_token)
+    monkeypatch.setattr(usage_config, "_indicator_settings_cache", None)
+    monkeypatch.setattr(usage_config, "_indicator_diagnostics_token", None)
+    mock_provider_config(monkeypatch, {"usage_metrics": {"indicator": "bad"}})
+
+    first = get_usage_indicator_settings()
+    second = get_usage_indicator_settings()
+
+    assert first is second
+    assert calls == 1
+    assert first.enabled is False
+    assert first.diagnostics[0].path == "indicator.default"
 
 
 def test_invalid_thresholds_fall_back_to_defaults(

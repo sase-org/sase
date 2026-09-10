@@ -5,11 +5,14 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
 from collections.abc import Mapping
+from typing import Any
 
+from sase.config.core import current_config_token
 from sase.core.rust import require_rust_binding
+from sase.llm_provider.usage._wire import ProviderUsageIndicatorDiagnostic
 from sase.llm_provider.usage.types import UsageSkipReason
+from sase.llm_provider.usage._facade import provider_usage_validate_indicator_config
 
 log = logging.getLogger(__name__)
 
@@ -18,6 +21,9 @@ DEFAULT_REFRESH_SECONDS = 300.0
 MIN_REFRESH_SECONDS = 60.0
 DEFAULT_WARN_PERCENT = 75.0
 DEFAULT_CRITICAL_PERCENT = 90.0
+
+_indicator_settings_cache: tuple[tuple[Any, ...], UsageIndicatorSettings] | None = None
+_indicator_diagnostics_token: tuple[Any, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -38,6 +44,16 @@ class UsageMetricsSettings:
         if override is None:
             return True
         return override
+
+
+@dataclass(frozen=True)
+class UsageIndicatorSettings:
+    """Resolved display preferences for top-bar usage-window indicators."""
+
+    enabled: bool = True
+    raw: object | None = None
+    config: Mapping[str, Any] = field(default_factory=dict)
+    diagnostics: tuple[ProviderUsageIndicatorDiagnostic, ...] = ()
 
 
 def get_usage_metrics_settings() -> UsageMetricsSettings:
@@ -68,6 +84,29 @@ def get_usage_metrics_settings() -> UsageMetricsSettings:
     )
 
 
+def get_usage_indicator_settings() -> UsageIndicatorSettings:
+    """Load and normalize ``llm_provider.usage_metrics.indicator`` settings."""
+    global _indicator_settings_cache  # noqa: PLW0603
+
+    token = current_config_token()
+    cached = _indicator_settings_cache
+    if cached is not None and cached[0] == token:
+        return cached[1]
+    section = _load_usage_metrics_section()
+    raw = section.get("indicator")
+    validation = provider_usage_validate_indicator_config(raw)
+    enabled = validation.config.get("enabled", True)
+    settings = UsageIndicatorSettings(
+        enabled=enabled if isinstance(enabled, bool) else True,
+        raw=raw,
+        config=validation.config,
+        diagnostics=validation.diagnostics,
+    )
+    _log_indicator_diagnostics_once(token, settings.diagnostics)
+    _indicator_settings_cache = (token, settings)
+    return settings
+
+
 def collection_skip_reason(provider: str) -> UsageSkipReason | None:
     """Return why collection is inactive, or ``None`` when probes may run."""
     settings = get_usage_metrics_settings()
@@ -76,6 +115,23 @@ def collection_skip_reason(provider: str) -> UsageSkipReason | None:
     if not settings.provider_enabled(provider):
         return "provider_disabled"
     return None
+
+
+def _log_indicator_diagnostics_once(
+    token: tuple[Any, ...],
+    diagnostics: tuple[ProviderUsageIndicatorDiagnostic, ...],
+) -> None:
+    global _indicator_diagnostics_token  # noqa: PLW0603
+
+    if not diagnostics or _indicator_diagnostics_token == token:
+        return
+    details = "; ".join(
+        f"{diagnostic.path}: {diagnostic.message}" for diagnostic in diagnostics
+    )
+    log.warning(
+        "ignoring invalid llm_provider.usage_metrics.indicator values: %s", details
+    )
+    _indicator_diagnostics_token = token
 
 
 def _load_usage_metrics_section() -> dict[str, Any]:

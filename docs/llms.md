@@ -2106,6 +2106,10 @@ Collection is on by default and controlled by the durable
 llm_provider:
   usage_metrics:
     enabled: true
+    indicator:
+      enabled: true
+      default: { below_remaining_percent: 20 }
+      weekly_all: always
 ```
 
 Claude, Codex, and Grok currently ship collectors. Claude can also persist fenced
@@ -2114,6 +2118,19 @@ plugins remain fully usable when they do not implement usage hooks. Per-provider
 collection can be disabled with
 `llm_provider.usage_metrics.providers.<name>.enabled: false`; routing-disabled providers
 still collect when otherwise eligible because their reset information remains useful.
+
+ACE's compact usage-window indicator has separate display policy under
+`llm_provider.usage_metrics.indicator`. Collection controls whether SASE probes and
+records provider usage; indicator policy only chooses which already-observed windows
+appear in the top bar. The default shows every positively classified weekly all-model
+window and any other observed window whose remaining capacity is strictly below 20%. Use
+`always`, `never`, or `{below_remaining_percent: N}` policies. Exact provider window
+keys are stable selectors and can be found in `sase usage list --json` at
+`windows[].key`; shortened labels in the top bar are not configuration selectors.
+Invalid display overrides are reported and ignored at that override while unrelated
+collection settings and valid provider/window policies keep working. Config changes are
+picked up by the normal ACE usage refresh path even when no provider writes a new usage
+cache file.
 
 Use `sase usage` or `sase usage list` to inspect the cache without provider I/O:
 

@@ -253,8 +253,8 @@ class AgentFleetMixin(AgentFleetDispatchLaunchMixin):
 
     def action_setup_agent_machine(self) -> None:
         """Open enrollment guidance while no remote machine is configured."""
-        fleet_available = getattr(self, "_fleet_mode_available", None)
-        if callable(fleet_available) and fleet_available():
+        fleet_mode_available = getattr(self, "_fleet_mode_available", None)
+        if callable(fleet_mode_available) and fleet_mode_available():
             self.notify(  # type: ignore[attr-defined]
                 "Remote machines are already enrolled; run 'sase machine init' "
                 "to rescan, or 'sase machine list' / 'sase machine status' "

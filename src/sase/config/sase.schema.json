@@ -5,6 +5,46 @@
   "type": "object",
   "additionalProperties": false,
   "definitions": {
+    "usageIndicatorPolicy": {
+      "description": "Usage-window display selection policy. String forms are always or never. The threshold form selects windows whose remaining percentage is strictly below the configured number.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["always", "never"]
+        },
+        {
+          "type": "object",
+          "required": ["below_remaining_percent"],
+          "additionalProperties": false,
+          "properties": {
+            "below_remaining_percent": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Select only windows with remaining capacity strictly below this finite percentage. Use always to include exactly full windows."
+            }
+          }
+        }
+      ]
+    },
+    "usageIndicatorProvider": {
+      "type": "object",
+      "description": "Per-provider usage-window display overrides. Window keys are exact provider-reported IDs from `sase usage list --json`.",
+      "additionalProperties": false,
+      "properties": {
+        "default": {
+          "$ref": "#/definitions/usageIndicatorPolicy",
+          "description": "Default display policy for this provider's windows."
+        },
+        "windows": {
+          "type": "object",
+          "description": "Exact window-key display overrides for this provider.",
+          "additionalProperties": {
+            "$ref": "#/definitions/usageIndicatorPolicy"
+          }
+        }
+      }
+    },
     "linkedRepo": {
       "type": "object",
       "required": ["name", "path", "description"],
@@ -3425,6 +3465,36 @@
               "default": 90,
               "minimum": 0,
               "maximum": 100
+            },
+            "indicator": {
+              "type": "object",
+              "description": "Top-bar usage-window display preferences. Display selection is independent from collection and from warn/critical attention thresholds.",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Show usage-window indicators in ACE. False hides numeric windows and collector-health usage marks while leaving collection and the Providers · Usage view active.",
+                  "default": true
+                },
+                "default": {
+                  "$ref": "#/definitions/usageIndicatorPolicy",
+                  "description": "Fallback display policy for windows that do not match a provider/window override or the weekly_all default.",
+                  "default": { "below_remaining_percent": 20 }
+                },
+                "weekly_all": {
+                  "$ref": "#/definitions/usageIndicatorPolicy",
+                  "description": "Display policy for positively classified weekly all-model windows after exact and provider defaults.",
+                  "default": "always"
+                },
+                "providers": {
+                  "type": "object",
+                  "description": "Per-provider display overrides. Keys are provider IDs. This map is separate from the sibling collection providers map.",
+                  "additionalProperties": {
+                    "$ref": "#/definitions/usageIndicatorProvider"
+                  },
+                  "default": {}
+                }
+              }
             },
             "providers": {
               "type": "object",

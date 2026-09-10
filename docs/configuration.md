@@ -1875,18 +1875,49 @@ llm_provider:
     refresh_seconds: 300
     warn_percent: 75
     critical_percent: 90
+    indicator:
+      enabled: true
+      default:
+        below_remaining_percent: 20
+      weekly_all: always
+      providers: {}
     providers:
       claude:
         enabled: true
 ```
 
-| Field                                                 | Type   | Default | Description                                                                                                                                  |
-| ----------------------------------------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.usage_metrics.enabled`                  | bool   | `true`  | Collect subscription usage. False stops probes, passive writes, scheduled requests, and attention; inspection can still explain the opt-out. |
-| `llm_provider.usage_metrics.refresh_seconds`          | number | `300`   | Background refresh cadence in seconds. Must be finite and at least `60`.                                                                     |
-| `llm_provider.usage_metrics.warn_percent`             | number | `75`    | Percentage _used_ that classifies a window as low. Must satisfy `0 <= warn_percent < critical_percent <= 100`. UI copy uses percentage left. |
-| `llm_provider.usage_metrics.critical_percent`         | number | `90`    | Percentage _used_ that classifies a window as very low.                                                                                      |
-| `llm_provider.usage_metrics.providers.<name>.enabled` | bool   | inherit | Optional per-provider override. Keys are registered provider names; the generic schema does not hard-code the initial three providers.       |
+| Field                                                                 | Type   | Default                         | Description                                                                                                                                           |
+| --------------------------------------------------------------------- | ------ | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.usage_metrics.enabled`                                  | bool   | `true`                          | Collect subscription usage. False stops probes, passive writes, scheduled requests, and attention; inspection can still explain the opt-out.          |
+| `llm_provider.usage_metrics.refresh_seconds`                          | number | `300`                           | Background refresh cadence in seconds. Must be finite and at least `60`.                                                                              |
+| `llm_provider.usage_metrics.warn_percent`                             | number | `75`                            | Percentage _used_ that classifies a window as low. Must satisfy `0 <= warn_percent < critical_percent <= 100`. UI copy uses percentage left.          |
+| `llm_provider.usage_metrics.critical_percent`                         | number | `90`                            | Percentage _used_ that classifies a window as very low.                                                                                               |
+| `llm_provider.usage_metrics.indicator.enabled`                        | bool   | `true`                          | Show ACE top-bar usage indicators. False hides display entries and collector-health usage marks while collection and Providers · Usage remain active. |
+| `llm_provider.usage_metrics.indicator.default`                        | policy | `{below_remaining_percent: 20}` | Fallback display policy for windows that do not match a more specific display override.                                                               |
+| `llm_provider.usage_metrics.indicator.weekly_all`                     | policy | `always`                        | Display policy for positively classified weekly all-model windows after exact-window and provider defaults.                                           |
+| `llm_provider.usage_metrics.indicator.providers.<name>.default`       | policy | inherit                         | Optional display policy for all observed windows from one provider. This map is separate from the sibling collection `providers` map.                 |
+| `llm_provider.usage_metrics.indicator.providers.<name>.windows.<key>` | policy | inherit                         | Exact provider-reported window-key override. Find keys with `sase usage list -p <provider> --json` at `windows[].key`.                                |
+| `llm_provider.usage_metrics.providers.<name>.enabled`                 | bool   | inherit                         | Optional per-provider collection override. Keys are registered provider names; the generic schema does not hard-code the initial three providers.     |
+
+An indicator policy is exactly one of:
+
+- `always`: display each matching observed window at any remaining percentage.
+- `never`: suppress matching display entries.
+- `{below_remaining_percent: N}`: display only when the unrounded remaining percentage
+  is strictly less than finite `N`, where `0 <= N <= 100`.
+
+Thresholds use percentages remaining, not percentages used. `0` selects no numeric
+windows, `100` still excludes an exactly full window, and `always` is the only policy
+that includes full capacity.
+
+Display policy precedence is exact window key, provider default, `weekly_all` for a
+positively classified weekly all-model window, then global `indicator.default`. Provider
+and window IDs are open-ended; unmatched future provider/window keys are inert. Invalid
+indicator config is diagnosed with its config path, ignored at the smallest invalid
+override, and inherited/default policy is used instead of resetting unrelated valid
+usage settings. ACE display settings are cached by the merged-config token, so config
+changes reload on the normal usage refresh cadence even when the usage-state file does
+not change.
 
 Routing-disabled providers still refresh when collection is otherwise eligible, because
 reset information remains useful for them.

@@ -15,6 +15,8 @@ from sase.llm_provider.provider_disable import (
     require_provider_id,
 )
 from sase.llm_provider.usage._wire import (
+    ProviderUsageIndicatorConfigValidation,
+    ProviderUsageIndicatorProjection,
     ProviderUsageAccountContext,
     ProviderUsageRefreshAdmitOutcome,
     ProviderUsageRefreshDueOutcome,
@@ -27,6 +29,7 @@ from sase.llm_provider.usage.constants import (
     DEFAULT_USAGE_CADENCE_SECONDS,
     DEFAULT_USAGE_CRITICAL_PERCENT,
     DEFAULT_USAGE_WARN_PERCENT,
+    PROVIDER_USAGE_INDICATOR_SCHEMA_VERSION,
 )
 from sase.llm_provider.usage.errors import ProviderUsageStateError
 
@@ -54,6 +57,57 @@ def load_provider_usage(
             cadence_seconds,
             warn_percent,
             critical_percent,
+        )
+    )
+
+
+def provider_usage_indicator_schema_version() -> int:
+    """Return the Rust usage-indicator projection schema version."""
+    binding = require_rust_binding("provider_usage_indicator_schema_version")
+    return int(binding())
+
+
+def provider_usage_validate_indicator_config(
+    indicator: object | None = None,
+) -> ProviderUsageIndicatorConfigValidation:
+    """Validate and normalize ``llm_provider.usage_metrics.indicator``."""
+    binding = require_rust_binding("provider_usage_validate_indicator_config")
+    return ProviderUsageIndicatorConfigValidation.from_wire(binding(indicator))
+
+
+def provider_usage_project_indicator(
+    snapshot: Mapping[str, object],
+    *,
+    indicator: object | None = None,
+    eligible_providers: Sequence[str] | set[str] | frozenset[str] | None = None,
+    now: float | None = None,
+    cadence_seconds: float = DEFAULT_USAGE_CADENCE_SECONDS,
+    warn_percent: float = DEFAULT_USAGE_WARN_PERCENT,
+    critical_percent: float = DEFAULT_USAGE_CRITICAL_PERCENT,
+) -> ProviderUsageIndicatorProjection:
+    """Return selected usage-window records from one public snapshot."""
+    current = time.time() if now is None else now
+    if not isinstance(snapshot, Mapping):
+        raise ProviderUsageStateError("provider-usage snapshot is not an object")
+    if not is_finite_number(current):
+        raise ValueError("now must be finite")
+    if eligible_providers is None:
+        eligible = None
+    else:
+        eligible = sorted(dict.fromkeys(str(item) for item in eligible_providers))
+    binding = require_rust_binding("provider_usage_project_indicator")
+    return ProviderUsageIndicatorProjection.from_wire(
+        binding(
+            {
+                "schema_version": PROVIDER_USAGE_INDICATOR_SCHEMA_VERSION,
+                "snapshot": dict(snapshot),
+                "indicator": indicator,
+                "eligible_providers": eligible,
+                "now": float(current),
+                "cadence_seconds": float(cadence_seconds),
+                "warn_percent": float(warn_percent),
+                "critical_percent": float(critical_percent),
+            }
         )
     )
 
@@ -364,9 +418,12 @@ __all__ = [
     "mark_provider_usage_refresh_due",
     "prepare_provider_usage_account_context",
     "provider_usage_format_remaining_text",
+    "provider_usage_indicator_schema_version",
+    "provider_usage_project_indicator",
     "provider_usage_remaining_percent",
     "provider_usage_state_path",
     "provider_usage_summarize_for_model",
+    "provider_usage_validate_indicator_config",
     "provider_usage_window_applies",
     "record_provider_usage_observation",
     "record_provider_usage_refresh_attempt",

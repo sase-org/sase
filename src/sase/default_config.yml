@@ -1342,16 +1342,36 @@ llm_provider:
   #       # null inherits the global reset-hint policy; true/false overrides it.
   #       honor_reset_hint: null
   # Subscription-capacity collection. Distinct from usage_limit auto-disable.
-  # enabled is the durable user preference. Do not hard-code provider names
-  # in the generic schema — keys under providers are registered names.
-  # usage_metrics:
-  #   enabled: true                 # false stops probes and passive writes
-  #   refresh_seconds: 300          # cadence; minimum 60
-  #   warn_percent: 75              # percentage used for local low attention
-  #   critical_percent: 90          # percentage used for local very-low attention
-  #   providers:
-  #     claude:
-  #       enabled: true             # optional per-provider override
+  # enabled is the durable user preference. Do not hard-code provider names in
+  # the generic schema — keys under providers are registered names.
+  usage_metrics:
+    enabled: true                 # false stops probes and passive writes
+    refresh_seconds: 300          # cadence; minimum 60
+    warn_percent: 75              # percentage used for local low attention
+    critical_percent: 90          # percentage used for local very-low attention
+    indicator:
+      enabled: true               # false hides the ACE usage indicator only
+      default:
+        below_remaining_percent: 20
+      weekly_all: always
+      providers: {}
+      # providers:
+      #   claude:
+      #     windows:
+      #       session: always
+      #       "weekly:claude-fable-5":
+      #         below_remaining_percent: 35
+      #   codex:
+      #     windows:
+      #       "codex:secondary":
+      #         below_remaining_percent: 10
+      #   grok:
+      #     windows:
+      #       included_monthly: always
+    providers: {}
+    # providers:
+    #   claude:
+    #     enabled: true             # optional per-provider override
 
 commit:
   message:

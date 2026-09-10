@@ -76,6 +76,8 @@ def collect_codex_usage(context: UsageProbeContext) -> dict[str, Any]:
             argv, deadline_at=context.deadline_at, cwd=cwd, env=env
         )
     except OSError:
+        if tmp_cwd is not None:
+            tmp_cwd.cleanup()
         return validated_status_observation(
             context,
             now=context.request_started_at,

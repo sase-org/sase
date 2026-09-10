@@ -8,6 +8,7 @@ from typing import Any
 
 from sase.llm_provider.provider_disable import is_finite_number, is_provider_id
 from sase.llm_provider.usage.constants import (
+    PROVIDER_USAGE_INDICATOR_SCHEMA_VERSION,
     PROVIDER_USAGE_REFRESH_ADMIT_STATUSES,
     PROVIDER_USAGE_REFRESH_DEFERRED,
     PROVIDER_USAGE_REFRESH_STATUSES,
@@ -68,6 +69,131 @@ class ProviderUsageStoreRead:
             diagnostics=tuple(
                 ProviderUsageStoreDiagnostic.from_wire(item) for item in diagnostics
             ),
+        )
+
+
+@dataclass(frozen=True)
+class ProviderUsageIndicatorDiagnostic:
+    """One provider-usage indicator config or projection diagnostic."""
+
+    path: str
+    message: str
+
+    @classmethod
+    def from_wire(cls, payload: object) -> ProviderUsageIndicatorDiagnostic:
+        if not isinstance(payload, dict):
+            raise ProviderUsageStateError("usage indicator diagnostic is not an object")
+        _require_exact_fields(payload, {"path", "message"}, "indicator diagnostic")
+        path = payload["path"]
+        message = payload["message"]
+        if not isinstance(path, str) or not path.strip():
+            raise ProviderUsageStateError(
+                "usage indicator diagnostic path must be a non-empty string"
+            )
+        if not isinstance(message, str) or not message.strip():
+            raise ProviderUsageStateError(
+                "usage indicator diagnostic message must be a non-empty string"
+            )
+        return cls(path=path, message=message)
+
+
+@dataclass(frozen=True)
+class ProviderUsageIndicatorConfigValidation:
+    """Normalized indicator config plus bounded diagnostics from Rust core."""
+
+    schema_version: int
+    config: Mapping[str, Any]
+    diagnostics: tuple[ProviderUsageIndicatorDiagnostic, ...]
+
+    @classmethod
+    def from_wire(cls, payload: object) -> ProviderUsageIndicatorConfigValidation:
+        if not isinstance(payload, dict):
+            raise ProviderUsageStateError(
+                "provider-usage indicator validation is not an object"
+            )
+        _require_exact_fields(
+            payload,
+            {"schema_version", "config", "diagnostics"},
+            "indicator validation",
+        )
+        _require_indicator_version(payload["schema_version"], "indicator validation")
+        config = payload["config"]
+        diagnostics = payload["diagnostics"]
+        if not isinstance(config, dict):
+            raise ProviderUsageStateError("usage indicator config is not an object")
+        if not isinstance(diagnostics, list):
+            raise ProviderUsageStateError("usage indicator diagnostics must be a list")
+        return cls(
+            schema_version=payload["schema_version"],
+            config=config,
+            diagnostics=tuple(
+                ProviderUsageIndicatorDiagnostic.from_wire(item) for item in diagnostics
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class ProviderUsageIndicatorProjection:
+    """Selected usage-window records and provider health for top-bar display."""
+
+    schema_version: int
+    generated_at: float
+    enabled: bool
+    diagnostics: tuple[ProviderUsageIndicatorDiagnostic, ...]
+    providers: tuple[Mapping[str, Any], ...]
+    entries: tuple[Mapping[str, Any], ...]
+
+    @classmethod
+    def from_wire(cls, payload: object) -> ProviderUsageIndicatorProjection:
+        if not isinstance(payload, dict):
+            raise ProviderUsageStateError(
+                "provider-usage indicator projection is not an object"
+            )
+        _require_exact_fields(
+            payload,
+            {
+                "schema_version",
+                "generated_at",
+                "enabled",
+                "diagnostics",
+                "providers",
+                "entries",
+            },
+            "indicator projection",
+        )
+        _require_indicator_version(payload["schema_version"], "indicator projection")
+        generated_at = payload["generated_at"]
+        enabled = payload["enabled"]
+        diagnostics = payload["diagnostics"]
+        providers = payload["providers"]
+        entries = payload["entries"]
+        if not is_finite_number(generated_at):
+            raise ProviderUsageStateError("usage indicator generated_at must be finite")
+        if type(enabled) is not bool:
+            raise ProviderUsageStateError("usage indicator enabled must be boolean")
+        if not isinstance(diagnostics, list):
+            raise ProviderUsageStateError("usage indicator diagnostics must be a list")
+        if not isinstance(providers, list) or not all(
+            isinstance(item, dict) for item in providers
+        ):
+            raise ProviderUsageStateError(
+                "usage indicator providers must be a list of objects"
+            )
+        if not isinstance(entries, list) or not all(
+            isinstance(item, dict) for item in entries
+        ):
+            raise ProviderUsageStateError(
+                "usage indicator entries must be a list of objects"
+            )
+        return cls(
+            schema_version=payload["schema_version"],
+            generated_at=float(generated_at),
+            enabled=enabled,
+            diagnostics=tuple(
+                ProviderUsageIndicatorDiagnostic.from_wire(item) for item in diagnostics
+            ),
+            providers=tuple(providers),
+            entries=tuple(entries),
         )
 
 
@@ -422,8 +548,18 @@ def _require_version(value: object, label: str) -> None:
         )
 
 
+def _require_indicator_version(value: object, label: str) -> None:
+    if type(value) is not int or value != PROVIDER_USAGE_INDICATOR_SCHEMA_VERSION:
+        raise ProviderUsageStateError(
+            f"unsupported provider-usage {label} version: {value!r}"
+        )
+
+
 __all__ = [
     "ProviderUsageAccountContext",
+    "ProviderUsageIndicatorConfigValidation",
+    "ProviderUsageIndicatorDiagnostic",
+    "ProviderUsageIndicatorProjection",
     "ProviderUsageRefreshAdmitOutcome",
     "ProviderUsageRefreshDueOutcome",
     "ProviderUsageRefreshMarkDueOutcome",

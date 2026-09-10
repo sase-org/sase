@@ -110,6 +110,46 @@ def test_usage_facade_rehydrates_store_envelopes(
         )
         return True
 
+    def provider_usage_indicator_schema_version() -> int:
+        calls.append(("indicator_version", None))
+        return 1
+
+    def provider_usage_validate_indicator_config(
+        indicator: object | None = None,
+    ) -> dict[str, object]:
+        calls.append(("indicator_validate", indicator))
+        return {
+            "schema_version": 1,
+            "config": {
+                "enabled": True,
+                "default": {
+                    "kind": "below_remaining_percent",
+                    "below_remaining_percent": 20.0,
+                },
+                "weekly_all": {"kind": "always"},
+                "providers": {},
+            },
+            "diagnostics": [],
+        }
+
+    def provider_usage_project_indicator(
+        request: dict[str, object],
+    ) -> dict[str, object]:
+        calls.append(("indicator_project", request))
+        return {
+            "schema_version": 1,
+            "generated_at": request["now"],
+            "enabled": True,
+            "diagnostics": [],
+            "providers": [{"provider": "alpha"}],
+            "entries": [
+                {
+                    "provider": "alpha",
+                    "window_key": "weekly",
+                }
+            ],
+        }
+
     install_fake_rust_extension(
         monkeypatch,
         provider_usage_state_path=provider_usage_state_path,
@@ -118,6 +158,9 @@ def test_usage_facade_rehydrates_store_envelopes(
         provider_usage_prepare_account_context=provider_usage_prepare_account_context,
         provider_usage_reserve_refresh=provider_usage_reserve_refresh,
         provider_usage_release_refresh=provider_usage_release_refresh,
+        provider_usage_indicator_schema_version=provider_usage_indicator_schema_version,
+        provider_usage_validate_indicator_config=provider_usage_validate_indicator_config,
+        provider_usage_project_indicator=provider_usage_project_indicator,
     )
 
     from sase.llm_provider import usage
@@ -168,6 +211,21 @@ def test_usage_facade_rehydrates_store_envelopes(
         (str(tmp_path), "alpha", "ctx-alpha", 2, "lease-1", 127.0),
     )
 
+    assert usage.provider_usage_indicator_schema_version() == 1
+    validation = usage.provider_usage_validate_indicator_config({"default": "always"})
+    assert validation.config["weekly_all"] == {"kind": "always"}
+    projection = usage.provider_usage_project_indicator(
+        read.snapshot,
+        indicator={"default": "always"},
+        eligible_providers={"alpha"},
+        now=128.0,
+    )
+    assert projection.entries[0]["window_key"] == "weekly"
+    assert calls[-3] == ("indicator_version", None)
+    assert calls[-2] == ("indicator_validate", {"default": "always"})
+    assert calls[-1][0] == "indicator_project"
+    assert calls[-1][1]["eligible_providers"] == ["alpha"]
+
 
 def test_usage_facade_rejects_invalid_envelopes() -> None:
     from sase.llm_provider.usage import (
@@ -196,3 +254,14 @@ def test_usage_facade_requires_new_store_bindings(
 
     with pytest.raises(AttributeError, match="provider_usage_load"):
         usage.load_provider_usage(now=123.0)
+    with pytest.raises(AttributeError, match="provider_usage_project_indicator"):
+        usage.provider_usage_project_indicator(
+            {
+                "schema_version": 1,
+                "generated_at": 123.0,
+                "collection_health": "empty",
+                "providers": [],
+                "attention": None,
+            },
+            now=123.0,
+        )
