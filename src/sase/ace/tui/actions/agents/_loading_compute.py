@@ -208,6 +208,7 @@ def prepare_loaded_agents_apply_boundary(
     runner_capacity = refresh_runner_slot_context(
         prep.filtered_agents,
         effective_limit=effective_runner_limit,
+        capacity_agents=prep.capacity_agents or None,
     )
 
     unfiltered_agents = list(prep.filtered_agents)
@@ -319,6 +320,8 @@ def compute_apply_loaded_agents(
         if not agent.hidden and is_axe_spawned_agent(agent):
             agent.hidden = True
 
+    capacity_agents = list(filtered)
+
     # Categorize agents: always-visible (dismissable OR running) vs hideable
     always_visible: list[Agent] = []
     hideable: list[Agent] = []
@@ -347,6 +350,7 @@ def compute_apply_loaded_agents(
         hidden_count=hidden_count,
         hideable_agents=hideable,
         dismissed_agent_objects=dismissed_from_loader,
+        capacity_agents=capacity_agents,
         recovered_bundle_identities=recovered,
         auto_dismissed_identities=auto_dismissed_ids,
     )
@@ -384,6 +388,7 @@ def _prepare_loaded_agents_worker_prep(
         load_state=snapshot.load_state,
         fold_levels=snapshot.fold_levels,
         selection=snapshot.selection,
+        capacity_agents_with_children=snapshot.capacity_agents_with_children,
         agent_panels_grouped=snapshot.agent_panels_grouped,
     )
     with tui_trace(

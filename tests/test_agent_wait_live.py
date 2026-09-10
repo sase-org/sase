@@ -254,6 +254,53 @@ def test_why_column_for_waiting_queued_monitor_and_prompt() -> None:
     assert "04:12 elapsed" in text
 
 
+def test_live_rows_preserve_shared_capacity_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.agents._wait_live_rows.get_max_running_agents",
+        lambda: 1,
+    )
+    snapshot = _snapshot(
+        _record("20260823120000", name="holder", pid=_live_pid()),
+        _record(
+            "20260823120001",
+            name="heavy",
+            pid=_live_pid(),
+            waiting=WaitingMarkerWire(
+                wait_runners=9,
+                wait_priority=0,
+                queue_weight=2.0,
+                queue_weight_explicit=True,
+                slot_requested_at="2026-08-23T12:00:01Z",
+            ),
+        ),
+        _record(
+            "20260823120002",
+            name="light",
+            pid=_live_pid(),
+            waiting=WaitingMarkerWire(
+                wait_runners=0,
+                wait_priority=20,
+                queue_weight=0.25,
+                queue_weight_explicit=True,
+                slot_requested_at="2026-08-23T12:00:02Z",
+            ),
+        ),
+    )
+    tick = _tick(snapshot, "heavy", "light")
+
+    rows = {
+        row.name: row
+        for row in build_wait_live_rows(
+            tick.target_states, snapshot, elapsed_seconds=tick.elapsed_seconds
+        )
+    }
+
+    assert rows["light"].why == "slot 1 of 2"
+    assert rows["heavy"].why == "slot 2 of 2"
+
+
 def test_why_column_for_blocked_pending_states() -> None:
     snapshot = _snapshot(
         _record(

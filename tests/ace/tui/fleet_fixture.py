@@ -95,6 +95,10 @@ def fleet_summary(
     connection_health: str = "online",
     observed_at_unix: float = 1_800_000_000.0,
     occupied_runner_slot: bool | None = None,
+    queue_weight: float | None = None,
+    queue_weight_explicit: bool = False,
+    queue_weight_invalid: bool = False,
+    queue_weight_error: str | None = None,
 ) -> dict[str, Any]:
     """Build one valid resolved remote row summary."""
     del patch_name  # Remote summaries expose project labels, not Patch labels.
@@ -124,7 +128,7 @@ def fleet_summary(
             "waiting",
             "queued",
         }
-    return {
+    summary: dict[str, Any] = {
         "schema_version": 1,
         "logical_locator": logical,
         "exact_locator": exact,
@@ -171,6 +175,15 @@ def fleet_summary(
         "occupied_runner_slot": bool(occupied_runner_slot),
         "container_projected_concrete_agent": False,
     }
+    if queue_weight is not None:
+        summary["queue_weight"] = queue_weight
+    if queue_weight_explicit:
+        summary["queue_weight_explicit"] = True
+    if queue_weight_invalid:
+        summary["queue_weight_invalid"] = True
+    if queue_weight_error is not None:
+        summary["queue_weight_error"] = queue_weight_error
+    return summary
 
 
 def fleet_host_response(

@@ -173,7 +173,7 @@ class ModelsPanelAliasEditMixin(_MixinBase):
             self._on_default_effort_level("edit", DefaultEffortLevelChoice(None))
             return
         if isinstance(selected, RunnerLimitSettingRow):
-            self.notify("Use e to edit the running-agent limit", severity="warning")
+            self.notify("Use e to edit runner capacity", severity="warning")
             return
         if isinstance(selected, BigEpicPhaseThresholdSettingRow):
             self.action_reset_big_epic_phase_threshold()

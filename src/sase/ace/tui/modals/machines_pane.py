@@ -18,6 +18,7 @@ from textual.widgets import Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from sase.ace.agent_query import machine_query_term
+from sase.ace.tui.models.agent_runner_slots import format_capacity_value
 from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.keymaps import (
     MachinesPaneKeymaps,
@@ -747,9 +748,12 @@ def _health_label(
 def _capacity_label(row: _MachineRow) -> str:
     if row.kind == "here":
         try:
-            return f"local limit {get_max_running_agents()}"
+            return (
+                "local capacity "
+                f"{format_capacity_value(float(get_max_running_agents()))}"
+            )
         except Exception:
-            return "local limit unknown"
+            return "local capacity unknown"
     return "not reported"
 
 

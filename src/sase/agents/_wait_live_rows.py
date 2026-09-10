@@ -20,6 +20,7 @@ from sase.agent.wait_watch import (
     record_is_live,
 )
 from sase.agents._wait_render_plain import format_duration
+from sase.config.core import get_max_running_agents
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanWire,
@@ -29,7 +30,6 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.runner_slots import (
     live_runner_slot_waiters,
-    runner_slot_queue_display_key,
     running_agent_slot_count,
 )
 from sase.core.wait_dependency_resolution import (
@@ -374,16 +374,10 @@ def _unblock_command(state: WaitState) -> str | None:
 def _queue_context(records: Sequence[AgentArtifactRecordWire]) -> _QueueContext:
     is_live = _record_is_live
     slots_in_use = running_agent_slot_count(records, is_live)
-    waiters = sorted(
-        live_runner_slot_waiters(records, is_live),
-        key=lambda waiter: runner_slot_queue_display_key(
-            running_count=slots_in_use,
-            threshold=waiter.threshold,
-            priority=waiter.priority,
-            slot_requested_at=waiter.slot_requested_at,
-            timestamp=waiter.timestamp,
-            artifact_dir=waiter.artifact_dir,
-        ),
+    waiters = live_runner_slot_waiters(
+        records,
+        is_live,
+        effective_limit=float(get_max_running_agents()),
     )
     return _QueueContext(
         position_by_dir={

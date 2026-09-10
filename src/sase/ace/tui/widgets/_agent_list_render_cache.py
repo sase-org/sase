@@ -311,7 +311,7 @@ def agent_render_key(
         wait_agent.runner_effective_limit,
         wait_agent.runner_slot_queue_position,
         wait_agent.runner_slot_queue_size,
-        wait_agent.runner_capacity_blockers,
+        _freeze_jsonish(wait_agent.runner_capacity_blockers),
         agent_file_change_hint(agent),
         agent.reverted,
         agent_has_confirmed_bead(agent),

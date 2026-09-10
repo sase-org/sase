@@ -584,12 +584,18 @@ def running_agent_slot_count(
 def live_runner_slot_waiters(
     records: Iterable[AgentArtifactRecordWire],
     is_live: RecordLiveness,
+    *,
+    effective_limit: float | None = None,
 ) -> tuple[RunnerSlotWaiter, ...]:
     """Derive the live priority/FIFO queue from waiting-marker projections."""
     snapshot = runner_capacity_snapshot(
         tuple(records),
         is_live,
-        effective_limit=_RUNNER_CAPACITY_HELPER_LIMIT,
+        effective_limit=(
+            _RUNNER_CAPACITY_HELPER_LIMIT
+            if effective_limit is None
+            else float(effective_limit)
+        ),
     )
     waiters = [
         RunnerSlotWaiter(

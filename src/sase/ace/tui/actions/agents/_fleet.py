@@ -73,6 +73,7 @@ class AgentFleetMixin(
     current_idx: int
     _agents: list[Agent]
     _agents_with_children: list[Agent]
+    _agents_capacity_with_children: list[Agent]
     _agents_local_with_children: list[Agent]
     _agents_fleet_rows: list[Agent]
     _agents_fleet_focus_rows: list[Agent]

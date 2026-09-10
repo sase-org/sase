@@ -55,6 +55,77 @@ def _merge_tier1_patch(cached: list[Agent], incoming: list[Agent]) -> list[Agent
     return prep.filtered_agents
 
 
+def test_incomplete_merge_patches_capacity_source_independently() -> None:
+    holder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="holder",
+        project_file="/tmp/projects/sase/sase.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 8, 29, 6, 0, 0),
+        raw_suffix="20260829060000",
+        artifacts_dir="/tmp/projects/sase/artifacts/ace-run/20260829060000",
+        pid=111,
+        run_start_time=datetime(2026, 8, 29, 6, 0, 0),
+        runner_is_live=True,
+    )
+    cached_waiter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="waiter",
+        project_file="/tmp/projects/sase/sase.sase",
+        status="WAITING",
+        start_time=datetime(2026, 8, 29, 6, 1, 0),
+        raw_suffix="20260829060100",
+        artifacts_dir="/tmp/projects/sase/artifacts/ace-run/20260829060100",
+        pid=222,
+        slot_requested_at="2026-08-29T06:01:00Z",
+    )
+    incoming_waiter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="waiter",
+        project_file="/tmp/projects/sase/sase.sase",
+        status="WAITING",
+        start_time=datetime(2026, 8, 29, 6, 1, 0),
+        raw_suffix="20260829060100",
+        artifacts_dir="/tmp/projects/sase/artifacts/ace-run/20260829060100",
+        pid=333,
+        slot_requested_at="2026-08-29T06:01:01Z",
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[incoming_waiter],
+        has_always_visible=True,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+        capacity_agents=[incoming_waiter],
+    )
+    snapshot = PreparedApplySnapshot(
+        cached_agents_with_children=[cached_waiter],
+        dismissed_agents=set(),
+        agents_seen_complete_history=True,
+        hide_non_run_agents=False,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_delta",
+            used_artifact_index=True,
+        ),
+        fold_levels=None,
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+        capacity_agents_with_children=[holder, cached_waiter],
+    )
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    assert prep.filtered_agents == [incoming_waiter]
+    assert holder in prep.capacity_agents
+    assert incoming_waiter in prep.capacity_agents
+    assert cached_waiter not in prep.capacity_agents
+
+
 def _pre_metadata_latch_rows() -> tuple[Agent, Agent, Agent]:
     project = "/tmp/projects/sase/sase.sase"
     parent_ts = "20260829061545"

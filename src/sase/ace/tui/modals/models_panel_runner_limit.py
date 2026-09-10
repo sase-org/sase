@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from textual.worker import Worker, WorkerState
 
+from ..models.agent_runner_slots import format_capacity_value
 from sase.config import (
     EffectiveRunnerLimitSnapshot,
     TemporaryRunnerLimitOverride,
@@ -48,8 +49,12 @@ else:
     _MixinBase = object
 
 
+def _format_capacity_units(limit: int) -> str:
+    return f"{format_capacity_value(float(limit))} capacity units"
+
+
 class ModelsPanelRunnerLimitMixin(_MixinBase):
-    """Manage the live machine-wide maximum-running-agents limit."""
+    """Manage the live machine-wide runner-capacity limit."""
 
     if TYPE_CHECKING:
         _changed: bool
@@ -274,9 +279,15 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
                 captured_at=now,
             )
         )
-        message = f"Configured max running agents: {outcome.configured_limit}"
+        message = (
+            "Configured runner capacity: "
+            f"{_format_capacity_units(outcome.configured_limit)}"
+        )
         if outcome.configured_limit != outcome.requested_limit:
-            message += f" (requested {outcome.requested_limit}; overlay still wins)"
+            message += (
+                f" (requested {_format_capacity_units(outcome.requested_limit)}; "
+                "overlay still wins)"
+            )
         if previous_override is not None:
             message += "; temporary override remains active"
         self.notify(message)  # type: ignore[attr-defined]
@@ -336,7 +347,7 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
             self._apply_runner_limit_snapshot(snapshot)
         elif event.state == WorkerState.ERROR and self.is_mounted:  # type: ignore[attr-defined]
             self.notify(  # type: ignore[attr-defined]
-                f"Could not load max running agents: {event.worker.error}",
+                f"Could not load runner capacity: {event.worker.error}",
                 severity="warning",
             )
 
@@ -383,7 +394,7 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
         else:
             suffix = "temporarily"
         self.notify(  # type: ignore[attr-defined]
-            f"Max running agents override: {override.limit} {suffix}"
+            f"Runner capacity override: {_format_capacity_units(override.limit)} {suffix}"
         )
         self._mark_changed(agents_refresh="models-runner-limit-override")
 
@@ -418,11 +429,11 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
             )
         )
         if cleared:
-            self.notify("Cleared max-running-agents override")  # type: ignore[attr-defined]
+            self.notify("Cleared runner-capacity override")  # type: ignore[attr-defined]
             self._mark_changed(agents_refresh="models-runner-limit-clear")
         else:
             self.notify(  # type: ignore[attr-defined]
-                "No active max-running-agents override", severity="warning"
+                "No active runner-capacity override", severity="warning"
             )
 
     def _on_runner_limit_commit_worker(self, event: Worker.StateChanged) -> None:
@@ -440,7 +451,7 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
             push_config_commit_prompt(
                 self.app,  # type: ignore[attr-defined]
                 offer,
-                message="Commit and push your max-running-agents change?",
+                message="Commit and push your runner-capacity change?",
                 on_confirm=self._submit_runner_limit_commit,
             )
 
@@ -448,7 +459,7 @@ class ModelsPanelRunnerLimitMixin(_MixinBase):
         submit_config_commit_task(
             self.app,  # type: ignore[attr-defined]
             offer,
-            display_name=f"commit max running agents {offer.rel_path}",
+            display_name=f"commit runner capacity {offer.rel_path}",
         )
 
     def _cancel_runner_limit_workers(self) -> None:

@@ -137,7 +137,7 @@ def test_render_scalar_setting_rows_show_effective_values() -> None:
 
     assert "default effort" in effort_line
     assert "provider default" in effort_line
-    assert "max runners" in runner_line
+    assert "runner capacity" in runner_line
     assert str(DEFAULT_MAX_RUNNING_AGENTS) in runner_line
     assert "big epic starts at" in threshold_line
     assert "1 phase" in threshold_line

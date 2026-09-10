@@ -54,6 +54,7 @@ class PreparedApplyData:
     hidden_count: int
     hideable_agents: list[Agent]
     dismissed_agent_objects: list[Agent]
+    capacity_agents: list[Agent] = field(default_factory=list)
     recovered_bundle_identities: set[tuple[AgentType, str, str | None]] = field(
         default_factory=set
     )
@@ -82,6 +83,7 @@ class PreparedApplySnapshot:
     load_state: AgentLoadState | None
     fold_levels: dict[str, FoldLevel] | None
     selection: PreparedApplySelectionInputs
+    capacity_agents_with_children: list[Agent] = field(default_factory=list)
     agent_search_query: str = ""
     agent_query_cache: tuple[str, QueryExpr | None] | None = None
     agent_status_overrides: dict[tuple[AgentType, str, str | None], str] = field(

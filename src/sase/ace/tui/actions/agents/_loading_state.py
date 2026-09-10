@@ -56,6 +56,7 @@ class AgentLoadingStateMixin:
     hide_non_run_agents: bool
     _agents: list[Agent]
     _agents_with_children: list[Agent]
+    _agents_capacity_with_children: list[Agent]
     _agent_runner_capacity: RunnerCapacitySnapshot
     _agents_last_idx: int
     _agents_last_identity: tuple[AgentType, str, str | None] | None

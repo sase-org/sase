@@ -71,12 +71,12 @@ class DefaultEffortSettingRow:
 
 @dataclass(frozen=True)
 class RunnerLimitSettingRow:
-    """Captured global running-agent limit row."""
+    """Captured global runner-capacity row."""
 
     snapshot: EffectiveRunnerLimitSnapshot
 
     row_id: str = "setting:runner_limit"
-    label: str = "max runners"
+    label: str = "runner capacity"
     kind: ScalarSettingKind = "runner_limit"
 
 

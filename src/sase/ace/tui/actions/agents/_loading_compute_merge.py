@@ -463,4 +463,26 @@ def merge_incomplete_load_after_complete_history(
     prep.hidden_count = hidden_count
     prep.has_always_visible = bool(always_visible)
     prep.hideable_agents = hideable
+    incoming_capacity_agents = list(prep.capacity_agents)
+    cached_capacity_agents = list(snapshot.capacity_agents_with_children)
+    if incoming_capacity_agents and cached_capacity_agents:
+        capacity_snapshot = replace(
+            snapshot,
+            cached_agents_with_children=cached_capacity_agents,
+            capacity_agents_with_children=[],
+            hide_non_run_agents=False,
+        )
+        capacity_prep = PreparedApplyData(
+            filtered_agents=incoming_capacity_agents,
+            has_always_visible=False,
+            hidden_count=0,
+            hideable_agents=[],
+            dismissed_agent_objects=[],
+        )
+        prep.capacity_agents = merge_incomplete_load_after_complete_history(
+            capacity_prep,
+            capacity_snapshot,
+        ).filtered_agents
+    elif incoming_capacity_agents:
+        prep.capacity_agents = incoming_capacity_agents
     return prep

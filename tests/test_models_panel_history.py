@@ -295,7 +295,7 @@ async def test_h_on_concrete_launch_setting_only_warns(monkeypatch) -> None:
     ("row_id", "expected_snippet"),
     [
         ("setting:default_effort", "default effort"),
-        ("setting:runner_limit", "max runners"),
+        ("setting:runner_limit", "runner capacity"),
         ("setting:big_epic_phase_threshold", "big epic starts at"),
     ],
 )

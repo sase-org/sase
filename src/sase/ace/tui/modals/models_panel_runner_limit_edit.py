@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from rich.text import Text
 
@@ -17,11 +18,20 @@ from sase.config import (
     plan_config_edit,
 )
 
+from ..models.agent_runner_slots import format_capacity_value
 from .config_commit import ConfigCommitOffer, build_config_commit_offer
 from .config_edit_types import _ACCENT, _MOD_COLOR, _MUTED
 from .models_panel_edit import AliasEditPreviewModal
 
 MAX_RUNNING_AGENTS_FIELD_PATH = "max_running_agents"
+
+
+def _format_capacity_units(limit: Any) -> str:
+    try:
+        numeric = float(limit)
+    except (TypeError, ValueError):
+        return str(limit)
+    return f"{format_capacity_value(numeric)} capacity units"
 
 
 @dataclass(frozen=True)
@@ -77,13 +87,13 @@ class RunnerLimitEditPreviewModal(AliasEditPreviewModal):
         self._limit = limit
         self._override_active = override_active
         super().__init__(
-            "max running agents",
+            "runner capacity",
             ConfigEditOp.set_value(limit),
             path=MAX_RUNNING_AGENTS_FIELD_PATH,
         )
 
     def _title_text(self) -> Text:
-        text = Text("Edit Max Running Agents", style="bold")
+        text = Text("Edit Runner Capacity", style="bold")
         text.append("  persistent", style=_MUTED)
         return text
 
@@ -91,15 +101,15 @@ class RunnerLimitEditPreviewModal(AliasEditPreviewModal):
         text.append("Operation\n", style="bold")
         text.append(f"  {MAX_RUNNING_AGENTS_FIELD_PATH}", style=f"bold {_ACCENT}")
         text.append("  →  ", style=_MUTED)
-        text.append(str(self._limit), style="bold cyan")
+        text.append(_format_capacity_units(self._limit), style="bold cyan")
         text.append("\n")
 
     @staticmethod
     def _append_effective(text: Text, plan: EditPlanResult) -> None:
         preview = plan.effective_preview
         text.append("\nConfigured\n", style="bold")
-        before = str(preview.before) if preview.has_before else "10"
-        after = str(preview.after) if preview.has_after else "10"
+        before = _format_capacity_units(preview.before if preview.has_before else 10)
+        after = _format_capacity_units(preview.after if preview.has_after else 10)
         text.append("  ")
         text.append(before, style=_MUTED)
         text.append("  →  ", style=_MUTED)

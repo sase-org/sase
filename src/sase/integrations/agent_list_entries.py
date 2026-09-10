@@ -25,7 +25,6 @@ from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import (
     runner_capacity_snapshot,
     runner_slot_queue_display_key,
-    runner_slot_waiter_sort_key,
 )
 from sase.core.time import get_timezone
 
@@ -225,10 +224,7 @@ def _runner_slot_context(
     }
     positions: dict[int, int] = {}
     blockers: dict[int, tuple[dict[str, object], ...]] = {}
-    snapshot_waiters = sorted(
-        _mapping_tuple(runner_capacity.get("waiters")),
-        key=_snapshot_waiter_display_key,
-    )
+    snapshot_waiters = _ordered_snapshot_waiters(runner_capacity.get("waiters"))
     for index, waiter in enumerate(snapshot_waiters, 1):
         artifact_dir = waiter.get("artifact_dir")
         entry = (
@@ -236,7 +232,7 @@ def _runner_slot_context(
         )
         if entry is None:
             continue
-        positions[id(entry)] = index
+        positions[id(entry)] = _positive_int(waiter.get("queue_position")) or index
         blockers[id(entry)] = _blocker_tuple(waiter.get("blockers"))
     occupied_lanes = runner_capacity.get("occupied_lanes")
     return (
@@ -299,44 +295,24 @@ def _mapping_tuple(value: object) -> tuple[dict[str, object], ...]:
     )
 
 
-def _snapshot_waiter_display_key(
-    waiter: dict[str, object],
-) -> tuple[int, int, int, int, datetime, str, str]:
-    parked = _snapshot_waiter_is_parked(waiter)
-    threshold = _largest_runner_threshold(waiter)
-    return (
-        1 if parked else 0,
-        -threshold if parked else 0,
-        *runner_slot_waiter_sort_key(
-            priority=waiter.get("priority"),
-            slot_requested_at=_text_value(waiter.get("slot_requested_at")),
-            timestamp=_text_value(waiter.get("timestamp")),
-            artifact_dir=_text_value(waiter.get("artifact_dir")),
-        ),
+def _ordered_snapshot_waiters(value: object) -> tuple[dict[str, object], ...]:
+    indexed = tuple(enumerate(_mapping_tuple(value)))
+    return tuple(
+        waiter
+        for _, waiter in sorted(
+            indexed,
+            key=lambda item: (
+                _positive_int(item[1].get("queue_position")) is None,
+                _positive_int(item[1].get("queue_position")) or item[0] + 1,
+                item[0],
+            ),
+        )
     )
 
 
-def _snapshot_waiter_is_parked(waiter: dict[str, object]) -> bool:
-    if waiter.get("eligible") is True:
-        return False
-    blockers = _blocker_tuple(waiter.get("blockers"))
-    return any(blocker.get("code") != "queue-order" for blocker in blockers)
-
-
-def _largest_runner_threshold(waiter: dict[str, object]) -> int:
-    threshold = waiter.get("wait_runners")
-    values = [threshold] if type(threshold) is int and threshold >= 0 else []
-    for blocker in _blocker_tuple(waiter.get("blockers")):
-        blocker_threshold = blocker.get("runner_threshold")
-        if type(blocker_threshold) is int and blocker_threshold >= 0:
-            values.append(blocker_threshold)
-    return max(values, default=0)
-
-
-def _text_value(value: object) -> str | None:
-    if isinstance(value, str):
-        stripped = value.strip()
-        return stripped or None
+def _positive_int(value: object) -> int | None:
+    if type(value) is int and value > 0:
+        return value
     return None
 
 

@@ -243,6 +243,144 @@ def runner_slot_queue_window_agents() -> list[Agent]:
     return rows
 
 
+def weighted_runner_capacity_agents() -> list[Agent]:
+    """Return weighted capacity rows covering families, terminals, and waiters."""
+    project_file = "/workspace/sase/visual_project.sase"
+    root_started = datetime(2026, 7, 30, 12, 0, 0)
+    default_started = datetime(2026, 7, 30, 12, 1, 0)
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-weighted-family",
+        project_file=project_file,
+        status="RUNNING",
+        start_time=root_started,
+        run_start_time=root_started,
+        raw_suffix="20260730120000",
+        artifacts_dir="/workspace/sase/artifacts/ace-run/20260730120000",
+        agent_name="weighted-family",
+        agent_family="weighted-family",
+        agent_family_role="root",
+        plan_chain_root=True,
+        pid=5001,
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    serial_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-weighted-family--code",
+        project_file=project_file,
+        status="RUNNING",
+        start_time=datetime(2026, 7, 30, 12, 2, 0),
+        run_start_time=datetime(2026, 7, 30, 12, 2, 0),
+        raw_suffix="20260730120200",
+        artifacts_dir="/workspace/sase/artifacts/ace-run/20260730120200",
+        parent_timestamp=root.raw_suffix,
+        agent_name="weighted-family--code",
+        agent_family="weighted-family",
+        agent_family_role="code",
+        pid=5002,
+        queue_weight=2.0,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    gate_child = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-weighted-family--gate",
+        project_file=project_file,
+        status="WAITING INPUT",
+        start_time=datetime(2026, 7, 30, 12, 3, 0),
+        raw_suffix="20260730120300",
+        artifacts_dir="/workspace/sase/artifacts/ace-run/20260730120300",
+        parent_timestamp=root.raw_suffix,
+        agent_name="weighted-family--gate",
+        agent_family="weighted-family",
+        agent_family_role="gate",
+        gate_id="weighted-family-gate",
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+        llm_provider="codex",
+        model="gpt-5",
+    )
+    default_running = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-default-capacity",
+        project_file=project_file,
+        status="RUNNING",
+        start_time=default_started,
+        run_start_time=default_started,
+        raw_suffix="20260730120100",
+        artifacts_dir="/workspace/sase/artifacts/ace-run/20260730120100",
+        agent_name="default-capacity",
+        pid=5003,
+        queue_weight=1.0,
+        queue_weight_explicit=True,
+        llm_provider="qwen",
+        model="qwen3-coder",
+    )
+    done_weighted = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-done-heavy",
+        project_file=project_file,
+        status="DONE",
+        start_time=datetime(2026, 7, 30, 11, 50, 0),
+        stop_time=datetime(2026, 7, 30, 11, 58, 0),
+        raw_suffix="20260730115000",
+        artifacts_dir="/workspace/sase/artifacts/ace-run/20260730115000",
+        agent_name="done-heavy",
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+        llm_provider="claude",
+        model="sonnet",
+    )
+    light_waiter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-light-queue",
+        project_file=project_file,
+        status="WAITING",
+        start_time=datetime(2026, 7, 30, 12, 4, 0),
+        raw_suffix="20260730120400",
+        artifacts_dir="/workspace/sase/artifacts/ace-run/20260730120400",
+        agent_name="light-queue",
+        pid=5004,
+        slot_requested_at="2026-07-30T16:04:00Z",
+        queue_weight=0.25,
+        queue_weight_explicit=True,
+        llm_provider="codex",
+        model="gpt-5-mini",
+    )
+    heavy_waiter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-heavy-queue",
+        project_file=project_file,
+        status="WAITING",
+        start_time=datetime(2026, 7, 30, 12, 5, 0),
+        raw_suffix="20260730120500",
+        artifacts_dir="/workspace/sase/artifacts/ace-run/20260730120500",
+        agent_name="heavy-queue",
+        pid=5005,
+        slot_requested_at="2026-07-30T16:05:00Z",
+        wait_priority=3,
+        wait_priority_explicit=True,
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+        llm_provider="claude",
+        model="sonnet",
+    )
+    root.followup_agents.extend([serial_child, gate_child])
+    root.runtime_children.extend([serial_child, gate_child])
+    return [
+        root,
+        serial_child,
+        gate_child,
+        default_running,
+        light_waiter,
+        heavy_waiter,
+        done_weighted,
+    ]
+
+
 def output_variable_family_agents() -> list[Agent]:
     parent = Agent(
         agent_type=AgentType.RUNNING,

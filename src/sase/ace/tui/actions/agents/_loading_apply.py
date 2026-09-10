@@ -172,6 +172,13 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 selected_identity=selected_identity,
                 prior_visual_row=prior_visual_row,
             ),
+            capacity_agents_with_children=list(
+                getattr(
+                    self,
+                    "_agents_capacity_with_children",
+                    getattr(self, "_agents_with_children", []),
+                )
+            ),
             agent_search_query=getattr(self, "_agent_search_query", "") or "",
             agent_query_cache=getattr(self, "_agent_query_cache", None),
             agent_status_overrides=dict(getattr(self, "_agent_status_overrides", {})),
@@ -395,6 +402,9 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         previous_agents_with_children = list(getattr(self, "_agents_with_children", []))
         previous_agents = list(self._agents)
         self._agent_runner_capacity = boundary.runner_capacity
+        self._agents_capacity_with_children = list(
+            boundary.prep.capacity_agents or boundary.fold.unfiltered_agents
+        )
         unfiltered_agents = boundary.fold.unfiltered_agents
         visible_agents = boundary.fold.visible_agents
         project_current_mode = getattr(

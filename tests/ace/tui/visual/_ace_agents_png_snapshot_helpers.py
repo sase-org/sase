@@ -17,6 +17,7 @@ def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> Non
         _loading_compute_finalize,
         _loading_finalize,
     )
+    from sase.ace.tui.models import _agent_time_wait
     from sase.ace.tui.models import agent as agent_module
     from sase.ace.tui.models import agent_time
     from sase.ace.tui.widgets.prompt_panel import _agent_queue_section
@@ -26,6 +27,7 @@ def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> Non
         core_time,
         agent_module,
         agent_time,
+        _agent_time_wait,
         _agent_queue_section,
         _display_panel_patches,
         _loading_compute_finalize,

@@ -126,7 +126,7 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
         runner_row = option_list.get_option_at_index(
             option_list.get_option_index("setting:runner_limit")
         ).prompt.plain
-        assert "max runners" in runner_row
+        assert "runner capacity" in runner_row
         assert "4" in runner_row
         assert "override · 42m left" in runner_row
         footer = str(panel.query_one("#models-panel-footer", Static).content)
@@ -140,11 +140,13 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
         status = pilot.app.screen.query_one(
             "#runner-limit-action-status", Static
         ).content.plain
-        assert "Current global-cap limit\n4 agents  override · 42m left" in status
-        assert "Configured: 10 agents" in status
+        assert (
+            "Current runner capacity\n4.0 capacity units  override · 42m left" in status
+        )
+        assert "Configured: 10.0 capacity units" in status
         assert len(pilot.app.screen.query(".runner-limit-action-row")) == 3
         note = pilot.app.screen.query_one("#runner-limit-action-note", Static).content
-        assert "Already-running agents continue" in note
+        assert "Capacity is measured in weighted agent units" in note
         assert "%queue(runners=N)" in note
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -185,6 +186,14 @@ def _agent_from_summary(
         fleet_bounded_intent=bounded_intent,
         fleet_diagnostic=host_diagnostic,
         fleet_attention=dict(attention) if attention else None,
+        queue_weight=(
+            None
+            if summary.get("queue_weight_invalid") is True
+            else _queue_weight(summary)
+        ),
+        queue_weight_explicit=summary.get("queue_weight_explicit") is True,
+        queue_weight_invalid=summary.get("queue_weight_invalid") is True,
+        queue_weight_error=optional_str(summary.get("queue_weight_error")),
     )
     return agent
 
@@ -286,6 +295,13 @@ def _host_diagnostic(host: Mapping[str, Any]) -> str | None:
         if message:
             return message
     return None
+
+
+def _queue_weight(summary: Mapping[str, Any]) -> float | None:
+    weight = float_or_none(summary.get("queue_weight"))
+    if weight is None or not math.isfinite(weight) or weight <= 0.0:
+        return None
+    return weight
 
 
 def _status_from_summary(

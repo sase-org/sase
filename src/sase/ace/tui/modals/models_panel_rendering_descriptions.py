@@ -7,6 +7,7 @@ from typing import Any
 
 from rich.text import Text
 
+from sase.ace.tui.models.agent_runner_slots import format_capacity_value
 from sase.ace.tui.model_alias_styles import append_pool_weight
 from sase.llm_provider import AliasView, BucketView
 from sase.llm_provider.usage.hints import (
@@ -132,14 +133,16 @@ def _description_text_for_runner_limit(
 ) -> Text:
     text = Text()
     override = row.snapshot.active_override(now)
+    configured = format_capacity_value(float(row.snapshot.configured_limit))
     if override is not None:
-        text.append("Temporary maximum running-agent limit.", style=_DESCRIPTION_STYLE)
-        text.append(f"\nconfigured: {row.snapshot.configured_limit}", style="dim")
+        text.append("Temporary runner-capacity override.", style=_DESCRIPTION_STYLE)
+        text.append(f"\nconfigured: {configured} capacity units", style="dim")
         return text
     text.append(
-        "Maximum number of agents admitted to run at once.", style=_DESCRIPTION_STYLE
+        "Maximum weighted agent capacity admitted locally.",
+        style=_DESCRIPTION_STYLE,
     )
-    text.append(f"\nconfigured: {row.snapshot.configured_limit}", style="dim")
+    text.append(f"\nconfigured: {configured} capacity units", style="dim")
     return text
 
 

@@ -39,6 +39,7 @@ def init_agent_state(self: Any) -> None:
     self._agents_last_idx = 0
     self._agents_last_identity = None
     self._agents = []
+    self._agents_capacity_with_children = []
     self._agents_local_with_children = []
     self._agents_local_visible = []
     from ..models.fleet_agents import FleetRowsProjection

@@ -451,10 +451,36 @@ def test_slot_queue_derivation_matches_capacity_and_rejects_other_waits() -> Non
         "WAITING",
         "WAITING",
         "QUESTION",
-        "WAITING",
+        "QUEUED",
         "WAITING",
     ]
     assert capacity.queued_count == sum(agent.status == "QUEUED" for agent in agents)
+
+
+def test_runner_capacity_uses_source_roster_before_display_filtering() -> None:
+    holder = _agent(
+        "holder",
+        status="RUNNING",
+        run_start_time=datetime(2026, 7, 12, 11, 59),
+    )
+    waiter = _agent(
+        "waiter",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+
+    capacity = refresh_runner_slot_context(
+        [waiter],
+        capacity_agents=[holder, waiter],
+        effective_limit=1,
+    )
+
+    _assert_capacity_metrics(capacity, (1, 1, 1))
+    assert capacity.occupied_capacity == 1.0
+    assert waiter.status == "QUEUED"
+    assert waiter.runner_slot_queue_position == 1
+    assert waiter.runner_slot_queue_size == 1
+    assert waiter.runner_capacity_blockers[0]["code"] == "insufficient-capacity"
 
 
 def test_runner_slot_status_promotion_demotion_and_idempotence() -> None:

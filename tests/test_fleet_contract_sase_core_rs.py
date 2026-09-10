@@ -149,6 +149,8 @@ def test_locator_projection_and_validation_round_trip_without_local_data() -> No
     assert owner["logical_key"] == logical_key
 
     request = _projection_request(installation_id)
+    request["record"]["agent_meta"]["queue_weight"] = 0.25
+    request["record"]["agent_meta"]["queue_weight_explicit"] = True
     summary = _binding("fleet_project_resolved_agent_summary")(request)
     assert summary["logical_key"] == logical_key
     assert summary["exact_key"] == exact_key
@@ -159,6 +161,10 @@ def test_locator_projection_and_validation_round_trip_without_local_data() -> No
     assert summary["capabilities"]["resource"] == ["content.read", "stop"]
     assert summary["content"]["handle_count"] == 1
     assert summary["content"]["kinds"] == ["transcript"]
+    assert summary["queue_weight"] == 0.25
+    assert summary["queue_weight_explicit"] is True
+    assert summary["queue_weight_invalid"] is False
+    assert summary.get("queue_weight_error") is None
     assert _binding("fleet_validate_resolved_agent_summary")(summary) == summary
     _assert_no_local_or_auth_data(summary)
 

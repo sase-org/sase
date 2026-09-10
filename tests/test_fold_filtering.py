@@ -1,9 +1,13 @@
 """Tests for filter_agents_by_fold_state and _compute_fold_annotation."""
 
+from datetime import datetime
+
 from sase.ace.tui.actions.agents._loading_compute import (
+    PreparedApplyData,
     PreparedApplySelectionInputs,
     PreparedApplySnapshot,
     _filter_agents_by_fold_snapshot,
+    prepare_loaded_agents_apply_boundary,
     prepare_loaded_agents_worker_boundary,
 )
 from sase.ace.tui.models._agent_tree import agent_fold_key, project_clan_tree
@@ -57,6 +61,53 @@ def _make_appears_as_agent(raw_suffix: str) -> Agent:
         raw_suffix=raw_suffix,
         appears_as_agent=True,
     )
+
+
+def test_apply_boundary_capacity_uses_source_rows_not_display_rows() -> None:
+    holder = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="holder",
+        project_file="/tmp/test.sase",
+        status="RUNNING",
+        start_time=None,
+        raw_suffix="20260712000000",
+        artifacts_dir="/tmp/test/artifacts/ace-run/20260712000000",
+        pid=1234,
+        run_start_time=datetime(2026, 7, 12, 12, 0, 0),
+    )
+    waiter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="waiter",
+        project_file="/tmp/test.sase",
+        status="WAITING",
+        start_time=None,
+        raw_suffix="20260712000001",
+        artifacts_dir="/tmp/test/artifacts/ace-run/20260712000001",
+        pid=1235,
+        slot_requested_at="2026-07-12T12:00:00Z",
+        wait_runners=9,
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[waiter],
+        has_always_visible=True,
+        hidden_count=1,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+        capacity_agents=[holder, waiter],
+    )
+
+    boundary = prepare_loaded_agents_apply_boundary(
+        prep,
+        _make_prepared_snapshot({}),
+        effective_runner_limit=1,
+    )
+
+    assert boundary.fold.unfiltered_agents == [waiter]
+    assert boundary.runner_capacity.slots_in_use == 1
+    assert boundary.runner_capacity.occupied_capacity == 1.0
+    assert boundary.runner_capacity.queued_count == 1
+    assert waiter.status == "QUEUED"
+    assert waiter.runner_slot_queue_position == 1
 
 
 def test_expanded_shows_non_hidden_children() -> None:

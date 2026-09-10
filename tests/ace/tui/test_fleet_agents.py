@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from datetime import datetime
 
 from sase.ace.tui.models.fleet_agents import (
     catalog_next_cursor,
@@ -10,6 +11,10 @@ from sase.ace.tui.models.fleet_agents import (
     merge_catalog_pages,
     project_fleet_agents,
 )
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
+from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from sase.dispatch.follow_store import FollowStoreSnapshot
 from tests.ace.tui.fleet_fixture import (
     fleet_attention_response,
@@ -116,6 +121,45 @@ def test_project_fleet_agents_maps_pending_attention_onto_local_statuses() -> No
     # lifecycle ("asking") is the fallback signal instead.
     assert by_key[second["logical_key"]].status == "WAITING INPUT"
     assert by_key[second["logical_key"]].fleet_attention is not None
+
+
+def test_project_fleet_agents_carries_remote_queue_weight_without_local_charge() -> (
+    None
+):
+    summary = fleet_summary(
+        agent_id="weighted",
+        agent_name="apollo.weighted",
+        queue_weight=0.25,
+        queue_weight_explicit=True,
+    )
+    response = fleet_host_response(alias="apollo", summaries=(summary,))
+
+    projection = project_fleet_agents(catalog_response=response)
+    row = projection.fleet_rows[0]
+
+    assert row.queue_weight == 0.25
+    assert row.queue_weight_explicit is True
+    assert row.queue_weight_invalid is False
+    left, _, _ = format_agent_option(row, 0, is_selected=False)
+    header, _ = build_header_text(row, cheap=True)
+    assert "w0.25 (RUNNING)" in left.plain
+    assert "apollo.weighted" in left.plain
+    assert "Weight: 0.25 capacity units" in header.plain
+
+    local = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="local",
+        project_file="/tmp/project/project.sase",
+        status="RUNNING",
+        start_time=None,
+        raw_suffix="20260712120000",
+        artifacts_dir="/tmp/project/artifacts/ace-run/20260712120000",
+        pid=1234,
+        run_start_time=datetime(2026, 7, 12, 12, 0, 0),
+    )
+    capacity = refresh_runner_slot_context([local, row], effective_limit=1)
+    assert capacity.slots_in_use == 1
+    assert capacity.occupied_capacity == 1.0
 
 
 def test_followed_logical_keys_reads_active_records_only() -> None:

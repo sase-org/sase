@@ -21,9 +21,11 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
     reserved_tribe_wait_agents,
     runner_slot_queue_window_agents,
     runner_slot_wait_agents,
+    weighted_runner_capacity_agents,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    assert_page_svg_styled_text_contains,
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -145,9 +147,18 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
         await page.expect_state("agent_count", 3)
         await wait_for_visual_idle(page)
 
-        await page.press("j")
-        await wait_for_visual_idle(page)
+        for _ in range(len(page.app._agents) + 1):
+            selected = (
+                page.app._agents[page.app.current_idx]
+                if 0 <= page.app.current_idx < len(page.app._agents)
+                else None
+            )
+            if selected is not None and selected.agent_name == "global-cap":
+                break
+            await page.press("j")
+            await wait_for_visual_idle(page)
         selected = page.app._agents[page.app.current_idx]
+        assert selected.agent_name == "global-cap"
         assert selected.status == "QUEUED"
         assert selected.runner_slot_queue_position == 1
         assert selected.runner_slot_queue_size == 2
@@ -159,11 +170,11 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
         assert_page_svg_contains(page, "at the front")
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         prompt_text = renderable_to_text(prompt.content) or ""
-        assert "3m in queue" in prompt_text
-        assert "QUEUE · 2 waiting · 0/10 runners" in prompt_text
+        assert "Queue: #1 of 2 · at the front" in prompt_text
+        assert "QUEUE · 2 waiting · 0.0/10.0 capacity" in prompt_text
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert info._build_display_text().plain.startswith(
-            "3  [0/10 running · 2 queued · 1 waiting]"
+            "3  0.0/10.0 [0 running · 2 queued · 1 waiting]"
         )
         ace_png_visual.assert_page_png(
             page,
@@ -240,7 +251,7 @@ async def test_runner_slot_queue_window_png_snapshot(
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         prompt_text = renderable_to_text(prompt.content) or ""
         assert "5 ahead" in prompt_text
-        assert "QUEUE · 9 waiting · 0/10 runners" in prompt_text
+        assert "QUEUE · 9 waiting · 0.0/10.0 capacity" in prompt_text
         assert "≤0" in prompt_text
         assert "p1" in prompt_text
         assert "… +2 more" in prompt_text
@@ -249,6 +260,75 @@ async def test_runner_slot_queue_window_png_snapshot(
             page,
             "agents_runner_slot_queue_window_120x40",
             title="ACE agents runner slot queue window",
+        )
+
+
+async def test_weighted_runner_capacity_png_snapshots(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rows = weighted_runner_capacity_agents()
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 30, 12, 8, 0))
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 3)
+    patch_startup_loaders(monkeypatch, agents=rows)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "weighted-family")
+        assert_page_svg_contains(page, "default-capacity")
+        assert_page_svg_contains(page, "light-queue")
+        assert_page_svg_contains(page, "heavy-queue")
+        assert_page_svg_styled_text_contains(page, "3.0/3.0")
+        assert_page_svg_styled_text_contains(page, "w2")
+        assert_page_svg_styled_text_contains(page, "w0.25")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_weighted_runner_capacity_120x40",
+            title="ACE agents weighted runner capacity",
+        )
+
+        for _ in range(len(page.app._agents) + 1):
+            selected = (
+                page.app._agents[page.app.current_idx]
+                if 0 <= page.app.current_idx < len(page.app._agents)
+                else None
+            )
+            if selected is not None and selected.agent_name == "light-queue":
+                break
+            await page.press("j")
+            await wait_for_visual_idle(page)
+        selected = page.app._agents[page.app.current_idx]
+        assert selected.agent_name == "light-queue"
+        assert selected.status == "QUEUED"
+        assert selected.runner_slot_queue_position == 1
+        assert selected.runner_slot_queue_size == 2
+        assert selected.runner_occupied_capacity == 3.0
+        prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_text = renderable_to_text(prompt.content) or ""
+        assert "Weight: 0.25 capacity units" in prompt_text
+        assert "QUEUE · 2 waiting · 2 parked · 3.0/3.0 capacity" in prompt_text
+        assert "needs 0.25" in prompt_text
+        assert "0.0 free" in prompt_text
+
+    async with AcePage(query='"visual"', patches=patches(), size=(80, 32)) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.press("l")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "weighted-family--code")
+        assert_page_svg_contains(page, "weighted-family--gate")
+        assert_page_svg_styled_text_contains(page, "w2")
+        assert_page_svg_styled_text_contains(page, "w0.25")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_weighted_runner_capacity_expanded_80x32",
+            title="ACE weighted runner capacity expanded",
         )
 
 

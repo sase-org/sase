@@ -18,7 +18,6 @@ from sase.core.runner_slots import (
     normalize_wait_priority,
     runner_capacity_snapshot_from_capacity_records,
     runner_slot_queue_display_key,
-    runner_slot_waiter_sort_key,
 )
 
 from .agent import Agent, AgentType
@@ -87,14 +86,17 @@ def refresh_runner_slot_context(
     agents: list[Agent],
     *,
     effective_limit: float | None = None,
+    capacity_agents: list[Agent] | None = None,
 ) -> RunnerCapacitySnapshot:
     """Attach global runner-capacity context from the loaded snapshot.
 
     The loader has already PID-filtered active rows. Deriving this context
-    after the Tier-1/artifact-delta merge keeps the operation O(rows), pure,
-    and consistent across full and selective refreshes. When the caller does
-    not supply an effective limit, row context is still refreshed while the
-    returned capacity snapshot remains the deterministic neutral fallback.
+    from the caller's source roster keeps the operation O(rows), pure, and
+    consistent across full and selective refreshes even when the display list
+    has already been hidden, searched, folded, or fleet-projected. When the
+    caller does not supply an effective limit, row context is still refreshed
+    while the returned capacity snapshot remains the deterministic neutral
+    fallback.
 
     The weighted occupancy, queue order, eligibility, and blocker details come
     from the Rust admission projection used by the launcher. Integer lane
@@ -104,12 +106,19 @@ def refresh_runner_slot_context(
     if effective_limit is None:
         return _refresh_runner_slot_context_fallback(agents)
 
-    capacity_records = tuple(_capacity_record_from_agent(agent) for agent in agents)
+    capacity_source = agents if capacity_agents is None else capacity_agents
+    capacity_records = tuple(
+        _capacity_record_from_agent(agent) for agent in capacity_source
+    )
     raw_snapshot = runner_capacity_snapshot_from_capacity_records(
         capacity_records,
         effective_limit=float(effective_limit),
     )
-    return _apply_runner_capacity_snapshot(agents, raw_snapshot)
+    return _apply_runner_capacity_snapshot(
+        agents,
+        raw_snapshot,
+        capacity_agents=capacity_source,
+    )
 
 
 def _refresh_runner_slot_context_fallback(
@@ -200,6 +209,8 @@ def _refresh_runner_slot_context_fallback(
 def _apply_runner_capacity_snapshot(
     agents: list[Agent],
     raw_snapshot: dict[str, Any],
+    *,
+    capacity_agents: list[Agent] | None = None,
 ) -> RunnerCapacitySnapshot:
     """Apply a Rust runner-capacity snapshot to mutable TUI agent rows."""
     from ._agent_clan import aggregate_clan_status, clan_members
@@ -207,36 +218,42 @@ def _apply_runner_capacity_snapshot(
     running_count = _int_value(raw_snapshot.get("occupied_lanes")) or 0
     occupied_capacity = _finite_float(raw_snapshot.get("occupied_capacity"))
     effective_limit = _finite_float(raw_snapshot.get("effective_limit")) or 0.0
-    agent_by_artifact_dir = {_capacity_artifact_dir(agent): agent for agent in agents}
+    display_agent_by_artifact_dir = {
+        _capacity_artifact_dir(agent): agent for agent in agents
+    }
+    source_agent_by_artifact_dir = {
+        _capacity_artifact_dir(agent): agent
+        for agent in (agents if capacity_agents is None else capacity_agents)
+    }
     queue_entries: list[RunnerQueueEntry] = []
     queue_positions: dict[int, int] = {}
     queue_blockers: dict[int, tuple[dict[str, Any], ...]] = {}
-    waiters = sorted(
-        (
-            waiter
-            for waiter in raw_snapshot.get("waiters", ())
-            if isinstance(waiter, dict)
-        ),
-        key=_snapshot_waiter_display_key,
-    )
+    waiters = _ordered_snapshot_waiters(raw_snapshot.get("waiters", ()))
     queue_size = len(waiters)
 
     for index, waiter in enumerate(waiters, 1):
         artifact_dir = _text_value(waiter.get("artifact_dir"))
-        agent = (
-            agent_by_artifact_dir.get(artifact_dir)
+        display_agent = (
+            display_agent_by_artifact_dir.get(artifact_dir)
+            if artifact_dir is not None
+            else None
+        )
+        agent = display_agent or (
+            source_agent_by_artifact_dir.get(artifact_dir)
             if artifact_dir is not None
             else None
         )
         if agent is None:
             continue
         blockers = _blocker_tuple(waiter.get("blockers"))
-        queue_positions[id(agent)] = index
-        queue_blockers[id(agent)] = blockers
-        agent.status = runner_slot_display_status(
-            agent.status,
-            slot_queued=True,
-        )
+        queue_position = _positive_int(waiter.get("queue_position")) or index
+        if display_agent is not None:
+            queue_positions[id(display_agent)] = queue_position
+            queue_blockers[id(display_agent)] = blockers
+            display_agent.status = runner_slot_display_status(
+                display_agent.status,
+                slot_queued=True,
+            )
         queue_entries.append(
             RunnerQueueEntry(
                 identity=agent.identity,
@@ -250,7 +267,9 @@ def _apply_runner_capacity_snapshot(
                 wait_runners_explicit=agent.wait_runners_explicit,
                 priority=normalize_wait_priority(waiter.get("priority")),
                 slot_requested_at=_text_value(waiter.get("slot_requested_at")),
-                status=agent.status,
+                status=(
+                    display_agent.status if display_agent is not None else agent.status
+                ),
                 requested_weight=(
                     _finite_float(waiter.get("requested_weight"))
                     or DEFAULT_QUEUE_WEIGHT
@@ -293,7 +312,7 @@ def _apply_runner_capacity_snapshot(
     return RunnerCapacitySnapshot(
         effective_limit=effective_limit,
         slots_in_use=running_count,
-        queued_count=len(queue_entries),
+        queued_count=queue_size,
         queue=tuple(queue_entries),
         occupied_capacity=occupied_capacity,
     )
@@ -471,6 +490,12 @@ def _int_value(value: object) -> int | None:
     return None
 
 
+def _positive_int(value: object) -> int | None:
+    if type(value) is int and value > 0:
+        return value
+    return None
+
+
 def _text_value(value: object) -> str | None:
     if isinstance(value, str):
         stripped = value.strip()
@@ -484,21 +509,22 @@ def _blocker_tuple(value: object) -> tuple[dict[str, Any], ...]:
     return tuple(dict(blocker) for blocker in value if isinstance(blocker, dict))
 
 
-def _snapshot_waiter_display_key(
-    waiter: dict[str, Any],
-) -> tuple[int, int, int, int, datetime, str, str]:
-    parked = _snapshot_waiter_is_parked(waiter)
-    threshold = _largest_runner_threshold(waiter)
-    return (
-        1 if parked else 0,
-        -threshold if parked else 0,
-        *runner_slot_waiter_sort_key(
-            priority=waiter.get("priority"),
-            slot_requested_at=_text_value(waiter.get("slot_requested_at")),
-            timestamp=_text_value(waiter.get("timestamp")),
-            artifact_dir=_text_value(waiter.get("artifact_dir")),
-        ),
+def _ordered_snapshot_waiters(value: object) -> tuple[dict[str, Any], ...]:
+    if not isinstance(value, list | tuple):
+        return ()
+    indexed = [
+        (index, dict(waiter))
+        for index, waiter in enumerate(value)
+        if isinstance(waiter, dict)
+    ]
+    indexed.sort(
+        key=lambda item: (
+            _positive_int(item[1].get("queue_position")) is None,
+            _positive_int(item[1].get("queue_position")) or item[0] + 1,
+            item[0],
+        )
     )
+    return tuple(waiter for _, waiter in indexed)
 
 
 def _snapshot_waiter_is_parked(waiter: dict[str, Any]) -> bool:
@@ -506,18 +532,6 @@ def _snapshot_waiter_is_parked(waiter: dict[str, Any]) -> bool:
         return False
     blockers = _blocker_tuple(waiter.get("blockers"))
     return any(blocker.get("code") != "queue-order" for blocker in blockers)
-
-
-def _largest_runner_threshold(waiter: dict[str, Any]) -> int:
-    threshold = _nonnegative_int(waiter.get("wait_runners"))
-    values = [] if threshold is None else [threshold]
-    values.extend(
-        int(blocker["runner_threshold"])
-        for blocker in _blocker_tuple(waiter.get("blockers"))
-        if type(blocker.get("runner_threshold")) is int
-        and blocker["runner_threshold"] >= 0
-    )
-    return max(values, default=0)
 
 
 def _agent_lane_bucket_counts_as_running(agent: Agent) -> bool:
@@ -567,9 +581,7 @@ def _is_ace_run_root(agent: Agent) -> bool:
 
 
 def _participates_in_runner_slots(agent: Agent) -> bool:
-    return _is_ace_run_root(agent) or (
-        agent.is_family_member_child and agent.agent_family_parallel
-    )
+    return _is_ace_run_root(agent) or agent.is_family_member_child
 
 
 def _is_live_slot_waiter(agent: Agent) -> bool:

@@ -100,6 +100,87 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
     assert payload["runner_slot_holders"] == ["phase"]
 
 
+def test_agent_list_context_preserves_core_waiter_queue_positions() -> None:
+    heavy_dir = "/tmp/sase/artifacts/ace-run/20260709120001"
+    light_dir = "/tmp/sase/artifacts/ace-run/20260709120002"
+    heavy = _build_agent_list_entry(
+        agent(name="heavy", status="WAITING", artifacts_dir=heavy_dir),
+        record=record(
+            artifact_dir=heavy_dir,
+            timestamp="20260709120001",
+            waiting=WaitingMarkerWire(
+                wait_runners=9,
+                wait_priority=1,
+                slot_requested_at="2026-07-12T12:00:00Z",
+            ),
+        ),
+    )
+    light = _build_agent_list_entry(
+        agent(name="light", status="WAITING", artifacts_dir=light_dir),
+        record=record(
+            artifact_dir=light_dir,
+            timestamp="20260709120002",
+            waiting=WaitingMarkerWire(
+                wait_runners=0,
+                wait_priority=20,
+                queue_weight=0.25,
+                slot_requested_at="2026-07-12T12:00:01Z",
+            ),
+        ),
+    )
+
+    heavy, light = _attach_runner_slot_context(
+        [heavy, light],
+        1,
+        runner_capacity={
+            "effective_limit": 1.0,
+            "occupied_lanes": 1,
+            "occupied_capacity": 1.0,
+            "waiters": [
+                {
+                    "artifact_dir": heavy_dir,
+                    "queue_position": 2,
+                    "priority": 1,
+                    "slot_requested_at": "2026-07-12T12:00:00Z",
+                    "timestamp": "20260709120001",
+                    "requested_weight": 2.0,
+                    "wait_runners": 9,
+                    "eligible": False,
+                    "blockers": [
+                        {
+                            "code": "insufficient-capacity",
+                            "free_capacity": 0.0,
+                            "runner_threshold": 9,
+                        }
+                    ],
+                },
+                {
+                    "artifact_dir": light_dir,
+                    "queue_position": 1,
+                    "priority": 20,
+                    "slot_requested_at": "2026-07-12T12:00:01Z",
+                    "timestamp": "20260709120002",
+                    "requested_weight": 0.25,
+                    "wait_runners": 0,
+                    "eligible": False,
+                    "blockers": [
+                        {
+                            "code": "insufficient-capacity",
+                            "free_capacity": 0.0,
+                            "runner_threshold": 0,
+                        }
+                    ],
+                },
+            ],
+        },
+    )
+
+    assert heavy.wait.runner_slot_queue_position == 2
+    assert light.wait.runner_slot_queue_position == 1
+    assert heavy.wait.runner_slot_queue_size == 2
+    assert light.wait.runner_slot_queue_size == 2
+
+
 def test_agent_list_projects_hidden_clan_declaration_context(
     monkeypatch: MonkeyPatch,
 ) -> None:
