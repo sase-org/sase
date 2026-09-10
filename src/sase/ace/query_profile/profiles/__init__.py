@@ -19,6 +19,7 @@ the public schema constructors.
 from __future__ import annotations
 
 from ._agents import agents_query_schema
+from ._agents_live import agents_live_query_schema
 from ._beads import beads_query_schema
 from ._files import files_query_schema
 from ._patches import patches_query_schema
@@ -29,6 +30,7 @@ from ._stitches import stitches_query_schema
 
 __all__ = [
     "agents_query_schema",
+    "agents_live_query_schema",
     "beads_query_schema",
     "files_query_schema",
     "patches_query_schema",

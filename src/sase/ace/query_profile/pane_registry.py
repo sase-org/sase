@@ -12,6 +12,7 @@ from collections.abc import Callable
 
 from .compiler import CompiledQueryProfile, compile_query_profile
 from .profiles import (
+    agents_live_query_schema,
     agents_query_schema,
     beads_query_schema,
     files_query_schema,
@@ -28,6 +29,7 @@ _BUILTIN_SCHEMA_BUILDERS: dict[str, Callable[[], ArtifactQuerySchema]] = {
     "beads": beads_query_schema,
     "ref:plan": plans_query_schema,
     "agents": agents_query_schema,
+    "agents-live": agents_live_query_schema,
     "files": files_query_schema,
     "procs": procs_query_schema,
 }

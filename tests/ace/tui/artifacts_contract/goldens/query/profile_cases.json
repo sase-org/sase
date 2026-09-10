@@ -495,6 +495,210 @@
         }
       }
     },
+    "agents-live": {
+      "rows": [
+        {
+          "stable_id": "live-input-code",
+          "fields": {
+            "name": ["sase-zf.1--code", "sase-zf"],
+            "kind": ["agent"],
+            "family": "sase-zf.1",
+            "clan": "athena.sase-zf",
+            "project": ["gh_sase-org__sase", "sase"],
+            "role": "code",
+            "workflow": "review",
+            "model": "gpt-5.6-sol",
+            "provider": "codex",
+            "status": "QUESTION",
+            "attempt": 2,
+            "hidden": false,
+            "attention": true,
+            "retry": true,
+            "machine": ["here", "athena"],
+            "tribe": "pinned",
+            "pinned": true,
+            "unread": true,
+            "needs": "input",
+            "source": "axe",
+            "since": 1787580000,
+            "until": 1787580000,
+            "after": 1787580600,
+            "before": 1787580600,
+            "min": 600,
+            "max": 600,
+            "cl": "sase-zf",
+            "text": ["database migration", "CaseNeedle"]
+          }
+        },
+        {
+          "stable_id": "live-remote-running",
+          "fields": {
+            "name": "remote-run",
+            "kind": ["workflow"],
+            "family": "research.12",
+            "project": ["remote-proj", "Remote Project"],
+            "role": "plan",
+            "workflow": "literature",
+            "model": "claude-opus-4-7",
+            "provider": "claude",
+            "status": "RUNNING",
+            "attempt": 0,
+            "hidden": false,
+            "attention": false,
+            "retry": false,
+            "machine": ["apollo", "apollo.local", "apollo.internal"],
+            "tribe": "reviewed",
+            "pinned": false,
+            "unread": false,
+            "source": "manual",
+            "since": 1787666400,
+            "until": 1787666400,
+            "min": 7200,
+            "max": 7200,
+            "cl": "research-zf",
+            "text": "literature review synthesis"
+          }
+        },
+        {
+          "stable_id": "live-workflow-child",
+          "fields": {
+            "name": "001--2",
+            "kind": ["member", "workflow-child"],
+            "family": "001",
+            "project": "other",
+            "role": "mon",
+            "workflow": "cleanup",
+            "model": "grok-4.6",
+            "provider": "grok",
+            "status": "COMPLETED",
+            "attempt": 3,
+            "hidden": true,
+            "attention": false,
+            "retry": true,
+            "machine": ["apollo", "apollo.local"],
+            "pinned": false,
+            "unread": false,
+            "source": "axe",
+            "since": 1772373600,
+            "until": 1772373600,
+            "after": 1772373720,
+            "before": 1772373720,
+            "min": 120,
+            "max": 120,
+            "cl": "cleanup-zf",
+            "text": "9lives cleanup monitor"
+          }
+        },
+        {
+          "stable_id": "live-plan-handoff",
+          "fields": {
+            "name": "handoff-plan",
+            "kind": ["member"],
+            "family": "handoff",
+            "clan": "athena.sase-zf",
+            "project": "sase",
+            "role": "plan",
+            "model": "muse-spark-1.2",
+            "provider": "muse",
+            "status": "PLAN APPROVED",
+            "attempt": 1,
+            "hidden": false,
+            "attention": false,
+            "retry": false,
+            "machine": ["here"],
+            "tribe": "planning",
+            "pinned": false,
+            "unread": false,
+            "needs": "input",
+            "source": "manual",
+            "since": 1787227200,
+            "until": 1787227200,
+            "after": 1787230800,
+            "before": 1787230800,
+            "min": 3600,
+            "max": 3600,
+            "cl": "sase-zf",
+            "text": "approved plan handoff"
+          }
+        }
+      ],
+      "queries": {
+        "machine:here AND pinned:true AND unread:true AND needs:input": {
+          "canonical": "machine:here AND pinned:true AND unread:true AND needs:input",
+          "matches": ["live-input-code"]
+        },
+        "source:axe AND (attention:true OR status:\"PLAN APPROVED\")": {
+          "canonical": "source:axe AND (attention:true OR status:\"PLAN APPROVED\")",
+          "matches": ["live-input-code"]
+        },
+        "project:sase AND cl:sase-zf AND role:code": {
+          "canonical": "project:sase AND cl:sase-zf AND role:code",
+          "matches": ["live-input-code"]
+        },
+        "provider:codex AND status:question": {
+          "canonical": "provider:codex AND status:QUESTION",
+          "matches": ["live-input-code"]
+        },
+        "family:\"research.12\" AND NOT kind:workflow-child": {
+          "canonical": "family:research.12 AND NOT kind:workflow-child",
+          "matches": ["live-remote-running"]
+        },
+        "machine:apollo.local AND source:manual": {
+          "canonical": "machine:apollo.local AND source:manual",
+          "matches": ["live-remote-running"]
+        },
+        "since:2026-08-01 AND until:2026-08-31": {
+          "canonical": "since:1785556800 AND until:1788235199",
+          "matches": [
+            "live-input-code",
+            "live-remote-running",
+            "live-plan-handoff"
+          ]
+        },
+        "after:2026-08-01 AND before:2026-08-31": {
+          "canonical": "after:1785556800 AND before:1788235199",
+          "matches": ["live-input-code", "live-plan-handoff"]
+        },
+        "min:5m AND max:2h": {
+          "canonical": "min:300 AND max:7200",
+          "matches": [
+            "live-input-code",
+            "live-remote-running",
+            "live-plan-handoff"
+          ]
+        },
+        "c\"CaseNeedle\"": {
+          "canonical": "c\"CaseNeedle\"",
+          "matches": ["live-input-code"]
+        },
+        "9lives": {
+          "canonical": "\"9lives\"",
+          "matches": ["live-workflow-child"]
+        },
+        "status:\"plan approved\" AND needs:input": {
+          "canonical": "status:\"PLAN APPROVED\" AND needs:input",
+          "matches": ["live-plan-handoff"]
+        }
+      },
+      "errors": {
+        "age:2h": {
+          "position": 0,
+          "message": "Unknown filter key 'age' (valid keys: after, attempt, attention, before, cl, clan, family, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, since, source, status, tribe, unread, until, workflow) (at position 0)"
+        },
+        "type:run": {
+          "position": 0,
+          "message": "Unknown filter key 'type' (valid keys: after, attempt, attention, before, cl, clan, family, hidden, kind, machine, max, min, model, name, needs, pinned, project, provider, retry, role, since, source, status, tribe, unread, until, workflow) (at position 0)"
+        },
+        "!!!": {
+          "position": 0,
+          "message": "Predicate 'error_suffix' is not enabled (at position 0)"
+        },
+        "tribe:": {
+          "position": 6,
+          "message": "Expected property value (at position 6)"
+        }
+      }
+    },
     "files": {
       "rows": [
         {

@@ -30,6 +30,7 @@ _GOLDEN = Path(__file__).resolve().parent / "goldens" / "query" / "profile_cases
 _FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0)
 _REQUIRED_PROFILE_PANES = {
     "agents",
+    "agents-live",
     "patches",
     "stitches",
     "beads",
@@ -96,7 +97,15 @@ def _profile_by_pane_id() -> dict[str, CompiledQueryProfile]:
 
 
 def _profiles() -> Iterator[tuple[str, CompiledQueryProfile]]:
-    builtin_ids = {"patches", "stitches", "beads", "ref:plan", "agents", "files"}
+    builtin_ids = {
+        "patches",
+        "stitches",
+        "beads",
+        "ref:plan",
+        "agents",
+        "agents-live",
+        "files",
+    }
     builtins = [
         descriptor
         for descriptor in resolve_artifacts_subtabs()
@@ -188,24 +197,30 @@ def test_profile_python_rust_canonical_match_predicate_and_cache_parity(
     )
     assert value in index.facets[key]
 
-    for predicate_query, expected in (
-        ("@@@", ("matching",)),
-        ("!@", ("ordinary",)),
-        ("*", ("matching",)),
-    ):
-        assert _canonicalize_artifact_query(
-            predicate_query, profile
-        ) == canonical_query_for_profile(predicate_query, profile)
-        python_predicates = evaluate_query_many_for_profile(
-            predicate_query, rows, profile
-        )
-        rust_predicates = evaluate_artifact_query_many(predicate_query, index)
-        assert rust_predicates.matched_row_ids == expected
-        assert rust_predicates.matched_row_ids == tuple(
-            row["stable_id"]
-            for row, matches in zip(rows, python_predicates, strict=True)
-            if matches
-        )
+    if profile.predicates or profile.any_special:
+        for predicate_query, expected in (
+            ("@@@", ("matching",)),
+            ("!@", ("ordinary",)),
+            ("*", ("matching",)),
+        ):
+            assert _canonicalize_artifact_query(
+                predicate_query, profile
+            ) == canonical_query_for_profile(predicate_query, profile)
+            python_predicates = evaluate_query_many_for_profile(
+                predicate_query, rows, profile
+            )
+            rust_predicates = evaluate_artifact_query_many(predicate_query, index)
+            assert rust_predicates.matched_row_ids == expected
+            assert rust_predicates.matched_row_ids == tuple(
+                row["stable_id"]
+                for row, matches in zip(rows, python_predicates, strict=True)
+                if matches
+            )
+    else:
+        with pytest.raises(ProfileQueryError):
+            parse_query_for_profile("@@@", profile)
+        with pytest.raises(ValueError):
+            _canonicalize_artifact_query("@@@", profile)
 
     next_generation = compile_artifact_query_index(
         pane_id=pane_id,
