@@ -84,6 +84,7 @@ definitions live in three sibling modules to keep each file under the
 from __future__ import annotations
 
 from sase.core.agent_scan_wire_conversion import (
+    agent_artifact_index_dismissal_reconcile_from_dict,
     agent_artifact_index_query_to_dict,
     agent_artifact_index_status_from_dict,
     agent_artifact_index_update_from_dict,
@@ -118,6 +119,7 @@ from sase.core.agent_scan_wire_records import (
     WORKFLOW_STATE_DIR_NAMES,
     WORKFLOW_STATE_DIR_PREFIXES,
     AgentArtifactCandidateField,
+    AgentArtifactIndexDismissalReconcileWire,
     AgentArtifactIndexQueryWire,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
@@ -140,6 +142,7 @@ __all__ = [
     "WORKFLOW_STATE_DIR_NAMES",
     "WORKFLOW_STATE_DIR_PREFIXES",
     "AgentArtifactCandidateField",
+    "AgentArtifactIndexDismissalReconcileWire",
     "AgentArtifactIndexQueryWire",
     "AgentArtifactIndexStatusWire",
     "AgentArtifactIndexUpdateWire",
@@ -166,6 +169,7 @@ __all__ = [
     "WorkflowStateWire",
     "WorkflowStepStateWire",
     "agent_artifact_records_from_dicts",
+    "agent_artifact_index_dismissal_reconcile_from_dict",
     "agent_artifact_index_query_to_dict",
     "agent_artifact_index_status_from_dict",
     "agent_artifact_index_update_from_dict",

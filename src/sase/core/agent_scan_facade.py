@@ -52,6 +52,7 @@ from sase.core.agent_output_variable_selector_wire import (
 from sase.core.agent_scan_wire import (
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AgentArtifactIndexQueryWire,
+    AgentArtifactIndexDismissalReconcileWire,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
     AgentArtifactIndexVacuumWire,
@@ -71,6 +72,7 @@ from sase.core.agent_scan_wire import (
     WorkflowStateWire,
     WorkflowStepStateWire,
     agent_artifact_records_from_dicts,
+    agent_artifact_index_dismissal_reconcile_from_dict,
     agent_artifact_index_query_to_dict,
     agent_artifact_index_status_from_dict,
     agent_artifact_index_update_from_dict,
@@ -262,6 +264,20 @@ def replace_agent_artifact_index_dismissed_agents(
             agent_cleanup_wire_to_json_dict(list(dismissed)),
         )
     return agent_artifact_index_update_from_dict(payload)
+
+
+def reconcile_agent_artifact_index_dismissed_family_members(
+    index_path: Path | str,
+    *,
+    dry_run: bool = False,
+) -> AgentArtifactIndexDismissalReconcileWire:
+    """Back-fill dismissed identities for dead members of dismissed families."""
+    with agent_artifact_index_operation_lock():
+        rust_reconcile = require_rust_binding(
+            "reconcile_agent_artifact_index_dismissed_family_members"
+        )
+        payload: dict[str, Any] = rust_reconcile(str(index_path), bool(dry_run))
+    return agent_artifact_index_dismissal_reconcile_from_dict(payload)
 
 
 def read_agent_artifact_index_meta(
@@ -532,6 +548,7 @@ __all__ = [
     "query_related_agent_artifact_dirs",
     "read_agent_artifact_index_meta",
     "rebuild_agent_artifact_index",
+    "reconcile_agent_artifact_index_dismissed_family_members",
     "replace_agent_artifact_index_dismissed_agents",
     "scan_agent_artifact_dirs",
     "scan_agent_artifacts",

@@ -125,6 +125,11 @@ def register_agent_index_parser(agents_sub: argparse._SubParsersAction) -> None:
         help="Emit a machine-readable JSON object",
     )
     gc_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report index-gc reconciliation counts without mutating the index",
+    )
+    gc_parser.add_argument(
         "-p",
         "--projects-root",
         default=None,

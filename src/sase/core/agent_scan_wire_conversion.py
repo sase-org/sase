@@ -27,6 +27,7 @@ from sase.core.agent_scan_wire_markers import (
 )
 from sase.core.agent_scan_wire_records import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    AgentArtifactIndexDismissalReconcileWire,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
     AgentArtifactIndexVacuumWire,
@@ -121,6 +122,24 @@ def agent_artifact_index_update_from_dict(
         rows_skipped=int(data.get("rows_skipped", 0)),
         hidden_terminal_rows_retained=int(data.get("hidden_terminal_rows_retained", 0)),
         hidden_terminal_rows_pruned=int(data.get("hidden_terminal_rows_pruned", 0)),
+    )
+
+
+def agent_artifact_index_dismissal_reconcile_from_dict(
+    data: dict[str, Any],
+) -> AgentArtifactIndexDismissalReconcileWire:
+    return AgentArtifactIndexDismissalReconcileWire(
+        schema_version=int(data["schema_version"]),
+        index_path=str(data["index_path"]),
+        dry_run=bool(data.get("dry_run", False)),
+        candidate_rows=int(data.get("candidate_rows", 0)),
+        rows_backfilled=int(data.get("rows_backfilled", 0)),
+        rows_already_dismissed=int(data.get("rows_already_dismissed", 0)),
+        rows_skipped_live_or_unknown=int(data.get("rows_skipped_live_or_unknown", 0)),
+        rows_skipped_no_dismissed_root=int(
+            data.get("rows_skipped_no_dismissed_root", 0)
+        ),
+        rows_skipped_decode_errors=int(data.get("rows_skipped_decode_errors", 0)),
     )
 
 
@@ -341,6 +360,7 @@ def agent_artifact_records_from_dicts(
 
 __all__ = [
     "agent_artifact_records_from_dicts",
+    "agent_artifact_index_dismissal_reconcile_from_dict",
     "agent_artifact_index_query_to_dict",
     "agent_artifact_index_status_from_dict",
     "agent_artifact_index_update_from_dict",

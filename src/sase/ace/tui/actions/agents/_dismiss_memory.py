@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from typing import TYPE_CHECKING, Any
 
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
 # state; this cap keeps the in-memory revive/refresh hot-path bounded so
 # `O(N)` scans don't blow up over long sessions.
 DISMISSED_AGENT_OBJECTS_MAX = 500
+log = logging.getLogger(__name__)
 
 
 def trim_dismissed_agent_objects(agents: list[Agent]) -> list[Agent]:
@@ -205,7 +207,7 @@ class AgentDismissMemoryMixin:
                     self._dismissed_agents, added={identity}
                 )
             except Exception:
-                pass
+                log.exception("Failed to sync dismissed-agent artifact index")
 
     def _collect_dismissal_identities(self, agents: list[Agent]) -> set[AgentIdentity]:
         """Return identities hidden immediately after dismissing agents."""

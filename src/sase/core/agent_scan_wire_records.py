@@ -172,6 +172,21 @@ class AgentArtifactIndexUpdateWire:
 
 
 @dataclass(frozen=True)
+class AgentArtifactIndexDismissalReconcileWire:
+    """Summary returned by dismissed-family index reconciliation."""
+
+    schema_version: int
+    index_path: str
+    dry_run: bool = False
+    candidate_rows: int = 0
+    rows_backfilled: int = 0
+    rows_already_dismissed: int = 0
+    rows_skipped_live_or_unknown: int = 0
+    rows_skipped_no_dismissed_root: int = 0
+    rows_skipped_decode_errors: int = 0
+
+
+@dataclass(frozen=True)
 class AgentArtifactIndexStatusWire:
     """Lightweight row-count status for the persistent artifact index."""
 
@@ -359,6 +374,7 @@ __all__ = [
     "AGENT_ARTIFACT_INDEX_SCHEMA_VERSION",
     "AGENT_SCAN_WIRE_SCHEMA_VERSION",
     "AgentArtifactCandidateField",
+    "AgentArtifactIndexDismissalReconcileWire",
     "AgentArtifactIndexQueryWire",
     "AgentArtifactIndexWindowWire",
     "AgentArtifactRecordShape",

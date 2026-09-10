@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -50,6 +51,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 _agent_identity_from_wire = agent_identity_from_wire
 _plan_dismissal_side_effects = plan_dismissal_side_effects
 _agents_related_to_dismissal = agents_related_to_dismissal
+log = logging.getLogger(__name__)
 
 
 class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
@@ -459,7 +461,7 @@ def _persist_single_dismiss_transaction(
         try:
             sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
         except Exception:
-            pass
+            log.exception("Failed to sync dismissed-agent artifact index")
 
 
 def _unique_related_agents_for_dismissal(
@@ -525,7 +527,7 @@ def _persist_bulk_dismiss_transaction(
         try:
             sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
         except Exception:
-            pass
+            log.exception("Failed to sync dismissed-agent artifact index")
 
 
 persist_bulk_dismiss_transaction = _persist_bulk_dismiss_transaction

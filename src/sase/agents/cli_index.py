@@ -19,6 +19,7 @@ from sase.core.agent_scan_facade import (
     query_agent_artifact_index,
     prune_hidden_terminal_agent_artifact_index_rows,
     rebuild_agent_artifact_index,
+    reconcile_agent_artifact_index_dismissed_family_members,
     replace_agent_artifact_index_dismissed_agents,
     vacuum_agent_artifact_index,
     verify_agent_artifact_index,
@@ -286,18 +287,62 @@ def _agent_index_status_payload(
 def _handle_agents_index_gc(args: argparse.Namespace) -> None:
     """Repair stale artifact-index rows and dismissed identity visibility."""
     projects_root, index_path = _agent_index_paths(args)
+    dry_run = bool(getattr(args, "dry_run", False))
 
     # Plain gc rebuilds the dismissed projection *from* the bundle summaries, so
     # it re-hides agents whose bundles lingered after a revive. Purging those
     # orphaned bundles first turns gc into a true repair for that case.
     revived_bundles_purged = 0
-    if getattr(args, "purge_revived_bundles", False):
+    if not dry_run and getattr(args, "purge_revived_bundles", False):
         revived_bundles_purged = _purge_revived_dismissed_bundles_for_gc()
 
     preflight = verify_agent_artifact_index(index_path, projects_root)
+    if dry_run:
+        dismissed, dismissed_bundle_skipped = _load_dismissed_identities_for_gc()
+        family_reconcile = _family_dismissal_reconcile_payload(index_path, dry_run=True)
+        payload = {
+            "corrupt_rows": preflight.corrupt_rows,
+            "dismissed_family_candidate_rows": family_reconcile["candidate_rows"],
+            "dismissed_family_rows_backfilled": family_reconcile["rows_backfilled"],
+            "dismissed_family_rows_skipped_decode_errors": family_reconcile[
+                "rows_skipped_decode_errors"
+            ],
+            "dismissed_family_rows_skipped_live_or_unknown": family_reconcile[
+                "rows_skipped_live_or_unknown"
+            ],
+            "dismissed_family_rows_skipped_no_dismissed_root": family_reconcile[
+                "rows_skipped_no_dismissed_root"
+            ],
+            "dismissed_rows_replaced": 0,
+            "dry_run": True,
+            "hidden_terminal_rows_pruned": 0,
+            "hidden_terminal_rows_retained": 0,
+            "index_path": str(index_path),
+            "missing_rows_indexed": preflight.missing_rows,
+            "revived_bundles_purged": 0,
+            "rows_deleted": preflight.extra_rows,
+            "rows_hidden": len(dismissed),
+            "rows_indexed": 0,
+            "rows_skipped": dismissed_bundle_skipped,
+            "stale_rows_rewritten": preflight.stale_rows,
+        }
+        if getattr(args, "json", False):
+            print(json.dumps(payload, sort_keys=True))
+            return
+        Console().print(
+            "Dry-run agent artifact index reconciliation: "
+            f"{payload['missing_rows_indexed']} rows would be indexed, "
+            f"{payload['rows_deleted']} stale rows would be deleted, "
+            f"{payload['rows_hidden']} dismissed identities would be hidden, "
+            f"{payload['dismissed_family_rows_backfilled']} family member "
+            f"identities would be back-filled ({index_path})"
+        )
+        return
+
     update = rebuild_agent_artifact_index(index_path, projects_root)
     dismissed, dismissed_bundle_skipped = _load_dismissed_identities_for_gc()
     hidden_update = replace_agent_artifact_index_dismissed_agents(index_path, dismissed)
+    family_reconcile = _family_dismissal_reconcile_payload(index_path, dry_run=False)
     prune_update = prune_hidden_terminal_agent_artifact_index_rows(index_path)
 
     payload = agent_scan_wire_to_json_dict(update)
@@ -309,7 +354,19 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
     payload.update(
         {
             "corrupt_rows": preflight.corrupt_rows,
+            "dismissed_family_candidate_rows": family_reconcile["candidate_rows"],
+            "dismissed_family_rows_backfilled": family_reconcile["rows_backfilled"],
+            "dismissed_family_rows_skipped_decode_errors": family_reconcile[
+                "rows_skipped_decode_errors"
+            ],
+            "dismissed_family_rows_skipped_live_or_unknown": family_reconcile[
+                "rows_skipped_live_or_unknown"
+            ],
+            "dismissed_family_rows_skipped_no_dismissed_root": family_reconcile[
+                "rows_skipped_no_dismissed_root"
+            ],
             "dismissed_rows_replaced": hidden_update.rows_deleted,
+            "dry_run": False,
             "missing_rows_indexed": preflight.missing_rows,
             "revived_bundles_purged": revived_bundles_purged,
             "rows_deleted": preflight.extra_rows,
@@ -327,10 +384,40 @@ def _handle_agents_index_gc(args: argparse.Namespace) -> None:
         f"{payload['rows_indexed']} rows indexed, "
         f"{payload['rows_deleted']} stale rows deleted, "
         f"{payload['rows_hidden']} dismissed identities hidden, "
+        f"{payload['dismissed_family_rows_backfilled']} family member "
+        "identities back-filled, "
         f"{payload['hidden_terminal_rows_pruned']} hidden terminal rows pruned, "
         f"{payload['revived_bundles_purged']} revived bundles purged, "
         f"{payload['rows_skipped']} skipped ({index_path})"
     )
+
+
+def _family_dismissal_reconcile_payload(
+    index_path: Path,
+    *,
+    dry_run: bool,
+) -> dict[str, int]:
+    """Return family-dismissal reconciliation counts, treating old cores as zero."""
+    keys = {
+        "candidate_rows": 0,
+        "rows_backfilled": 0,
+        "rows_skipped_decode_errors": 0,
+        "rows_skipped_live_or_unknown": 0,
+        "rows_skipped_no_dismissed_root": 0,
+    }
+    try:
+        report = reconcile_agent_artifact_index_dismissed_family_members(
+            index_path, dry_run=dry_run
+        )
+    except (ImportError, AttributeError, OSError, RuntimeError, ValueError):
+        return keys
+    return {
+        "candidate_rows": report.candidate_rows,
+        "rows_backfilled": report.rows_backfilled,
+        "rows_skipped_decode_errors": report.rows_skipped_decode_errors,
+        "rows_skipped_live_or_unknown": report.rows_skipped_live_or_unknown,
+        "rows_skipped_no_dismissed_root": report.rows_skipped_no_dismissed_root,
+    }
 
 
 def _purge_revived_dismissed_bundles_for_gc() -> int:

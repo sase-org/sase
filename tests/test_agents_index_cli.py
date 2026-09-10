@@ -12,6 +12,7 @@ import pytest
 from sase.agents.cli_index import handle_agents_index
 from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.core.agent_scan_wire import (
+    AgentArtifactIndexDismissalReconcileWire,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
     AgentArtifactIndexVacuumWire,
@@ -158,10 +159,77 @@ def test_index_gc_rebuilds_after_corrupt_preflight_report(
     assert payload["rows_indexed"] == 2
 
 
-def test_index_status_missing_index_recommends_repair(
+def test_index_gc_dry_run_reports_without_mutating(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    handle_agents_index(_index_args("status"))
+    args = _index_args("gc")
+    args.dry_run = True
+    dismissed = [
+        AgentCleanupIdentityWire(
+            agent_type="run",
+            cl_name="unknown",
+            raw_suffix="20260520101010",
+        )
+    ]
+
+    with (
+        patch(
+            "sase.agents.cli_index.verify_agent_artifact_index",
+            return_value=AgentArtifactIndexVerifyWire(
+                ok=False,
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                projects_root="/tmp/projects",
+                indexed_rows=2,
+                source_rows=3,
+                missing_rows=1,
+                extra_rows=1,
+                stale_rows=2,
+            ),
+        ),
+        patch(
+            "sase.agents.cli_index._load_dismissed_identities_for_gc",
+            return_value=(dismissed, 0),
+        ),
+        patch(
+            "sase.agents.cli_index.reconcile_agent_artifact_index_dismissed_family_members",
+            return_value=AgentArtifactIndexDismissalReconcileWire(
+                schema_version=1,
+                index_path="/tmp/index.sqlite",
+                dry_run=True,
+                candidate_rows=3,
+                rows_backfilled=2,
+                rows_skipped_live_or_unknown=1,
+            ),
+        ),
+        patch("sase.agents.cli_index.rebuild_agent_artifact_index") as mock_rebuild,
+        patch(
+            "sase.agents.cli_index.replace_agent_artifact_index_dismissed_agents"
+        ) as mock_hide,
+        patch(
+            "sase.agents.cli_index.prune_hidden_terminal_agent_artifact_index_rows"
+        ) as mock_prune,
+    ):
+        handle_agents_index(args)
+
+    mock_rebuild.assert_not_called()
+    mock_hide.assert_not_called()
+    mock_prune.assert_not_called()
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["dry_run"] is True
+    assert payload["rows_hidden"] == 1
+    assert payload["dismissed_family_candidate_rows"] == 3
+    assert payload["dismissed_family_rows_backfilled"] == 2
+    assert payload["dismissed_family_rows_skipped_live_or_unknown"] == 1
+
+
+def test_index_status_missing_index_recommends_repair(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = _index_args("status")
+    args.index_path = str(tmp_path / "missing.sqlite")
+    handle_agents_index(args)
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["complete_visible_inbox"] is False
