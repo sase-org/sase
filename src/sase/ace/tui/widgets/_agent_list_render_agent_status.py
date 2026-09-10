@@ -45,6 +45,7 @@ from ._agent_list_styling import (
     gate_status_presentation,
     monitor_status_presentation,
 )
+from ._queue_weight_badge import append_agent_queue_weight_badge
 
 
 def append_agent_row_status(
@@ -58,6 +59,7 @@ def append_agent_row_status(
 ) -> None:
     """Append the status parenthetical and adjacent outcome badges."""
     # Status (wrapped in parentheses, parens are dim)
+    append_agent_queue_weight_badge(text, agent)
     display_status = agent.display_status
     row_prefix = text.plain
     status_opener = "(" if not row_prefix or row_prefix[-1].isspace() else " ("

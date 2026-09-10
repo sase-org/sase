@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from importlib import import_module
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -365,9 +365,27 @@ def runner_capacity_snapshot(
         capacity_records.append(capacity_record)
     if candidate is not None and not candidate_seen:
         capacity_records.append(candidate)
+    return runner_capacity_snapshot_from_capacity_records(
+        capacity_records,
+        effective_limit=effective_limit,
+        now=now,
+        deference_seconds_per_step=deference_seconds_per_step,
+        deference_max_seconds=deference_max_seconds,
+    )
+
+
+def runner_capacity_snapshot_from_capacity_records(
+    records: Iterable[Mapping[str, Any]],
+    *,
+    effective_limit: float,
+    now: str | None = None,
+    deference_seconds_per_step: int = 0,
+    deference_max_seconds: int = 0,
+) -> dict[str, Any]:
+    """Return the Rust capacity snapshot for already-projected record dicts."""
     request = {
         "effective_limit": float(effective_limit),
-        "records": capacity_records,
+        "records": [dict(record) for record in records],
         "now": now,
         "deference_seconds_per_step": int(deference_seconds_per_step),
         "deference_max_seconds": int(deference_max_seconds),

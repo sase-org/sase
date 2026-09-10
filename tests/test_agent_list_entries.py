@@ -45,7 +45,36 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
             ),
         ),
     )
-    (entry,) = _attach_runner_slot_context([entry], 0, runner_slot_holders=("phase",))
+    blockers = [
+        {
+            "code": "insufficient-capacity",
+            "needed_capacity": 0.25,
+            "free_capacity": 0.0,
+        }
+    ]
+    (entry,) = _attach_runner_slot_context(
+        [entry],
+        0,
+        runner_capacity={
+            "effective_limit": 1.0,
+            "occupied_lanes": 0,
+            "occupied_capacity": 0.75,
+            "waiters": [
+                {
+                    "artifact_dir": entry.artifacts_dir,
+                    "queue_position": 1,
+                    "priority": 3,
+                    "slot_requested_at": "2026-07-12T12:00:00Z",
+                    "timestamp": entry.timestamp,
+                    "requested_weight": 0.25,
+                    "wait_runners": 0,
+                    "eligible": False,
+                    "blockers": blockers,
+                }
+            ],
+        },
+        runner_slot_holders=("phase",),
+    )
 
     payload = _agent_to_json(entry)
 
@@ -60,8 +89,11 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
     assert payload["queue_weight_error"] is None
     assert payload["slot_requested_at"] == "2026-07-12T12:00:00Z"
     assert payload["runner_slots_in_use"] == 0
+    assert payload["runner_occupied_capacity"] == 0.75
+    assert payload["runner_effective_limit"] == 1.0
     assert payload["runner_slot_queue_position"] == 1
     assert payload["runner_slot_queue_size"] == 1
+    assert payload["runner_capacity_blockers"] == blockers
     assert payload["parent_agent_name"] is None
     assert payload["agent_family"] is None
     assert payload["tribe"] is None

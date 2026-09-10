@@ -233,7 +233,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
-        effective_runner_limit: int | None = None,
+        effective_runner_limit: float | None = None,
     ) -> None:
         """UI-thread step that folds prepared filter output into ``self``.
 
@@ -280,7 +280,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         incomplete_merge_already_applied: bool = False,
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
-        effective_runner_limit: int | None = None,
+        effective_runner_limit: float | None = None,
     ) -> None:
         """Implementation for the traced prepared-apply UI continuation."""
         first_agents_load = not self._agents_first_load_done
@@ -344,7 +344,11 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 boundary = precomputed_boundary
 
         if boundary is None:
-            boundary_limit = effective_runner_limit
+            boundary_limit: float | None = (
+                float(effective_runner_limit)
+                if effective_runner_limit is not None
+                else None
+            )
             if boundary_limit is None and precomputed_boundary is not None:
                 precomputed_limit = precomputed_boundary.runner_capacity.effective_limit
                 if precomputed_limit > 0:

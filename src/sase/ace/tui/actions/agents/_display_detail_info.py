@@ -183,6 +183,7 @@ class AgentInfoDisplayMixin:
                 grouping_mode=grouping_mode,
                 view_mode=view_mode,
                 runner_limit=runner_capacity.effective_limit,
+                runner_occupied_capacity=runner_capacity.occupied_capacity,
                 runner_queue_count=runner_capacity.queued_count,
             )
             return
@@ -195,6 +196,7 @@ class AgentInfoDisplayMixin:
             update_runner_capacity(
                 runner_capacity.effective_limit,
                 runner_capacity.queued_count,
+                runner_capacity.occupied_capacity,
             )
         update_count_kwargs: dict[str, int] = {"starting": starting_count}
         if "proc_shells" in signature(agent_info_panel.update_agent_counts).parameters:

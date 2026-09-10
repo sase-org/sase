@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ._admission import (
+    DEFAULT_QUEUE_WEIGHT,
     DEFAULT_WAIT_PRIORITY,
     RunnerSlotWaiter,
     better_priority_agent_pending,
@@ -17,6 +18,7 @@ from ._admission import (
     may_start,
     normalize_wait_priority,
     runner_capacity_snapshot,
+    runner_capacity_snapshot_from_capacity_records,
     runner_slot_candidate_record,
     runner_slot_family_key,
     runner_slot_queue_display_key,
@@ -25,6 +27,7 @@ from ._admission import (
 )
 
 __all__ = [
+    "DEFAULT_QUEUE_WEIGHT",
     "DEFAULT_WAIT_PRIORITY",
     "RunnerSlotWaiter",
     "better_priority_agent_pending",
@@ -39,6 +42,7 @@ __all__ = [
     "may_start",
     "normalize_wait_priority",
     "runner_capacity_snapshot",
+    "runner_capacity_snapshot_from_capacity_records",
     "runner_slot_candidate_record",
     "runner_slot_family_key",
     "runner_slot_queue_display_key",

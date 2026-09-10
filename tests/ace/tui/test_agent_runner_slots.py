@@ -356,7 +356,7 @@ def test_question_paused_root_is_excluded_from_displayed_occupancy() -> None:
 
 def test_runner_capacity_empty_pool_and_neutral_fallback() -> None:
     assert refresh_runner_slot_context([], effective_limit=7) == (
-        RunnerCapacitySnapshot(7, 0, 0)
+        RunnerCapacitySnapshot(7, 0, 0, occupied_capacity=0.0)
     )
     assert refresh_runner_slot_context([]) == RunnerCapacitySnapshot()
 
@@ -503,7 +503,7 @@ def test_stale_queued_status_demotes_without_a_live_slot_request() -> None:
 
     capacity = refresh_runner_slot_context([agent], effective_limit=10)
 
-    assert capacity == RunnerCapacitySnapshot(10, 0, 0)
+    assert capacity == RunnerCapacitySnapshot(10, 0, 0, occupied_capacity=0.0)
     assert agent.status == "WAITING"
 
 
@@ -613,7 +613,7 @@ def test_runner_capacity_counts_only_live_rows_and_excludes_yielded_question() -
         effective_limit=10,
     )
 
-    assert capacity == RunnerCapacitySnapshot(10, 1, 0)
+    assert capacity == RunnerCapacitySnapshot(10, 1, 0, occupied_capacity=1.0)
 
 
 def test_runner_capacity_reports_over_limit_without_clamping() -> None:
@@ -628,4 +628,61 @@ def test_runner_capacity_reports_over_limit_without_clamping() -> None:
 
     capacity = refresh_runner_slot_context(holders, effective_limit=1)
 
-    assert capacity == RunnerCapacitySnapshot(1, 2, 0)
+    assert capacity == RunnerCapacitySnapshot(1, 2, 0, occupied_capacity=2.0)
+
+
+def test_weighted_capacity_reports_fractional_usage_and_blockers() -> None:
+    running = _agent(
+        "running",
+        status="RUNNING",
+        run_start_time=datetime(2026, 7, 12, 11, 59),
+        queue_weight=0.75,
+        queue_weight_explicit=True,
+    )
+    heavy = _agent(
+        "heavy",
+        queue_weight=0.5,
+        queue_weight_explicit=True,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+    light = _agent(
+        "light",
+        queue_weight=0.25,
+        queue_weight_explicit=True,
+        slot_requested_at="2026-07-12T12:00:02Z",
+    )
+
+    capacity = refresh_runner_slot_context(
+        [running, heavy, light],
+        effective_limit=1,
+    )
+
+    _assert_capacity_metrics(capacity, (1, 1, 2))
+    assert capacity.occupied_capacity == 0.75
+    assert [
+        (entry.presented_name, entry.requested_weight) for entry in capacity.queue
+    ] == [
+        ("light", 0.25),
+        ("heavy", 0.5),
+    ]
+    assert [entry.parked for entry in capacity.queue] == [False, True]
+    assert light.runner_slot_queue_position == 1
+    assert heavy.runner_slot_queue_position == 2
+    assert heavy.runner_capacity_blockers
+    assert heavy.runner_capacity_blockers[0]["code"] == "insufficient-capacity"
+
+
+def test_weight_exceeding_limit_is_parked_with_blocker() -> None:
+    heavy = _agent(
+        "heavy",
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+
+    capacity = refresh_runner_slot_context([heavy], effective_limit=1)
+
+    assert capacity.queue[0].requested_weight == 2.0
+    assert capacity.queue[0].parked is True
+    assert capacity.queue[0].blockers[0]["code"] == "weight-exceeds-limit"
+    assert heavy.runner_capacity_blockers[0]["code"] == "weight-exceeds-limit"

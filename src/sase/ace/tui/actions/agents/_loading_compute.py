@@ -168,7 +168,7 @@ def prepare_loaded_agents_apply_boundary(
     snapshot: PreparedApplySnapshot,
     *,
     merge_incomplete: bool = True,
-    effective_runner_limit: int | None = None,
+    effective_runner_limit: float | None = None,
 ) -> PreparedApplyBoundary:
     """Prepare pure post-load apply data from an explicit app-state snapshot."""
     from ...util.trace import tui_trace

@@ -62,7 +62,7 @@ def test_agent_info_panel_renders_proc_count_after_status_strip() -> None:
 
     plain = _collect_text(panel)
 
-    assert plain.startswith("3 agents  [0/0 running] ⚙2")
+    assert plain.startswith("3 agents  —/— [0 running] ⚙2")
 
 
 def test_axe_info_panel_loading_renders_ellipsis() -> None:

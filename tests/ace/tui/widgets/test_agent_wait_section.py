@@ -102,6 +102,7 @@ def test_lane_order_is_agents_tribes_beads_time_runners() -> None:
             waiting_for_beads=["bead-one"],
             wait_duration=300,
             wait_runners=2,
+            wait_runners_explicit=True,
             slot_requested_at="2026-07-28T12:00:00Z",
         )
     )

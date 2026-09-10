@@ -420,8 +420,8 @@ def test_worker_boundary_observes_changed_effective_runner_limit(
     first = prepare_loaded_agents_worker_boundary([], [], set(), False, snapshot)
     second = prepare_loaded_agents_worker_boundary([], [], set(), False, snapshot)
 
-    assert first.runner_capacity == RunnerCapacitySnapshot(10, 0, 0)
-    assert second.runner_capacity == RunnerCapacitySnapshot(4, 0, 0)
+    assert first.runner_capacity == RunnerCapacitySnapshot(10, 0, 0, (), 0.0)
+    assert second.runner_capacity == RunnerCapacitySnapshot(4, 0, 0, (), 0.0)
 
 
 @pytest.mark.parametrize("merge_incomplete", [True, False])

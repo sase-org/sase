@@ -30,6 +30,10 @@ def _agent(
     threshold: int | None = 9,
     explicit: bool = False,
     priority: int | None = None,
+    queue_weight: float | None = None,
+    occupied_capacity: float | None = None,
+    effective_limit: float | None = None,
+    blockers: tuple[dict[str, object], ...] = (),
 ) -> Agent:
     return Agent(
         agent_type=AgentType.RUNNING,
@@ -44,10 +48,14 @@ def _agent(
         wait_runners=threshold,
         wait_runners_explicit=explicit,
         wait_priority=priority,
+        queue_weight=queue_weight,
         slot_requested_at="2026-07-25T12:00:00Z",
         runner_slots_in_use=10,
+        runner_occupied_capacity=occupied_capacity,
+        runner_effective_limit=effective_limit,
         runner_slot_queue_position=position,
         runner_slot_queue_size=size,
+        runner_capacity_blockers=blockers,
     )
 
 
@@ -58,6 +66,8 @@ def _entry(
     explicit: bool = False,
     priority: int = 10,
     requested_at: str = "2026-07-25T12:00:00Z",
+    requested_weight: float = 1.0,
+    blockers: tuple[dict[str, object], ...] = (),
     parked: bool = False,
 ) -> RunnerQueueEntry:
     return RunnerQueueEntry(
@@ -68,6 +78,8 @@ def _entry(
         priority=priority,
         slot_requested_at=requested_at,
         status="QUEUED",
+        requested_weight=requested_weight,
+        blockers=blockers,
         parked=parked,
     )
 
@@ -75,15 +87,19 @@ def _entry(
 def _header(
     agent: Agent,
     queue: tuple[RunnerQueueEntry, ...],
+    *,
+    occupied_capacity: float | None = 10.0,
+    effective_limit: float = 10.0,
 ) -> AgentHeader:
     header, _ = build_header_text(
         agent,
         cheap=True,
         runner_capacity=RunnerCapacitySnapshot(
-            effective_limit=10,
+            effective_limit=effective_limit,
             slots_in_use=10,
             queued_count=len(queue),
             queue=queue,
+            occupied_capacity=occupied_capacity,
         ),
     )
     return header
@@ -139,7 +155,7 @@ def test_queue_field_renders_front_label_and_section_requires_real_position(
     selected.slot_requested_at = "2026-07-25T12:02:30Z"
     header = _header(selected, (_entry("selected"),))
     assert "Queue: #1 of 1 · at the front · 2m30s in queue" in header.plain
-    assert "❖ QUEUE · 1 waiting · 10/10 runners" in header.plain
+    assert "❖ QUEUE · 1 waiting · 10.0/10.0 capacity" in header.plain
 
     without_position = _agent("selected", position=None, size=None)
     no_queue = _header(without_position, (_entry("selected"),))
@@ -185,8 +201,10 @@ def test_explicit_threshold_waiter_gets_the_same_queue_ladder() -> None:
         (_entry("barrier", threshold=0, explicit=True, parked=True),),
     )
 
-    assert "Wait: [runners] ≤ 0 (drain barrier)" in header.plain
-    assert "❖ QUEUE · 1 waiting · 1 parked · 10/1 runners" in header.plain
+    assert "Wait: [runners] waiting for ≤0 other agents (drain barrier)" in (
+        header.plain
+    )
+    assert "❖ QUEUE · 1 waiting · 1 parked · 10.0/10.0 capacity" in header.plain
     assert "≤0" in header.plain
 
 
@@ -218,7 +236,7 @@ def test_queue_heading_reports_parked_count_when_present() -> None:
         ),
     )
 
-    assert "❖ QUEUE · 3 waiting · 2 parked · 10/10 runners" in header.plain
+    assert "❖ QUEUE · 3 waiting · 2 parked · 10.0/10.0 capacity" in header.plain
     position = header.plain.index("2 parked")
     assert any(
         span.start <= position < span.end and str(span.style) == "#AF87FF"
@@ -250,6 +268,49 @@ def test_queue_qualifiers_render_only_where_they_explain_ordering() -> None:
     assert qualified_header.plain.count("≤0") == 1
     assert qualified_header.plain.count("p5") == 1
     assert "p10" not in qualified_header.plain
+
+
+def test_queue_ladder_renders_weight_badges_and_capacity_explanations() -> None:
+    blockers = (
+        {
+            "code": "insufficient-capacity",
+            "needed_capacity": 0.5,
+            "free_capacity": 0.25,
+        },
+    )
+    selected = _agent(
+        "selected",
+        position=2,
+        size=2,
+        queue_weight=0.5,
+        occupied_capacity=0.75,
+        effective_limit=1.0,
+        blockers=blockers,
+    )
+
+    header = _header(
+        selected,
+        (
+            _entry("light", requested_weight=0.25),
+            _entry(
+                "selected",
+                requested_weight=0.5,
+                blockers=blockers,
+                parked=True,
+            ),
+        ),
+        occupied_capacity=0.75,
+        effective_limit=1.0,
+    )
+
+    assert "Weight: 0.5 capacity units" in header.plain
+    assert "Wait: [runners] needs 0.5 · 0.25 free · queue #2 of 2" in header.plain
+    assert "❖ QUEUE · 2 waiting · 1 parked · 0.75/1.0 capacity" in header.plain
+    assert "light" in header.plain
+    assert "w0.25" in header.plain
+    assert "selected" in header.plain
+    assert "w0.5" in header.plain
+    assert "needs 0.5 · 0.25 free" in header.plain
 
 
 def test_snapshot_queue_order_is_the_same_order_assigned_to_row_ranks() -> None:

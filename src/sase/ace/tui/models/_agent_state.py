@@ -304,8 +304,8 @@ class AgentState:
     wait_until: str | None = None
 
     # Runner-slot wait metadata projected from waiting.json. ``wait_runners``
-    # is the existing-runner threshold; config-gated waits render the total
-    # cap as threshold + 1, while explicit %queue(runners=N) waits render N.
+    # is the optional existing-runner threshold; capacity units are projected
+    # separately from the global snapshot below.
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
     wait_priority: int | None = None
@@ -319,11 +319,14 @@ class AgentState:
     # Snapshot-derived display context. These values are recomputed from the
     # already-loaded Agents refresh payload after full and artifact-delta
     # merges; rendering them never triggers another filesystem scan. Queue
-    # position and size cover every live slot waiter in capacity-aware display
+    # position and size cover every live slot waiter in shared Rust display
     # order, even while the runner pool is full.
     runner_slots_in_use: int | None = None
+    runner_occupied_capacity: float | None = None
+    runner_effective_limit: float | None = None
     runner_slot_queue_position: int | None = None
     runner_slot_queue_size: int | None = None
+    runner_capacity_blockers: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
     # True while this row's own pending_question.json marker exists. Root rows
     # with this flag have yielded their runner slot; family status propagation

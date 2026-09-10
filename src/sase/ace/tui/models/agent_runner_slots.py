@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from sase.agent.status_buckets import (
     PRE_RUN_WAIT_STATUSES,
@@ -12,8 +14,11 @@ from sase.agent.status_buckets import (
     runner_slot_display_status,
 )
 from sase.core.runner_slots import (
+    DEFAULT_QUEUE_WEIGHT,
     normalize_wait_priority,
+    runner_capacity_snapshot_from_capacity_records,
     runner_slot_queue_display_key,
+    runner_slot_waiter_sort_key,
 )
 
 from .agent import Agent, AgentType
@@ -31,6 +36,9 @@ class RunnerQueueEntry:
     priority: int
     slot_requested_at: str | None
     status: str
+    requested_weight: float = DEFAULT_QUEUE_WEIGHT
+    eligible: bool = False
+    blockers: tuple[dict[str, Any], ...] = ()
     parked: bool = False
 
 
@@ -38,18 +46,49 @@ class RunnerQueueEntry:
 class RunnerCapacitySnapshot:
     """Immutable global user-agent runner capacity for one Agents load."""
 
-    effective_limit: int = 0
+    effective_limit: float = 0.0
     slots_in_use: int = 0
     queued_count: int = 0
     queue: tuple[RunnerQueueEntry, ...] = ()
+    occupied_capacity: float | None = None
+
+
+def format_capacity_value(value: object, *, minimum_decimal: bool = True) -> str:
+    """Format a capacity unit value without binary floating-point noise."""
+    number = _finite_float(value)
+    if number is None:
+        return "—"
+    absolute = abs(number)
+    if number != 0.0 and (absolute >= 1.0e9 or absolute < 1.0e-6):
+        text = f"{number:.6g}"
+    else:
+        text = f"{number:.12f}".rstrip("0").rstrip(".")
+    if text in {"", "-0"}:
+        text = "0"
+    if minimum_decimal and "e" not in text and "E" not in text and "." not in text:
+        text += ".0"
+    return text
+
+
+def format_queue_weight_badge_value(value: object) -> str | None:
+    """Return compact badge text for non-default valid queue weights."""
+    weight = _finite_float(value)
+    if weight is None or math.isclose(
+        weight,
+        DEFAULT_QUEUE_WEIGHT,
+        rel_tol=0.0,
+        abs_tol=1.0e-9,
+    ):
+        return None
+    return format_capacity_value(weight, minimum_decimal=False)
 
 
 def refresh_runner_slot_context(
     agents: list[Agent],
     *,
-    effective_limit: int | None = None,
+    effective_limit: float | None = None,
 ) -> RunnerCapacitySnapshot:
-    """Attach live count and admission-queue position from the loaded snapshot.
+    """Attach global runner-capacity context from the loaded snapshot.
 
     The loader has already PID-filtered active rows. Deriving this context
     after the Tier-1/artifact-delta merge keeps the operation O(rows), pure,
@@ -57,47 +96,34 @@ def refresh_runner_slot_context(
     not supply an effective limit, row context is still refreshed while the
     returned capacity snapshot remains the deterministic neutral fallback.
 
-    ``running_count`` reuses the same "one sase agent" lane projection the
-    Agents tab total already computes (:func:`sase_agent_status_counts`)
-    instead of a second occupancy predicate: a standalone agent or a
-    sequential family is one running lane regardless of which shell (root,
-    serial child, monitor, or post-handoff follow-up) is currently live, and
-    each live parallel family member still counts individually. This keeps
-    the capacity chip's ``R`` equal to what the admission gate would compute
-    for the same snapshot. A pre-filter still scopes candidate root rows to
-    ``_is_ace_run_root()``: the lane projection trusts whatever root-shaped
-    rows it is given, so a non-participating row (a workflow python/bash
-    step, an axe-spawned Patch runner) must not reach it just because it
-    happens to carry a "Running"-mapping status.
-
-    A narrow supplement covers the one gap the display status cannot: a
-    sequential family container's own status can be overwritten to mirror a
-    terminal newest child while the container's own shell is still alive (a
-    runner PID shared across phases settling on the older phase; see
-    ``test_agent_loader_dedup_pid_families.py``). For a container whose
-    bucket does not already read as running, raw liveness on its own row is
-    the fallback signal instead of losing the slot it still holds.
+    The weighted occupancy, queue order, eligibility, and blocker details come
+    from the Rust admission projection used by the launcher. Integer lane
+    counts remain available separately from weighted capacity units so existing
+    readers do not need to reinterpret a count as a fractional quantity.
     """
+    if effective_limit is None:
+        return _refresh_runner_slot_context_fallback(agents)
+
+    capacity_records = tuple(_capacity_record_from_agent(agent) for agent in agents)
+    raw_snapshot = runner_capacity_snapshot_from_capacity_records(
+        capacity_records,
+        effective_limit=float(effective_limit),
+    )
+    return _apply_runner_capacity_snapshot(agents, raw_snapshot)
+
+
+def _refresh_runner_slot_context_fallback(
+    agents: list[Agent],
+) -> RunnerCapacitySnapshot:
+    """Refresh queue status when no configured capacity limit is available."""
     from ._agent_clan import (
         aggregate_clan_status,
         clan_members,
         sase_agent_status_counts,
     )
 
-    lane_candidates = [
-        agent
-        for agent in agents
-        if agent.is_clan_container or agent.is_child_row or _is_ace_run_root(agent)
-    ]
-    running_count = sase_agent_status_counts(lane_candidates, ()).running
-    running_count += sum(
-        1
-        for agent in lane_candidates
-        if not agent.is_clan_container
-        and not agent.is_child_row
-        and not _agent_lane_bucket_counts_as_running(agent)
-        and _container_is_genuinely_occupying(agent)
-    )
+    lane_candidates = _lane_candidates(agents)
+    running_count = _display_running_lane_count(lane_candidates)
     waiters = sorted(
         (agent for agent in agents if _is_live_slot_waiter(agent)),
         key=lambda agent: _waiter_sort_key(agent, running_count=running_count),
@@ -139,12 +165,18 @@ def refresh_runner_slot_context(
     for agent in agents:
         if agent.slot_requested_at:
             agent.runner_slots_in_use = running_count
+            agent.runner_occupied_capacity = None
+            agent.runner_effective_limit = None
             agent.runner_slot_queue_position = queue_positions.get(id(agent))
             agent.runner_slot_queue_size = queue_size
+            agent.runner_capacity_blockers = ()
         else:
             agent.runner_slots_in_use = None
+            agent.runner_occupied_capacity = None
+            agent.runner_effective_limit = None
             agent.runner_slot_queue_position = None
             agent.runner_slot_queue_size = None
+            agent.runner_capacity_blockers = ()
         if agent.is_clan_container:
             aggregate = aggregate_clan_status(
                 member.status for member in clan_members(agent)
@@ -159,14 +191,333 @@ def refresh_runner_slot_context(
                 slot_queued=_is_live_slot_waiter(agent),
             )
 
-    if effective_limit is None:
-        return RunnerCapacitySnapshot(queue=tuple(queue_entries))
+    return RunnerCapacitySnapshot(
+        slots_in_use=running_count,
+        queue=tuple(queue_entries),
+    )
+
+
+def _apply_runner_capacity_snapshot(
+    agents: list[Agent],
+    raw_snapshot: dict[str, Any],
+) -> RunnerCapacitySnapshot:
+    """Apply a Rust runner-capacity snapshot to mutable TUI agent rows."""
+    from ._agent_clan import aggregate_clan_status, clan_members
+
+    running_count = _int_value(raw_snapshot.get("occupied_lanes")) or 0
+    occupied_capacity = _finite_float(raw_snapshot.get("occupied_capacity"))
+    effective_limit = _finite_float(raw_snapshot.get("effective_limit")) or 0.0
+    agent_by_artifact_dir = {_capacity_artifact_dir(agent): agent for agent in agents}
+    queue_entries: list[RunnerQueueEntry] = []
+    queue_positions: dict[int, int] = {}
+    queue_blockers: dict[int, tuple[dict[str, Any], ...]] = {}
+    waiters = sorted(
+        (
+            waiter
+            for waiter in raw_snapshot.get("waiters", ())
+            if isinstance(waiter, dict)
+        ),
+        key=_snapshot_waiter_display_key,
+    )
+    queue_size = len(waiters)
+
+    for index, waiter in enumerate(waiters, 1):
+        artifact_dir = _text_value(waiter.get("artifact_dir"))
+        agent = (
+            agent_by_artifact_dir.get(artifact_dir)
+            if artifact_dir is not None
+            else None
+        )
+        if agent is None:
+            continue
+        blockers = _blocker_tuple(waiter.get("blockers"))
+        queue_positions[id(agent)] = index
+        queue_blockers[id(agent)] = blockers
+        agent.status = runner_slot_display_status(
+            agent.status,
+            slot_queued=True,
+        )
+        queue_entries.append(
+            RunnerQueueEntry(
+                identity=agent.identity,
+                presented_name=(
+                    agent.presented_agent_name
+                    or agent.agent_name
+                    or agent.cl_name
+                    or "unassigned"
+                ),
+                threshold=_nonnegative_int(waiter.get("wait_runners")),
+                wait_runners_explicit=agent.wait_runners_explicit,
+                priority=normalize_wait_priority(waiter.get("priority")),
+                slot_requested_at=_text_value(waiter.get("slot_requested_at")),
+                status=agent.status,
+                requested_weight=(
+                    _finite_float(waiter.get("requested_weight"))
+                    or DEFAULT_QUEUE_WEIGHT
+                ),
+                eligible=waiter.get("eligible") is True,
+                blockers=blockers,
+                parked=_snapshot_waiter_is_parked(waiter),
+            )
+        )
+
+    for agent in agents:
+        if agent.slot_requested_at:
+            agent.runner_slots_in_use = running_count
+            agent.runner_occupied_capacity = occupied_capacity
+            agent.runner_effective_limit = effective_limit
+            agent.runner_slot_queue_position = queue_positions.get(id(agent))
+            agent.runner_slot_queue_size = queue_size
+            agent.runner_capacity_blockers = queue_blockers.get(id(agent), ())
+        else:
+            agent.runner_slots_in_use = None
+            agent.runner_occupied_capacity = None
+            agent.runner_effective_limit = None
+            agent.runner_slot_queue_position = None
+            agent.runner_slot_queue_size = None
+            agent.runner_capacity_blockers = ()
+        if agent.is_clan_container:
+            aggregate = aggregate_clan_status(
+                member.status for member in clan_members(agent)
+            )
+            agent.status = aggregate or runner_slot_display_status(
+                agent.status,
+                slot_queued=False,
+            )
+        else:
+            agent.status = runner_slot_display_status(
+                agent.status,
+                slot_queued=id(agent) in queue_positions,
+            )
+
     return RunnerCapacitySnapshot(
         effective_limit=effective_limit,
         slots_in_use=running_count,
         queued_count=len(queue_entries),
         queue=tuple(queue_entries),
+        occupied_capacity=occupied_capacity,
     )
+
+
+def _lane_candidates(agents: list[Agent]) -> list[Agent]:
+    return [
+        agent
+        for agent in agents
+        if agent.is_clan_container or agent.is_child_row or _is_ace_run_root(agent)
+    ]
+
+
+def _display_running_lane_count(lane_candidates: list[Agent]) -> int:
+    from ._agent_clan import sase_agent_status_counts
+
+    running_count = sase_agent_status_counts(lane_candidates, ()).running
+    running_count += sum(
+        1
+        for agent in lane_candidates
+        if not agent.is_clan_container
+        and not agent.is_child_row
+        and not _agent_lane_bucket_counts_as_running(agent)
+        and _container_is_genuinely_occupying(agent)
+    )
+    return running_count
+
+
+def _capacity_record_from_agent(agent: Agent) -> dict[str, Any]:
+    artifacts_dir = _capacity_artifact_dir(agent)
+    return {
+        "artifact_dir": artifacts_dir,
+        "project_name": _project_name(agent),
+        "workflow_dir_name": _workflow_dir_name(agent),
+        "timestamp": _capacity_timestamp(agent),
+        "has_agent_meta": not (agent.is_clan_container or agent.is_proc_shell),
+        "has_done_marker": agent.stop_time is not None
+        or agent.status in {"DONE", "FAILED", "FAILED (RETRIED)"},
+        "appears_as_agent": _appears_as_agent(agent),
+        "live": _capacity_record_is_live(agent),
+        "pending_question": agent.runner_slot_yielded,
+        "pid": agent.pid,
+        "run_started_at": _capacity_run_started_at(agent),
+        "parent_timestamp": agent.parent_timestamp,
+        "agent_family": _capacity_agent_family(agent),
+        "agent_family_role": agent.agent_family_role,
+        "agent_family_parallel": agent.agent_family_parallel,
+        "family_shell_kind": _family_shell_kind(agent),
+        "family_shell_id": _family_shell_id(agent),
+        "family_shell_state": _family_shell_state(agent),
+        "queue_weight": None
+        if agent.queue_weight_invalid
+        else _finite_float(agent.queue_weight),
+        "queue_weight_explicit": agent.queue_weight_explicit,
+        "queue_weight_invalid": agent.queue_weight_invalid,
+        "slot_requested_at": agent.slot_requested_at
+        if _is_live_slot_waiter(agent)
+        else None,
+        "wait_runners": _nonnegative_int(agent.wait_runners),
+        "wait_runners_explicit": agent.wait_runners_explicit,
+        "wait_priority": _nonnegative_int(agent.wait_priority),
+        "eligible_since": None,
+    }
+
+
+def _capacity_artifact_dir(agent: Agent) -> str:
+    if agent.artifacts_dir:
+        return agent.artifacts_dir
+    agent_type, cl_name, raw_suffix = agent.identity
+    suffix = raw_suffix or agent.raw_suffix or cl_name
+    return f"memory://{agent_type.value}/{cl_name}/{suffix}"
+
+
+def _project_name(agent: Agent) -> str:
+    if agent.project_file:
+        project_name = Path(agent.project_file).parent.name
+        if project_name:
+            return project_name
+    artifacts_dir = agent.artifacts_dir
+    if artifacts_dir:
+        path = Path(artifacts_dir)
+        try:
+            return path.parents[2].name
+        except IndexError:
+            pass
+    return ""
+
+
+def _workflow_dir_name(agent: Agent) -> str:
+    artifacts_dir = agent.artifacts_dir
+    if artifacts_dir:
+        workflow = Path(artifacts_dir).parent.name
+        if workflow:
+            return workflow
+    if agent.workflow:
+        return agent.workflow
+    return "ace-run" if _is_ace_run_root(agent) or agent.is_child_row else ""
+
+
+def _capacity_timestamp(agent: Agent) -> str:
+    if agent.raw_suffix:
+        return agent.raw_suffix
+    if agent.artifacts_dir:
+        return Path(agent.artifacts_dir).name
+    return agent.cl_name
+
+
+def _appears_as_agent(agent: Agent) -> bool:
+    if agent.is_clan_container or agent.is_proc_shell:
+        return False
+    return agent.appears_as_agent or _is_ace_run_root(agent) or agent.is_child_row
+
+
+def _capacity_record_is_live(agent: Agent) -> bool:
+    return bool(agent.runner_is_live or agent.pid is not None)
+
+
+def _capacity_run_started_at(agent: Agent) -> str | None:
+    if agent.run_start_time is not None:
+        return agent.run_start_time.isoformat()
+    if agent.pid is not None and _agent_lane_bucket_counts_as_running(agent):
+        started = agent.start_time
+        return None if started is None else started.isoformat()
+    return None
+
+
+def _capacity_agent_family(agent: Agent) -> str | None:
+    if agent.agent_family:
+        return agent.agent_family
+    if agent.parent_timestamp and not agent.agent_family_parallel:
+        return agent.parent_timestamp
+    return None
+
+
+def _family_shell_kind(agent: Agent) -> str | None:
+    if agent.is_gate:
+        return "gate"
+    if agent.is_monitor:
+        return "monitor"
+    return None
+
+
+def _family_shell_id(agent: Agent) -> str | None:
+    if agent.is_gate:
+        return agent.gate_id
+    if agent.is_monitor:
+        return agent.monitor_id
+    return None
+
+
+def _family_shell_state(agent: Agent) -> str | None:
+    if agent.is_gate:
+        return agent.gate_state
+    if agent.is_monitor:
+        return agent.monitor_state
+    return None
+
+
+def _finite_float(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _nonnegative_int(value: object) -> int | None:
+    if type(value) is int and value >= 0:
+        return value
+    return None
+
+
+def _int_value(value: object) -> int | None:
+    if type(value) is int:
+        return value
+    return None
+
+
+def _text_value(value: object) -> str | None:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped or None
+    return None
+
+
+def _blocker_tuple(value: object) -> tuple[dict[str, Any], ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(dict(blocker) for blocker in value if isinstance(blocker, dict))
+
+
+def _snapshot_waiter_display_key(
+    waiter: dict[str, Any],
+) -> tuple[int, int, int, int, datetime, str, str]:
+    parked = _snapshot_waiter_is_parked(waiter)
+    threshold = _largest_runner_threshold(waiter)
+    return (
+        1 if parked else 0,
+        -threshold if parked else 0,
+        *runner_slot_waiter_sort_key(
+            priority=waiter.get("priority"),
+            slot_requested_at=_text_value(waiter.get("slot_requested_at")),
+            timestamp=_text_value(waiter.get("timestamp")),
+            artifact_dir=_text_value(waiter.get("artifact_dir")),
+        ),
+    )
+
+
+def _snapshot_waiter_is_parked(waiter: dict[str, Any]) -> bool:
+    if waiter.get("eligible") is True:
+        return False
+    blockers = _blocker_tuple(waiter.get("blockers"))
+    return any(blocker.get("code") != "queue-order" for blocker in blockers)
+
+
+def _largest_runner_threshold(waiter: dict[str, Any]) -> int:
+    threshold = _nonnegative_int(waiter.get("wait_runners"))
+    values = [] if threshold is None else [threshold]
+    values.extend(
+        int(blocker["runner_threshold"])
+        for blocker in _blocker_tuple(waiter.get("blockers"))
+        if type(blocker.get("runner_threshold")) is int
+        and blocker["runner_threshold"] >= 0
+    )
+    return max(values, default=0)
 
 
 def _agent_lane_bucket_counts_as_running(agent: Agent) -> bool:

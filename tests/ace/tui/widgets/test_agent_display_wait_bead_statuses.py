@@ -115,6 +115,7 @@ def test_wait_lanes_keep_agent_glyphs_and_status_bearing_bead_tokens() -> None:
         waiting_for_beads=["run-bead"],
         wait_duration=300,
         wait_runners=2,
+        wait_runners_explicit=True,
         slot_requested_at="2026-07-28T12:00:00Z",
         runner_slots_in_use=1,
     )

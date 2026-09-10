@@ -8,6 +8,7 @@ from textual.widgets import Static
 
 from ..agent_count_chip import AGENT_COUNT_CHIP_QUEUED_STYLE
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ..models.agent_runner_slots import format_capacity_value
 
 
 class AgentInfoPanel(Static):
@@ -37,7 +38,8 @@ class AgentInfoPanel(Static):
         self._read_count = 0
         self._sase_agent_count = 0
         self._proc_shell_count = 0
-        self._runner_limit = 0
+        self._runner_limit = 0.0
+        self._runner_occupied_capacity: float | None = None
         self._runner_queue_count = 0
         self._neighbor_count = 0
         self._countdown = 0
@@ -125,11 +127,13 @@ class AgentInfoPanel(Static):
 
     def update_runner_capacity(
         self,
-        effective_limit: int,
+        effective_limit: float,
         queue_count: int,
+        occupied_capacity: float | None = None,
     ) -> None:
         """Update the cached global user-agent runner capacity snapshot."""
         self._runner_limit = effective_limit
+        self._runner_occupied_capacity = occupied_capacity
         self._runner_queue_count = queue_count
         self._update_display()
 
@@ -189,7 +193,8 @@ class AgentInfoPanel(Static):
         grouping_mode: str,
         search_query: str,
         search_query_seeded: bool = False,
-        runner_limit: int = 0,
+        runner_limit: float = 0.0,
+        runner_occupied_capacity: float | None = None,
         runner_queue_count: int = 0,
     ) -> None:
         """Batch all logical info-panel state into one render.
@@ -212,6 +217,7 @@ class AgentInfoPanel(Static):
             sase_agent_count,
             proc_shell_count,
             runner_limit,
+            runner_occupied_capacity,
             runner_queue_count,
             max(0, neighbor_count),
             view_mode,
@@ -232,6 +238,7 @@ class AgentInfoPanel(Static):
             self._sase_agent_count,
             self._proc_shell_count,
             self._runner_limit,
+            self._runner_occupied_capacity,
             self._runner_queue_count,
             self._neighbor_count,
             self._view_mode,
@@ -255,6 +262,7 @@ class AgentInfoPanel(Static):
             self._sase_agent_count,
             self._proc_shell_count,
             self._runner_limit,
+            self._runner_occupied_capacity,
             self._runner_queue_count,
             self._neighbor_count,
             self._view_mode,
@@ -317,28 +325,40 @@ class AgentInfoPanel(Static):
             ("read", self._read_count),
         ]
 
-    def _runner_limit_style(self) -> str | Style:
-        """Return the runner-limit style for the current capacity pressure."""
+    def _runner_capacity_style(self) -> str | Style:
+        """Return the occupied-capacity style for the current pressure."""
         limit = self._runner_limit
-        running = self._running_count
-        if limit <= 0:
+        occupied = self._runner_occupied_capacity
+        if occupied is None or limit <= 0:
             return self._NEUTRAL_RUNNER_LIMIT_STYLE
-        if running >= limit:
+        if occupied >= limit:
             return "bold #FF5F5F"
-        if running >= (3 * limit + 3) // 4:
+        if occupied / limit >= 0.75:
             return "bold #FF8700"
-        if running >= (limit + 1) // 2:
+        if occupied / limit >= 0.5:
             return "bold #FFD700"
         return self._NEUTRAL_RUNNER_LIMIT_STYLE
 
+    def _append_capacity_prefix(self, text: Text) -> None:
+        """Append global weighted runner capacity before visible counts."""
+        text.append("  ")
+        if self._runner_limit <= 0:
+            text.append("—/—", style=self._NEUTRAL_RUNNER_LIMIT_STYLE)
+            return
+        text.append(
+            format_capacity_value(self._runner_occupied_capacity),
+            style=self._runner_capacity_style(),
+        )
+        text.append("/", style="dim")
+        text.append(
+            format_capacity_value(self._runner_limit),
+            style=self._NEUTRAL_RUNNER_LIMIT_STYLE,
+        )
+
     def _append_status_strip(self, text: Text) -> None:
         """Append the consolidated visible status and runner-capacity strip."""
-        text.append("  [", style="dim")
-        # The runner-limit style already escalates with capacity pressure, so the
-        # running count itself stays a single stable color at every occupancy.
+        text.append(" [", style="dim")
         text.append(str(self._running_count), style=self._COUNT_STYLES["running"])
-        text.append("/", style="dim")
-        text.append(str(self._runner_limit), style=self._runner_limit_style())
         text.append(" running", style="dim")
 
         if self._runner_queue_count > 0:
@@ -387,6 +407,7 @@ class AgentInfoPanel(Static):
         text.append(f"{self._sase_agent_count}", style=self._TOTAL_COUNT_STYLE)
         if self._proc_shell_count:
             text.append(" agents", style="dim")
+        self._append_capacity_prefix(text)
         self._append_status_strip(text)
         self._append_proc_shell_badge(text)
         self._append_neighbor_badge(text)

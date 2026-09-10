@@ -12,10 +12,15 @@ from rich.text import Text
 
 from sase.agent.status_buckets import QUEUED_STATUS_COLOR
 from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
+from sase.core.runner_slots import DEFAULT_QUEUE_WEIGHT
 from sase.core.wait_dependency_resolution import TribeWaitBinding
 
 from ...agent_completion import missing_wait_dependency_names
 from ...models.agent import Agent
+from ...models.agent_runner_slots import (
+    format_capacity_value,
+    format_queue_weight_badge_value,
+)
 from ...models.tribe_display import (
     compose_tribe_identity_style,
     named_tribe_identity_colors,
@@ -208,45 +213,47 @@ def build_wait_lanes(
         lanes.append(("time", value))
 
     has_slot_wait = bool(
-        wait_agent.slot_requested_at and wait_agent.wait_runners is not None
+        wait_agent.slot_requested_at and _runner_wait_has_detail(wait_agent)
     )
     if has_slot_wait:
         value = Text()
-        in_use = wait_agent.runner_slots_in_use
-        threshold = wait_agent.wait_runners
-        assert threshold is not None
+        parts = _runner_capacity_parts(wait_agent)
+        if parts:
+            value.append(parts[0], style=_WAITING_VALUE_STYLE)
+            for part in parts[1:]:
+                value.append(f" · {part}", style="dim #AF87FF")
+        threshold = (
+            wait_agent.wait_runners if wait_agent.wait_runners is not None else 0
+        )
         if wait_agent.wait_runners_explicit:
-            value.append(f"≤ {threshold}", style=_WAITING_VALUE_STYLE)
+            if value.plain:
+                value.append(" · ", style="dim #AF87FF")
+            value.append(
+                f"waiting for ≤{threshold} other agents",
+                style=_WAITING_VALUE_STYLE,
+            )
             if threshold == 0:
                 value.append(" (drain barrier)", style="bold #AF87FF")
-            if in_use is not None:
-                noun = "runner" if in_use == 1 else "runners"
-                value.append(
-                    f" · {in_use} {noun} still running",
-                    style="dim #AF87FF",
-                )
-        elif in_use is not None:
-            value.append(
-                f"{in_use}/{threshold + 1} in use",
-                style=_WAITING_VALUE_STYLE,
-            )
-        else:
-            value.append(
-                f"cap {threshold + 1}",
-                style=_WAITING_VALUE_STYLE,
-            )
         position = wait_agent.runner_slot_queue_position
         queue_size = wait_agent.runner_slot_queue_size
         if position is not None and queue_size is not None:
+            if value.plain:
+                value.append(" · ", style="dim #AF87FF")
             value.append(
-                f" · queue #{position} of {queue_size}",
+                f"queue #{position} of {queue_size}",
                 style="dim #AF87FF",
             )
         if wait_agent.wait_priority_explicit and wait_agent.wait_priority is not None:
+            if value.plain:
+                value.append(" · ", style="dim #AF87FF")
             value.append(
-                f" · priority {wait_agent.wait_priority}",
+                f"priority {wait_agent.wait_priority}",
                 style="dim #AF87FF",
             )
+        for blocker_label in _runner_capacity_blocker_labels(wait_agent):
+            if value.plain:
+                value.append(" · ", style="dim #AF87FF")
+            value.append(blocker_label, style="dim #AF87FF")
         lanes.append(("runners", value))
 
     return tuple(lanes)
@@ -257,6 +264,74 @@ def _wait_gutter_width(lanes: Sequence[WaitLane]) -> int:
     if not lanes:
         return 0
     return max(cell_len(f"[{tag}]") for tag, _value in lanes) + 1
+
+
+def _runner_wait_has_detail(agent: Agent) -> bool:
+    return bool(
+        agent.wait_runners_explicit
+        or agent.wait_priority_explicit
+        or agent.queue_weight_invalid
+        or format_queue_weight_badge_value(agent.queue_weight) is not None
+        or _runner_capacity_explanation_blockers(agent)
+    )
+
+
+def _runner_capacity_parts(agent: Agent) -> tuple[str, ...]:
+    if agent.queue_weight_invalid:
+        return ()
+    if format_queue_weight_badge_value(
+        agent.queue_weight
+    ) is None and not _runner_capacity_explanation_blockers(agent):
+        return ()
+    weight = (
+        agent.queue_weight if agent.queue_weight is not None else DEFAULT_QUEUE_WEIGHT
+    )
+    parts = [f"needs {format_capacity_value(weight)}"]
+    free = _runner_free_capacity(agent)
+    if free is not None:
+        parts.append(f"{format_capacity_value(free)} free")
+    return tuple(parts)
+
+
+def _runner_free_capacity(agent: Agent) -> float | None:
+    for blocker in agent.runner_capacity_blockers:
+        free = blocker.get("free_capacity")
+        if isinstance(free, (int, float)) and not isinstance(free, bool):
+            return max(float(free), 0.0)
+    if agent.runner_occupied_capacity is None or agent.runner_effective_limit is None:
+        return None
+    return max(agent.runner_effective_limit - agent.runner_occupied_capacity, 0.0)
+
+
+def _runner_capacity_explanation_blockers(
+    agent: Agent,
+) -> tuple[dict[str, object], ...]:
+    return tuple(
+        blocker
+        for blocker in agent.runner_capacity_blockers
+        if blocker.get("code") not in {None, "queue-order"}
+    )
+
+
+def _runner_capacity_blocker_labels(agent: Agent) -> tuple[str, ...]:
+    labels: list[str] = []
+    for blocker in _runner_capacity_explanation_blockers(agent):
+        code = blocker.get("code")
+        if code == "insufficient-capacity":
+            continue
+        if code == "runner-count-condition":
+            continue
+        if code == "weight-exceeds-limit":
+            labels.append("weight exceeds current limit")
+        elif code == "invalid-request-weight":
+            labels.append("invalid weight")
+        elif code == "invalid-capacity-limit":
+            labels.append("invalid capacity limit")
+        elif code == "deference-window":
+            labels.append("priority deference window")
+        elif isinstance(blocker.get("message"), str):
+            labels.append(str(blocker["message"]))
+    return tuple(dict.fromkeys(labels))
 
 
 @dataclass(slots=True)

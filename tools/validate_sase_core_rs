@@ -242,6 +242,8 @@ REQUIRED_BINDINGS = (
     "provider_usage_classify_freshness",
     "provider_usage_window_applies",
     "provider_usage_summarize_for_model",
+    "runner_capacity_policy_schema_version",
+    "runner_capacity_snapshot",
     "finalizer_wire_schema_version",
     "validate_finalizer_provider_spec",
     "finalizer_provider_spec_digest",

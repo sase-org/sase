@@ -32,11 +32,14 @@ class AgentWaitInfo:
     queue_weight_error: str | None = None
     slot_requested_at: str | None = None
     runner_slots_in_use: int | None = None
-    # Display rank and total across every live runner-slot waiter. Capacity-
-    # eligible waiters come first; parked waiters follow by nearest opening
-    # threshold, with priority/FIFO preserved inside each group.
+    # Display rank and total across every live runner-slot waiter. The integer
+    # lane count stays separate from weighted capacity so machine readers do
+    # not have to reinterpret count fields as fractional values.
     runner_slot_queue_position: int | None = None
     runner_slot_queue_size: int | None = None
+    runner_occupied_capacity: float | None = None
+    runner_effective_limit: float | None = None
+    runner_capacity_blockers: tuple[dict[str, object], ...] = ()
     runner_slot_holders: tuple[str, ...] = ()
 
     @property

@@ -16,9 +16,12 @@ from ...models.agent import Agent, wait_display_agent
 from ...models.agent_runner_slots import (
     RunnerCapacitySnapshot,
     RunnerQueueEntry,
+    format_capacity_value,
+    format_queue_weight_badge_value,
 )
 from ...models.agent_time import queued_for_label
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
+from .._queue_weight_badge import append_queue_weight_badge
 from ._helpers import append_section_heading
 
 _QUEUE_RULE = "━" * 50
@@ -34,6 +37,8 @@ class _RunnerQueueSelection:
     queue: tuple[RunnerQueueEntry, ...]
     index: int
     ahead_count: int
+    occupied_capacity: float | None
+    effective_limit: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +70,8 @@ def runner_queue_selection(
         queue=capacity.queue,
         index=selected_index,
         ahead_count=selected_index,
+        occupied_capacity=capacity.occupied_capacity,
+        effective_limit=capacity.effective_limit,
     )
 
 
@@ -91,20 +98,19 @@ def append_runner_queue_section(
     parked_count = sum(entry.parked for entry in queue)
     if parked_count:
         heading.append(f" · {parked_count} parked", style=_PARKED_COLOR)
-    if wait_agent.runner_slots_in_use is not None:
-        if wait_agent.wait_runners is not None:
-            heading.append(
-                (
-                    f" · {wait_agent.runner_slots_in_use}/"
-                    f"{wait_agent.wait_runners + 1} runners"
-                ),
-                style="dim",
-            )
-        else:
-            heading.append(
-                f" · {wait_agent.runner_slots_in_use} runners",
-                style="dim",
-            )
+    if selection.effective_limit > 0:
+        heading.append(
+            (
+                f" · {format_capacity_value(selection.occupied_capacity)}/"
+                f"{format_capacity_value(selection.effective_limit)} capacity"
+            ),
+            style="dim",
+        )
+    elif wait_agent.runner_slots_in_use is not None:
+        heading.append(
+            f" · {wait_agent.runner_slots_in_use} running",
+            style="dim",
+        )
     append_section_heading(text, heading, section_id=_QUEUE_SECTION_ID)
 
     threshold_width = max(
@@ -123,6 +129,15 @@ def append_runner_queue_section(
         ),
         default=0,
     )
+    weight_width = max(
+        (
+            cell_len(f"w{weight}")
+            for entry in queue
+            if (weight := format_queue_weight_badge_value(entry.requested_weight))
+            is not None
+        ),
+        default=0,
+    )
     now = local_now()
     for row in _queue_window(queue, selection.index):
         if row.entry is None or row.rank is None:
@@ -136,6 +151,7 @@ def append_runner_queue_section(
             selected_index=selection.index,
             threshold_width=threshold_width,
             priority_width=priority_width,
+            weight_width=weight_width,
             now=now,
         )
 
@@ -180,6 +196,7 @@ def _append_queue_entry(
     selected_index: int,
     threshold_width: int,
     priority_width: int,
+    weight_width: int,
     now: datetime,
 ) -> None:
     index = rank - 1
@@ -210,6 +227,15 @@ def _append_queue_entry(
     name = Text(entry.presented_name, style=name_style)
     name.truncate(_QUEUE_NAME_WIDTH, overflow="ellipsis", pad=True)
     text.append_text(name)
+    if weight_width:
+        weight = format_queue_weight_badge_value(entry.requested_weight)
+        if weight is None:
+            text.append(" " * (weight_width + 1))
+        else:
+            text.append(" ")
+            start = len(text)
+            append_queue_weight_badge(text, entry.requested_weight, pad=False)
+            text.append(" " * max(0, weight_width - (len(text) - start)))
     if threshold_width:
         text.append(" ")
         threshold = entry.threshold if entry.threshold is not None else 0
@@ -232,8 +258,65 @@ def _append_queue_entry(
         _queue_duration(entry.slot_requested_at, now),
         style="dim",
     )
+    detail = _queue_entry_capacity_detail(entry)
+    if detail:
+        text.append(" · ", style="dim")
+        text.append(detail, style="dim #AF87FF" if entry.parked else "dim")
     text.append("\n")
 
 
 def _queue_duration(requested_at: str | None, now: datetime) -> str:
     return queued_for_label(requested_at, now=now) or "?"
+
+
+def _queue_entry_capacity_detail(entry: RunnerQueueEntry) -> str:
+    labels: list[str] = []
+    capacity_parts = _queue_entry_capacity_parts(entry)
+    if capacity_parts:
+        labels.append(" · ".join(capacity_parts))
+    for blocker in entry.blockers:
+        code = blocker.get("code")
+        if code in {
+            None,
+            "queue-order",
+            "insufficient-capacity",
+            "runner-count-condition",
+        }:
+            continue
+        if code == "weight-exceeds-limit":
+            labels.append("weight exceeds current limit")
+        elif code == "invalid-request-weight":
+            labels.append("invalid weight")
+        elif code == "deference-window":
+            labels.append("priority deference")
+        elif isinstance(blocker.get("message"), str):
+            labels.append(str(blocker["message"]))
+    return " · ".join(dict.fromkeys(labels))
+
+
+def _queue_entry_capacity_parts(entry: RunnerQueueEntry) -> tuple[str, ...]:
+    if format_queue_weight_badge_value(
+        entry.requested_weight
+    ) is None and not _has_capacity_blocker(entry):
+        return ()
+    parts = [f"needs {format_capacity_value(entry.requested_weight)}"]
+    free = _queue_entry_free_capacity(entry)
+    if free is not None:
+        parts.append(f"{format_capacity_value(free)} free")
+    return tuple(parts)
+
+
+def _queue_entry_free_capacity(entry: RunnerQueueEntry) -> float | None:
+    for blocker in entry.blockers:
+        free = blocker.get("free_capacity")
+        if isinstance(free, (int, float)) and not isinstance(free, bool):
+            return max(float(free), 0.0)
+    return None
+
+
+def _has_capacity_blocker(entry: RunnerQueueEntry) -> bool:
+    return any(
+        blocker.get("code")
+        not in {None, "queue-order", "runner-count-condition", "deference-window"}
+        for blocker in entry.blockers
+    )

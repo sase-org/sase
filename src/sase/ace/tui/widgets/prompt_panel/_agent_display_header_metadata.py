@@ -18,7 +18,11 @@ from sase.core.wait_dependency_resolution import TribeWaitBinding
 from sase.plan_tier_presentation import PLAN_TIER_PRESENTATIONS
 from sase.project_display_names import humanize_cl_name
 
-from ...models.agent import Agent
+from ...models.agent import Agent, wait_display_agent
+from ...models.agent_runner_slots import (
+    format_capacity_value,
+    format_queue_weight_badge_value,
+)
 from ...models.agent_owner_badge import agent_owner_badge_label
 from .._agent_list_styling import (
     _AGENT_NAME_ANNOTATION_STYLE,
@@ -118,6 +122,7 @@ def _append_identity_fields(
         if owner_badge:
             text.append("Owner: ", style="bold #87D7FF")
             text.append(f"{owner_badge}\n", style=_OWNER_BADGE_STYLE)
+        _append_weight_field(text, agent)
         # Structured bead identity belongs exclusively to the deferred BEAD lane.
         is_known_phase = bool(agent.phase_bead_id or agent.agent_family_role == "phase")
         if summary is not None and summary.bead_summary is not None:
@@ -156,6 +161,26 @@ def _append_identity_fields(
             text.append("handed off to retry", style="dim #FFAF00")
         text.append("\n")
     return page_section
+
+
+def _append_weight_field(text: Text, agent: Agent) -> None:
+    """Append the non-default runner-capacity weight for real agent rows."""
+    if (
+        agent.is_clan_container
+        or agent.is_proc_shell
+        or agent.is_gate
+        or agent.is_monitor
+        or (agent.is_child_row and not agent.agent_family_parallel)
+    ):
+        return
+    wait_agent = wait_display_agent(agent)
+    if format_queue_weight_badge_value(wait_agent.queue_weight) is None:
+        return
+    text.append("Weight: ", style="bold #87D7FF")
+    text.append(
+        f"{format_capacity_value(wait_agent.queue_weight)} capacity units\n",
+        style="#87D7D7",
+    )
 
 
 def _append_project_fields(
@@ -285,8 +310,6 @@ def _append_wait_field(
             text.append(" · ", style="dim")
             text.append(f"{queued_for} in queue", style=QUEUED_STATUS_COLOR)
         text.append("\n")
-        if not (wait_agent.wait_runners_explicit or wait_agent.wait_priority_explicit):
-            return None
         runners_only = True
 
     lanes = build_wait_lanes(
