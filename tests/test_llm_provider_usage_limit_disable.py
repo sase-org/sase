@@ -79,6 +79,7 @@ def _detection(
     provider: str = "claude",
     expires_at: float | None = None,
     disable_seconds: float = 100.0,
+    reset_source: str | None = None,
 ) -> UsageLimitDetection:
     return UsageLimitDetection(
         provider=provider,
@@ -89,6 +90,7 @@ def _detection(
         expires_at=expires_at,
         reset_hint=None,
         used_reset_hint=expires_at is not None,
+        reset_source=reset_source,
     )
 
 
@@ -700,6 +702,26 @@ class TestUsageLimitDrainSubmission:
         assert result is not None
         mock_submit.assert_called_once()
         mock_notify.assert_called_once()
+
+    @patch("sase.procs.submit_proc_request")
+    @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")
+    @patch("sase.llm_provider.usage_limit_disable.detect_usage_limit")
+    def test_drain_payload_includes_reset_source(
+        self,
+        mock_detect: MagicMock,
+        mock_notify: MagicMock,
+        mock_submit: MagicMock,
+        registered_providers: None,
+    ) -> None:
+        mock_detect.return_value = _detection(
+            expires_at=_NOW + 100.0, reset_source="usage_window"
+        )
+        with override_flags(provider_drain=True):
+            handle_possible_usage_limit(
+                provider="claude", error_text="usage limit reached"
+            )
+        request = mock_submit.call_args.args[0]
+        assert request.operation_payload["reset_source"] == "usage_window"
 
     @patch("sase.procs.submit_proc_request")
     @patch("sase.notifications.senders.notify_provider_usage_limit_disabled")

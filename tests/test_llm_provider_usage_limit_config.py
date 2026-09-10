@@ -25,6 +25,7 @@ class TestProviderUsageLimitConfig:
         assert config.exclude_patterns == []
         assert config.disable_seconds is None
         assert config.honor_reset_hint is None
+        assert config.honor_usage_windows is None
 
     def test_custom_values(self) -> None:
         config = ProviderUsageLimitConfig(
@@ -32,11 +33,13 @@ class TestProviderUsageLimitConfig:
             exclude_patterns=["c"],
             disable_seconds=120,
             honor_reset_hint=False,
+            honor_usage_windows=False,
         )
         assert config.patterns == ["a", "b"]
         assert config.exclude_patterns == ["c"]
         assert config.disable_seconds == 120
         assert config.honor_reset_hint is False
+        assert config.honor_usage_windows is False
 
 
 class TestUsageLimitSettings:
@@ -47,6 +50,7 @@ class TestUsageLimitSettings:
         assert settings.min_disable_seconds == 60
         assert settings.max_disable_seconds == 604800
         assert settings.honor_reset_hint is True
+        assert settings.honor_usage_windows is True
         assert settings.notify is True
         assert settings.relaunch is True
         assert settings.relaunch_limit == 20
@@ -72,6 +76,7 @@ class TestGetUsageLimitConfig:
                             "exclude_patterns": ["approaching quota"],
                             "disable_seconds": 120,
                             "honor_reset_hint": False,
+                            "honor_usage_windows": False,
                         }
                     }
                 }
@@ -83,6 +88,7 @@ class TestGetUsageLimitConfig:
         assert config.exclude_patterns == ["approaching quota"]
         assert config.disable_seconds == 120
         assert config.honor_reset_hint is False
+        assert config.honor_usage_windows is False
 
     @patch("sase.llm_provider.usage_limit_config.load_merged_config")
     def test_returns_none_for_unconfigured_provider(self, mock_config: object) -> None:
@@ -253,12 +259,36 @@ class TestGetUsageLimitConfig:
 
     @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
     @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_explicit_false_honor_usage_windows_overrides_built_in(
+        self, mock_config: object, mock_built_in: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(
+                patterns=["p"], honor_usage_windows=True
+            )
+        }
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {
+                "usage_limit": {
+                    "providers": {"test-provider": {"honor_usage_windows": False}}
+                }
+            }
+        }
+        config = get_usage_limit_config("test-provider")
+        assert config is not None
+        assert config.honor_usage_windows is False
+
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
     def test_user_unset_scalar_uses_built_in(
         self, mock_config: object, mock_built_in: object
     ) -> None:
         mock_built_in.return_value = {  # type: ignore[union-attr]
             "test-provider": ProviderUsageLimitConfig(
-                patterns=["p"], disable_seconds=300, honor_reset_hint=False
+                patterns=["p"],
+                disable_seconds=300,
+                honor_reset_hint=False,
+                honor_usage_windows=False,
             )
         }
         mock_config.return_value = {  # type: ignore[union-attr]
@@ -270,6 +300,7 @@ class TestGetUsageLimitConfig:
         assert config is not None
         assert config.disable_seconds == 300
         assert config.honor_reset_hint is False
+        assert config.honor_usage_windows is False
 
     @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
     def test_built_in_clone_is_defensive(self, mock_built_in: object) -> None:
@@ -308,6 +339,7 @@ class TestGetUsageLimitSettings:
                     "min_disable_seconds": 30,
                     "max_disable_seconds": 7200,
                     "honor_reset_hint": False,
+                    "honor_usage_windows": False,
                     "notify": False,
                     "relaunch": False,
                     "relaunch_limit": 5,
@@ -320,6 +352,7 @@ class TestGetUsageLimitSettings:
         assert settings.min_disable_seconds == 30
         assert settings.max_disable_seconds == 7200
         assert settings.honor_reset_hint is False
+        assert settings.honor_usage_windows is False
         assert settings.notify is False
         assert settings.relaunch is False
         assert settings.relaunch_limit == 5

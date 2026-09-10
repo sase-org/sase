@@ -13,6 +13,7 @@ class ProviderUsageLimitConfig:
     exclude_patterns: list[str] = field(default_factory=list)
     disable_seconds: int | None = None  # None => fall back to global default
     honor_reset_hint: bool | None = None  # None => fall back to global default
+    honor_usage_windows: bool | None = None  # None => fall back to global default
 
 
 @dataclass
@@ -24,6 +25,7 @@ class UsageLimitSettings:
     min_disable_seconds: int = 60
     max_disable_seconds: int = 604800  # 7d cap on any parsed reset time
     honor_reset_hint: bool = True
+    honor_usage_windows: bool = True
     notify: bool = True
     relaunch: bool = True
     relaunch_limit: int = 20
@@ -41,3 +43,4 @@ class UsageLimitDetection:
     expires_at: float | None
     reset_hint: str | None  # e.g. "8pm (America/New_York)" when parsed
     used_reset_hint: bool
+    reset_source: str | None = None  # "provider_hint", "usage_window", or None

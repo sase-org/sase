@@ -138,6 +138,7 @@ def send_usage_limit_drain_notification(
             expires_at=_optional_float(trigger.get("expires_at")),
             reset_hint=None,
             used_reset_hint=bool(trigger.get("used_reset_hint", False)),
+            reset_source=_optional_str(trigger.get("reset_source")),
         )
         payload = getattr(result, "payload", None)
         notify_provider_usage_limit_disabled(

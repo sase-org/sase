@@ -1314,6 +1314,9 @@ llm_provider:
   #   max_disable_seconds: 604800 # upper bound for reset hints (7d)
   #   honor_reset_hint: true     # parse reset hints (e.g. "resets Aug 22, 8pm
   #                              # (America/New_York)", clock time, or duration)
+  #   honor_usage_windows: true  # fall back to a corroborated collected
+  #                              # usage-window reset when no reset hint is
+  #                              # found; precedence is hint > window > flat
   #   notify: true               # notify once for each new disable window
   #   relaunch: true              # (beta: provider_drain) submit a drain proc
   #                              # that relaunches the agents a hard disable
@@ -1337,6 +1340,9 @@ llm_provider:
   #       disable_seconds: null
   #       # null inherits the global reset-hint policy; true/false overrides it.
   #       honor_reset_hint: null
+  #       # null inherits the global usage-window fallback policy; true/false
+  #       # overrides it.
+  #       honor_usage_windows: null
   # Subscription-capacity collection. Distinct from usage_limit auto-disable.
   # enabled is the durable user preference. Do not hard-code provider names in
   # the generic schema — keys under providers are registered names.

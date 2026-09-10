@@ -26,6 +26,7 @@ from .usage_limit_config_types import (
     UsageLimitDetection as UsageLimitDetection,
     UsageLimitSettings as UsageLimitSettings,
 )
+from .usage_limit_window_reset import usage_window_expires_at
 
 _MAX_MESSAGE_LEN = 500
 
@@ -48,6 +49,7 @@ def _clone_config(cfg: ProviderUsageLimitConfig) -> ProviderUsageLimitConfig:
         exclude_patterns=list(cfg.exclude_patterns),
         disable_seconds=cfg.disable_seconds,
         honor_reset_hint=cfg.honor_reset_hint,
+        honor_usage_windows=cfg.honor_usage_windows,
     )
 
 
@@ -102,6 +104,7 @@ def _config_from_user_dict(user_dict: dict[str, Any]) -> ProviderUsageLimitConfi
         exclude_patterns=list(user_dict.get("exclude_patterns", [])),
         disable_seconds=user_dict.get("disable_seconds"),
         honor_reset_hint=user_dict.get("honor_reset_hint"),
+        honor_usage_windows=user_dict.get("honor_usage_windows"),
     )
 
 
@@ -126,8 +129,9 @@ def _merge_with_built_in(
         list(built_in.exclude_patterns) + list(user_dict.get("exclude_patterns", []))
     )
 
-    # disable_seconds and honor_reset_hint use key-presence checks so that an
-    # explicit user null/False overrides a built-in non-null value.
+    # disable_seconds, honor_reset_hint, and honor_usage_windows use
+    # key-presence checks so that an explicit user null/False overrides a
+    # built-in non-null value.
     disable_seconds = (
         user_dict["disable_seconds"]
         if "disable_seconds" in user_dict
@@ -138,11 +142,17 @@ def _merge_with_built_in(
         if "honor_reset_hint" in user_dict
         else built_in.honor_reset_hint
     )
+    honor_usage_windows = (
+        user_dict["honor_usage_windows"]
+        if "honor_usage_windows" in user_dict
+        else built_in.honor_usage_windows
+    )
     return ProviderUsageLimitConfig(
         patterns=patterns,
         exclude_patterns=exclude_patterns,
         disable_seconds=disable_seconds,
         honor_reset_hint=honor_reset_hint,
+        honor_usage_windows=honor_usage_windows,
     )
 
 
@@ -183,6 +193,9 @@ def get_usage_limit_settings() -> UsageLimitSettings:
         honor_reset_hint=bool(
             section.get("honor_reset_hint", defaults.honor_reset_hint)
         ),
+        honor_usage_windows=bool(
+            section.get("honor_usage_windows", defaults.honor_usage_windows)
+        ),
         notify=bool(section.get("notify", defaults.notify)),
         relaunch=bool(section.get("relaunch", defaults.relaunch)),
         relaunch_limit=int(section.get("relaunch_limit", defaults.relaunch_limit)),
@@ -200,12 +213,22 @@ def _truncate(text: str, max_len: int = _MAX_MESSAGE_LEN) -> str:
 
 
 def detect_usage_limit(
-    provider: str, error_text: str, *, now: float | None = None
+    provider: str,
+    error_text: str,
+    *,
+    model: str | None = None,
+    now: float | None = None,
 ) -> UsageLimitDetection | None:
     """Detect a usage-limit failure and resolve its disable duration.
 
     Returns None when usage-limit detection is disabled globally, the
     provider has no resolved config, or ``error_text`` does not match.
+
+    Precedence for the disable expiry: a reset instant parsed from
+    ``error_text`` wins; otherwise, when ``honor_usage_windows`` is on, a
+    corroborated reset from the collected usage-window data for *model* (or
+    the provider's account scope when *model* is None) is used; otherwise the
+    flat ``disable_seconds`` fallback applies.
     """
     settings = get_usage_limit_settings()
     if not settings.enabled:
@@ -226,6 +249,11 @@ def detect_usage_limit(
         if config.honor_reset_hint is not None
         else settings.honor_reset_hint
     )
+    honor_usage_windows = (
+        config.honor_usage_windows
+        if config.honor_usage_windows is not None
+        else settings.honor_usage_windows
+    )
     disable_seconds: float = (
         config.disable_seconds
         if config.disable_seconds is not None
@@ -235,6 +263,12 @@ def detect_usage_limit(
     reset_hint: str | None = None
     expires_at: float | None = None
     used_reset_hint = False
+    reset_source: str | None = None
+
+    # min/max_disable_seconds bound any externally-derived duration (a
+    # provider-reported reset hint or a collected usage-window reset), both
+    # untrusted relative to an admin-chosen flat disable_seconds, which is
+    # used as configured.
 
     if honor_reset_hint:
         parsed_expires_at, parsed_hint = parse_reset_hint(
@@ -250,10 +284,19 @@ def detect_usage_limit(
             expires_at = resolved_now + duration
             reset_hint = parsed_hint
             used_reset_hint = True
+            reset_source = "provider_hint"
 
-    # min/max_disable_seconds only bound a reset-hint-derived duration, which
-    # is untrusted provider input; the flat disable_seconds fallback is an
-    # admin-chosen value and is used as configured.
+    if expires_at is None and honor_usage_windows:
+        window_expires_at = usage_window_expires_at(provider, model, now=resolved_now)
+        if window_expires_at is not None:
+            duration = window_expires_at - resolved_now
+            duration = min(
+                max(duration, settings.min_disable_seconds),
+                settings.max_disable_seconds,
+            )
+            disable_seconds = duration
+            expires_at = resolved_now + duration
+            reset_source = "usage_window"
 
     return UsageLimitDetection(
         provider=provider,
@@ -264,6 +307,7 @@ def detect_usage_limit(
         expires_at=expires_at,
         reset_hint=reset_hint,
         used_reset_hint=used_reset_hint,
+        reset_source=reset_source,
     )
 
 
@@ -278,7 +322,7 @@ def _usage_limit_provider_order() -> list[str]:
 
 
 def find_usage_limit_detection_for_error(
-    error_output: str, *, now: float | None = None
+    error_output: str, *, model: str | None = None, now: float | None = None
 ) -> UsageLimitDetection | None:
     """Find a usage-limit detection that matches the error from any provider.
 
@@ -295,7 +339,9 @@ def find_usage_limit_detection_for_error(
             continue
         checked.add(provider_name)
         try:
-            detection = detect_usage_limit(provider_name, error_output, now=now)
+            detection = detect_usage_limit(
+                provider_name, error_output, model=model, now=now
+            )
         except Exception:
             continue
         if detection is not None:

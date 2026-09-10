@@ -187,6 +187,7 @@ class TestSendUsageLimitDrainNotification:
             "disable_seconds": 3600.0,
             "expires_at": 1_800_003_600.0,
             "used_reset_hint": True,
+            "reset_source": "provider_hint",
             "trigger_agent": "sase-mf",
             "trigger_model": "opus@high",
         }
@@ -203,6 +204,7 @@ class TestSendUsageLimitDrainNotification:
         assert detection.disable_seconds == 3600.0
         assert detection.expires_at == 1_800_003_600.0
         assert detection.used_reset_hint is True
+        assert detection.reset_source == "provider_hint"
         assert mock_notify.call_args.kwargs["agent_name"] == "sase-mf"
         assert mock_notify.call_args.kwargs["model"] == "opus@high"
         assert mock_notify.call_args.kwargs["drain_notes"] == [

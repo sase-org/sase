@@ -242,3 +242,25 @@ def test_config_schema_validates_dispatch_machine_records() -> None:
                 }
             }
         )
+
+
+def test_config_schema_accepts_usage_limit_honor_usage_windows() -> None:
+    validator = Draft7Validator(schema())
+
+    validator.validate(
+        {
+            "llm_provider": {
+                "usage_limit": {
+                    "honor_usage_windows": False,
+                    "providers": {"grok": {"honor_usage_windows": None}},
+                }
+            }
+        }
+    )
+
+
+def test_config_schema_rejects_non_boolean_honor_usage_windows() -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate(
+            {"llm_provider": {"usage_limit": {"honor_usage_windows": "yes"}}}
+        )

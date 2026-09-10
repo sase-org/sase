@@ -401,6 +401,8 @@ def notify_provider_usage_limit_disabled(
         re_enable = _format_reenable_time(detection.expires_at)
         if detection.used_reset_hint:
             notes.append(f"Re-enables at {re_enable}, as reported by the provider.")
+        elif detection.reset_source == "usage_window":
+            notes.append(f"Re-enables at {re_enable}, based on collected usage data.")
         else:
             notes.append(f"Re-enables at {re_enable}.")
     else:

@@ -134,6 +134,7 @@ def _usage_limit_detection(
     disable_seconds: float = 3660.0,
     expires_at: float | None = None,
     used_reset_hint: bool = False,
+    reset_source: str | None = None,
 ):
     from sase.llm_provider.usage_limit_config import UsageLimitDetection
 
@@ -146,6 +147,7 @@ def _usage_limit_detection(
         expires_at=expires_at,
         reset_hint=None,
         used_reset_hint=used_reset_hint,
+        reset_source=reset_source,
     )
 
 
@@ -224,6 +226,25 @@ class TestNotifyProviderUsageLimitDisabled:
 
         n = load_notifications()[0]
         reenable_note = next(note for note in n.notes if note.startswith("Re-enables"))
+        assert "as reported by the provider" not in reenable_note
+        assert "based on collected usage data" not in reenable_note
+
+    def test_expiry_notes_usage_window_provenance(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        from sase.notifications.senders import notify_provider_usage_limit_disabled
+
+        notify_provider_usage_limit_disabled(
+            _usage_limit_detection(
+                expires_at=1_800_003_600.0,
+                used_reset_hint=False,
+                reset_source="usage_window",
+            )
+        )
+
+        n = load_notifications()[0]
+        reenable_note = next(note for note in n.notes if note.startswith("Re-enables"))
+        assert "based on collected usage data" in reenable_note
         assert "as reported by the provider" not in reenable_note
 
     def test_agent_and_model_note(self, temp_notifications_dir: Path) -> None:

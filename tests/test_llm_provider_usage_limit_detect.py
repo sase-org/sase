@@ -218,3 +218,212 @@ class TestFindUsageLimitDetectionForError:
         )
         assert detection is not None
         assert detection.provider == "gemini"
+
+
+class TestUsageWindowFallback:
+    """``detect_usage_limit``'s hint > usage-window > flat precedence.
+
+    ``usage_window_expires_at`` itself is unit-tested in
+    ``tests/test_llm_provider_usage_limit_window_reset.py``; these tests
+    mock it to exercise how ``detect_usage_limit`` wires the result in.
+    """
+
+    @patch("sase.llm_provider.usage_limit_config.usage_window_expires_at")
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_error_text_hint_wins_over_window(
+        self, mock_config: object, mock_built_in: object, mock_window: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(patterns=["usage limit reached"])
+        }
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        detection = detect_usage_limit(
+            "test-provider",
+            "usage limit reached, try again in 5m",
+            now=1000.0,
+        )
+        assert detection is not None
+        assert detection.used_reset_hint is True
+        assert detection.reset_source == "provider_hint"
+        mock_window.assert_not_called()  # type: ignore[union-attr]
+
+    @patch("sase.llm_provider.usage_limit_config.usage_window_expires_at")
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_falls_back_to_usage_window_when_no_hint(
+        self, mock_config: object, mock_built_in: object, mock_window: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(patterns=["usage limit reached"])
+        }
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        mock_window.return_value = 1500.0  # type: ignore[union-attr]
+
+        detection = detect_usage_limit(
+            "test-provider", "usage limit reached", now=1000.0
+        )
+
+        assert detection is not None
+        assert detection.used_reset_hint is False
+        assert detection.reset_source == "usage_window"
+        assert detection.expires_at == 1500.0
+        assert detection.disable_seconds == 500.0
+        mock_window.assert_called_once_with("test-provider", None, now=1000.0)  # type: ignore[union-attr]
+
+    @patch("sase.llm_provider.usage_limit_config.usage_window_expires_at")
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_window_returning_none_falls_back_to_flat(
+        self, mock_config: object, mock_built_in: object, mock_window: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(patterns=["usage limit reached"])
+        }
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        mock_window.return_value = None  # type: ignore[union-attr]
+
+        detection = detect_usage_limit(
+            "test-provider", "usage limit reached", now=1000.0
+        )
+
+        assert detection is not None
+        assert detection.expires_at is None
+        assert detection.disable_seconds == 86400
+        assert detection.reset_source is None
+
+    @patch("sase.llm_provider.usage_limit_config.usage_window_expires_at")
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_honor_usage_windows_false_globally_skips_the_fallback(
+        self, mock_config: object, mock_built_in: object, mock_window: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(patterns=["usage limit reached"])
+        }
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {"usage_limit": {"honor_usage_windows": False}}
+        }
+        mock_window.return_value = 1500.0  # type: ignore[union-attr]
+
+        detection = detect_usage_limit(
+            "test-provider", "usage limit reached", now=1000.0
+        )
+
+        assert detection is not None
+        assert detection.expires_at is None
+        assert detection.disable_seconds == 86400
+        assert detection.reset_source is None
+        mock_window.assert_not_called()  # type: ignore[union-attr]
+
+    @patch("sase.llm_provider.usage_limit_config.usage_window_expires_at")
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_per_provider_override_enables_fallback_despite_global_false(
+        self, mock_config: object, mock_built_in: object, mock_window: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(
+                patterns=["usage limit reached"], honor_usage_windows=True
+            )
+        }
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {"usage_limit": {"honor_usage_windows": False}}
+        }
+        mock_window.return_value = 1500.0  # type: ignore[union-attr]
+
+        detection = detect_usage_limit(
+            "test-provider", "usage limit reached", now=1000.0
+        )
+
+        assert detection is not None
+        assert detection.reset_source == "usage_window"
+        mock_window.assert_called_once_with("test-provider", None, now=1000.0)  # type: ignore[union-attr]
+
+    @patch("sase.llm_provider.usage_limit_config.usage_window_expires_at")
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_per_provider_override_disables_fallback_despite_global_true(
+        self, mock_config: object, mock_built_in: object, mock_window: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(
+                patterns=["usage limit reached"], honor_usage_windows=False
+            )
+        }
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        mock_window.return_value = 1500.0  # type: ignore[union-attr]
+
+        detection = detect_usage_limit(
+            "test-provider", "usage limit reached", now=1000.0
+        )
+
+        assert detection is not None
+        assert detection.reset_source is None
+        assert detection.disable_seconds == 86400
+        mock_window.assert_not_called()  # type: ignore[union-attr]
+
+    @patch("sase.llm_provider.usage_limit_config.usage_window_expires_at")
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_window_duration_clamps_to_maximum(
+        self, mock_config: object, mock_built_in: object, mock_window: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(patterns=["usage limit reached"])
+        }
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {"usage_limit": {"max_disable_seconds": 120}}
+        }
+        mock_window.return_value = 1000.0 + 25 * 86400  # type: ignore[union-attr]
+        detection = detect_usage_limit(
+            "test-provider", "usage limit reached", now=1000.0
+        )
+        assert detection is not None
+        assert detection.disable_seconds == 120
+        assert detection.expires_at == 1120.0
+        assert detection.reset_source == "usage_window"
+
+    @patch("sase.llm_provider.usage_limit_config.usage_window_expires_at")
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_window_duration_clamps_to_minimum(
+        self, mock_config: object, mock_built_in: object, mock_window: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(patterns=["usage limit reached"])
+        }
+        mock_config.return_value = {  # type: ignore[union-attr]
+            "llm_provider": {"usage_limit": {"min_disable_seconds": 600}}
+        }
+        mock_window.return_value = 1005.0  # type: ignore[union-attr]
+        detection = detect_usage_limit(
+            "test-provider", "usage limit reached", now=1000.0
+        )
+        assert detection is not None
+        assert detection.disable_seconds == 600
+        assert detection.expires_at == 1600.0
+        assert detection.reset_source == "usage_window"
+
+    @patch("sase.llm_provider.usage_limit_config.usage_window_expires_at")
+    @patch("sase.llm_provider.usage_limit_config._built_in_defaults")
+    @patch("sase.llm_provider.usage_limit_config.load_merged_config")
+    def test_model_is_passed_through_to_the_window_fallback(
+        self, mock_config: object, mock_built_in: object, mock_window: object
+    ) -> None:
+        mock_built_in.return_value = {  # type: ignore[union-attr]
+            "test-provider": ProviderUsageLimitConfig(patterns=["usage limit reached"])
+        }
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        mock_window.return_value = None  # type: ignore[union-attr]
+
+        detect_usage_limit(
+            "test-provider",
+            "usage limit reached",
+            model="test-provider/opus",
+            now=1000.0,
+        )
+
+        mock_window.assert_called_once_with(  # type: ignore[union-attr]
+            "test-provider", "test-provider/opus", now=1000.0
+        )

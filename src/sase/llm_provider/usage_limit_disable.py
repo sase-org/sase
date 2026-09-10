@@ -78,7 +78,7 @@ def _handle_possible_usage_limit(
     artifacts_dir: str | None,
 ) -> UsageLimitDetection | None:
     now = time.time()
-    detection = detect_usage_limit(provider, error_text, now=now)
+    detection = detect_usage_limit(provider, error_text, model=model, now=now)
     if detection is None:
         return None
 
@@ -113,11 +113,13 @@ def _handle_possible_usage_limit(
     LLM_PROVIDER_AUTO_DISABLES.labels(provider=provider).inc()
     logger.info(
         "auto-disabled LLM provider %r for %.0fs after usage-limit match "
-        "(pattern=%r, used_reset_hint=%s, model=%r, artifacts_dir=%r)",
+        "(pattern=%r, used_reset_hint=%s, reset_source=%r, model=%r, "
+        "artifacts_dir=%r)",
         provider,
         detection.disable_seconds,
         detection.matched_pattern,
         detection.used_reset_hint,
+        detection.reset_source,
         model,
         artifacts_dir,
     )
@@ -246,6 +248,7 @@ def _submit_drain(
             "disable_seconds": detection.disable_seconds,
             "expires_at": detection.expires_at,
             "used_reset_hint": detection.used_reset_hint,
+            "reset_source": detection.reset_source,
             "trigger_agent": _agent_name_from_artifacts_dir(artifacts_dir),
             "trigger_artifacts_dir": artifacts_dir,
             "trigger_model": model,

@@ -205,7 +205,11 @@ class GrokProvider(LLMProvider):
         # Retry-After on the sampling path) — see the plan's "Evidence:
         # Grok Build never reports a reset instant" section. honor_reset_hint
         # is therefore a no-op for grok and parse_reset_hint always returns
-        # (None, None) here, which makes disable_seconds below load-bearing.
+        # (None, None) here. disable_seconds below is now the last resort
+        # behind the usage-window fallback (a corroborated reset read from
+        # the Grok billing-usage collector): it stays load-bearing whenever
+        # the collector has no fresh corroborating window (logged-out CLI,
+        # API mode, or a stale snapshot).
         #
         # disable_seconds is 172800 (48h), double the global 24h default,
         # because since June 2026 paid Grok meters every product against one

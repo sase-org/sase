@@ -3380,6 +3380,11 @@
               "description": "Prefer a reset time reported by the provider itself over the flat disable_seconds fallback. Parses a bare or zoned clock time ('resets at 8pm', 'resets 6:38pm (America/New_York)'), an absolute date ('try again at Aug 20th, 2026 6:38 AM', 'resets Aug 22, 8pm (America/New_York)', 'resets 2026-08-20 06:38 UTC'), or a relative duration ('try again in 2 hours').",
               "default": true
             },
+            "honor_usage_windows": {
+              "type": "boolean",
+              "description": "When no reset hint is found, fall back to a corroborated reset instant read from the collected usage-window data (the collectors behind 'usage_metrics') before using the flat disable_seconds fallback.",
+              "default": true
+            },
             "notify": {
               "type": "boolean",
               "description": "Send a notification when a provider is automatically disabled.",
@@ -3425,6 +3430,10 @@
                   "honor_reset_hint": {
                     "type": ["boolean", "null"],
                     "description": "Per-provider override for honoring the provider's own reset hint. Null falls back to the global honor_reset_hint."
+                  },
+                  "honor_usage_windows": {
+                    "type": ["boolean", "null"],
+                    "description": "Per-provider override for the usage-window disable-expiry fallback. Null falls back to the global honor_usage_windows."
                   },
                   "replace_patterns": {
                     "type": "boolean",
