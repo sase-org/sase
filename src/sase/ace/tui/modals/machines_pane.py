@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
-import platform
 import time
-from typing import Any, Literal
+from typing import Any
 
 from rich.text import Text
 from textual import events
@@ -15,15 +12,12 @@ from textual.binding import BindingsMap
 from textual.containers import Vertical, VerticalScroll
 from textual.worker import Worker, WorkerState
 from textual.widgets import Input, OptionList, Static
-from textual.widgets.option_list import Option
 
 from sase.ace.agent_query import machine_query_term
-from sase.ace.tui.models.agent_runner_slots import format_capacity_value
 from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.keymaps import (
     MachinesPaneKeymaps,
     build_machines_bindings,
-    key_display_name,
     load_keymap_registry,
     split_key_alternatives,
 )
@@ -31,53 +25,30 @@ from sase.ace.tui.util.selection import (
     ProgrammaticSelectionGuard,
     restore_selection_by_identity,
 )
-from sase.config import get_agent_owner_config_snapshot, get_max_running_agents
-from sase.core.time import format_local
 from sase.dispatch.machine_service import MachineService
-from sase.dispatch.models import MachineRecord, MachineStatus
+from sase.dispatch.models import MachineStatus
 
-from .base import FilterInput, OptionListNavigationMixin
+from .base import OptionListNavigationMixin
 from .config_center_session import SelectionBookmark
-
-_ALIAS_WIDTH = 18
-_STATE_WIDTH = 13
-_HEALTH_WIDTH = 15
-_CAPACITY_WIDTH = 18
-_OBSERVED_WIDTH = 19
-
-
-@dataclass(frozen=True)
-class _MachineStatusSnapshot:
-    """One status result plus local observation time."""
-
-    status: MachineStatus
-    checked_at: float
-
-
-@dataclass(frozen=True)
-class _MachineRow:
-    """Renderable local or enrolled-machine row."""
-
-    alias: str
-    kind: Literal["here", "remote"]
-    record: MachineRecord | None = None
-
-    @property
-    def identity(self) -> str:
-        return f"{self.kind}:{self.alias}"
-
-
-@dataclass(frozen=True)
-class _MachineFlow:
-    """Persistent action guidance rendered beside the selected row."""
-
-    title: str
-    body: tuple[str, ...]
-    commands: tuple[str, ...]
-
-
-class _MachinesFilterInput(FilterInput):
-    """Filter input that lets focused Machines bindings keep working."""
+from .machines_pane_keybindings import machines_help_bindings
+from .machines_pane_rendering import (
+    column_header_text,
+    connect_flow,
+    create_options,
+    detail_text,
+    flow_text,
+    hints_text,
+    local_machine_label,
+    repair_flow,
+    row_haystack,
+    summary_text,
+)
+from .machines_pane_types import (
+    MachineFlow,
+    MachineRow,
+    MachineStatusSnapshot,
+    MachinesFilterInput,
+)
 
 
 class MachinesPane(OptionListNavigationMixin, Vertical):
@@ -99,9 +70,9 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         self._keymaps = keymaps or load_keymap_registry({}).machines
         self._bindings = BindingsMap(build_machines_bindings(self._keymaps))
         self._bookmark = session_state or SelectionBookmark()
-        self._records: list[_MachineRow] = []
-        self._filtered_records: list[_MachineRow] = []
-        self._statuses: dict[str, _MachineStatusSnapshot] = {}
+        self._records: list[MachineRow] = []
+        self._filtered_records: list[MachineRow] = []
+        self._statuses: dict[str, MachineStatusSnapshot] = {}
         self._last_success_by_alias: dict[str, float] = {}
         self._text_filter = ""
         self._loading = False
@@ -112,19 +83,19 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         self._load_worker: Worker[Any] | None = None
         self._status_worker: Worker[Any] | None = None
         self._checking_alias = ""
-        self._flow: _MachineFlow | None = self._connect_flow()
+        self._flow: MachineFlow | None = connect_flow()
         self._selection_guard = ProgrammaticSelectionGuard()
 
     def compose(self) -> ComposeResult:
         yield Static(self._summary_text(), id="machines-summary")
-        yield _MachinesFilterInput(
+        yield MachinesFilterInput(
             placeholder="Type to filter machines...",
             id="machines-filter",
         )
         machines_box = Vertical(id="machines-box")
         machines_box.border_title = "Machines"
         with machines_box:
-            yield Static(_column_header_text(), id="machines-columns")
+            yield Static(column_header_text(), id="machines-columns")
             yield OptionList(id=self._option_list_id)
         detail_box = VerticalScroll(id="machines-detail-scroll")
         detail_box.border_title = "Details"
@@ -134,7 +105,7 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         flow_box.border_title = "Action"
         with flow_box:
             yield Static("", id="machines-flow")
-        yield Static(self._hints_text(), id="machines-hints")
+        yield Static(hints_text(self._keymaps), id="machines-hints")
 
     def on_mount(self) -> None:
         self._refresh_options()
@@ -156,13 +127,13 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
             self.focus_default()
 
     def action_focus_filter(self) -> None:
-        self.query_one("#machines-filter", _MachinesFilterInput).focus()
+        self.query_one("#machines-filter", MachinesFilterInput).focus()
 
     def action_reload_machines(self) -> None:
         self._start_load()
 
     def action_connect_machine(self) -> None:
-        self._flow = self._connect_flow()
+        self._flow = connect_flow()
         self._update_flow()
 
     def action_check_status(self) -> None:
@@ -178,7 +149,7 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
             return
         alias = row.alias
         self._checking_alias = alias
-        self._flow = _MachineFlow(
+        self._flow = MachineFlow(
             title=f"Checking {alias}",
             body=("Running bounded authenticated hello for the selected machine.",),
             commands=(f"sase machine status {alias}",),
@@ -196,14 +167,14 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         row = self._selected_remote_row("repair")
         if row is None:
             return
-        self._flow = self._repair_flow(row.alias)
+        self._flow = repair_flow(row.alias)
         self._update_flow()
 
     def action_rename_machine(self) -> None:
         row = self._selected_remote_row("rename")
         if row is None:
             return
-        self._flow = _MachineFlow(
+        self._flow = MachineFlow(
             title=f"Rename {row.alias}",
             body=(
                 "Rename changes this controller's alias only; gateway identity and credentials stay pinned.",
@@ -217,7 +188,7 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         row = self._selected_remote_row("remove")
         if row is None:
             return
-        self._flow = _MachineFlow(
+        self._flow = MachineFlow(
             title=f"Remove {row.alias}",
             body=(
                 "Removal deletes this controller's enrollment and local credential reference.",
@@ -349,13 +320,13 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
             if isinstance(statuses, tuple):
                 for status in statuses:
                     if isinstance(status, MachineStatus):
-                        self._statuses[status.alias] = _MachineStatusSnapshot(
+                        self._statuses[status.alias] = MachineStatusSnapshot(
                             status=status,
                             checked_at=checked_at,
                         )
                         if status.ok:
                             self._last_success_by_alias[status.alias] = checked_at
-                self._flow = _MachineFlow(
+                self._flow = MachineFlow(
                     title=f"Status checked: {alias}",
                     body=("Status results were recorded in this ACE session.",),
                     commands=(f"sase machine status {alias}",),
@@ -366,7 +337,7 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
                 if event.worker.error
                 else "machine status check failed"
             )
-            self._flow = _MachineFlow(
+            self._flow = MachineFlow(
                 title=f"Status failed: {alias}",
                 body=(message,),
                 commands=(f"sase machine status {alias}",),
@@ -390,10 +361,10 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
             exit_on_error=False,
         )
 
-    def _load_rows(self) -> tuple[_MachineRow, ...]:
-        rows = [_MachineRow(alias=_local_machine_label(), kind="here")]
+    def _load_rows(self) -> tuple[MachineRow, ...]:
+        rows = [MachineRow(alias=local_machine_label(), kind="here")]
         rows.extend(
-            _MachineRow(alias=record.alias, kind="remote", record=record)
+            MachineRow(alias=record.alias, kind="remote", record=record)
             for record in self._service.list_machines()
         )
         return tuple(rows)
@@ -403,21 +374,7 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         self._filtered_records = [
             record
             for record in self._records
-            if not needle or needle in _row_haystack(record).casefold()
-        ]
-
-    def _create_options(self) -> list[Option]:
-        if not self._filtered_records:
-            if self._loading and not self._records:
-                message = "Loading machine inventory..."
-            elif self._text_filter.strip():
-                message = "No machines match the current search"
-            else:
-                message = "No machine rows available"
-            return [Option(Text(message, style="dim"), id="empty")]
-        return [
-            Option(_record_label(record, self._statuses), id=self._record_id(record))
-            for record in self._filtered_records
+            if not needle or needle in row_haystack(record).casefold()
         ]
 
     def _refresh_options(self, *, preferred_id: str | None = None) -> None:
@@ -429,7 +386,13 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         self._selection_guard.clear()
         selected_index: int | None = None
         option_list.clear_options()
-        for option in self._create_options():
+        for option in create_options(
+            self._filtered_records,
+            self._records,
+            self._statuses,
+            loading=self._loading,
+            text_filter=self._text_filter,
+        ):
             option_list.add_option(option)
         if self._filtered_records:
             index = restore_selection_by_identity(
@@ -457,7 +420,7 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
             return
         self._bookmark.record(self._record_id(self._filtered_records[index]), index)
 
-    def _selected_record(self) -> _MachineRow | None:
+    def _selected_record(self) -> MachineRow | None:
         try:
             highlighted = self.query_one("#machines-list", OptionList).highlighted
         except Exception:
@@ -471,10 +434,10 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         return self._record_id(record) if record is not None else None
 
     @staticmethod
-    def _record_id(record: _MachineRow) -> str:
+    def _record_id(record: MachineRow) -> str:
         return record.identity
 
-    def _selected_remote_row(self, verb: str) -> _MachineRow | None:
+    def _selected_remote_row(self, verb: str) -> MachineRow | None:
         row = self._selected_record()
         if row is None:
             self.notify(f"Select a machine to {verb}", severity="warning")
@@ -487,142 +450,12 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         return row
 
     def _summary_text(self) -> Text:
-        remotes = [row for row in self._records if row.kind == "remote"]
-        ok = sum(
-            1
-            for row in remotes
-            if (snapshot := self._statuses.get(row.alias)) is not None
-            and snapshot.status.ok
-        )
-        unknown = len([row for row in remotes if row.alias not in self._statuses])
-        errors = sum(
-            1
-            for row in remotes
-            if (snapshot := self._statuses.get(row.alias)) is not None
-            and not snapshot.status.ok
-        )
-        text = Text()
-        text.append("machines:", style="dim")
-        text.append(str(1 + len(remotes)), style="bold")
-        text.append("  ·  enrolled:", style="dim")
-        text.append(str(len(remotes)), style="bold #87D7FF")
-        text.append("  ·  ok:", style="dim")
-        text.append(str(ok), style="bold #00D7AF")
-        text.append("  ·  unknown:", style="dim")
-        text.append(str(unknown), style="bold #FFD700")
-        if errors:
-            text.append("  ·  issues:", style="dim")
-            text.append(str(errors), style="bold red")
-        if self._checking_alias:
-            text.append(f"  ·  checking {self._checking_alias}...", style="#87D7FF")
-        if self._loading:
-            text.append("  ·  refreshing...", style="#87D7FF")
-        if self._load_error:
-            text.append(f"  ·  {self._load_error}", style="bold red")
-        return text
-
-    def _detail_text(self, row: _MachineRow | None) -> Text:
-        text = Text()
-        if row is None:
-            text.append("No machine selected", style="dim")
-            return text
-        snapshot = self._statuses.get(row.alias)
-        text.append(row.alias, style="bold")
-        text.append("   ")
-        text.append("local controller" if row.kind == "here" else "enrolled origin")
-        text.append("\nHealth: ", style="dim")
-        text.append(
-            _health_label(row, snapshot)[0], style=_health_label(row, snapshot)[1]
-        )
-        text.append("    Last successful observation: ", style="dim")
-        text.append(self._last_success_label(row, snapshot))
-        text.append("\nCapacity: ", style="dim")
-        text.append(_capacity_label(row))
-        text.append("\nCapabilities: ", style="dim")
-        text.append(_capabilities_label(snapshot))
-        if row.record is not None:
-            record = row.record
-            text.append("\nEndpoint: ", style="dim")
-            text.append(record.endpoint)
-            text.append("    Provider: ", style="dim")
-            text.append(record.provider_ref)
-            text.append("\nPinned installation: ", style="dim")
-            text.append(record.pinned_installation_id)
-            if record.quarantined:
-                text.append("\nQuarantine: ", style="bold red")
-                text.append(
-                    record.quarantine_reason or "installation quarantined", style="red"
-                )
-        if snapshot is not None:
-            status = snapshot.status
-            text.append("\nStatus message: ", style="dim")
-            text.append(status.message or "-")
-            if status.machine_selector:
-                text.append("    Selector: ", style="dim")
-                text.append(status.machine_selector)
-            text.append("\nChecked: ", style="dim")
-            text.append(
-                format_local(snapshot.checked_at, "%Y-%m-%d %H:%M:%S", default="-")
-            )
-        return text
-
-    def _flow_text(self) -> Text:
-        flow = self._flow
-        text = Text()
-        if flow is None:
-            text.append("Choose an action for the selected machine.", style="dim")
-            return text
-        text.append(flow.title, style="bold")
-        for line in flow.body:
-            text.append(f"\n{line}")
-        if flow.commands:
-            text.append("\n\nCommands", style="bold")
-            for command in flow.commands:
-                text.append("\n  ")
-                text.append(command, style="#87D7FF")
-        return text
-
-    def _last_success_label(
-        self,
-        row: _MachineRow,
-        snapshot: _MachineStatusSnapshot | None,
-    ) -> str:
-        if row.kind == "here":
-            return "local"
-        if snapshot is not None and snapshot.status.ok:
-            return format_local(snapshot.checked_at, "%Y-%m-%d %H:%M:%S", default="-")
-        last_ok = self._last_success_by_alias.get(row.alias)
-        if last_ok is not None:
-            return format_local(last_ok, "%Y-%m-%d %H:%M:%S", default="-")
-        return "not observed in this session"
-
-    def _connect_flow(self) -> _MachineFlow:
-        return _MachineFlow(
-            title="Connect a machine",
-            body=(
-                "Prepare the target, issue a bootstrap bundle into a protected file, review it on this controller, activate, then verify.",
-                "Bootstrap bytes stay in the protected file path; do not paste them into prompts, argv, logs, or notes.",
-                "If setup partially succeeds, rerun the controller command with the same protected file to resume at the recovery step.",
-            ),
-            commands=(
-                "sase machine bootstrap --json > /path/protected/sase-bootstrap.json",
-                "sase machine init -B /path/protected/sase-bootstrap.json",
-                "sase machine status <alias>",
-            ),
-        )
-
-    def _repair_flow(self, alias: str) -> _MachineFlow:
-        return _MachineFlow(
-            title=f"Repair {alias}",
-            body=(
-                "Repair rotates this controller's enrollment with a fresh one-time bundle.",
-                "Changed installation identity must be reviewed and activated; cached rows are not rebound just because the alias matches.",
-            ),
-            commands=(
-                f"sase machine bootstrap --json > /path/protected/sase-{alias}-bootstrap.json",
-                f"sase machine repair {alias} -B /path/protected/sase-{alias}-bootstrap.json",
-                f"sase machine status {alias}",
-            ),
+        return summary_text(
+            self._records,
+            self._statuses,
+            checking_alias=self._checking_alias,
+            loading=self._loading,
+            load_error=self._load_error,
         )
 
     def _update_summary(self) -> None:
@@ -634,199 +467,32 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
     def _update_detail(self) -> None:
         try:
             self.query_one("#machines-detail", Static).update(
-                self._detail_text(self._selected_record())
+                detail_text(
+                    self._selected_record(),
+                    self._statuses,
+                    self._last_success_by_alias,
+                )
             )
         except Exception:
             pass
 
     def _update_flow(self) -> None:
         try:
-            self.query_one("#machines-flow", Static).update(self._flow_text())
+            self.query_one("#machines-flow", Static).update(flow_text(self._flow))
         except Exception:
             pass
 
     def _update_hints(self) -> None:
         try:
-            self.query_one("#machines-hints", Static).update(self._hints_text())
+            self.query_one("#machines-hints", Static).update(hints_text(self._keymaps))
         except Exception:
             pass
 
-    def _hints_text(self) -> str:
-        d = _primary_key_display
-        m = self._keymaps
-        return (
-            f"{d(m.next_option)}/{d(m.prev_option)} move  "
-            f"{d(m.focus_filter)} filter  {d(m.connect_machine)} connect  "
-            f"{d(m.check_status)} status  {d(m.show_agents)} agents  "
-            f"{d(m.copy_command)} copy command"
-        )
-
     def _filter_has_focus(self) -> bool:
         try:
-            return self.query_one("#machines-filter", _MachinesFilterInput).has_focus
+            return self.query_one("#machines-filter", MachinesFilterInput).has_focus
         except Exception:
             return False
-
-
-def _local_machine_label() -> str:
-    try:
-        snapshot = get_agent_owner_config_snapshot()
-        if snapshot.owner is not None:
-            return snapshot.owner.machine_name
-        if snapshot.selector:
-            return snapshot.selector
-    except Exception:
-        pass
-    return platform.node() or "here"
-
-
-def _column_header_text() -> Text:
-    text = Text(style="bold dim")
-    text.append(f"{'ALIAS':<{_ALIAS_WIDTH}}")
-    text.append(f"{'STATE':<{_STATE_WIDTH}}")
-    text.append(f"{'HEALTH':<{_HEALTH_WIDTH}}")
-    text.append(f"{'CAPACITY':<{_CAPACITY_WIDTH}}")
-    text.append(f"{'LAST OBSERVED':<{_OBSERVED_WIDTH}}")
-    text.append("ENDPOINT")
-    return text
-
-
-def _record_label(
-    row: _MachineRow,
-    statuses: dict[str, _MachineStatusSnapshot],
-) -> Text:
-    snapshot = statuses.get(row.alias)
-    health, health_style = _health_label(row, snapshot)
-    state = "here" if row.kind == "here" else _state_label(row, snapshot)
-    text = Text()
-    text.append(f"{row.alias:<{_ALIAS_WIDTH}.{_ALIAS_WIDTH}}", style="bold")
-    text.append(f"{state:<{_STATE_WIDTH}.{_STATE_WIDTH}}", style=_state_style(state))
-    text.append(f"{health:<{_HEALTH_WIDTH}.{_HEALTH_WIDTH}}", style=health_style)
-    text.append(f"{_capacity_label(row):<{_CAPACITY_WIDTH}.{_CAPACITY_WIDTH}}")
-    text.append(
-        f"{_observed_label(row, snapshot):<{_OBSERVED_WIDTH}.{_OBSERVED_WIDTH}}",
-        style="dim",
-    )
-    text.append(_endpoint_label(row), style="dim")
-    return text
-
-
-def _state_label(
-    row: _MachineRow,
-    snapshot: _MachineStatusSnapshot | None,
-) -> str:
-    if row.record is not None and row.record.quarantined:
-        return "quarantined"
-    if snapshot is None:
-        return "not checked"
-    return snapshot.status.state
-
-
-def _state_style(state: str) -> str:
-    if state in {"here", "ok"}:
-        return "#00D7AF"
-    if state in {"not checked", "skipped"}:
-        return "#FFD700"
-    return "bold red"
-
-
-def _health_label(
-    row: _MachineRow,
-    snapshot: _MachineStatusSnapshot | None,
-) -> tuple[str, str]:
-    if row.kind == "here":
-        return "local", "#00D7AF"
-    if row.record is not None and row.record.quarantined:
-        return "quarantined", "bold red"
-    if snapshot is None:
-        return "unknown", "#FFD700"
-    if snapshot.status.ok:
-        return "hello ok", "#00D7AF"
-    return snapshot.status.state, "bold red"
-
-
-def _capacity_label(row: _MachineRow) -> str:
-    if row.kind == "here":
-        try:
-            return (
-                "local capacity "
-                f"{format_capacity_value(float(get_max_running_agents()))}"
-            )
-        except Exception:
-            return "local capacity unknown"
-    return "not reported"
-
-
-def _observed_label(
-    row: _MachineRow,
-    snapshot: _MachineStatusSnapshot | None,
-) -> str:
-    if row.kind == "here":
-        return "local"
-    if snapshot is None:
-        return "never checked"
-    return format_local(snapshot.checked_at, "%H:%M:%S", default="-")
-
-
-def _endpoint_label(row: _MachineRow) -> str:
-    if row.kind == "here":
-        return "local controller"
-    return row.record.endpoint if row.record is not None else "-"
-
-
-def _capabilities_label(snapshot: _MachineStatusSnapshot | None) -> str:
-    if snapshot is None or not snapshot.status.capabilities:
-        return "not reported"
-    groups: list[str] = []
-    for name, values in sorted(snapshot.status.capabilities.items()):
-        if values:
-            groups.append(f"{name}: {', '.join(values)}")
-        else:
-            groups.append(name)
-    return "; ".join(groups)
-
-
-def _row_haystack(row: _MachineRow) -> str:
-    record = row.record
-    return " ".join(
-        part
-        for part in (
-            row.alias,
-            row.kind,
-            record.provider_ref if record is not None else "",
-            record.endpoint if record is not None else "",
-            record.pinned_installation_id if record is not None else "",
-            "quarantined" if record is not None and record.quarantined else "",
-        )
-        if part
-    )
-
-
-def _primary_key_display(key: str) -> str:
-    return key_display_name(split_key_alternatives(key)[0])
-
-
-def machines_help_bindings(
-    keymaps: MachinesPaneKeymaps,
-) -> list[tuple[str, str]]:
-    """Return effective Machines pane bindings for help surfaces."""
-
-    d = _primary_key_display
-    return [
-        (
-            f"{d(keymaps.next_option)} / {d(keymaps.prev_option)}",
-            "Move through machines",
-        ),
-        (d(keymaps.focus_filter), "Filter machines"),
-        (d(keymaps.connect_machine), "Open Connect flow"),
-        (d(keymaps.check_status), "Check selected machine status"),
-        (d(keymaps.repair_machine), "Show repair flow"),
-        (d(keymaps.rename_machine), "Show rename command"),
-        (d(keymaps.remove_machine), "Show removal command"),
-        (d(keymaps.show_agents), "Show Agents for selected machine"),
-        (d(keymaps.copy_command), "Copy current action command"),
-        (d(keymaps.reload), "Reload machine inventory"),
-    ]
 
 
 __all__ = ["MachinesPane", "machines_help_bindings"]
