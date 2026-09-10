@@ -11,9 +11,11 @@ from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_runner_slots import (
     RunnerCapacitySnapshot,
+    _capacity_record_from_agent,
     refresh_runner_slot_context,
 )
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
+from sase.core.paths import sase_projects_dir
 
 
 def _agent(name: str, **overrides: object) -> Agent:
@@ -29,6 +31,19 @@ def _agent(name: str, **overrides: object) -> Agent:
     }
     defaults.update(overrides)
     return Agent(**defaults)  # type: ignore[arg-type]
+
+
+def _sharded_artifacts_dir(project: str, timestamp: str) -> str:
+    """Build a real day-sharded artifact dir under the redirected sase home."""
+    return str(
+        sase_projects_dir()
+        / project
+        / "artifacts"
+        / "ace-run"
+        / timestamp[:6]
+        / timestamp[6:8]
+        / timestamp
+    )
 
 
 def _assert_capacity_metrics(
@@ -712,3 +727,85 @@ def test_weight_exceeding_limit_is_parked_with_blocker() -> None:
     assert capacity.queue[0].parked is True
     assert capacity.queue[0].blockers[0]["code"] == "weight-exceeds-limit"
     assert heavy.runner_capacity_blockers[0]["code"] == "weight-exceeds-limit"
+
+
+def test_capacity_record_from_agent_resolves_sharded_layout_project_and_workflow() -> (
+    None
+):
+    agent = _agent(
+        "sharded-root",
+        project_file="",
+        artifacts_dir=_sharded_artifacts_dir("proj", "20260712120500"),
+    )
+
+    record = _capacity_record_from_agent(agent, {})
+
+    assert record["workflow_dir_name"] == "ace-run"
+    assert record["project_name"] == "proj"
+
+
+def test_capacity_record_from_agent_falls_back_for_legacy_layout() -> None:
+    agent = _agent(
+        "legacy-root",
+        project_file="",
+        artifacts_dir="/tmp/project/artifacts/ace-run/legacy-root",
+    )
+
+    record = _capacity_record_from_agent(agent, {})
+
+    assert record["workflow_dir_name"] == "ace-run"
+    assert record["project_name"] == "project"
+
+
+def test_refresh_runner_slot_context_queues_sharded_layout_waiter() -> None:
+    holders = [
+        _agent(
+            f"holder-{index}",
+            project_file="",
+            artifacts_dir=_sharded_artifacts_dir("proj", f"202607121140{index:02d}"),
+            appears_as_agent=True,
+            status="RUNNING",
+            run_start_time=datetime(2026, 7, 12, 11, 40 + index),
+        )
+        for index in range(9)
+    ]
+    waiter = _agent(
+        "waiter",
+        project_file="",
+        artifacts_dir=_sharded_artifacts_dir("proj", "20260712120001"),
+        appears_as_agent=True,
+        wait_runners=9,
+        wait_priority=20,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+
+    capacity = refresh_runner_slot_context([*holders, waiter], effective_limit=10)
+
+    _assert_capacity_metrics(capacity, (10, 9, 1))
+    assert waiter.status == "QUEUED"
+    assert waiter.runner_slot_queue_position == 1
+
+
+def test_refresh_runner_slot_context_fallback_queues_sharded_layout_waiter() -> None:
+    holder = _agent(
+        "holder",
+        project_file="",
+        artifacts_dir=_sharded_artifacts_dir("proj", "20260712114000"),
+        appears_as_agent=True,
+        status="RUNNING",
+        run_start_time=datetime(2026, 7, 12, 11, 40),
+    )
+    waiter = _agent(
+        "waiter",
+        project_file="",
+        artifacts_dir=_sharded_artifacts_dir("proj", "20260712120001"),
+        appears_as_agent=True,
+        wait_runners=0,
+        wait_runners_explicit=True,
+        slot_requested_at="2026-07-12T12:00:01Z",
+    )
+
+    refresh_runner_slot_context([holder, waiter])
+
+    assert waiter.status == "QUEUED"
+    assert waiter.runner_slot_queue_position == 1

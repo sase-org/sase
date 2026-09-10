@@ -288,6 +288,14 @@ def _capacity_record_from_scan(
 
 
 def _project_name_from_artifact_dir(artifacts_dir: str) -> str:
+    from sase.core.agent_artifact_paths import parse_agent_artifact_path
+
+    try:
+        parsed = parse_agent_artifact_path(artifacts_dir)
+    except (OSError, RuntimeError, ValueError):
+        parsed = None
+    if parsed is not None:
+        return parsed.project_name
     path = Path(artifacts_dir)
     try:
         return path.parents[2].name

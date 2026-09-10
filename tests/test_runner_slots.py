@@ -3,11 +3,27 @@
 from __future__ import annotations
 
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
+from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import (
     is_runner_slot_user_agent_record,
     running_agent_slot_count,
+    runner_slot_candidate_record,
 )
 from tests._runner_slots_helpers import _always_live, _live_unless_stopped, _record
+
+
+def _candidate_record(artifacts_dir: str) -> dict[str, object]:
+    return runner_slot_candidate_record(
+        artifacts_dir=artifacts_dir,
+        timestamp="20260712120100",
+        slot_requested_at="2026-07-12T12:01:00Z",
+        wait_runners=None,
+        wait_runners_explicit=False,
+        wait_priority=10,
+        queue_weight=1.0,
+        queue_weight_explicit=False,
+        eligible_since=None,
+    )
 
 
 def test_running_agent_slot_count_uses_live_started_family_occupancy() -> None:
@@ -302,3 +318,29 @@ def test_question_paused_root_yields_until_pause_marker_is_removed() -> None:
         _record("/question", pid=2, run_started=True),
     ]
     assert running_agent_slot_count(resumed, lambda _record: True) == 2
+
+
+def test_runner_slot_candidate_record_resolves_sharded_layout_project_name() -> None:
+    artifacts_dir = str(
+        sase_projects_dir()
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "202607"
+        / "12"
+        / "20260712120100"
+    )
+
+    candidate = _candidate_record(artifacts_dir)
+
+    assert candidate["project_name"] == "proj"
+    assert candidate["workflow_dir_name"] == "ace-run"
+
+
+def test_runner_slot_candidate_record_falls_back_for_unparseable_artifact_dir() -> None:
+    artifacts_dir = "/tmp/elsewhere/proj/artifacts/ace-run/20260712120100"
+
+    candidate = _candidate_record(artifacts_dir)
+
+    assert candidate["project_name"] == "proj"
+    assert candidate["workflow_dir_name"] == "ace-run"

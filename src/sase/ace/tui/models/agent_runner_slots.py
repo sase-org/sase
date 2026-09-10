@@ -13,6 +13,7 @@ from sase.agent.status_buckets import (
     agent_status_bucket,
     runner_slot_display_status,
 )
+from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.runner_slots import (
     DEFAULT_QUEUE_WEIGHT,
     normalize_wait_priority,
@@ -107,8 +108,10 @@ def refresh_runner_slot_context(
         return _refresh_runner_slot_context_fallback(agents)
 
     capacity_source = agents if capacity_agents is None else capacity_agents
+    parsed_artifact_paths: dict[str, Any] = {}
     capacity_records = tuple(
-        _capacity_record_from_agent(agent) for agent in capacity_source
+        _capacity_record_from_agent(agent, parsed_artifact_paths)
+        for agent in capacity_source
     )
     raw_snapshot = runner_capacity_snapshot_from_capacity_records(
         capacity_records,
@@ -341,12 +344,15 @@ def _display_running_lane_count(lane_candidates: list[Agent]) -> int:
     return running_count
 
 
-def _capacity_record_from_agent(agent: Agent) -> dict[str, Any]:
+def _capacity_record_from_agent(
+    agent: Agent, parsed_artifact_paths: dict[str, Any]
+) -> dict[str, Any]:
     artifacts_dir = _capacity_artifact_dir(agent)
+    parsed = _parsed_artifact_path(agent, parsed_artifact_paths)
     return {
         "artifact_dir": artifacts_dir,
-        "project_name": _project_name(agent),
-        "workflow_dir_name": _workflow_dir_name(agent),
+        "project_name": _project_name(agent, parsed),
+        "workflow_dir_name": _workflow_dir_name(agent, parsed),
         "timestamp": _capacity_timestamp(agent),
         "has_agent_meta": not (agent.is_clan_container or agent.is_proc_shell),
         "has_done_marker": agent.stop_time is not None
@@ -386,11 +392,35 @@ def _capacity_artifact_dir(agent: Agent) -> str:
     return f"memory://{agent_type.value}/{cl_name}/{suffix}"
 
 
-def _project_name(agent: Agent) -> str:
+def _parsed_artifact_path(
+    agent: Agent, parsed_artifact_paths: dict[str, Any]
+) -> Any | None:
+    """Parse *agent*'s real artifact dir at most once per caching pass.
+
+    Synthetic ``memory://`` capacity dirs (clan containers and rows without
+    artifacts) have no real ``artifacts_dir`` and must not be fed to the
+    layout parser.
+    """
+    artifacts_dir = agent.artifacts_dir
+    if not artifacts_dir:
+        return None
+    if artifacts_dir not in parsed_artifact_paths:
+        try:
+            parsed_artifact_paths[artifacts_dir] = parse_agent_artifact_path(
+                artifacts_dir
+            )
+        except (OSError, RuntimeError, ValueError):
+            parsed_artifact_paths[artifacts_dir] = None
+    return parsed_artifact_paths[artifacts_dir]
+
+
+def _project_name(agent: Agent, parsed: Any | None) -> str:
     if agent.project_file:
         project_name = Path(agent.project_file).parent.name
         if project_name:
             return project_name
+    if parsed is not None:
+        return parsed.project_name
     artifacts_dir = agent.artifacts_dir
     if artifacts_dir:
         path = Path(artifacts_dir)
@@ -401,7 +431,9 @@ def _project_name(agent: Agent) -> str:
     return ""
 
 
-def _workflow_dir_name(agent: Agent) -> str:
+def _workflow_dir_name(agent: Agent, parsed: Any | None) -> str:
+    if parsed is not None:
+        return parsed.workflow_dir_name
     artifacts_dir = agent.artifacts_dir
     if artifacts_dir:
         workflow = Path(artifacts_dir).parent.name
