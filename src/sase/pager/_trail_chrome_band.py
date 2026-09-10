@@ -128,7 +128,7 @@ def _direction_text(
             parts.append(("‹", str(snapshot.back_count)))
     if snapshot.forward_count:
         if mode == "full":
-            parts.append(("<tab>", f" forward {snapshot.forward_count}"))
+            parts.append(("^I", f" forward {snapshot.forward_count}"))
         else:
             parts.append((str(snapshot.forward_count), "›"))
     if not parts:

@@ -11,6 +11,7 @@ from sase.pager._help import PagerHelpScreen
 from sase.pager.trail import PAGER_TRAIL_LIMIT
 from sase.pager.app import SasePager
 from sase.pager.resolve import LinkTarget, LinkTargetKind
+from sase.pager.screen import PagerScreen
 
 from ._app_helpers import (
     body_scroll,
@@ -65,7 +66,7 @@ async def test_follow_back_and_forward_restore_the_view(
         assert screen._forward_trail
         assert "hidden" not in trail.classes
         assert "TRAIL 1/2" in trail.visual.plain  # type: ignore[attr-defined]
-        assert "<tab> forward" in footer.visual.plain  # type: ignore[attr-defined]
+        assert "^I forward" in footer.visual.plain  # type: ignore[attr-defined]
 
         await pilot.press("tab")
         await pilot.pause()
@@ -154,6 +155,13 @@ async def test_ctrl_i_remains_a_forward_history_alias() -> None:
 
         assert screen.document is target
         assert not screen._forward_trail
+
+
+def test_trail_forward_binding_keeps_tab_alias_with_ctrl_i_display() -> None:
+    binding = next(b for b in PagerScreen.BINDINGS if b.action == "trail_forward")
+
+    assert binding.key == "tab,ctrl+i"
+    assert binding.key_display == "<ctrl+i>"
 
 
 async def test_tab_without_forward_history_keeps_pager_open_and_focused() -> None:

@@ -194,7 +194,7 @@ def _binding_rows(
         ]
     rows.extend(
         [
-            ("<tab>", "Walk forward"),
+            ("ctrl+i", "Walk forward"),
             ("r", "Refresh"),
             ("/", "Search forward"),
             ("n / N", "Next / previous match"),

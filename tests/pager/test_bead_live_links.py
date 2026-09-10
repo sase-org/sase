@@ -186,7 +186,7 @@ async def test_pager_follows_bead_links_and_preserves_trail(
         assert screen.document.title == f"{second.id} · Pager second"
         assert screen._forward_trail
         footer = screen.query_one("#pager-footer", Static)
-        assert "<tab> forward" in footer.visual.plain  # type: ignore[attr-defined]
+        assert "^I forward" in footer.visual.plain  # type: ignore[attr-defined]
 
         await pilot.press("tab")
         await pilot.pause()
