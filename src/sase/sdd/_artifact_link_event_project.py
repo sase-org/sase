@@ -164,23 +164,23 @@ def apply_events_to_aggregate(
     store: ArtifactLinkStore,
     objects: Sequence[_ArtifactLinkEventObject],
 ) -> tuple[dict[str, Any], ...]:
-    for item in objects:
-        row = _event_remove_row(item.event)
-        if row is None:
-            continue
-        store._remove_aggregate_rows(
-            source=str(row.get("source_ref") or ""),
-            target=str(row.get("target_ref") or ""),
-            relation=str(row.get("relation") or "") or None,
-        )
-    rows = rows_from_events(item.event for item in objects)
-    written: list[dict[str, Any]] = []
-    for row in rows:
-        outcome = store._upsert_aggregate_row(row)
-        stored = outcome.get("row")
-        if isinstance(stored, dict):
-            written.append(dict(stored))
-    return tuple(written)
+    if not objects:
+        return ()
+    if all(_event_type(item.event) == "baseline-import" for item in objects):
+        return ()
+    aggregate = store.rebuild_aggregate(
+        exclude_pending_event_ids=(str(item.event["operation_id"]) for item in objects),
+    )
+    return tuple(
+        dict(row) for row in aggregate.get("rows", ()) if isinstance(row, dict)
+    )
+
+
+def _event_type(event: Mapping[str, Any]) -> str:
+    kind = event.get("kind")
+    if not isinstance(kind, dict):
+        return ""
+    return str(kind.get("type") or "")
 
 
 def _iter_event_objects(store: ArtifactLinkStore) -> Iterable[_ArtifactLinkEventObject]:

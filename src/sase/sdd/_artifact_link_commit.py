@@ -362,6 +362,24 @@ def _publication_error_for_roots(
     return "\n".join(errors)
 
 
+def artifact_link_publication_error_for_roots(
+    repo_roots: Sequence[Path],
+    *,
+    store: SddStore | None,
+    project_key: str | None,
+    register_retry: bool = False,
+    description: str = ARTIFACT_LINK_COMMIT_MESSAGE,
+) -> str | None:
+    """Publish or report local artifact-link commits after caller locks drop."""
+
+    return _publication_error_for_roots(
+        repo_roots,
+        contexts=_publication_contexts_for_roots(store, project_key=project_key),
+        register_retry=register_retry,
+        description=description,
+    )
+
+
 def _unpublished_sidecar_error(
     repo_root: Path,
     *,
@@ -545,5 +563,6 @@ __all__ = [
     "ARTIFACT_LINK_FILE_HOOK_CAUSE",
     "BEAD_LINK_COMMIT_MESSAGE",
     "ArtifactLinkPersistError",
+    "artifact_link_publication_error_for_roots",
     "commit_artifact_link_indexes",
 ]

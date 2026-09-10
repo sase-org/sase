@@ -12,7 +12,10 @@ from typing import Any, Literal
 
 from sase.core.paths import sase_projects_dir
 from sase.memory.locks import locked_file
-from sase.sdd._artifact_link_commit import commit_artifact_link_indexes
+from sase.sdd._artifact_link_commit import (
+    artifact_link_publication_error_for_roots,
+    commit_artifact_link_indexes,
+)
 from sase.sdd._artifact_link_event_canonical import (
     ARTIFACT_LINK_EVENT_COMMIT_MESSAGE,
     ARTIFACT_LINK_EVENT_LOCK_FILENAME,
@@ -216,6 +219,7 @@ def _publish_root_events(
     from sase.sdd._git_contention import store_git_write_lock
 
     root = root.expanduser().resolve(strict=False)
+    root_outcomes: tuple[_ArtifactLinkEventRootOutcome, ...]
     with store_git_write_lock(
         root,
         op="artifact_link.event_publisher",
@@ -252,11 +256,11 @@ def _publish_root_events(
             artifacts_dir=artifacts_dir,
             already_locked=True,
             mutation_origin=mutation_origin,
-            push_after_commit=push_after_commit,
-            verify_publication=True,
+            push_after_commit=False,
+            verify_publication=False,
             message=ARTIFACT_LINK_EVENT_COMMIT_MESSAGE,
         )
-        outcomes = tuple(
+        root_outcomes = tuple(
             _ArtifactLinkEventRootOutcome(
                 root=root,
                 relative_path=item.relative_path,
@@ -266,16 +270,28 @@ def _publish_root_events(
             )
             for item in objects
         )
-        diagnostics = tuple(
-            f"artifact-link event {item.relative_path.as_posix()} is not durable in {root}"
-            for item, root_outcome in zip(objects, outcomes, strict=True)
-            if not root_outcome.durable
+
+    publication_error = (
+        None
+        if push_after_commit is False
+        else artifact_link_publication_error_for_roots(
+            (root,),
+            store=store.sdd_store,
+            project_key=store.project_key,
+            register_retry=mutation_origin == "machine",
+            description=ARTIFACT_LINK_EVENT_COMMIT_MESSAGE,
         )
-        return _RootPublishReport(
-            root_outcomes=outcomes,
-            publication_error=result.publication_error,
-            skip_diagnostics=diagnostics,
-        )
+    )
+    diagnostics = tuple(
+        f"artifact-link event {item.relative_path.as_posix()} is not durable in {root}"
+        for item, root_outcome in zip(objects, root_outcomes, strict=True)
+        if not root_outcome.durable
+    )
+    return _RootPublishReport(
+        root_outcomes=root_outcomes,
+        publication_error=publication_error,
+        skip_diagnostics=diagnostics,
+    )
 
 
 def _create_event_file(path: Path, payload: bytes) -> bool:
