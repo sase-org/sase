@@ -11,7 +11,7 @@ import pytest
 
 from sase.artifact_cli.read import _pager_link_context, handle_read
 from sase.artifact_read_log import ArtifactReadError, read_artifact_read_events
-from sase.sdd.artifact_link_outbox import _read_artifact_link_outbox_entries
+from sase.sdd._artifact_link_outbox_io import read_artifact_link_outbox_entries
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
 from sase.artifact_refs import ArtifactRefRepository
@@ -163,7 +163,7 @@ def test_agent_read_appends_artifact_link_outbox_entry(
 
     assert handle_read(_read_args()) == 0
 
-    [entry] = _read_artifact_link_outbox_entries("gh_sase-org__sase")
+    [entry] = read_artifact_link_outbox_entries("gh_sase-org__sase")
     assert entry.agent_name == "reader"
     assert len(entry.id) == 32
     assert entry.event is not None

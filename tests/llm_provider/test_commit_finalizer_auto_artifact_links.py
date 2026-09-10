@@ -26,10 +26,8 @@ from sase.llm_provider.commit_finalizer_baseline import capture_dirty_baseline
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
-from sase.sdd.artifact_link_outbox import (
-    append_artifact_link_outbox_entry,
-    _read_artifact_link_outbox_entries,
-)
+from sase.sdd._artifact_link_outbox_io import read_artifact_link_outbox_entries
+from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_entry
 from sase.sdd.artifact_link_store import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     ArtifactLinkStore,
@@ -198,7 +196,7 @@ def test_two_implicit_plan_reads_produce_no_dirt_or_commit(
     assert state.dirty_state.is_clean
     assert _run_git(plans, "status", "--porcelain", "--untracked-files=all") == ""
     assert int(_run_git(plans, "rev-list", "--count", "HEAD").strip()) == 1
-    assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
+    assert len(read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
 
     second = _prepare(artifacts)
     assert second.artifact_links_auto_committed is False

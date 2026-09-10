@@ -15,6 +15,7 @@ from sase.sdd._artifact_link_authorize import (
     sidecar_root_not_machine_writable_message,
 )
 from sase.sdd._artifact_link_commit import persist_artifact_link_graph_mutation
+from sase.sdd._artifact_link_outbox_io import read_artifact_link_outbox_entries
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
 from sase.sdd._artifact_link_store_support import sidecar_index_path
 from sase.sdd.artifact_link_backfill import (
@@ -24,7 +25,6 @@ from sase.sdd.artifact_link_backfill import (
 from sase.sdd.artifact_link_outbox import (
     append_artifact_link_outbox_entry,
     drain_artifact_link_outbox,
-    _read_artifact_link_outbox_entries,
 )
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from sase.sdd.referenced_by_refresh import refresh_referenced_by
@@ -310,7 +310,7 @@ def test_outbox_drain_skips_primary_owned_root(
         ),
     )
     monkeypatch.setattr(
-        "sase.sdd.artifact_link_outbox._entry_is_eligible",
+        "sase.sdd._artifact_link_outbox_drain._entry_is_eligible",
         lambda _entry: True,
     )
     before = _worktree_snapshot(plans)
@@ -327,7 +327,7 @@ def test_outbox_drain_skips_primary_owned_root(
     assert report.committed is False
     assert report.skip_diagnostics
     assert any("not machine-writable" in item for item in report.skip_diagnostics)
-    assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 1
+    assert len(read_artifact_link_outbox_entries("gh_sase-org__sase")) == 1
     assert _worktree_snapshot(plans) == before
     assert _git_output(plans, "rev-parse", "HEAD") == before_head
 

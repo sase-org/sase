@@ -13,9 +13,9 @@ from sase.artifact_cli.read import handle_read
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.feature_flags import override_flags
 from sase.sdd._artifact_link_ignore import ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN
+from sase.sdd._artifact_link_outbox_io import read_artifact_link_outbox_entries
 from sase.sdd.artifact_link_outbox import (
     ARTIFACT_LINK_OUTBOX_FILENAME,
-    _read_artifact_link_outbox_entries,
     append_artifact_link_outbox_entry,
     drain_artifact_link_outbox,
 )
@@ -135,10 +135,10 @@ def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(
 
     assert handle_read(_read_args()) == 0
     assert handle_read(_read_args()) == 0
-    assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
+    assert len(read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
     pending = tuple(
         entry.event
-        for entry in _read_artifact_link_outbox_entries("gh_sase-org__sase")
+        for entry in read_artifact_link_outbox_entries("gh_sase-org__sase")
         if entry.event is not None
     )
     assert len(pending) == 2
@@ -163,7 +163,7 @@ def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(
     assert unqualified.drained == 0
     assert unqualified.retained == 2
     assert unqualified.committed is False
-    assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
+    assert len(read_artifact_link_outbox_entries("gh_sase-org__sase")) == 2
 
     # The run then authors a real change and its commit is verified,
     # recording this run's own release evidence.
@@ -185,7 +185,7 @@ def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(
     assert report.committed is True
     assert _commit_count(repo) == before + 1
     assert _head_files(repo) == {"links/doc.md.json"}
-    assert _read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
+    assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
     [row] = _index_rows(repo)
     assert row["uses"] == 2
     assert _run_git(repo, "status", "--porcelain", "--untracked-files=all") == ""
@@ -217,7 +217,7 @@ def test_drain_run_without_release_evidence_leaves_entry_queued_and_uncommitted(
     assert report.retained == 1
     assert report.committed is False
     assert _commit_count(repo) == before
-    assert len(_read_artifact_link_outbox_entries("gh_sase-org__sase")) == 1
+    assert len(read_artifact_link_outbox_entries("gh_sase-org__sase")) == 1
     assert not list((repo / "links").rglob("*"))
     assert _run_git(repo, "status", "--porcelain", "--untracked-files=all") == ""
 
@@ -332,7 +332,7 @@ def test_drain_does_not_release_a_different_run_of_the_same_agent(
 
     assert report.drained == 1
     assert report.retained == 1
-    remaining = _read_artifact_link_outbox_entries("gh_sase-org__sase")
+    remaining = read_artifact_link_outbox_entries("gh_sase-org__sase")
     assert len(remaining) == 1
     assert remaining[0].run_id == "run-2"
 
@@ -426,7 +426,7 @@ def test_legacy_row_only_outbox_entries_still_drain(
     assert report.committed is True
     [indexed] = _index_rows(repo)
     assert indexed["uses"] == 1
-    assert _read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
+    assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
 
 
 def test_enabled_drain_publishes_event_objects_without_legacy_indexes(
@@ -469,7 +469,7 @@ def test_enabled_drain_publishes_event_objects_without_legacy_indexes(
     )
     assert not list((repo / "links").rglob("*"))
     assert _commit_count(repo) == before + 1
-    assert _read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
+    assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
     [row] = store.load_aggregate()["rows"]
     assert row["uses"] == 2
     assert _run_git(repo, "status", "--porcelain", "--untracked-files=all") == ""
@@ -511,4 +511,4 @@ def test_enabled_drain_allows_trusted_machine_derived_events_without_evidence(
     assert report.drained == 1
     assert len(report.event_paths) == 1
     assert not list((repo / "links").rglob("*"))
-    assert _read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
+    assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
