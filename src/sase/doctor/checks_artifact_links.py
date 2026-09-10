@@ -11,7 +11,14 @@ from typing import TYPE_CHECKING
 
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
 from sase.sdd._artifact_link_files import is_canonical_artifact_link_index_location
+from sase.sdd._artifact_link_cutover_state import (
+    ArtifactLinkCutoverMarker,
+    inspect_artifact_link_cutover_markers,
+)
 from sase.sdd._artifact_link_store_support import is_projected_row
+from sase.sdd.artifact_link_import_indexes import (
+    artifact_link_legacy_links_tree_identity,
+)
 from sase.sdd.artifact_link_drift import (
     build_artifact_link_index_drift,
     format_artifact_link_index_drift,
@@ -29,6 +36,8 @@ if TYPE_CHECKING:
     from sase.sdd.store import SddStore
 
 _CHECK_ID = "project.artifact_links_aggregate"
+_CUTOVER_CHECK_ID = "project.artifact_link_cutover"
+_CUTOVER_TITLE = "Artifact link cutover marker"
 _DIRT_CHECK_ID = "project.primary_sidecar_link_dirt"
 _DIRT_TITLE = "Primary sidecar link dirt"
 _MAX_DETAIL_ROWS = 10
@@ -71,6 +80,12 @@ def artifact_links_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="project",
             title=_DIRT_TITLE,
             runner=lambda: _check_primary_sidecar_link_dirt(context),
+        ),
+        CheckSpec(
+            id=_CUTOVER_CHECK_ID,
+            group="project",
+            title=_CUTOVER_TITLE,
+            runner=lambda: _check_artifact_link_cutover(context),
         ),
     )
 
@@ -240,6 +255,133 @@ def _check_primary_sidecar_link_dirt(context: DoctorContext) -> DiagnosticCheck:
             "entries": tuple(_dirt_data(entry) for entry in dirt),
         },
     )
+
+
+def _check_artifact_link_cutover(context: DoctorContext) -> DiagnosticCheck:
+    """Validate artifact-link event-store cutover markers."""
+
+    store = _resolve_store(context)
+    if store is None:
+        return DiagnosticCheck(
+            id=_CUTOVER_CHECK_ID,
+            group="project",
+            status="SKIP",
+            title=_CUTOVER_TITLE,
+            summary="no SDD store found in this checkout",
+            data={"state": "unknown"},
+        )
+    try:
+        project_key = _project_key(context)
+    except Exception as exc:  # noqa: BLE001 - doctor should report config failures.
+        return DiagnosticCheck(
+            id=_CUTOVER_CHECK_ID,
+            group="project",
+            status="ERROR",
+            title=_CUTOVER_TITLE,
+            summary="could not resolve a canonical project key for artifact links",
+            next_steps=str(exc),
+            data={"state": "unknown", "error": str(exc)},
+        )
+    if not project_key:
+        return DiagnosticCheck(
+            id=_CUTOVER_CHECK_ID,
+            group="project",
+            status="ERROR",
+            title=_CUTOVER_TITLE,
+            summary="could not resolve a canonical project key for artifact links",
+            data={"state": "unknown"},
+        )
+
+    adapter = ArtifactLinkStore.from_sdd_store(store, project_key)
+    try:
+        inspection = inspect_artifact_link_cutover_markers(
+            adapter.sidecar_roots,
+            project_key=project_key,
+        )
+    except Exception as exc:  # noqa: BLE001 - malformed markers fail closed.
+        return DiagnosticCheck(
+            id=_CUTOVER_CHECK_ID,
+            group="project",
+            status="ERROR",
+            title=_CUTOVER_TITLE,
+            summary="artifact-link cutover marker is invalid",
+            next_steps=(
+                "Repair link-events/STORE.json in every document sidecar root "
+                "before reading or writing artifact links."
+            ),
+            data={"state": "invalid", "error": str(exc)},
+        )
+    if inspection.marker is None:
+        return DiagnosticCheck(
+            id=_CUTOVER_CHECK_ID,
+            group="project",
+            status="OK",
+            title=_CUTOVER_TITLE,
+            summary="no artifact-link cutover marker present",
+            data={"state": "none"},
+        )
+
+    stragglers = _cutover_links_tree_stragglers(adapter, inspection.marker)
+    if stragglers:
+        return DiagnosticCheck(
+            id=_CUTOVER_CHECK_ID,
+            group="project",
+            status="ERROR",
+            title=_CUTOVER_TITLE,
+            summary="legacy links/ tree changed after artifact-link import",
+            next_steps=(
+                "Do not commit legacy links/ changes after import. Recreate "
+                "the equivalent immutable link events, then restore the links/ "
+                "tree to the frozen marker identity. Older SASE binaries do "
+                "not understand link-events/STORE.json."
+            ),
+            data={
+                "state": inspection.state,
+                "import_id": inspection.marker.import_id,
+                "stragglers": stragglers,
+            },
+        )
+
+    return DiagnosticCheck(
+        id=_CUTOVER_CHECK_ID,
+        group="project",
+        status="OK",
+        title=_CUTOVER_TITLE,
+        summary=f"artifact-link event store is {inspection.state}",
+        next_steps=(
+            ("Older SASE binaries do not understand link-events/STORE.json.",)
+            if inspection.state == "fenced"
+            else ()
+        ),
+        data={
+            "state": inspection.state,
+            "import_id": inspection.marker.import_id,
+            "roles": [role.role for role in inspection.marker.roles],
+        },
+    )
+
+
+def _cutover_links_tree_stragglers(
+    adapter: ArtifactLinkStore,
+    marker: ArtifactLinkCutoverMarker,
+) -> list[dict[str, str]]:
+    if marker.state != "imported":
+        return []
+    stragglers: list[dict[str, str]] = []
+    for role in marker.roles:
+        root = adapter.sidecar_roots.get(role.kind)
+        if root is None:
+            continue
+        current = artifact_link_legacy_links_tree_identity(root)
+        if current != role.links_tree:
+            stragglers.append(
+                {
+                    "current_links_tree": current,
+                    "frozen_links_tree": role.links_tree,
+                    "role": role.role,
+                }
+            )
+    return stragglers
 
 
 def _collect_primary_sidecar_link_dirt(

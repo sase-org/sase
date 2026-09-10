@@ -236,6 +236,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "project.referenced_by_index",
         "project.artifact_links_aggregate",
         "project.primary_sidecar_link_dirt",
+        "project.artifact_link_cutover",
         "completion.install",
         "flags.registry",
         "flags.overrides",

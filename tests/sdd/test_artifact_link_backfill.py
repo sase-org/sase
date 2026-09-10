@@ -14,7 +14,15 @@ from sase.sdd.artifact_link_backfill import (
 )
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
+from tests.sdd._artifact_link_event_helpers import (
+    install_fake_artifact_link_event_drain,
+)
 from tests.sdd._artifact_link_store_helpers import allow_machine_sidecar_writes
+
+
+@pytest.fixture(autouse=True)
+def _fake_artifact_link_event_drain(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_fake_artifact_link_event_drain(monkeypatch)
 
 
 def _store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ArtifactLinkStore:

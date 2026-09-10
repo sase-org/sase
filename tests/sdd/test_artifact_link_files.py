@@ -6,9 +6,9 @@ import json
 from pathlib import Path
 
 from sase.sdd._artifact_link_files import (
-    ArtifactLinkRepoFileKind,
+    _ArtifactLinkRepoFileKind,
     artifact_link_lock_path,
-    classify_artifact_link_repo_file,
+    _classify_artifact_link_repo_file,
     is_canonical_artifact_link_event,
     is_canonical_artifact_link_event_location,
     is_canonical_artifact_link_index,
@@ -77,14 +77,14 @@ def test_valid_new_and_modified_schema_v2_indexes(tmp_path: Path) -> None:
     path = _write_index(repo, "plan:202608/example.md")
 
     assert (
-        classify_artifact_link_repo_file(path, repo) is ArtifactLinkRepoFileKind.INDEX
+        _classify_artifact_link_repo_file(path, repo) is _ArtifactLinkRepoFileKind.INDEX
     )
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     payload["rows"][0]["uses"] = 2
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     assert (
-        classify_artifact_link_repo_file(path, repo) is ArtifactLinkRepoFileKind.INDEX
+        _classify_artifact_link_repo_file(path, repo) is _ArtifactLinkRepoFileKind.INDEX
     )
 
 
@@ -106,7 +106,7 @@ def test_nested_artifact_paths_map_to_index_files(tmp_path: Path) -> None:
 
     assert path == repo / "links" / "202608" / "nested" / "dir" / "report.md.json"
     assert (
-        classify_artifact_link_repo_file(path, repo) is ArtifactLinkRepoFileKind.INDEX
+        _classify_artifact_link_repo_file(path, repo) is _ArtifactLinkRepoFileKind.INDEX
     )
 
 
@@ -124,8 +124,8 @@ def test_path_ref_mismatch_is_rejected(tmp_path: Path) -> None:
     )
 
     assert (
-        classify_artifact_link_repo_file(path, repo)
-        is ArtifactLinkRepoFileKind.REJECTED
+        _classify_artifact_link_repo_file(path, repo)
+        is _ArtifactLinkRepoFileKind.REJECTED
     )
 
 
@@ -142,11 +142,12 @@ def test_schema_v1_and_malformed_json_are_rejected(tmp_path: Path) -> None:
     malformed.write_text("{not-json", encoding="utf-8")
 
     assert (
-        classify_artifact_link_repo_file(v1, repo) is ArtifactLinkRepoFileKind.REJECTED
+        _classify_artifact_link_repo_file(v1, repo)
+        is _ArtifactLinkRepoFileKind.REJECTED
     )
     assert (
-        classify_artifact_link_repo_file(malformed, repo)
-        is ArtifactLinkRepoFileKind.REJECTED
+        _classify_artifact_link_repo_file(malformed, repo)
+        is _ArtifactLinkRepoFileKind.REJECTED
     )
 
 
@@ -164,8 +165,8 @@ def test_invalid_rows_are_rejected(tmp_path: Path) -> None:
     )
 
     assert (
-        classify_artifact_link_repo_file(path, repo)
-        is ArtifactLinkRepoFileKind.REJECTED
+        _classify_artifact_link_repo_file(path, repo)
+        is _ArtifactLinkRepoFileKind.REJECTED
     )
 
 
@@ -177,8 +178,8 @@ def test_symlink_index_is_rejected(tmp_path: Path) -> None:
     link.symlink_to(real)
 
     assert (
-        classify_artifact_link_repo_file(link, repo)
-        is ArtifactLinkRepoFileKind.REJECTED
+        _classify_artifact_link_repo_file(link, repo)
+        is _ArtifactLinkRepoFileKind.REJECTED
     )
 
 
@@ -215,7 +216,9 @@ def test_paired_zero_byte_lock_is_recognized(tmp_path: Path) -> None:
     lock.write_bytes(b"")
 
     assert lock == repo / "links" / "202608" / "example.md.lock"
-    assert classify_artifact_link_repo_file(lock, repo) is ArtifactLinkRepoFileKind.LOCK
+    assert (
+        _classify_artifact_link_repo_file(lock, repo) is _ArtifactLinkRepoFileKind.LOCK
+    )
 
 
 def test_nonempty_and_unpaired_locks_are_rejected(tmp_path: Path) -> None:
@@ -229,12 +232,12 @@ def test_nonempty_and_unpaired_locks_are_rejected(tmp_path: Path) -> None:
     unpaired.write_bytes(b"")
 
     assert (
-        classify_artifact_link_repo_file(nonempty, repo)
-        is ArtifactLinkRepoFileKind.REJECTED
+        _classify_artifact_link_repo_file(nonempty, repo)
+        is _ArtifactLinkRepoFileKind.REJECTED
     )
     assert (
-        classify_artifact_link_repo_file(unpaired, repo)
-        is ArtifactLinkRepoFileKind.REJECTED
+        _classify_artifact_link_repo_file(unpaired, repo)
+        is _ArtifactLinkRepoFileKind.REJECTED
     )
 
 
@@ -244,8 +247,8 @@ def test_valid_canonical_event_object_is_recognized(tmp_path: Path) -> None:
     event_path = _write_event(repo)
 
     assert (
-        classify_artifact_link_repo_file(event_path, repo)
-        is ArtifactLinkRepoFileKind.EVENT
+        _classify_artifact_link_repo_file(event_path, repo)
+        is _ArtifactLinkRepoFileKind.EVENT
     )
     assert is_canonical_artifact_link_event(event_path, repo)
 
@@ -271,12 +274,12 @@ def test_malformed_and_symlink_event_objects_are_rejected(tmp_path: Path) -> Non
     link.symlink_to(event_path)
 
     assert (
-        classify_artifact_link_repo_file(event_path, repo)
-        is ArtifactLinkRepoFileKind.REJECTED
+        _classify_artifact_link_repo_file(event_path, repo)
+        is _ArtifactLinkRepoFileKind.REJECTED
     )
     assert (
-        classify_artifact_link_repo_file(link, repo)
-        is ArtifactLinkRepoFileKind.REJECTED
+        _classify_artifact_link_repo_file(link, repo)
+        is _ArtifactLinkRepoFileKind.REJECTED
     )
 
 
@@ -287,6 +290,6 @@ def test_markdown_outside_links_is_other(tmp_path: Path) -> None:
     document.write_text("# Example\n", encoding="utf-8")
 
     assert (
-        classify_artifact_link_repo_file(document, repo)
-        is ArtifactLinkRepoFileKind.OTHER
+        _classify_artifact_link_repo_file(document, repo)
+        is _ArtifactLinkRepoFileKind.OTHER
     )

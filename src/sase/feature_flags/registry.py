@@ -25,7 +25,6 @@ class FeatureFlag(StrEnum):
     admin_center_flags = "admin_center_flags"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
-    link_events = "link_events"
     typed_launch_units = "typed_launch_units"
 
 
@@ -70,12 +69,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "newly-arrived rows badged."
         ),
         bead="sase-qu",
-    ),
-    FeatureFlag.link_events: FeatureFlagDefinition(
-        key=FeatureFlag.link_events,
-        kind="beta",
-        description="Publish artifact-link mutations through immutable link event objects.",
-        bead="sase-z0",
     ),
     FeatureFlag.typed_launch_units: FeatureFlagDefinition(
         key=FeatureFlag.typed_launch_units,

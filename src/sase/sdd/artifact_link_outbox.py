@@ -8,6 +8,7 @@ from sase.sdd._artifact_link_outbox_drain import drain_artifact_link_outbox
 from sase.sdd._artifact_link_outbox_io import (
     append_artifact_link_outbox_entry,
     append_artifact_link_outbox_event,
+    convert_legacy_artifact_link_outbox_entries,
     inspect_artifact_link_outbox,
     pending_artifact_link_outbox_event_created_at,
     pending_artifact_link_outbox_events,
@@ -27,6 +28,7 @@ __all__ = [
     "ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION",
     "append_artifact_link_outbox_event",
     "append_artifact_link_outbox_entry",
+    "convert_legacy_artifact_link_outbox_entries",
     "drain_artifact_link_outbox",
     "inspect_artifact_link_outbox",
     "pending_artifact_link_outbox_event_created_at",

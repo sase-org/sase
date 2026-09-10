@@ -21,7 +21,8 @@ from sase.core.time import format_local
 from sase.sdd._artifact_link_store_support import unique_rows
 from sase.sdd._artifact_link_store_support import is_projected_row, pair_matches
 from sase.sdd._artifact_link_store_support import row_touches
-from sase.sdd.artifact_link_event_flags import artifact_link_events_enabled
+from sase.sdd._artifact_link_store_support import upsert_artifact_link_rows
+from sase.sdd._artifact_link_store_support import validate_artifact_link_row
 from sase.sdd.artifact_link_event_publisher import (
     active_operation_ids_for_row,
     edge_put_event_from_row,
@@ -92,15 +93,7 @@ def add_artifact_link(
         "created_at": _created_at(),
         "uses": 1,
     }
-    if artifact_link_events_enabled():
-        return _add_artifact_link_event(store, row)
-    outcome = store.upsert_row(row)
-    _persist_link_mutation(
-        store,
-        changed_indexes=tuple(outcome.get("changed_indexes") or ()),
-        beads_changed=bool(outcome.get("beads_changed")),
-    )
-    return dict(outcome)
+    return _add_artifact_link_event(store, row)
 
 
 def _validated_why(value: str) -> str:
@@ -209,37 +202,33 @@ def remove_artifact_link(
             require_rust_binding("artifact_relation_lookup")(str(relation))["slug"]
         )
     store = _store()
-    if artifact_link_events_enabled():
-        return _remove_artifact_link_event(
-            store,
-            source_ref=source_ref,
-            target_ref=target_ref,
-            relation=relation,
-        )
-    removed = store.remove_rows(
-        source_ref,
-        target_ref,
-        relation=None if not relation else str(relation),
-    )
-    _persist_link_mutation(
+    return _remove_artifact_link_event(
         store,
-        changed_indexes=removed.changed_indexes,
-        beads_changed=removed.beads_changed,
+        source_ref=source_ref,
+        target_ref=target_ref,
+        relation=relation,
     )
-    return {
-        "rows": tuple(dict(row) for row in removed),
-        "changed_indexes": removed.changed_indexes,
-        "beads_changed": removed.beads_changed,
-    }
 
 
 def _add_artifact_link_event(
     store: ArtifactLinkStore,
     row: Mapping[str, Any],
 ) -> dict[str, Any]:
-    observed = active_operation_ids_for_row(store, row)
+    validated = validate_artifact_link_row(row)
+    existing_rows = store.load_artifact_rows(str(validated["source_ref"]))
+    outcome = upsert_artifact_link_rows(existing_rows, validated)
+    if outcome["kind"] == "unchanged":
+        return {
+            "kind": "unchanged",
+            "row": dict(outcome["row"]),
+            "rows": tuple(dict(item) for item in outcome["rows"]),
+            "changed_indexes": (),
+            "event_paths": (),
+            "beads_changed": False,
+        }
+    observed = active_operation_ids_for_row(store, validated)
     event = edge_put_event_from_row(
-        row,
+        validated,
         project_key=store.project_key,
         operation_id=uuid4().hex,
         observed_operation_ids=observed,
@@ -258,9 +247,9 @@ def _add_artifact_link_event(
         )
         raise RuntimeError(diagnostic)
     rows = rows_from_events((event,))
-    stored = dict(rows[0]) if rows else dict(row)
+    stored = dict(rows[0]) if rows else dict(validated)
     return {
-        "kind": "added",
+        "kind": str(outcome["kind"]),
         "row": stored,
         "rows": tuple(dict(item) for item in rows),
         "changed_indexes": (),
@@ -336,29 +325,6 @@ def _store() -> ArtifactLinkStore:
     from sase.sdd import artifact_link_store as artifact_link_store_module
 
     return artifact_link_store_module.resolve_artifact_link_store()
-
-
-def _persist_link_mutation(
-    store: ArtifactLinkStore,
-    *,
-    changed_indexes: tuple[Any, ...],
-    beads_changed: bool,
-) -> None:
-    from pathlib import Path
-
-    from sase.sdd._artifact_link_commit import (
-        ArtifactLinkPersistError,
-        persist_artifact_link_graph_mutation,
-    )
-
-    try:
-        persist_artifact_link_graph_mutation(
-            store,
-            changed_indexes=tuple(Path(path) for path in changed_indexes),
-            beads_changed=beads_changed,
-        )
-    except ArtifactLinkPersistError as exc:
-        raise RuntimeError(exc.diagnostic) from exc
 
 
 def _cli_writable_relation(slug: str) -> str:

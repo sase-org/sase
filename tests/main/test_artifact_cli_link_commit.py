@@ -9,7 +9,7 @@ import subprocess
 import pytest
 
 from sase.artifact_cli.link_ops import handle_link_add, handle_link_rm
-from sase.sdd._artifact_link_ignore import ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN
+from sase.sdd.artifact_link_event_publisher import ARTIFACT_LINK_EVENT_COMMIT_MESSAGE
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
 
@@ -49,6 +49,14 @@ def _head_files(repo: Path) -> set[str]:
 
 def _head_subject(repo: Path) -> str:
     return _run_git(repo, "log", "-1", "--pretty=%s").strip()
+
+
+def _head_event_files(repo: Path) -> set[str]:
+    return {
+        name
+        for name in _head_files(repo)
+        if name.startswith("link-events/v1/") and name.endswith(".json")
+    }
 
 
 def _patch_store(monkeypatch: pytest.MonkeyPatch, store: ArtifactLinkStore) -> None:
@@ -105,19 +113,12 @@ def test_add_commits_one_sidecar_for_two_indexes(
     )
 
     assert _commit_count(plans) == before + 1
-    assert _head_subject(plans) == "chore(artifact-links): persist link indexes"
+    assert _head_subject(plans) == ARTIFACT_LINK_EVENT_COMMIT_MESSAGE
     files = _head_files(plans)
-    assert "links/202608/a.md.json" in files
-    assert "links/202608/b.md.json" in files
-    assert ".gitignore" in files
-    assert ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN in (plans / ".gitignore").read_text(
-        encoding="utf-8"
-    )
-    assert "links/202608/a.md.lock" not in files
-    assert "links/202608/b.md.lock" not in files
+    assert len(_head_event_files(plans)) == 1
+    assert not any(name.startswith("links/") for name in files)
     status = _run_git(plans, "status", "--porcelain", "--untracked-files=all")
     assert status == ""
-    assert (plans / "links" / "202608" / "a.md.lock").is_file()
 
 
 def test_noop_add_creates_zero_commits(
@@ -180,9 +181,8 @@ def test_relation_removal_commits_once(
     )
     assert _commit_count(plans) == after_add + 1
     files = _head_files(plans)
-    assert "links/202608/a.md.json" in files
-    assert "links/202608/b.md.json" in files
-    assert not any(name.endswith(".lock") for name in files)
+    assert len(_head_event_files(plans)) == 1
+    assert not any(name.startswith("links/") for name in files)
 
 
 def test_document_endpoints_across_two_sidecars_commit_each_once(
@@ -215,8 +215,8 @@ def test_document_endpoints_across_two_sidecars_commit_each_once(
 
     assert _commit_count(plans) == plans_before + 1
     assert _commit_count(research) == research_before + 1
-    assert "links/202608/a.md.json" in _head_files(plans)
-    assert "links/202608/source.md.json" in _head_files(research)
+    assert len(_head_event_files(plans)) == 1
+    assert len(_head_event_files(research)) == 1
     assert _run_git(plans, "status", "--porcelain") == ""
     assert _run_git(research, "status", "--porcelain") == ""
 
@@ -258,7 +258,7 @@ def test_bead_to_document_commits_document_and_bead_store(
         assert _commit_count(plans) == plans_before + 1
         assert _commit_count(beads_repo) == beads_before + 1
         assert _head_subject(beads_repo) == "chore(beads): update artifact links"
-        assert "links/202608/a.md.json" in _head_files(plans)
+        assert len(_head_event_files(plans)) == 1
         assert not list((plans / "links").rglob("*bead*"))
 
 

@@ -14,7 +14,6 @@ from sase.sdd._artifact_link_authorize import (
     probe_machine_writable_sidecar_root,
     sidecar_root_not_machine_writable_message,
 )
-from sase.sdd._artifact_link_commit import persist_artifact_link_graph_mutation
 from sase.sdd._artifact_link_outbox_io import read_artifact_link_outbox_entries
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
 from sase.sdd._artifact_link_store_support import sidecar_index_path
@@ -30,7 +29,7 @@ from sase.sdd.artifact_link_store import ArtifactLinkStore
 from sase.sdd.referenced_by_refresh import refresh_referenced_by
 from sase.sdd.store import SddStore
 from tests._conftest_environment import redirect_sase_home
-from tests.sdd._artifact_link_store_helpers import _row, _store
+from tests.sdd._artifact_link_store_helpers import _row
 
 
 def _primary_owned_sidecars(
@@ -357,27 +356,3 @@ def test_referenced_by_refresh_skips_primary_owned_root(
     assert "resolves to primary #0" in report.issues[0].message
     assert document.read_bytes() == before
     assert not list(plans.joinpath("links").rglob("*.json"))
-
-
-def test_persist_graph_mutation_defaults_to_user_origin(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    store = _store(tmp_path, monkeypatch)
-    seen: list[dict[str, object]] = []
-
-    def _commit(*_args: object, **kwargs: object) -> SimpleNamespace:
-        seen.append(kwargs)
-        return SimpleNamespace(publication_error=None, committed=True)
-
-    monkeypatch.setattr(
-        "sase.sdd._artifact_link_commit.commit_artifact_link_indexes",
-        _commit,
-    )
-
-    persist_artifact_link_graph_mutation(
-        store,
-        changed_indexes=(tmp_path / "plans" / "links" / "a.json",),
-        beads_changed=False,
-    )
-
-    assert seen[0]["mutation_origin"] == "user"

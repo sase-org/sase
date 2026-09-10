@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.agents_sync.io import atomic_write_json
 from sase.memory.locks import locked_file
+from sase.sdd._artifact_link_cutover_state import legacy_artifact_link_writes_fenced
 from sase.sdd._artifact_link_files import artifact_link_lock_path
 from sase.sdd._artifact_link_store_support import (
     ARTIFACT_LINK_ROW_SCHEMA_VERSION,
@@ -28,6 +29,7 @@ class ArtifactLinkStoreSidecarMixin:
     """Reads and writes for per-artifact sidecar ``links/`` JSON."""
 
     sidecar_roots: Mapping[str, Path]
+    project_key: str
     sidecar_root_for: Callable[[str], Path | None]
 
     def _upsert_sidecar(
@@ -36,6 +38,13 @@ class ArtifactLinkStoreSidecarMixin:
         root = self.sidecar_root_for(artifact_ref)
         if root is None:
             return None
+        if legacy_artifact_link_writes_fenced(
+            self.sidecar_roots,
+            project_key=self.project_key,
+        ):
+            raise RuntimeError(
+                "artifact-link legacy index writes are fenced; use link events"
+            )
         canonical = canonicalize_artifact_link_ref(artifact_ref)
         path = sidecar_index_path(root, canonical)
         with locked_file(artifact_link_lock_path(path), fcntl.LOCK_EX):
@@ -64,6 +73,13 @@ class ArtifactLinkStoreSidecarMixin:
         root = self.sidecar_root_for(artifact_ref)
         if root is None:
             return [], None
+        if legacy_artifact_link_writes_fenced(
+            self.sidecar_roots,
+            project_key=self.project_key,
+        ):
+            raise RuntimeError(
+                "artifact-link legacy index writes are fenced; use link events"
+            )
         canonical = canonicalize_artifact_link_ref(artifact_ref)
         path = sidecar_index_path(root, canonical)
         with locked_file(artifact_link_lock_path(path), fcntl.LOCK_EX):

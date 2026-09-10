@@ -17,10 +17,12 @@ from sase.sdd._artifact_link_authorize import (
 )
 from sase.sdd._artifact_link_machine_store import MachineArtifactLinkRoot
 from sase.sdd._artifact_link_publication_retry_state import (
+    artifact_link_publication_state_lock as _state_lock,
+    artifact_link_publication_state_path as _artifact_link_publication_state_path,
     clear_record as _clear_record,
     mark_attempt as _mark_attempt,
     next_retry_role_after as _next_retry_role_after,
-    read_publication_state as _read_publication_state,
+    read_artifact_link_publication_state_unlocked as _read_state_unlocked,
     register_pending as _register_pending,
     rotate_retry_roots as _rotate_retry_roots,
     write_next_retry_role as _write_next_retry_role,
@@ -160,8 +162,10 @@ def inspect_artifact_link_publications(
     """Return pending unpublished artifact-link publication records."""
 
     observed_at = _wall_now(now)
+    path = _artifact_link_publication_state_path(project_key)
     try:
-        records, _next_role = _read_publication_state(project_key)
+        with _state_lock(path):
+            records, _next_role = _read_state_unlocked(path)
     except Exception as exc:  # noqa: BLE001 - doctor should report, not crash.
         return _ArtifactLinkPublicationInspection(
             diagnostics=(

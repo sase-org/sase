@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
+from sase.sdd.artifact_link_event_publisher import rows_from_events
 from tests.conftest import redirect_sase_home
 from tests.plan_command_handler_helpers import (
     VALID_EPIC,
@@ -275,10 +277,29 @@ def test_plan_command_consumes_links_frontmatter_into_artifact_links(
         "sase.sdd.artifact_link_inlet.resolve_artifact_link_store",
         lambda: link_store,
     )
-    persisted: list[dict[str, object]] = []
+    published: list[dict[str, object]] = []
+
+    def _publish_events(_store: object, events: object, **_kwargs: object) -> object:
+        batch = tuple(dict(event) for event in events)  # type: ignore[arg-type]
+        published.extend(batch)
+        return SimpleNamespace(
+            attempted=len(batch),
+            published=len(batch),
+            committed=bool(batch),
+            event_paths=(),
+            durable_event_paths=(),
+            published_operation_ids=tuple(
+                str(event["operation_id"]) for event in batch
+            ),
+            beads_changed=False,
+            aggregate_rows=rows_from_events(batch),
+            publication_error=None,
+            skip_diagnostics=(),
+        )
+
     monkeypatch.setattr(
-        "sase.sdd._artifact_link_commit.persist_artifact_link_graph_mutation",
-        lambda _store, **kwargs: persisted.append(kwargs),
+        "sase.sdd.artifact_link_inlet.publish_artifact_link_events",
+        _publish_events,
     )
 
     with (
@@ -308,17 +329,13 @@ def test_plan_command_consumes_links_frontmatter_into_artifact_links(
         "| derives-from | research:202608/source.md | uses source report |"
         in archived_content
     )
-    index = json.loads(
-        (sidecar_root / "links" / f"{archive_relpath}.json").read_text(encoding="utf-8")
-    )
-    row = index["rows"][0]
-    assert index["artifact_ref"] == source_ref
+    [row] = rows_from_events(published)
     assert row["source_ref"] == source_ref
     assert row["relation"] == "derives-from"
     assert row["target_ref"] == "research:202608/source.md"
     assert row["origin"] == "manual"
     assert row["created_by"] == "tester"
-    assert persisted
+    assert published
 
 
 def test_plan_command_rejects_unknown_links_relation_without_consuming(

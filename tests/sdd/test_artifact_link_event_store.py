@@ -8,6 +8,14 @@ from pathlib import Path
 import pytest
 
 from sase.core.rust import require_rust_binding
+from sase.sdd._artifact_link_cutover_state import (
+    ArtifactLinkBaselineEventIdentity,
+    ArtifactLinkCutoverImportIdentity,
+    ArtifactLinkCutoverRole,
+    artifact_link_cutover_marker_bytes,
+    artifact_link_cutover_marker_path,
+    build_artifact_link_cutover_marker_payload,
+)
 from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_event
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
@@ -99,6 +107,23 @@ def test_legacy_event_overlap_rejected_before_cutover(
 
     with pytest.raises(RuntimeError, match="legacy/event overlap rejected"):
         store.load_durable_rows()
+
+
+def test_imported_cutover_ignores_legacy_rows_when_events_overlap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    store.upsert_row(_row(relation="cites", description="legacy row"))
+    _write_event(
+        tmp_path / "plans",
+        _edge_event("e" * 32, relation="cites", description="event row"),
+    )
+    _write_imported_marker(store)
+
+    [row] = store.load_durable_rows()
+
+    assert row["description"] == "event row"
 
 
 def test_pending_read_events_increment_legacy_rows_without_overlap_rejection(
@@ -316,3 +341,46 @@ def _write_event(root: Path, event: dict[str, object]) -> Path:
         encoding="utf-8",
     )
     return path
+
+
+def _write_imported_marker(store: ArtifactLinkStore) -> None:
+    digest = "a" * 64
+    payload = build_artifact_link_cutover_marker_payload(
+        state="imported",
+        project_key=PROJECT_KEY,
+        event_store_schema_version=1,
+        event_store_minimum_event_schema_version=int(
+            require_rust_binding("artifact_link_event_schema_version")()
+        ),
+        import_identity=ArtifactLinkCutoverImportIdentity(
+            import_id="legacy-v2-links-test",
+            operation_id="b" * 32,
+            source_head="sha256:" + "c" * 64,
+            created_at="2026-09-10T00:00:00Z",
+        ),
+        roles=(
+            ArtifactLinkCutoverRole(
+                role="plans",
+                kind="plan",
+                head="d" * 40,
+                links_tree="sha256:" + "e" * 64,
+                remote_url="<none>",
+            ),
+            ArtifactLinkCutoverRole(
+                role="research",
+                kind="research",
+                head="f" * 40,
+                links_tree="sha256:" + "0" * 64,
+                remote_url="<none>",
+            ),
+        ),
+        baseline_event=ArtifactLinkBaselineEventIdentity(
+            digest=digest,
+            path=f"link-events/v1/{digest[:2]}/{digest}.json",
+        ),
+    )
+    marker_bytes = artifact_link_cutover_marker_bytes(payload)
+    for root in store.sidecar_roots.values():
+        path = artifact_link_cutover_marker_path(root)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(marker_bytes)

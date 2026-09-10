@@ -252,6 +252,13 @@ def _print_report(
             "Artifact-link publication diagnostics",
             link_report.publication_diagnostics,
         )
+        table.add_row("Artifact-link cutover", link_report.cutover_state)
+        _add_ids(table, "Artifact-link cutover errors", link_report.cutover_errors)
+        _add_ids(
+            table,
+            "Artifact-link cutover stragglers",
+            link_report.cutover_stragglers,
+        )
         if link_report.coverage.populations:
             for population in link_report.coverage.populations:
                 table.add_row(

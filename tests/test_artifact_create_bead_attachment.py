@@ -66,14 +66,37 @@ def agent_workspace(
 
 def _stored_links(workspace: Path, bead_id: str) -> list[str]:
     with BeadProject(workspace) as project:
+        beads_dir = project.beads_dir
         issue = project.show(bead_id)
-        # The bead is the target of the ``related`` row this call writes
-        # (the artifact is the source), so it is stored inbound.
-        return [
+        linked = [
             link.target_ref
             for link in issue.links
             if link.relation == "related" and link.direction == "in"
         ]
+    if linked:
+        return linked
+
+    from sase.sdd.artifact_link_store import ArtifactLinkStore
+
+    store = ArtifactLinkStore(
+        project_key="test-project",
+        sidecar_roots={},
+        beads_dir=beads_dir,
+    )
+    # Event-backed links may be visible through the aggregate before a fresh
+    # bead read model is opened in this bare test workspace.
+    bead_ref = f"bead:{bead_id}"
+    stored: list[str] = []
+    for row in store.load_aggregate().get("rows", []):
+        if row.get("relation") != "related":
+            continue
+        source = str(row.get("source_ref") or "")
+        target = str(row.get("target_ref") or "")
+        if source == bead_ref:
+            stored.append(target)
+        elif target == bead_ref:
+            stored.append(source)
+    return stored
 
 
 def test_an_explicit_bead_id_receives_the_minted_reference(

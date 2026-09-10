@@ -77,6 +77,15 @@ def test_commit_publishes_every_sidecar_inline_in_order(
             order.append("agent") or _CommitPublicationOutcome(published=True)
         ),
     )
+    store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_store.resolve_artifact_link_store",
+        lambda **_kwargs: store,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_store.resolve_machine_artifact_link_store",
+        lambda _project_key, _cwd: store,
+    )
     monkeypatch.setattr(
         "sase.sdd.artifact_link_outbox.drain_artifact_link_outbox",
         lambda **_kwargs: order.append("outbox"),
@@ -138,7 +147,11 @@ def test_publication_step_records_release_evidence_for_this_run(
     )
     monkeypatch.setattr(
         "sase.sdd.artifact_link_store.resolve_artifact_link_store",
-        lambda: store,
+        lambda **_kwargs: store,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_store.resolve_machine_artifact_link_store",
+        lambda _project_key, _cwd: store,
     )
     drained: list[str] = []
     monkeypatch.setattr(
@@ -206,6 +219,15 @@ def test_fully_tagged_commit_and_resume_publish_each_sidecar_once(
         lambda *_args, **_kwargs: (
             calls.append("agent") or _CommitPublicationOutcome(published=True)
         ),
+    )
+    store = ArtifactLinkStore(project_key="gh_sase-org__sase", sidecar_roots={})
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_store.resolve_artifact_link_store",
+        lambda **_kwargs: store,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_store.resolve_machine_artifact_link_store",
+        lambda _project_key, _cwd: store,
     )
     monkeypatch.setattr(
         "sase.sdd.artifact_link_outbox.drain_artifact_link_outbox",

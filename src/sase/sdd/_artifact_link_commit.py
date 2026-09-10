@@ -154,43 +154,6 @@ def commit_artifact_link_indexes(
     )
 
 
-def persist_artifact_link_graph_mutation(
-    link_store: ArtifactLinkStore,
-    *,
-    changed_indexes: Sequence[Path],
-    beads_changed: bool,
-    artifacts_dir: str | Path | None = None,
-    mutation_origin: str = "user",
-) -> None:
-    """Commit and publish one explicit link add/rm, or raise on failure.
-
-    Interactive CLI callers leave ``mutation_origin`` at ``"user"``. Background
-    jobs pass ``"machine"`` so the ownership contract cannot be bypassed.
-    """
-
-    if changed_indexes:
-        result = commit_artifact_link_indexes(
-            changed_indexes,
-            store=link_store.sdd_store,
-            project_key=link_store.project_key,
-            repo_roots=tuple(link_store.sidecar_roots.values()),
-            artifacts_dir=artifacts_dir,
-            verify_publication=True,
-            mutation_origin=mutation_origin,
-        )
-        if result.publication_error:
-            raise ArtifactLinkPersistError(
-                result.publication_error,
-                diagnostic=result.publication_error,
-            )
-    if beads_changed:
-        commit_bead_link_events(
-            link_store,
-            artifacts_dir=artifacts_dir,
-            mutation_origin=mutation_origin,
-        )
-
-
 def _ensure_artifact_link_commit_published(
     repo_root: Path,
     *,
@@ -583,5 +546,4 @@ __all__ = [
     "BEAD_LINK_COMMIT_MESSAGE",
     "ArtifactLinkPersistError",
     "commit_artifact_link_indexes",
-    "persist_artifact_link_graph_mutation",
 ]

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -9,6 +11,7 @@ from sase.artifact_links.derive import DerivableDocument
 from sase.sdd import artifact_link_derivation as artifact_link_derivation_module
 from sase.sdd._store_types import SddStore
 from sase.sdd.artifact_link_derivation import derive_and_persist_artifact_links
+from sase.sdd.artifact_link_event_publisher import rows_from_events
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from sase.sdd.plan_header_block import (
     PlanHeaderEntry,
@@ -17,7 +20,17 @@ from sase.sdd.plan_header_block import (
     render_plan_header_block,
 )
 from tests._conftest_environment import redirect_sase_home
+from tests.sdd._artifact_link_event_helpers import (
+    install_fake_artifact_link_event_drain,
+)
 from tests.sdd._artifact_link_store_helpers import allow_machine_sidecar_writes
+
+
+@pytest.fixture(autouse=True)
+def _fake_artifact_link_event_drain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[dict[str, Any], ...]]:
+    return install_fake_artifact_link_event_drain(monkeypatch)
 
 
 def _store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ArtifactLinkStore:
@@ -119,10 +132,13 @@ def test_a_persist_failure_is_reported_not_raised(
     store = _store(tmp_path, monkeypatch)
     documents = _research_lineage_documents(tmp_path)
 
-    def _boom(_self: object, _ref: object, _row: object) -> dict[str, object]:
+    def _boom(**_kwargs: object) -> object:
         raise ValueError("disk is on fire")
 
-    monkeypatch.setattr(ArtifactLinkStore, "_upsert_sidecar", _boom)
+    monkeypatch.setattr(
+        "sase.sdd.artifact_link_outbox.append_artifact_link_outbox_event",
+        _boom,
+    )
 
     outcome = derive_and_persist_artifact_links(store, documents, created_by="sase")
 
@@ -131,8 +147,10 @@ def test_a_persist_failure_is_reported_not_raised(
     assert outcome.errors and "disk is on fire" in outcome.errors[0]
 
 
-def test_every_candidate_lands_in_one_commit_call(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_every_candidate_lands_in_one_event_drain(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    _fake_artifact_link_event_drain: list[tuple[dict[str, Any], ...]],
 ) -> None:
     store = _store(tmp_path, monkeypatch)
     # Two lead documents each deriving one candidate.
@@ -151,23 +169,35 @@ def test_every_candidate_lands_in_one_commit_call(
         DerivableDocument(ref="research:202608/gadget/gadget.md", path=second_lead),
     )
 
-    calls: list[object] = []
-    original = artifact_link_derivation_module.persist_artifact_link_graph_mutation
-
-    def _spy(*args: object, **kwargs: object) -> object:
-        calls.append((args, kwargs))
-        return original(*args, **kwargs)
-
-    monkeypatch.setattr(
-        artifact_link_derivation_module, "persist_artifact_link_graph_mutation", _spy
-    )
-
     outcome = derive_and_persist_artifact_links(store, documents, created_by="sase")
 
     assert outcome.persisted == 2
-    assert len(calls) == 1
-    _args, kwargs = calls[0]
-    assert kwargs["mutation_origin"] == "user"
+    assert len(_fake_artifact_link_event_drain) == 1
+    assert _event_rows(_fake_artifact_link_event_drain[0]) == {
+        (
+            "research:202608/gadget/gadget.md",
+            "derives-from",
+            "research:202608/gadget/gadget__b.md",
+        ),
+        (
+            "research:202608/widget/widget.md",
+            "derives-from",
+            "research:202608/widget/widget__a.md",
+        ),
+    }
+
+
+def _event_rows(
+    events: Iterable[Mapping[str, Any]],
+) -> set[tuple[str, str, str]]:
+    return {
+        (
+            str(row["source_ref"]),
+            str(row["relation"]),
+            str(row["target_ref"]),
+        )
+        for row in rows_from_events(events)
+    }
 
 
 def test_derives_and_persists_agent_cites_plan(

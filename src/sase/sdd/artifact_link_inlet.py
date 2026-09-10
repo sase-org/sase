@@ -16,7 +16,6 @@ from sase.sdd._artifact_link_store_support import (
     kind_of_ref,
     validate_artifact_link_row,
 )
-from sase.sdd.artifact_link_event_flags import artifact_link_events_enabled
 from sase.sdd.artifact_link_event_publisher import (
     active_operation_ids_for_row,
     edge_put_event_from_row,
@@ -149,22 +148,7 @@ def publish_plan_artifact_link_inlet(
         store=link_store.sdd_store,
     )
 
-    changed_indexes: list[Path] = []
-    beads_changed = False
-    if artifact_link_events_enabled():
-        _persist_link_events(link_store, rows)
-    else:
-        for row in rows:
-            outcome = link_store.upsert_row(row)
-            changed_indexes.extend(
-                Path(path) for path in outcome.get("changed_indexes") or ()
-            )
-            beads_changed = beads_changed or bool(outcome.get("beads_changed"))
-        _persist_link_mutation(
-            link_store,
-            changed_indexes=tuple(dict.fromkeys(changed_indexes)),
-            beads_changed=beads_changed,
-        )
+    _persist_link_events(link_store, rows)
     if updated != current:
         document.parent.mkdir(parents=True, exist_ok=True)
         document.write_text(updated, encoding="utf-8")
@@ -295,27 +279,6 @@ def _validate_recommended_kind(
         f"invalid links[{index}].ref: relation `{name}` expects {endpoint} "
         f"artifact kind {expected_text}; got {actual}. Example: {example}"
     )
-
-
-def _persist_link_mutation(
-    store: ArtifactLinkStore,
-    *,
-    changed_indexes: tuple[Path, ...],
-    beads_changed: bool,
-) -> None:
-    from sase.sdd._artifact_link_commit import (
-        ArtifactLinkPersistError,
-        persist_artifact_link_graph_mutation,
-    )
-
-    try:
-        persist_artifact_link_graph_mutation(
-            store,
-            changed_indexes=changed_indexes,
-            beads_changed=beads_changed,
-        )
-    except ArtifactLinkPersistError as exc:
-        raise ArtifactLinkFrontmatterInletError(exc.diagnostic) from exc
 
 
 def _persist_link_events(

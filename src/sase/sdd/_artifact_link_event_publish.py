@@ -74,6 +74,8 @@ def publish_artifact_link_events(
     push_after_commit: bool | Literal["async"] | None = "async",
     mutation_origin: str = "machine",
     artifacts_dir: str | Path | None = None,
+    already_locked: bool = False,
+    extra_roots: Sequence[Path] = (),
 ) -> _ArtifactLinkEventPublishReport:
     """Publish immutable link events and update local non-durable projections."""
 
@@ -86,6 +88,15 @@ def publish_artifact_link_events(
     lock_path = (
         sase_projects_dir() / store.project_key / ARTIFACT_LINK_EVENT_LOCK_FILENAME
     )
+    if already_locked:
+        return _publish_event_objects_locked(
+            store,
+            objects,
+            push_after_commit=push_after_commit,
+            mutation_origin=mutation_origin,
+            artifacts_dir=artifacts_dir,
+            extra_roots=extra_roots,
+        )
     with locked_file(lock_path, fcntl.LOCK_EX):
         return _publish_event_objects_locked(
             store,
@@ -93,6 +104,7 @@ def publish_artifact_link_events(
             push_after_commit=push_after_commit,
             mutation_origin=mutation_origin,
             artifacts_dir=artifacts_dir,
+            extra_roots=extra_roots,
         )
 
 
@@ -103,8 +115,9 @@ def _publish_event_objects_locked(
     push_after_commit: bool | Literal["async"] | None,
     mutation_origin: str,
     artifacts_dir: str | Path | None,
+    extra_roots: Sequence[Path] = (),
 ) -> _ArtifactLinkEventPublishReport:
-    roots_by_operation = _roots_by_operation(store, objects)
+    roots_by_operation = _roots_by_operation(store, objects, extra_roots=extra_roots)
     grouped = _objects_by_root_for(objects, roots_by_operation)
     durable: dict[str, set[Path]] = {
         str(item.event["operation_id"]): set() for item in objects
@@ -317,11 +330,18 @@ def _head_contains_event(root: Path, event: _ArtifactLinkEventObject) -> bool:
 def _roots_by_operation(
     store: ArtifactLinkStore,
     objects: Sequence[_ArtifactLinkEventObject],
+    *,
+    extra_roots: Sequence[Path] = (),
 ) -> dict[str, tuple[Path, ...]]:
+    forced = tuple(
+        dict.fromkeys(root.expanduser().resolve(strict=False) for root in extra_roots)
+    )
     roots: dict[str, tuple[Path, ...]] = {}
     for item in objects:
         operation_id = str(item.event["operation_id"])
-        roots[operation_id] = _document_roots_for_event(store, item.event)
+        roots[operation_id] = tuple(
+            dict.fromkeys((*_document_roots_for_event(store, item.event), *forced))
+        )
     return roots
 
 

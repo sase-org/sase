@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sase.core.rust import require_rust_binding
+from sase.sdd._artifact_link_cutover_state import artifact_link_indexes_imported
 from sase.sdd._artifact_link_store_support import (
     BEAD_KIND,
     artifact_link_row_identity,
@@ -48,6 +49,8 @@ class ArtifactLinkRemoval:
 class ArtifactLinkStoreRowsMixin:
     """Top-level upsert/remove/read operations across every storage layer."""
 
+    project_key: str
+    sidecar_roots: Mapping[str, Path]
     beads_dir: Path | None
     sidecar_root_for: Callable[[str], Path | None]
     _is_aggregate_only: Callable[[Mapping[str, Any]], bool]
@@ -195,6 +198,11 @@ class ArtifactLinkStoreRowsMixin:
         event_rows = tuple(
             row for row in event_snapshot.rows if row_touches(row, canonical)
         )
+        if self._legacy_indexes_imported():
+            if self.beads_dir is not None and kind_of_ref(canonical) == BEAD_KIND:
+                bead_rows = self._load_bead_rows(canonical)
+                return _merge_event_rows(bead_rows, event_rows)
+            return event_rows
         root = self.sidecar_root_for(canonical)
         if root is not None:
             index = read_artifact_link_index(
@@ -236,6 +244,11 @@ class ArtifactLinkStoreRowsMixin:
             strict=True,
             exclude_pending_event_ids=exclude_pending_event_ids,
         )
+        if self._legacy_indexes_imported():
+            event_rows = (
+                event_snapshot.rows if include_pending else event_snapshot.durable_rows
+            )
+            return tuple(unique_rows((*bead_rows, *event_rows)))
         self._reject_legacy_event_overlap(legacy_rows, event_snapshot.durable_rows)
         event_rows = (
             event_snapshot.rows if include_pending else event_snapshot.durable_rows
@@ -257,6 +270,14 @@ class ArtifactLinkStoreRowsMixin:
             strict=True,
             exclude_pending_event_ids=exclude_pending_event_ids,
         )
+        if self._legacy_indexes_imported():
+            return tuple(
+                unique_rows(
+                    event_snapshot.rows
+                    if include_pending
+                    else event_snapshot.durable_rows
+                )
+            )
         self._reject_legacy_event_overlap(legacy_rows, event_snapshot.durable_rows)
         if not include_pending:
             return tuple(unique_rows((*legacy_rows, *event_snapshot.durable_rows)))
@@ -282,6 +303,8 @@ class ArtifactLinkStoreRowsMixin:
         legacy_rows: Iterable[Mapping[str, Any]],
         event_rows: Iterable[Mapping[str, Any]],
     ) -> None:
+        if self._legacy_indexes_imported():
+            return
         legacy_identities = {artifact_link_row_identity(row) for row in legacy_rows}
         event_identities = {artifact_link_row_identity(row) for row in event_rows}
         overlap = sorted(legacy_identities.intersection(event_identities))
@@ -293,6 +316,12 @@ class ArtifactLinkStoreRowsMixin:
         raise RuntimeError(
             "artifact-link legacy/event overlap rejected before event cutover: "
             + formatted
+        )
+
+    def _legacy_indexes_imported(self) -> bool:
+        return artifact_link_indexes_imported(
+            self.sidecar_roots,
+            project_key=self.project_key,
         )
 
 

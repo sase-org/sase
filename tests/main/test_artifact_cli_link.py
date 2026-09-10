@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -26,12 +27,26 @@ def _store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ArtifactLinkStore
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     plans = tmp_path / "plans"
     research = tmp_path / "research"
-    plans.mkdir()
-    research.mkdir()
+    _init_git(plans)
+    _init_git(research)
     return ArtifactLinkStore(
         project_key="gh_sase-org__sase",
         sidecar_roots={"plan": plans, "research": research},
     )
+
+
+def _init_git(repo: Path) -> None:
+    repo.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    subprocess.run(["git", "config", "user.name", "SASE Test"], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "sase-test@example.invalid"],
+        cwd=repo,
+        check=True,
+    )
+    (repo / "README.md").write_text("seed\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=repo, check=True)
 
 
 def _patch_store(monkeypatch: pytest.MonkeyPatch, store: ArtifactLinkStore) -> None:

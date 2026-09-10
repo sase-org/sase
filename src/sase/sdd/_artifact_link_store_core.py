@@ -12,6 +12,7 @@ from sase.sdd._artifact_link_event_store import (
     ArtifactLinkEventSnapshot,
     ArtifactLinkEventStoreAdapter,
 )
+from sase.sdd._artifact_link_cutover_state import artifact_link_indexes_imported
 from sase.sdd._artifact_link_store_support import (
     BEAD_KIND,
     kind_of_ref,
@@ -71,6 +72,14 @@ class ArtifactLinkStoreCoreMixin:
     ) -> bool:
         """Return whether a fresh companion index can prove row deletion."""
 
+        if artifact_link_indexes_imported(
+            self.sidecar_roots,
+            project_key=self.project_key,
+        ):
+            return any(
+                self.sidecar_root_for(str(row.get(key) or "")) is not None
+                for key in ("source_ref", "target_ref")
+            )
         for ref in (str(row.get("source_ref") or ""), str(row.get("target_ref") or "")):
             root = self.sidecar_root_for(ref)
             if root is None:

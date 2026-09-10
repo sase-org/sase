@@ -10,6 +10,9 @@ import pytest
 
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests.conftest import redirect_sase_home
+from tests.sdd._artifact_link_event_helpers import (
+    install_fake_artifact_link_event_drain,
+)
 from tests.plan_command_handler_helpers import (
     clear_bead_work_association_env,
     invoke_plan as _invoke_plan,
@@ -32,6 +35,11 @@ body
 @pytest.fixture(autouse=True)
 def _clear_bead_work_association_env(monkeypatch: pytest.MonkeyPatch) -> None:
     clear_bead_work_association_env(monkeypatch)
+
+
+@pytest.fixture(autouse=True)
+def _fake_artifact_link_event_drain(monkeypatch: pytest.MonkeyPatch) -> None:
+    install_fake_artifact_link_event_drain(monkeypatch)
 
 
 def test_derives_an_implements_row_for_the_archived_plan(

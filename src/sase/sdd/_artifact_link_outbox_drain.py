@@ -12,10 +12,6 @@ from sase.sdd._artifact_link_authorize import (
     probe_machine_writable_sidecar_root,
     sidecar_root_not_machine_writable_message,
 )
-from sase.sdd._artifact_link_outbox_apply import (
-    commit_outbox_indexes as _commit_outbox_indexes,
-    upsert_publishable_entries as _upsert_publishable_entries,
-)
 from sase.sdd._artifact_link_outbox_io import (
     read_artifact_link_outbox_entries as _read_artifact_link_outbox_entries,
     rewrite_artifact_link_outbox_without_ids as _rewrite_without_ids,
@@ -25,7 +21,6 @@ from sase.sdd._artifact_link_outbox_types import (
     sidecar_refs as _sidecar_refs,
 )
 from sase.sdd._artifact_link_store_support import kind_of_ref
-from sase.sdd.artifact_link_event_flags import artifact_link_events_enabled
 from sase.sdd.artifact_link_event_publisher import publish_artifact_link_events
 from sase.sdd.artifact_link_store import ArtifactLinkStore, resolve_artifact_link_store
 
@@ -86,70 +81,34 @@ def drain_artifact_link_outbox(
     )
     retained.extend(unauthorized)
 
-    event_drainable: list[_ArtifactLinkOutboxEntry] = []
-    if artifact_link_events_enabled():
-        event_drainable, legacy_candidates = _partition_event_drainable(
-            writable_entries
-        )
-        event_report = publish_artifact_link_events(
-            link_store,
-            (entry.event for entry in event_drainable if entry.event is not None),
-            push_after_commit=push_after_commit,  # type: ignore[arg-type]
-            mutation_origin="machine",
-        )
-        published_event_ids = set(event_report.published_operation_ids)
-        retained.extend(
-            entry for entry in event_drainable if entry.id not in published_event_ids
-        )
-        event_skip_diagnostics = event_report.skip_diagnostics
-    else:
-        legacy_candidates = writable_entries
-        event_report = None
-        published_event_ids = set()
-        event_skip_diagnostics = ()
-
-    legacy_drainable, event_only = _partition_legacy_drainable(legacy_candidates)
+    event_drainable, event_only = _partition_event_drainable(writable_entries)
     retained.extend(event_only)
-
-    changed_indexes = _upsert_publishable_entries(link_store, legacy_drainable)
-    if changed_indexes:
-        committed = _commit_outbox_indexes(
-            link_store,
-            changed_indexes,
-            push_after_commit=push_after_commit,
-        )
-        if not committed:
-            return _ArtifactLinkOutboxDrainReport(
-                queued=len(entries),
-                retained=len(entries),
-                changed_indexes=tuple(changed_indexes),
-                event_paths=() if event_report is None else event_report.event_paths,
-                publication_error=None
-                if event_report is None
-                else event_report.publication_error,
-                skip_diagnostics=(*skip_diagnostics, *event_skip_diagnostics),
-            )
-    else:
-        committed = False
+    event_report = publish_artifact_link_events(
+        link_store,
+        (entry.event for entry in event_drainable if entry.event is not None),
+        push_after_commit=push_after_commit,  # type: ignore[arg-type]
+        mutation_origin="machine",
+    )
+    published_event_ids = set(event_report.published_operation_ids)
+    retained.extend(
+        entry for entry in event_drainable if entry.id not in published_event_ids
+    )
+    event_skip_diagnostics = event_report.skip_diagnostics
 
     _rewrite_without_ids(
         link_store.project_key,
-        drained_ids={entry.id for entry in legacy_drainable} | published_event_ids,
+        drained_ids=published_event_ids,
         dropped=stale,
     )
-    event_paths = () if event_report is None else event_report.event_paths
-    publication_error = None if event_report is None else event_report.publication_error
     return _ArtifactLinkOutboxDrainReport(
         queued=len(entries),
-        drained=len(legacy_drainable) + len(published_event_ids),
-        retained=(
-            len(entries) - len(legacy_drainable) - len(published_event_ids) - len(stale)
-        ),
+        drained=len(published_event_ids),
+        retained=(len(entries) - len(published_event_ids) - len(stale)),
         dropped=len(stale),
-        committed=committed or bool(event_report and event_report.committed),
-        changed_indexes=tuple(changed_indexes),
-        event_paths=event_paths,
-        publication_error=publication_error,
+        committed=event_report.committed,
+        changed_indexes=(),
+        event_paths=event_report.event_paths,
+        publication_error=event_report.publication_error,
         skip_diagnostics=(*skip_diagnostics, *event_skip_diagnostics),
     )
 
@@ -242,19 +201,6 @@ def _partition_machine_writable_entries(
     return writable_entries, unauthorized, tuple(dict.fromkeys(diagnostics))
 
 
-def _partition_legacy_drainable(
-    entries: Iterable[_ArtifactLinkOutboxEntry],
-) -> tuple[list[_ArtifactLinkOutboxEntry], list[_ArtifactLinkOutboxEntry]]:
-    drainable: list[_ArtifactLinkOutboxEntry] = []
-    retained: list[_ArtifactLinkOutboxEntry] = []
-    for entry in entries:
-        if _entry_can_drain_to_legacy_index(entry):
-            drainable.append(entry)
-        else:
-            retained.append(entry)
-    return drainable, retained
-
-
 def _partition_event_drainable(
     entries: Iterable[_ArtifactLinkOutboxEntry],
 ) -> tuple[list[_ArtifactLinkOutboxEntry], list[_ArtifactLinkOutboxEntry]]:
@@ -266,21 +212,6 @@ def _partition_event_drainable(
         else:
             retained.append(entry)
     return drainable, retained
-
-
-def _entry_can_drain_to_legacy_index(entry: _ArtifactLinkOutboxEntry) -> bool:
-    """Return whether today's legacy index drain can safely publish *entry*."""
-
-    if entry.event is None:
-        return entry.row is not None
-    kind = entry.event.get("kind")
-    if not isinstance(kind, dict):
-        return False
-    return str(kind.get("type") or "") in {
-        "observation",
-        "edge-put",
-        "baseline-import",
-    }
 
 
 def _entry_is_eligible(entry: _ArtifactLinkOutboxEntry) -> bool:

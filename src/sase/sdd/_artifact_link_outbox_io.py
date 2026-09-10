@@ -27,7 +27,10 @@ from sase.sdd._artifact_link_outbox_types import (
     required_text as _required_text,
     rows_from_events as _rows_from_events,
 )
-from sase.sdd.artifact_link_event_publisher import canonical_event as _canonical_event
+from sase.sdd.artifact_link_event_publisher import (
+    canonical_event as _canonical_event,
+    stable_artifact_link_operation_id as _stable_operation_id,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +160,89 @@ def read_artifact_link_outbox_entries(
         if entry is not None:
             entries.append(entry)
     return tuple(entries)
+
+
+def convert_legacy_artifact_link_outbox_entries(project_key: str) -> int:
+    """Convert valid schema-v1 row-only outbox records to schema-v2 events."""
+
+    path = _artifact_link_outbox_path(project_key)
+    with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
+        if not path.is_file():
+            return 0
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            return 0
+        output_rows: list[dict[str, Any]] = []
+        converted = 0
+        for lineno, line in enumerate(lines, start=1):
+            if not line.strip():
+                continue
+            try:
+                data = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(
+                    f"malformed artifact-link outbox JSON at line {lineno}"
+                ) from exc
+            if not isinstance(data, dict):
+                raise RuntimeError(
+                    f"artifact-link outbox line {lineno} must be an object"
+                )
+            if isinstance(data.get("event"), dict):
+                entry = _entry_from_line(line, project_key)
+                if entry is None:
+                    raise RuntimeError(
+                        f"malformed artifact-link event outbox entry at line {lineno}"
+                    )
+                output_rows.append(entry.to_json_dict())
+                continue
+            schema_version = data.get("schema_version")
+            if schema_version != 1:
+                raise RuntimeError(
+                    "artifact-link outbox row-only entries must be schema-v1 "
+                    f"for import conversion at line {lineno}"
+                )
+            entry_project = _required_text(data.get("project_key"), "project_key")
+            if entry_project != project_key:
+                raise RuntimeError("artifact-link outbox project mismatch")
+            created_at = data.get("created_at")
+            if not isinstance(created_at, (int, float)) or isinstance(created_at, bool):
+                raise RuntimeError("artifact-link outbox created_at must be a number")
+            row = data.get("row")
+            if not isinstance(row, dict):
+                raise RuntimeError("artifact-link outbox row must be an object")
+            agent_name = _required_text(data.get("agent_name"), "agent_name")
+            run_id = str(data.get("run_id") or "")
+            operation_id = _stable_operation_id(
+                "legacy-outbox-import",
+                project_key,
+                str(data.get("id") or ""),
+                float(created_at),
+                agent_name,
+                run_id,
+                row,
+            )
+            event = _event_from_row(
+                row,
+                project_key=project_key,
+                operation_id=operation_id,
+            )
+            rows = _rows_from_events((event,))
+            entry = _ArtifactLinkOutboxEntry(
+                schema_version=ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION,
+                id=operation_id,
+                created_at=float(created_at),
+                project_key=project_key,
+                agent_name=agent_name,
+                run_id=run_id,
+                row=rows[0] if len(rows) == 1 else None,
+                event=event,
+            )
+            output_rows.append(entry.to_json_dict())
+            converted += 1
+        if converted:
+            _write_jsonl(path, output_rows)
+        return converted
 
 
 def pending_artifact_link_outbox_events(
@@ -302,6 +388,7 @@ def _count_jsonl_rows(path: Path) -> int:
 __all__ = [
     "append_artifact_link_outbox_entry",
     "append_artifact_link_outbox_event",
+    "convert_legacy_artifact_link_outbox_entries",
     "inspect_artifact_link_outbox",
     "pending_artifact_link_outbox_event_created_at",
     "pending_artifact_link_outbox_events",

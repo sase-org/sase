@@ -22,21 +22,10 @@ from sase.artifact_links.derive import (
     derive_candidate_links,
 )
 from sase.artifact_ref_models import ArtifactRefContext
-from sase.sdd._artifact_link_authorize import (
-    MachineSidecarWritability,
-    probe_machine_writable_sidecar_root,
-    sidecar_root_not_machine_writable_message,
-)
-from sase.sdd._artifact_link_commit import (
-    ArtifactLinkPersistError,
-    persist_artifact_link_graph_mutation,
-)
 from sase.sdd._artifact_link_store_support import (
     is_projected_row,
-    kind_of_ref,
     validate_artifact_link_row,
 )
-from sase.sdd.artifact_link_event_flags import artifact_link_events_enabled
 from sase.sdd.artifact_link_event_publisher import (
     observation_or_put_event_from_row,
     stable_artifact_link_operation_id,
@@ -125,103 +114,12 @@ def persist_derived_link_candidates(
 
     if not candidates:
         return _ArtifactLinkDerivationOutcome()
-    if artifact_link_events_enabled():
-        return _persist_derived_link_candidates_as_events(
-            store,
-            candidates,
-            created_by=created_by,
-            artifacts_dir=artifacts_dir,
-            mutation_origin=mutation_origin,
-        )
-
-    now = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    changed_indexes: list[Path] = []
-    beads_changed = False
-    persisted = 0
-    errors: list[str] = []
-    probes: dict[Path, MachineSidecarWritability] = {}
-    skip_diagnostics: list[str] = []
-    require_machine_writable = mutation_origin != "user"
-    beads_writable = not require_machine_writable or _machine_writable_store_root(
-        store.beads_dir,
-        kind="beads",
-        probes=probes,
-        skip_diagnostics=skip_diagnostics,
-    )
-    for candidate in candidates:
-        incoming = {
-            "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-            "source_ref": candidate.source_ref,
-            "relation": candidate.relation,
-            "target_ref": candidate.target_ref,
-            "description": candidate.description,
-            "origin": candidate.origin,
-            "created_by": created_by,
-            "created_at": now,
-            "uses": 1,
-        }
-        try:
-            row = validate_artifact_link_row(incoming)
-            outcome: dict[str, object] | None = None
-            skipped_sidecar = False
-            for ref in (str(row["source_ref"]), str(row["target_ref"])):
-                root = store.sidecar_root_for(ref)
-                if (
-                    require_machine_writable
-                    and root is not None
-                    and not _machine_writable_store_root(
-                        root,
-                        kind=kind_of_ref(ref),
-                        probes=probes,
-                        skip_diagnostics=skip_diagnostics,
-                    )
-                ):
-                    skipped_sidecar = True
-                    continue
-                written = store._upsert_sidecar(ref, row)
-                if written is not None:
-                    outcome = written
-                    changed_indexes.extend(
-                        Path(path) for path in written.get("changed_indexes") or ()
-                    )
-            if beads_writable:
-                bead_written = store._upsert_bead(row)
-                if bead_written is not None:
-                    outcome = bead_written
-                    beads_changed = (
-                        beads_changed
-                        or str(bead_written.get("kind") or "") != "unchanged"
-                    )
-                elif store._is_aggregate_only(row):
-                    outcome = store._upsert_aggregate_row(row)
-            elif store._is_aggregate_only(row):
-                outcome = store._upsert_aggregate_row(row)
-        except (RuntimeError, TypeError, ValueError) as exc:
-            errors.append(
-                f"{candidate.source_ref} {candidate.relation} "
-                f"{candidate.target_ref}: {exc}"
-            )
-            continue
-        if skipped_sidecar and outcome is None:
-            continue
-        persisted += 1
-
-    errors.extend(skip_diagnostics)
-    store.rebuild_aggregate()
-    if changed_indexes or beads_changed:
-        try:
-            persist_artifact_link_graph_mutation(
-                store,
-                changed_indexes=tuple(dict.fromkeys(changed_indexes)),
-                beads_changed=beads_changed,
-                artifacts_dir=artifacts_dir,
-                mutation_origin=mutation_origin,
-            )
-        except ArtifactLinkPersistError as exc:
-            errors.append(str(exc))
-
-    return _ArtifactLinkDerivationOutcome(
-        candidates=len(candidates), persisted=persisted, errors=tuple(errors)
+    return _persist_derived_link_candidates_as_events(
+        store,
+        candidates,
+        created_by=created_by,
+        artifacts_dir=artifacts_dir,
+        mutation_origin=mutation_origin,
     )
 
 
@@ -320,31 +218,6 @@ def _stored_link_keys(store: ArtifactLinkStore) -> frozenset[tuple[str, str, str
         for row in store.load_aggregate().get("rows", [])
         if not is_projected_row(row)
     )
-
-
-def _machine_writable_store_root(
-    root: Path | None,
-    *,
-    kind: str,
-    probes: dict[Path, MachineSidecarWritability],
-    skip_diagnostics: list[str],
-) -> bool:
-    if root is None:
-        return True
-    resolved = root.expanduser().resolve(strict=False)
-    probe = probes.get(resolved)
-    if probe is None:
-        probe = probe_machine_writable_sidecar_root(resolved)
-        probes[resolved] = probe
-        if not probe.writable:
-            skip_diagnostics.append(
-                sidecar_root_not_machine_writable_message(
-                    kind,
-                    resolved,
-                    diagnostic=probe.diagnostic or "not machine-writable",
-                )
-            )
-    return probe.writable
 
 
 def _known_bead_ids(store: ArtifactLinkStore) -> frozenset[str]:

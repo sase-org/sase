@@ -28,10 +28,9 @@ class ArtifactLinkOutboxEntry:
     agent, or another agent in the same family, must not be able to release
     it merely by publishing something of its own.
 
-    New schema-v2 entries store the canonical event payload. ``row`` is the
-    legacy projection used while old readers still consume ``links/*.json``.
-    Row-only entries are preserved for compatibility with queues written before
-    the operation journal existed.
+    Schema-v2 entries store the canonical event payload. The one-time
+    legacy-index importer owns schema-v1 row conversion; regular readers no
+    longer accept row-only queue entries.
     """
 
     schema_version: int
@@ -47,7 +46,7 @@ class ArtifactLinkOutboxEntry:
     def logical_key(self) -> tuple[str, str, str]:
         if self.row is None:
             raise RuntimeError("artifact-link outbox entry has no legacy row")
-        return row_key(self.row)
+        return _row_key(self.row)
 
     def to_json_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -112,23 +111,10 @@ def _entry_from_mapping(
             event=event,
         )
 
-    if schema_version not in {1, ARTIFACT_LINK_OUTBOX_SCHEMA_VERSION}:
-        raise RuntimeError("unsupported artifact-link outbox schema")
-    row = data.get("row")
-    if not isinstance(row, dict):
-        raise RuntimeError("artifact-link outbox row must be an object")
-    return ArtifactLinkOutboxEntry(
-        schema_version=schema_version,
-        id=required_text(data.get("id"), "id"),
-        created_at=float(created_at),
-        project_key=entry_project,
-        agent_name=required_text(data.get("agent_name"), "agent_name"),
-        run_id=str(data.get("run_id") or ""),
-        row=validate_artifact_link_row(row),
-    )
+    raise RuntimeError("artifact-link outbox row-only entries require import-indexes")
 
 
-def row_key(row: Mapping[str, Any]) -> tuple[str, str, str]:
+def _row_key(row: Mapping[str, Any]) -> tuple[str, str, str]:
     return (
         str(row.get("source_ref") or ""),
         str(row.get("relation") or ""),
@@ -244,7 +230,6 @@ __all__ = [
     "event_operation_id",
     "operation_id",
     "required_text",
-    "row_key",
     "row_uses",
     "rows_from_events",
     "sidecar_refs",

@@ -220,13 +220,13 @@ def test_mixed_unrelated_dirt_is_left_for_the_declaration(
 
     state = _prepare(artifacts)
 
-    assert state.artifact_links_auto_committed is True
+    assert state.artifact_links_auto_committed is False
     remaining = [
         path for repo in state.dirty_state.repos for path in repo.changed_files
     ]
     assert any(path.endswith("notes.md") for path in remaining)
-    assert not any(path.endswith(".json") for path in remaining)
-    assert "links/202608/one.md.json" in _head_files(plans)
+    assert any(path.endswith("links/202608/one.md.json") for path in remaining)
+    assert "links/202608/one.md.json" not in _head_files(plans)
 
 
 def test_pre_existing_dirty_index_is_not_auto_committed(
@@ -247,12 +247,13 @@ def test_pre_existing_dirty_index_is_not_auto_committed(
 
     state = _prepare(artifacts)
 
-    assert state.artifact_links_auto_committed is True
+    assert state.artifact_links_auto_committed is False
     files = _head_files(plans)
-    assert "links/202608/new.md.json" in files
+    assert "links/202608/new.md.json" not in files
     assert "links/202608/preexisting.md.json" not in files
     status = _run_git(plans, "status", "--porcelain", "--untracked-files=all")
     assert "preexisting.md.json" in status
+    assert "new.md.json" in status
 
 
 def test_malformed_candidates_remain_dirty(
@@ -273,11 +274,12 @@ def test_malformed_candidates_remain_dirty(
 
     state = _prepare(artifacts)
 
-    assert state.artifact_links_auto_committed is True
+    assert state.artifact_links_auto_committed is False
     remaining = [
         path for repo in state.dirty_state.repos for path in repo.changed_files
     ]
     assert any(path.endswith("broken.md.json") for path in remaining)
+    assert any(path.endswith("one.md.json") for path in remaining)
 
 
 def test_multiple_sidecars_commit_once_each(
@@ -308,10 +310,10 @@ def test_multiple_sidecars_commit_once_each(
 
     state = _prepare(artifacts)
 
-    assert state.artifact_links_auto_committed is True
-    assert state.dirty_state.is_clean
-    assert "links/202608/one.md.json" in _head_files(plans)
-    assert "links/202608/source.md.json" in _head_files(research)
+    assert state.artifact_links_auto_committed is False
+    assert not state.dirty_state.is_clean
+    assert "links/202608/one.md.json" not in _head_files(plans)
+    assert "links/202608/source.md.json" not in _head_files(research)
 
 
 def test_publication_failure_is_recoverable(
@@ -351,36 +353,17 @@ def test_publication_failure_is_recoverable(
 
     state = _prepare(artifacts)
 
-    assert state.artifact_links_auto_committed is True
-    assert state.artifact_link_publication_error is not None
-    error = state.artifact_link_publication_error
-    assert "was committed locally but NOT published" in error
-    assert "unpublished artifact-link commit(s)" in error
-    assert str(plans) in error
-    assert "destroyed if this workspace is evicted" not in error
-    assert "durable on this machine but invisible to other machines" in error
-    assert "chore(artifact-links): persist link indexes" in _run_git(
+    assert state.artifact_links_auto_committed is False
+    assert state.artifact_link_publication_error is None
+    assert "chore(artifact-links): persist link indexes" not in _run_git(
         plans, "log", "-1", "--pretty=%s"
     )
 
-    _run_git(plans, "remote", "set-url", "origin", str(bare))
-    from sase.sdd._artifact_link_commit import _ensure_artifact_link_commit_published
 
-    assert _ensure_artifact_link_commit_published(plans) is None
-    remote_log = subprocess.run(
-        ["git", "log", "--format=%s", "main"],
-        cwd=bare,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    assert "chore(artifact-links): persist link indexes" in remote_log
-
-
-def test_executor_accepts_artifact_link_auto_commit_against_existing_marker(
+def test_executor_commits_declared_legacy_link_index_through_stitch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Marker timing cannot regress behind mocks of prepare_commit_dirty_state."""
+    """Legacy link-index dirt is now a regular declared commit obligation."""
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     main = _create_primary(tmp_path)
     plans = _create_sidecar(tmp_path, "plans")
@@ -400,21 +383,18 @@ def test_executor_accepts_artifact_link_auto_commit_against_existing_marker(
     artifacts.mkdir()
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts))
     plans_cwd = str(plans.expanduser().resolve())
-    (artifacts / "commit_results.json").write_text(
-        json.dumps(
-            [
-                {
-                    "cwd": plans_cwd,
-                    "result": "old",
-                    "commit_sha": "a" * 40,
-                    "commit_tree": "b" * 40,
-                }
-            ]
-        ),
-        encoding="utf-8",
-    )
-    runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    stitch_calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def run_stitch(
+        repo_arg: DirtyRepo,
+        message: str,
+        excludes: tuple[str, ...],
+        context: object,
+    ) -> StitchCommandResult:
+        stitch_calls.append((repo_arg.name, repo_arg.changed_files))
+        return _commit_remaining_stitch(repo_arg, message, excludes, context)
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
 
     resolve_and_persist_finalizer_plan(
         PromptDirectives(),
@@ -440,7 +420,8 @@ def test_executor_accepts_artifact_link_auto_commit_against_existing_marker(
     )
 
     assert result.content == "done"
-    runner.assert_not_called()
+    assert len(stitch_calls) == 1
+    assert any(path.endswith("one.md.json") for path in stitch_calls[0][1])
     aggregate = json.loads(
         (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
     )
@@ -451,12 +432,7 @@ def test_executor_accepts_artifact_link_auto_commit_against_existing_marker(
     markers = json.loads(
         (artifacts / "commit_results.json").read_text(encoding="utf-8")
     )
-    shas = {item.get("commit_sha") for item in markers}
-    assert "a" * 40 in shas
-    assert any(
-        item.get("cwd") == plans_cwd and item.get("commit_sha") != "a" * 40
-        for item in markers
-    )
+    assert any(item.get("cwd") == plans_cwd for item in markers)
     assert _run_git(plans, "status", "--porcelain", "--untracked-files=all") == ""
 
 
@@ -497,8 +473,18 @@ def test_executor_rejects_artifact_link_auto_commit_without_new_marker(
         "sase.finalizers.commit.prepare_commit_dirty_state",
         prepare_without_ledger,
     )
-    runner = MagicMock()
-    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", runner)
+    stitch_calls: list[tuple[str, tuple[str, ...]]] = []
+
+    def run_stitch(
+        repo_arg: DirtyRepo,
+        message: str,
+        excludes: tuple[str, ...],
+        _context: object,
+    ) -> StitchCommandResult:
+        stitch_calls.append((repo_arg.name, repo_arg.changed_files))
+        return _commit_without_marker_stitch(repo_arg, message, excludes)
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", run_stitch)
 
     resolve_and_persist_finalizer_plan(
         PromptDirectives(),
@@ -513,7 +499,7 @@ def test_executor_rejects_artifact_link_auto_commit_without_new_marker(
 
     with pytest.raises(
         BuiltinCommitFinalizerError,
-        match="vanished|discarded|attributable",
+        match="commit_results\\.json entry was recorded",
     ):
         run_finalizers(
             provider=MagicMock(),
@@ -525,7 +511,7 @@ def test_executor_rejects_artifact_link_auto_commit_without_new_marker(
             artifacts_dir=str(artifacts),
         )
 
-    runner.assert_not_called()
+    assert len(stitch_calls) == 1
     assert "chore(artifact-links): persist link indexes" in _run_git(
         plans, "log", "-1", "--pretty=%s"
     )
@@ -597,10 +583,41 @@ def _commit_remaining_stitch(
     return StitchCommandResult(returncode=0, stdout=f"{sha}\n")
 
 
-def test_executor_commits_mixed_report_after_artifact_link_auto_commit(
+def _commit_without_marker_stitch(
+    repo: DirtyRepo,
+    message: str,
+    excludes: tuple[str, ...],
+) -> StitchCommandResult:
+    excluded = set(excludes)
+    to_commit = [
+        path
+        for path in finalizer_git.git_changed_files(repo.path)
+        if path not in excluded
+    ]
+    if not to_commit:
+        return StitchCommandResult(returncode=1, stderr="nothing to commit\n")
+    subprocess.run(
+        ["git", "add", "--", *to_commit],
+        cwd=repo.path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "commit", "-q", "-m", message],
+        cwd=repo.path,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    sha = _run_git(Path(repo.path), "rev-parse", "HEAD").strip()
+    return StitchCommandResult(returncode=0, stdout=f"{sha}\n")
+
+
+def test_executor_commits_mixed_report_and_legacy_link_index_together(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Mixed sidecar: auto-commit the link index, then stitch the report."""
+    """Mixed sidecar dirt is handled by the declared stitch commit."""
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     main = _create_primary(tmp_path)
     plans = _create_sidecar(tmp_path, "plans")
@@ -661,14 +678,13 @@ def test_executor_commits_mixed_report_after_artifact_link_auto_commit(
     assert result.content == "done"
     assert len(stitch_calls) == 1
     assert any(path.endswith("report.md") for path in stitch_calls[0][1])
-    assert not any(path.endswith(".json") for path in stitch_calls[0][1])
+    assert any(path.endswith("one.md.json") for path in stitch_calls[0][1])
     assert not (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).exists()
     aggregate = json.loads(
         (artifacts / "finalizer_result.json").read_text(encoding="utf-8")
     )
     assert aggregate["status"] == "success"
     subjects = _run_git(plans, "log", "--pretty=%s")
-    assert "chore(artifact-links): persist link indexes" in subjects
     assert "docs: add mixed reconciliation report" in subjects
     tracked = _run_git(plans, "ls-files")
     assert "links/202608/one.md.json" in tracked
@@ -679,4 +695,4 @@ def test_executor_commits_mixed_report_after_artifact_link_auto_commit(
     )
     plans_cwd = str(plans.expanduser().resolve())
     matching = [item for item in markers if item.get("cwd") == plans_cwd]
-    assert len(matching) >= 2
+    assert len(matching) == 1

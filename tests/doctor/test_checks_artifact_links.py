@@ -4,12 +4,25 @@ from pathlib import Path
 import subprocess
 from types import SimpleNamespace
 
+from sase.core.rust import require_rust_binding
 from sase.doctor.checks_artifact_links import (
     _check_artifact_links_aggregate,
+    _check_artifact_link_cutover,
     _check_primary_sidecar_link_dirt,
     _collect_primary_sidecar_link_dirt,
     apply_primary_sidecar_link_dirt_repairs,
     artifact_links_check_specs,
+)
+from sase.sdd._artifact_link_cutover_state import (
+    ArtifactLinkBaselineEventIdentity,
+    ArtifactLinkCutoverImportIdentity,
+    ArtifactLinkCutoverRole,
+    artifact_link_cutover_marker_bytes,
+    artifact_link_cutover_marker_path,
+    build_artifact_link_cutover_marker_payload,
+)
+from sase.sdd.artifact_link_import_indexes import (
+    artifact_link_legacy_links_tree_identity,
 )
 from sase.doctor.runner import DoctorContext
 from sase.sdd.store import SddStore
@@ -31,6 +44,7 @@ def test_artifact_links_check_specs_register_the_aggregate_check(
     assert [spec.id for spec in specs] == [
         "project.artifact_links_aggregate",
         "project.primary_sidecar_link_dirt",
+        "project.artifact_link_cutover",
     ]
 
 
@@ -75,6 +89,82 @@ def test_artifact_links_check_ok_when_empty(monkeypatch, tmp_path: Path) -> None
     check = _check_artifact_links_aggregate(_context(tmp_path))
     assert check.status == "OK"
     assert check.data["rows"] == 0
+
+
+def test_artifact_link_cutover_check_ok_without_marker(
+    monkeypatch, tmp_path: Path
+) -> None:
+    store = SddStore("sidecar_repos", tmp_path, tmp_path)
+    monkeypatch.setattr(
+        "sase.doctor.checks_artifact_links._resolve_store",
+        lambda _context: store,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_artifact_links._project_key",
+        lambda _context: "gh_sase-org__sase",
+    )
+
+    check = _check_artifact_link_cutover(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["state"] == "none"
+
+
+def test_artifact_link_cutover_check_flags_imported_links_tree_stragglers(
+    monkeypatch, tmp_path: Path
+) -> None:
+    plans = tmp_path / "plans"
+    plans.mkdir()
+    frozen_links_tree = artifact_link_legacy_links_tree_identity(plans)
+    digest = "a" * 64
+    payload = build_artifact_link_cutover_marker_payload(
+        state="imported",
+        project_key="gh_sase-org__sase",
+        event_store_schema_version=1,
+        event_store_minimum_event_schema_version=int(
+            require_rust_binding("artifact_link_event_schema_version")()
+        ),
+        import_identity=ArtifactLinkCutoverImportIdentity(
+            import_id="legacy-v2-links-test",
+            operation_id="b" * 32,
+            source_head="sha256:" + "c" * 64,
+            created_at="2026-09-10T00:00:00Z",
+        ),
+        roles=(
+            ArtifactLinkCutoverRole(
+                role="plans",
+                kind="plan",
+                head="d" * 40,
+                links_tree=frozen_links_tree,
+                remote_url="<none>",
+            ),
+        ),
+        baseline_event=ArtifactLinkBaselineEventIdentity(
+            digest=digest,
+            path=f"link-events/v1/{digest[:2]}/{digest}.json",
+        ),
+    )
+    marker_path = artifact_link_cutover_marker_path(plans)
+    marker_path.parent.mkdir(parents=True)
+    marker_path.write_bytes(artifact_link_cutover_marker_bytes(payload))
+    link_path = plans / "links" / "doc.md.json"
+    link_path.parent.mkdir(parents=True)
+    link_path.write_text("{}\n", encoding="utf-8")
+    store = SddStore("sidecar_repos", plans, plans)
+    monkeypatch.setattr(
+        "sase.doctor.checks_artifact_links._resolve_store",
+        lambda _context: store,
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_artifact_links._project_key",
+        lambda _context: "gh_sase-org__sase",
+    )
+
+    check = _check_artifact_link_cutover(_context(tmp_path))
+
+    assert check.status == "ERROR"
+    assert check.data["state"] == "imported"
+    assert check.data["stragglers"]
 
 
 def test_artifact_links_check_reports_row_level_and_projected_drift(

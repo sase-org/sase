@@ -78,6 +78,22 @@ def test_parser_registers_link_migrate_notes() -> None:
     assert "mutation path lands with the beads phase" not in help_text
 
 
+def test_parser_registers_link_import_indexes() -> None:
+    parser = create_parser()
+    args = parser.parse_args(["artifact", "link", "import-indexes", "-a", "-j"])
+    link_subcommands = _subparser_action(
+        _subparser_action(_artifact_parser(parser)).choices["link"]
+    )
+    help_text = link_subcommands.choices["import-indexes"].format_help()
+
+    assert args.artifact_subcommand == "link"
+    assert args.link_subcommand == "import-indexes"
+    assert args.apply is True
+    assert args.json is True
+    assert "Preview is the default" in help_text
+    assert "Older SASE binaries do not understand the marker" in help_text
+
+
 def test_parser_defaults_bare_group_to_list_with_notice() -> None:
     args = create_parser().parse_args(["artifact"])
 
@@ -168,6 +184,7 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
     link_subcommands = _subparser_action(subcommands.choices["link"])
     assert list(link_subcommands.choices) == [
         "add",
+        "import-indexes",
         "list",
         "migrate-notes",
         "relation",
@@ -175,6 +192,10 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "suggest",
     ]
     assert _long_options(link_subcommands.choices["add"]) == []
+    assert _long_options(link_subcommands.choices["import-indexes"]) == [
+        "--apply",
+        "--json",
+    ]
     assert _long_options(link_subcommands.choices["list"]) == [
         "--direction",
         "--json",

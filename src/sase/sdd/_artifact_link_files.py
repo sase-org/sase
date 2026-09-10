@@ -17,7 +17,7 @@ from sase.sdd.referenced_by_index import REFERENCED_BY_LINKS_DIR
 from sase.sdd.referenced_by_index import referenced_by_index_relpath
 
 
-class ArtifactLinkRepoFileKind(StrEnum):
+class _ArtifactLinkRepoFileKind(StrEnum):
     """Classification of one path relative to a document sidecar root."""
 
     INDEX = "index"
@@ -33,9 +33,9 @@ def artifact_link_lock_path(index_path: Path) -> Path:
     return index_path.with_suffix(".lock")
 
 
-def classify_artifact_link_repo_file(
+def _classify_artifact_link_repo_file(
     path: Path, repo_root: Path
-) -> ArtifactLinkRepoFileKind:
+) -> _ArtifactLinkRepoFileKind:
     """Classify *path* against the artifact-link repository-file contract.
 
     Only canonical ``links/**/*.json`` indexes, their empty regular-file lock
@@ -46,35 +46,35 @@ def classify_artifact_link_repo_file(
 
     located = _absolute_in_repo(path, repo_root)
     if located is None:
-        return ArtifactLinkRepoFileKind.OTHER
+        return _ArtifactLinkRepoFileKind.OTHER
     absolute, relative = located
     if relative.parts[:2] == ("link-events", "v1"):
         if name := relative.name:
             if name.endswith(".json"):
                 if _is_canonical_event(absolute, relative):
-                    return ArtifactLinkRepoFileKind.EVENT
-                return ArtifactLinkRepoFileKind.REJECTED
-        return ArtifactLinkRepoFileKind.OTHER
+                    return _ArtifactLinkRepoFileKind.EVENT
+                return _ArtifactLinkRepoFileKind.REJECTED
+        return _ArtifactLinkRepoFileKind.OTHER
     if relative.parts[:1] != (REFERENCED_BY_LINKS_DIR,):
-        return ArtifactLinkRepoFileKind.OTHER
+        return _ArtifactLinkRepoFileKind.OTHER
     name = relative.name
     if name.endswith(".json"):
         if _is_canonical_index(absolute, repo_root):
-            return ArtifactLinkRepoFileKind.INDEX
-        return ArtifactLinkRepoFileKind.REJECTED
+            return _ArtifactLinkRepoFileKind.INDEX
+        return _ArtifactLinkRepoFileKind.REJECTED
     if name.endswith(".lock"):
         if _is_canonical_lock(absolute, repo_root):
-            return ArtifactLinkRepoFileKind.LOCK
-        return ArtifactLinkRepoFileKind.REJECTED
-    return ArtifactLinkRepoFileKind.OTHER
+            return _ArtifactLinkRepoFileKind.LOCK
+        return _ArtifactLinkRepoFileKind.REJECTED
+    return _ArtifactLinkRepoFileKind.OTHER
 
 
 def is_canonical_artifact_link_index(path: Path, repo_root: Path) -> bool:
     """Return whether *path* is a valid schema-v2 per-artifact link index."""
 
     return (
-        classify_artifact_link_repo_file(path, repo_root)
-        is ArtifactLinkRepoFileKind.INDEX
+        _classify_artifact_link_repo_file(path, repo_root)
+        is _ArtifactLinkRepoFileKind.INDEX
     )
 
 
@@ -234,9 +234,7 @@ def _read_index_object(path: Path) -> dict[str, Any] | None:
 
 
 __all__ = [
-    "ArtifactLinkRepoFileKind",
     "artifact_link_lock_path",
-    "classify_artifact_link_repo_file",
     "is_canonical_artifact_link_event",
     "is_canonical_artifact_link_event_location",
     "is_canonical_artifact_link_index",

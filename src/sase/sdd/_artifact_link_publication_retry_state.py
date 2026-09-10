@@ -158,15 +158,30 @@ def next_retry_role_after(
     return project_roots[0].role
 
 
-def read_publication_state(
-    project_key: str,
+def artifact_link_publication_state_path(project_key: str) -> Path:
+    """Return the host-owned publication retry state file for *project_key*."""
+
+    return _artifact_link_publication_state_path(project_key)
+
+
+def read_artifact_link_publication_state_unlocked(
+    path: Path,
+) -> tuple[dict[str, dict[str, Any]], str | None]:
+    """Read publication retry state while the caller holds the state lock."""
+
+    return _read_state_unlocked(path)
+
+
+@contextmanager
+def artifact_link_publication_state_lock(
+    path: Path,
     *,
     deadline: float | None = None,
-) -> tuple[dict[str, dict[str, Any]], str | None]:
-    """Return artifact-link publication retry records for *project_key*."""
-    path = _artifact_link_publication_state_path(project_key)
+) -> Iterator[None]:
+    """Hold the publication retry state lock for *path*."""
+
     with _state_lock(path, deadline=deadline):
-        return _read_state_unlocked(path)
+        yield
 
 
 def _artifact_link_publication_state_path(project_key: str) -> Path:

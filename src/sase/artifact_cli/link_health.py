@@ -16,6 +16,7 @@ from sase.sdd._artifact_link_publication_retry import (
     ArtifactLinkPublicationRetryDetail,
     inspect_artifact_link_publications,
 )
+from sase.sdd._artifact_link_cutover_state import inspect_artifact_link_cutover_markers
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
 from sase.sdd._artifact_link_projection import safety_body
 from sase.sdd._artifact_link_store_support import (
@@ -26,6 +27,9 @@ from sase.sdd._artifact_link_store_support import (
 from sase.sdd.artifact_link_drift import (
     ArtifactLinkIndexDrift,
     build_artifact_link_index_drift,
+)
+from sase.sdd.artifact_link_import_indexes import (
+    artifact_link_legacy_links_tree_identity,
 )
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
@@ -101,6 +105,9 @@ class ArtifactLinkHealthReport:
     publication_pending: tuple[str, ...] = ()
     publication_aged: tuple[str, ...] = ()
     publication_diagnostics: tuple[str, ...] = ()
+    cutover_state: str = "none"
+    cutover_errors: tuple[str, ...] = ()
+    cutover_stragglers: tuple[str, ...] = ()
     coverage: _ArtifactLinkCoverageReport = field(
         default_factory=_ArtifactLinkCoverageReport
     )
@@ -124,6 +131,8 @@ class ArtifactLinkHealthReport:
                 self.event_orphaned_tombstones,
                 self.publication_aged,
                 self.publication_diagnostics,
+                self.cutover_errors,
+                self.cutover_stragglers,
                 self.aggregate_drift.has_drift,
             )
         )
@@ -139,6 +148,7 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
 
     event_health = _event_health_values(store)
     publication_health = _publication_health_values(store)
+    cutover_health = _cutover_health_values(store)
     try:
         if fix:
             store.reconcile_aggregate()
@@ -169,6 +179,9 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
             publication_pending=publication_health.publication_pending,
             publication_aged=publication_health.publication_aged,
             publication_diagnostics=publication_health.publication_diagnostics,
+            cutover_state=cutover_health.cutover_state,
+            cutover_errors=cutover_health.cutover_errors,
+            cutover_stragglers=cutover_health.cutover_stragglers,
         )
     resolution_context = launch_artifact_ref_context(is_home_mode=False)
     dangling, unpublished_agents = _dangling_refs(
@@ -257,6 +270,9 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         publication_pending=publication_health.publication_pending,
         publication_aged=publication_health.publication_aged,
         publication_diagnostics=publication_health.publication_diagnostics,
+        cutover_state=cutover_health.cutover_state,
+        cutover_errors=cutover_health.cutover_errors,
+        cutover_stragglers=cutover_health.cutover_stragglers,
         coverage=_coverage_report(
             store,
             rows,
@@ -309,6 +325,13 @@ class _PublicationHealthValues:
     publication_diagnostics: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class _CutoverHealthValues:
+    cutover_state: str = "none"
+    cutover_errors: tuple[str, ...] = ()
+    cutover_stragglers: tuple[str, ...] = ()
+
+
 def _publication_health_values(store: ArtifactLinkStore) -> _PublicationHealthValues:
     if not isinstance(store, ArtifactLinkStore):
         return _PublicationHealthValues()
@@ -330,6 +353,35 @@ def _publication_health_values(store: ArtifactLinkStore) -> _PublicationHealthVa
         publication_pending=pending,
         publication_aged=aged,
         publication_diagnostics=inspection.diagnostics,
+    )
+
+
+def _cutover_health_values(store: ArtifactLinkStore) -> _CutoverHealthValues:
+    if not isinstance(store, ArtifactLinkStore):
+        return _CutoverHealthValues()
+    try:
+        inspection = inspect_artifact_link_cutover_markers(
+            store.sidecar_roots,
+            project_key=store.project_key,
+        )
+    except Exception as exc:  # noqa: BLE001 - doctor should report, not crash.
+        return _CutoverHealthValues(cutover_state="invalid", cutover_errors=(str(exc),))
+    if inspection.marker is None:
+        return _CutoverHealthValues(cutover_state="none")
+    stragglers: list[str] = []
+    if inspection.imported:
+        for role in inspection.marker.roles:
+            root = store.sidecar_roots.get(role.kind)
+            if root is None:
+                continue
+            current = artifact_link_legacy_links_tree_identity(root)
+            if current != role.links_tree:
+                stragglers.append(
+                    f"{role.role}: links/ tree {current} != frozen {role.links_tree}"
+                )
+    return _CutoverHealthValues(
+        cutover_state=inspection.state,
+        cutover_stragglers=tuple(stragglers),
     )
 
 

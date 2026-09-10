@@ -11,9 +11,11 @@ import pytest
 
 from sase.artifact_cli.read import handle_read
 from sase.core.agent_identity_facade import AgentOwnerIdentity
-from sase.feature_flags import override_flags
 from sase.sdd._artifact_link_ignore import ARTIFACT_LINK_LOCK_GITIGNORE_PATTERN
-from sase.sdd._artifact_link_outbox_io import read_artifact_link_outbox_entries
+from sase.sdd._artifact_link_outbox_io import (
+    convert_legacy_artifact_link_outbox_entries,
+    read_artifact_link_outbox_entries,
+)
 from sase.sdd.artifact_link_outbox import (
     ARTIFACT_LINK_OUTBOX_FILENAME,
     append_artifact_link_outbox_entry,
@@ -101,13 +103,6 @@ def _patch_read_context(
     )
 
 
-def _index_rows(repo: Path) -> list[dict[str, object]]:
-    payload = json.loads((repo / "links" / "doc.md.json").read_text())
-    rows = payload["rows"]
-    assert isinstance(rows, list)
-    return rows
-
-
 def _outbox_lines(home: Path, project_key: str) -> list[dict[str, object]]:
     path = home / "projects" / project_key / ARTIFACT_LINK_OUTBOX_FILENAME
     return [
@@ -184,9 +179,10 @@ def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(
     assert report.drained == 2
     assert report.committed is True
     assert _commit_count(repo) == before + 1
-    assert _head_files(repo) == {"links/doc.md.json"}
+    assert all(path.startswith("link-events/v1/") for path in _head_files(repo))
     assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
-    [row] = _index_rows(repo)
+    assert not list((repo / "links").rglob("*"))
+    [row] = store.load_aggregate()["rows"]
     assert row["uses"] == 2
     assert _run_git(repo, "status", "--porcelain", "--untracked-files=all") == ""
 
@@ -253,7 +249,7 @@ def test_repeated_drain_after_partial_failure_does_not_double_count_uses(
     )
     assert first.drained == 2
     assert first.committed is True
-    [row] = _index_rows(repo)
+    [row] = store.load_aggregate()["rows"]
     assert row["uses"] == 2
 
     # A third read is queued for the same run after the first drain landed.
@@ -266,7 +262,7 @@ def test_repeated_drain_after_partial_failure_does_not_double_count_uses(
     )
     assert second.drained == 1
     assert second.committed is True
-    [row] = _index_rows(repo)
+    [row] = store.load_aggregate()["rows"]
     assert row["uses"] == 3
 
     # Draining again with nothing new queued is a safe no-op.
@@ -277,7 +273,7 @@ def test_repeated_drain_after_partial_failure_does_not_double_count_uses(
         push_after_commit=False,
     )
     assert idle.queued == 0
-    [row] = _index_rows(repo)
+    [row] = store.load_aggregate()["rows"]
     assert row["uses"] == 3
 
 
@@ -371,7 +367,7 @@ def test_new_outbox_entries_persist_canonical_events(
     assert stored["event"] == entry.event
 
 
-def test_legacy_row_only_outbox_entries_still_drain(
+def test_legacy_row_only_outbox_entries_convert_before_drain(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -408,6 +404,14 @@ def test_legacy_row_only_outbox_entries_still_drain(
         + "\n",
         encoding="utf-8",
     )
+    converted = convert_legacy_artifact_link_outbox_entries("gh_sase-org__sase")
+
+    assert converted == 1
+    [converted_entry] = read_artifact_link_outbox_entries("gh_sase-org__sase")
+    assert converted_entry.event is not None
+    assert converted_entry.created_at == 100.0
+    assert converted_entry.agent_name == "reader"
+    assert converted_entry.run_id == "run-1"
     record_artifact_link_release_evidence(
         project_key="gh_sase-org__sase",
         run_id="run-1",
@@ -424,12 +428,14 @@ def test_legacy_row_only_outbox_entries_still_drain(
 
     assert report.drained == 1
     assert report.committed is True
-    [indexed] = _index_rows(repo)
+    assert len(report.event_paths) == 1
+    assert not list((repo / "links").rglob("*"))
+    [indexed] = store.load_aggregate()["rows"]
     assert indexed["uses"] == 1
     assert read_artifact_link_outbox_entries("gh_sase-org__sase") == ()
 
 
-def test_enabled_drain_publishes_event_objects_without_legacy_indexes(
+def test_drain_publishes_event_objects_without_legacy_indexes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -452,13 +458,12 @@ def test_enabled_drain_publishes_event_objects_without_legacy_indexes(
         qualifying_repo_ids=(str(repo),),
     )
 
-    with override_flags(link_events=True):
-        report = drain_artifact_link_outbox(
-            store=store,
-            agent_name="reader",
-            drop_stale_terminal=False,
-            push_after_commit=False,
-        )
+    report = drain_artifact_link_outbox(
+        store=store,
+        agent_name="reader",
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
 
     assert report.drained == 2
     assert report.committed is True
@@ -475,7 +480,7 @@ def test_enabled_drain_publishes_event_objects_without_legacy_indexes(
     assert _run_git(repo, "status", "--porcelain", "--untracked-files=all") == ""
 
 
-def test_enabled_drain_allows_trusted_machine_derived_events_without_evidence(
+def test_drain_allows_trusted_machine_derived_events_without_evidence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -500,13 +505,12 @@ def test_enabled_drain_allows_trusted_machine_derived_events_without_evidence(
         ),
     )
 
-    with override_flags(link_events=True):
-        report = drain_artifact_link_outbox(
-            store=store,
-            agent_name="sase",
-            drop_stale_terminal=False,
-            push_after_commit=False,
-        )
+    report = drain_artifact_link_outbox(
+        store=store,
+        agent_name="sase",
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
 
     assert report.drained == 1
     assert len(report.event_paths) == 1

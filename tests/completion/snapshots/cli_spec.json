@@ -3165,6 +3165,59 @@
               {
                 "aliases": [],
                 "default_child": null,
+                "description_digest": "5994558d1956f654",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "import-indexes",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "apply",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-a",
+                      "--apply"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "artifact",
+                  "link",
+                  "import-indexes"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
                 "description_digest": "838688e99f9eedec",
                 "hidden": false,
                 "mutex_groups": [],

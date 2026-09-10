@@ -28,6 +28,8 @@ def register_artifact_link_parser(
             "  sase artifact link\n"
             "  sase artifact link add plan:202608/a.md implements "
             'bead:sase-js "extends the ref contract this epic landed"\n'
+            "  sase artifact link import-indexes\n"
+            "  sase artifact link import-indexes --apply\n"
             "  sase artifact link list plan:202608/a.md -d both\n"
             "  sase artifact link list --source store -j -l 0\n"
             "  sase artifact link rm plan:202608/a.md bead:sase-js "
@@ -82,6 +84,32 @@ def register_artifact_link_parser(
         "why",
         metavar="WHY",
         help="Single-line description, max 240 characters",
+    )
+
+    import_parser = link_subparsers.add_parser(
+        "import-indexes",
+        help="Import legacy links/ indexes into immutable link events",
+        description=(
+            "Plan or apply the legacy artifact-link index cutover. Preview is "
+            "the default and writes nothing. Applying fences current SASE "
+            "binaries with link-events/STORE.json, publishes one deterministic "
+            "baseline import event to every document sidecar root, and then "
+            "marks legacy links/ indexes imported. Older SASE binaries do not "
+            "understand the marker."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    import_parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help="Write cutover markers, baseline event objects, and aggregate projection",
+    )
+    import_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable import report",
     )
 
     list_parser = link_subparsers.add_parser(
