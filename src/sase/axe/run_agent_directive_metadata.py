@@ -330,18 +330,43 @@ def _existing_queue_weight(meta: Mapping[str, Any], *, source: str) -> float | N
     return queue_weight
 
 
-def _parent_queue_weight(
+def _read_parent_agent_meta(
     family_attach_plan: FamilyAttachLaunchPlan,
-) -> float | None:
+) -> dict[str, Any] | None:
     meta_path = os.path.join(family_attach_plan.parent_artifacts_dir, "agent_meta.json")
     try:
         with open(meta_path, encoding="utf-8") as f:
             parent_meta = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return None
-    if not isinstance(parent_meta, dict):
+    return parent_meta if isinstance(parent_meta, dict) else None
+
+
+def _parent_queue_weight(
+    family_attach_plan: FamilyAttachLaunchPlan,
+) -> float | None:
+    parent_meta = _read_parent_agent_meta(family_attach_plan)
+    if parent_meta is None:
         return None
     return _existing_queue_weight(parent_meta, source="family parent metadata")
+
+
+def _parent_runner_claim_owner_key(
+    family_attach_plan: FamilyAttachLaunchPlan,
+) -> str | None:
+    """Return the parent's durable claim owner key, straight off its own file.
+
+    Reading the parent's own ``agent_meta.json`` (rather than a live scan)
+    means this lineage link survives a ``capacity_only`` runner-slot scan
+    dropping the parent's directory once it is done: the child carries its
+    predecessor's owner key forward durably instead of needing to re-derive
+    it from a scan that may no longer include the parent at all.
+    """
+    parent_meta = _read_parent_agent_meta(family_attach_plan)
+    if parent_meta is None:
+        return None
+    owner_key = parent_meta.get("runner_claim_owner_key")
+    return owner_key if isinstance(owner_key, str) and owner_key else None
 
 
 def _qualify_agent_identity_metadata(agent_meta: dict[str, Any]) -> None:
@@ -405,6 +430,9 @@ def _add_family_metadata(
         if parent_queue_weight is not None:
             agent_meta["queue_weight"] = parent_queue_weight
             agent_meta["queue_weight_explicit"] = False
+    parent_owner_key = _parent_runner_claim_owner_key(family_attach_plan)
+    if parent_owner_key is not None:
+        agent_meta["runner_claim_owner_key"] = parent_owner_key
     if family_attach_plan.parent_agent_clan:
         from sase.agent.clan_membership import (
             AGENT_CLAN_FIELD,

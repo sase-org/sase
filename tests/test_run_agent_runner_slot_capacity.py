@@ -818,7 +818,9 @@ def test_conflicting_active_family_weight_fails_clearly(tmp_path: Path) -> None:
             claim=lambda: "unexpected",
         )
 
-    assert "active family already holds 2" in str(exc_info.value)
+    assert "different explicit weight than its active lineage claim" in str(
+        exc_info.value
+    )
     assert not (child / "waiting.json").exists()
 
 

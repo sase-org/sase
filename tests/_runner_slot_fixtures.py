@@ -51,6 +51,11 @@ def record(
             agent_family_role=meta.get("agent_family_role"),
             agent_family_parallel=bool(meta.get("agent_family_parallel", False)),
             parent_timestamp=meta.get("parent_timestamp"),
+            runner_claim_owner_key=(
+                meta["runner_claim_owner_key"]
+                if isinstance(meta.get("runner_claim_owner_key"), str)
+                else None
+            ),
             family_shell=family_shell_from_mapping(meta),
             wait_priority=meta_wait_priority,
             queue_weight=(

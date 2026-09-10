@@ -9,7 +9,7 @@ publishes a ``waiting.json`` queue marker and retries with jittered backoff.
 import fcntl
 import math
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -261,59 +261,59 @@ def _park_for_unavailable_limit(
     return None, parked
 
 
-def _candidate_waiter(
-    snapshot: dict[str, Any],
-    artifacts_dir: str,
-) -> dict[str, Any] | None:
-    for waiter in snapshot.get("waiters", []):
-        if isinstance(waiter, dict) and waiter.get("artifact_dir") == artifacts_dir:
-            return waiter
-    return None
-
-
-def _candidate_blocker_codes(waiter: dict[str, Any] | None) -> set[str]:
-    if waiter is None:
+def _candidate_blocker_codes(blockers: object) -> set[str]:
+    if not isinstance(blockers, list):
         return set()
     return {
         str(blocker.get("code"))
-        for blocker in waiter.get("blockers", [])
+        for blocker in blockers
         if isinstance(blocker, dict) and blocker.get("code")
     }
 
 
-def _weight_equal(left: float, right: float) -> bool:
-    limit = max(abs(left), abs(right), 1.0)
-    return abs(left - right) <= 4.0 * math.ulp(limit)
+def _decision_blocker_message(decision: Mapping[str, Any]) -> str:
+    messages = [
+        str(blocker.get("message"))
+        for blocker in decision.get("blockers", [])
+        if isinstance(blocker, dict) and blocker.get("message")
+    ]
+    return "; ".join(messages) or (
+        "Runner capacity rejected this candidate for an unspecified reason."
+    )
 
 
-def _serial_family_owner_key(candidate: dict[str, Any]) -> str | None:
-    if (
-        candidate.get("parent_timestamp") is None
-        or candidate.get("agent_family_parallel") is True
-    ):
-        return None
-    project = str(candidate.get("project_name") or "")
-    family = candidate.get("agent_family")
-    if not isinstance(family, str) or not family:
-        return None
-    return f"{project}:{family}"
+_VALID_CANDIDATE_DECISIONS = frozenset(
+    {"acquire_capacity", "reuse_existing_claim", "blocked", "invalid"}
+)
 
 
-def _active_serial_claim(
+def _require_candidate_decision(
     snapshot: dict[str, Any],
-    candidate: dict[str, Any],
-) -> dict[str, Any] | None:
-    owner_key = _serial_family_owner_key(candidate)
-    if owner_key is None:
-        return None
-    for claim in snapshot.get("claims", []):
-        if (
-            isinstance(claim, dict)
-            and claim.get("claim_kind") == "serial_family"
-            and claim.get("owner_key") == owner_key
-        ):
-            return claim
-    return None
+    artifacts_dir: str,
+) -> dict[str, Any]:
+    """Return Rust's authoritative candidate decision, failing closed.
+
+    Rust's ``candidate_decision`` is the single source of truth for whether
+    this candidate may acquire or reuse capacity -- see ``build_candidate_decision``
+    in ``sase-core``'s ``runner_capacity.rs``. A missing, malformed, or unknown
+    decision must never be treated as permission to proceed.
+    """
+    decision = snapshot.get("candidate_decision")
+    if (
+        not isinstance(decision, dict)
+        or decision.get("artifact_dir") != artifacts_dir
+        or decision.get("decision") not in _VALID_CANDIDATE_DECISIONS
+        or not isinstance(decision.get("owner_key"), str)
+        or not isinstance(decision.get("lineage_key"), str)
+        or not isinstance(decision.get("effective_weight"), (int, float))
+        or isinstance(decision.get("effective_weight"), bool)
+    ):
+        raise _RunnerSlotAdmissionError(
+            "Runner capacity returned no usable candidate decision for "
+            f"{artifacts_dir}; refusing to admit or park without an "
+            "authoritative decision."
+        )
+    return decision
 
 
 def _enrich_candidate_from_records(
@@ -342,6 +342,9 @@ def _enrich_candidate_from_records(
                 "agent_family_role": None if meta is None else meta.agent_family_role,
                 "agent_family_parallel": (
                     False if meta is None else meta.agent_family_parallel
+                ),
+                "runner_claim_owner_key": (
+                    None if meta is None else meta.runner_claim_owner_key
                 ),
             }
         )
@@ -385,52 +388,26 @@ def _candidate_scan_queue_weight_error(
     return None
 
 
-def _assert_active_family_weight_is_compatible(
-    *,
-    claim: dict[str, Any],
-    requested_weight: float,
-    requested_weight_explicit: bool,
-) -> None:
-    if not requested_weight_explicit:
-        return
-    occupied = claim.get("occupied_capacity")
-    if not isinstance(occupied, (int, float)) or not math.isfinite(float(occupied)):
-        raise _RunnerSlotAdmissionError(
-            "Active serial family has an invalid runner capacity claim."
-        )
-    if not _weight_equal(requested_weight, float(occupied)):
-        raise _RunnerSlotAdmissionError(
-            "Serial continuation requested queue_weight "
-            f"{requested_weight:g}, but its active family already holds "
-            f"{float(occupied):g}; use the existing family weight or start an "
-            "independent agent."
-        )
-
-
-def _active_claim_weight(claim: dict[str, Any]) -> float:
-    occupied = claim.get("occupied_capacity")
-    if not isinstance(occupied, (int, float)) or isinstance(occupied, bool):
-        raise _RunnerSlotAdmissionError(
-            "Active serial family has an invalid runner capacity claim."
-        )
-    weight = float(occupied)
-    if not math.isfinite(weight) or weight <= 0:
-        raise _RunnerSlotAdmissionError(
-            "Active serial family has an invalid runner capacity claim."
-        )
-    return weight
-
-
-def _publish_claim_queue_weight(
+def _publish_claim_ownership(
     *,
     artifacts_dir: str,
     agent_meta: dict[str, Any] | None,
     queue_weight: float,
     queue_weight_explicit: bool,
+    runner_claim_owner_key: str,
 ) -> None:
+    """Persist the Rust-resolved claim before *claim* exposes the work.
+
+    Both the effective weight and the durable lineage owner key are written
+    atomically under the runner-slot lock so a later admission check -- even
+    one that can no longer see a released predecessor once ``capacity_only``
+    scans drop its done directory -- resolves this record's lineage from its
+    own metadata instead of re-walking a live scan.
+    """
     fields = {
         "queue_weight": queue_weight,
         "queue_weight_explicit": queue_weight_explicit,
+        "runner_claim_owner_key": runner_claim_owner_key,
     }
     if agent_meta is not None:
         agent_meta.update(fields)
@@ -551,43 +528,25 @@ def _try_claim_runner_slot(
                 ),
                 candidate=candidate,
             )
-            active_claim = _active_serial_claim(snapshot, candidate)
-            if active_claim is not None:
-                claim_weight = _active_claim_weight(active_claim)
-                _assert_active_family_weight_is_compatible(
-                    claim=active_claim,
-                    requested_weight=queue_weight,
-                    requested_weight_explicit=queue_weight_explicit,
-                )
-                _publish_claim_queue_weight(
+            decision = _require_candidate_decision(snapshot, artifacts_dir)
+            if decision["decision"] == "invalid":
+                raise _RunnerSlotAdmissionError(_decision_blocker_message(decision))
+            if decision["decision"] in ("reuse_existing_claim", "acquire_capacity"):
+                _publish_claim_ownership(
                     artifacts_dir=artifacts_dir,
                     agent_meta=agent_meta,
-                    queue_weight=(
-                        queue_weight if queue_weight_explicit else claim_weight
-                    ),
+                    queue_weight=float(decision["effective_weight"]),
                     queue_weight_explicit=queue_weight_explicit,
+                    runner_claim_owner_key=decision["lineage_key"],
                 )
                 run_started_at = claim()
                 notify_runner_slot_state_changed()
                 remove_waiting_marker(artifacts_dir)
                 return run_started_at, False
-            candidate_waiter = _candidate_waiter(snapshot, artifacts_dir)
-            eligible = snapshot.get("first_eligible_artifact_dir") == artifacts_dir
             eligible_since: str | None = None
             entered_deference = False
             deference_window = 0.0
-            if eligible:
-                _publish_claim_queue_weight(
-                    artifacts_dir=artifacts_dir,
-                    agent_meta=agent_meta,
-                    queue_weight=queue_weight,
-                    queue_weight_explicit=queue_weight_explicit,
-                )
-                run_started_at = claim()
-                notify_runner_slot_state_changed()
-                remove_waiting_marker(artifacts_dir)
-                return run_started_at, False
-            blocker_codes = _candidate_blocker_codes(candidate_waiter)
+            blocker_codes = _candidate_blocker_codes(decision.get("blockers"))
             if "deference-window" in blocker_codes:
                 deference_window = deference_window_seconds(
                     priority,

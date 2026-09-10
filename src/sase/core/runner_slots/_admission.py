@@ -21,18 +21,6 @@ DEFAULT_WAIT_PRIORITY = 10
 GATE_FAMILY_ROLE = "gate"
 DEFAULT_QUEUE_WEIGHT = 1.0
 _RUNNER_CAPACITY_HELPER_LIMIT = 1.0e300
-_CANDIDATE_OVERRIDE_FIELDS = {
-    "live",
-    "queue_weight",
-    "queue_weight_explicit",
-    "pid",
-    "run_started_at",
-    "slot_requested_at",
-    "wait_runners",
-    "wait_runners_explicit",
-    "wait_priority",
-    "eligible_since",
-}
 
 
 def _family_shell_of_kind(
@@ -265,6 +253,9 @@ def _capacity_record_from_scan(
         "pending_question": record.pending_question is not None,
         "pid": _record_pid(record),
         "run_started_at": None if meta is None else meta.run_started_at,
+        "runner_claim_owner_key": (
+            None if meta is None else meta.runner_claim_owner_key
+        ),
         "parent_timestamp": None if meta is None else meta.parent_timestamp,
         "agent_family": None if meta is None else meta.agent_family,
         "agent_family_role": None if meta is None else meta.agent_family_role,
@@ -327,6 +318,7 @@ def _synthetic_capacity_record(
         "pending_question": False,
         "pid": None,
         "run_started_at": None,
+        "runner_claim_owner_key": None,
         "parent_timestamp": None,
         "agent_family": None,
         "agent_family_role": None,
@@ -353,33 +345,27 @@ def runner_capacity_snapshot(
     now: str | None = None,
     deference_seconds_per_step: int = 0,
     deference_max_seconds: int = 0,
-    candidate: dict[str, Any] | None = None,
+    candidate: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Return the authoritative weighted runner-capacity snapshot."""
-    capacity_records: list[dict[str, Any]] = []
-    candidate_dir = None if candidate is None else str(candidate["artifact_dir"])
-    candidate_seen = False
-    for record in records:
-        capacity_record = _capacity_record_from_scan(record, is_live)
-        if candidate_dir is not None and record.artifact_dir == candidate_dir:
-            assert candidate is not None
-            capacity_record.update(
-                {
-                    key: value
-                    for key, value in candidate.items()
-                    if key in _CANDIDATE_OVERRIDE_FIELDS
-                }
-            )
-            candidate_seen = True
-        capacity_records.append(capacity_record)
-    if candidate is not None and not candidate_seen:
-        capacity_records.append(candidate)
+    """Return the authoritative weighted runner-capacity snapshot.
+
+    *candidate*, when given, is sent to Rust as the request's dedicated
+    ``candidate`` field rather than merged into *records*. Rust excludes any
+    scanned record sharing the candidate's ``artifact_dir`` from claim/waiter
+    accounting and evaluates the candidate's own decision from the fresh
+    values supplied here -- a not-yet-admitted record's stale on-disk
+    ``run_started_at``/``queue_weight`` can never grant itself a claim.
+    """
+    capacity_records = [
+        _capacity_record_from_scan(record, is_live) for record in records
+    ]
     return runner_capacity_snapshot_from_capacity_records(
         capacity_records,
         effective_limit=effective_limit,
         now=now,
         deference_seconds_per_step=deference_seconds_per_step,
         deference_max_seconds=deference_max_seconds,
+        candidate=candidate,
     )
 
 
@@ -390,11 +376,13 @@ def runner_capacity_snapshot_from_capacity_records(
     now: str | None = None,
     deference_seconds_per_step: int = 0,
     deference_max_seconds: int = 0,
+    candidate: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the Rust capacity snapshot for already-projected record dicts."""
     request = {
         "effective_limit": float(effective_limit),
         "records": [dict(record) for record in records],
+        "candidate": None if candidate is None else dict(candidate),
         "now": now,
         "deference_seconds_per_step": int(deference_seconds_per_step),
         "deference_max_seconds": int(deference_max_seconds),
@@ -414,7 +402,7 @@ def runner_slot_candidate_record(
     queue_weight_explicit: bool,
     eligible_since: str | None,
 ) -> dict[str, Any]:
-    """Build the synthetic candidate override for a locked admission attempt."""
+    """Build the synthetic candidate sent as the Rust request's own field."""
     return _synthetic_capacity_record(
         artifacts_dir=artifacts_dir,
         timestamp=timestamp,

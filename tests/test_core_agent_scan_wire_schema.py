@@ -19,7 +19,7 @@ from .agent_scan_golden import (
 def test_schema_version_pinned() -> None:
     """Bumping the schema is a deliberate, reviewable event."""
     assert AGENT_SCAN_WIRE_SCHEMA_VERSION == 8
-    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 26
+    assert AGENT_ARTIFACT_INDEX_SCHEMA_VERSION == 27
 
 
 def test_scan_wire_rejects_stale_binding_schema() -> None:

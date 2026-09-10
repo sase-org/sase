@@ -188,6 +188,13 @@ def create_followup_artifacts(
     if "queue_weight" in base_meta:
         followup_meta["queue_weight"] = base_meta["queue_weight"]
         followup_meta["queue_weight_explicit"] = False
+    runner_claim_owner_key = base_meta.get("runner_claim_owner_key")
+    if isinstance(runner_claim_owner_key, str) and runner_claim_owner_key:
+        # This follow-up always continues the predecessor's own serial
+        # lineage (`parent_timestamp` is set below), so its durable claim
+        # owner carries forward too -- surviving even if the predecessor
+        # later becomes done and drops out of a `capacity_only` scan.
+        followup_meta["runner_claim_owner_key"] = runner_claim_owner_key
     if agent_name_override is not None:
         followup_meta["name"] = agent_name_override
     if workflow_name is not None:

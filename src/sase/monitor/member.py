@@ -12,6 +12,7 @@ _MONITOR_INHERITED_METADATA_FIELDS = (
     "agent_clan_generation",
     "queue_weight",
     "queue_weight_explicit",
+    "runner_claim_owner_key",
 )
 
 
