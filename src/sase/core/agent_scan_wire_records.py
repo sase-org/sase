@@ -92,6 +92,13 @@ class AgentArtifactScanOptionsWire:
             (``active``, ``inactive``, or ``sibling``; legacy ``archived`` /
             ``closed`` aliases normalize to ``inactive``). ``"all"`` or an
             empty tuple disables lifecycle filtering.
+        capacity_only: When True, skip artifact dirs carrying a ``done``
+            marker before parsing any of their other marker files, and skip
+            marker files the runner-slot capacity snapshot never consumes
+            (``plan_path.json``, ``xprompts.json``) even for dirs that are
+            still scanned. Every field the capacity snapshot consumes
+            (``agent_meta``, ``running``, ``waiting``, ``workflow_state``,
+            ``pending_question``) is still parsed for non-done dirs.
     """
 
     include_prompt_step_markers: bool = True
@@ -106,6 +113,7 @@ class AgentArtifactScanOptionsWire:
     include_waiting: bool = True
     only_projects: tuple[str, ...] = ()
     include_project_states: tuple[str, ...] = ()
+    capacity_only: bool = False
 
 
 @dataclass(frozen=True)

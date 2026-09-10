@@ -217,9 +217,26 @@ def test_options_round_trip_through_snapshot(fixture_root: Path) -> None:
         include_waiting=False,
         only_projects=("myproj",),
         include_project_states=("active",),
+        capacity_only=True,
     )
     snapshot = scan_agent_artifacts(fixture_root, options=options)
     assert snapshot.options == options
+
+
+def test_capacity_only_skips_done_dirs_and_keeps_active_ones(
+    fixture_root: Path,
+) -> None:
+    options = AgentArtifactScanOptionsWire(capacity_only=True)
+    snapshot = scan_agent_artifacts(fixture_root, options=options)
+    timestamps = {record.timestamp for record in snapshot.records}
+
+    assert TS_ACE_RUN_DONE not in timestamps
+    assert TS_MENTOR_DONE not in timestamps
+    assert TS_ACE_RUN_RETRIED_PARENT not in timestamps
+    assert TS_HOME_RUNNING in timestamps
+    assert TS_ACE_RUN_RUNNING in timestamps
+    assert TS_WAITING in timestamps
+    assert all(not record.has_done_marker for record in snapshot.records)
 
 
 def test_include_project_states_filters_scanner_projects(fixture_root: Path) -> None:
