@@ -60,6 +60,7 @@ class PromptInputBarSubmissionActionsMixin(_MixinBase):
         def active_text_area(self) -> PromptTextArea: ...
         def _sync_state_from_widgets(self) -> None: ...
         def _clear_active_completion_state(self) -> None: ...
+        def _maybe_preflight_dispatch_submission(self, prepared: object) -> bool: ...
         def _rebuild_stack(
             self,
             enter_mode: str | None = None,
@@ -295,7 +296,7 @@ class PromptInputBarSubmissionActionsMixin(_MixinBase):
     ) -> None:
         """Warn for visible prompt TODOs, otherwise commit immediately."""
         if prepared.mode != "prompt" or prepared.todo_count <= 0:
-            self._commit_prepared_submission(prepared)
+            self._commit_or_preflight_submission(prepared)
             return
 
         from sase.ace.tui.modals import ConfirmActionModal, ConfirmKind
@@ -309,7 +310,7 @@ class PromptInputBarSubmissionActionsMixin(_MixinBase):
                 return
             handled = True
             if confirmed is True:
-                self._commit_prepared_submission(prepared)
+                self._commit_or_preflight_submission(prepared)
             else:
                 self._refocus_prepared_origin(prepared)
 
@@ -327,6 +328,16 @@ class PromptInputBarSubmissionActionsMixin(_MixinBase):
             ),
             _on_result,
         )
+
+    def _commit_or_preflight_submission(
+        self,
+        prepared: _PreparedSubmission,
+    ) -> None:
+        """Commit now, unless dispatch source preflight needs to run first."""
+        preflight = getattr(self, "_maybe_preflight_dispatch_submission", None)
+        if callable(preflight) and preflight(prepared):
+            return
+        self._commit_prepared_submission(prepared)
 
     def _prepared_submission_is_current(
         self,

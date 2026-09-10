@@ -149,6 +149,80 @@ def test_launch_outcome_from_completion_reads_admission_complete_false() -> None
     assert outcome.admission_complete is False
 
 
+def test_launch_outcome_from_completion_reads_dispatch_payload() -> None:
+    dispatch = {"target": "apollo", "operation_key": {"operation_id": "op-1"}}
+    completion = TrackedProcCompletion(
+        proc_info=ProcInfo(
+            proc_id="task",
+            proc_type="launch",
+            cl_name="test",
+            project_file="/tmp/test.sase",
+            status="success",
+            message="Dispatched launch to apollo (accepted)",
+            started_at=datetime.now(),
+        ),
+        success=True,
+        message="Dispatched launch to apollo (accepted)",
+        output="",
+        payload={"dispatch": dispatch},
+        error=None,
+    )
+
+    outcome = _launch_outcome_from_completion(completion)
+
+    assert outcome is not None
+    assert outcome.dispatch == dispatch
+
+
+def test_launch_completion_hands_dispatch_payload_to_fleet_handler() -> None:
+    prompt = "%dispatch:apollo do remote work"
+
+    class App(_FakeApp):
+        def __init__(self) -> None:
+            super().__init__()
+            self.dispatch_outcomes = []
+            self._launch_submitted_prompts = {"task": prompt}
+
+        def _record_dispatch_launch_outcome(
+            self,
+            dispatch: dict[str, object],
+            *,
+            prompt: str | None = None,
+            payload: dict[str, object] | None = None,
+        ) -> None:
+            self.dispatch_outcomes.append((dispatch, prompt, payload))
+
+    dispatch = {
+        "target": "apollo",
+        "target_installation_id": "sase_inst_v1_" + "a" * 64,
+        "operation_key": {"operation_id": "op-1"},
+        "source_status": "accepted",
+        "receipt": {},
+    }
+    app = App()
+
+    app._on_launch_proc_complete(
+        TrackedProcCompletion(
+            proc_info=ProcInfo(
+                proc_id="task",
+                proc_type="launch",
+                cl_name="test",
+                project_file="/tmp/test.sase",
+                status="success",
+                message="Dispatched launch to apollo (accepted)",
+                started_at=datetime.now(),
+            ),
+            success=True,
+            message="Dispatched launch to apollo (accepted)",
+            output="",
+            payload={"dispatch": dispatch},
+            error=None,
+        )
+    )
+
+    assert app.dispatch_outcomes == [(dispatch, prompt, None)]
+
+
 def test_launch_task_completion_emits_warning_messages_from_result_payload() -> None:
     app = _FakeApp()
     toast = "Unknown xprompt reference(s): #reviewww - passed through as literal text"

@@ -32,6 +32,7 @@ async def test_g_in_normal_mode_shows_g_prefix_hints() -> None:
         assert "gf   format prompt" in plain
         assert "gG   glossary…" in plain
         assert "gm   memory…" in plain
+        assert "gD   launch target…" in plain
         assert "gT   snippets…" in plain
         assert "g<enter>   submit this draft" in plain
         assert "g-   add pane" in plain
@@ -91,6 +92,7 @@ async def test_ctrl_g_in_insert_mode_shows_insert_prefix_hints() -> None:
         assert "^Gf   format prompt" in plain
         assert "^GG   glossary…" in plain
         assert "^Gm   memory…" in plain
+        assert "^GD   launch target…" in plain
         assert "^GT   snippets…" in plain
         assert "^G<enter>   submit this draft" in plain
         assert "^G^C   cancel all panes" in plain
@@ -130,6 +132,7 @@ async def test_ctrl_g_in_normal_mode_shows_same_prefix_hints_as_insert() -> None
         assert "^Gf   format prompt" in plain
         assert "^GG   glossary…" in plain
         assert "^Gm   memory…" in plain
+        assert "^GD   launch target…" in plain
         assert "^GT   snippets…" in plain
         assert "^G<enter>   submit this draft" in plain
         assert "^G^C   cancel all panes" in plain

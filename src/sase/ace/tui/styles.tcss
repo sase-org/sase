@@ -2528,6 +2528,41 @@ AgentWorkspaceTmuxModal {
     padding-top: 1;
 }
 
+DispatchTargetPickerModal {
+    align: center middle;
+}
+
+#dispatch-target-container {
+    width: 76;
+    max-width: 94%;
+    height: auto;
+    max-height: 20;
+    border: double $secondary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#dispatch-target-title {
+    text-align: center;
+    text-style: bold;
+    color: $secondary;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#dispatch-target-list {
+    height: auto;
+    max-height: 12;
+}
+
+#dispatch-target-hints {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
 
 /* Models panel styling */
 ModelsPanel {
@@ -3942,6 +3977,27 @@ PromptInputBar #frontmatter-panel {
 
 PromptInputBar #frontmatter-panel.hidden {
     display: none;
+}
+
+PromptInputBar #prompt-dispatch-context {
+    width: 100%;
+    height: 1;
+    background: $panel;
+    color: $text-muted;
+    padding: 0 1;
+}
+
+PromptInputBar #prompt-dispatch-context.hidden {
+    display: none;
+}
+
+PromptInputBar #prompt-dispatch-context.error {
+    color: $error;
+}
+
+PromptInputBar #prompt-dispatch-context.warning,
+PromptInputBar #prompt-dispatch-context.pending {
+    color: $warning;
 }
 
 PromptInputBar #frontmatter-panel:focus {

@@ -46,6 +46,8 @@ def init_agent_state(self: Any) -> None:
     self._agents_fleet_projection = FleetRowsProjection()
     self._agents_fleet_rows = []
     self._agents_fleet_focus_rows = []
+    self._agents_dispatch_provisional_rows = {}
+    self._dispatch_launch_prompt_to_operation = {}
     self._agents_fleet_async_tasks = set()
     self._agents_fleet_refresh_generation = 0
     self._agents_fleet_loading = False

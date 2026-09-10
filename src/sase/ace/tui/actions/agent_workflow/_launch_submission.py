@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from ._launch_records import push_launch_record
 from ._launch_submit_helpers import (
+    dispatch_payload_from_prompt_context,
     launch_record_context_from_prompt_context,
     launch_toast_label,
     record_submit_time_vcs_replay,
@@ -173,11 +174,7 @@ class LaunchSubmissionMixin:
             f"{launch_toast_label(accepted_submission.prompt, ctx.display_name)}..."
         )
 
-        payload: dict[str, object] = {
-            "display_name": ctx.display_name,
-            "project_name": ctx.project_name,
-            "workflow_name": ctx.workflow_name,
-        }
+        payload = dispatch_payload_from_prompt_context(ctx)
         if accepted_submission.extra_payload:
             payload.update(accepted_submission.extra_payload)
 

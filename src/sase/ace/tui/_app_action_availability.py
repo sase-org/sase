@@ -55,6 +55,7 @@ _AGENT_FLEET_ACTIONS = frozenset(
         "retry_remote_agent",
         "view_remote_agent_content",
         "answer_remote_attention",
+        "check_dispatch_launch_outcome",
     }
 )
 _LOCAL_AGENT_ROW_ACTIONS = frozenset(
@@ -126,6 +127,11 @@ def check_app_action(
             return _remote_content_available(selected_agent)
         if action == "answer_remote_attention":
             return _remote_attention_available(selected_agent)
+        if action == "check_dispatch_launch_outcome":
+            return bool(
+                selected_agent_remote
+                and getattr(selected_agent, "fleet_dispatch_operation_key", None)
+            )
     if selected_agent_remote and action == "kill_agent":
         return _remote_lifecycle_available(selected_agent, "lifecycle.stop")
     if selected_agent_remote and action == "run_workflow":

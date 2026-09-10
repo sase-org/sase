@@ -84,6 +84,20 @@ def record_submit_time_vcs_replay(prompt: str) -> None:
         log.debug("Failed to refresh Ctrl+Space replay target", exc_info=True)
 
 
+def dispatch_payload_from_prompt_context(ctx: PromptContext) -> dict[str, object]:
+    """Return launch payload fields that identify portable dispatch source."""
+    project_name = Path(ctx.project_file).expanduser().parent.name or ctx.project_name
+    payload: dict[str, object] = {
+        "display_name": ctx.display_name,
+        "project_name": ctx.project_name,
+        "workflow_name": ctx.workflow_name,
+        "project": project_name,
+    }
+    if ctx.cl_name and ctx.cl_name != project_name:
+        payload["patch_ref"] = ctx.cl_name
+    return payload
+
+
 def launch_record_context_from_prompt_context(
     ctx: PromptContext,
 ) -> LaunchRecordContext:

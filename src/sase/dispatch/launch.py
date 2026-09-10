@@ -52,6 +52,24 @@ class _RemoteDispatchLaunchResult:
     payload: dict[str, object]
 
 
+@dataclass(frozen=True)
+class RemoteDispatchLaunchPreview:
+    """Source-side dispatch validation result before network submission."""
+
+    target: str
+    prompt: str
+    source: str
+    target_installation_id: str
+    target_status: str
+    target_detail: str
+    portable_context: dict[str, Any]
+    intent: dict[str, Any]
+    operation_key: dict[str, str | int]
+    payload_fingerprint: dict[str, Any]
+    request: dict[str, Any]
+    provisional_locator: dict[str, object]
+
+
 def maybe_dispatch_launch(
     query: str,
     *,
@@ -59,75 +77,48 @@ def maybe_dispatch_launch(
     unresolved_names: Sequence[str] = (),
 ) -> _RemoteDispatchLaunchResult | None:
     """Submit a remote dispatch launch if *query* contains `%dispatch`."""
-    scan = scan_dispatch_directive(query)
-    if scan is None:
-        return None
+    preview: RemoteDispatchLaunchPreview | None = None
     try:
-        _reject_local_only_payload(payload)
+        preview = preview_dispatch_launch(query, payload=payload)
+        if preview is None:
+            return None
         config = load_dispatch_config()
-        machine = _target_machine(config.machine_by_alias(), scan.target)
-        context = _portable_project_context(payload, machine)
-        intent = _launch_intent(scan, payload, context)
-        operation_key = _operation_key(payload, scan, intent)
-        if intent["follow"] and intent["name"] is None:
-            intent["name"] = operation_key["operation_id"]
-        fingerprint = _call_dict_binding(
-            "fleet_launch_payload_fingerprint",
-            intent,
-            what="launch payload fingerprint",
-        )
-        request = {
-            "schema_version": _FLEET_SCHEMA_VERSION,
-            "key": operation_key,
-            "target_installation_id": machine.pinned_installation_id,
-            "intent": intent,
-            "payload_fingerprint": fingerprint,
-            "acceptance_window_seconds": max(config.request_timeout_seconds, 30.0),
-        }
-        _call_dict_binding(
-            "fleet_validate_launch_request",
-            request,
-            what="launch request validation",
-        )
-        provisional_follow = _provisional_follow_locator(
-            machine,
-            context["project_id"],
-            _provisional_agent_id(intent, operation_key),
-        )
         upsert_dispatch_launch_intent(
             {
                 "schema_version": _FLEET_SCHEMA_VERSION,
-                "operation_key": operation_key,
-                "target": scan.target,
-                "target_installation_id": machine.pinned_installation_id,
-                "prompt": scan.prompt,
-                "portable_context": context,
-                "payload_fingerprint": fingerprint,
-                "follow": intent["follow"],
+                "operation_key": preview.operation_key,
+                "target": preview.target,
+                "target_installation_id": preview.target_installation_id,
+                "prompt": preview.prompt,
+                "portable_context": preview.portable_context,
+                "payload_fingerprint": preview.payload_fingerprint,
+                "follow": preview.intent["follow"],
                 "status": "unsent",
                 "created_at_unix": time.time(),
                 "updated_at_unix": time.time(),
             }
         )
-        if intent["follow"]:
-            prewrite_dispatch_follow(provisional_follow, operation_key)
-        update_dispatch_launch_intent(operation_key, status="acceptance_uncertain")
+        if preview.intent["follow"]:
+            prewrite_dispatch_follow(preview.provisional_locator, preview.operation_key)
+        update_dispatch_launch_intent(
+            preview.operation_key, status="acceptance_uncertain"
+        )
         try:
             response = build_federation_facade().launch_sync(
-                scan.target,
-                request,
+                preview.target,
+                preview.request,
                 timeout_seconds=config.request_timeout_seconds,
             )
         except FederationWorkerUnavailable as exc:
             update_dispatch_launch_intent(
-                operation_key,
+                preview.operation_key,
                 status="unsent",
                 error=str(exc),
             )
             raise
         except FederationWorkerResponseError as exc:
             update_dispatch_launch_intent(
-                operation_key,
+                preview.operation_key,
                 status="acceptance_uncertain",
                 error=str(exc),
             )
@@ -135,45 +126,42 @@ def maybe_dispatch_launch(
         receipt, decision, reason = _launch_receipt_from_response(response)
         if decision not in {"accept_new", "return_original_receipt"}:
             update_dispatch_launch_intent(
-                operation_key,
+                preview.operation_key,
                 status=decision,
                 receipt=receipt,
                 error=reason,
             )
             raise RemoteDispatchLaunchError(
-                f"remote dispatch {decision} for {scan.target}: {reason}"
+                f"remote dispatch {decision} for {preview.target}: {reason}"
             )
         source_status = _source_status_from_receipt(receipt)
         update_dispatch_launch_intent(
-            operation_key,
+            preview.operation_key,
             status=source_status,
             receipt=receipt,
         )
         if source_status == "failed":
-            message = _failed_receipt_message(scan.target, receipt, reason)
+            message = _failed_receipt_message(preview.target, receipt, reason)
             update_dispatch_launch_intent(
-                operation_key,
+                preview.operation_key,
                 status="failed",
                 receipt=receipt,
                 error=message,
             )
             raise RemoteDispatchLaunchError(message)
-        if intent["follow"]:
+        if preview.intent["follow"]:
             _activate_receipt_follow(
-                provisional_follow,
+                preview.provisional_locator,
                 receipt,
-                operation_key=operation_key,
+                operation_key=preview.operation_key,
             )
-        message = f"Dispatched launch to {scan.target} ({source_status})"
+        message = f"Dispatched launch to {preview.target} ({source_status})"
         return _RemoteDispatchLaunchResult(
-            target=scan.target,
-            prompt=str(intent["prompt"]),
+            target=preview.target,
+            prompt=str(preview.intent["prompt"]),
             message=message,
             payload=_run_launch_payload(
-                scan=scan,
-                machine=machine,
-                operation_key=operation_key,
-                fingerprint=fingerprint,
+                preview=preview,
                 receipt=receipt,
                 decision=decision,
                 reason=reason,
@@ -184,13 +172,71 @@ def maybe_dispatch_launch(
     except (DispatchError, FollowStoreError, ValueError) as exc:
         raise RemoteDispatchLaunchError(str(exc)) from exc
     except FederationWorkerUnavailable as exc:
+        target = preview.target if preview is not None else "remote target"
         raise RemoteDispatchLaunchError(
-            f"remote dispatch was not sent to {scan.target}: {exc}"
+            f"remote dispatch was not sent to {target}: {exc}"
         ) from exc
     except FederationWorkerResponseError as exc:
+        target = preview.target if preview is not None else "remote target"
         raise RemoteDispatchLaunchError(
-            f"remote dispatch outcome is uncertain for {scan.target}: {exc}"
+            f"remote dispatch outcome is uncertain for {target}: {exc}"
         ) from exc
+
+
+def preview_dispatch_launch(
+    query: str,
+    *,
+    payload: Mapping[str, Any],
+) -> RemoteDispatchLaunchPreview | None:
+    """Validate a dispatch launch and return the request that would be sent."""
+    scan = scan_dispatch_directive(query)
+    if scan is None:
+        return None
+    _reject_local_only_payload(payload)
+    config = load_dispatch_config()
+    machine = _target_machine(config.machine_by_alias(), scan.target)
+    context = _portable_project_context(payload, machine)
+    intent = _launch_intent(scan, payload, context)
+    operation_key = _operation_key(payload, scan, intent)
+    if intent["follow"] and intent["name"] is None:
+        intent["name"] = operation_key["operation_id"]
+    fingerprint = _call_dict_binding(
+        "fleet_launch_payload_fingerprint",
+        intent,
+        what="launch payload fingerprint",
+    )
+    request = {
+        "schema_version": _FLEET_SCHEMA_VERSION,
+        "key": operation_key,
+        "target_installation_id": machine.pinned_installation_id,
+        "intent": intent,
+        "payload_fingerprint": fingerprint,
+        "acceptance_window_seconds": max(config.request_timeout_seconds, 30.0),
+    }
+    _call_dict_binding(
+        "fleet_validate_launch_request",
+        request,
+        what="launch request validation",
+    )
+    provisional_locator = _provisional_follow_locator(
+        machine,
+        context["project_id"],
+        _provisional_agent_id(intent, operation_key),
+    )
+    return RemoteDispatchLaunchPreview(
+        target=scan.target,
+        prompt=str(intent["prompt"]),
+        source=scan.source,
+        target_installation_id=machine.pinned_installation_id,
+        target_status="ok",
+        target_detail="",
+        portable_context=context,
+        intent=intent,
+        operation_key=operation_key,
+        payload_fingerprint=fingerprint,
+        request=request,
+        provisional_locator=provisional_locator,
+    )
 
 
 def _target_machine(
@@ -446,10 +492,7 @@ def _failed_receipt_message(
 
 def _run_launch_payload(
     *,
-    scan: DispatchDirectiveScan,
-    machine: MachineRecord,
-    operation_key: Mapping[str, Any],
-    fingerprint: Mapping[str, Any],
+    preview: RemoteDispatchLaunchPreview,
     receipt: Mapping[str, Any],
     decision: str,
     reason: str,
@@ -463,11 +506,12 @@ def _run_launch_payload(
         "request_agents_refresh": True,
         "schedule_agents_refresh": True,
         "dispatch": {
-            "target": scan.target,
-            "source": scan.source,
-            "target_installation_id": machine.pinned_installation_id,
-            "operation_key": dict(operation_key),
-            "payload_fingerprint": dict(fingerprint),
+            "target": preview.target,
+            "source": preview.source,
+            "target_installation_id": preview.target_installation_id,
+            "operation_key": dict(preview.operation_key),
+            "payload_fingerprint": dict(preview.payload_fingerprint),
+            "portable_context": dict(preview.portable_context),
             "decision": decision,
             "reason": reason,
             "state": receipt.get("state"),
@@ -534,5 +578,7 @@ def _git_stdout(cwd: Path, *args: str) -> str | None:
 
 __all__ = [
     "RemoteDispatchLaunchError",
+    "RemoteDispatchLaunchPreview",
     "maybe_dispatch_launch",
+    "preview_dispatch_launch",
 ]

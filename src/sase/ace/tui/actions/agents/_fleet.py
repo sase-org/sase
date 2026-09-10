@@ -41,6 +41,7 @@ from ...models.fleet_agents import (
 )
 from ...util.pump_tasks import spawn_pump_free_task
 from ...widgets.panel_tab_strip import PanelTab, PanelTabStrip
+from ._fleet_dispatch_launches import AgentFleetDispatchLaunchMixin
 
 if TYPE_CHECKING:
     from ...app import AgentsSubTab
@@ -143,7 +144,7 @@ def _unified_diagnostic_text(projection: FleetRowsProjection) -> str:
     return f"{issue_count} machine {suffix}"
 
 
-class AgentFleetMixin:
+class AgentFleetMixin(AgentFleetDispatchLaunchMixin):
     """Remote fleet state, projection, and user actions."""
 
     current_agents_subtab: AgentsSubTab
@@ -154,6 +155,8 @@ class AgentFleetMixin:
     _agents_local_with_children: list[Agent]
     _agents_fleet_rows: list[Agent]
     _agents_fleet_focus_rows: list[Agent]
+    _agents_dispatch_provisional_rows: dict[str, Agent]
+    _dispatch_launch_prompt_to_operation: dict[str, str]
     _agents_fleet_projection: FleetRowsProjection
     _agents_fleet_async_tasks: set[asyncio.Task[object]]
     _agents_fleet_refresh_generation: int
@@ -319,16 +322,22 @@ class AgentFleetMixin:
         )
 
     def _agents_source_for_current_mode(self, local_agents: list[Agent]) -> list[Agent]:
+        fleet_rows = self._fleet_rows_with_dispatch_provisionals(
+            list(getattr(self, "_agents_fleet_rows", []))
+        )
+        focus_rows = self._fleet_rows_with_dispatch_provisionals(
+            list(getattr(self, "_agents_fleet_focus_rows", []))
+        )
         if _unified_agents_enabled():
             return [
                 *local_agents,
-                *getattr(self, "_agents_fleet_rows", []),
+                *fleet_rows,
             ]
         if self.current_agents_subtab == "fleet":
-            return list(getattr(self, "_agents_fleet_rows", []))
+            return fleet_rows
         return [
             *local_agents,
-            *getattr(self, "_agents_fleet_focus_rows", []),
+            *focus_rows,
         ]
 
     @staticmethod
@@ -693,6 +702,7 @@ class AgentFleetMixin:
             getattr(self, "_agents_fleet_available", False)
             or getattr(self, "_agents_fleet_rows", ())
             or getattr(self, "_agents_fleet_focus_rows", ())
+            or getattr(self, "_agents_dispatch_provisional_rows", {})
         )
 
     def _update_agents_header(self) -> None:

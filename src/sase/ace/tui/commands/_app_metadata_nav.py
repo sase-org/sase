@@ -285,4 +285,11 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         ("attention", "question", "gate", "remote"),
     ),
+    (
+        "check_dispatch_launch_outcome",
+        "Agents: check dispatch launch outcome",
+        "Agents",
+        AGENTS_ONLY,
+        ("dispatch", "launch", "outcome", "remote"),
+    ),
 )

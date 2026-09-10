@@ -37,6 +37,7 @@ class _LaunchProcOutcome:
     schedule_agents_refresh: bool = False
     refresh_notifications: bool = False
     admission_complete: bool = True
+    dispatch: Mapping[str, object] | None = None
 
     @property
     def success(self) -> bool:
@@ -153,6 +154,14 @@ class LaunchProcMixin:
                 notify_registered_error(self, "Launch failed", error_id=error_id)
             elif completion.message:
                 self.notify(completion.message)  # type: ignore[attr-defined]
+            marker = getattr(self, "_mark_dispatch_launch_unknown_for_prompt", None)
+            if callable(marker):
+                marker(
+                    submitted_prompt,
+                    completion.error
+                    or completion.message
+                    or "launch result unavailable",
+                )
             return
 
         from ._launch_records import (
@@ -163,6 +172,19 @@ class LaunchProcMixin:
         stamp_launch_record_results(self, proc_id, outcome.results)
         if not outcome.success:
             stamp_launch_record_failure(self, proc_id)
+
+        if outcome.dispatch is not None:
+            recorder = getattr(self, "_record_dispatch_launch_outcome", None)
+            if callable(recorder):
+                recorder(
+                    outcome.dispatch,
+                    prompt=submitted_prompt,
+                    payload=None,
+                )
+        elif not outcome.success:
+            marker = getattr(self, "_mark_dispatch_launch_unknown_for_prompt", None)
+            if callable(marker):
+                marker(submitted_prompt, outcome.message or "launch failed")
 
         if outcome.results:
             self._handle_launch_results_delta(outcome.results)  # type: ignore[attr-defined]
@@ -382,6 +404,11 @@ def _launch_outcome_from_completion(
         schedule_agents_refresh=bool(payload.get("schedule_agents_refresh")),
         refresh_notifications=bool(payload.get("refresh_notifications")),
         admission_complete=bool(payload.get("admission_complete", True)),
+        dispatch=(
+            dict(dispatch)
+            if isinstance(dispatch := payload.get("dispatch"), Mapping)
+            else None
+        ),
     )
 
 

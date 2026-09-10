@@ -112,7 +112,7 @@ def test_classifier_accepts_sase_core_patch_record_migration_headers() -> None:
     classification, rule, _reason = _classify_candidate(
         "sase-core",
         "crates/sase_core/src/migration/patch_records.rs",
-        'if is_named_header(line, "ChangeSpec") {',
+        '    if is_named_header(line, "ChangeSpec") {',
         "ChangeSpec",
     )
 

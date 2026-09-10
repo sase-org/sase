@@ -27,6 +27,8 @@ class PromptInputBarStackLifecycleMixin(_MixinBase):
     if TYPE_CHECKING:
         _completion_line_count: int
         _completion_visible: bool
+        _dispatch_context_line_count: int
+        _dispatch_context_visible: bool
         _g_prefix_hints_line_count: int
         _g_prefix_hints_visible: bool
         _search_command_line_count: int
@@ -41,6 +43,7 @@ class PromptInputBarStackLifecycleMixin(_MixinBase):
         ) -> int: ...
         def _pane_id(self, item: PromptStackItem) -> str: ...
         def _refresh_title(self, mode_suffix: str = "") -> None: ...
+        def _refresh_dispatch_context_line(self) -> None: ...
         def refresh_frontmatter_panel_from_stack(self) -> None: ...
         def _schedule_xprompt_stale_check(self, *, force: bool = False) -> None: ...
         def _update_todo_count_for_text_area(self, text_area: object) -> None: ...
@@ -105,6 +108,7 @@ class PromptInputBarStackLifecycleMixin(_MixinBase):
         self._sync_state_from_widgets()
         self._update_todo_count_for_text_area(text_area)
         self._refresh_title(self._title_mode_suffix)
+        self._refresh_dispatch_context_line()
         self._schedule_height_update()
         self.refresh_cursor_readouts()
 
@@ -162,15 +166,29 @@ class PromptInputBarStackLifecycleMixin(_MixinBase):
         search_rows = (
             self._search_command_line_count if self._search_command_visible else 0
         )
+        dispatch_rows = (
+            self._dispatch_context_line_count if self._dispatch_context_visible else 0
+        )
         frontmatter_cap = max(
             0,
-            max_height - 3 - completion_rows - g_prefix_rows - search_rows,
+            max_height
+            - 3
+            - completion_rows
+            - g_prefix_rows
+            - search_rows
+            - dispatch_rows,
         )
         frontmatter_rows = min(
             self._frontmatter_panel_reserved_rows(frontmatter_cap),
             frontmatter_cap,
         )
-        panel_rows = completion_rows + frontmatter_rows + g_prefix_rows + search_rows
+        panel_rows = (
+            completion_rows
+            + frontmatter_rows
+            + g_prefix_rows
+            + search_rows
+            + dispatch_rows
+        )
         if len(self._stack) <= 1:
             # Single pane: identical formula to the pre-stack bar. +2 for the
             # bar's top/bottom border, plus transient panels when visible.

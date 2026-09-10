@@ -128,10 +128,36 @@ def test_dispatch_launch_submits_portable_request_and_records_follow(
     assert request["intent"]["name"] == request["key"]["operation_id"]
     assert request["intent"]["project"]["patch_ref"] == "patch-123"
     assert request["intent"]["project"]["revision"] is None
+    assert result.payload["dispatch"]["portable_context"]["patch_ref"] == "patch-123"
     intent_store = tmp_path / ".sase" / "fleet" / "dispatch_launch_intents.json"
     assert '"status": "settled"' in intent_store.read_text(encoding="utf-8")
     follow_store = tmp_path / ".sase" / "fleet" / "follows.json"
     assert request["intent"]["name"] in follow_store.read_text(encoding="utf-8")
+
+
+def test_dispatch_preview_builds_request_without_federation_submission(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    machine = _machine()
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    monkeypatch.setattr(launch, "load_dispatch_config", lambda: _config(machine))
+    monkeypatch.setattr(launch, "require_rust_binding", _rust_binding)
+
+    preview = launch.preview_dispatch_launch(
+        "%dispatch:apollo do remote work",
+        payload={"project": "sase", "patch_ref": "patch-123", "follow": True},
+    )
+
+    assert preview is not None
+    assert preview.target == "apollo"
+    assert preview.prompt == "do remote work"
+    assert preview.target_installation_id == machine.pinned_installation_id
+    assert preview.portable_context["project_id"] == "sase"
+    assert preview.portable_context["patch_ref"] == "patch-123"
+    assert preview.request["key"] == preview.operation_key
+    assert preview.request["payload_fingerprint"] == preview.payload_fingerprint
+    assert preview.provisional_locator["agent_id"] == preview.intent["name"]
 
 
 def test_dispatch_launch_rejects_local_only_payload(

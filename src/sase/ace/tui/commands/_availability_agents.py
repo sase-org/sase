@@ -135,6 +135,13 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.answer_remote_attention":
         return _remote_attention_command_available(ctx)
 
+    if spec.id == "app.check_dispatch_launch_outcome":
+        return bool(
+            ctx.selected_agent_remote
+            and agent is not None
+            and getattr(agent, "fleet_dispatch_operation_key", None)
+        )
+
     if ctx.selected_agent_remote:
         if spec.id == "app.kill_agent":
             return _remote_lifecycle_command_available(ctx, "lifecycle.stop")

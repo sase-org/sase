@@ -549,6 +549,26 @@ class AgentState:
     fleet_followed: bool = field(default=False, compare=False)
     fleet_bounded_intent: str | None = field(default=None, compare=False)
     fleet_diagnostic: str | None = field(default=None, compare=False)
+    # Source-controller provisional launch metadata. These fields are present
+    # only for rows inserted while a `%dispatch` launch is settling; real fleet
+    # catalog rows replace them once the owner reports the launched agent.
+    fleet_dispatch_operation_key: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    fleet_dispatch_status: str | None = field(default=None, compare=False)
+    fleet_dispatch_message: str | None = field(default=None, compare=False)
+    fleet_dispatch_prompt: str | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+    fleet_dispatch_payload: dict[str, Any] | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
     # A pending remote question/gate entry for this row (see
     # `sase_core.fleet_attention`'s `FleetAttentionEntryWire`), or None when
     # no attention is currently pending. Answering never mutates this field

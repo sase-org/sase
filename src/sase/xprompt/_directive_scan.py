@@ -130,6 +130,28 @@ def scan_dispatch_directive(prompt: str) -> DispatchDirectiveScan | None:
     return DispatchDirectiveScan(target=target, prompt=cleaned, source=source)
 
 
+def set_dispatch_directive(prompt: str, target: str | None) -> str:
+    """Return *prompt* with one leading ``%dispatch:<target>`` directive.
+
+    Existing active dispatch directives are removed through
+    :func:`scan_dispatch_directive`, so duplicate/conflicting dispatch syntax
+    still raises the same parser error the launcher would raise.
+    """
+    cleaned = prompt
+    scan = scan_dispatch_directive(prompt)
+    if scan is not None:
+        cleaned = scan.prompt
+    if target is None:
+        return cleaned.lstrip("\n")
+    resolved = resolve_dispatch_target({"dispatch": target})
+    if resolved is None:  # pragma: no cover - resolve_dispatch_target rejects this.
+        return cleaned.lstrip("\n")
+    body = cleaned.lstrip("\n")
+    return (
+        f"%dispatch:{resolved}" if not body.strip() else f"%dispatch:{resolved}\n{body}"
+    )
+
+
 def _dispatch_raw_target(prompt: str, match: re.Match[str]) -> tuple[str, int]:
     has_open_paren = match.group(2) is not None
     colon_arg = match.group(3)

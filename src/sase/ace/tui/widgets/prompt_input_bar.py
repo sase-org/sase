@@ -18,6 +18,9 @@ from sase.ace.tui.widgets._prompt_input_bar_actions import (
 from sase.ace.tui.widgets._prompt_input_bar_completion import (
     PromptInputBarCompletionMixin,
 )
+from sase.ace.tui.widgets._prompt_input_bar_dispatch import (
+    PromptInputBarDispatchMixin,
+)
 from sase.ace.tui.widgets._prompt_input_bar_frontmatter import (
     InlineExpansionTransaction,
     PromptInputBarFrontmatterMixin,
@@ -119,6 +122,7 @@ class PromptInputBar(
     PromptInputBarStackActionsMixin,
     PromptInputBarGPrefixHintsMixin,
     PromptInputBarSearchMixin,
+    PromptInputBarDispatchMixin,
     PromptInputBarActionsMixin,
     PromptInputBarCompletionMixin,
     PromptInputBarStackRenderingMixin,
@@ -171,6 +175,12 @@ class PromptInputBar(
         self._g_prefix_hints_signature: tuple[
             str, tuple[tuple[str, tuple[str, ...], str], ...]
         ] = ("", ())
+        self._dispatch_context_visible = False
+        self._dispatch_context_line_count = 0
+        self._dispatch_catalog_loaded = False
+        self._dispatch_catalog_loading = False
+        self._dispatch_target_rows: dict[str, dict[str, object]] = {}
+        self._dispatch_preflight_override: tuple[str, str, str] | None = None
         self._search_command_visible = False
         self._search_command_line_count = 0
         self._mode_subtitle = "[Enter] send  [Esc] normal  [^C] cancel"
@@ -639,6 +649,7 @@ class PromptInputBar(
                 id="frontmatter-panel",
                 classes="hidden",
             )
+            yield Static("", id="prompt-dispatch-context", classes="hidden")
         yield Static("", id="prompt-g-prefix-hints", classes="hidden")
         yield Static("", id="prompt-search-command", classes="hidden")
         with Vertical(id="prompt-stack"):
@@ -683,6 +694,8 @@ class PromptInputBar(
         text_area._warm_history_word_completion_cache()
         text_area._warm_common_placeholder_cache()
         text_area._on_prompt_completion_context_changed()
+        self._warm_dispatch_target_catalog()
+        self._refresh_dispatch_context_line()
         self._apply_active_classes()
         self.auto_show_frontmatter_panel()
         self._schedule_height_update()

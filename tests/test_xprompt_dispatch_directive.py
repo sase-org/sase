@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from sase.xprompt._directive_scan import scan_dispatch_directive
+from sase.xprompt._directive_scan import scan_dispatch_directive, set_dispatch_directive
 from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import extract_prompt_directives
 
@@ -25,6 +25,16 @@ def test_dispatch_scan_strips_only_dispatch_directive() -> None:
     assert scan is not None
     assert scan.target == "apollo"
     assert scan.prompt == " %id:worker do the work"
+
+
+def test_set_dispatch_directive_rewrites_only_dispatch() -> None:
+    prompt = "%dispatch:apollo %id:worker do the work"
+
+    rewritten = set_dispatch_directive(prompt, "zeus")
+    local = set_dispatch_directive(rewritten, None)
+
+    assert rewritten == "%dispatch:zeus\n %id:worker do the work"
+    assert local == " %id:worker do the work"
 
 
 @pytest.mark.parametrize(

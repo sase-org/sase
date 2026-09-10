@@ -143,6 +143,15 @@ _LAZY_EXPORTS = {
         ".disabled_provider_launch_modal",
         "DisabledProviderLaunchModal",
     ),
+    "DispatchTargetChoice": (".dispatch_target_modal", "DispatchTargetChoice"),
+    "DispatchTargetPickerModal": (
+        ".dispatch_target_modal",
+        "DispatchTargetPickerModal",
+    ),
+    "LOCAL_DISPATCH_TARGET_ID": (
+        ".dispatch_target_modal",
+        "LOCAL_DISPATCH_TARGET_ID",
+    ),
     "ProviderDrainPromptDecision": (
         ".provider_drain_prompt_modal",
         "ProviderDrainPromptDecision",

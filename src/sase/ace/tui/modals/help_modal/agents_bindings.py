@@ -154,6 +154,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     d(a.accept_proposal),
                     "Answer remote question or approve remote gate",
                 ),
+                (d(a.check_dispatch_launch_outcome), "Check dispatch launch outcome"),
             ],
         ),
         (

@@ -11,7 +11,7 @@ from sase.ace.tui.widgets._prompt_input_bar_stack_models import (
     PromptGPrefixHintEntry,
 )
 
-_G_PREFIX_HINT_VISIBLE_ROWS = 11
+_G_PREFIX_HINT_VISIBLE_ROWS = 12
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase

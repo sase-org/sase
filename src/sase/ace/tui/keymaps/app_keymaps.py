@@ -97,6 +97,7 @@ class AppKeymaps:
     retry_remote_agent: str
     view_remote_agent_content: str
     answer_remote_attention: str
+    check_dispatch_launch_outcome: str
     # Patch actions
     patches_filters: str
     quit: str

@@ -545,6 +545,7 @@ ace:
       retry_remote_agent: "unbound"
       view_remote_agent_content: "unbound"
       answer_remote_attention: "unbound"
+      check_dispatch_launch_outcome: "unbound"
       # PR actions
       patches_filters: "f"
       quit: "q"

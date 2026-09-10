@@ -68,6 +68,12 @@ _PROMPT_G_PREFIX_BINDINGS: tuple[_PromptGPrefixBinding, ...] = (
         "_g_prefix_available_memory",
     ),
     _PromptGPrefixBinding(
+        "D",
+        "request_dispatch_target_picker",
+        "_g_prefix_label_dispatch_target",
+        "_g_prefix_available_dispatch_target",
+    ),
+    _PromptGPrefixBinding(
         "enter",
         "submit_active_pane",
         "_g_prefix_label_submit_active",
@@ -198,6 +204,7 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         def move_active_pane(self, delta: int, target_mode: str = "normal") -> bool: ...
         def request_open_prompt_stash(self) -> None: ...
         def request_mini_xprompt_target_pane(self) -> None: ...
+        def request_dispatch_target_picker(self) -> None: ...
         def request_snippet_target_pane(self) -> None: ...
         def request_save_as_xprompt(self) -> None: ...
         def request_write_xprompt(self) -> None: ...
@@ -470,6 +477,12 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
         """Whether ``gm`` / ``^Gm`` can open the memory panel."""
         return self._mode == "prompt"
 
+    def _g_prefix_available_dispatch_target(self) -> bool:
+        """Whether ``gD`` / ``^GD`` can open the dispatch target picker."""
+        return (
+            self._mode == "prompt" and not self._stack.selected_item.is_auxiliary_pane
+        )
+
     def _g_prefix_available_snippets(self) -> bool:
         """Whether ``gT`` / ``^GT`` can open the snippets panel."""
         return self._mode == "prompt"
@@ -592,6 +605,9 @@ class PromptInputBarGPrefixActionsMixin(_MixinBase):
 
     def _g_prefix_label_memory(self) -> str:
         return "memory…"
+
+    def _g_prefix_label_dispatch_target(self) -> str:
+        return "launch target…"
 
     def _g_prefix_label_snippets(self) -> str:
         return "snippets…"

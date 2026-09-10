@@ -387,7 +387,11 @@ def _is_external_legacy_boundary(
         return True
     if repo == "sase-core":
         if path in _SASE_CORE_MIGRATION_COMPATIBILITY_PATHS:
-            return True
+            return _line_contains(
+                line,
+                'is_named_header(line, "ChangeSpec")',
+                'replacen("ChangeSpec", "Patch"',
+            )
         return _line_contains(
             line,
             "CHANGESPEC_WIRE_SCHEMA_VERSION",
