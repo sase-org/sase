@@ -172,13 +172,14 @@ def test_grok_usage_probe_decodes_verified_legacy_monthly_ratio(
     assert window["resets_at"] == pytest.approx(_epoch("2027-02-01T00:00:00Z"))
 
 
-def test_grok_usage_probe_missing_billing_method_is_unsupported(
+def test_grok_usage_probe_missing_billing_method_is_vendor_drift(
     tmp_path: Path,
 ) -> None:
     fake = _make_fake_grok(tmp_path)
     result, messages, _ = _run_grok_probe(fake, tmp_path, mode="method_missing")
-    assert result["outcome"] == "unsupported"
-    assert result["reason_code"] == "unsupported_cli_version"
+    assert result["outcome"] == "error"
+    assert result["reason_code"] == "vendor_drift"
+    assert result["diagnostic"] == "grok_billing_extension_missing"
     assert [message["method"] for message in messages] == [
         "initialize",
         "_x.ai/billing",

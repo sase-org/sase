@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Fake Grok Build CLI for ACP billing usage-probe tests."""
+"""Fake Grok Build CLI for ACP billing usage-probe tests.
+
+Strict mode mirrors the observed Grok Build 1.0.13 ACP billing extension shape.
+"""
 
 from __future__ import annotations
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -113,8 +114,14 @@ def test_multi_bucket_handshake_collects_account_and_unknown_windows(
 
 
 def test_rate_limits_retries_with_legacy_params_when_paramless_is_rejected(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    caplog.set_level(
+        logging.WARNING,
+        logger="sase.llm_provider.usage.codex_collector",
+    )
     request_log = tmp_path / "requests.jsonl"
     monkeypatch.setenv("SASE_CODEX_APP_SERVER_REQUEST_LOG", str(request_log))
     context = _context(mode="legacy_params_required", monkeypatch=monkeypatch)
@@ -124,6 +131,9 @@ def test_rate_limits_retries_with_legacy_params_when_paramless_is_rejected(
     validate_observation(observation, now=context.request_started_at)
     assert observation["outcome"] == "ok"
     assert observation["windows"]
+    assert "primary no_params failed" in observation["diagnostic"]
+    assert "recovered via legacy_params" in observation["diagnostic"]
+    assert "usage probe strategy recovered codex drift" in caplog.text
     rate_limit_requests = [
         request
         for request in _read_jsonl(request_log)
@@ -200,13 +210,22 @@ def test_unauthenticated_rate_limits_error_maps_to_logged_out(
     assert observation["windows"] == []
 
 
-def test_method_not_found_on_rate_limits_is_unsupported(
-    monkeypatch: pytest.MonkeyPatch,
+def test_method_not_found_on_rate_limits_is_vendor_drift(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
+    request_log = tmp_path / "requests.jsonl"
+    monkeypatch.setenv("SASE_CODEX_APP_SERVER_REQUEST_LOG", str(request_log))
     context = _context(mode="method_not_found", monkeypatch=monkeypatch)
     observation = collect_codex_usage(context)
-    assert observation["outcome"] == "unsupported"
-    assert observation["reason_code"] == "unsupported_cli_version"
+    assert observation["outcome"] == "error"
+    assert observation["reason_code"] == "vendor_drift"
+    assert "method not found" in observation["diagnostic"]
+    rate_limit_requests = [
+        request
+        for request in _read_jsonl(request_log)
+        if request.get("method") == "account/rateLimits/read"
+    ]
+    assert len(rate_limit_requests) == 2
 
 
 def test_malformed_rate_limits_result_is_error(

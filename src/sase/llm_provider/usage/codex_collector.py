@@ -8,6 +8,7 @@ events as subscription capacity (epic sase-y5 plan).
 
 from __future__ import annotations
 
+import logging
 import tempfile
 from collections.abc import Mapping
 from typing import Any
@@ -15,6 +16,7 @@ from typing import Any
 from sase import __version__ as _SASE_VERSION
 
 from ..codex import resolve_codex_executable
+from ._strategy import ProbeStrategy, classify_probe_failure, run_probe_strategies
 from .probe import worker_environ
 from .transport import JsonLineSession, JsonLineTransportError
 from .types import (
@@ -30,9 +32,6 @@ _ACCOUNT_READ_ID = 2
 _RATE_LIMITS_ID = 3
 _RATE_LIMITS_LEGACY_ID = 4
 _RATE_LIMITS_METHOD = "account/rateLimits/read"
-_INVALID_REQUEST_CODE = -32600
-_INVALID_PARAMS_CODE = -32602
-_METHOD_NOT_FOUND_CODE = -32601
 
 _UNAUTHENTICATED_MARKERS = (
     "not logged in",
@@ -58,6 +57,8 @@ _TRANSPORT_REASON_BY_CODE: dict[str, UsageReasonCode] = {
     "timeout": "timeout",
     "malformed_response": "parse_error",
 }
+
+log = logging.getLogger(__name__)
 
 
 def collect_codex_usage(context: UsageProbeContext) -> dict[str, Any]:
@@ -127,40 +128,30 @@ def _collect_with_session(
             reason_code="api_mode",
         )
 
-    session.send(
-        {
-            "jsonrpc": "2.0",
-            "id": _RATE_LIMITS_ID,
-            "method": _RATE_LIMITS_METHOD,
-            # codex-cli 0.153.4 declares this method's params as unit and
-            # rejects non-empty maps; reset-credit details are small enough to
-            # keep inside the transport bounds and are ignored by the parser.
-        }
+    return run_probe_strategies(
+        context,
+        (
+            ProbeStrategy(
+                "no_params",
+                lambda attempt_context: _collect_rate_limits(
+                    session,
+                    attempt_context,
+                    request_id=_RATE_LIMITS_ID,
+                    params=None,
+                ),
+            ),
+            ProbeStrategy(
+                "legacy_params",
+                lambda attempt_context: _collect_rate_limits(
+                    session,
+                    attempt_context,
+                    request_id=_RATE_LIMITS_LEGACY_ID,
+                    params={"excludeResetCreditDetails": True},
+                ),
+            ),
+        ),
+        logger=log,
     )
-    response = session.read_response(_RATE_LIMITS_ID)
-    error = _rpc_error(response)
-    if error is not None and _should_retry_with_legacy_rate_limit_params(error):
-        session.send(
-            {
-                "jsonrpc": "2.0",
-                "id": _RATE_LIMITS_LEGACY_ID,
-                "method": _RATE_LIMITS_METHOD,
-                "params": {"excludeResetCreditDetails": True},
-            }
-        )
-        response = session.read_response(_RATE_LIMITS_LEGACY_ID)
-        error = _rpc_error(response)
-    if error is not None:
-        return _observation_from_error(context, _RATE_LIMITS_METHOD, error)
-    result = response.get("result")
-    if not isinstance(result, dict):
-        return validated_status_observation(
-            context,
-            now=context.request_started_at,
-            outcome="error",
-            reason_code="malformed_payload",
-        )
-    return _observation_from_rate_limits(context, result)
 
 
 def _probe_auth_mode(session: JsonLineSession) -> str | None:
@@ -204,6 +195,36 @@ def _extract_auth_mode_hint(result: object) -> str | None:
     return None
 
 
+def _collect_rate_limits(
+    session: JsonLineSession,
+    context: UsageProbeContext,
+    *,
+    request_id: int,
+    params: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": _RATE_LIMITS_METHOD,
+    }
+    if params is not None:
+        payload["params"] = dict(params)
+    session.send(payload)
+    response = session.read_response(request_id)
+    error = _rpc_error(response)
+    if error is not None:
+        return _observation_from_error(context, _RATE_LIMITS_METHOD, error)
+    result = response.get("result")
+    if not isinstance(result, dict):
+        return validated_status_observation(
+            context,
+            now=context.request_started_at,
+            outcome="error",
+            reason_code="malformed_payload",
+        )
+    return _observation_from_rate_limits(context, result)
+
+
 def _rpc_error(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
     error = payload.get("error")
     return error if isinstance(error, dict) else None
@@ -212,17 +233,8 @@ def _rpc_error(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
 def _observation_from_error(
     context: UsageProbeContext, method: str, error: Mapping[str, Any]
 ) -> dict[str, Any]:
-    code = error.get("code")
     message = str(error.get("message") or "").lower()
     diagnostic = _rpc_error_diagnostic(method, error)
-    if code == _METHOD_NOT_FOUND_CODE:
-        return validated_status_observation(
-            context,
-            now=context.request_started_at,
-            outcome="unsupported",
-            reason_code="unsupported_cli_version",
-            diagnostic=diagnostic,
-        )
     if any(marker in message for marker in _UNAUTHENTICATED_MARKERS):
         return validated_status_observation(
             context,
@@ -231,17 +243,17 @@ def _observation_from_error(
             reason_code="logged_out",
             diagnostic=diagnostic,
         )
+    reason_code = classify_probe_failure(
+        "probe_failed",
+        json_rpc_error=error,
+    )
     return validated_status_observation(
         context,
         now=context.request_started_at,
         outcome="error",
-        reason_code="probe_failed",
+        reason_code=reason_code,
         diagnostic=diagnostic,
     )
-
-
-def _should_retry_with_legacy_rate_limit_params(error: Mapping[str, Any]) -> bool:
-    return error.get("code") in {_INVALID_REQUEST_CODE, _INVALID_PARAMS_CODE}
 
 
 def _rpc_error_diagnostic(method: str, error: Mapping[str, Any]) -> str:

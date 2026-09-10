@@ -35,6 +35,11 @@ from sase.llm_provider.usage._claude_support import (
     usage_probe_argv,
     vendor_state_from_rate_limit_info,
 )
+from sase.llm_provider.usage._strategy import (
+    ProbeStrategy,
+    classify_probe_failure,
+    run_probe_strategies,
+)
 from sase.llm_provider.usage.config import collection_skip_reason
 from sase.llm_provider.usage.probe import record_passive_usage_observation
 from sase.llm_provider.usage.store import (
@@ -98,6 +103,33 @@ def collect_claude_usage(
             plan=auth_info.plan,
         )
 
+    return run_probe_strategies(
+        context,
+        (
+            ProbeStrategy(
+                "usage",
+                lambda attempt_context: _collect_claude_usage_strategy(
+                    attempt_context,
+                    executable=executable,
+                    run=run,
+                    clock=clock,
+                    auth_info=auth_info,
+                ),
+            ),
+        ),
+        logger=log,
+    )
+
+
+def _collect_claude_usage_strategy(
+    context: UsageProbeContext,
+    *,
+    executable: str,
+    run: ClaudeCommandRunner,
+    clock: Callable[[], float],
+    auth_info: ClaudeAuthInfo,
+) -> dict[str, Any]:
+    """Run the single guarded Claude usage strategy."""
     usage_result = safe_run(
         run,
         usage_probe_argv(executable),
@@ -155,11 +187,17 @@ def collect_claude_usage(
                 outcome="unauthenticated",
                 reason_code="logged_out",
             )
+        reason_code = classify_probe_failure(
+            "probe_failed",
+            command_returncode=usage_result.returncode,
+            stdout=usage_result.stdout,
+            stderr=usage_result.stderr,
+        )
         return status_observation(
             context,
             now=clock(),
             outcome="error",
-            reason_code="probe_failed",
+            reason_code=reason_code,
             diagnostic=_claude_usage_exit_diagnostic(usage_result),
         )
 

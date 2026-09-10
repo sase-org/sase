@@ -261,7 +261,7 @@ def test_claude_usage_probe_requires_zero_turn_zero_cost_markers() -> None:
     assert "zero-turn zero-cost" in str(observation["diagnostic"])
 
 
-def test_claude_usage_probe_reports_nonzero_exit_diagnostic() -> None:
+def test_claude_usage_probe_classifies_cli_option_rejection_as_vendor_drift() -> None:
     runner = _runner(
         usage_text="Current session: 10% used - resets Sep 7, 6:30pm",
     )
@@ -278,12 +278,14 @@ def test_claude_usage_probe_reports_nonzero_exit_diagnostic() -> None:
     )
 
     assert observation["outcome"] == "error"
-    assert observation["reason_code"] == "probe_failed"
+    assert observation["reason_code"] == "vendor_drift"
     diagnostic = observation["diagnostic"]
     assert "claude /usage exited 1" in diagnostic
     assert "--max-budget-usd" in diagnostic
     assert "\n" not in diagnostic
     assert len(diagnostic) <= 200
+    usage_calls = [call for call in runner.calls if "/usage" in call]
+    assert usage_calls == [_usage_tail()]
 
 
 def test_claude_reset_parser_handles_time_date_year_rollover_and_iso() -> None:

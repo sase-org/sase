@@ -4,6 +4,10 @@
 Ignores its own argv (a real ``codex`` binary would see ``app-server`` as
 ``argv[1]``) and instead branches on ``SASE_CODEX_APP_SERVER_MODE``, mirroring
 the generic ``jsonline_cli.py`` fixture's env-driven-mode convention.
+
+Strict modes mirror the observed codex-cli 0.153.4 app-server contract:
+``multi_bucket`` accepts unit params for ``account/rateLimits/read``, while
+``legacy_params_required`` mirrors the older non-empty params shape.
 """
 
 from __future__ import annotations
@@ -204,6 +208,8 @@ def main() -> int:
         return 0
     if MODE == "method_not_found":
         _respond_error(rate_limits, -32601, "method not found: account/rateLimits/read")
+        retry = _read_request()
+        _respond_error(retry, -32601, "method not found: account/rateLimits/read")
         return 0
     if MODE == "malformed":
         _respond_ok(rate_limits, {"unexpected": True})

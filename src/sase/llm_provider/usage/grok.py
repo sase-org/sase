@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 import subprocess
@@ -11,6 +12,11 @@ from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, Literal
 
+from sase.llm_provider.usage._strategy import (
+    ProbeStrategy,
+    classify_probe_failure,
+    run_probe_strategies,
+)
 from sase.llm_provider.usage.transport import JsonLineSession, JsonLineTransportError
 from sase.llm_provider.usage.types import (
     UsageProbeContext,
@@ -35,7 +41,10 @@ _ReasonCode = Literal[
     "malformed_payload",
     "deadline_exceeded",
     "probe_failed",
+    "vendor_drift",
 ]
+
+log = logging.getLogger(__name__)
 
 
 def collect_grok_usage(
@@ -54,18 +63,23 @@ def collect_grok_usage(
         ) as session:
             session.send(_initialize_request())
             init_response = session.read_response("sase-grok-init")
-            init_status = _status_from_error(init_response, context)
+            init_status = _status_from_error(
+                init_response, context, method="initialize"
+            )
             if init_status is not None:
                 return init_status
-            session.send(
-                {
-                    "jsonrpc": "2.0",
-                    "id": "sase-grok-billing",
-                    "method": _BILLING_METHOD,
-                    "params": {},
-                }
+            return run_probe_strategies(
+                context,
+                (
+                    ProbeStrategy(
+                        "billing",
+                        lambda attempt_context: _collect_grok_billing(
+                            session, attempt_context
+                        ),
+                    ),
+                ),
+                logger=log,
             )
-            billing_response = session.read_response("sase-grok-billing")
     except FileNotFoundError:
         return _status(
             context,
@@ -82,7 +96,22 @@ def collect_grok_usage(
         )
     except JsonLineTransportError as exc:
         return _transport_status(exc, context)
-    error_status = _status_from_error(billing_response, context)
+    raise AssertionError("grok usage collector exited without an observation")
+
+
+def _collect_grok_billing(
+    session: JsonLineSession, context: UsageProbeContext
+) -> dict[str, Any]:
+    session.send(
+        {
+            "jsonrpc": "2.0",
+            "id": "sase-grok-billing",
+            "method": _BILLING_METHOD,
+            "params": {},
+        }
+    )
+    billing_response = session.read_response("sase-grok-billing")
+    error_status = _status_from_error(billing_response, context, method=_BILLING_METHOD)
     if error_status is not None:
         return error_status
     payload = _billing_payload(billing_response)
@@ -409,13 +438,23 @@ def _not_applicable_status(
 
 
 def _status_from_error(
-    response: Mapping[str, Any], context: UsageProbeContext
+    response: Mapping[str, Any], context: UsageProbeContext, *, method: str
 ) -> dict[str, Any] | None:
     error = response.get("error")
     if not isinstance(error, Mapping):
         return None
     code = error.get("code")
     evidence = _evidence_text(error)
+    if (
+        method == _BILLING_METHOD
+        and classify_probe_failure("probe_failed", acp_error=error) == "vendor_drift"
+    ):
+        return _status(
+            context,
+            outcome="error",
+            reason_code="vendor_drift",
+            diagnostic="grok_billing_extension_missing",
+        )
     if code == -32601 or _contains_any(
         evidence, ("method not found", "method_not_found", "unknown method")
     ):
