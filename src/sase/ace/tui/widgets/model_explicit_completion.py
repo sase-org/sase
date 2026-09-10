@@ -1,4 +1,4 @@
-"""Prompt ``**model`` completion backed by the shared Rust editor contract."""
+"""Prompt ``==model`` completion backed by the shared Rust editor contract."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ MODEL_EXPLICIT_MODE_SUBTITLE = "[Enter] accept model  [Esc] normal  [^C] cancel"
 
 @dataclass(frozen=True, slots=True)
 class ModelExplicitShortcutContext:
-    """ACE-facing context for a ``**model`` shortcut token."""
+    """ACE-facing context for a ``==model`` shortcut token."""
 
     query: str
     token: str
@@ -34,7 +34,7 @@ class ModelExplicitShortcutContext:
 
 @dataclass(frozen=True, slots=True)
 class _ModelExplicitShortcutEdit:
-    """One validated edit that expands a ``**model`` shortcut."""
+    """One validated edit that expands a ``==model`` shortcut."""
 
     replacement_start: int
     replacement_end: int
@@ -54,7 +54,7 @@ def detect_model_explicit_completion_context(
     text: str,
     cursor_location: tuple[int, int],
 ) -> ModelExplicitShortcutContext | None:
-    """Return a Rust-classified ``**model`` context at *cursor_location*."""
+    """Return a Rust-classified ``==model`` context at *cursor_location*."""
     position = _editor_position(text, cursor_location)
     if position is None:
         return None

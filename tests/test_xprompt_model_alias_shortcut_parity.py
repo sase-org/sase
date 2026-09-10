@@ -1,4 +1,4 @@
-"""Installed-binary ACE/LSP parity for star model shortcuts."""
+"""Installed-binary ACE/LSP parity for equals model shortcuts."""
 
 from __future__ import annotations
 
@@ -111,29 +111,29 @@ PARITY_ENTRIES: tuple[ModelCompletionEntry, ...] = (
     ),
 )
 
-_PROTECTED_STARS = (
-    ("a*la", (0, 4)),
-    ("path/*la", (0, 8)),
-    (r"\*la", (0, 4)),
-    ("`*la`", (0, 3)),
-    ("```\n*la", (1, 3)),
-    ("%model:*la", (0, 10)),
-    ("{{ *la }}", (0, 6)),
-    ("{% if *la %}", (0, 9)),
-    ("---\nname: *la\n---\nbody", (1, 9)),
+_PROTECTED_EQUALS = (
+    ("a=la", (0, 4)),
+    ("path/=la", (0, 8)),
+    (r"\=la", (0, 4)),
+    ("`=la`", (0, 3)),
+    ("```\n=la", (1, 3)),
+    ("%model:=la", (0, 10)),
+    ("{{ =la }}", (0, 6)),
+    ("{% if =la %}", (0, 9)),
+    ("---\nname: =la\n---\nbody", (1, 9)),
 )
-_PROTECTED_DOUBLE_STARS = (
-    ("a**la", (0, 5)),
-    ("path/**la", (0, 9)),
-    (r"\**la", (0, 5)),
-    ("`**la`", (0, 4)),
-    ("```\n**la", (1, 4)),
-    ("%model:**la", (0, 11)),
-    ("{{ **la }}", (0, 7)),
-    ("{% if **la %}", (0, 10)),
-    ("---\nname: **la\n---\nbody", (1, 10)),
-    ("***la", (0, 5)),
-    ("**bold**", (0, 4)),
+_PROTECTED_DOUBLE_EQUALS = (
+    ("a==la", (0, 5)),
+    ("path/==la", (0, 9)),
+    (r"\==la", (0, 5)),
+    ("`==la`", (0, 4)),
+    ("```\n==la", (1, 4)),
+    ("%model:==la", (0, 11)),
+    ("{{ ==la }}", (0, 7)),
+    ("{% if ==la %}", (0, 10)),
+    ("---\nname: ==la\n---\nbody", (1, 10)),
+    ("===la", (0, 5)),
+    ("==bold==", (0, 4)),
 )
 
 
@@ -205,23 +205,24 @@ def _ace_model_plan(text: str, cursor: tuple[int, int], model: str) -> Any:
     return planned
 
 
-def test_lsp_advertises_star_trigger_character(tmp_path: Path) -> None:
+def test_lsp_advertises_equals_trigger_character(tmp_path: Path) -> None:
     with _parity_session(tmp_path) as lsp:
-        assert "*" in lsp.trigger_characters
+        assert "=" in lsp.trigger_characters
+        assert "*" not in lsp.trigger_characters
 
 
 @pytest.mark.parametrize(
     ("text", "cursor", "expected"),
     [
-        ("*", (0, 1), ["@large", "@launch", "@scout", "@small"]),
-        ("*la", (0, 3), ["@large", "@launch"]),
-        ("*LA", (0, 3), ["@large", "@launch"]),
-        ("Use *la", (0, 7), ["@large", "@launch"]),
-        ("first\nnext *SM", (1, 8), ["@small"]),
-        ("  *scout", (0, 8), ["@scout"]),
+        ("=", (0, 1), ["@large", "@launch", "@scout", "@small"]),
+        ("=la", (0, 3), ["@large", "@launch"]),
+        ("=LA", (0, 3), ["@large", "@launch"]),
+        ("Use =la", (0, 7), ["@large", "@launch"]),
+        ("first\nnext =SM", (1, 8), ["@small"]),
+        ("  =scout", (0, 8), ["@scout"]),
     ],
 )
-def test_ace_and_lsp_star_alias_names_and_order_match(
+def test_ace_and_lsp_equals_alias_names_and_order_match(
     tmp_path: Path,
     text: str,
     cursor: tuple[int, int],
@@ -247,23 +248,23 @@ def test_ace_and_lsp_star_alias_names_and_order_match(
     assert "claude/" not in lsp_names
     for item in result.items:
         raw = item.raw or {}
-        assert raw.get("filterText") == f"*{context.query}"
+        assert raw.get("filterText") == f"={context.query}"
 
 
 @pytest.mark.parametrize(
     ("text", "cursor", "expected"),
     [
-        ("**", (0, 2), ["opus", "claude-fable-5", "large-model"]),
-        ("**la", (0, 4), ["large-model"]),
-        ("**FA", (0, 4), ["claude-fable-5"]),
-        ("Use **la", (0, 8), ["large-model"]),
-        ("first\nnext **op", (1, 9), ["opus"]),
-        ("  **fable", (0, 9), ["claude-fable-5"]),
-        ("**claude/fa", (0, 11), ["claude/claude-fable-5"]),
-        ("**codex/la", (0, 10), ["codex/large-model"]),
+        ("==", (0, 2), ["opus", "claude-fable-5", "large-model"]),
+        ("==la", (0, 4), ["large-model"]),
+        ("==FA", (0, 4), ["claude-fable-5"]),
+        ("Use ==la", (0, 8), ["large-model"]),
+        ("first\nnext ==op", (1, 9), ["opus"]),
+        ("  ==fable", (0, 9), ["claude-fable-5"]),
+        ("==claude/fa", (0, 11), ["claude/claude-fable-5"]),
+        ("==codex/la", (0, 10), ["codex/large-model"]),
     ],
 )
-def test_ace_and_lsp_double_star_model_names_and_order_match(
+def test_ace_and_lsp_double_equals_model_names_and_order_match(
     tmp_path: Path,
     text: str,
     cursor: tuple[int, int],
@@ -290,13 +291,13 @@ def test_ace_and_lsp_double_star_model_names_and_order_match(
     assert "codex/" not in lsp_names
     for item in result.items:
         raw = item.raw or {}
-        assert raw.get("filterText") == f"**{context.query}"
+        assert raw.get("filterText") == f"=={context.query}"
 
 
-def test_ace_and_lsp_star_alias_filter_text_preselect_and_expansion(
+def test_ace_and_lsp_equals_alias_filter_text_preselect_and_expansion(
     tmp_path: Path,
 ) -> None:
-    text = "*la"
+    text = "=la"
     cursor = (0, 3)
     with _parity_session(tmp_path) as lsp:
         result = lsp.complete_list(text, cursor=cursor)
@@ -307,8 +308,8 @@ def test_ace_and_lsp_star_alias_filter_text_preselect_and_expansion(
     second = result.items[1].raw or {}
     assert first.get("preselect") is True
     assert second.get("preselect") in {None, False}
-    assert first.get("filterText") == "*la"
-    assert second.get("filterText") == "*la"
+    assert first.get("filterText") == "=la"
+    assert second.get("filterText") == "=la"
     assert first.get("sortText") == "0000"
     assert second.get("sortText") == "0001"
     first_details = first.get("labelDetails") or {}
@@ -316,10 +317,10 @@ def test_ace_and_lsp_star_alias_filter_text_preselect_and_expansion(
     assert "documentation" in first
 
 
-def test_ace_and_lsp_double_star_model_filter_text_preselect_and_expansion(
+def test_ace_and_lsp_double_equals_model_filter_text_preselect_and_expansion(
     tmp_path: Path,
 ) -> None:
-    text = "**fa"
+    text = "==fa"
     cursor = (0, 4)
     with _parity_session(tmp_path) as lsp:
         result = lsp.complete_list(text, cursor=cursor)
@@ -328,7 +329,7 @@ def test_ace_and_lsp_double_star_model_filter_text_preselect_and_expansion(
     assert [item.label for item in result.items] == ["claude-fable-5"]
     first = result.items[0].raw or {}
     assert first.get("preselect") is True
-    assert first.get("filterText") == "**fa"
+    assert first.get("filterText") == "==fa"
     assert first.get("sortText") == "0000"
     first_details = first.get("labelDetails") or {}
     assert first_details.get("detail") == " → %m:claude-fable-5"
@@ -340,19 +341,19 @@ def test_ace_and_lsp_double_star_model_filter_text_preselect_and_expansion(
 @pytest.mark.parametrize(
     ("text", "cursor", "alias"),
     [
-        ("*", (0, 1), "@large"),
-        ("Use *la", (0, 7), "@large"),
-        ("Use *la now", (0, 7), "@large"),
-        ("Use *la   now", (0, 7), "@large"),
-        ("Use *la\tnow", (0, 7), "@large"),
-        ("Use *la\nnow", (0, 7), "@large"),
-        ("Explain *laX later", (0, 11), "@large"),
-        ("first\nnext *SM", (1, 8), "@small"),
-        ("Title\r\nUse *la\ttail", (1, 7), "@large"),
-        ("🙂 *la\r\nnext", (0, 5), "@large"),
+        ("=", (0, 1), "@large"),
+        ("Use =la", (0, 7), "@large"),
+        ("Use =la now", (0, 7), "@large"),
+        ("Use =la   now", (0, 7), "@large"),
+        ("Use =la\tnow", (0, 7), "@large"),
+        ("Use =la\nnow", (0, 7), "@large"),
+        ("Explain =laX later", (0, 11), "@large"),
+        ("first\nnext =SM", (1, 8), "@small"),
+        ("Title\r\nUse =la\ttail", (1, 7), "@large"),
+        ("🙂 =la\r\nnext", (0, 5), "@large"),
     ],
 )
-def test_ace_and_lsp_star_alias_edits_match(
+def test_ace_and_lsp_equals_alias_edits_match(
     tmp_path: Path,
     text: str,
     cursor: tuple[int, int],
@@ -380,20 +381,20 @@ def test_ace_and_lsp_star_alias_edits_match(
 @pytest.mark.parametrize(
     ("text", "cursor", "model"),
     [
-        ("**", (0, 2), "opus"),
-        ("Use **la", (0, 8), "large-model"),
-        ("Use **la now", (0, 8), "large-model"),
-        ("Use **la   now", (0, 8), "large-model"),
-        ("Use **la\tnow", (0, 8), "large-model"),
-        ("Use **la\nnow", (0, 8), "large-model"),
-        ("Explain **laX later", (0, 12), "large-model"),
-        ("first\nnext **op", (1, 9), "opus"),
-        ("Title\r\nUse **la\ttail", (1, 8), "large-model"),
-        ("🙂 **la\r\nnext", (0, 6), "large-model"),
-        ("**claude/fa", (0, 11), "claude/claude-fable-5"),
+        ("==", (0, 2), "opus"),
+        ("Use ==la", (0, 8), "large-model"),
+        ("Use ==la now", (0, 8), "large-model"),
+        ("Use ==la   now", (0, 8), "large-model"),
+        ("Use ==la\tnow", (0, 8), "large-model"),
+        ("Use ==la\nnow", (0, 8), "large-model"),
+        ("Explain ==laX later", (0, 12), "large-model"),
+        ("first\nnext ==op", (1, 9), "opus"),
+        ("Title\r\nUse ==la\ttail", (1, 8), "large-model"),
+        ("🙂 ==la\r\nnext", (0, 6), "large-model"),
+        ("==claude/fa", (0, 11), "claude/claude-fable-5"),
     ],
 )
-def test_ace_and_lsp_double_star_model_edits_match(
+def test_ace_and_lsp_double_equals_model_edits_match(
     tmp_path: Path,
     text: str,
     cursor: tuple[int, int],
@@ -418,28 +419,28 @@ def test_ace_and_lsp_double_star_model_edits_match(
     assert lsp_caret == planned.caret_offset
 
 
-def test_star_alias_no_match_is_empty_incomplete_list(tmp_path: Path) -> None:
+def test_equals_alias_no_match_is_empty_incomplete_list(tmp_path: Path) -> None:
     with _parity_session(tmp_path) as lsp:
-        result = lsp.complete_list("*zzz", cursor=(0, 4))
+        result = lsp.complete_list("=zzz", cursor=(0, 4))
 
     assert result.is_incomplete is True
     assert result.items == []
-    assert detect_model_alias_completion_context("*zzz", (0, 4)) is not None
-    assert _ace_alias_names("*zzz", (0, 4)) == []
+    assert detect_model_alias_completion_context("=zzz", (0, 4)) is not None
+    assert _ace_alias_names("=zzz", (0, 4)) == []
 
 
-def test_double_star_model_no_match_is_empty_incomplete_list(tmp_path: Path) -> None:
+def test_double_equals_model_no_match_is_empty_incomplete_list(tmp_path: Path) -> None:
     with _parity_session(tmp_path) as lsp:
-        result = lsp.complete_list("**zzz", cursor=(0, 5))
+        result = lsp.complete_list("==zzz", cursor=(0, 5))
 
     assert result.is_incomplete is True
     assert result.items == []
-    assert detect_model_explicit_completion_context("**zzz", (0, 5)) is not None
-    assert _ace_model_names("**zzz", (0, 5)) == []
+    assert detect_model_explicit_completion_context("==zzz", (0, 5)) is not None
+    assert _ace_model_names("==zzz", (0, 5)) == []
 
 
-@pytest.mark.parametrize(("text", "cursor"), _PROTECTED_STARS)
-def test_protected_star_does_not_own_empty_shortcut_list(
+@pytest.mark.parametrize(("text", "cursor"), _PROTECTED_EQUALS)
+def test_protected_equals_does_not_own_empty_shortcut_list(
     tmp_path: Path,
     text: str,
     cursor: tuple[int, int],
@@ -457,12 +458,12 @@ def test_protected_star_does_not_own_empty_shortcut_list(
         text_edit = raw.get("textEdit")
         if isinstance(text_edit, dict):
             new_text = str(text_edit.get("newText") or "")
-        assert not str(raw.get("filterText") or "").startswith("*")
+        assert not str(raw.get("filterText") or "").startswith("=")
         assert not new_text.startswith("%m:@")
 
 
-@pytest.mark.parametrize(("text", "cursor"), _PROTECTED_DOUBLE_STARS)
-def test_protected_double_star_does_not_own_empty_shortcut_list(
+@pytest.mark.parametrize(("text", "cursor"), _PROTECTED_DOUBLE_EQUALS)
+def test_protected_double_equals_does_not_own_empty_shortcut_list(
     tmp_path: Path,
     text: str,
     cursor: tuple[int, int],
@@ -480,19 +481,45 @@ def test_protected_double_star_does_not_own_empty_shortcut_list(
         text_edit = raw.get("textEdit")
         if isinstance(text_edit, dict):
             new_text = str(text_edit.get("newText") or "")
-        assert not str(raw.get("filterText") or "").startswith("**")
+        assert not str(raw.get("filterText") or "").startswith("==")
         assert not new_text.startswith("%m:large-model")
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor"),
+    [
+        ("*la", (0, 3)),
+        ("Use *la", (0, 7)),
+        ("**la", (0, 4)),
+        ("Use **la", (0, 8)),
+    ],
+)
+def test_legacy_star_inputs_do_not_produce_model_shortcut_edits(
+    tmp_path: Path,
+    text: str,
+    cursor: tuple[int, int],
+) -> None:
+    assert detect_model_alias_completion_context(text, cursor) is None
+    assert detect_model_explicit_completion_context(text, cursor) is None
+    with _parity_session(tmp_path) as lsp:
+        result = lsp.complete_list(text, cursor=cursor)
+
+    for item in result.items:
+        raw = item.raw or {}
+        text_edit = raw.get("textEdit")
+        if isinstance(text_edit, dict):
+            assert not str(text_edit.get("newText") or "").startswith("%m:")
 
 
 def test_missing_and_malformed_catalogs_stay_empty_shortcut(
     tmp_path: Path,
 ) -> None:
     with LspSession(tmp_path, omit_model_catalog=True) as lsp:
-        missing_alias = lsp.complete_list("*la", cursor=(0, 3))
-        missing_model = lsp.complete_list("**la", cursor=(0, 4))
+        missing_alias = lsp.complete_list("=la", cursor=(0, 3))
+        missing_model = lsp.complete_list("==la", cursor=(0, 4))
     with LspSession(tmp_path, model_catalog_text="{not-json") as lsp:
-        malformed_alias = lsp.complete_list("*la", cursor=(0, 3))
-        malformed_model = lsp.complete_list("**la", cursor=(0, 4))
+        malformed_alias = lsp.complete_list("=la", cursor=(0, 3))
+        malformed_model = lsp.complete_list("==la", cursor=(0, 4))
 
     assert missing_alias.is_incomplete is True
     assert missing_alias.items == []
@@ -509,12 +536,12 @@ def test_ordinary_model_completion_still_includes_models_and_providers(
 ) -> None:
     with _parity_session(tmp_path) as lsp:
         model_rows = lsp.complete("%model:")
-        star_rows = lsp.complete("*")
+        equals_rows = lsp.complete("=")
 
     model_labels = {row.label for row in model_rows}
-    star_labels = {row.label for row in star_rows}
+    equals_labels = {row.label for row in equals_rows}
     assert {"opus", "claude-fable-5", "@large", "claude/", "codex/"} <= model_labels
-    assert star_labels == {"@large", "@launch", "@scout", "@small"}
-    assert "opus" not in star_labels
-    assert "claude/" not in star_labels
-    assert "large-model" not in star_labels
+    assert equals_labels == {"@large", "@launch", "@scout", "@small"}
+    assert "opus" not in equals_labels
+    assert "claude/" not in equals_labels
+    assert "large-model" not in equals_labels

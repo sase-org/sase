@@ -1378,7 +1378,7 @@ ace:
 | `debounce_ms`                 | int         | `90`    | Delay before computing a live suggestion after text or cursor changes.                                                              |
 | `auto_file_paths`             | bool        | `false` | Allow live suggestions to scan file-path candidates. Manual `Ctrl+T` file completion still works when false.                        |
 | `auto_xprompt_menu`           | bool        | `true`  | Automatically open the xprompt/skill completion menu while typing matching `#name`, `#!name`, or `/skill` tokens.                   |
-| `auto_directive_menu`         | bool        | `true`  | Automatically open directive completion while typing `%` tokens, fixed values such as `%model:`, `*alias`, and `**model` shortcuts. |
+| `auto_directive_menu`         | bool        | `true`  | Automatically open directive completion while typing `%` tokens, fixed values such as `%model:`, `=alias`, and `==model` shortcuts. |
 | `auto_artifact_menu`          | bool        | `true`  | Automatically open the grouped `@` reference menu from bare `@`, narrowed path/kind queries, or `@kind:` payloads.                  |
 | `max_auto_rows`               | int         | `1`     | Reserved row limit for automatic completion modes; current soft mode shows one suggestion.                                          |
 | `history_word_count`          | int         | `10000` | Maximum unique recent prompt-history words retained for manual completion; `0` disables the history fallback.                       |
@@ -1435,16 +1435,16 @@ refreshes it off-thread. Document, chat, indexed-file, bead, and agent payloads 
 bounded project-scoped catalogs; commit and bug candidates are projected only from
 already-loaded Artifacts-pane snapshots.
 
-The `%model:` / `%m:` value menu and the `*alias` / `**model` model shortcut menus are
+The `%model:` / `%m:` value menu and the `=alias` / `==model` model shortcut menus are
 also controlled by `auto_directive_menu`. The `%model:` menu lists inline-typable model
 names, the five built-in size aliases (`@xsmall`, `@small`, `@medium`, `@large`,
 `@xlarge`), configured model aliases, and provider drill-down rows. Provider short
-aliases are shown as filter/display hints but are not inserted. The `*alias` shortcut is
-alias-only: accepting `*la` on `@large` rewrites the token to `%m:@large`. The `**model`
-shortcut lists concrete model rows, so accepting `**gpt` can rewrite the token to
-`%m:gpt-5.6-sol`; provider-qualified input such as `**codex/g` narrows to that provider.
-`Ctrl+T` remains available for both shortcut menus when automatic directive menus are
-disabled.
+aliases are shown as filter/display hints but are not inserted. The `=alias` shortcut is
+alias-only: accepting `=la` on `@large` rewrites the token to `%m:@large`. The `==model`
+shortcut lists concrete model rows, so accepting `==gpt` can rewrite the token to
+`%m:gpt-5.6-sol`; provider-qualified input such as `==codex/g` narrows to that provider.
+The old `*alias` and `**model` forms remain ordinary prompt text. `Ctrl+T` remains
+available for both shortcut menus when automatic directive menus are disabled.
 
 File-path completion roots relative lookups in the prompt-selected workspace. Registered
 workspace-provider refs and known-project refs such as `#git:<project>` or

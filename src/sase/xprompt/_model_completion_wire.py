@@ -29,7 +29,7 @@ def filter_model_alias_shortcut_entries(
     entries: Sequence[ModelCompletionEntry],
     query: str,
 ) -> list[ModelCompletionEntry]:
-    """Return alias-only catalog rows a ``*query`` shortcut may expand to.
+    """Return alias-only catalog rows a ``=query`` shortcut may expand to.
 
     Reuses the shared Rust ``filter_model_alias_shortcut_entries`` binding so
     ACE and the xprompt LSP never diverge on alias-kind filtering, prefix
@@ -48,7 +48,7 @@ def filter_explicit_model_shortcut_entries(
     entries: Sequence[ModelCompletionEntry],
     query: str,
 ) -> list[ModelCompletionEntry]:
-    """Return concrete model catalog rows a ``**query`` shortcut may expand to.
+    """Return concrete model catalog rows a ``==query`` shortcut may expand to.
 
     The Rust helper sees the full model catalog before filtering out provider
     and alias rows, so provider-scoped queries such as ``codex/gpt`` keep the

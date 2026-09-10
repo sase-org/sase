@@ -458,7 +458,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         return True
 
     def _accept_model_alias_completion(self, selected: CompletionCandidate) -> bool:
-        """Accept a ``*alias`` shortcut candidate using the Rust edit plan."""
+        """Accept a ``=alias`` shortcut candidate using the Rust edit plan."""
         if is_model_alias_completion_placeholder(selected):
             return False
         context = self._get_model_alias_completion_context()
@@ -490,7 +490,7 @@ class FileCompletionAcceptMixin(FileCompletionBaseMixin):
         self,
         selected: CompletionCandidate,
     ) -> bool:
-        """Accept a ``**model`` shortcut candidate using the Rust edit plan."""
+        """Accept a ``==model`` shortcut candidate using the Rust edit plan."""
         if is_model_explicit_completion_placeholder(selected):
             return False
         context = self._get_model_explicit_completion_context()

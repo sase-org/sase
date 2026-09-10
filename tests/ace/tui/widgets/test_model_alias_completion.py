@@ -1,4 +1,4 @@
-"""Tests for ``*alias`` prompt model completion."""
+"""Tests for ``=alias`` prompt model completion."""
 
 from __future__ import annotations
 
@@ -183,13 +183,13 @@ def _selected_insertion(text_area: PromptTextArea) -> str:
     ].insertion
 
 
-async def test_star_alias_auto_opens_and_enter_expands_without_submit() -> None:
+async def test_equals_alias_auto_opens_and_enter_expands_without_submit() -> None:
     app = ModelAliasCompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = bar.active_text_area()
 
-        await pilot.press("*")
+        await pilot.press("=")
         await pilot.press("l")
 
         panel = bar.query_one("#prompt-completion", Static)
@@ -211,13 +211,13 @@ async def test_star_alias_auto_opens_and_enter_expands_without_submit() -> None:
 @pytest.mark.parametrize(
     ("text", "cursor", "query", "token"),
     [
-        ("*", (0, 1), "", "*"),
-        ("Use *la", (0, 7), "la", "*la"),
-        ("first\nnext *SM", (1, 8), "SM", "*SM"),
-        ("  *small", (0, 8), "small", "*small"),
+        ("=", (0, 1), "", "="),
+        ("Use =la", (0, 7), "la", "=la"),
+        ("first\nnext =SM", (1, 8), "SM", "=SM"),
+        ("  =small", (0, 8), "small", "=small"),
     ],
 )
-def test_star_alias_context_detects_prompt_boundaries(
+def test_equals_alias_context_detects_prompt_boundaries(
     text: str,
     cursor: tuple[int, int],
     query: str,
@@ -230,14 +230,14 @@ def test_star_alias_context_detects_prompt_boundaries(
     assert context.token == token
 
 
-async def test_star_alias_ctrl_t_opens_when_auto_directive_menu_is_disabled() -> None:
+async def test_equals_alias_ctrl_t_opens_when_auto_directive_menu_is_disabled() -> None:
     app = ModelAliasCompletionTestApp(
         settings=PromptCompletionSettings(auto_directive_menu=False),
     )
     async with app.run_test() as pilot:
         ta = app.query_one(PromptInputBar).active_text_area()
 
-        await pilot.press("*")
+        await pilot.press("=")
         await pilot.press("l")
         assert ta._file_completion_active is False
 
@@ -248,38 +248,40 @@ async def test_star_alias_ctrl_t_opens_when_auto_directive_menu_is_disabled() ->
         assert [c.insertion for c in ta._file_completion_candidates] == ["@large"]
 
 
-async def test_star_alias_navigation_preserves_selection_while_filtering() -> None:
+async def test_equals_alias_navigation_preserves_selection_while_filtering() -> None:
     app = ModelAliasCompletionTestApp(entries=_navigation_alias_entries())
     async with app.run_test() as pilot:
         ta = app.query_one(PromptInputBar).active_text_area()
 
-        await pilot.press("*")
+        await pilot.press("=")
         assert _candidate_insertions(ta) == ["@large", "@lark", "@small"]
 
         await pilot.press("down")
         assert _selected_insertion(ta) == "@lark"
 
         await pilot.press("l")
-        assert ta.text == "*l"
+        assert ta.text == "=l"
         assert _candidate_insertions(ta) == ["@large", "@lark"]
         assert _selected_insertion(ta) == "@lark"
 
         await pilot.press("backspace")
-        assert ta.text == "*"
+        assert ta.text == "="
         assert _candidate_insertions(ta) == ["@large", "@lark", "@small"]
         assert _selected_insertion(ta) == "@lark"
 
         await pilot.press("z")
-        assert ta.text == "*z"
+        assert ta.text == "=z"
         assert ta._file_completion_active is False
 
 
-async def test_star_alias_ctrl_l_accepts_selection_without_submit_or_newline() -> None:
+async def test_equals_alias_ctrl_l_accepts_selection_without_submit_or_newline() -> (
+    None
+):
     app = ModelAliasCompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptInputBar).active_text_area()
 
-        await pilot.press("*")
+        await pilot.press("=")
         await pilot.press("s")
         await pilot.press("ctrl+l")
 
@@ -289,24 +291,24 @@ async def test_star_alias_ctrl_l_accepts_selection_without_submit_or_newline() -
         assert ta._file_completion_active is False
 
 
-async def test_star_alias_subtitle_omits_missing_description() -> None:
+async def test_equals_alias_subtitle_omits_missing_description() -> None:
     app = ModelAliasCompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
 
-        await pilot.press("*")
+        await pilot.press("=")
         await pilot.press("s")
 
         panel = bar.query_one("#prompt-completion", Static)
         assert str(panel.border_subtitle) == "Enter → %m:@small"
 
 
-async def test_star_alias_accept_replaces_whole_token_from_mid_token_cursor() -> None:
+async def test_equals_alias_accept_replaces_whole_token_from_mid_token_cursor() -> None:
     app = ModelAliasCompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptInputBar).active_text_area()
-        ta.load_text("Use *laX later")
-        ta.cursor_location = (0, len("Use *la"))
+        ta.load_text("Use =laX later")
+        ta.cursor_location = (0, len("Use =la"))
 
         await pilot.press("ctrl+t")
         await pilot.press("enter")
@@ -315,14 +317,14 @@ async def test_star_alias_accept_replaces_whole_token_from_mid_token_cursor() ->
         assert ta.cursor_location == (0, len("Use %m:@large "))
 
 
-async def test_star_alias_accept_preserves_context_and_undo_redo() -> None:
+async def test_equals_alias_accept_preserves_context_and_undo_redo() -> None:
     app = ModelAliasCompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptInputBar).active_text_area()
-        original = "Keep\t🙂 *laX tail\nnext"
+        original = "Keep\t🙂 =laX tail\nnext"
         expanded = "Keep\t🙂 %m:@large tail\nnext"
         ta.load_text(original)
-        ta.cursor_location = (0, len("Keep\t🙂 *la"))
+        ta.cursor_location = (0, len("Keep\t🙂 =la"))
 
         await pilot.press("ctrl+t")
         await pilot.press("enter")
@@ -346,22 +348,22 @@ async def test_star_alias_accept_preserves_context_and_undo_redo() -> None:
 @pytest.mark.parametrize(
     ("text", "cursor", "expected_text", "expected_replacement"),
     [
-        ("Use *la", (0, 7), "Use %m:@large ", "%m:@large "),
-        ("Use *la now", (0, 7), "Use %m:@large now", "%m:@large "),
-        ("Use *la   now", (0, 7), "Use %m:@large   now", "%m:@large "),
-        ("Use *la\tnow", (0, 7), "Use %m:@large\tnow", "%m:@large"),
-        ("Use *la\nnow", (0, 7), "Use %m:@large \nnow", "%m:@large "),
-        ("Explain *laX later", (0, 11), "Explain %m:@large later", "%m:@large "),
+        ("Use =la", (0, 7), "Use %m:@large ", "%m:@large "),
+        ("Use =la now", (0, 7), "Use %m:@large now", "%m:@large "),
+        ("Use =la   now", (0, 7), "Use %m:@large   now", "%m:@large "),
+        ("Use =la\tnow", (0, 7), "Use %m:@large\tnow", "%m:@large"),
+        ("Use =la\nnow", (0, 7), "Use %m:@large \nnow", "%m:@large "),
+        ("Explain =laX later", (0, 11), "Explain %m:@large later", "%m:@large "),
         (
-            "Title\r\nUse *la\ttail",
-            (1, len("Use *la")),
+            "Title\r\nUse =la\ttail",
+            (1, len("Use =la")),
             "Title\r\nUse %m:@large\ttail",
             "%m:@large",
         ),
-        ("🙂 *la\r\nnext", (0, 5), "🙂 %m:@large \r\nnext", "%m:@large "),
+        ("🙂 =la\r\nnext", (0, 5), "🙂 %m:@large \r\nnext", "%m:@large "),
     ],
 )
-def test_star_alias_edit_plan_is_cursor_complete(
+def test_equals_alias_edit_plan_is_cursor_complete(
     text: str,
     cursor: tuple[int, int],
     expected_text: str,
@@ -388,20 +390,36 @@ def test_star_alias_edit_plan_is_cursor_complete(
     assert planned.caret_offset == planned.replacement_start + len(planned.replacement)
 
 
-async def test_unknown_star_alias_stays_literal_and_can_submit() -> None:
+async def test_unknown_equals_alias_stays_literal_and_can_submit() -> None:
+    app = ModelAliasCompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptInputBar).active_text_area()
+
+        await pilot.press("=")
+        await pilot.press("z")
+
+        assert ta.text == "=z"
+        assert ta._file_completion_active is False
+
+        await pilot.press("enter")
+
+        assert app.submitted == ["=z"]
+
+
+async def test_legacy_star_alias_stays_literal_and_can_submit() -> None:
     app = ModelAliasCompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptInputBar).active_text_area()
 
         await pilot.press("*")
-        await pilot.press("z")
+        await pilot.press("l")
 
-        assert ta.text == "*z"
+        assert ta.text == "*l"
         assert ta._file_completion_active is False
 
         await pilot.press("enter")
 
-        assert app.submitted == ["*z"]
+        assert app.submitted == ["*l"]
 
 
 async def test_loading_model_alias_row_is_not_selectable() -> None:
@@ -409,7 +427,7 @@ async def test_loading_model_alias_row_is_not_selectable() -> None:
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
         ta = app.query_one(PromptInputBar).active_text_area()
-        ta.load_text("*")
+        ta.load_text("=")
         ta.cursor_location = (0, 1)
 
         with patch.object(type(ta), "_schedule_model_completion_catalog_load") as load:
@@ -422,7 +440,7 @@ async def test_loading_model_alias_row_is_not_selectable() -> None:
 
         await pilot.press("enter")
 
-        assert ta.text == "*"
+        assert ta.text == "="
         assert app.submitted == []
         assert ta._file_completion_active is True
 
@@ -434,7 +452,7 @@ async def test_cold_model_alias_catalog_shows_loading_without_blocking_keys() ->
             ta = app.query_one(PromptInputBar).active_text_area()
             ta._model_completion_catalog_inflight = False
 
-            await pilot.press("*")
+            await pilot.press("=")
 
             assert ta._file_completion_active is True
             assert ta._completion_kind == MODEL_ALIAS_COMPLETION_KIND
@@ -448,7 +466,7 @@ async def test_cold_model_alias_catalog_shows_loading_without_blocking_keys() ->
             await pilot.press("x")
             await pilot.press("enter")
 
-            assert ta.text == "*x"
+            assert ta.text == "=x"
             assert app.submitted == []
             assert ta._file_completion_active is True
 
@@ -464,7 +482,7 @@ async def test_model_alias_catalog_worker_refreshes_matching_request() -> None:
         async with app.run_test() as _pilot:
             ta = app.query_one(PromptInputBar).active_text_area()
             ta._model_completion_catalog_inflight = False
-            ta.load_text("*l")
+            ta.load_text("=l")
             ta.cursor_location = (0, 2)
 
             assert ta._try_model_alias_completion() is True
@@ -486,12 +504,12 @@ async def test_model_alias_catalog_worker_rejects_stale_prompt_state() -> None:
         async with app.run_test() as _pilot:
             ta = app.query_one(PromptInputBar).active_text_area()
             ta._model_completion_catalog_inflight = False
-            ta.load_text("*l")
+            ta.load_text("=l")
             ta.cursor_location = (0, 2)
 
             assert ta._try_model_alias_completion() is True
 
-            ta.load_text("*s")
+            ta.load_text("=s")
             ta.cursor_location = (0, 2)
             with patch.object(ta, "_refresh_file_completion_from_cursor") as refresh:
                 ta._apply_model_completion_catalog_result(
@@ -512,7 +530,7 @@ async def test_model_alias_catalog_failure_can_retry_from_unavailable_row() -> N
         async with app.run_test() as _pilot:
             ta = app.query_one(PromptInputBar).active_text_area()
             ta._model_completion_catalog_inflight = False
-            ta.load_text("*")
+            ta.load_text("=")
             ta.cursor_location = (0, 1)
 
             assert ta._try_model_alias_completion() is True
@@ -546,7 +564,7 @@ async def test_model_alias_catalog_cache_miss_after_loaded_reschedules() -> None
             ta._model_completion_catalog_loaded = True
             ta._model_completion_catalog_available = True
             ta._model_completion_catalog_inflight = False
-            ta.load_text("*")
+            ta.load_text("=")
             ta.cursor_location = (0, 1)
 
             with patch.object(
@@ -564,7 +582,7 @@ async def test_model_alias_catalog_cache_miss_after_loaded_reschedules() -> None
 async def test_model_alias_catalog_request_does_not_revive_inactive_stack_pane() -> (
     None
 ):
-    app = ColdModelAliasCompletionTestApp(initial_panes=["top", "*l"])
+    app = ColdModelAliasCompletionTestApp(initial_panes=["top", "=l"])
     with patch.object(PromptTextArea, "run_worker", autospec=True):
         async with app.run_test(size=(80, 30)) as pilot:
             await pilot.pause()
@@ -594,19 +612,19 @@ async def test_model_alias_catalog_request_does_not_revive_inactive_stack_pane()
             refresh.assert_not_called()
 
 
-def test_star_alias_context_rejects_protected_regions_and_unicode_columns() -> None:
-    assert detect_model_alias_completion_context("🙂 *la", (0, 5)) is not None
+def test_equals_alias_context_rejects_protected_regions_and_unicode_columns() -> None:
+    assert detect_model_alias_completion_context("🙂 =la", (0, 5)) is not None
     protected = [
-        ("a*la", (0, 4)),
-        ("path/*la", (0, 8)),
-        (r"\*la", (0, 4)),
-        ("`*la`", (0, 3)),
-        ("```\n*la", (1, 3)),
-        ("%model:*la", (0, 10)),
-        ("{{ *la }}", (0, 6)),
-        ("{% if *la %}", (0, 9)),
-        ("---\nname: *la\n---\nbody", (1, 9)),
-        ("---\nmodels:\n  - *la\n---\nbody", (2, 7)),
+        ("a=la", (0, 4)),
+        ("path/=la", (0, 8)),
+        (r"\=la", (0, 4)),
+        ("`=la`", (0, 3)),
+        ("```\n=la", (1, 3)),
+        ("%model:=la", (0, 10)),
+        ("{{ =la }}", (0, 6)),
+        ("{% if =la %}", (0, 9)),
+        ("---\nname: =la\n---\nbody", (1, 9)),
+        ("---\nmodels:\n  - =la\n---\nbody", (2, 7)),
     ]
     for text, cursor in protected:
         assert detect_model_alias_completion_context(text, cursor) is None

@@ -1906,37 +1906,39 @@ catalog is a launch-time snapshot that does not — restart the LSP to pick up c
 changes, and use the ACE [Launch Control](ace.md#launch-control) (`,m`) to inspect live
 override state.
 
-### Star model shortcuts
+### Equals model shortcuts
 
-ACE and the xprompt LSP also complete leading `*alias` and `**model` tokens into
-canonical `%m:` expansions through shared Rust filters and edit plans. Typing `*` in an
+ACE and the xprompt LSP also complete leading `=alias` and `==model` tokens into
+canonical `%m:` expansions through shared Rust filters and edit plans. Typing `=` in an
 xprompt-aware editor is an LSP completion trigger; manual completion works in the same
-valid star token. The ACE-only `ace.prompt_completion.auto_directive_menu` setting does
-not change an editor client's trigger policy.
+valid equals token. The ACE-only `ace.prompt_completion.auto_directive_menu` setting
+does not change an editor client's trigger policy.
 
-A star is recognized only at prompt offset zero, at the start of a logical line, or
-immediately after an ASCII space, with the caret after the star. Escaped or embedded
-stars, completed Markdown `**bold**` emphasis, paths, inline and fenced code, disabled
-prompt regions, frontmatter, Jinja, placeholders, and directive-owned input are
-excluded, matching ACE. The `*alias` shortcut lists only effective built-in, plugin, and
-user aliases (`implicit_alias` and `user_alias`) from the same catalog `%model:` uses,
-in catalog order, with case-insensitive prefix matching. The `**model` shortcut lists
-concrete model rows only, including provider-qualified matches such as `**claude/fa`.
+A marker is recognized only at prompt offset zero, at the start of a logical line, or
+immediately after an ASCII space, with the caret after the equals marker. Escaped or
+embedded equals signs, Markdown-style `=text=` / `==text==` marker pairs, paths, inline
+and fenced code, disabled prompt regions, frontmatter, Jinja, placeholders, and
+directive-owned input are excluded, matching ACE. The old `*alias` and `**model`
+spellings are ordinary prompt text. The `=alias` shortcut lists only effective built-in,
+plugin, and user aliases (`implicit_alias` and `user_alias`) from the same catalog
+`%model:` uses, in catalog order, with case-insensitive prefix matching. The `==model`
+shortcut lists concrete model rows only, including provider-qualified matches such as
+`==claude/fa`.
 
-Accepting a row such as `@large` replaces the whole live `*query` token, including text
+Accepting a row such as `@large` replaces the whole live `=query` token, including text
 to the right of a mid-token caret, with `%m:@large`. Accepting a concrete model such as
-`gpt-5.6-sol` replaces the whole live `**query` token with `%m:gpt-5.6-sol`. At prompt
+`gpt-5.6-sol` replaces the whole live `==query` token with `%m:gpt-5.6-sol`. At prompt
 or line end the expansion appends one ASCII space; before a tab it appends none; before
 an existing ASCII space it preserves the rest of that whitespace run and leaves the
 caret after the first space. A valid shortcut with no matching rows returns an empty
-shortcut list rather than unrelated completion. Unaccepted star text has no launch-time
-meaning.
+shortcut list rather than unrelated completion. Unaccepted equals text has no
+launch-time meaning.
 
 The LSP reads the launcher-materialized catalog snapshot, so restart the editor session
 after alias or provider config changes. ACE's live prompt bar can additionally overlay
-temporary alias overrides for `*alias`; see the ACE
+temporary alias overrides for `=alias`; see the ACE
 [model shortcut](ace.md#prompt-input) and the
-[editor integration](editor.md#star-model-shortcuts) notes.
+[editor integration](editor.md#equals-model-shortcuts) notes.
 
 Provider rows such as `claude/` and `opencode/` are listed after model and alias rows in
 the broad `%model:` menu. Accepting one drills into that provider and reopens completion

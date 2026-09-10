@@ -119,7 +119,7 @@ async def test_custom_alias_without_description_shows_config_hint() -> None:
         )
 
 
-async def test_star_alias_shortcut_subtitle_prioritizes_expansion_preview() -> None:
+async def test_equals_alias_shortcut_subtitle_prioritizes_expansion_preview() -> None:
     app = CompletionTestApp()
     async with app.run_test(size=(32, 24)):
         bar = app.query_one(PromptInputBar)

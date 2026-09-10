@@ -268,7 +268,7 @@ def append_model_shortcut_completion_row(
     match_query: str,
     available_width: int,
 ) -> None:
-    """Append a compact ``**model`` row with the typed prefix highlighted."""
+    """Append a compact ``==model`` row with the typed prefix highlighted."""
     metadata = candidate.metadata
     if not isinstance(metadata, ModelCompletionMetadata) or metadata.kind != "model":
         content.append(candidate.display, style="dim")
@@ -392,7 +392,7 @@ def _append_model_alias_shortcut_row(
     match_query: str,
     available_width: int,
 ) -> None:
-    """Append a width-aware ``*alias`` row with the typed prefix highlighted."""
+    """Append a width-aware ``=alias`` row with the typed prefix highlighted."""
     name_width, target_width = widths
     kind_style = MODEL_ALIAS_KIND_STYLES.get(metadata.alias_kind, "bold magenta")
     name_style = _selected_style(kind_style, is_selected)

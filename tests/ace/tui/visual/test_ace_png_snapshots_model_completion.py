@@ -2,8 +2,8 @@
 
 Pins how ``PromptInputBar`` renders the four-column ``%model`` grid: concrete
 model rows above alias rows, each alias showing its kind badge, resolved
-``PROVIDER(model)`` target, and provenance state, plus the ``*alias`` and
-``**model`` shortcut panels. Provider and model values are fixed fakes (as the
+``PROVIDER(model)`` target, and provenance state, plus the ``=alias`` and
+``==model`` shortcut panels. Provider and model values are fixed fakes (as the
 Models-panel fixtures do) so the goldens never depend on installed provider CLIs.
 Goldens live in ``tests/ace/tui/visual/snapshots/png/``.
 """
@@ -336,12 +336,12 @@ async def test_model_completion_alias_only_menu_png_snapshot(
         (
             "textual-dark",
             "prompt_model_alias_completion_full_dark_120x40",
-            "ACE prompt input — star alias completion full menu, dark theme",
+            "ACE prompt input — equals alias completion full menu, dark theme",
         ),
         (
             "textual-light",
             "prompt_model_alias_completion_full_light_120x40",
-            "ACE prompt input — star alias completion full menu, light theme",
+            "ACE prompt input — equals alias completion full menu, light theme",
         ),
     ],
 )
@@ -360,7 +360,7 @@ async def test_model_alias_completion_full_menu_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await mount_prompt_bar(page, "*")
+        bar = await mount_prompt_bar(page, "=")
 
         bar.show_file_completions(
             "",
@@ -373,7 +373,7 @@ async def test_model_alias_completion_full_menu_png_snapshot(
             lambda: (
                 bar._completion_visible and bar._completion_panel_kind == "completion"
             ),
-            description="star alias completion full-menu visibility",
+            description="equals alias completion full-menu visibility",
         )
         await wait_for_svg_contains(page, "Enter → %m:@large")
         await wait_for_visual_idle(page)
@@ -387,13 +387,13 @@ async def test_model_alias_completion_full_menu_png_snapshot(
         pytest.param(
             "textual-dark",
             "prompt_model_explicit_completion_full_dark_120x40",
-            "ACE prompt input — double-star model completion, dark theme",
+            "ACE prompt input — double-equals model completion, dark theme",
             id="dark",
         ),
         pytest.param(
             "textual-light",
             "prompt_model_explicit_completion_full_light_120x40",
-            "ACE prompt input — double-star model completion, light theme",
+            "ACE prompt input — double-equals model completion, light theme",
             id="light",
         ),
     ],
@@ -413,7 +413,7 @@ async def test_model_explicit_completion_full_menu_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await mount_prompt_bar(page, "**")
+        bar = await mount_prompt_bar(page, "==")
 
         bar.show_file_completions(
             "",
@@ -450,7 +450,7 @@ async def test_model_explicit_completion_filtered_preview_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await mount_prompt_bar(page, "Route **fa")
+        bar = await mount_prompt_bar(page, "Route ==fa")
 
         bar.show_file_completions(
             "fa",
@@ -464,7 +464,7 @@ async def test_model_explicit_completion_filtered_preview_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "prompt_model_explicit_completion_filtered_light_120x40",
-            title="ACE prompt input — filtered double-star model completion",
+            title="ACE prompt input — filtered double-equals model completion",
         )
 
 
@@ -479,7 +479,7 @@ async def test_model_explicit_completion_narrow_scoped_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await mount_prompt_bar(page, "Try **anthropic/claude")
+        bar = await mount_prompt_bar(page, "Try ==anthropic/claude")
 
         bar.show_file_completions(
             "anthropic/claude",
@@ -493,7 +493,7 @@ async def test_model_explicit_completion_narrow_scoped_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "prompt_model_explicit_completion_scoped_narrow_70x24",
-            title="ACE prompt input — narrow provider-scoped double-star model completion",
+            title="ACE prompt input — narrow provider-scoped double-equals model completion",
         )
 
 
@@ -523,7 +523,7 @@ async def test_model_explicit_completion_stacked_pane_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "prompt_model_explicit_completion_stack_light_120x40",
-            title="ACE prompt stack — double-star model completion, light theme",
+            title="ACE prompt stack — double-equals model completion, light theme",
         )
 
 
@@ -539,7 +539,7 @@ async def test_model_explicit_completion_advisory_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await mount_prompt_bar(page, "**contrib")
+        bar = await mount_prompt_bar(page, "==contrib")
 
         bar.show_file_completions(
             "contrib",
@@ -553,7 +553,7 @@ async def test_model_explicit_completion_advisory_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "prompt_model_explicit_completion_advisory_light_120x40",
-            title="ACE prompt input — advisory double-star model completion",
+            title="ACE prompt input — advisory double-equals model completion",
         )
 
 
@@ -563,14 +563,14 @@ async def test_model_explicit_completion_advisory_png_snapshot(
         pytest.param(
             build_loading_model_explicit_placeholder(),
             "prompt_model_explicit_completion_loading_120x40",
-            "ACE prompt input — loading double-star model completion",
+            "ACE prompt input — loading double-equals model completion",
             "Loading models",
             id="loading",
         ),
         pytest.param(
             build_unavailable_model_explicit_placeholder(),
             "prompt_model_explicit_completion_unavailable_120x40",
-            "ACE prompt input — unavailable double-star model completion",
+            "ACE prompt input — unavailable double-equals model completion",
             "Models unavailable",
             id="unavailable",
         ),
@@ -591,7 +591,7 @@ async def test_model_explicit_completion_status_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await mount_prompt_bar(page, "**")
+        bar = await mount_prompt_bar(page, "==")
 
         bar.show_file_completions(
             "",
@@ -617,7 +617,7 @@ async def test_model_alias_completion_filtered_preview_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await mount_prompt_bar(page, "Route *sc")
+        bar = await mount_prompt_bar(page, "Route =sc")
 
         bar.show_file_completions(
             "sc",
@@ -631,7 +631,7 @@ async def test_model_alias_completion_filtered_preview_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "prompt_model_alias_completion_filtered_light_120x40",
-            title="ACE prompt input — filtered star alias completion, light theme",
+            title="ACE prompt input — filtered equals alias completion, light theme",
         )
 
 
@@ -646,7 +646,7 @@ async def test_model_alias_completion_narrow_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         await page.expect_state("tab", "patches")
-        bar = await mount_prompt_bar(page, "Explain *observability")
+        bar = await mount_prompt_bar(page, "Explain =observability")
 
         bar.show_file_completions(
             "observability",
@@ -660,7 +660,7 @@ async def test_model_alias_completion_narrow_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "prompt_model_alias_completion_narrow_70x24",
-            title="ACE prompt input — narrow star alias completion",
+            title="ACE prompt input — narrow equals alias completion",
         )
 
 
@@ -690,7 +690,7 @@ async def test_model_alias_completion_stacked_pane_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "prompt_model_alias_completion_stack_light_120x40",
-            title="ACE prompt stack — star alias completion, light theme",
+            title="ACE prompt stack — equals alias completion, light theme",
         )
 
 

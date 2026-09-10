@@ -111,7 +111,7 @@ def build_model_alias_shortcut_candidates(
     partial: str,
     entries: Sequence[ModelCompletionEntry],
 ) -> tuple[list[CompletionCandidate], str]:
-    """Build ``*alias`` rows from an already-warm model catalog."""
+    """Build ``=alias`` rows from an already-warm model catalog."""
     alias_entries = filter_model_alias_shortcut_entries(entries, partial)
     candidates = [_model_entry_completion_candidate(entry) for entry in alias_entries]
     return candidates, ""
@@ -121,7 +121,7 @@ def build_explicit_model_shortcut_candidates(
     partial: str,
     entries: Sequence[ModelCompletionEntry],
 ) -> tuple[list[CompletionCandidate], str]:
-    """Build ``**model`` rows from an already-warm model catalog."""
+    """Build ``==model`` rows from an already-warm model catalog."""
     model_entries = filter_explicit_model_shortcut_entries(entries, partial)
     candidates = [_model_entry_completion_candidate(entry) for entry in model_entries]
     return candidates, ""

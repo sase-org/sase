@@ -1,4 +1,4 @@
-"""Prompt ``*alias`` completion backed by the shared Rust editor contract."""
+"""Prompt ``=alias`` completion backed by the shared Rust editor contract."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ MODEL_ALIAS_ENTRY_KINDS = frozenset({"implicit_alias", "user_alias"})
 
 @dataclass(frozen=True, slots=True)
 class ModelAliasShortcutContext:
-    """ACE-facing context for a ``*alias`` shortcut token."""
+    """ACE-facing context for a ``=alias`` shortcut token."""
 
     query: str
     token: str
@@ -35,7 +35,7 @@ class ModelAliasShortcutContext:
 
 @dataclass(frozen=True, slots=True)
 class _ModelAliasShortcutEdit:
-    """One validated edit that expands a ``*alias`` shortcut."""
+    """One validated edit that expands a ``=alias`` shortcut."""
 
     replacement_start: int
     replacement_end: int
@@ -55,7 +55,7 @@ def detect_model_alias_completion_context(
     text: str,
     cursor_location: tuple[int, int],
 ) -> ModelAliasShortcutContext | None:
-    """Return a Rust-classified ``*alias`` context at *cursor_location*."""
+    """Return a Rust-classified ``=alias`` context at *cursor_location*."""
     position = _editor_position(text, cursor_location)
     if position is None:
         return None

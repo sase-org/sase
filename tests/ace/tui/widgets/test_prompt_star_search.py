@@ -56,6 +56,7 @@ async def test_star_jumps_to_next_occurrence_and_records_register() -> None:
         await pilot.pause()
 
         assert text_area.cursor_location == (0, 8)
+        assert text_area._file_completion_active is False
         assert any(name.startswith("search.") for name in _highlight_names(text_area))
         assert bar.prompt_search_register() == PromptSearchQuery(
             query="foo",

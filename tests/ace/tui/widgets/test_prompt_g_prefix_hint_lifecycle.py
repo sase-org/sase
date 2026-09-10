@@ -378,12 +378,16 @@ async def test_second_g_prefix_key_hides_hints_after_dispatch() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         panel = hint_panel(bar)
+        text_area = bar.active_text_area()
 
         await pilot.press("escape", "g", "=")
         await pilot.pause()
 
         assert panel.has_class("hidden")
         assert bar._g_prefix_hints_visible is False
+        assert bar.active_text() == "solo draft"
+        assert text_area._file_completion_active is False
+        assert text_area._normal_g_prefix_pending is False
 
 
 async def test_escape_hides_pending_g_prefix_hints() -> None:

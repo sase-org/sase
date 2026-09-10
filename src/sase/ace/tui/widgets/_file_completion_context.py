@@ -192,13 +192,13 @@ class FileCompletionContextMixin(_MixinBase):
     def _get_model_alias_completion_context(
         self,
     ) -> ModelAliasShortcutContext | None:
-        """Return the shared-core ``*alias`` context at the current cursor."""
+        """Return the shared-core ``=alias`` context at the current cursor."""
         return detect_model_alias_completion_context(self.text, self.cursor_location)
 
     def _get_model_explicit_completion_context(
         self,
     ) -> ModelExplicitShortcutContext | None:
-        """Return the shared-core ``**model`` context at the current cursor."""
+        """Return the shared-core ``==model`` context at the current cursor."""
         return detect_model_explicit_completion_context(
             self.text,
             self.cursor_location,

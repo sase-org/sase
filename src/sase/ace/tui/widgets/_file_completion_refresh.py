@@ -382,7 +382,7 @@ class FileCompletionRefreshMixin(FileCompletionAcceptMixin):
         self._update_file_completion_panel(result.prefix)
 
     def _refresh_model_shortcut_completion(self) -> None:
-        """Refresh an active star-shortcut menu, including kind transitions."""
+        """Refresh an active equals-shortcut menu, including kind transitions."""
         previous_kind = self._completion_kind
         alias_context = self._get_model_alias_completion_context()
         if alias_context is not None:

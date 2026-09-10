@@ -262,7 +262,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         return False
 
     def _try_model_alias_completion(self, *, force: bool = False) -> bool:
-        """Open alias-only model completion at a valid ``*alias`` token."""
+        """Open alias-only model completion at a valid ``=alias`` token."""
         bar = self._find_prompt_bar()
         if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
             return False
@@ -285,7 +285,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         return True
 
     def _try_model_explicit_completion(self, *, force: bool = False) -> bool:
-        """Open concrete-model completion at a valid ``**model`` token."""
+        """Open concrete-model completion at a valid ``==model`` token."""
         bar = self._find_prompt_bar()
         if bar is not None and getattr(bar, "_mode", "prompt") != "prompt":
             return False
@@ -308,7 +308,7 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         return True
 
     def _try_model_shortcut_completion(self, *, force: bool = False) -> bool:
-        """Open whichever shared star shortcut owns the cursor."""
+        """Open whichever shared equals shortcut owns the cursor."""
         return self._try_model_alias_completion(
             force=force,
         ) or self._try_model_explicit_completion(force=force)
