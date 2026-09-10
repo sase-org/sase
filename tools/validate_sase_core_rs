@@ -1507,6 +1507,319 @@ def _validate_proc_lifecycle_contract(module: ModuleType) -> bool:
     return valid
 
 
+def _runner_capacity_probe_record(**overrides: Any) -> dict[str, Any]:
+    record: dict[str, Any] = {
+        "artifact_dir": "",
+        "project_name": "core-floor-probe",
+        "workflow_dir_name": "ace-run",
+        "timestamp": "",
+        "has_agent_meta": True,
+        "has_done_marker": False,
+        "appears_as_agent": True,
+        "live": True,
+        "pending_question": False,
+        "pid": 111,
+        "run_started_at": None,
+        "runner_claim_owner_key": None,
+        "parent_timestamp": None,
+        "agent_family": None,
+        "agent_family_role": None,
+        "agent_family_parallel": False,
+        "family_shell_kind": None,
+        "family_shell_id": None,
+        "family_shell_state": None,
+        "queue_weight": 1.0,
+        "queue_weight_explicit": False,
+        "queue_weight_invalid": False,
+        "slot_requested_at": None,
+        "wait_runners": None,
+        "wait_runners_explicit": False,
+        "wait_priority": 0,
+        "eligible_since": None,
+    }
+    record.update(overrides)
+    return record
+
+
+def _validate_runner_capacity_contract(module: ModuleType) -> bool:
+    """Confirm weighted parallel-lineage claims transfer instead of doubling.
+
+    A wheel built before sase-core ``8b672ab`` speaks a schema-v1
+    ``runner_capacity_snapshot`` request with no ``candidate`` field and
+    never returns ``candidate_decision(...)`` in the response, so a live
+    weight-2 parallel member and its serial successor are charged as two
+    separate 2.0 claims instead of sharing one. Binding presence alone
+    cannot see this: the binding name is unchanged, only its schema and
+    decision behavior are.
+    """
+    try:
+        policy_schema_version = int(module.runner_capacity_policy_schema_version())
+    except Exception as exc:
+        _error(f"runner_capacity_policy_schema_version() probe failed: {exc}")
+        return False
+    if policy_schema_version < 2:
+        _error(
+            "runner_capacity_policy_schema_version() returned stale schema: "
+            f"got {policy_schema_version}, expected >= 2"
+        )
+        return False
+
+    parallel_member = _runner_capacity_probe_record(
+        artifact_dir="/core-floor-probe/proj/agent/2026-01-01T00-00-00",
+        timestamp="2026-01-01T00:00:00Z",
+        run_started_at="2026-01-01T00:00:00Z",
+        runner_claim_owner_key="core-floor-probe:fam:parallel:2026-01-01T00-00-00",
+        agent_family="fam",
+        agent_family_parallel=True,
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+    )
+    successor = _runner_capacity_probe_record(
+        artifact_dir="/core-floor-probe/proj/agent/2026-01-01T00-05-00",
+        timestamp="2026-01-01T00:05:00Z",
+        parent_timestamp="2026-01-01T00:00:00Z",
+        agent_family="fam",
+        agent_family_parallel=False,
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+    )
+    request = {
+        "effective_limit": 2.0,
+        "records": [parallel_member],
+        "candidate": successor,
+        "now": "2026-01-01T00:06:00Z",
+        "deference_seconds_per_step": 0,
+        "deference_max_seconds": 0,
+    }
+    try:
+        snapshot = module.runner_capacity_snapshot(request)
+    except Exception as exc:
+        _error(
+            "candidate_decision(...) is unsupported by runner_capacity_snapshot: "
+            f"{exc}"
+        )
+        return False
+
+    if not isinstance(snapshot, dict):
+        _error("runner_capacity_snapshot probe returned a non-dict payload")
+        return False
+    try:
+        occupied_capacity = float(snapshot.get("occupied_capacity", -1))
+    except (TypeError, ValueError):
+        occupied_capacity = -1.0
+    if occupied_capacity != 2.0:
+        _error(
+            "candidate_decision(...) double-charged a parallel lineage: "
+            f"occupied_capacity={snapshot.get('occupied_capacity')!r}, expected 2.0"
+        )
+        return False
+
+    decision = snapshot.get("candidate_decision")
+    if not isinstance(decision, dict):
+        _error("candidate_decision(...) is missing from the runner_capacity_snapshot response")
+        return False
+    if decision.get("decision") != "reuse_existing_claim":
+        _error(
+            "candidate_decision(...) did not transfer the parallel lineage claim: "
+            f"got {decision!r}"
+        )
+        return False
+    try:
+        effective_weight = float(decision.get("effective_weight", -1))
+    except (TypeError, ValueError):
+        effective_weight = -1.0
+    if effective_weight != 2.0:
+        _error(
+            "candidate_decision(...) returned the wrong effective_weight: "
+            f"got {decision.get('effective_weight')!r}, expected 2.0"
+        )
+        return False
+    return True
+
+
+def _validate_capacity_only_scan_contract(module: ModuleType) -> bool:
+    """Confirm a ``capacity_only`` scan still returns the durable claim owner.
+
+    A wheel built before sase-core ``120556a`` never reads
+    ``runner_claim_owner_key`` off ``agent_meta.json``, so it silently comes
+    back ``None`` even when it is present on disk -- the fast ``capacity_only``
+    path (added in ``161206b``) accepts the option without error on either
+    wheel, so only checking the resolved field, not the option's acceptance,
+    can see the gap.
+    """
+    timestamp = "20260427110500"
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-probe-") as tmp:
+        projects_root = Path(tmp) / "projects"
+        project_dir = projects_root / "probe"
+        artifact_dir = project_dir / "artifacts" / "ace-run" / timestamp
+        artifact_dir.mkdir(parents=True)
+        (project_dir / "probe.sase").write_text("", encoding="utf-8")
+        (artifact_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": "probe",
+                    "queue_weight": 2.0,
+                    "queue_weight_explicit": True,
+                    "runner_claim_owner_key": f"probe:fam:parallel:{timestamp}",
+                }
+            ),
+            encoding="utf-8",
+        )
+        options = {
+            "include_prompt_step_markers": False,
+            "include_raw_prompt_snippets": False,
+            "only_workflow_dirs": [],
+            "capacity_only": True,
+        }
+        try:
+            snapshot = module.scan_agent_artifacts(str(projects_root), options)
+        except Exception as exc:
+            _error(f"scan_agent_artifacts(capacity_only=True) probe failed: {exc}")
+            return False
+
+    if not isinstance(snapshot, dict):
+        _error("scan_agent_artifacts(capacity_only=True) probe returned a non-dict payload")
+        return False
+    records = [
+        record
+        for record in snapshot.get("records", [])
+        if isinstance(record, dict) and record.get("timestamp") == timestamp
+    ]
+    if len(records) != 1:
+        _error(
+            "scan_agent_artifacts(capacity_only=True) probe did not return "
+            f"exactly one record for timestamp {timestamp}"
+        )
+        return False
+
+    agent_meta = records[0].get("agent_meta")
+    if not isinstance(agent_meta, dict):
+        _error("scan_agent_artifacts(capacity_only=True) probe record has no agent_meta dict")
+        return False
+    if agent_meta.get("runner_claim_owner_key") != f"probe:fam:parallel:{timestamp}":
+        _error(
+            "runner_claim_owner_key(...) does not survive a capacity_only scan: "
+            f"got {agent_meta.get('runner_claim_owner_key')!r}"
+        )
+        return False
+    return True
+
+
+_FLEET_WEIGHT_SUMMARY_INSTALLATION_ID = "sase_inst_v1_" + "a" * 64
+
+
+def _fleet_weight_summary_probe_request(queue_weight: float) -> dict[str, Any]:
+    logical_locator = {
+        "schema_version": 1,
+        "project": {
+            "schema_version": 1,
+            "origin": {
+                "schema_version": 1,
+                "installation_id": _FLEET_WEIGHT_SUMMARY_INSTALLATION_ID,
+            },
+            "project_id": "core-floor-probe",
+        },
+        "agent_id": "core-floor-probe.agent-1",
+        "family_id": "family-1",
+    }
+    exact_locator = {
+        "schema_version": 1,
+        "logical": logical_locator,
+        "shell_id": "shell-1",
+        "run_id": "run-1",
+        "attempt_id": "attempt-1",
+    }
+    return {
+        "schema_version": 1,
+        "record": {
+            "project_name": "core-floor-probe",
+            "project_dir": "/tmp/core-floor-probe",
+            "project_file": "/tmp/core-floor-probe.sase",
+            "workflow_dir_name": "ace-run",
+            "artifact_dir": "/tmp/core-floor-probe/artifacts/20260427110500",
+            "timestamp": "20260427110500",
+            "agent_meta": {
+                "name": "core-floor-probe.agent-1",
+                "model": "gpt-5",
+                "llm_provider": "codex",
+                "agent_family": "family-1",
+                "queue_weight": queue_weight,
+                "queue_weight_explicit": True,
+            },
+            "running": {
+                "pid": 4242,
+                "model": "gpt-5",
+                "llm_provider": "codex",
+                "workspace_dir": "/tmp/ws",
+            },
+            "raw_prompt_snippet": "probe",
+            "has_done_marker": False,
+        },
+        "logical_locator": logical_locator,
+        "owner_facts": {
+            "schema_version": 1,
+            "exact_locator": exact_locator,
+            "row_revision": {
+                "schema_version": 1,
+                "logical_key": "",
+                "revision": 1,
+            },
+            "liveness": "alive",
+            "connection_health": "online",
+            "freshness": "fresh",
+            "observed_at_unix": 10.0,
+            "row_kind": "agent_shell",
+            "current_instance": True,
+            "dismissable": False,
+            "needs_attention": False,
+            "occupied_runner_slot": True,
+            "container_projected_concrete_agent": False,
+            "capabilities": {
+                "schema_version": 1,
+                "resource": ["stop"],
+                "host": [],
+                "protocol": [],
+            },
+            "content_handles": [],
+        },
+    }
+
+
+def _validate_weighted_fleet_summary_contract(module: ModuleType) -> bool:
+    """Confirm the fleet agent summary projection carries queue weight.
+
+    A wheel built before sase-core ``8e491c3`` never added ``queue_weight``,
+    ``queue_weight_explicit``, ``queue_weight_invalid``, or
+    ``queue_weight_error`` to ``ResolvedAgentSummaryWire``, so a remote
+    weighted row silently renders as the unweighted default. The schema
+    version does not change for this addition -- the fields are additive --
+    so only a behavioral probe can see the gap.
+    """
+    request = _fleet_weight_summary_probe_request(2.0)
+    request["owner_facts"]["row_revision"]["logical_key"] = module.fleet_logical_locator_key(
+        request["logical_locator"]
+    )
+    try:
+        summary = module.fleet_project_resolved_agent_summary(request)
+    except Exception as exc:
+        _error(f"fleet_project_resolved_agent_summary() probe failed: {exc}")
+        return False
+    if not isinstance(summary, dict):
+        _error("fleet_project_resolved_agent_summary() probe returned a non-dict payload")
+        return False
+    try:
+        queue_weight = float(summary.get("queue_weight", -1))
+    except (TypeError, ValueError):
+        queue_weight = -1.0
+    if queue_weight != 2.0:
+        _error(
+            "queue_weight_error(...) fleet summary field is missing for an "
+            f"explicit weighted record: got queue_weight={summary.get('queue_weight')!r}"
+        )
+        return False
+    return True
+
+
 _CONFIG_SCHEMA_PATH = REPO_ROOT / "src" / "sase" / "config" / "sase.schema.json"
 
 # Minimal valid ``inhibit_if`` payload per guard provider the bundled schema
@@ -2096,6 +2409,12 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_project_lifecycle_contract(module):
         return 1
     if not _validate_proc_lifecycle_contract(module):
+        return 1
+    if not _validate_runner_capacity_contract(module):
+        return 1
+    if not _validate_capacity_only_scan_contract(module):
+        return 1
+    if not _validate_weighted_fleet_summary_contract(module):
         return 1
     if not _validate_axe_chop_guard_providers(module):
         return 1
