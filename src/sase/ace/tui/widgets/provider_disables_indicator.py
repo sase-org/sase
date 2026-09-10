@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from typing import Any, cast
 
 from rich.text import Text
@@ -21,13 +21,8 @@ from sase.llm_provider.provider_priority import (
 )
 from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 from sase.llm_provider.registry import provider_routing_facts
-from sase.llm_provider.usage.hints import (
-    CapacityHint,
-    indicator_usage_attention,
-    indicator_usage_items,
-)
 from sase.llm_provider.usage.peek import (
-    cached_usage_peek,
+    cached_usage_indicator_projection,
     refresh_usage_peek_cache,
     usage_attention_enabled,
     usage_peek_change_token,
@@ -42,8 +37,10 @@ from ._override_pill import (
     format_remaining_until,
 )
 from ._provider_usage_indicator import (
+    UsageBadge,
     build_usage_indicator_segment,
-    usage_indicator_presentations,
+    usage_indicator_badges,
+    usage_indicator_open_provider,
     usage_indicator_tooltip_lines,
 )
 
@@ -56,8 +53,7 @@ class ProviderDisablesIndicator(Static):
     """Shows active machine-wide provider disables in one compact pill."""
 
     def __init__(self, **kwargs: Any) -> None:
-        self._usage_items: tuple[CapacityHint, ...] = ()
-        self._usage_providers: tuple[Mapping[str, Any], ...] = ()
+        self._usage_badges: tuple[UsageBadge, ...] = ()
         self._usage_open_provider: str | None = None
         self._usage_peek_in_flight = False
         self._usage_peek_loaded = False
@@ -66,13 +62,13 @@ class ProviderDisablesIndicator(Static):
         self._usage_layout_refresh_scheduled = False
         context = self._active_provider_routing_context()
         priority_state = self._priority_availability(context)
-        self._sync_usage_items()
+        self._sync_usage_badges()
         initial_content = self._build_content(
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
-            usage_items=self._usage_items,
-            usage_providers=self._usage_providers,
+            usage_badges=self._usage_badges,
+            dark=self._current_dark_theme(),
         )
         self._content_signature = _text_signature(initial_content)
         super().__init__(
@@ -83,8 +79,7 @@ class ProviderDisablesIndicator(Static):
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
-            usage_items=self._usage_items,
-            usage_providers=self._usage_providers,
+            usage_badges=self._usage_badges,
         )
 
     @property
@@ -94,9 +89,15 @@ class ProviderDisablesIndicator(Static):
 
     def on_mount(self) -> None:
         """Poll through the lock-free peek cache on the top-bar cadence."""
+        self.watch(self.app, "theme", self._app_theme_changed, init=False)
         self._apply_content()
         self._schedule_usage_peek_if_needed()
         self.set_interval(30.0, self.refresh)
+
+    def _app_theme_changed(self) -> None:
+        """Repaint bucket colors after an app theme switch."""
+        if self.is_mounted:
+            self._apply_content()
 
     def on_resize(self, _event: Resize) -> None:
         """Re-evaluate usage disclosure when top-bar geometry changes."""
@@ -133,13 +134,13 @@ class ProviderDisablesIndicator(Static):
     def _build_initial_content(self, *, now: float | None = None) -> Text:
         """Render the current provider-disable map."""
         context = self._active_provider_routing_context(now=now)
-        self._sync_usage_items()
+        self._sync_usage_badges(now=now)
         return self._build_content(
             context.provider_disables,
             priority=context.priority,
             priority_availability=self._priority_availability(context),
-            usage_items=self._usage_items,
-            usage_providers=self._usage_providers,
+            usage_badges=self._usage_badges,
+            dark=self._current_dark_theme(),
             now=now,
         )
 
@@ -147,7 +148,7 @@ class ProviderDisablesIndicator(Static):
         """Update content and tooltip from one current peek snapshot."""
         context = self._active_provider_routing_context(now=now)
         priority_state = self._priority_availability(context)
-        self._sync_usage_items()
+        self._sync_usage_badges(now=now)
         routing = self._build_routing_content(
             context.provider_disables,
             priority=context.priority,
@@ -156,28 +157,37 @@ class ProviderDisablesIndicator(Static):
         )
         content = self._append_usage_content(
             routing,
-            self._usage_items,
-            usage_providers=self._usage_providers,
+            self._usage_badges,
             usage_budget=self._usage_segment_budget(routing),
+            dark=self._current_dark_theme(),
         )
         tooltip = self._build_tooltip(
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
-            usage_items=self._usage_items,
-            usage_providers=self._usage_providers,
+            usage_badges=self._usage_badges,
             now=now,
         )
         self._replace_content(content, tooltip)
 
-    def _sync_usage_items(self) -> None:
-        """Copy the memory-only usage peek into the indicator's display fields."""
-        providers, eligible = cached_usage_peek()
-        items = indicator_usage_items(providers, eligible)
-        item, _count = indicator_usage_attention(providers, eligible)
-        self._usage_providers = providers
-        self._usage_items = items
-        self._usage_open_provider = None if item is None else item.provider
+    def _sync_usage_badges(self, *, now: float | None = None) -> None:
+        """Rebuild usage badges from the memory-only peek snapshot and clock."""
+        projection = cached_usage_indicator_projection(now=now)
+        badges = usage_indicator_badges(
+            projection.entries,
+            projection.providers,
+            dark=self._current_dark_theme(),
+            now=projection.generated_at,
+        )
+        self._usage_badges = badges
+        self._usage_open_provider = usage_indicator_open_provider(badges)
+
+    def _current_dark_theme(self) -> bool:
+        """Return whether the active app theme is dark, defaulting to dark."""
+        try:
+            return bool(self.app.current_theme.dark)
+        except Exception:
+            return True
 
     def _schedule_layout_reflow(self) -> None:
         """Coalesce geometry-only usage disclosure updates."""
@@ -231,7 +241,8 @@ class ProviderDisablesIndicator(Static):
             if child is self or child.id == "tab-bar":
                 continue
             used += _rendered_cell_width(child)
-        return max(0, total - used)
+        remaining = max(0, total - used)
+        return min(remaining, total // 2)
 
     @staticmethod
     def _active_provider_routing_context(
@@ -247,10 +258,10 @@ class ProviderDisablesIndicator(Static):
         *,
         priority: TemporaryProviderPriority | None = None,
         priority_availability: ProviderAvailability | None = None,
-        usage_items: Sequence[CapacityHint] = (),
-        usage_providers: Sequence[Mapping[str, Any]] = (),
+        usage_badges: Sequence[UsageBadge] = (),
         width: int | None = None,
         usage_budget: int | None = None,
+        dark: bool = True,
         now: float | None = None,
     ) -> Text:
         """Build the pill for routing state plus quiet usage attention."""
@@ -264,9 +275,9 @@ class ProviderDisablesIndicator(Static):
             usage_budget = max(0, width - routing.cell_len)
         return ProviderDisablesIndicator._append_usage_content(
             routing,
-            usage_items,
-            usage_providers=usage_providers,
+            usage_badges,
             usage_budget=usage_budget,
+            dark=dark,
         )
 
     @staticmethod
@@ -381,19 +392,19 @@ class ProviderDisablesIndicator(Static):
     @staticmethod
     def _append_usage_content(
         routing: Text,
-        usage_items: Sequence[CapacityHint] = (),
+        usage_badges: Sequence[UsageBadge] = (),
         *,
-        usage_providers: Sequence[Mapping[str, Any]] = (),
         usage_budget: int | None = None,
+        dark: bool = True,
     ) -> Text:
         """Append quiet usage attention without replacing a routing pill."""
-        if not usage_items:
+        if not usage_badges:
             return routing
-        presentations = usage_indicator_presentations(usage_items, usage_providers)
         usage = build_usage_indicator_segment(
-            presentations,
+            usage_badges,
             budget=usage_budget,
             leading_space=not bool(routing.plain),
+            dark=dark,
         )
         combined = routing.copy() if routing.plain else Text()
         combined.append_text(usage)
@@ -405,8 +416,7 @@ class ProviderDisablesIndicator(Static):
         *,
         priority: TemporaryProviderPriority | None = None,
         priority_availability: ProviderAvailability | None = None,
-        usage_items: Sequence[CapacityHint] = (),
-        usage_providers: Sequence[Mapping[str, Any]] = (),
+        usage_badges: Sequence[UsageBadge] = (),
         now: float | None = None,
     ) -> str | None:
         """Build sorted long-form details for provider routing state."""
@@ -446,12 +456,7 @@ class ProviderDisablesIndicator(Static):
             mode = "soft" if disable.is_soft else "hard"
             lines.append(f"{provider.upper()} - {mode} · {provenance}, {remaining}")
             has_disables = True
-        usage_lines = list(
-            usage_indicator_tooltip_lines(
-                usage_indicator_presentations(usage_items, usage_providers),
-                now=now,
-            )
-        )
+        usage_lines = list(usage_indicator_tooltip_lines(usage_badges))
         if not lines and not usage_lines:
             return None
         parts: list[str] = []
@@ -478,14 +483,14 @@ class ProviderDisablesIndicator(Static):
                 parts.append("")
             parts.extend(
                 (
-                    "Usage attention:",
+                    "Usage windows:",
                     "Included subscription allowance readings from provider CLIs.",
                     *usage_lines,
-                    "Notation: wk/mo/5h are windows; all is account-wide; "
+                    "Notation: wk/mo/5h/session are windows; all is account-wide; "
                     "scope? means the provider did not expose exact applicability.",
-                    "+N counts additional attention providers; !N/⚠N/?N is the "
-                    "total when space is tight.",
-                    "Click to open this provider's Providers · Usage view.",
+                    "~ marks a retained stale/unknown-age reading; ↻ marks a passed "
+                    "reset awaiting a new observation; +N counts hidden windows.",
+                    "Click to open Providers · Usage.",
                     "The Usage command is also reachable from the command palette.",
                 )
             )

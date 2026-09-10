@@ -39,6 +39,26 @@ def test_config_opt_out_hides_planted_usage_attention(
         _clear_usage_peek_cache()
 
 
+def test_projection_isolates_a_malformed_cached_snapshot() -> None:
+    """A malformed memory-only snapshot must degrade, never crash widget construction."""
+    peek_mod._peek_providers = ({"provider": "claude", "windows": []},)
+    peek_mod._peek_snapshot = {
+        "schema_version": 1,
+        "generated_at": 100.0,
+        "collection_health": "ok",
+        "providers": [{"provider": "claude", "windows": []}],
+        "attention": None,
+    }
+    peek_mod._peek_eligible = frozenset({"claude"})
+    try:
+        projection = cached_usage_indicator_projection(now=100.0)
+    finally:
+        _clear_usage_peek_cache()
+
+    assert projection.entries == ()
+    assert projection.providers == ()
+
+
 def test_usage_peek_token_changes_when_config_changes_without_store_write(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
@@ -118,8 +138,11 @@ def test_cached_projection_uses_memory_snapshot_and_indicator_settings(
 
     monkeypatch.setattr(refresh_mod, "eligible_usage_providers", lambda: ("claude",))
 
-    providers, eligible = refresh_usage_peek_cache(now=100.0)
-    projection = cached_usage_indicator_projection(now=130.0)
+    try:
+        providers, eligible = refresh_usage_peek_cache(now=100.0)
+        projection = cached_usage_indicator_projection(now=130.0)
+    finally:
+        _clear_usage_peek_cache()
 
     assert providers[0]["provider"] == "claude"
     assert eligible == frozenset({"claude"})

@@ -3310,17 +3310,39 @@ successful probe age when known. This health describes the collector pipeline on
 stale-but-numeric allowance data can still render, passive stream observations do not
 hide a dead probe pipeline, and the indicator never changes launch routing.
 
-When an included allowance needs attention, the top bar shows the leading provider in a
-compact form such as `! GROK 14% left · wk/all +2`. `wk`, `mo`, `5h`, and `session` name
-the allowance window; `all` means account-wide, and `scope?` means the provider did not
-expose exact applicability. `+N` counts additional providers needing attention. In very
-tight space ACE may show `!3` or `?3`, where the number is the total attention count;
-hover or open Providers · Usage for the full labels and per-window details.
+The top bar shows one small badge per independently selected usage window, for example:
 
-When the leading attention is a consistently failing collector, the same indicator uses
-the `⚠` marker and normal-width text like `CODEX usage failing`; tight layouts still
-roll up to counts. The tooltip includes collector-health lines, and model picker hints
-use the same `⚠ usage failing` identity so the warning is not color-only.
+```text
+🎭 62% 3d4h    🤖 81% 5d2h    🛰️ 44% 1d7h
+🎭 5h/all 18% 2h9m    🎭 wk/fable 7% 1d6h
+```
+
+Each badge is `<provider-icon> [<specifier> ]<remaining-percent> <reset-countdown>`,
+reusing the same provider emoji as the Agents tab. A weekly window covering all models
+never shows a specifier; other windows keep a short one such as `5h/all`, `wk/fable`, or
+`mo/all` (`wk`/`mo`/`5h`/`session` name the window period, `all` means account-wide, and
+`scope?` means the provider did not expose exact applicability). The percentage is
+colored on a ten-step gradient from red (nearly exhausted) to blue (nearly full) so
+healthy windows read as calm, not alarming. Which windows appear, and at what remaining
+percentage, is fully configurable through
+[`llm_provider.usage_metrics.indicator`](configuration.md#llm_providerusage_metrics).
+
+A `~` after a percentage means the reading is a retained stale or unknown-age
+observation, not a fresh one. `?% 0h0m↻` means the window's reset has passed and ACE is
+awaiting a new observation, retaining the last known percentage only in the tooltip. A
+bare `?` in the countdown position means the provider never reported a reset time. `!`
+marks a vendor-rejected window and `⚠` marks a provider whose collector is currently
+failing; neither relies on color alone. Model picker hints keep their own separate
+`⚠ usage failing` identity.
+
+Badges are ranked by attention severity, then provider, then weekly/all-model first,
+then window key, and ACE shows as many complete badges as fit half the top bar's width
+before falling back to a `+N` overflow count, then a bare count, then `…`. Every
+selected and overflowed window's full identity, exact key, precise percentage, scope,
+effective display policy, and reset timestamp are in the tooltip. Clicking any rendered
+badge or overflow affordance opens Providers · Usage, including for an always-visible
+healthy window; the Usage command is also reachable from the command palette when there
+is no display space at all.
 
 Press `u` inside the view to submit or join bounded refresh work for eligible providers.
 The modal stays responsive, reattaches to an in-flight refresh when reopened, reloads

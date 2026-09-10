@@ -20,6 +20,7 @@ from sase.llm_provider.usage.config import (
     get_usage_indicator_settings,
     get_usage_metrics_settings,
 )
+from sase.llm_provider.usage.constants import PROVIDER_USAGE_INDICATOR_SCHEMA_VERSION
 from sase.llm_provider.usage.store import (
     ProviderUsageIndicatorProjection,
     load_provider_usage,
@@ -31,7 +32,7 @@ _PEEK_STAT_FLOOR_SECONDS = 0.5
 
 
 @dataclass(frozen=True)
-class UsagePeekSnapshot:
+class _UsagePeekSnapshot:
     """Immutable memory-only snapshot for usage indicator consumers."""
 
     snapshot: Mapping[str, Any]
@@ -75,12 +76,12 @@ def cached_usage_peek() -> tuple[tuple[Mapping[str, Any], ...], frozenset[str]]:
         return _peek_providers, _peek_eligible
 
 
-def cached_usage_display_snapshot() -> UsagePeekSnapshot:
+def _cached_usage_display_snapshot() -> _UsagePeekSnapshot:
     """Return the last loaded usage display snapshot. Never reads disk."""
     if not usage_attention_enabled():
         return _empty_usage_peek_snapshot(time.time())
     with _peek_lock:
-        return UsagePeekSnapshot(
+        return _UsagePeekSnapshot(
             snapshot=_peek_snapshot,
             providers=_peek_providers,
             eligible=_peek_eligible,
@@ -95,16 +96,30 @@ def cached_usage_indicator_projection(
     now: float | None = None,
 ) -> ProviderUsageIndicatorProjection:
     """Project selected usage-window records from the memory-only peek snapshot."""
-    display = cached_usage_display_snapshot()
+    display = _cached_usage_display_snapshot()
     captured_at = time.time() if now is None else float(now)
-    return provider_usage_project_indicator(
-        display.snapshot,
-        indicator=display.indicator.raw,
-        eligible_providers=display.eligible,
-        now=captured_at,
-        cadence_seconds=display.metrics.refresh_seconds,
-        warn_percent=display.metrics.warn_percent,
-        critical_percent=display.metrics.critical_percent,
+    try:
+        return provider_usage_project_indicator(
+            display.snapshot,
+            indicator=display.indicator.raw,
+            eligible_providers=display.eligible,
+            now=captured_at,
+            cadence_seconds=display.metrics.refresh_seconds,
+            warn_percent=display.metrics.warn_percent,
+            critical_percent=display.metrics.critical_percent,
+        )
+    except Exception:
+        return _empty_usage_indicator_projection(captured_at)
+
+
+def _empty_usage_indicator_projection(now: float) -> ProviderUsageIndicatorProjection:
+    return ProviderUsageIndicatorProjection(
+        schema_version=PROVIDER_USAGE_INDICATOR_SCHEMA_VERSION,
+        generated_at=now,
+        enabled=False,
+        diagnostics=(),
+        providers=(),
+        entries=(),
     )
 
 
@@ -195,8 +210,8 @@ def _clear_usage_peek_cache() -> None:
         _peek_captured_at = 0.0
 
 
-def _empty_usage_peek_snapshot(now: float) -> UsagePeekSnapshot:
-    return UsagePeekSnapshot(
+def _empty_usage_peek_snapshot(now: float) -> _UsagePeekSnapshot:
+    return _UsagePeekSnapshot(
         snapshot=_empty_public_snapshot(now),
         providers=(),
         eligible=frozenset(),
@@ -217,8 +232,6 @@ def _empty_public_snapshot(now: float) -> Mapping[str, Any]:
 
 
 __all__ = [
-    "UsagePeekSnapshot",
-    "cached_usage_display_snapshot",
     "cached_usage_indicator_projection",
     "cached_usage_peek",
     "refresh_usage_peek_cache",

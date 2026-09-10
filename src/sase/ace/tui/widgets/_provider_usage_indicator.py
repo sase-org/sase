@@ -1,585 +1,326 @@
-"""Compact ACE top-bar presentation for provider usage attention."""
+"""Compact ACE top-bar presentation for provider usage window indicators."""
 
 from __future__ import annotations
 
-import math
-import re
-import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 from rich.text import Text
 
-from sase.llm_provider.usage.hints import CapacityHint
-from sase.llm_provider.usage.presentation import collector_health_label, duration_label
-from sase.llm_provider.usage.store import provider_usage_format_remaining_text
-
-from ._override_pill import PROVIDER_USAGE_FAILING_PALETTE, PROVIDER_USAGE_PALETTE
-
-_TOKEN_RE = re.compile(r"[A-Za-z0-9_.:@+=%-]+")
-_INCLUDED_ALLOWANCE_WORDS = frozenset({"included", "allowance"})
-_GENERIC_WINDOW_WORDS = frozenset(
-    {
-        "all",
-        "five",
-        "hour",
-        "hours",
-        "limit",
-        "model",
-        "models",
-        "month",
-        "monthly",
-        "session",
-        "seven",
-        "week",
-        "weekly",
-        "window",
-    }
+from sase.ace.tui.provider_styles import provider_emoji_badge
+from sase.llm_provider.usage.presentation import (
+    collector_health_label,
+    duration_label,
+    timestamp_label,
 )
 
+from ._usage_indicator_format import (
+    format_usage_countdown,
+    format_usage_percent_text,
+    format_usage_specifier,
+)
+from ._usage_indicator_palette import (
+    usage_neutral_color,
+    usage_percent_color,
+    usage_rejected_style,
+    usage_secondary_style,
+    usage_warning_style,
+)
+
+_ATTENTION_RANK: Mapping[str, int] = {
+    "rejected": 4,
+    "very_low": 3,
+    "collection_problem": 2,
+    "low": 1,
+    "none": 0,
+}
+
 
 @dataclass(frozen=True, slots=True)
-class _UsageIndicatorPresentation:
-    """Immutable display record for one attention hint and its source window."""
+class UsageBadge:
+    """One immutable, fully rendered usage-window badge for the top bar."""
 
-    kind: str
-    marker: str
     provider: str
-    original_label: str
-    window_key: str | None
-    window_label: str | None
-    remaining: str | None
-    window_scope: str | None
-    freshness: str | None
-    reset_passed: bool
-    collection_reason: str | None
-    collector_health: Mapping[str, Any] | None
-
-    @property
-    def normal_label(self) -> str:
-        """Return the richest complete label available for the top bar."""
-        if self.remaining and self.window_scope:
-            return f"{self.remaining} · {self.window_scope}"
-        return self.original_label
-
-    @property
-    def tooltip_line(self) -> str:
-        """Return the full-disclosure usage tooltip line for this item."""
-        details: list[str] = [self.original_label]
-        if self.window_label and self.window_label not in self.original_label:
-            details.append(f"window {self.window_label}")
-        if self.freshness:
-            details.append(self.freshness)
-        if self.reset_passed:
-            details.append("reset passed")
-        return (
-            f"{self.provider.upper()} - {self.kind.replace('_', ' ')} · "
-            + " · ".join(details)
-        )
-
-    def tooltip_lines(self, *, now: float | None = None) -> tuple[str, ...]:
-        """Return full-disclosure tooltip lines for this usage item."""
-        return (
-            self.tooltip_line,
-            *_collector_health_tooltip_lines(
-                self.collector_health,
-                reason=self.collection_reason,
-                now=now,
-            ),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class _UsageIndicatorCandidate:
-    """One complete display candidate in the top-bar disclosure ladder."""
-
-    name: str
     text: Text
+    tooltip_lines: tuple[str, ...]
 
     @property
     def width(self) -> int:
-        """Return this candidate's terminal-cell width."""
+        """Return this badge's terminal-cell width."""
         return self.text.cell_len
 
 
-def usage_indicator_presentations(
-    hints: Sequence[CapacityHint],
+def usage_indicator_badges(
+    entries: Sequence[Mapping[str, Any]],
     providers: Sequence[Mapping[str, Any]] = (),
-) -> tuple[_UsageIndicatorPresentation, ...]:
-    """Resolve hint windows and produce immutable usage-indicator records."""
-    indexed = _providers_by_name(providers)
-    return tuple(
-        _presentation_from_hint(hint, indexed.get(hint.provider)) for hint in hints
-    )
+    *,
+    dark: bool,
+    now: float,
+) -> tuple[UsageBadge, ...]:
+    """Build one badge per selected window, plus any standalone collector failure."""
+    records: list[tuple[tuple[Any, ...], UsageBadge]] = [
+        _entry_badge(entry, dark=dark, now=now) for entry in entries
+    ]
+    covered = {
+        str(entry.get("provider"))
+        for entry in entries
+        if entry.get("collector_problem") is True
+    }
+    for provider in providers:
+        name = _optional_text(provider.get("provider"))
+        if not name or name in covered:
+            continue
+        if provider.get("collector_problem") is True:
+            records.append(_collector_only_badge(name, provider, dark=dark, now=now))
+    records.sort(key=lambda record: record[0])
+    return tuple(badge for _key, badge in records)
+
+
+def usage_indicator_open_provider(badges: Sequence[UsageBadge]) -> str | None:
+    """Return the provider a usage click should open, if any badge is selected."""
+    return badges[0].provider if badges else None
+
+
+def usage_indicator_tooltip_lines(badges: Sequence[UsageBadge]) -> tuple[str, ...]:
+    """Return full-disclosure tooltip lines for every selected and overflow badge."""
+    lines: list[str] = []
+    for badge in badges:
+        lines.extend(badge.tooltip_lines)
+    return tuple(lines)
 
 
 def build_usage_indicator_segment(
-    presentations: Sequence[_UsageIndicatorPresentation],
+    badges: Sequence[UsageBadge],
     *,
     budget: int | None = None,
     leading_space: bool = True,
+    dark: bool = True,
 ) -> Text:
-    """Return the richest usage segment that fits *budget* terminal cells."""
-    if not presentations:
+    """Return the richest whole-badge packing of *badges* that fits *budget*."""
+    if not badges:
         return Text("")
-    candidates = _progressively_shorter_candidates(
-        _usage_indicator_candidates(
-            presentations,
-            leading_space=leading_space,
-        )
-    )
-    if budget is None:
-        return candidates[0].text
-    for candidate in candidates:
-        if candidate.width <= budget:
-            return candidate.text
-    return candidates[-1].text
-
-
-def usage_indicator_tooltip_lines(
-    presentations: Sequence[_UsageIndicatorPresentation],
-    *,
-    now: float | None = None,
-) -> tuple[str, ...]:
-    """Return full usage-disclosure lines for the indicator tooltip."""
-    lines: list[str] = []
-    for item in presentations:
-        lines.extend(item.tooltip_lines(now=now))
-    return tuple(lines)
-
-
-def _usage_indicator_candidates(
-    presentations: Sequence[_UsageIndicatorPresentation],
-    *,
-    leading_space: bool,
-) -> tuple[_UsageIndicatorCandidate, ...]:
+    secondary = usage_secondary_style(dark=dark)
     leading = " " if leading_space else ""
-    marker = presentations[0].marker
-    palette = _usage_palette(presentations[0])
-    provider = presentations[0].provider.upper()
-    total = len(presentations)
-    additional = total - 1
-    return (
-        _UsageIndicatorCandidate(
-            "normal",
-            _normal_candidate(
-                marker,
-                provider,
-                presentations[0],
-                additional=additional,
-                leading=leading,
-                palette=palette,
-            ),
-        ),
-        _UsageIndicatorCandidate(
-            "provider",
-            _provider_disclosure_candidate(
-                marker,
-                provider,
-                additional=additional,
-                leading=leading,
-                palette=palette,
-            ),
-        ),
-        _UsageIndicatorCandidate(
-            "total",
-            _total_count_candidate(
-                marker, total=total, leading=leading, palette=palette
-            ),
-        ),
-        _UsageIndicatorCandidate(
-            "micro",
-            _micro_count_candidate(
-                marker, total=total, leading=leading, palette=palette
-            ),
-        ),
-    )
-
-
-def _progressively_shorter_candidates(
-    candidates: Sequence[_UsageIndicatorCandidate],
-) -> tuple[_UsageIndicatorCandidate, ...]:
-    selected: list[_UsageIndicatorCandidate] = []
-    previous_width: int | None = None
-    for candidate in candidates:
-        if previous_width is None or candidate.width < previous_width:
-            selected.append(candidate)
-            previous_width = candidate.width
-    return tuple(selected)
-
-
-def _normal_candidate(
-    marker: str,
-    provider: str,
-    presentation: _UsageIndicatorPresentation,
-    *,
-    additional: int,
-    leading: str,
-    palette: Any,
-) -> Text:
-    text = Text(leading, style=palette.base_style)
-    text.append(marker, style=palette.base_style)
-    text.append(" ", style=palette.secondary_style)
-    text.append(provider, style=palette.base_style)
-    text.append(" ", style=palette.secondary_style)
-    if (
-        presentation.kind != "collection_problem"
-        and presentation.remaining
-        and presentation.window_scope
+    full = _join_badges(badges, leading=leading)
+    if budget is None or full.cell_len <= budget:
+        return full
+    total = len(badges)
+    for keep in range(total - 1, 0, -1):
+        candidate = _join_badges(badges[:keep], leading=leading)
+        candidate.append("  ", style=secondary)
+        candidate.append(f"+{total - keep}", style=secondary)
+        if candidate.cell_len <= budget:
+            return candidate
+    for text in (
+        Text(f"{leading}usage {total}", style=secondary),
+        Text(f"{leading}{total}", style=secondary),
+        Text(f"{leading}…", style=secondary),
     ):
-        _append_remaining(text, presentation.remaining, palette=palette)
-        text.append(" · ", style=palette.secondary_style)
-        text.append(presentation.window_scope, style=palette.secondary_style)
+        if text.cell_len <= budget:
+            return text
+    return Text("")
+
+
+def _join_badges(badges: Sequence[UsageBadge], *, leading: str) -> Text:
+    text = Text(leading)
+    for index, badge in enumerate(badges):
+        if index:
+            text.append("  ")
+        text.append_text(badge.text)
+    return text
+
+
+def _entry_badge(
+    entry: Mapping[str, Any],
+    *,
+    dark: bool,
+    now: float,
+) -> tuple[tuple[Any, ...], UsageBadge]:
+    provider = str(entry.get("provider") or "")
+    remaining = _optional_float(entry.get("remaining_percent")) or 0.0
+    freshness = _optional_text(entry.get("freshness")) or "unknown"
+    reset_state = _optional_text(entry.get("reset_state")) or "unknown"
+    stale = freshness in {"stale", "unknown"}
+    passed = reset_state == "passed"
+    secondary_style = usage_secondary_style(dark=dark)
+
+    if passed:
+        percent_text = "?%"
+        percent_style = usage_neutral_color(dark=dark)
     else:
-        text.append(presentation.original_label, style=palette.secondary_style)
-    if additional:
-        text.append(f" +{additional}", style=palette.secondary_style)
-    text.append(" ", style=palette.secondary_style)
-    return text
+        percent_text = format_usage_percent_text(remaining)
+        if stale:
+            percent_text = f"{percent_text}~"
+            percent_style = usage_neutral_color(dark=dark)
+        else:
+            percent_style = usage_percent_color(remaining, dark=dark)
+
+    countdown_text = format_usage_countdown(
+        resets_at=_optional_float(entry.get("resets_at")),
+        reset_state=reset_state,
+        seconds_until_reset=_optional_float(entry.get("seconds_until_reset")),
+    )
+    specifier = format_usage_specifier(entry)
+
+    marker: str | None = None
+    marker_style: str | None = None
+    if entry.get("collector_problem") is True:
+        marker, marker_style = "⚠", usage_warning_style(dark=dark)
+    elif _optional_text(entry.get("vendor_state")) == "rejected":
+        marker, marker_style = "!", usage_rejected_style(dark=dark)
+
+    text = Text(_provider_icon(provider))
+    if marker:
+        text.append(" ")
+        text.append(marker, style=marker_style)
+    if specifier:
+        text.append(" ")
+        text.append(specifier, style=secondary_style)
+    text.append(" ")
+    text.append(percent_text, style=f"bold {percent_style}")
+    text.append(" ")
+    text.append(countdown_text, style=secondary_style)
+
+    tooltip = _entry_tooltip_lines(
+        entry,
+        provider=provider,
+        now=now,
+        stale=stale,
+        passed=passed,
+        freshness=freshness,
+    )
+    sort_key = _entry_sort_key(entry)
+    return sort_key, UsageBadge(provider=provider, text=text, tooltip_lines=tooltip)
 
 
-def _provider_disclosure_candidate(
-    marker: str,
+def _entry_sort_key(entry: Mapping[str, Any]) -> tuple[Any, ...]:
+    rank = _ATTENTION_RANK.get(_optional_text(entry.get("display_attention")) or "", 0)
+    return (
+        -rank,
+        str(entry.get("provider") or ""),
+        not bool(entry.get("weekly_all")),
+        str(entry.get("window_key") or ""),
+    )
+
+
+def _entry_tooltip_lines(
+    entry: Mapping[str, Any],
+    *,
     provider: str,
-    *,
-    additional: int,
-    leading: str,
-    palette: Any,
-) -> Text:
-    text = Text(leading, style=palette.base_style)
-    text.append(marker, style=palette.base_style)
-    text.append(" ", style=palette.secondary_style)
-    text.append(provider, style=palette.base_style)
-    if additional:
-        text.append(f" +{additional}", style=palette.secondary_style)
-    text.append(" ", style=palette.secondary_style)
-    return text
-
-
-def _total_count_candidate(
-    marker: str,
-    *,
-    total: int,
-    leading: str,
-    palette: Any,
-) -> Text:
-    text = Text(leading, style=palette.base_style)
-    text.append(marker, style=palette.base_style)
-    text.append(" usage ", style=palette.secondary_style)
-    text.append(str(total), style=palette.secondary_style)
-    text.append(" ", style=palette.secondary_style)
-    return text
-
-
-def _micro_count_candidate(
-    marker: str,
-    *,
-    total: int,
-    leading: str,
-    palette: Any,
-) -> Text:
-    text = Text(leading, style=palette.base_style)
-    text.append(marker, style=palette.base_style)
-    text.append(str(total), style=palette.secondary_style)
-    text.append(" ", style=palette.secondary_style)
-    return text
-
-
-def _append_remaining(text: Text, remaining: str, *, palette: Any) -> None:
-    if remaining.endswith(" left"):
-        value = remaining[: -len(" left")]
-        text.append(value, style=palette.base_style)
-        text.append(" left", style=palette.secondary_style)
-        return
-    text.append(remaining, style=palette.base_style)
-
-
-def _presentation_from_hint(
-    hint: CapacityHint,
-    provider: Mapping[str, Any] | None,
-) -> _UsageIndicatorPresentation:
-    window = _window_by_key(_windows(provider), hint.window_key) if provider else None
-    window_label = _optional_text(window.get("label")) if window else None
-    return _UsageIndicatorPresentation(
-        kind=hint.kind,
-        marker=hint.marker,
-        provider=hint.provider,
-        original_label=hint.label,
-        window_key=hint.window_key,
-        window_label=window_label,
-        remaining=_remaining_text(window, hint),
-        window_scope=_window_scope_token(hint, window),
-        freshness=_optional_text(window.get("freshness")) if window else None,
-        reset_passed=bool(window and window.get("reset_passed") is True),
-        collection_reason=(
-            _optional_text(provider.get("collection_reason")) if provider else None
-        ),
-        collector_health=_collector_health(provider),
-    )
-
-
-def _usage_palette(presentation: _UsageIndicatorPresentation) -> Any:
-    if presentation.kind == "collection_problem":
-        return PROVIDER_USAGE_FAILING_PALETTE
-    return PROVIDER_USAGE_PALETTE
-
-
-def _collector_health_tooltip_lines(
-    health: Mapping[str, Any] | None,
-    *,
-    reason: str | None,
-    now: float | None,
+    now: float,
+    stale: bool,
+    passed: bool,
+    freshness: str,
 ) -> tuple[str, ...]:
-    if health is None:
-        return ()
-    state = health.get("state")
-    if state not in {"degraded", "failing"}:
-        return ()
-    lines: list[str] = []
-    label = collector_health_label(health, reason=reason)
-    if label is not None:
-        lines.append(f"collector health: {label}")
-    since = _relative_age(health.get("failing_since"), now=now)
-    if since is not None:
-        lines.append(f"failing since: {since} ago")
-    last_success = _relative_age(health.get("last_success_at"), now=now)
-    lines.append(
-        f"last success: {last_success} ago"
-        if last_success is not None
-        else "last success: unknown"
+    label = _optional_text(entry.get("window_label")) or str(
+        entry.get("window_key") or ""
     )
+    key = _optional_text(entry.get("window_key")) or "?"
+    remaining = _optional_float(entry.get("remaining_percent"))
+    remaining_text = f"{remaining:g}% remaining" if remaining is not None else "unknown"
+    lines = [f"{provider.upper()} - {label} (key {key}) · {remaining_text}"]
+    scope_text = _scope_tooltip_text(entry.get("scope"))
+    if scope_text:
+        lines.append(f"scope: {scope_text}")
+    policy_text = _policy_tooltip_text(entry.get("effective_policy"))
+    if policy_text:
+        source = _optional_text(entry.get("policy_source")) or "default"
+        lines.append(f"policy: {policy_text} ({source})")
+    resets_at = _optional_float(entry.get("resets_at"))
+    if resets_at is None:
+        lines.append("reset time unknown")
+    elif passed:
+        lines.append("reset passed; awaiting a new observation")
+    else:
+        lines.append(f"resets {timestamp_label(resets_at, now)}")
+    lines.append(f"freshness: {freshness}")
+    if stale and not passed:
+        lines.append("~ shows the last observed capacity; it may be out of date")
+    if entry.get("collector_problem") is True:
+        lines.append("⚠ collector is currently failing for this provider")
     return tuple(lines)
 
 
-def _collector_health(
-    provider: Mapping[str, Any] | None,
-) -> Mapping[str, Any] | None:
-    if provider is None:
+def _scope_tooltip_text(scope: object) -> str | None:
+    if not isinstance(scope, Mapping):
         return None
-    health = provider.get("collector_health")
-    return health if isinstance(health, Mapping) else None
+    kind = scope.get("kind")
+    if kind == "all_models":
+        return "all models"
+    if kind == "unknown":
+        label = _optional_text(scope.get("vendor_label")) or _optional_text(
+            scope.get("vendor_id")
+        )
+        return f"unknown ({label})" if label else "unknown"
+    if kind in {"models", "product"}:
+        ids = scope.get("model_ids")
+        joined = ",".join(ids) if isinstance(ids, list) and ids else "?"
+        return f"models: {joined}"
+    if kind == "model_family":
+        family = _optional_text(scope.get("family")) or "?"
+        return f"family: {family}"
+    return None
 
 
-def _relative_age(value: object, *, now: float | None) -> str | None:
+def _policy_tooltip_text(policy: object) -> str | None:
+    if not isinstance(policy, Mapping):
+        return None
+    kind = policy.get("kind")
+    if kind == "below_remaining_percent":
+        threshold = _optional_float(policy.get("below_remaining_percent"))
+        return f"below {threshold:g}%" if threshold is not None else "below threshold"
+    if isinstance(kind, str):
+        return kind
+    return None
+
+
+def _collector_only_badge(
+    provider: str,
+    provider_status: Mapping[str, Any],
+    *,
+    dark: bool,
+    now: float,
+) -> tuple[tuple[Any, ...], UsageBadge]:
+    text = Text(_provider_icon(provider))
+    text.append(" ")
+    text.append("⚠", style=usage_warning_style(dark=dark))
+    lines = [f"{provider.upper()} - usage collection is failing"]
+    health = provider_status.get("collector_health")
+    if isinstance(health, Mapping):
+        label = collector_health_label(
+            health, reason=_optional_text(provider_status.get("diagnostic"))
+        )
+        if label:
+            lines.append(f"collector health: {label}")
+        since = _relative_age(health.get("failing_since"), now=now)
+        if since is not None:
+            lines.append(f"failing since: {since} ago")
+        last_success = _relative_age(health.get("last_success_at"), now=now)
+        lines.append(
+            f"last success: {last_success} ago"
+            if last_success is not None
+            else "last success: unknown"
+        )
+    sort_key = (-_ATTENTION_RANK["collection_problem"], provider, True, "")
+    return sort_key, UsageBadge(
+        provider=provider, text=text, tooltip_lines=tuple(lines)
+    )
+
+
+def _relative_age(value: object, *, now: float) -> str | None:
     timestamp = _optional_float(value)
     if timestamp is None:
         return None
-    clock = time.time() if now is None else float(now)
-    return duration_label(max(clock - timestamp, 0.0))
+    return duration_label(max(now - timestamp, 0.0))
 
 
-def _window_scope_token(
-    hint: CapacityHint,
-    window: Mapping[str, Any] | None,
-) -> str | None:
-    if window is None:
-        return None
-    scope = _scope_token(hint, window.get("applicability"))
-    period = _period_token(window)
-    bucket = _bucket_token(
-        provider=hint.provider,
-        label=_optional_text(window.get("label")),
-        period=period,
-        scope=scope,
-    )
-    parts = [part for part in (bucket, period, scope) if part]
-    return "/".join(parts) if parts else None
-
-
-def _scope_token(hint: CapacityHint, applicability: object) -> str:
-    if hint.scope == "scope unknown":
-        return "scope?"
-    if not isinstance(applicability, Mapping):
-        return "scope?"
-    kind = _optional_text(applicability.get("kind")) or "unknown"
-    if kind == "account":
-        return "all"
-    if kind == "models":
-        return _joined_strings(applicability.get("model_ids")) or "scope?"
-    if kind == "product":
-        models = _joined_strings(applicability.get("model_ids"))
-        product = _optional_text(applicability.get("product"))
-        if product and models:
-            return f"{product}:{models}"
-        return models or "scope?"
-    if kind == "model_family":
-        family = _optional_text(applicability.get("family"))
-        models = _joined_strings(applicability.get("model_ids"))
-        if family:
-            return f"family:{family}"
-        return models or "scope?"
-    return "scope?"
-
-
-def _period_token(window: Mapping[str, Any]) -> str | None:
-    label = _optional_text(window.get("label"))
-    alias = _period_alias_from_label(label)
-    if alias in {"wk", "mo"}:
-        return alias
-    duration = _optional_float(window.get("duration_seconds"))
-    duration_token = _duration_token(duration)
-    if duration_token:
-        return duration_token
-    return alias
-
-
-def _duration_token(seconds: float | None) -> str | None:
-    if seconds is None or not math.isfinite(seconds) or seconds <= 0:
-        return None
-    rounded = int(round(seconds))
-    if not math.isclose(seconds, float(rounded), abs_tol=0.001):
-        return None
-    if rounded % 86_400 == 0:
-        days = rounded // 86_400
-        return "wk" if days == 7 else f"{days}d"
-    if rounded % 3_600 == 0:
-        return f"{rounded // 3_600}h"
-    if rounded % 60 == 0:
-        return f"{rounded // 60}m"
-    return None
-
-
-def _period_alias_from_label(label: str | None) -> str | None:
-    if not label:
-        return None
-    normalized = " ".join(token.casefold() for token in _TOKEN_RE.findall(label))
-    if "month" in normalized or "monthly" in normalized:
-        return "mo"
-    if (
-        "week" in normalized
-        or "weekly" in normalized
-        or "seven day" in normalized
-        or "7 day" in normalized
-    ):
-        return "wk"
-    if (
-        "5h" in normalized
-        or "5 hour" in normalized
-        or "5-hour" in normalized
-        or "five hour" in normalized
-        or "five-hour" in normalized
-    ):
-        return "5h"
-    if "session" in normalized:
-        return "session"
-    return None
-
-
-def _bucket_token(
-    *,
-    provider: str,
-    label: str | None,
-    period: str | None,
-    scope: str,
-) -> str | None:
-    if not label:
-        return None
-    tokens = _TOKEN_RE.findall(label)
-    if tokens and tokens[0].casefold() == provider.casefold():
-        tokens = tokens[1:]
-    if not tokens:
-        return None
-    period_words = _period_words(period)
-    scope_words = frozenset(part.casefold() for part in _TOKEN_RE.findall(scope))
-    remaining = [
-        token
-        for token in tokens
-        if token.casefold()
-        not in _GENERIC_WINDOW_WORDS
-        | _INCLUDED_ALLOWANCE_WORDS
-        | period_words
-        | scope_words
-    ]
-    if not remaining:
-        return None
-    if _looks_like_included_allowance(tokens) and len(remaining) == len(tokens):
-        return None
-    return " ".join(remaining)
-
-
-def _period_words(period: str | None) -> frozenset[str]:
-    if period == "wk":
-        return frozenset({"7", "7d", "week", "weekly", "seven", "day"})
-    if period == "mo":
-        return frozenset({"month", "monthly"})
-    if period == "5h":
-        return frozenset({"5", "5h", "5-hour", "five", "five-hour", "hour", "hours"})
-    if period == "session":
-        return frozenset({"session"})
-    return frozenset()
-
-
-def _looks_like_included_allowance(tokens: Sequence[str]) -> bool:
-    words = {token.casefold() for token in tokens}
-    return _INCLUDED_ALLOWANCE_WORDS <= words
-
-
-def _remaining_text(
-    window: Mapping[str, Any] | None,
-    hint: CapacityHint,
-) -> str | None:
-    if window is not None:
-        used = _optional_float(window.get("used_percent"))
-        if used is not None:
-            try:
-                return provider_usage_format_remaining_text(used)
-            except Exception:
-                return _format_remaining_percent(max(0.0, 100.0 - used))
-        remaining = _optional_float(window.get("remaining_percent"))
-        if remaining is not None:
-            return _format_remaining_percent(remaining)
-    label_remaining = hint.label.split(" · ", 1)[0].strip()
-    if label_remaining.endswith("% left") or label_remaining.startswith("<1% left"):
-        return label_remaining
-    if hint.remaining_percent is not None:
-        return _format_remaining_percent(hint.remaining_percent)
-    return None
-
-
-def _format_remaining_percent(remaining: float) -> str:
-    if 0.0 < remaining < 1.0:
-        return "<1% left"
-    return f"{_format_number(remaining)}% left"
-
-
-def _window_by_key(
-    windows: Sequence[Mapping[str, Any]],
-    key: str | None,
-) -> Mapping[str, Any] | None:
-    if not key:
-        return None
-    for window in windows:
-        if window.get("key") == key:
-            return window
-    return None
-
-
-def _windows(provider: Mapping[str, Any] | None) -> tuple[Mapping[str, Any], ...]:
-    if provider is None:
-        return ()
-    raw = provider.get("windows")
-    if not isinstance(raw, list):
-        return ()
-    return tuple(item for item in raw if isinstance(item, Mapping))
-
-
-def _providers_by_name(
-    providers: Sequence[Mapping[str, Any]],
-) -> dict[str, Mapping[str, Any]]:
-    indexed: dict[str, Mapping[str, Any]] = {}
-    for provider in providers:
-        name = _optional_text(provider.get("provider"))
-        if name:
-            indexed[name] = provider
-    return indexed
-
-
-def _joined_strings(value: object) -> str | None:
-    if not isinstance(value, list):
-        return None
-    strings = [item.strip() for item in value if isinstance(item, str) and item.strip()]
-    return ",".join(strings) if strings else None
+def _provider_icon(provider: str) -> str:
+    icon = provider_emoji_badge(provider)
+    if icon:
+        return icon
+    fallback = provider.strip().upper()[:4]
+    return fallback or "?"
 
 
 def _optional_text(value: object) -> str | None:
@@ -593,12 +334,15 @@ def _optional_float(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
     number = float(value)
-    if not math.isfinite(number):
+    if number != number or number in (float("inf"), float("-inf")):
         return None
     return number
 
 
-def _format_number(value: float) -> str:
-    if value.is_integer():
-        return str(int(value))
-    return f"{value:.2f}".rstrip("0").rstrip(".")
+__all__ = [
+    "UsageBadge",
+    "build_usage_indicator_segment",
+    "usage_indicator_badges",
+    "usage_indicator_open_provider",
+    "usage_indicator_tooltip_lines",
+]

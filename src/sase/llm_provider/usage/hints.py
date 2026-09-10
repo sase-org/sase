@@ -25,7 +25,7 @@ _SHARED_KINDS = frozenset({"account", "unknown"})
 
 
 @dataclass(frozen=True, slots=True)
-class CapacityHint:
+class _CapacityHint:
     """One scoped capacity hint for a picker row, alias member, or indicator."""
 
     kind: str
@@ -51,7 +51,7 @@ class CapacityHint:
         return f"{self.marker} {self.label}"
 
 
-def provider_header_capacity_hint(provider: Mapping[str, Any]) -> CapacityHint | None:
+def provider_header_capacity_hint(provider: Mapping[str, Any]) -> _CapacityHint | None:
     """Return a shared or unknown-scope hint for a provider heading, if any."""
     name = _provider_name(provider)
     attention = _attention_kind(provider)
@@ -74,7 +74,7 @@ def provider_header_capacity_hint(provider: Mapping[str, Any]) -> CapacityHint |
 def model_capacity_hint(
     provider: Mapping[str, Any],
     model_id: str,
-) -> CapacityHint | None:
+) -> _CapacityHint | None:
     """Return a model-specific or unknown-scope hint that is not on the header."""
     name = _provider_name(provider)
     try:
@@ -98,7 +98,7 @@ def model_capacity_hint(
 def member_capacity_hint(
     provider: Mapping[str, Any] | None,
     model_id: str,
-) -> CapacityHint | None:
+) -> _CapacityHint | None:
     """Return the best applicable hint for one alias member, including shared windows."""
     if provider is None or not model_id:
         return None
@@ -124,10 +124,10 @@ def alias_capacity_hint(
     model: str | None,
     selector_members: Sequence[Any] = (),
     providers: Mapping[str, Mapping[str, Any]],
-) -> CapacityHint | None:
+) -> _CapacityHint | None:
     """Return a member-scoped alias hint without combining member percentages."""
     if selector_members:
-        best: CapacityHint | None = None
+        best: _CapacityHint | None = None
         for member in selector_members:
             if getattr(member, "valid", True) is False:
                 continue
@@ -139,7 +139,7 @@ def alias_capacity_hint(
             hint = member_capacity_hint(providers.get(member_provider), model_id)
             if hint is None:
                 continue
-            labeled = CapacityHint(
+            labeled = _CapacityHint(
                 kind=hint.kind,
                 label=f"{model_id} {hint.label}",
                 provider=hint.provider,
@@ -153,35 +153,6 @@ def alias_capacity_hint(
     if not isinstance(provider, str) or not model:
         return None
     return member_capacity_hint(providers.get(provider), model)
-
-
-def indicator_usage_items(
-    providers: Sequence[Mapping[str, Any]],
-    eligible: Sequence[str] | set[str] | frozenset[str],
-) -> tuple[CapacityHint, ...]:
-    """Return eligible usage attention items, highest rank first, then provider id."""
-    allowed = set(eligible)
-    items: list[CapacityHint] = []
-    for provider in providers:
-        name = _provider_name(provider)
-        if name not in allowed:
-            continue
-        hint = _attention_hint(provider, shared_only=False)
-        if hint is not None:
-            items.append(hint)
-    items.sort(key=_hint_sort_key)
-    return tuple(items)
-
-
-def indicator_usage_attention(
-    providers: Sequence[Mapping[str, Any]],
-    eligible: Sequence[str] | set[str] | frozenset[str],
-) -> tuple[CapacityHint | None, int]:
-    """Return the highest-rank eligible usage item and the eligible attention count."""
-    items = indicator_usage_items(providers, eligible)
-    if not items:
-        return None, 0
-    return items[0], len(items)
 
 
 def providers_by_name(
@@ -223,7 +194,7 @@ def _attention_hint(
     provider: Mapping[str, Any],
     *,
     shared_only: bool,
-) -> CapacityHint | None:
+) -> _CapacityHint | None:
     name = _provider_name(provider)
     kind = _attention_kind(provider)
     if kind == "none":
@@ -233,7 +204,7 @@ def _attention_hint(
     window_key = _attention_window_key(provider)
     window = _window_by_key(_windows(provider), window_key)
     if window is None:
-        return CapacityHint(kind=kind, label=_kind_fallback_label(kind), provider=name)
+        return _CapacityHint(kind=kind, label=_kind_fallback_label(kind), provider=name)
     if shared_only and not _is_shared_or_unknown(window.get("applicability")):
         return None
     unknown = _is_unknown_scope(window.get("applicability"))
@@ -241,9 +212,9 @@ def _attention_hint(
 
 
 def _fill_hint_remaining(
-    hint: CapacityHint,
+    hint: _CapacityHint,
     summary: Mapping[str, Any] | None,
-) -> CapacityHint:
+) -> _CapacityHint:
     """Copy remaining percent from the scoped core summary when the window omitted it."""
     if hint.remaining_percent is not None or not isinstance(summary, Mapping):
         return hint
@@ -252,7 +223,7 @@ def _fill_hint_remaining(
     remaining = _optional_float(summary.get("remaining_percent"))
     if remaining is None:
         return hint
-    return CapacityHint(
+    return _CapacityHint(
         kind=hint.kind,
         label=hint.label,
         provider=hint.provider,
@@ -268,7 +239,7 @@ def _hint_from_constraint(
     window: Mapping[str, Any],
     *,
     unknown: bool = False,
-) -> CapacityHint:
+) -> _CapacityHint:
     kind = str(constraint.get("attention") or "low")
     if kind not in _CONSTRAINT_KINDS:
         kind = "low"
@@ -283,7 +254,7 @@ def _hint_from_window(
     window: Mapping[str, Any],
     *,
     unknown: bool,
-) -> CapacityHint:
+) -> _CapacityHint:
     remaining = _remaining_text(window)
     scope = _window_scope_label(window, unknown=unknown)
     if remaining is None:
@@ -294,7 +265,7 @@ def _hint_from_window(
         label = f"{remaining} · {scope}"
     else:
         label = remaining
-    return CapacityHint(
+    return _CapacityHint(
         kind="unknown" if unknown and kind not in _CONSTRAINT_KINDS else kind,
         label=label,
         provider=provider,
@@ -304,10 +275,10 @@ def _hint_from_window(
     )
 
 
-def _unknown_window_hint(provider: str, window: Mapping[str, Any]) -> CapacityHint:
+def _unknown_window_hint(provider: str, window: Mapping[str, Any]) -> _CapacityHint:
     remaining = _remaining_text(window)
     label = f"{remaining} · scope unknown" if remaining else "usage unknown"
-    return CapacityHint(
+    return _CapacityHint(
         kind="unknown",
         label=label,
         provider=provider,
@@ -445,7 +416,7 @@ def _model_id_from_target(target: str) -> str:
     return cleaned
 
 
-def _hint_sort_key(hint: CapacityHint | None) -> tuple[int, str]:
+def _hint_sort_key(hint: _CapacityHint | None) -> tuple[int, str]:
     if hint is None:
         return (0, "")
     return (-hint.rank, hint.provider)
@@ -457,8 +428,8 @@ def _kind_fallback_label(kind: str) -> str:
     return "usage unknown" if kind == "unknown" else kind.replace("_", " ")
 
 
-def _collection_problem_hint(provider: str) -> CapacityHint:
-    return CapacityHint(
+def _collection_problem_hint(provider: str) -> _CapacityHint:
+    return _CapacityHint(
         kind="collection_problem",
         label="usage failing",
         provider=provider,
@@ -488,12 +459,9 @@ def _format_number(value: float) -> str:
 
 
 __all__ = [
-    "CapacityHint",
     "alias_capacity_hint",
     "capacity_hint_marker",
     "capacity_hint_style",
-    "indicator_usage_attention",
-    "indicator_usage_items",
     "member_capacity_hint",
     "model_capacity_hint",
     "model_id_from_target",

@@ -7,7 +7,6 @@ from sase.llm_provider.usage.hints import (
     alias_capacity_hint,
     capacity_hint_marker,
     capacity_hint_style,
-    indicator_usage_attention,
     member_capacity_hint,
     model_capacity_hint,
     provider_header_capacity_hint,
@@ -226,56 +225,6 @@ def test_member_hint_includes_shared_rejection() -> None:
     assert hint.kind == "rejected"
 
 
-def test_indicator_ranks_rejected_over_collection_then_low_and_skips_ineligible() -> (
-    None
-):
-    rejected = _claude_shared_rejected_and_model_healthy()
-    low = usage_provider(
-        "codex",
-        used_percent=80.0,
-        remaining_percent=20.0,
-        attention={"kind": "low", "provider": "codex", "window_key": "shared"},
-        windows=[usage_window(key="shared", label="Shared 5h")],
-        known_constraints=[
-            _constraint(usage_window(key="shared", label="Shared 5h"), "low")
-        ],
-    )
-    problem = usage_provider(
-        "grok",
-        used_percent=None,
-        remaining_percent=None,
-        collection_status="error",
-        attention={
-            "kind": "collection_problem",
-            "provider": "grok",
-            "window_key": None,
-        },
-        windows=[],
-    )
-    unused = usage_provider(
-        "fakey",
-        used_percent=None,
-        remaining_percent=None,
-        collection_status="unsupported",
-        attention={
-            "kind": "collection_problem",
-            "provider": "fakey",
-            "window_key": None,
-        },
-        windows=[],
-    )
-
-    item, count = indicator_usage_attention(
-        (rejected, low, problem, unused),
-        eligible={"claude", "codex", "grok"},
-    )
-
-    assert item is not None
-    assert item.provider == "claude"
-    assert item.kind == "rejected"
-    assert count == 3
-
-
 def test_collection_problem_hint_uses_failing_warning_identity() -> None:
     problem = usage_provider(
         "grok",
@@ -289,25 +238,9 @@ def test_collection_problem_hint_uses_failing_warning_identity() -> None:
         },
         windows=[],
     )
-    low = usage_provider(
-        "codex",
-        used_percent=80.0,
-        remaining_percent=20.0,
-        attention={"kind": "low", "provider": "codex", "window_key": "week"},
-        windows=[
-            usage_window(
-                key="week",
-                label="Week",
-                used_percent=80.0,
-                remaining_percent=20.0,
-                applicability={"kind": "account"},
-            )
-        ],
-    )
 
     header = provider_header_capacity_hint(problem)
     member = member_capacity_hint(problem, "gpt-5")
-    item, count = indicator_usage_attention((low, problem), eligible={"codex", "grok"})
 
     assert header is not None
     assert header.label == "usage failing"
@@ -316,48 +249,6 @@ def test_collection_problem_hint_uses_failing_warning_identity() -> None:
     assert member.label == "usage failing"
     assert capacity_hint_marker("collection_problem") == "⚠"
     assert capacity_hint_style("collection_problem") == "bold #FFAF5F"
-    assert item is not None
-    assert item.provider == "grok"
-    assert count == 2
-
-
-def test_indicator_tie_breaks_equal_rank_by_provider_id() -> None:
-    alpha = usage_provider(
-        "grok",
-        used_percent=80.0,
-        remaining_percent=20.0,
-        attention={"kind": "low", "provider": "grok", "window_key": "week"},
-        windows=[
-            usage_window(
-                key="week",
-                label="Week",
-                used_percent=80.0,
-                remaining_percent=20.0,
-                applicability={"kind": "account"},
-            )
-        ],
-    )
-    beta = usage_provider(
-        "codex",
-        used_percent=80.0,
-        remaining_percent=20.0,
-        attention={"kind": "low", "provider": "codex", "window_key": "week"},
-        windows=[
-            usage_window(
-                key="week",
-                label="Week",
-                used_percent=80.0,
-                remaining_percent=20.0,
-                applicability={"kind": "account"},
-            )
-        ],
-    )
-
-    item, count = indicator_usage_attention((alpha, beta), eligible={"grok", "codex"})
-
-    assert item is not None
-    assert item.provider == "codex"
-    assert count == 2
 
 
 def test_healthy_fresh_state_does_not_alert() -> None:
@@ -380,6 +271,3 @@ def test_healthy_fresh_state_does_not_alert() -> None:
 
     assert provider_header_capacity_hint(provider) is None
     assert model_capacity_hint(provider, "opus") is None
-    item, count = indicator_usage_attention((provider,), eligible={"claude"})
-    assert item is None
-    assert count == 0

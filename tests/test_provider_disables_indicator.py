@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -16,7 +17,7 @@ from sase.ace.tui.widgets.provider_disables_indicator import (
     ProviderDisablesIndicator,
     _ACTIVE_STYLE,
 )
-from sase.llm_provider.usage.hints import CapacityHint
+from sase.ace.tui.widgets._provider_usage_indicator import UsageBadge
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_SOFT,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
@@ -28,7 +29,6 @@ from sase.llm_provider.provider_priority import (
     provider_availability_facts,
     provider_routing_context_from_parts,
 )
-from tests._usage_view_helpers import FROZEN_NOW, usage_provider
 
 _MODULE = "sase.ace.tui.widgets.provider_disables_indicator"
 
@@ -370,7 +370,10 @@ def test_initial_content_uses_peek_cache(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     peek = MagicMock(return_value=context)
     monkeypatch.setattr(f"{_MODULE}.peek_provider_routing_context", peek)
-    monkeypatch.setattr(f"{_MODULE}.cached_usage_peek", lambda: ((), frozenset()))
+    monkeypatch.setattr(
+        f"{_MODULE}.cached_usage_indicator_projection",
+        lambda **_kwargs: SimpleNamespace(entries=(), providers=(), generated_at=100.0),
+    )
 
     rendered = ProviderDisablesIndicator()._build_initial_content()
 
@@ -389,23 +392,17 @@ async def test_provider_disables_indicator_is_mounted() -> None:
     assert isinstance(indicator, ProviderDisablesIndicator)
 
 
-def _usage_items() -> tuple[CapacityHint, CapacityHint]:
+def _usage_badges() -> tuple[UsageBadge, UsageBadge]:
     return (
-        CapacityHint(
-            kind="rejected",
-            label="0% left · Week · all",
+        UsageBadge(
             provider="grok",
-            window_key="weekly",
-            scope="Week · all",
-            remaining_percent=0.0,
+            text=Text("🛰️ ! 0% 3d4h"),
+            tooltip_lines=("GROK - rejected · 0% left · Week · all",),
         ),
-        CapacityHint(
-            kind="low",
-            label="12% left · Shared 5h",
+        UsageBadge(
             provider="codex",
-            window_key="shared",
-            scope="Shared 5h",
-            remaining_percent=12.5,
+            text=Text("🤖 12% 3d4h"),
+            tooltip_lines=("CODEX - low · 12% left · Shared 5h",),
         ),
     )
 
@@ -415,64 +412,58 @@ def test_usage_attention_renders_micro_total_beside_disable_when_budget_is_tiny(
 ):
     text = ProviderDisablesIndicator._build_content(
         {"claude": _disable(expires_at=None)},
-        usage_items=_usage_items(),
+        usage_badges=_usage_badges(),
         usage_budget=3,
         now=100.0,
     )
 
     assert "CLAUDE off ∞" in text.plain
-    assert "!2" in text.plain
+    assert text.plain.strip().endswith("2")
 
 
 def test_priority_pill_does_not_suppress_usage_attention() -> None:
+    grok_badge = _usage_badges()[0]
     text = ProviderDisablesIndicator._build_content(
         {},
         priority=_priority("codex", expires_at=3_820.0),
-        usage_items=_usage_items()[:1],
+        usage_badges=(grok_badge,),
         width=80,
         now=100.0,
     )
 
     assert "CODEX ★ priority 1h2m" in text.plain
-    assert "GROK" in text.plain
+    assert grok_badge.text.plain in text.plain
 
 
 def test_usage_tooltip_lists_attention_items() -> None:
     tooltip = ProviderDisablesIndicator._build_tooltip(
         {"claude": _disable("claude", expires_at=None, source="ace")},
-        usage_items=_usage_items(),
+        usage_badges=_usage_badges(),
         now=100.0,
     )
 
     assert tooltip is not None
     assert "CLAUDE - hard · manual, until cleared" in tooltip
-    assert "Usage attention:" in tooltip
+    assert "Usage windows:" in tooltip
     assert "GROK - rejected · 0% left · Week · all" in tooltip
     assert "Providers · Usage" in tooltip
 
 
 def test_usage_tooltip_lists_failing_collector_health_lines() -> None:
-    provider = usage_provider(
-        "codex",
-        collection_reason="vendor_drift",
-        collector_health={
-            "state": "failing",
-            "consecutive_failures": 5,
-            "failing_since": FROZEN_NOW - 172_800.0,
-            "last_success_at": FROZEN_NOW - 259_200.0,
-        },
+    badge = UsageBadge(
+        provider="codex",
+        text=Text("🤖 ⚠"),
+        tooltip_lines=(
+            "CODEX - collection problem · usage failing",
+            "collector health: failing · vendor drift · 5x",
+            "failing since: 2d ago",
+            "last success: 3d ago",
+        ),
     )
     tooltip = ProviderDisablesIndicator._build_tooltip(
         {},
-        usage_items=(
-            CapacityHint(
-                kind="collection_problem",
-                label="usage failing",
-                provider="codex",
-            ),
-        ),
-        usage_providers=(provider,),
-        now=FROZEN_NOW,
+        usage_badges=(badge,),
+        now=100.0,
     )
 
     assert tooltip is not None
