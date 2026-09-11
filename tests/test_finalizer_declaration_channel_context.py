@@ -33,12 +33,15 @@ def test_final_parser_registers_context_and_submit() -> None:
 
     context_args = parser.parse_args(["final", "context", "-f", "json"])
     submit_args = parser.parse_args(["final", "submit", "-"])
+    prepare_args = parser.parse_args(["final", "prepare", "completion.json"])
 
     assert context_args.command == "final"
     assert context_args.final_subcommand == "context"
     assert context_args.format == "json"
     assert submit_args.final_subcommand == "submit"
     assert submit_args.manifest == "-"
+    assert prepare_args.final_subcommand == "prepare"
+    assert prepare_args.manifest == "completion.json"
 
 
 def test_context_publishes_opaque_dirty_repository_obligation(

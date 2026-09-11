@@ -55,6 +55,10 @@ class StartMonitorRequest:
     inherit_lane_workspace_claim: bool = True
     transfer_claim_from_pid: int | None = None
     execution_argv: Sequence[str] | None = None
+    completion_ref: str | None = None
+    profile: str | None = None
+    policy_digest: str | None = None
+    checkpoint_ref: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -83,7 +87,9 @@ def monitor_request_fingerprint(
     change whether two host-owned epic launches are the same request.
     """
     payload = {
+        "checkpoint_ref": request.checkpoint_ref or None,
         "command": request.command,
+        "completion_ref": request.completion_ref or None,
         "cwd": request.cwd,
         "idle_timeout_seconds": request.idle_timeout_seconds,
         "inherit_lane_workspace_claim": request.inherit_lane_workspace_claim,
@@ -92,6 +98,8 @@ def monitor_request_fingerprint(
         "next_action": request.next_action or None,
         "next_model": request.next_model or None,
         "next_output": request.next_output,
+        "policy_digest": request.policy_digest or None,
+        "profile": request.profile or None,
         "project_name": request.project_name,
         "reason": request.reason,
         "start_status": request.start_status,

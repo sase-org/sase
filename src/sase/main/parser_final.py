@@ -24,6 +24,7 @@ def register_final_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase final list\n"
             "  sase final show commit\n"
             "  sase final context -f json\n"
+            "  sase final prepare completion.json\n"
             "  sase final submit final-manifest.json\n"
             "  sase final submit -\n"
             "  sase final defer repo-a protected_paths"
@@ -102,6 +103,36 @@ def register_final_parser(subparsers: argparse._SubParsersAction) -> None:
         help="List effective finalizer instances",
     )
     _add_format_argument(list_parser)
+
+    prepare_parser = final_subparsers.add_parser(
+        "prepare",
+        help="Seal a single-use host-completion intent without submitting",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Validate a versioned completion wrapper against the current "
+            "host-issued finalizer context, observe opened repositories, and "
+            "store a host-sealed single-use intent. Prints the immutable "
+            "reference and a readable preview. Does not submit, commit, "
+            "publish, or end the turn."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase final prepare completion.json\n"
+            "  sase final prepare completion.json -j\n"
+            "  sase final prepare -"
+        ),
+    )
+    prepare_parser.add_argument(
+        "manifest",
+        metavar="<manifest-file|->",
+        help="JSON completion wrapper path, or '-' to read stdin",
+    )
+    prepare_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit the sealed intent reference and preview as JSON",
+    )
 
     show_parser = final_subparsers.add_parser(
         "show",

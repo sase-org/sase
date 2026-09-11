@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from hashlib import sha256
 import json
 import sys
 import time
@@ -221,6 +222,15 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
     if next_model and not _optional_text(next_action):
         print(_MODEL_WITHOUT_NEXT, file=sys.stderr)
         return 2
+    profile = _optional_text(getattr(args, "profile", None))
+    policy_path = _optional_text(getattr(args, "policy", None))
+    if profile and policy_path:
+        print(
+            "sase monitor start: -p/--profile and -P/--policy are mutually exclusive",
+            file=sys.stderr,
+        )
+        return 2
+    completion_ref = _optional_text(getattr(args, "completion", None))
 
     try:
         raw_timeout = (
@@ -267,6 +277,12 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         )
         return 2
 
+    try:
+        policy_digest = _policy_file_digest(policy_path) if policy_path else None
+    except ValueError as exc:
+        print(f"sase monitor start: {exc}", file=sys.stderr)
+        return 2
+
     request = StartMonitorRequest(
         command=command,
         reason=reason,
@@ -282,6 +298,9 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         tail_lines=getattr(args, "tail_lines", None) or DEFAULT_TAIL_LINES,
         idle_timeout_seconds=idle_timeout_seconds,
         next_output=getattr(args, "next_output", None) or DEFAULT_NEXT_OUTPUT,
+        completion_ref=completion_ref,
+        profile=profile,
+        policy_digest=policy_digest,
     )
 
     try:
@@ -523,6 +542,32 @@ def _retained_log_evidence(record: MonitorRecord) -> dict[str, object] | None:
     if not metadata:
         return None
     return {"mode": "tail", "retained_log": metadata}
+
+
+def _policy_file_digest(path: str) -> str:
+    """Return a fingerprint for an outcome-policy file without evaluating code."""
+
+    policy_path = Path(path).expanduser()
+    try:
+        raw = policy_path.read_bytes()
+    except OSError as exc:
+        raise ValueError(f"could not read -P/--policy file: {exc}") from exc
+    text = raw.decode("utf-8")
+    try:
+        payload = json.loads(text)
+    except json.JSONDecodeError:
+        from sase._yaml_safe import yaml_safe_load
+
+        try:
+            payload = yaml_safe_load(text)
+        except Exception as exc:
+            raise ValueError(
+                f"-P/--policy {path!r} is not JSON or YAML: {exc}"
+            ) from exc
+    if not isinstance(payload, dict):
+        raise ValueError("-P/--policy file must contain a JSON/YAML object")
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return f"sha256:{sha256(encoded).hexdigest()}"
 
 
 def _validate_show_args(args: argparse.Namespace) -> str | None:

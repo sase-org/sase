@@ -180,6 +180,23 @@ def _start_monitor_locked(
         has_existing_monitor=store.has_any_monitor(request.project_name, durable_lane),
     )
     monitor_id = naming.new_monitor_id()
+    bound_completion_ref: str | None = None
+    if request.completion_ref:
+        from sase.finalizers.declaration import FinalizerDeclarationError
+        from sase.finalizers.prepare import bind_prepared_completion
+
+        starter_artifacts = store.caller_artifacts_dir()
+        try:
+            bind_prepared_completion(
+                request.completion_ref,
+                monitor_id=monitor_id,
+                command=request.command,
+                request_fingerprint=request_fingerprint,
+                artifacts_dir=starter_artifacts,
+            )
+        except FinalizerDeclarationError as exc:
+            raise MonitorError(str(exc)) from exc
+        bound_completion_ref = request.completion_ref
 
     artifacts_dir = create_monitor_member(
         request.project_name,
@@ -204,6 +221,8 @@ def _start_monitor_locked(
         request_fingerprint=request_fingerprint,
         starter_agent=lane_start.starter_agent,
         execution_argv=request.execution_argv,
+        completion_ref=request.completion_ref,
+        profile=request.profile,
     )
     log_path = monitor_log_path(artifacts_dir)
     update_meta_field(artifacts_dir, "monitor_output_path", str(log_path))
@@ -312,6 +331,14 @@ def _start_monitor_locked(
                 supervisor_pid=supervisor_pid,
                 starter_claim=claim.starter_claim,
                 cl_name=lane_start.cl_name,
+            )
+        if bound_completion_ref is not None:
+            from sase.finalizers.prepare import rollback_prepared_completion
+
+            rollback_prepared_completion(
+                bound_completion_ref,
+                monitor_id=monitor_id,
+                artifacts_dir=store.caller_artifacts_dir(),
             )
         _teardown_failed_member(artifacts_dir, str(exc))
         raise MonitorError(str(exc)) from exc

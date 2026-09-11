@@ -253,6 +253,16 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         help=argparse.SUPPRESS,
     )
     start_parser.add_argument(
+        "-f",
+        "--completion",
+        default=None,
+        metavar="REF",
+        help=(
+            "Prepared host-completion intent reference from `sase final "
+            "prepare`. Binding is atomic and single-use"
+        ),
+    )
+    start_parser.add_argument(
         "-C",
         "--cwd",
         default=None,
@@ -310,6 +320,23 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
             "last --tail-lines lines fenced as untrusted data, 'file' points "
             "at refs and log locators instead, 'none' gives only the outcome "
             "summary and a `sase monitor show --all-lines` pointer"
+        ),
+    )
+    start_parser.add_argument(
+        "-P",
+        "--policy",
+        default=None,
+        metavar="FILE",
+        help="Outcome-policy file. Mutually exclusive with -p/--profile",
+    )
+    start_parser.add_argument(
+        "-p",
+        "--profile",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Named outcome profile (verify). Profile selection alone never "
+            "authorizes host completion"
         ),
     )
     start_parser.add_argument(

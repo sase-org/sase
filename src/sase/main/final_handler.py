@@ -19,6 +19,11 @@ from sase.finalizers.declaration import (
     read_final_manifest_from_path,
     submit_final_manifest,
 )
+from sase.finalizers.prepare import (
+    format_prepare_preview,
+    prepare_conditional_completion,
+    read_prepare_manifest,
+)
 
 
 def _handle_context(args: argparse.Namespace) -> int:
@@ -27,6 +32,18 @@ def _handle_context(args: argparse.Namespace) -> int:
         print(json.dumps(publication.payload, indent=2, sort_keys=True))
     else:
         print(format_context_pretty(publication.payload))
+    return 0
+
+
+def _handle_prepare(args: argparse.Namespace) -> int:
+    wrapper = read_prepare_manifest(str(args.manifest))
+    prepared = prepare_conditional_completion(wrapper)
+    print(
+        format_prepare_preview(
+            prepared,
+            json_output=bool(getattr(args, "json", False)),
+        )
+    )
     return 0
 
 
@@ -129,6 +146,7 @@ def _accepted_deferral_summaries(payload: dict[str, object]) -> list[str]:
 _DECLARATION_HANDLERS = {
     "context": _handle_context,
     "defer": _handle_defer,
+    "prepare": _handle_prepare,
     "submit": _handle_submit,
 }
 
@@ -150,7 +168,7 @@ def handle_final_command(args: argparse.Namespace) -> None:
     )
     if handler is None:
         print(
-            "Usage: sase final {context,defer,doctor,list,show,submit}",
+            "Usage: sase final {context,defer,doctor,list,prepare,show,submit}",
             file=sys.stderr,
         )
         sys.exit(2)

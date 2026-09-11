@@ -59,6 +59,10 @@ def test_monitor_start_help_documents_positional_command_and_optional_policy() -
     assert "(default: 1h)" in start_help
     assert "(default: 'run command')" in start_help
     assert "sase monitor start -s TESTING -S TESTED -- just check-full" in start_help
+    assert_metavar_option_documented(start_help, "-f", "--completion", "REF")
+    assert_metavar_option_documented(start_help, "-p", "--profile", "NAME")
+    assert_metavar_option_documented(start_help, "-P", "--policy", "FILE")
+    assert "Profile selection alone never authorizes host completion" in start_help
 
 
 def test_monitor_start_help_names_status_flags_as_required() -> None:
@@ -183,11 +187,14 @@ def test_monitor_short_options_have_the_documented_long_aliases() -> None:
     for short, long in (
         ("-a", "--agent"),
         ("-c", "--command"),
+        ("-f", "--completion"),
         ("-C", "--cwd"),
         ("-i", "--idle-timeout"),
         ("-L", "--label"),
         ("-m", "--model"),
         ("-n", "--next"),
+        ("-P", "--policy"),
+        ("-p", "--profile"),
         ("-r", "--reason"),
         ("-s", "--start-status"),
         ("-S", "--stop-status"),

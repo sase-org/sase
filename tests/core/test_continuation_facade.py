@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+from hashlib import sha256
 from typing import Any
 
 import pytest
 
 from sase.core.continuation_facade import (
+    bind_conditional_completion,
     continuation_wire_schema_version,
     plan_continuation_budget,
     plan_continuation_replay,
+    preview_conditional_completion,
     resolve_continuation_policy,
+    rollback_conditional_completion_binding,
+    seal_conditional_completion,
     select_continuation_evidence,
     validate_continuation_delivery_record,
     validate_continuation_graph,
@@ -363,3 +368,140 @@ def test_policy_resolution_and_budget_decisions_are_typed() -> None:
     refusal = plan_continuation_budget(refusal_request)
     assert refusal["kind"] == "refuse"
     assert "essential_content_exceeds_budget" in refusal["reasons"]
+
+
+def _digest(label: str) -> str:
+    return sha256(label.encode()).hexdigest()
+
+
+def _prepare_request(**overrides: object) -> dict[str, Any]:
+    request: dict[str, Any] = {
+        "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+        "creator": {
+            "project": "sase",
+            "run_id": "run-1",
+            "agent_name": "agent-1",
+        },
+        "context": {
+            "run_id": "run-1",
+            "agent_id": "agent-1",
+            "turn_nonce": "nonce-1",
+            "plan_digest": _digest("plan"),
+            "context_digest": _digest("context"),
+            "obligation_ids": ["repo-main"],
+        },
+        "success_message": "Required checks passed in {duration}.",
+        "verification_command": ["just", "check-full"],
+        "declaration": {
+            "schema_version": 2,
+            "context_digest": _digest("context"),
+            "plan_digest": _digest("plan"),
+            "payloads": [
+                {
+                    "instance_id": "commit",
+                    "payload": {
+                        "repositories": [
+                            {
+                                "repo_id": "repo-main",
+                                "action": "commit",
+                                "message": "fix: finish the change",
+                            }
+                        ],
+                        "deferrals": [],
+                    },
+                }
+            ],
+        },
+        "observations": [
+            {
+                "repo_id": "repo-main",
+                "kind": "main",
+                "name": "main",
+                "head": _digest("head"),
+                "head_tree": _digest("head-tree"),
+                "index_tree": _digest("index-tree"),
+                "complete": True,
+                "paths": [
+                    {
+                        "path": "src/app.py",
+                        "xy": "M",
+                        "content_hash": _digest("app"),
+                        "mode": "100644",
+                        "kind": "file",
+                        "protected": False,
+                        "foreign": False,
+                    }
+                ],
+            }
+        ],
+        "executors": [
+            {
+                "instance_id": "commit",
+                "provider_ref": "builtin@commit",
+                "headless": True,
+                "durable_replay": True,
+                "requires_model": False,
+            }
+        ],
+    }
+    request.update(overrides)
+    return request
+
+
+def test_conditional_completion_seal_preview_and_single_use_bind() -> None:
+    intent = seal_conditional_completion(_prepare_request())
+    assert intent["status"] == "prepared"
+    assert intent["verification"]["level"] == "check_full"
+    preview = preview_conditional_completion(intent)
+    assert preview["success_action"] == "complete"
+    assert preview["eligible"] is True
+
+    bound = bind_conditional_completion(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "intent": intent,
+            "monitor_id": "monitor-1",
+            "command": ["just", "check-full"],
+            "request_fingerprint": "sha256:abc",
+        }
+    )
+    assert bound["status"] == "bound"
+    with pytest.raises(ValueError, match="not reusable"):
+        bind_conditional_completion(
+            {
+                "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+                "intent": bound,
+                "monitor_id": "monitor-2",
+                "command": ["just", "check-full"],
+                "request_fingerprint": "sha256:def",
+            }
+        )
+    restored = rollback_conditional_completion_binding(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "intent": bound,
+            "monitor_id": "monitor-1",
+        }
+    )
+    assert restored["status"] == "prepared"
+
+
+def test_conditional_completion_rejects_missing_decisions_and_changed_commands() -> (
+    None
+):
+    request = _prepare_request()
+    request["declaration"]["payloads"][0]["payload"]["repositories"] = []
+    with pytest.raises(ValueError, match="missing repository decisions"):
+        seal_conditional_completion(request)
+
+    intent = seal_conditional_completion(_prepare_request())
+    with pytest.raises(ValueError, match="does not match"):
+        bind_conditional_completion(
+            {
+                "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+                "intent": intent,
+                "monitor_id": "monitor-1",
+                "command": ["just", "check"],
+                "request_fingerprint": "sha256:abc",
+            }
+        )

@@ -40,6 +40,8 @@ def create_monitor_member(
     starter_agent: str | None = None,
     next_model: str | None = None,
     execution_argv: Sequence[str] | None = None,
+    completion_ref: str | None = None,
+    profile: str | None = None,
 ) -> str:
     """Create a monitor family member's artifacts directory.
 
@@ -80,6 +82,10 @@ def create_monitor_member(
         monitor_metadata["monitor_execution_argv"] = [
             str(part) for part in execution_argv
         ]
+    if completion_ref:
+        monitor_metadata["monitor_completion_ref"] = completion_ref
+    if profile:
+        monitor_metadata["monitor_profile"] = profile
 
     return create_family_shell_member(
         project_name,

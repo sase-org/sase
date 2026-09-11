@@ -8,6 +8,10 @@ from typing import Any
 from sase.core.continuation_wire import (
     AgentDeltaWire,
     CONTINUATION_WIRE_SCHEMA_VERSION,
+    ConditionalCompletionBindRequestWire,
+    ConditionalCompletionIntentWire,
+    ConditionalCompletionPrepareRequestWire,
+    ConditionalCompletionRollbackRequestWire,
     ContinuationBudgetRequestWire,
     ContinuationEvidenceSelectionRequestWire,
     ContinuationIntentWire,
@@ -171,6 +175,68 @@ def plan_continuation_budget(
     )
 
 
+def validate_conditional_completion_intent(
+    intent: ConditionalCompletionIntentWire | JsonMapping,
+) -> JsonObject:
+    """Validate one host-sealed conditional completion intent."""
+
+    binding = require_rust_binding("continuation_validate_conditional_completion")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(intent)),
+        "continuation_validate_conditional_completion",
+    )
+
+
+def seal_conditional_completion(
+    request: ConditionalCompletionPrepareRequestWire | JsonMapping,
+) -> JsonObject:
+    """Seal a conditional completion intent from host observations."""
+
+    binding = require_rust_binding("continuation_seal_conditional_completion")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_seal_conditional_completion",
+    )
+
+
+def preview_conditional_completion(
+    intent: ConditionalCompletionIntentWire | JsonMapping,
+) -> JsonObject:
+    """Render a host-completion preview for a sealed intent."""
+
+    binding = require_rust_binding("continuation_preview_conditional_completion")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(intent)),
+        "continuation_preview_conditional_completion",
+    )
+
+
+def bind_conditional_completion(
+    request: ConditionalCompletionBindRequestWire | JsonMapping,
+) -> JsonObject:
+    """Bind a prepared intent to one monitor request (single-use)."""
+
+    binding = require_rust_binding("continuation_bind_conditional_completion")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_bind_conditional_completion",
+    )
+
+
+def rollback_conditional_completion_binding(
+    request: ConditionalCompletionRollbackRequestWire | JsonMapping,
+) -> JsonObject:
+    """Roll back a failed monitor-start binding so the intent is reusable."""
+
+    binding = require_rust_binding(
+        "continuation_rollback_conditional_completion_binding"
+    )
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_rollback_conditional_completion_binding",
+    )
+
+
 def _json_object(value: Any, operation: str) -> JsonObject:
     if not isinstance(value, Mapping):
         raise TypeError(f"{operation} returned a non-mapping payload")
@@ -179,12 +245,17 @@ def _json_object(value: Any, operation: str) -> JsonObject:
 
 __all__ = [
     "CONTINUATION_WIRE_SCHEMA_VERSION",
+    "bind_conditional_completion",
     "continuation_wire_schema_version",
     "plan_continuation_budget",
     "plan_continuation_replay",
+    "preview_conditional_completion",
     "resolve_continuation_policy",
+    "rollback_conditional_completion_binding",
+    "seal_conditional_completion",
     "select_continuation_evidence",
     "validate_agent_delta",
+    "validate_conditional_completion_intent",
     "validate_continuation_delivery_record",
     "validate_continuation_graph",
     "validate_continuation_intent",
