@@ -214,6 +214,79 @@ def test_drain_publishes_machine_alias_but_retains_unreleased_read(
     assert remaining.agent_name == "reader"
 
 
+def test_ineligible_drain_never_silently_drops_an_unconverted_legacy_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A no-op drain must not lose an unconverted schema-v1 outbox row.
+
+    Reproduces the audited defect where seeding a valid legacy v1 row
+    alongside an ineligible v2 entry, then draining with nothing eligible
+    to publish, silently rewrote the queue from schema ``[1, 2]`` to
+    ``[2]`` while reporting ``drained=0, dropped=0``.
+    """
+
+    home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, home)
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = tmp_path / "plans"
+    _init_plans_repo(repo)
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={"plan": repo},
+    )
+    path = home / "projects" / store.project_key / ARTIFACT_LINK_OUTBOX_FILENAME
+    path.parent.mkdir(parents=True)
+    legacy_row = _row(
+        source="agent:legacy-reader",
+        relation="read",
+        target="plan:legacy.md",
+        origin="read",
+    )
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "id": "legacy-unconverted",
+                "created_at": 1.0,
+                "project_key": store.project_key,
+                "agent_name": "legacy-reader",
+                "run_id": "",
+                "row": legacy_row,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    append_artifact_link_outbox_entry(
+        project_key=store.project_key,
+        agent_name="reader",
+        run_id="run-1",
+        row=_row(source="agent:reader", target="plan:doc.md", origin="read"),
+    )
+    before = [
+        json.loads(line)["schema_version"]
+        for line in path.read_text(encoding="utf-8").splitlines()
+    ]
+
+    report = drain_artifact_link_outbox(
+        store=store,
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+
+    after = [
+        json.loads(line)["schema_version"]
+        for line in path.read_text(encoding="utf-8").splitlines()
+    ]
+    assert report.drained == 0
+    assert report.dropped == 0
+    assert before == [1, 2]
+    assert after == [1, 2]
+    [remaining] = read_artifact_link_outbox_entries(store.project_key)
+    assert remaining.agent_name == "reader"
+
+
 def test_read_records_no_dirty_state_and_drain_publishes_once_evidence_exists(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

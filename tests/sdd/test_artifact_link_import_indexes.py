@@ -130,6 +130,69 @@ def test_import_indexes_resumes_from_committed_fenced_marker(
     assert row["target_ref"] == "plan:b.md"
 
 
+def test_import_indexes_resumes_multi_root_after_partial_marker_write_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A crash between two roles' marker writes must not corrupt either root.
+
+    Reproduces the audited defect where failing the second of two
+    ``atomic_write_bytes`` marker writes left a role with a partial marker
+    set that every retry rejected as ``partial; missing roles``.
+    """
+
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    plans = _init_repo(tmp_path / "plans")
+    research = _init_repo(tmp_path / "research")
+    _write_index(plans, "a.md", [_row(target="research:202608/a.md")])
+    _git(plans, "add", "-A")
+    _git(plans, "commit", "-q", "-m", "legacy link indexes")
+    store = ArtifactLinkStore(
+        project_key=PROJECT_KEY,
+        sidecar_roots={"plan": plans, "research": research},
+    )
+
+    import sase.sdd._artifact_link_import_apply as import_apply
+
+    original_write = import_apply.atomic_write_bytes
+    calls = 0
+
+    def _fail_second_marker_write(path: Path, payload: bytes) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("simulated crash between role marker writes")
+        original_write(path, payload)
+
+    monkeypatch.setattr(import_apply, "atomic_write_bytes", _fail_second_marker_write)
+
+    with pytest.raises(OSError, match="simulated crash between role marker writes"):
+        import_artifact_link_indexes(store, apply=True, push_after_commit=False)
+
+    monkeypatch.setattr(import_apply, "atomic_write_bytes", original_write)
+
+    report = import_artifact_link_indexes(store, apply=True, push_after_commit=False)
+
+    assert report.applied is True
+    for root in (plans, research):
+        marker = read_artifact_link_cutover_marker(
+            root, expected_project_key=PROJECT_KEY
+        )
+        assert marker is not None
+        assert marker.state == "imported"
+        assert _git(root, "status", "--porcelain=v1", "--untracked-files=all") == ""
+    [row] = store.load_durable_rows()
+    assert row["source_ref"] == "plan:202608/a.md"
+    assert row["target_ref"] == "research:202608/a.md"
+
+    resumed_again = import_artifact_link_indexes(
+        store, apply=True, push_after_commit=False
+    )
+    assert resumed_again.already_imported is True
+    assert len(store.load_durable_rows()) == 1
+
+
 def test_import_indexes_converts_legacy_outbox_and_preserves_invalid_lines(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
