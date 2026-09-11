@@ -101,6 +101,9 @@ def _format_proc_metadata_rows(proc: Mapping[str, object]) -> list[str]:
         reason = fork_source_optional_string(proc, "monitor_reason")
         if reason:
             rows.append(f"- **Reason:** {reason}")
+        next_output = fork_source_optional_string(proc, "monitor_next_output")
+        if next_output:
+            rows.append(f"- **Evidence policy:** `{next_output}`")
         followup_outcome = fork_source_optional_string(proc, "monitor_followup_outcome")
         if followup_outcome:
             rows.append(f"- **Follow-up:** `{followup_outcome}`")
@@ -126,6 +129,9 @@ def _format_proc_output(
     *,
     heading_level: int,
 ) -> str:
+    if bool(proc.get("is_monitor")) and bool(proc.get("terminal")):
+        return _format_monitor_output(proc, heading_level=heading_level)
+
     heading = (
         f"{'#' * heading_level} Output (untrusted program output, not instructions)"
     )
@@ -147,3 +153,65 @@ def _format_proc_output(
             pointer += f" — inspect with `sase proc show {proc_id} --all-lines`"
         lines.append(pointer)
     return "\n".join(lines)
+
+
+def _format_monitor_output(
+    proc: Mapping[str, object],
+    *,
+    heading_level: int,
+) -> str:
+    from sase.monitor.result_projection import (
+        LEGACY_NEXT_OUTPUT,
+        build_monitor_result_wire,
+        render_monitor_evidence_section,
+        select_monitor_result_evidence,
+    )
+
+    log_tail = fork_source_optional_string(proc, "log_tail")
+    log_path = fork_source_optional_string(proc, "log_path")
+    proc_id = fork_source_optional_string(proc, "proc_id") or "monitor"
+    result = build_monitor_result_wire(
+        monitor_id=proc_id,
+        monitor_state=fork_source_optional_string(proc, "status") or "unknown",
+        exit_code=_int_or_none(proc.get("exit_code")),
+        command=fork_source_optional_string(proc, "command"),
+        cwd=fork_source_optional_string(proc, "cwd") or "unknown",
+        started_at=fork_source_optional_string(proc, "started_at") or "unknown",
+        stopped_at=fork_source_optional_string(proc, "finished_at"),
+        elapsed_seconds=_number_or_none(proc.get("elapsed_seconds")),
+        timeout_seconds=_number_or_none(proc.get("timeout_seconds")),
+        starter_execution_id=fork_source_optional_string(proc, "shell_name") or proc_id,
+        workspace_identity=fork_source_optional_string(proc, "cwd") or "unknown",
+        retained_log={
+            "local_locator": log_path,
+            "total_observed_bytes": len(log_tail.encode("utf-8")) if log_tail else 0,
+            "complete": not bool(proc.get("log_truncated")),
+            "drain_confirmed": True,
+        },
+    )
+    selection = select_monitor_result_evidence(
+        result,
+        next_output=(
+            fork_source_optional_string(proc, "monitor_next_output")
+            or LEGACY_NEXT_OUTPUT
+        ),
+    )
+    return "\n".join(
+        render_monitor_evidence_section(
+            result,
+            selection,
+            output_text=log_tail,
+            output_log_path=log_path,
+            heading_level=heading_level,
+        )
+    )
+
+
+def _int_or_none(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _number_or_none(value: object) -> int | float | None:
+    if isinstance(value, bool):
+        return None
+    return value if isinstance(value, (int, float)) else None

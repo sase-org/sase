@@ -18,6 +18,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
+from sase.continuation_capture import persist_monitor_result_best_effort
 from sase.history.chat import save_chat_history
 from sase.logs._bounded import log_file_lock
 from sase.monitor_state import monitor_state_bucket
@@ -179,6 +180,19 @@ def _reconcile_dead_supervisor_locked(
         retained_log_metadata_path(record.artifacts_dir)
     )
     meta["monitor_retained_log_ref"] = retained_log.get("log_ref")
+    persist_monitor_result_best_effort(
+        artifacts_dir=record.artifacts_dir,
+        meta=meta,
+        monitor_state=monitor_state,
+        exit_code=None,
+        elapsed_seconds=elapsed_seconds,
+        stopped_at=stopped_at,
+        diagnostic_manifest=diagnostic_manifest,
+        retained_log=retained_log,
+        timeout_kind=None,
+        project_name=record.project_name,
+        update_meta=False,
+    )
     write_agent_meta_atomic(
         record.artifacts_dir,
         meta,
@@ -248,6 +262,18 @@ def _reconcile_dead_supervisor_locked(
         "monitor_diagnostic_manifest_ref",
         "monitor_retained_log_metadata_path",
         "monitor_retained_log_ref",
+        "continuation_monitor_result_id",
+        "continuation_monitor_result_ref",
+        "continuation_monitor_result_path",
+        "continuation_monitor_result_sha256",
+        "continuation_monitor_result_node_id",
+        "continuation_monitor_result_node_ref",
+        "continuation_monitor_result_manifest_ref",
+        "continuation_monitor_result_manifest_path",
+        "continuation_node_id",
+        "continuation_node_ref",
+        "continuation_manifest_ref",
+        "continuation_manifest_path",
     ):
         if meta.get(key):
             done_marker[key] = meta[key]

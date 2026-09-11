@@ -26,6 +26,7 @@ from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.continuation_capture import persist_monitor_result_best_effort
 from sase.monitor_state import monitor_state_bucket
 from sase.history.chat import save_chat_history
 from sase.logs.pipe import BoundedLogPipe, BoundedLogRetention
@@ -473,6 +474,20 @@ def _finish_monitor(
         retained_log_metadata_path(artifacts_dir)
     )
     meta["monitor_retained_log_ref"] = retained_log.get("log_ref")
+    project_name = project_name_from_artifacts_dir(artifacts_dir)
+    persist_monitor_result_best_effort(
+        artifacts_dir=artifacts_dir,
+        meta=meta,
+        monitor_state=monitor_state,
+        exit_code=exit_code,
+        elapsed_seconds=elapsed_seconds,
+        stopped_at=stopped_at,
+        diagnostic_manifest=diagnostic_manifest,
+        retained_log=retained_log,
+        timeout_kind=timeout_kind,
+        project_name=project_name,
+        update_meta=False,
+    )
     persisted_meta = dict(meta)
     persisted_meta.pop("stopped_at", None)
     write_agent_meta_atomic(
@@ -497,7 +512,6 @@ def _finish_monitor(
         metadata_llm_provider=meta.get("llm_provider"),
     )
 
-    project_name = project_name_from_artifacts_dir(artifacts_dir)
     followup_settlement = settle_claim_and_followup(
         artifacts_dir,
         meta,
@@ -560,6 +574,18 @@ def _finish_monitor(
         "monitor_diagnostic_manifest_ref",
         "monitor_retained_log_metadata_path",
         "monitor_retained_log_ref",
+        "continuation_monitor_result_id",
+        "continuation_monitor_result_ref",
+        "continuation_monitor_result_path",
+        "continuation_monitor_result_sha256",
+        "continuation_monitor_result_node_id",
+        "continuation_monitor_result_node_ref",
+        "continuation_monitor_result_manifest_ref",
+        "continuation_monitor_result_manifest_path",
+        "continuation_node_id",
+        "continuation_node_ref",
+        "continuation_manifest_ref",
+        "continuation_manifest_path",
     ):
         if meta.get(key):
             done_marker[key] = meta[key]

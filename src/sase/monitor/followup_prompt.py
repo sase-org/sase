@@ -24,9 +24,14 @@ from sase.shells.prompt import (
 )
 from sase.xprompt._disabled_regions import wrap_disabled_region
 
-#: Values for ``--next-output`` / ``monitor_next_output``.
-NEXT_OUTPUT_CHOICES = ("none", "tail", "file")
-DEFAULT_NEXT_OUTPUT = "tail"
+from .result_projection import (
+    DEFAULT_NEXT_OUTPUT,
+    NEXT_OUTPUT_CHOICES,
+    build_monitor_result_wire,
+    output_cell_for_selection,
+    select_monitor_result_evidence,
+    selected_raw_limits,
+)
 
 
 def _elapsed_with_budget(elapsed_seconds: float, timeout_seconds: float) -> str:
@@ -57,28 +62,12 @@ def _outcome_line(
     return monitor_state.upper()
 
 
-def _format_output_summary(total_bytes: int, truncated: bool) -> str:
-    kib = total_bytes / 1024
-    summary = f"{kib:,.0f} KiB" if kib >= 1 else f"{total_bytes} bytes"
-    return f"{summary} (retained output truncated)" if truncated else summary
-
-
-def _output_cell(
-    total_bytes: int,
-    output_truncated: bool,
-    next_output: str,
-    log_pointer: str,
-    output_log_path: str | None,
-) -> str:
-    summary = _format_output_summary(total_bytes, output_truncated)
-    if next_output == "file" and output_log_path:
-        return f"{summary} · log file: `{output_log_path}` · full log: `{log_pointer}`"
-    return f"{summary} · full log: `{log_pointer}`"
-
-
-def _tail_section(output_text: str, tail_lines: int) -> list[str]:
+def _tail_section(output_text: str, tail_lines: int, max_chars: int) -> list[str]:
     return untrusted_output_section(
-        f"## Last {tail_lines} lines of output", output_text, tail_lines
+        f"## Last {tail_lines} lines of output",
+        output_text,
+        tail_lines,
+        max_chars=max_chars,
     )
 
 
@@ -125,6 +114,10 @@ def compose_followup_prompt(
     next_model: str | None = None,
     family_name: str | None = None,
     workspace_degraded_reason: str | None = None,
+    diagnostic_manifest: dict[str, object] | None = None,
+    retained_log_metadata: dict[str, object] | None = None,
+    starter_execution_id: str | None = None,
+    workspace_identity: str | None = None,
 ) -> str:
     """Compose the follow-up agent's full prompt.
 
@@ -137,13 +130,45 @@ def compose_followup_prompt(
     (the ``sase monitor start --model`` selection) replaces that inherited
     pair with a single formatted ``%model:`` expression instead.
 
-    ``next_output`` controls how much retained output is embedded:
-    ``"tail"`` (default) embeds the last ``tail_lines`` lines, fenced and
-    labeled untrusted; ``"file"`` omits the tail and instead names the
-    on-disk log path so the agent fetches it itself; ``"none"`` omits both,
-    leaving only the ``sase monitor show --all-lines`` pointer.
+    ``next_output`` controls how retained output is projected: ``"auto"``
+    (default) uses the outcome-aware Rust selector, ``"tail"`` embeds a
+    bounded raw tail, ``"file"`` exposes refs/locators only, and ``"none"``
+    leaves only facts plus the ``sase monitor show --all-lines`` pointer.
     """
     log_pointer = f"sase monitor show {monitor_id} --all-lines"
+    diagnostic_ref = (
+        diagnostic_manifest.get("manifest_ref") if diagnostic_manifest else None
+    )
+    retained_log = dict(retained_log_metadata or {})
+    if not retained_log:
+        retained_log = {
+            "log_ref": f"file:monitor-retained-log:{monitor_id}",
+            "local_locator": output_log_path,
+            "total_observed_bytes": total_bytes,
+            "complete": not output_truncated,
+            "drain_confirmed": True,
+        }
+    result = build_monitor_result_wire(
+        monitor_id=monitor_id,
+        monitor_state=monitor_state,
+        exit_code=exit_code,
+        command=command,
+        cwd=cwd,
+        started_at=started_at,
+        stopped_at=stopped_at,
+        elapsed_seconds=elapsed_seconds,
+        timeout_seconds=timeout_seconds,
+        timeout_kind=timeout_kind,
+        starter_execution_id=starter_execution_id or starter_name or family_name,
+        workspace_identity=workspace_identity or cwd,
+        diagnostic_manifest_ref=diagnostic_ref,
+        retained_log=retained_log,
+    )
+    selection = select_monitor_result_evidence(
+        result,
+        next_output=next_output,
+        diagnostic_manifest=diagnostic_manifest,
+    )
     rows = [
         (
             "Outcome",
@@ -161,8 +186,12 @@ def compose_followup_prompt(
         ("Elapsed", _elapsed_with_budget(elapsed_seconds, timeout_seconds)),
         (
             "Output",
-            _output_cell(
-                total_bytes, output_truncated, next_output, log_pointer, output_log_path
+            output_cell_for_selection(
+                total_bytes=total_bytes,
+                output_truncated=output_truncated,
+                selection=selection,
+                log_pointer=log_pointer,
+                output_log_path=output_log_path,
             ),
         ),
     ]
@@ -180,8 +209,10 @@ def compose_followup_prompt(
         f"**Why this was monitored:** {reason}",
         "",
     ]
-    if next_output == "tail":
-        sections.extend(_tail_section(output_text, tail_lines))
+    raw_limits = selected_raw_limits(selection, requested_tail_lines=tail_lines)
+    if raw_limits is not None:
+        selected_tail_lines, max_chars = raw_limits
+        sections.extend(_tail_section(output_text, selected_tail_lines, max_chars))
     if workspace_degraded_reason:
         sections.extend(
             [

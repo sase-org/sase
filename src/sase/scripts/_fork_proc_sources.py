@@ -48,6 +48,7 @@ class ForkProcInfo:
     log_truncated: bool
     monitor_lane: str | None = None
     monitor_reason: str | None = None
+    monitor_next_output: str | None = None
     monitor_followup_outcome: str | None = None
     monitor_followup_error: str | None = None
 
@@ -74,6 +75,7 @@ class ForkProcInfo:
         if self.is_monitor:
             data["monitor_lane"] = self.monitor_lane
             data["monitor_reason"] = self.monitor_reason
+            data["monitor_next_output"] = self.monitor_next_output
             data["monitor_followup_outcome"] = self.monitor_followup_outcome
             data["monitor_followup_error"] = self.monitor_followup_error
         return data
@@ -143,6 +145,7 @@ def proc_info_from_monitor(record: MonitorRecord) -> ForkProcInfo:
         log_truncated=truncated or record.output_truncated,
         monitor_lane=record.lane or None,
         monitor_reason=record.reason or None,
+        monitor_next_output=record.next_output,
         monitor_followup_outcome=record.followup_outcome,
         monitor_followup_error=record.followup_error,
     )

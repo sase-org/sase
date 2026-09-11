@@ -57,18 +57,34 @@ class _ReplayBuilder:
             return
         members = [member for member in raw_members if isinstance(member, Mapping)]
         members.sort(key=lambda member: _artifact_dir_name(member) or "")
-        for member in members:
+        newest_monitor_index = _newest_terminal_monitor_index(members)
+        for index, member in enumerate(members):
             self._add_one(
                 member,
                 label=f"family `{name}` member `{fork_source_string(member, 'name')}`",
+                historical_result=(
+                    newest_monitor_index is not None and index != newest_monitor_index
+                ),
             )
 
-    def _add_one(self, source: Mapping[str, object], *, label: str) -> None:
+    def _add_one(
+        self,
+        source: Mapping[str, object],
+        *,
+        label: str,
+        historical_result: bool = False,
+    ) -> None:
         artifact_dir = _artifact_dir(source)
         proc = _proc_info(source)
         if proc is not None and bool(proc.get("is_monitor")) and artifact_dir:
             if _has_monitor_continuation_meta(artifact_dir):
-                self._add_monitor_result(source, proc, artifact_dir, label=label)
+                self._add_monitor_result(
+                    source,
+                    proc,
+                    artifact_dir,
+                    label=label,
+                    historical_result=historical_result,
+                )
             else:
                 self._add_legacy_boundary(
                     source,
@@ -101,9 +117,29 @@ class _ReplayBuilder:
         artifact_dir: Path,
         *,
         label: str,
+        historical_result: bool = False,
     ) -> None:
         meta = load_json_object(artifact_dir / "agent_meta.json")
-        payload = _monitor_payload(source, proc, artifact_dir, meta)
+        frozen = _read_frozen_monitor_result(
+            source,
+            proc,
+            artifact_dir,
+            meta,
+            label=label,
+            historical_result=historical_result,
+        )
+        if frozen is not None:
+            frozen_node, content = frozen
+            self._add_node(frozen_node, content, versioned=True)
+            return
+
+        payload = _monitor_payload(
+            source,
+            proc,
+            artifact_dir,
+            meta,
+            historical_result=historical_result,
+        )
         digest = _sha_json(payload)
         proc_id = _safe_identifier(
             fork_source_optional_string(proc, "proc_id") or artifact_dir.name
@@ -328,6 +364,32 @@ def _render_agent_delta(payload: Mapping[str, Any]) -> list[str]:
 
 
 def _render_monitor_result(payload: Mapping[str, Any]) -> list[str]:
+    result = payload.get("result")
+    selection = payload.get("selection")
+    if isinstance(result, Mapping) and isinstance(selection, Mapping):
+        from sase.monitor.result_projection import render_monitor_result_block
+
+        return render_monitor_result_block(
+            result,
+            selection,
+            output_text=(
+                payload.get("output_text")
+                if isinstance(payload.get("output_text"), str)
+                else None
+            ),
+            output_log_path=(
+                payload.get("output_log_path")
+                if isinstance(payload.get("output_log_path"), str)
+                else None
+            ),
+            command_text=(
+                payload.get("command_text")
+                if isinstance(payload.get("command_text"), str)
+                else None
+            ),
+            heading_level=3,
+        )
+
     lines = [
         "### Monitor Result",
         "",
@@ -373,6 +435,99 @@ def _render_legacy_boundary(payload: Mapping[str, Any]) -> list[str]:
     if isinstance(transcript, str) and transcript:
         lines.append(f"- **Transcript:** `{transcript}`")
     return lines
+
+
+def _read_frozen_monitor_result(
+    source: Mapping[str, object],
+    proc: Mapping[str, object],
+    artifact_dir: Path,
+    meta: Mapping[str, object],
+    *,
+    label: str,
+    historical_result: bool,
+) -> tuple[ContinuationNodeWire, _BlockContent] | None:
+    manifest = _read_monitor_result_manifest(artifact_dir, meta)
+    node_ref = json_string(meta, "continuation_monitor_result_node_ref") or json_string(
+        manifest,
+        "node_ref",
+    )
+    if not node_ref:
+        return None
+    node = _read_json_ref(artifact_dir, node_ref)
+    if not node or node.get("kind") != "monitor_result":
+        return None
+    result_ref = (
+        json_string(meta, "continuation_monitor_result_ref")
+        or json_string(manifest, "result_ref")
+        or json_string(node, "content_ref")
+    )
+    if not result_ref:
+        return None
+    result = _read_json_ref(artifact_dir, result_ref)
+    if not result:
+        return None
+    expected_sha = node.get("content_sha256")
+    if (
+        isinstance(expected_sha, str)
+        and expected_sha
+        and _sha_json(result) != expected_sha
+    ):
+        raise ValueError(
+            f"monitor result digest mismatch for {node.get('node_id') or node_ref}"
+        )
+    return cast(ContinuationNodeWire, node), _BlockContent(
+        kind="monitor_result",
+        label=label,
+        payload=_monitor_payload_from_result(
+            source,
+            proc,
+            artifact_dir,
+            meta,
+            result,
+            historical_result=historical_result,
+        ),
+    )
+
+
+def _monitor_payload_from_result(
+    source: Mapping[str, object],
+    proc: Mapping[str, object],
+    artifact_dir: Path,
+    meta: Mapping[str, object],
+    result: Mapping[str, Any],
+    *,
+    historical_result: bool,
+) -> Mapping[str, Any]:
+    from sase.monitor.result_projection import (
+        LEGACY_NEXT_OUTPUT,
+        select_monitor_result_evidence,
+    )
+
+    diagnostic_manifest = _diagnostic_manifest_payload(artifact_dir, meta)
+    selection = select_monitor_result_evidence(
+        result,
+        next_output=(
+            json_string(meta, "monitor_next_output")
+            or fork_source_optional_string(proc, "monitor_next_output")
+            or LEGACY_NEXT_OUTPUT
+        ),
+        diagnostic_manifest=diagnostic_manifest,
+        historical_result=historical_result,
+    )
+    return {
+        "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+        "kind": "monitor_result",
+        "source_name": fork_source_string(source, "name"),
+        "artifact_dir_name": artifact_dir.name,
+        "result": result,
+        "selection": selection,
+        "output_text": fork_source_optional_string(proc, "log_tail"),
+        "output_log_path": fork_source_optional_string(proc, "log_path"),
+        "command_text": fork_source_optional_string(proc, "command"),
+        "historical_result": historical_result,
+        "next_action_ref": json_string(meta, "continuation_intent_ref"),
+        "checkpoint_ref": json_string(meta, "continuation_checkpoint_ref"),
+    }
 
 
 def _read_captured_agent_node(
@@ -471,24 +626,74 @@ def _monitor_payload(
     proc: Mapping[str, object],
     artifact_dir: Path,
     meta: Mapping[str, object],
+    *,
+    historical_result: bool,
 ) -> Mapping[str, Any]:
+    from sase.monitor.result_projection import (
+        LEGACY_NEXT_OUTPUT,
+        build_monitor_result_wire,
+        select_monitor_result_evidence,
+    )
+
+    log_tail = fork_source_optional_string(proc, "log_tail")
+    result = build_monitor_result_wire(
+        monitor_id=fork_source_optional_string(proc, "proc_id") or artifact_dir.name,
+        monitor_state=fork_source_optional_string(proc, "status") or "unknown",
+        exit_code=_int_or_none(proc.get("exit_code")),
+        command=fork_source_optional_string(proc, "command"),
+        cwd=fork_source_optional_string(proc, "cwd") or "unknown",
+        started_at=fork_source_optional_string(proc, "started_at") or "unknown",
+        stopped_at=fork_source_optional_string(proc, "finished_at")
+        or json_string(meta, "stopped_at"),
+        elapsed_seconds=_number_or_none(proc.get("elapsed_seconds")),
+        timeout_seconds=_number_or_none(proc.get("timeout_seconds")),
+        timeout_kind=proc.get("monitor_timeout_kind")
+        or meta.get("monitor_timeout_kind"),
+        starter_execution_id=(
+            json_string(meta, "monitor_starter_agent")
+            or json_string(meta, "parent_timestamp")
+            or fork_source_string(source, "name")
+        ),
+        workspace_identity=(
+            json_string(meta, "continuation_workspace_ref")
+            or json_string(meta, "workspace_dir")
+            or fork_source_optional_string(proc, "cwd")
+        ),
+        diagnostic_manifest_ref=json_string(meta, "monitor_diagnostic_manifest_ref"),
+        retained_log={
+            "log_ref": json_string(meta, "monitor_retained_log_ref"),
+            "local_locator": fork_source_optional_string(proc, "log_path"),
+            "total_observed_bytes": len(log_tail.encode("utf-8")) if log_tail else 0,
+            "complete": not bool(proc.get("log_truncated")),
+            "drain_confirmed": True,
+        },
+        result_seed_extra={
+            "artifact_dir_name": artifact_dir.name,
+            "compat": True,
+        },
+    )
+    diagnostic_manifest = _diagnostic_manifest_payload(artifact_dir, meta)
+    selection = select_monitor_result_evidence(
+        result,
+        next_output=(
+            json_string(meta, "monitor_next_output")
+            or fork_source_optional_string(proc, "monitor_next_output")
+            or LEGACY_NEXT_OUTPUT
+        ),
+        diagnostic_manifest=diagnostic_manifest,
+        historical_result=historical_result,
+    )
     return {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "kind": "monitor_result_compat",
         "source_name": fork_source_string(source, "name"),
         "artifact_dir_name": artifact_dir.name,
-        "monitor_id": fork_source_optional_string(proc, "proc_id"),
-        "status": fork_source_optional_string(proc, "status"),
-        "exit_code": _int_or_none(proc.get("exit_code")),
-        "command": fork_source_optional_string(proc, "command"),
-        "cwd": fork_source_optional_string(proc, "cwd"),
-        "project": fork_source_optional_string(proc, "project"),
-        "started_at": fork_source_optional_string(proc, "started_at"),
-        "finished_at": fork_source_optional_string(proc, "finished_at"),
-        "elapsed_seconds": _number_or_none(proc.get("elapsed_seconds")),
-        "timeout_seconds": _number_or_none(proc.get("timeout_seconds")),
-        "log_path": fork_source_optional_string(proc, "log_path"),
-        "log_truncated": bool(proc.get("log_truncated")),
+        "result": result,
+        "selection": selection,
+        "output_text": log_tail,
+        "output_log_path": fork_source_optional_string(proc, "log_path"),
+        "command_text": fork_source_optional_string(proc, "command"),
+        "historical_result": historical_result,
         "next_action_ref": json_string(meta, "continuation_intent_ref"),
         "checkpoint_ref": json_string(meta, "continuation_checkpoint_ref"),
     }
@@ -513,12 +718,59 @@ def _artifact_dir_name(source: Mapping[str, object]) -> str | None:
     return artifact_dir.name if artifact_dir is not None else None
 
 
+def _newest_terminal_monitor_index(
+    members: Sequence[Mapping[str, object]],
+) -> int | None:
+    for index in range(len(members) - 1, -1, -1):
+        proc = _proc_info(members[index])
+        if (
+            proc is not None
+            and bool(proc.get("is_monitor"))
+            and bool(proc.get("terminal"))
+            and _artifact_dir(members[index]) is not None
+        ):
+            return index
+    return None
+
+
 def _has_monitor_continuation_meta(artifact_dir: Path) -> bool:
     meta = load_json_object(artifact_dir / "agent_meta.json")
     return bool(
-        json_string(meta, "continuation_intent_ref")
+        json_string(meta, "continuation_monitor_result_ref")
+        or json_string(meta, "continuation_monitor_result_node_ref")
+        or json_string(meta, "continuation_monitor_result_manifest_ref")
+        or json_string(meta, "continuation_intent_ref")
         or json_string(meta, "continuation_checkpoint_ref")
         or _parent_node_ids(meta)
+    )
+
+
+def _diagnostic_manifest_payload(
+    artifact_dir: Path,
+    meta: Mapping[str, object],
+) -> Mapping[str, Any]:
+    manifest_path = json_string(meta, "monitor_diagnostic_manifest_path")
+    if manifest_path:
+        payload = load_json_object(Path(manifest_path))
+        if payload:
+            return cast(Mapping[str, Any], payload)
+    return cast(
+        Mapping[str, Any],
+        load_json_object(artifact_dir / "diagnostics" / "diagnostic_manifest.json"),
+    )
+
+
+def _read_monitor_result_manifest(
+    artifact_dir: Path,
+    meta: Mapping[str, object],
+) -> Mapping[str, object]:
+    manifest_path = json_string(meta, "continuation_monitor_result_manifest_path")
+    if manifest_path:
+        payload = load_json_object(Path(manifest_path))
+        if payload:
+            return payload
+    return load_json_object(
+        artifact_dir / "continuation" / "monitor_result_manifest.json"
     )
 
 

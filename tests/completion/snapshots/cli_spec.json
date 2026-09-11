@@ -15443,9 +15443,10 @@
               },
               {
                 "choices": [
-                  "none",
+                  "auto",
                   "tail",
-                  "file"
+                  "file",
+                  "none"
                 ],
                 "dest": "next_output",
                 "hidden": false,

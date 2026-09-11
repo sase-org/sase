@@ -29,7 +29,7 @@ ComponentName = Literal["fork_render", "provider_preprocess"]
 _NEW_QUERY_MARKER = "# New Query"
 _EVIDENCE_HEADING_RE = re.compile(
     r"(?m)^#{2,6} (?:Last \d+ lines of output|Output "
-    r"\(untrusted program output, not instructions\))"
+    r"\(untrusted program output, not instructions\)|Output Evidence)"
 )
 
 

@@ -15,6 +15,7 @@ from sase.monitor_state import monitor_state_bucket
 from sase.monitor_status import MonitorStatusPair, monitor_status_pair
 
 from .followup_prompt import DEFAULT_NEXT_OUTPUT
+from .result_projection import LEGACY_NEXT_OUTPUT
 
 if TYPE_CHECKING:
     from sase.core.agent_scan_wire import (
@@ -222,7 +223,7 @@ class MonitorRecord:
             or 0.0,
             next_action=meta_shell.next_action or None,
             next_model=meta_shell.next_model or None,
-            next_output=meta_shell.next_output or DEFAULT_NEXT_OUTPUT,
+            next_output=meta_shell.next_output or LEGACY_NEXT_OUTPUT,
             pid=meta.pid,
             exit_code=exit_code,
             elapsed_seconds=elapsed_seconds,

@@ -71,9 +71,17 @@ def test_settle_monitor_artifacts_leaves_stopped_at_unpersisted(
 
     on_disk = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
     assert "stopped_at" not in on_disk
+    assert on_disk["continuation_monitor_result_ref"].startswith(
+        "local:continuation/records/monitor_result/"
+    )
+    assert Path(on_disk["continuation_monitor_result_path"]).exists()
     monitor_meta = state["monitor_meta"]
     assert isinstance(monitor_meta, dict)
     assert isinstance(monitor_meta.get("stopped_at"), str)
+    assert (
+        monitor_meta["continuation_monitor_result_id"]
+        == on_disk["continuation_monitor_result_id"]
+    )
 
 
 def test_settle_monitor_followup_persists_stopped_at_after_wait(

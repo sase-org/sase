@@ -104,9 +104,10 @@ and records the wait output where the follow-up can inspect it.
 - `--model` / `-m` selects a model or alias for that follow-up (for example `opus`,
   `opus@high`, `@small`, or `codex/gpt-5`). It requires `--next`. When omitted, the
   follow-up inherits the starter's model and reasoning effort.
-- `--next-output none|tail|file` controls how much retained command output is handed to
-  the follow-up agent. `tail` is the default; `file` points at the on-disk log; `none`
-  gives only the outcome summary and `sase monitor show --all-lines` pointer.
+- `--next-output auto|tail|file|none` controls how much retained command output is
+  handed to the follow-up agent. `auto` is the default and selects outcome-aware
+  evidence; `tail` embeds a bounded raw tail; `file` points at refs and log locators;
+  `none` gives only the outcome summary and `sase monitor show --all-lines` pointer.
 - `--label` / `-L`, `--agent` / `-a` (`--lane` remains accepted as a deprecated alias),
   `--cwd` / `-C`, and `--tail-lines` / `-T` are optional; see
   `sase monitor start --help` for the full list.
@@ -284,10 +285,11 @@ table fields, and embedded output are delivered as literal text. Only the routin
 (`#fork:`, `%model:`, `%effort:`) remains live. When `--next-output tail` is used,
 retained output is also fenced and labeled as untrusted program output. The command and
 cwd fields are fenced too, so directive-shaped strings inside a shell command or path
-remain literal even if the disabled region is ever removed. Use `--next-output file` for
-large or hostile logs when the follow-up should inspect the log explicitly, or
-`--next-output none` when the outcome summary and `sase monitor show --all-lines`
-pointer are enough.
+remain literal even if the disabled region is ever removed. `--next-output auto`
+defaults completed runs to facts and refs, failed runs to diagnostics when available,
+and timeouts to a bounded raw tail. Use `--next-output file` for large or hostile logs
+when the follow-up should inspect the log explicitly, or `--next-output none` when the
+outcome summary and `sase monitor show --all-lines` pointer are enough.
 
 ## Runner slots
 

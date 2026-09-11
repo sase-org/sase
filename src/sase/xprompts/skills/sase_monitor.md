@@ -115,12 +115,13 @@ sase monitor start \
   reasoning effort. `%model` text inside `--next` stays literal; `--model` controls
   routing.
 - `--tail-lines N` controls how many output lines are included when `--next-output tail`
-  is used for the follow-up prompt.
+  is used for the follow-up prompt, and caps raw output selected by `auto`.
 - `--idle-timeout DURATION` kills a command that produces no bytes for that duration.
   Omit it for valid quiet commands such as `sleep`.
-- `--next-output none|tail|file` controls output handed to the follow-up. `tail` embeds
-  the retained tail as fenced untrusted output, `file` names the log file, and `none`
-  includes only the outcome summary plus a `sase monitor show --all-lines` pointer.
+- `--next-output auto|tail|file|none` controls output handed to the follow-up. `auto` is
+  the default and selects outcome-aware evidence, `tail` embeds the retained tail as
+  fenced untrusted output, `file` names refs and log locators, and `none` includes only
+  the outcome summary plus a `sase monitor show --all-lines` pointer.
 
 ## Inspect Or Stop
 
@@ -144,8 +145,10 @@ next action, table fields, and embedded output are wrapped as literal prompt tex
 the follow-up's routing prefix remains live. Omit `--model` to inherit the starter's
 model and reasoning effort; pass `--model` to replace that inherited routing.
 
-With `--next-output tail`, the retained tail is fenced and labeled as untrusted command
-output. With `--next-output file`, the follow-up gets the log path instead of embedded
+With `--next-output auto`, completed runs use facts and refs, failed runs prefer
+diagnostic refs, and timeouts include a bounded raw tail. With `--next-output tail`, the
+retained tail is fenced and labeled as untrusted command output. With
+`--next-output file`, the follow-up gets refs and log locators instead of embedded
 output. With `--next-output none`, it gets only the outcome summary and a
 `sase monitor show --all-lines` pointer.
 

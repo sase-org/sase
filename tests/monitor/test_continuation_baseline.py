@@ -31,7 +31,9 @@ _COMMON = {
 }
 
 
-def _monitor_proc_source(log_tail: str) -> dict[str, object]:
+def _monitor_proc_source(
+    log_tail: str, *, next_output: str = "none"
+) -> dict[str, object]:
     return {
         "kind": "proc",
         "name": "project--mon",
@@ -55,13 +57,14 @@ def _monitor_proc_source(log_tail: str) -> dict[str, object]:
             "log_truncated": False,
             "monitor_lane": "project",
             "monitor_reason": "Verify before continuing.",
+            "monitor_next_output": next_output,
             "monitor_followup_outcome": "launched",
             "monitor_followup_error": None,
         },
     }
 
 
-def test_output_policy_bypass_fixture_keeps_proc_tail_measurable() -> None:
+def test_output_policy_none_suppresses_proc_tail_in_fork_render() -> None:
     followup = compose_followup_prompt(
         starter_name="project--0",
         monitor_state="completed",
@@ -75,8 +78,8 @@ def test_output_policy_bypass_fixture_keeps_proc_tail_measurable() -> None:
     rendered = build_fork_injected_history(sources)
     measurement = measure_fork_render(sources, rendered)
 
-    assert "SECRET_MONITOR_TAIL" in rendered
-    assert measurement.prompt_sizes.evidence_bytes >= len("SECRET_MONITOR_TAIL")
+    assert "SECRET_MONITOR_TAIL" not in rendered
+    assert measurement.prompt_sizes.evidence_bytes > 0
     assert measurement.node_counts.source_kind_counts == {"proc": 1}
 
 

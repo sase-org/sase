@@ -151,7 +151,7 @@ def _disable_prettier_for_skill_generation(
                 "previous conversation through `#fork:<family>`",
                 "path to the retained captured log",
                 "--idle-timeout DURATION",
-                "--next-output none|tail|file",
+                "--next-output auto|tail|file|none",
                 "`--reason` and `--next` text reaches the follow-up literally",
                 "Use `-m/--model` to select the follow-up agent's model",
                 "If the command fails or times out, the follow-up still launches",

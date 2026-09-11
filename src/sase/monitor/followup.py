@@ -31,6 +31,7 @@ from sase.shells.followup import (
 )
 
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, compose_followup_prompt
+from .diagnostics import diagnostic_manifest, retained_log_metadata
 from .logs import monitor_log_path
 from .output import OutputCapture
 
@@ -103,6 +104,12 @@ def launch_followup_agent(
         "model": _clean_str(meta.get("model")),
         "reasoning_effort": _clean_str(meta.get("reasoning_effort")),
         "next_model": _clean_str(meta.get("monitor_next_model")),
+        "diagnostic_manifest": diagnostic_manifest(artifacts_dir),
+        "retained_log_metadata": retained_log_metadata(artifacts_dir),
+        "starter_execution_id": _clean_str(meta.get("monitor_starter_agent"))
+        or _clean_str(meta.get("parent_timestamp")),
+        "workspace_identity": _clean_str(meta.get("continuation_workspace_ref"))
+        or _clean_str(meta.get("workspace_dir")),
     }
 
     def _compose(degraded_reason: str | None) -> str:

@@ -71,9 +71,15 @@ def fenced_block(label: str, text: str) -> list[str]:
     return [f"**{label}:**", "", f"{fence}text", text, fence, ""]
 
 
-def untrusted_output_section(heading: str, text: str, tail_lines: int) -> list[str]:
+def untrusted_output_section(
+    heading: str,
+    text: str,
+    tail_lines: int,
+    *,
+    max_chars: int = OUTPUT_TAIL_MAX_CHARS,
+) -> list[str]:
     """Render a bounded, fenced tail of untrusted output under *heading*."""
-    tail = tail_text_by_lines_and_chars(text, tail_lines, OUTPUT_TAIL_MAX_CHARS)
+    tail = tail_text_by_lines_and_chars(text, tail_lines, max_chars)
     fence = widen_fence(tail.text)
     truncation_notice = _tail_truncation_notice(tail)
     return [

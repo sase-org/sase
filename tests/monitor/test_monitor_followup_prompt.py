@@ -7,7 +7,7 @@ from sase.llm_provider.preprocessing import (
     preprocess_prompt_late,
 )
 from sase.monitor.followup_prompt import compose_followup_prompt
-from sase.shells.prompt import OUTPUT_TAIL_MAX_CHARS
+from sase.monitor.result_projection import TOTAL_RAW_EXCERPT_MAX_BYTES
 from sase.xprompt._disabled_regions import disabled_region_ranges
 from sase.xprompt._literal_zones import code_literal_ranges, literal_zone_ranges
 from sase.xprompt.directives import extract_prompt_directives
@@ -53,6 +53,21 @@ def test_compose_followup_prompt_completed_includes_fork_prefix_and_exit_code() 
     assert "sase monitor show m4kqm4kqm4kq --all-lines" in prompt
     assert _COMMON["next_action"] in prompt
     assert prompt.rstrip().endswith("%xprompts_enabled:true")
+
+
+def test_compose_followup_prompt_default_auto_completed_omits_raw_tail() -> None:
+    prompt = compose_followup_prompt(
+        starter_name="acme--0",
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=97.0,
+        timeout_seconds=2700.0,
+        **_COMMON,
+    )
+
+    assert "## Last" not in prompt
+    assert "line 1" not in prompt
+    assert "raw output omitted: `facts_only`" in prompt
 
 
 def test_compose_followup_prompt_failed_reports_the_exit_code() -> None:
@@ -122,6 +137,7 @@ def test_compose_followup_prompt_widens_the_fence_around_backticks_in_output() -
         exit_code=0,
         elapsed_seconds=1.0,
         timeout_seconds=0.0,
+        next_output="tail",
         **common,
     )
 
@@ -139,6 +155,7 @@ def test_compose_followup_prompt_tail_is_limited_to_the_requested_line_count() -
         exit_code=0,
         elapsed_seconds=1.0,
         timeout_seconds=0.0,
+        next_output="tail",
         **common,
     )
 
@@ -149,7 +166,7 @@ def test_compose_followup_prompt_tail_is_limited_to_the_requested_line_count() -
 
 def test_compose_followup_prompt_tail_is_limited_to_character_budget() -> None:
     common = dict(_COMMON)
-    common["output_text"] = "discard:" + ("x" * OUTPUT_TAIL_MAX_CHARS)
+    common["output_text"] = "discard:" + ("x" * TOTAL_RAW_EXCERPT_MAX_BYTES)
     common["tail_lines"] = 1
     prompt = compose_followup_prompt(
         starter_name="acme--0",
@@ -157,6 +174,7 @@ def test_compose_followup_prompt_tail_is_limited_to_character_budget() -> None:
         exit_code=0,
         elapsed_seconds=1.0,
         timeout_seconds=0.0,
+        next_output="tail",
         **common,
     )
 
@@ -292,6 +310,7 @@ def test_compose_followup_prompt_adversarial_output_payload_stays_inert() -> Non
         timeout_seconds=0.0,
         model="opus",
         reasoning_effort="high",
+        next_output="tail",
         **common,
     )
 
@@ -344,6 +363,7 @@ def test_compose_followup_prompt_body_is_one_disabled_region() -> None:
         timeout_seconds=0.0,
         model="opus",
         reasoning_effort="high",
+        next_output="tail",
         **common,
     )
 
@@ -395,6 +415,7 @@ def test_compose_followup_prompt_next_action_cannot_hijack_launch() -> None:
         elapsed_seconds=1.0,
         timeout_seconds=0.0,
         reasoning_effort="high",
+        next_output="tail",
         **common,
     )
 
@@ -458,6 +479,7 @@ def test_compose_followup_prompt_escapes_injected_disabled_region_markers() -> N
         elapsed_seconds=1.0,
         timeout_seconds=0.0,
         reasoning_effort="high",
+        next_output="tail",
         **common,
     )
 

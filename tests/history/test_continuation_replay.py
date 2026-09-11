@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from sase.continuation_capture import persist_monitor_result
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 from sase.history.chat import build_fork_injected_history
 
@@ -94,6 +95,92 @@ def _agent_member(
         "artifact_dir": str(tmp_path / "artifacts" / suffix),
         "outcome": "completed",
     }
+
+
+def _monitor_member(
+    artifacts_dir: Path,
+    *,
+    name: str = "acme--mon",
+    log_tail: str = "SECRET_MONITOR_TAIL\n",
+    next_output: str = "tail",
+    status: str = "failed",
+    exit_code: int | None = 7,
+) -> dict[str, object]:
+    return {
+        "kind": "proc",
+        "name": name,
+        "artifact_dir": str(artifacts_dir),
+        "outcome": status,
+        "proc": {
+            "proc_id": "mon123",
+            "is_monitor": True,
+            "terminal": True,
+            "failed": status != "completed",
+            "shell_name": name,
+            "command": "just check",
+            "cwd": "/workspace/acme",
+            "project": "proj",
+            "started_at": "2026-09-11T10:00:00Z",
+            "finished_at": "2026-09-11T10:01:00Z",
+            "status": status,
+            "exit_code": exit_code,
+            "timeout_seconds": 120.0,
+            "elapsed_seconds": 60.0,
+            "log_path": "/tmp/monitor.log",
+            "log_tail": log_tail,
+            "log_truncated": False,
+            "monitor_next_output": next_output,
+        },
+    }
+
+
+def _write_monitor_result_node(
+    artifacts_dir: Path,
+    *,
+    parents: Sequence[str] = (),
+    next_output: str = "tail",
+    status: str = "failed",
+    exit_code: int | None = 7,
+) -> None:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    meta: dict[str, Any] = {
+        "name": "acme--mon",
+        "monitor_id": "mon123",
+        "monitor_command": "just check",
+        "monitor_cwd": "/workspace/acme",
+        "monitor_next_output": next_output,
+        "monitor_state": status,
+        "run_started_at": "2026-09-11T10:00:00Z",
+        "workspace_dir": "/workspace/acme",
+        "workspace_num": 1,
+        "continuation_parent_node_ids": list(parents),
+        "continuation_intent_ref": "local:continuation/intents/intent.json",
+        "continuation_checkpoint_ref": "local:continuation/checkpoints/start.json",
+        "monitor_diagnostic_manifest_ref": "file:explicit:diagnostics",
+        "monitor_retained_log_ref": "file:explicit:monitor-log",
+    }
+    persist_monitor_result(
+        artifacts_dir=artifacts_dir,
+        meta=meta,
+        monitor_state=status,
+        exit_code=exit_code,
+        elapsed_seconds=60.0,
+        stopped_at="2026-09-11T10:01:00Z",
+        diagnostic_manifest=None,
+        retained_log={
+            "log_ref": "file:explicit:monitor-log",
+            "local_locator": "/tmp/monitor.log",
+            "total_observed_bytes": len("SECRET_MONITOR_TAIL\n"),
+            "retained_ranges": [
+                {"start": 0, "end": len("SECRET_MONITOR_TAIL\n")},
+            ],
+            "complete": True,
+            "drain_confirmed": True,
+        },
+        project_name="proj",
+        update_meta=False,
+    )
+    _write_json(artifacts_dir / "agent_meta.json", meta)
 
 
 def _write_text_blob(root: Path, text: str) -> str:
@@ -197,45 +284,63 @@ def test_versioned_monitor_result_does_not_reinject_raw_tail(tmp_path: Path) -> 
             "continuation_parent_node_ids": ["agent-delta-starter"],
             "continuation_intent_ref": "local:continuation/intents/intent.json",
             "continuation_checkpoint_ref": "local:continuation/checkpoints/start.json",
+            "monitor_next_output": "none",
         },
+    )
+    direct = _monitor_member(
+        monitor, next_output="none", status="completed", exit_code=0
     )
     source = {
         "kind": "family",
         "name": "acme",
         "members": [
             _agent_member(tmp_path, "20260911010101", "acme--0"),
-            {
-                "kind": "proc",
-                "name": "acme--mon",
-                "artifact_dir": str(monitor),
-                "outcome": "completed",
-                "proc": {
-                    "proc_id": "mon123",
-                    "is_monitor": True,
-                    "terminal": True,
-                    "failed": False,
-                    "command": "just check",
-                    "cwd": "/workspace/acme",
-                    "project": "proj",
-                    "started_at": "2026-09-11T10:00:00Z",
-                    "finished_at": "2026-09-11T10:01:00Z",
-                    "status": "completed",
-                    "exit_code": 0,
-                    "log_path": "/tmp/monitor.log",
-                    "log_tail": "SECRET_MONITOR_TAIL\n",
-                    "log_truncated": False,
-                },
-            },
+            direct,
         ],
         "excluded": [],
     }
 
-    rendered = build_fork_injected_history([source])
+    rendered = build_fork_injected_history([direct, source])
 
     assert "STARTER_REPLY" in rendered
     assert "Monitor Result" in rendered
     assert "SECRET_MONITOR_TAIL" not in rendered
     assert "sase monitor show mon123 --all-lines" in rendered
+
+
+def test_versioned_monitor_result_tail_policy_uses_frozen_node_once(
+    tmp_path: Path,
+) -> None:
+    starter = tmp_path / "artifacts" / "20260911010101"
+    monitor = tmp_path / "artifacts" / "20260911010202"
+    _write_agent_node(
+        starter,
+        name="acme--0",
+        node_id="agent-delta-starter",
+        prompt="Run the verification monitor.",
+        response="STARTER_REPLY",
+    )
+    _write_monitor_result_node(
+        monitor,
+        parents=["agent-delta-starter"],
+        next_output="tail",
+    )
+    direct = _monitor_member(monitor, next_output="tail")
+    family = {
+        "kind": "family",
+        "name": "acme",
+        "members": [
+            _agent_member(tmp_path, "20260911010101", "acme--0"),
+            direct,
+        ],
+        "excluded": [],
+    }
+
+    rendered = build_fork_injected_history([direct, family])
+
+    assert "STARTER_REPLY" in rendered
+    assert rendered.count("SECRET_MONITOR_TAIL") == 1
+    assert rendered.count("mon123") >= 1
 
 
 def test_versioned_replay_reports_missing_parent(tmp_path: Path) -> None:

@@ -19,7 +19,7 @@ MONITOR_STATE_CHOICES = (
 
 # Mirrors ``sase.monitor.followup_prompt.NEXT_OUTPUT_CHOICES``, spelled out
 # here for the same reason.
-NEXT_OUTPUT_CHOICES = ("none", "tail", "file")
+NEXT_OUTPUT_CHOICES = ("auto", "tail", "file", "none")
 
 
 def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -305,11 +305,11 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         choices=NEXT_OUTPUT_CHOICES,
         default=None,
         help=(
-            "How much retained output to hand the follow-up agent: 'tail' "
-            "(default) embeds the last --tail-lines lines fenced as "
-            "untrusted data, 'file' points at the on-disk log path instead, "
-            "'none' gives only the outcome summary and a `sase monitor "
-            "show --all-lines` pointer"
+            "How much retained output to hand the follow-up agent: 'auto' "
+            "(default) selects outcome-aware evidence, 'tail' embeds the "
+            "last --tail-lines lines fenced as untrusted data, 'file' points "
+            "at refs and log locators instead, 'none' gives only the outcome "
+            "summary and a `sase monitor show --all-lines` pointer"
         ),
     )
     start_parser.add_argument(

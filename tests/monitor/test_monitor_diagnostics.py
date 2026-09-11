@@ -116,6 +116,17 @@ def test_supervisor_freezes_stage_manifest_and_retained_log_metadata(
     assert metadata["retained_ranges"]
     assert metadata["segments"]
 
+    result_path = Path(meta["continuation_monitor_result_path"])
+    assert result_path.exists()
+    monitor_result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert monitor_result["outcome"] == "failed"
+    assert monitor_result["exit_code"] == 4
+    assert monitor_result["diagnostic_manifest_ref"] == manifest["manifest_ref"]
+    assert monitor_result["retained_log"]["log_ref"] == metadata["log_ref"]
+    assert meta["continuation_monitor_result_node_ref"].startswith(
+        "local:continuation/nodes/"
+    )
+
     first_range = metadata["retained_ranges"][0]
     ranged = read_retained_log_range(
         artifacts_dir,
