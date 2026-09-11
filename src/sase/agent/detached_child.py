@@ -120,6 +120,7 @@ def spawn_family_successor(
     cl_name: str | None = None,
     agent_family_role: str | None = None,
     vcs_ref: tuple[str, str] | None = None,
+    extra_env: dict[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
     resolve_plan: ResolvePlanFn | None = None,
 ) -> AgentLaunchResult:
@@ -151,7 +152,7 @@ def spawn_family_successor(
         workspace_num=workspace_num,
         cl_name=cl_name or launch_plan.agent_name,
         transfer_from_pid=transfer_from_pid,
-        extra_env=family_attach_env(launch_plan),
+        extra_env={**family_attach_env(launch_plan), **(extra_env or {})},
         vcs_ref=vcs_ref,
         spawn_fn=spawn_fn,
     )

@@ -9,7 +9,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.agent._family_attach_types import FAMILY_ATTACH_ENV
 from sase.llm_provider._invoke import invoke_agent
+from sase.llm_provider.continuation_budget import (
+    CONTINUATION_BUDGET_DECISION_FILENAME,
+    MONITOR_CONTINUATION_ENV,
+)
 from sase.llm_provider.messages import AIMessage
 from sase.llm_provider.types import (
     InvokeResult,
@@ -299,6 +304,75 @@ def test_invoke_agent_records_provider_preprocess_shadow_measurement(
         "model": "large",
         "provider": "fakey",
     }
+
+
+def test_monitor_continuation_budget_refusal_records_nonlaunchable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = tmp_path / "child"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
+    parent = tmp_path / "monitor-parent"
+    parent.mkdir()
+    (parent / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "monitor_id": "m1",
+                "monitor_followup_outcome": "launched",
+            }
+        ),
+        encoding="utf-8",
+    )
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="should not run")
+    monkeypatch.setenv(MONITOR_CONTINUATION_ENV, "1")
+    monkeypatch.setenv("SASE_CONTINUATION_CONTEXT_LIMIT_BYTES", "32")
+    monkeypatch.setenv(
+        FAMILY_ATTACH_ENV,
+        json.dumps({"parent_artifacts_dir": str(parent)}),
+    )
+
+    with (
+        patch("sase.llm_provider._invoke.get_provider", return_value=provider),
+        patch("sase.llm_provider._invoke.postprocess_error") as postprocess_error,
+        patch("sase.llm_provider._invoke.handle_possible_usage_limit"),
+        pytest.raises(
+            LLMInvocationError,
+            match="Continuation context budget exceeded",
+        ),
+    ):
+        invoke_agent(
+            "x" * 100,
+            agent_type="agent",
+            artifacts_dir=str(artifacts),
+            provider_name="fakey",
+            suppress_output=True,
+            skip_preprocessing=True,
+        )
+
+    provider.invoke.assert_not_called()
+    postprocess_error.assert_called_once()
+
+    decision_path = artifacts / CONTINUATION_BUDGET_DECISION_FILENAME
+    decision = json.loads(decision_path.read_text(encoding="utf-8"))
+    assert decision["decision"]["kind"] == "refuse"
+    assert decision["decision"]["disposition"] == "context_budget_exceeded"
+
+    child_meta = json.loads((artifacts / "agent_meta.json").read_text())
+    assert child_meta["continuation_budget_kind"] == "refuse"
+    assert child_meta["continuation_budget_disposition"] == "context_budget_exceeded"
+    assert child_meta["continuation_budget_target_bytes"] == 32
+
+    parent_meta = json.loads((parent / "agent_meta.json").read_text())
+    assert parent_meta["monitor_followup_outcome"] == "not-launchable"
+    assert (
+        "Continuation context budget exceeded" in parent_meta["monitor_followup_error"]
+    )
+    assert parent_meta["monitor_followup_budget_decision_path"] == str(decision_path)
+    assert parent_meta["monitor_followup_prompt_path"] == str(
+        artifacts / "agent_prompt.md"
+    )
 
 
 def test_execution_override_resolves_display_model_with_requested_provider(

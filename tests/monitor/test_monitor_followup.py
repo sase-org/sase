@@ -14,6 +14,7 @@ import sase.procs.spawn as spawn_module
 import sase.shells.followup as shells_followup_module
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.artifact_file_facade import list_explicit_artifact_files
+from sase.llm_provider.continuation_budget import MONITOR_CONTINUATION_ENV
 from sase.monitor.output import OutputCapture
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.procs.runtime import proc_started_path, write_json_atomic
@@ -186,6 +187,7 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
 
     env = captured["extra_env"]
     assert env["SASE_INTERNAL_AGENT_NAME_BYPASS"] == "1"
+    assert env[MONITOR_CONTINUATION_ENV] == "1"
     plan = json.loads(env["SASE_AGENT_FAMILY_ATTACH"])
     assert plan["agent_name"] == "acme--1"
     assert plan["parent_base"] == "acme"

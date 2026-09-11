@@ -15,6 +15,7 @@ from typing import Any
 
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
+from sase.llm_provider.continuation_budget import MONITOR_CONTINUATION_ENV
 from sase.shells.followup import (
     DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
     STARTER_SETTLE_POLL_SECONDS as _STARTER_SETTLE_POLL_SECONDS,
@@ -134,6 +135,7 @@ def launch_followup_agent(
             cl_name=_clean_str(meta.get("cl_name")),
             agent_family_role=starter_role,
             vcs_ref=vcs_ref,
+            extra_env={MONITOR_CONTINUATION_ENV: "1"},
             spawn_fn=spawn_agent_subprocess,
         )
 

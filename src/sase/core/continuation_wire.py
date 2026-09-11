@@ -257,6 +257,7 @@ class ContinuationBudgetRequestWire(TypedDict):
     rendered_prompt_bytes: int
     essential_bytes: int
     selected_evidence_bytes: NotRequired[int]
+    checkpoint_threshold_bytes: NotRequired[int | None]
     provider_budget: NotRequired[JsonObject]
     reduction_candidates: NotRequired[list[JsonObject]]
 

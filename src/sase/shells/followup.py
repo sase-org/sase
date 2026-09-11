@@ -376,6 +376,7 @@ def spawn_shell_family_successor(
     suffix: str | None = None,
     agent_family_role: str | None = None,
     vcs_ref: tuple[str, str] | None = None,
+    extra_env: dict[str, str] | None = None,
     spawn_fn: SpawnFn | None = None,
 ) -> AgentLaunchResult:
     """Spawn the next agent member in *family* using family-attach semantics."""
@@ -389,6 +390,7 @@ def spawn_shell_family_successor(
         cl_name=cl_name,
         agent_family_role=agent_family_role,
         vcs_ref=vcs_ref,
+        extra_env=extra_env,
         spawn_fn=spawn_fn,
     )
 

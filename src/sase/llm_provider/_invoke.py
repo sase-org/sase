@@ -35,6 +35,7 @@ from .postprocessing import (
 from .preprocessing import preprocess_prompt
 from sase.xprompt.directives import PromptDirectives
 from .config import resolve_effective_effort
+from .continuation_budget import enforce_continuation_budget
 from .launch_selection import LaunchSelection
 from .registry import (
     LLM_EXEC_PROVIDER_ENV,
@@ -316,6 +317,14 @@ def invoke_agent(
                 "exec_llm_provider",
                 execution_provider_label,
             )
+        enforce_continuation_budget(
+            query,
+            artifacts_dir=artifacts_dir,
+            provider_name=execution_provider_label,
+            model_tier=model_tier,
+            model_override=model_override,
+            options=invocation_options,
+        )
         if context.metadata_model is None:
             metadata_provider = provider
             if execution_provider_label != requested_provider_label:
