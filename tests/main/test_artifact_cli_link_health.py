@@ -10,11 +10,11 @@ from types import SimpleNamespace
 
 import pytest
 
+from sase.artifact_cli._link_health_coverage import ArtifactLinkCoverageReport
+from sase.artifact_cli._link_health_coverage import _ArtifactLinkCoveragePopulation
+from sase.artifact_cli._link_health_tables import _curated_peer_keys
 from sase.artifact_cli.doctor import handle_doctor
 from sase.artifact_cli.link_health import ArtifactLinkHealthReport
-from sase.artifact_cli.link_health import _ArtifactLinkCoveragePopulation
-from sase.artifact_cli.link_health import _ArtifactLinkCoverageReport
-from sase.artifact_cli.link_health import _curated_peer_keys
 from sase.artifact_cli.link_health import inspect_artifact_link_health
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
@@ -447,7 +447,7 @@ def test_doctor_reports_link_divergence_counters(
             event_objects=7,
             event_pending=2,
             publication_pending=("gh_sase-org__sase/plans: /tmp/plans (90s)",),
-            coverage=_ArtifactLinkCoverageReport(
+            coverage=ArtifactLinkCoverageReport(
                 populations=(
                     _ArtifactLinkCoveragePopulation(
                         name="research-swarm filename lineage",

@@ -2,70 +2,38 @@
 
 from __future__ import annotations
 
-from collections import Counter
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
 
-from sase.artifact_cli.references import resolve_cli_reference
+from sase.artifact_cli._link_health_coverage import (
+    ArtifactLinkCoverageReport,
+    coverage_report,
+    read_row_count,
+)
+from sase.artifact_cli._link_health_indexes import (
+    missing_head_indexes,
+    orphaned_link_indexes,
+)
+from sase.artifact_cli._link_health_projections import rebuild_existing_projections
+from sase.artifact_cli._link_health_refs import dangling_refs
+from sase.artifact_cli._link_health_signals import (
+    cutover_health_values,
+    event_health_values,
+    publication_health_values,
+)
+from sase.artifact_cli._link_health_tables import missing_companions, stale_tables
 from sase.artifact_read_log import read_artifact_read_events
-from sase.artifact_links.derive import derive_candidate_links
-from sase.artifact_refs import ArtifactRefContext, launch_artifact_ref_context
-from sase.core.rust import require_rust_binding
-from sase.sdd._artifact_link_publication_retry import (
-    ArtifactLinkPublicationRetryDetail,
-    inspect_artifact_link_publications,
-)
-from sase.sdd._artifact_link_cutover_state import inspect_artifact_link_cutover_markers
+from sase.artifact_refs import launch_artifact_ref_context
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
-from sase.sdd._artifact_link_projection import safety_body
-from sase.sdd._artifact_link_store_support import (
-    kind_of_ref,
-    read_artifact_link_index,
-    store_backed_rows,
-)
+from sase.sdd._artifact_link_store_support import store_backed_rows
 from sase.sdd.artifact_link_drift import (
     ArtifactLinkIndexDrift,
     build_artifact_link_index_drift,
 )
-from sase.sdd.artifact_link_import_indexes import (
-    artifact_link_legacy_links_tree_identity,
-)
+from sase.sdd.artifact_link_outbox import inspect_artifact_link_outbox
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
     resolve_artifact_link_store,
 )
-from sase.sdd.artifact_link_outbox import inspect_artifact_link_outbox
-from sase.sdd.referenced_by_doctor import missing_referenced_by_indexes
-from sase.sdd.referenced_by_index import (
-    REFERENCED_BY_LINKS_DIR,
-    document_has_referenced_by_block,
-)
-
-
-_LINKS_START = "<!-- sase:links:start -->"
-_LINKS_END = "<!-- sase:links:end -->"
-_REFERENCED_BY_START = "<!-- sase:referenced-by:start -->"
-_REFERENCED_BY_END = "<!-- sase:referenced-by:end -->"
-_RESOLVED = frozenset({"exact", "drifted", "vcs_backed"})
-
-
-@dataclass(frozen=True)
-class _ArtifactLinkCoveragePopulation:
-    """Coverage for one derivable hard-evidence population."""
-
-    name: str
-    linked: int
-    total: int
-
-
-@dataclass(frozen=True)
-class _ArtifactLinkCoverageReport:
-    """Informational coverage counters for derived artifact links."""
-
-    populations: tuple[_ArtifactLinkCoveragePopulation, ...] = ()
-    rows_by_origin: tuple[tuple[str, int], ...] = ()
-    rows_by_relation: tuple[tuple[str, int], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -110,8 +78,8 @@ class ArtifactLinkHealthReport:
     cutover_state: str = "none"
     cutover_errors: tuple[str, ...] = ()
     cutover_stragglers: tuple[str, ...] = ()
-    coverage: _ArtifactLinkCoverageReport = field(
-        default_factory=_ArtifactLinkCoverageReport
+    coverage: ArtifactLinkCoverageReport = field(
+        default_factory=ArtifactLinkCoverageReport
     )
     rebuilt: bool = False
     repaired_renames: int = 0
@@ -148,9 +116,9 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
     except Exception as exc:  # noqa: BLE001 - report the file index too
         return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
 
-    event_health = _event_health_values(store)
-    publication_health = _publication_health_values(store)
-    cutover_health = _cutover_health_values(store)
+    event_health = event_health_values(store)
+    publication_health = publication_health_values(store)
+    cutover_health = cutover_health_values(store)
     try:
         if fix:
             store.reconcile_aggregate()
@@ -186,10 +154,10 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
             cutover_stragglers=cutover_health.cutover_stragglers,
         )
     resolution_context = launch_artifact_ref_context(is_home_mode=False)
-    dangling, unpublished_agents = _dangling_refs(
+    dangling, unpublished_agents = dangling_refs(
         rows, store, context=resolution_context
     )
-    orphaned_companions = _orphaned_link_indexes(store)
+    orphaned_companions = orphaned_link_indexes(store)
     repaired_renames = 0
     if fix:
         repair = repair_historical_artifact_renames(
@@ -201,10 +169,10 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
             try:
                 rows = store_backed_rows(store.load_aggregate().get("rows", []))
                 sidecar_rows = store.durable_sidecar_rows()
-                dangling, unpublished_agents = _dangling_refs(
+                dangling, unpublished_agents = dangling_refs(
                     rows, store, context=resolution_context
                 )
-                orphaned_companions = _orphaned_link_indexes(store)
+                orphaned_companions = orphaned_link_indexes(store)
             except Exception as exc:  # noqa: BLE001 - report the failed repair.
                 return ArtifactLinkHealthReport(skipped=False, errors=(str(exc),))
         aggregate = store.load_aggregate()
@@ -217,9 +185,9 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         )
         rows = store_backed_rows(expected_rows)
         durable_rows = store.load_durable_rows()
-    stale = _stale_tables(store, rows)
-    missing_companions = _missing_companions(rows, context=resolution_context)
-    missing_head = _missing_head_indexes(store)
+    stale = stale_tables(store, rows)
+    missing = missing_companions(rows, context=resolution_context)
+    missing_head = missing_head_indexes(store)
     read_events = 0
     recorded_read_events = 0
     try:
@@ -235,21 +203,21 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         outbox = None
 
     if fix:
-        _rebuild_existing_projections(store, rows)
-        event_health = _event_health_values(store)
-        publication_health = _publication_health_values(store)
+        rebuild_existing_projections(store, rows)
+        event_health = event_health_values(store)
+        publication_health = publication_health_values(store)
 
     return ArtifactLinkHealthReport(
         skipped=False,
         dangling=tuple(dangling),
         unpublished_agent_refs=tuple(unpublished_agents),
         stale_tables=tuple(stale),
-        missing_companions=tuple(missing_companions),
+        missing_companions=tuple(missing),
         orphaned_companions=tuple(orphaned_companions),
         missing_head_indexes=tuple(missing_head),
         read_events=read_events,
         recorded_read_events=recorded_read_events,
-        durable_read_rows=_read_row_count(durable_rows),
+        durable_read_rows=read_row_count(durable_rows),
         durable_store_rows=len(durable_rows),
         durable_sidecar_rows=len(sidecar_rows),
         aggregate_rows=len(aggregate_rows),
@@ -277,7 +245,7 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         cutover_state=cutover_health.cutover_state,
         cutover_errors=cutover_health.cutover_errors,
         cutover_stragglers=cutover_health.cutover_stragglers,
-        coverage=_coverage_report(
+        coverage=coverage_report(
             store,
             rows,
             context=resolution_context,
@@ -286,125 +254,6 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         rebuilt=fix,
         repaired_renames=repaired_renames,
     )
-
-
-@dataclass(frozen=True)
-class _EventHealthValues:
-    event_objects: int = 0
-    event_pending: int = 0
-    event_pending_oldest_age_seconds: float = 0.0
-    event_pending_p95_age_seconds: float = 0.0
-    event_validation_failures: tuple[str, ...] = ()
-    event_reduction_errors: tuple[str, ...] = ()
-    event_orphaned_tombstones: tuple[str, ...] = ()
-
-
-def _event_health_values(store: ArtifactLinkStore) -> _EventHealthValues:
-    snapshot = getattr(store, "artifact_link_event_snapshot", None)
-    if not callable(snapshot):
-        return _EventHealthValues()
-    try:
-        event_snapshot = snapshot(strict=False)
-    except Exception as exc:  # noqa: BLE001 - event diagnostics should be visible.
-        return _EventHealthValues(event_reduction_errors=(str(exc),))
-    return _EventHealthValues(
-        event_objects=event_snapshot.durable_event_count,
-        event_pending=event_snapshot.pending_event_count,
-        event_pending_oldest_age_seconds=(
-            event_snapshot.pending_stats.oldest_age_seconds
-        ),
-        event_pending_p95_age_seconds=event_snapshot.pending_stats.p95_age_seconds,
-        event_validation_failures=tuple(
-            finding.render() for finding in event_snapshot.validation_findings
-        ),
-        event_reduction_errors=event_snapshot.reduction_errors,
-        event_orphaned_tombstones=event_snapshot.orphaned_tombstones,
-    )
-
-
-@dataclass(frozen=True)
-class _PublicationHealthValues:
-    publication_pending: tuple[str, ...] = ()
-    publication_aged: tuple[str, ...] = ()
-    publication_diagnostics: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
-class _CutoverHealthValues:
-    cutover_state: str = "none"
-    cutover_errors: tuple[str, ...] = ()
-    cutover_stragglers: tuple[str, ...] = ()
-
-
-def _publication_health_values(store: ArtifactLinkStore) -> _PublicationHealthValues:
-    if not isinstance(store, ArtifactLinkStore):
-        return _PublicationHealthValues()
-    try:
-        inspection = inspect_artifact_link_publications(store.project_key)
-    except Exception as exc:  # noqa: BLE001 - doctor should report, not crash.
-        return _PublicationHealthValues(publication_diagnostics=(str(exc),))
-    pending = tuple(
-        _publication_detail_text(detail)
-        for detail in inspection.details
-        if detail.status != "aged"
-    )
-    aged = tuple(
-        _publication_detail_text(detail)
-        for detail in inspection.details
-        if detail.status == "aged"
-    )
-    return _PublicationHealthValues(
-        publication_pending=pending,
-        publication_aged=aged,
-        publication_diagnostics=inspection.diagnostics,
-    )
-
-
-def _cutover_health_values(store: ArtifactLinkStore) -> _CutoverHealthValues:
-    if not isinstance(store, ArtifactLinkStore):
-        return _CutoverHealthValues()
-    try:
-        inspection = inspect_artifact_link_cutover_markers(
-            store.sidecar_roots,
-            project_key=store.project_key,
-        )
-    except Exception as exc:  # noqa: BLE001 - doctor should report, not crash.
-        return _CutoverHealthValues(cutover_state="invalid", cutover_errors=(str(exc),))
-    if inspection.marker is None:
-        return _CutoverHealthValues(cutover_state="none")
-    if inspection.state == "incomplete":
-        diagnostics = inspection.diagnostics or (
-            "resume with `sase artifact link import-indexes --apply <attestation>`",
-        )
-        return _CutoverHealthValues(
-            cutover_state="incomplete",
-            cutover_errors=tuple(diagnostics),
-        )
-    stragglers: list[str] = []
-    if inspection.imported:
-        for role in inspection.marker.roles:
-            root = store.sidecar_roots.get(role.kind)
-            if root is None:
-                continue
-            current = artifact_link_legacy_links_tree_identity(root)
-            if current != role.links_tree:
-                stragglers.append(
-                    f"{role.role}: links/ tree {current} != frozen {role.links_tree}"
-                )
-    return _CutoverHealthValues(
-        cutover_state=inspection.state,
-        cutover_stragglers=tuple(stragglers),
-    )
-
-
-def _publication_detail_text(detail: ArtifactLinkPublicationRetryDetail) -> str:
-    text = (
-        f"{detail.project_key}/{detail.role}: "
-        f"{detail.repo_root} ({round(detail.age_seconds)}s)"
-    )
-    if detail.last_error:
-        text += f" - {detail.last_error}"
-    return text
 
 
 def dangling_and_orphaned_artifact_link_refs(
@@ -421,424 +270,11 @@ def dangling_and_orphaned_artifact_link_refs(
 
     rows = store_backed_rows(store.load_aggregate().get("rows", []))
     resolution_context = launch_artifact_ref_context(is_home_mode=False)
-    dangling, _unpublished_agents = _dangling_refs(
+    dangling, _unpublished_agents = dangling_refs(
         rows, store, context=resolution_context
     )
-    orphaned_companions = _orphaned_link_indexes(store)
+    orphaned_companions = orphaned_link_indexes(store)
     return (*dangling, *orphaned_companions)
-
-
-def _read_row_count(rows: tuple[dict[str, Any], ...]) -> int:
-    seen: set[tuple[str, str, str]] = set()
-    for row in rows:
-        if str(row.get("relation") or "") != "read":
-            continue
-        seen.add(
-            (
-                str(row.get("source_ref") or ""),
-                "read",
-                str(row.get("target_ref") or ""),
-            )
-        )
-    return len(seen)
-
-
-def _coverage_report(
-    store: ArtifactLinkStore,
-    rows: list[dict[str, Any]],
-    *,
-    context: ArtifactRefContext,
-    index_rows: list[dict[str, Any]] | None = None,
-) -> _ArtifactLinkCoverageReport:
-    # `rows` (the caller's store-backed view) excludes projected rows, but the
-    # origin/relation breakdown is diagnostic, not a durable-truth read, so it
-    # counts every row in the aggregate -- including projected ones.
-    all_rows = (
-        index_rows if index_rows is not None else store.load_aggregate().get("rows", [])
-    )
-    origin_counts = Counter(str(row.get("origin") or "unknown") for row in all_rows)
-    relation_counts = Counter(str(row.get("relation") or "unknown") for row in all_rows)
-    existing = _exact_row_keys(rows)
-    populations: dict[str, set[tuple[str, str, str]]] = {}
-    try:
-        from sase.sdd.artifact_link_backfill import sweepable_artifact_link_documents
-
-        candidates = derive_candidate_links(
-            sweepable_artifact_link_documents(store),
-            known_bead_ids=frozenset(_known_bead_ids(store) or ()),
-            agents_sidecar_root=_agents_sidecar_root(store),
-            is_agent_published=lambda name: _is_agent_published(name, context=context),
-        )
-    except Exception:  # noqa: BLE001 - coverage is a report, not a gate.
-        candidates = ()
-
-    for candidate in candidates:
-        population = _coverage_population(
-            candidate.source_ref,
-            candidate.relation,
-            candidate.target_ref,
-        )
-        if population is None:
-            continue
-        populations.setdefault(population, set()).add(
-            (candidate.source_ref, candidate.relation, candidate.target_ref)
-        )
-
-    coverage = tuple(
-        _ArtifactLinkCoveragePopulation(
-            name=name,
-            linked=sum(1 for key in keys if key in existing),
-            total=len(keys),
-        )
-        for name, keys in sorted(populations.items())
-    )
-    return _ArtifactLinkCoverageReport(
-        populations=coverage,
-        rows_by_origin=tuple(sorted(origin_counts.items())),
-        rows_by_relation=tuple(sorted(relation_counts.items())),
-    )
-
-
-def _exact_row_keys(
-    rows: list[dict[str, Any]],
-) -> frozenset[tuple[str, str, str]]:
-    return frozenset(
-        (
-            str(row.get("source_ref") or ""),
-            str(row.get("relation") or ""),
-            str(row.get("target_ref") or ""),
-        )
-        for row in rows
-        if row.get("source_ref") and row.get("relation") and row.get("target_ref")
-    )
-
-
-def _coverage_population(
-    source_ref: str,
-    relation: str,
-    target_ref: str,
-) -> str | None:
-    source_kind = kind_of_ref(source_ref)
-    target_kind = kind_of_ref(target_ref)
-    if source_kind == "plan" and relation == "implements" and target_kind == "bead":
-        return "plan bead_id implements"
-    if (
-        source_kind == "research"
-        and relation == "derives-from"
-        and target_kind == "research"
-    ):
-        return "research-swarm filename lineage"
-    if source_kind == "agent" and relation == "cites" and target_kind == "plan":
-        return "prompt header cites"
-    return None
-
-
-def _agents_sidecar_root(store: ArtifactLinkStore) -> Path | None:
-    if store.sdd_store is None:
-        return None
-    from sase.sdd.store import AGENTS_SIDECAR_ROLE
-
-    try:
-        root = store.sdd_store.kind_root(AGENTS_SIDECAR_ROLE)
-    except Exception:  # noqa: BLE001 - no agents sidecar, no coverage candidates.
-        return None
-    return root if root.is_dir() else None
-
-
-def _is_agent_published(agent_name: str, *, context: ArtifactRefContext) -> bool:
-    try:
-        result = resolve_cli_reference(f"agent:{agent_name}", context=context)
-    except Exception:  # noqa: BLE001 - unpublished agents are not covered rows.
-        return False
-    return result.resolution.status in _RESOLVED
-
-
-def _dangling_refs(
-    rows: list[dict[str, Any]],
-    store: ArtifactLinkStore,
-    *,
-    context: ArtifactRefContext,
-) -> tuple[list[str], list[str]]:
-    seen: set[str] = set()
-    dangling: list[str] = []
-    unpublished_agents: list[str] = []
-    bead_ids = _known_bead_ids(store)
-    for row in rows:
-        for key in ("source_ref", "target_ref"):
-            ref = str(row.get(key) or "")
-            if not ref or ref in seen:
-                continue
-            seen.add(ref)
-            if ref.startswith("bead:") and bead_ids is not None:
-                if ref.removeprefix("bead:") not in bead_ids:
-                    dangling.append(ref)
-                continue
-            try:
-                result = resolve_cli_reference(ref, context=context)
-            except (RuntimeError, ValueError):
-                if kind_of_ref(ref) == "agent":
-                    unpublished_agents.append(ref)
-                else:
-                    dangling.append(ref)
-                continue
-            if result.resolution.status not in _RESOLVED:
-                if kind_of_ref(ref) == "agent":
-                    unpublished_agents.append(ref)
-                else:
-                    dangling.append(ref)
-    return sorted(dangling), sorted(unpublished_agents)
-
-
-def _known_bead_ids(store: ArtifactLinkStore) -> set[str] | None:
-    if store.beads_dir is None:
-        return None
-    try:
-        from sase.bead.store_locator import open_bead_project_for_beads_dir
-
-        with open_bead_project_for_beads_dir(store.beads_dir) as project:
-            return {str(issue.id) for issue in project.list_issues()}
-    except Exception:  # noqa: BLE001 - fall back to regular artifact resolution
-        return None
-
-
-def _stale_tables(store: ArtifactLinkStore, rows: list[dict[str, Any]]) -> list[str]:
-    stale: list[str] = []
-    by_ref: dict[str, list[dict[str, Any]]] = {}
-    for row in rows:
-        for key in ("source_ref", "target_ref"):
-            ref = str(row.get(key) or "")
-            if ref:
-                by_ref.setdefault(ref, []).append(row)
-    for artifact_ref, touching in by_ref.items():
-        path = _markdown_path_for(store, artifact_ref)
-        if path is None or not path.is_file():
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if _LINKS_START not in text and not document_has_referenced_by_block(text):
-            continue
-        parsed = dict(require_rust_binding("links_block_parse")(text))
-        table = parsed.get("table")
-        rendered_peers = _rendered_peer_keys(table if isinstance(table, dict) else None)
-        expected = _curated_peer_keys(artifact_ref, touching)
-        if rendered_peers != expected:
-            stale.append(artifact_ref)
-    return sorted(stale)
-
-
-def _rendered_peer_keys(table: dict[str, Any] | None) -> set[tuple[str, str]]:
-    if table is None:
-        return set()
-    keys: set[tuple[str, str]] = set()
-    for raw in table.get("rows") or []:
-        if not isinstance(raw, dict):
-            continue
-        values = raw.get("values")
-        if not isinstance(values, dict):
-            continue
-        relation = str(values.get("relation") or "")
-        artifact = str(values.get("artifact") or "")
-        if relation and artifact:
-            keys.add((relation, artifact))
-    return keys
-
-
-def _curated_peer_keys(
-    artifact_ref: str, rows: list[dict[str, Any]]
-) -> set[tuple[str, str]]:
-    keys: set[tuple[str, str]] = set()
-    label = require_rust_binding("artifact_relation_label")
-    for row in rows:
-        origin = str(row.get("origin") or "")
-        if origin not in {"manual", "migrated", "derived"}:
-            continue
-        source = str(row.get("source_ref") or "")
-        target = str(row.get("target_ref") or "")
-        relation = str(row.get("relation") or "")
-        this_is_source = source == artifact_ref
-        peer = target if this_is_source else source
-        try:
-            shown = str(label(relation, this_is_source))
-        except (TypeError, ValueError):
-            shown = relation
-        keys.add((shown, peer))
-    return keys
-
-
-def _missing_companions(
-    rows: list[dict[str, Any]], *, context: ArtifactRefContext
-) -> list[str]:
-    missing: list[str] = []
-    seen: set[str] = set()
-    md_path = require_rust_binding("artifact_md_path")
-    for row in rows:
-        for key in ("source_ref", "target_ref"):
-            ref = str(row.get(key) or "")
-            if not ref or ref in seen:
-                continue
-            seen.add(ref)
-            try:
-                result = resolve_cli_reference(ref, context=context)
-            except (RuntimeError, ValueError):
-                continue
-            request = {
-                "schema_version": 1,
-                "reference": ref,
-                "resolved_path": (
-                    None
-                    if result.resolution.resolved_path is None
-                    else str(result.resolution.resolved_path)
-                ),
-            }
-            try:
-                payload = dict(md_path(request))
-            except (TypeError, ValueError):
-                continue
-            if str(payload.get("kind") or "") != "companion":
-                continue
-            path = payload.get("path")
-            if isinstance(path, str) and path and not Path(path).is_file():
-                missing.append(ref)
-    return sorted(missing)
-
-
-def _orphaned_link_indexes(store: ArtifactLinkStore) -> list[str]:
-    orphaned: list[str] = []
-    seen: set[str] = set()
-    for kind, root in store.sidecar_roots.items():
-        links_root = root / REFERENCED_BY_LINKS_DIR
-        if not links_root.is_dir():
-            continue
-        for path in sorted(links_root.rglob("*.json")):
-            relative = path.relative_to(links_root).as_posix()
-            if not relative.endswith(".json"):
-                continue
-            fallback_ref = f"{kind}:{relative[: -len('.json')]}"
-            try:
-                index = read_artifact_link_index(path, artifact_ref=fallback_ref)
-            except Exception:  # noqa: BLE001 - malformed indexes are separate health.
-                continue
-            ref = str(index.get("artifact_ref") or fallback_ref)
-            if ref in seen:
-                continue
-            seen.add(ref)
-            artifact_path = _artifact_path_for(root, ref)
-            if artifact_path is not None and not artifact_path.is_file():
-                orphaned.append(ref)
-    return sorted(orphaned)
-
-
-def _artifact_path_for(root: Path, artifact_ref: str) -> Path | None:
-    try:
-        _kind, separator, relpath = artifact_ref.partition(":")
-        if not separator or not relpath:
-            return None
-        relative = Path(relpath)
-        if relative.is_absolute() or any(
-            part in {"", ".", ".."} for part in relative.parts
-        ):
-            return None
-    except (TypeError, ValueError):
-        return None
-    return root / relative
-
-
-def _missing_head_indexes(store: ArtifactLinkStore) -> list[str]:
-    missing: list[str] = []
-    for kind, root in store.sidecar_roots.items():
-        if not root.is_dir():
-            continue
-        for relpath in missing_referenced_by_indexes(root):
-            missing.append(f"{kind}:{relpath}")
-    return sorted(missing)
-
-
-def _markdown_path_for(store: ArtifactLinkStore, artifact_ref: str) -> Path | None:
-    root = store.sidecar_root_for(artifact_ref)
-    if root is None:
-        return None
-    _kind, _sep, relpath = artifact_ref.partition(":")
-    if not relpath:
-        return None
-    path = (root / relpath).expanduser()
-    return path if path.suffix == ".md" else None
-
-
-def _rebuild_existing_projections(
-    store: ArtifactLinkStore, rows: list[dict[str, Any]]
-) -> None:
-    """Rewrite existing Links tables from truth. Never parse Markdown for state."""
-
-    by_ref: dict[str, list[dict[str, Any]]] = {}
-    for row in rows:
-        for key in ("source_ref", "target_ref"):
-            ref = str(row.get(key) or "")
-            if ref:
-                by_ref.setdefault(ref, []).append(row)
-    upsert = require_rust_binding("links_block_upsert")
-    label = require_rust_binding("artifact_relation_label")
-    for artifact_ref, touching in by_ref.items():
-        path = _markdown_path_for(store, artifact_ref)
-        if path is None or not path.is_file():
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            continue
-        if _LINKS_START not in text:
-            continue
-        table_rows = []
-        for row in touching:
-            origin = str(row.get("origin") or "")
-            if origin not in {"manual", "migrated", "derived"}:
-                continue
-            source = str(row.get("source_ref") or "")
-            target = str(row.get("target_ref") or "")
-            this_is_source = source == artifact_ref
-            peer = target if this_is_source else source
-            relation = str(row.get("relation") or "")
-            try:
-                shown = str(label(relation, this_is_source))
-            except (TypeError, ValueError):
-                shown = relation
-            table_rows.append(
-                {
-                    "values": {
-                        "relation": shown,
-                        "artifact": peer,
-                        "why": str(row.get("description") or ""),
-                    },
-                    "link_targets": {},
-                }
-            )
-        table = {
-            "schema_version": 1,
-            "columns": [
-                {"key": "relation", "label": "Relation", "numeric": False},
-                {"key": "artifact", "label": "Artifact", "numeric": False},
-                {"key": "why", "label": "Why", "numeric": False},
-            ],
-            "rows": table_rows,
-            "omitted": 0,
-        }
-        try:
-            updated = str(upsert(text, table))
-        except (TypeError, ValueError):
-            continue
-        if _has_unmatched_managed_marker(text):
-            continue
-        if safety_body(updated) != safety_body(text):
-            continue
-        if updated != text:
-            path.write_text(updated, encoding="utf-8")
-
-
-def _has_unmatched_managed_marker(text: str) -> bool:
-    return text.count(_LINKS_START) != text.count(_LINKS_END) or text.count(
-        _REFERENCED_BY_START
-    ) != text.count(_REFERENCED_BY_END)
 
 
 __all__ = [
