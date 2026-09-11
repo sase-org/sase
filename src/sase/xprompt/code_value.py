@@ -272,9 +272,9 @@ def _is_directive_token(rest: str, name: str) -> bool:
     if not rest.startswith(name):
         return False
     if len(rest) == len(name):
-        return True
+        return False
     next_char = rest[len(name)]
-    return not (next_char.isalnum() or next_char == "_")
+    return next_char in {"(", ":", "+"}
 
 
 @cache

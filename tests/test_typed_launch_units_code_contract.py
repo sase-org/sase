@@ -26,6 +26,61 @@ def test_flag_off_rejects_proc_paren_form() -> None:
         extract_prompt_directives('%proc("just check")\nReview')
 
 
+def test_flag_on_preserves_prose_if_proc_mentions() -> None:
+    prompt = "stop un-admitted %if/%proc units"
+
+    with override_flags(typed_launch_units=True):
+        cleaned, directives = extract_prompt_directives(prompt)
+
+    assert cleaned == prompt
+    assert "%if/%proc" in cleaned
+    assert directives.if_code is None
+    assert directives.proc_code is None
+
+
+def test_flag_on_preserves_bare_if_and_proc_at_line_start() -> None:
+    prompt = "%if is plain text\n%proc is plain text"
+
+    with override_flags(typed_launch_units=True):
+        cleaned, directives = extract_prompt_directives(prompt)
+
+    assert cleaned == prompt
+    assert directives.if_code is None
+    assert directives.proc_code is None
+
+
+def test_flag_off_allows_prose_if_proc_mentions() -> None:
+    for prompt in [
+        "stop un-admitted %if/%proc units",
+        "%if is plain text\n%proc is plain text",
+    ]:
+        with override_flags(typed_launch_units=False):
+            cleaned, directives = extract_prompt_directives(prompt)
+
+        assert cleaned == prompt
+        assert directives.if_code is None
+        assert directives.proc_code is None
+
+
+@pytest.mark.parametrize(
+    ("prompt", "message"),
+    [
+        ("%if:cond\nReview", "requires %if::"),
+        ("%if(true)\nReview", "requires %if::"),
+        ("%if+\nReview", "requires %if::"),
+        ("%if:: echo hi\nReview", "requires %if::"),
+        ("%proc:: echo hi\nReview", "requires a body"),
+    ],
+)
+def test_flag_on_rejects_invalid_code_directive_forms(
+    prompt: str,
+    message: str,
+) -> None:
+    with override_flags(typed_launch_units=True):
+        with pytest.raises(DirectiveError, match=message):
+            extract_prompt_directives(prompt)
+
+
 def test_flag_on_captures_if_fence_and_strips_from_model_prompt() -> None:
     prompt = "%if::\n\n```bash\ntest -f pyproject.toml\n%wait and #refs\n```\nReview the tree"
     with override_flags(typed_launch_units=True):

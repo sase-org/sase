@@ -269,15 +269,18 @@ def _collect_code_directive(
         typed_launch_units_enabled,
     )
 
+    has_open_paren = match.group(2) is not None
+    colon_arg = match.group(3)
+    plus_suffix = match.group(4)
+    is_bare = not has_open_paren and colon_arg is None and plus_suffix is None
+    if is_bare and not prompt.startswith("::", match.end()):
+        return
     if not typed_launch_units_enabled():
         raise DirectiveError(TYPED_LAUNCH_UNITS_DISABLED_MESSAGE)
     if name == "if":
         raise DirectiveError(
             "%if requires %if:: followed by exactly one closed bash or python fence."
         )
-    has_open_paren = match.group(2) is not None
-    colon_arg = match.group(3)
-    plus_suffix = match.group(4)
     if plus_suffix is not None or (colon_arg is not None and not has_open_paren):
         raise DirectiveError(
             '%proc does not accept colon or plus forms; use %proc("cmd"), '
