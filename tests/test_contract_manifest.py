@@ -177,8 +177,19 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # onto Python import-graph edges. The refreshed 64-entry set measured 36.95 s
 # under the command above on this host. The next candidate should displace an
 # entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 64
-_MEASURED_SERIAL_COST = "36.95 serial seconds across 64 entries"
+#
+# Re-curated to 66 on 2026-09-11 when `test_validate_sase_core_rs_contracts_tool.py`
+# split by domain: `test_validate_sase_core_rs_contracts_provider_tool.py` (provider
+# disable/usage-store/priority-routing contracts) and
+# `test_validate_sase_core_rs_contracts_fleet_tool.py` (agent-stats, runner-capacity,
+# and fleet-summary contracts) moved out to keep every file under 500 lines, leaving
+# the original file with the proc-lifecycle, artifact-ref, vcs-log, finalizer, and
+# skill-reference contracts. The two added paths redistribute the same 13 validator
+# tests rather than expanding contract membership. The whole 66-entry set measured
+# 36.81 s under the command above (36.62 s on a second run on this host); the next
+# candidate should displace an entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 66
+_MEASURED_SERIAL_COST = "36.81 serial seconds across 66 entries"
 
 
 def _load_refresh_tool() -> ModuleType:
