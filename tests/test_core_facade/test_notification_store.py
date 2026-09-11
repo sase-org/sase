@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import dataclasses
+import json
 import shutil
 import types
 from datetime import UTC, datetime, timedelta
@@ -609,3 +611,254 @@ def test_real_extension_validates_and_normalizes_snooze_updates(tmp_path: Path) 
     snapshot = facade.read_notifications_snapshot(path)
     other = next(row for row in snapshot.notifications if row.id == "other")
     assert other.snooze_until is None
+
+
+def _snapshot_payload(
+    *,
+    notification_id: str = "n1",
+    next_snooze_deadline: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+        "notifications": [
+            {
+                "id": notification_id,
+                "timestamp": "2026-04-30T12:00:00+00:00",
+                "sender": "axe",
+                "notes": ["hello"],
+                "files": [],
+                "tags": [],
+                "action": None,
+                "action_data": {},
+                "read": False,
+                "dismissed": False,
+                "silent": False,
+                "muted": False,
+                "snooze_until": None,
+                "resurfaced_at": None,
+            }
+        ],
+        "counts": {"priority": 1, "rest": 0, "muted": 0},
+        "expired_ids": [],
+        "next_snooze_deadline": next_snooze_deadline,
+        "stats": {
+            "total_lines": 1,
+            "blank_lines": 0,
+            "invalid_json_lines": 0,
+            "invalid_record_lines": 0,
+            "loaded_rows": 1,
+            "dismissed_filtered": 0,
+        },
+    }
+
+
+def test_unchanged_current_snapshot_does_not_reparse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "notifications.jsonl"
+    path.write_text("{}\n", encoding="utf-8")
+    calls: list[tuple[str, bool, bool]] = []
+
+    def fake_read(store_path: str, include_dismissed: bool, expire: bool) -> dict:
+        calls.append((store_path, include_dismissed, expire))
+        return _snapshot_payload()
+
+    _fake_module(monkeypatch, read_notifications_snapshot=fake_read)
+
+    first = facade.read_current_notifications_snapshot(path)
+    second = facade.read_current_notifications_snapshot(path)
+
+    assert calls == [(str(path), False, True)]
+    assert [row.id for row in first.notifications] == ["n1"]
+    assert [row.id for row in second.notifications] == ["n1"]
+    first.notifications[0].notes.append("mutated")
+    third = facade.read_current_notifications_snapshot(path)
+    assert third.notifications[0].notes == ["hello"]
+
+
+def test_changed_store_reparses_current_snapshot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "notifications.jsonl"
+    path.write_text("{}\n", encoding="utf-8")
+    calls: list[str] = []
+
+    def fake_read(store_path: str, include_dismissed: bool, expire: bool) -> dict:
+        _ = (include_dismissed, expire)
+        calls.append(store_path)
+        return _snapshot_payload(notification_id=f"n{len(calls)}")
+
+    _fake_module(monkeypatch, read_notifications_snapshot=fake_read)
+
+    first = facade.read_current_notifications_snapshot(path)
+    path.write_text("{}\n{}\n", encoding="utf-8")
+    second = facade.read_current_notifications_snapshot(path)
+
+    assert len(calls) == 2
+    assert first.notifications[0].id == "n1"
+    assert second.notifications[0].id == "n2"
+
+
+def test_include_dismissed_is_part_of_snapshot_cache_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "notifications.jsonl"
+    path.write_text("{}\n", encoding="utf-8")
+    calls: list[bool] = []
+
+    def fake_read(_store_path: str, include_dismissed: bool, expire: bool) -> dict:
+        _ = expire
+        calls.append(include_dismissed)
+        suffix = "all" if include_dismissed else "active"
+        return _snapshot_payload(notification_id=suffix)
+
+    _fake_module(monkeypatch, read_notifications_snapshot=fake_read)
+
+    active = facade.read_current_notifications_snapshot(path, include_dismissed=False)
+    dismissed = facade.read_current_notifications_snapshot(path, include_dismissed=True)
+    active_again = facade.read_current_notifications_snapshot(
+        path, include_dismissed=False
+    )
+
+    assert calls == [False, True]
+    assert active.notifications[0].id == "active"
+    assert dismissed.notifications[0].id == "all"
+    assert active_again.notifications[0].id == "active"
+
+
+def test_cached_current_snapshot_does_not_replay_expired_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "notifications.jsonl"
+    path.write_text("{}\n", encoding="utf-8")
+    calls: list[int] = []
+
+    def fake_read(_store_path: str, _include: bool, _expire: bool) -> dict:
+        calls.append(1)
+        payload = _snapshot_payload()
+        payload["expired_ids"] = ["n1"]
+        return payload
+
+    _fake_module(monkeypatch, read_notifications_snapshot=fake_read)
+
+    first = facade.read_current_notifications_snapshot(path)
+    second = facade.read_current_notifications_snapshot(path)
+
+    assert len(calls) == 1
+    assert first.expired_ids == ["n1"]
+    assert second.expired_ids == []
+
+
+def test_due_snooze_deadline_bypasses_current_snapshot_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "notifications.jsonl"
+    path.write_text("{}\n", encoding="utf-8")
+    calls: list[int] = []
+    due = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
+
+    def fake_read(_store_path: str, _include: bool, _expire: bool) -> dict:
+        calls.append(1)
+        return _snapshot_payload(next_snooze_deadline=due)
+
+    _fake_module(monkeypatch, read_notifications_snapshot=fake_read)
+
+    facade.read_current_notifications_snapshot(path)
+    facade.read_current_notifications_snapshot(path)
+
+    assert len(calls) == 2
+
+
+def test_future_snooze_deadline_keeps_current_snapshot_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "notifications.jsonl"
+    path.write_text("{}\n", encoding="utf-8")
+    calls: list[int] = []
+    future = (datetime.now(UTC) + timedelta(hours=1)).isoformat()
+
+    def fake_read(_store_path: str, _include: bool, _expire: bool) -> dict:
+        calls.append(1)
+        return _snapshot_payload(next_snooze_deadline=future)
+
+    _fake_module(monkeypatch, read_notifications_snapshot=fake_read)
+
+    facade.read_current_notifications_snapshot(path)
+    facade.read_current_notifications_snapshot(path)
+
+    assert len(calls) == 1
+
+
+def test_store_write_invalidates_snapshot_cache(tmp_path: Path) -> None:
+    _skip_without_notification_bindings()
+    path = tmp_path / "notifications.jsonl"
+    facade.append_notification(path, _notification("n1"))
+    first = facade.read_current_notifications_snapshot(path)
+    assert [row.id for row in first.notifications] == ["n1"]
+
+    facade.append_notification(path, _notification("n2"))
+    second = facade.read_current_notifications_snapshot(path)
+    assert {row.id for row in second.notifications} == {"n1", "n2"}
+
+
+def test_compact_preserves_unread_and_actionable_notifications(tmp_path: Path) -> None:
+    _skip_without_notification_bindings()
+    path = tmp_path / "notifications.jsonl"
+    old = (datetime.now(UTC) - timedelta(days=30)).isoformat()
+    recent = (datetime.now(UTC) - timedelta(days=3)).isoformat()
+    future = (datetime.now(UTC) + timedelta(days=1)).isoformat()
+
+    unread = _notification("unread")
+    actionable = _notification("actionable", action="PlanApproval")
+    recent_dismissed = dataclasses.replace(
+        _notification("recent-dismissed", read=True),
+        dismissed=True,
+        timestamp=recent,
+    )
+    snoozed_dismissed = dataclasses.replace(
+        _notification(
+            "snoozed-dismissed",
+            muted=True,
+            snooze_until=future,
+        ),
+        dismissed=True,
+        timestamp=old,
+    )
+    old_dismissed = [
+        dataclasses.replace(
+            _notification(f"old-dismissed-{index:04d}", read=True),
+            dismissed=True,
+            timestamp=old,
+        )
+        for index in range(1_001)
+    ]
+    rows = [unread, actionable, recent_dismissed, snoozed_dismissed, *old_dismissed]
+    path.write_text(
+        "".join(
+            json.dumps(notification_store_wire_to_json_dict(row)) + "\n" for row in rows
+        ),
+        encoding="utf-8",
+    )
+
+    outcome = facade.compact_notification_store(path)
+
+    assert outcome.archived_count == 1_001
+    assert outcome.live_bytes_after < outcome.live_bytes_before
+    live = facade.read_notifications_snapshot(path, include_dismissed=True)
+    live_ids = {row.id for row in live.notifications}
+    assert {"unread", "actionable", "recent-dismissed", "snoozed-dismissed"} <= live_ids
+    assert "old-dismissed-0000" not in live_ids
+    unread_row = next(row for row in live.notifications if row.id == "unread")
+    actionable_row = next(row for row in live.notifications if row.id == "actionable")
+    assert unread_row.read is False
+    assert unread_row.dismissed is False
+    assert actionable_row.action == "PlanApproval"
+    archive = Path(outcome.archive_path)
+    archived_ids = {
+        json.loads(line)["id"]
+        for line in archive.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+    assert "old-dismissed-0000" in archived_ids
+    assert "unread" not in archived_ids
+    assert "actionable" not in archived_ids

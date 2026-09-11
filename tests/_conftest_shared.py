@@ -35,6 +35,11 @@ def gate_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         tmp_path / "legacy.json",
     )
     store._LOAD_CACHE.clear()
+    from sase.core.notification_store_facade import (
+        invalidate_notification_snapshot_cache,
+    )
+
+    invalidate_notification_snapshot_cache()
     return tmp_path
 
 

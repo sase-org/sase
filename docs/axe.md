@@ -451,12 +451,13 @@ Comment polling:
 
 Periodic maintenance:
 
-| Chop                     | Description                                                                     |
-| ------------------------ | ------------------------------------------------------------------------------- |
-| `error_digest`           | Send error notification digests (creates `ViewErrorReport` notification action) |
-| `managed_tmp_reap`       | Prune stale scratch under the managed SASE temp root                            |
-| `bead_stale_cleanup`     | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
-| `artifact_link_backfill` | Derive and reconcile artifact links, drain reads, and repair renamed refs       |
+| Chop                         | Description                                                                     |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| `error_digest`               | Send error notification digests (creates `ViewErrorReport` notification action) |
+| `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                 |
+| `managed_tmp_reap`           | Prune stale scratch under the managed SASE temp root                            |
+| `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
+| `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair renamed refs       |
 
 The `error_digest` chop summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
@@ -467,6 +468,12 @@ time. The excerpt is redacted, stripped of terminal control sequences, and retai
 `recent_errors.json`, so the digest remains useful even after per-run logs are pruned.
 Silent, missing, unreadable, malformed, and truncated output are called out explicitly
 instead of being reported as a Python traceback.
+
+The `notification_store_compact` chop bounds `~/.sase/notifications/notifications.jsonl`
+by moving dismissed rows older than 14 days into `notifications-archive.jsonl`. Unread
+and still-actionable rows stay in the live file. ACE snapshot reads are memoized against
+an mtime+size token, so this pass lives on `housekeeping` rather than the TUI refresh
+cadence that previously re-parsed the whole store every tick.
 
 The `managed_tmp_reap` chop bounds the managed SASE temp root (`$SASE_TMPDIR`, else
 `~/.sase/tmp`) that `get_sase_managed_tmpdir()` hands out. Horizons are per

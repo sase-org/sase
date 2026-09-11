@@ -314,6 +314,7 @@ def test_all_builtin_chop_modules_use_the_registry() -> None:
         "hook_checks",
         "managed_tmp_reap",
         "mentor_checks",
+        "notification_store_compact",
         "orphan_cleanup",
         "pending_checks_poll",
         "plugins_required",

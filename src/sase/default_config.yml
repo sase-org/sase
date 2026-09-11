@@ -1155,10 +1155,10 @@ axe:
             polling throttle; pending_checks_poll later consumes each background result.
     housekeeping:
       description: |-
-        Run hourly error digests, managed-temp cleanup, and stale task-bead sweep
+        Run hourly error digests, notification compaction, managed-temp cleanup, and stale task-bead sweep
 
-        Runs once an hour because notification batching, bounded scratch reclamation, and stale-backlog
-        cleanup are useful but not latency-sensitive. Put durable maintenance that may scan substantial
+        Runs once an hour because notification batching, live-inbox bounding, bounded scratch reclamation, and
+        stale-backlog cleanup are useful but not latency-sensitive. Put durable maintenance that may scan substantial
         local state here, not lifecycle, dependency, or remote polling work.
       interval: 3600
       chops:
@@ -1170,6 +1170,15 @@ axe:
             Reads the AXE error log and the last successful digest timestamp, then notifies only about newer errors
             within the rolling one-hour window. The checkpoint advances to the newest notified timestamp, preventing
             duplicate digests while leaving unsent errors eligible after a notification failure.
+        - name: notification_store_compact
+          script: sase_chop_notification_store_compact
+          timeout: "2m"
+          description: |-
+            Archive old dismissed notifications out of the live JSONL store
+
+            Moves dismissed rows past the 14-day retention window from notifications.jsonl into
+            notifications-archive.jsonl under the store lock. Unread and still-actionable rows stay in the live
+            file. Runs here so a multi-megabyte re-parse and rewrite never sits on the ACE refresh cadence.
         - name: managed_tmp_reap
           script: sase_chop_managed_tmp_reap
           description: |-

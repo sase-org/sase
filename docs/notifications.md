@@ -1442,15 +1442,22 @@ updates such as mark-read, mark-all-read, mute, snooze, and dismiss use a count-
 Rust mutation path unless the caller needs rehydrated notification rows; this keeps
 inbox counters cheap when ACE or a bridge process only needs mutation metadata.
 
-The store keeps itself O(live). When `notifications.jsonl` crosses 4 MiB or holds at
-least 1,000 dismissed rows, the next read or rewrite compacts it under the same
-exclusive lock: dismissed rows older than a 14-day retention window are appended to a
-sibling `notifications-archive.jsonl` and dropped from the live file, then the live file
-is replaced atomically so a crash mid-compaction loses no row. Snoozed rows are never
+ACE snapshot reads memoize the parsed store against the JSONL path, the
+`include_dismissed` flag, and an mtime+size change token, so an unchanged live file is
+not re-parsed on the TUI refresh cadence. A due `next_snooze_deadline` still forces a
+re-read when the caller asked to expire snoozes.
+
+The store keeps itself O(live). The hourly `notification_store_compact` housekeeping
+chop drives compaction so a multi-megabyte re-parse does not sit on an interactive path.
+When `notifications.jsonl` crosses 4 MiB or holds at least 1,000 dismissed rows, a
+cache-missing read or rewrite may still compact under the same exclusive lock: dismissed
+rows older than a 14-day retention window are appended to a sibling
+`notifications-archive.jsonl` and dropped from the live file, then the live file is
+replaced atomically so a crash mid-compaction loses no row. Snoozed rows are never
 archived while snoozed, and dismissed rows inside the retention window stay put so the
-inbox UI's `include_dismissed` view is unchanged. `sase logs pack` reads the archive
-alongside the live file, so a window older than the retention period still packs
-complete.
+inbox UI's `include_dismissed` view is unchanged. Unread and still-actionable rows stay
+in the live file. `sase logs pack` reads the archive alongside the live file, so a
+window older than the retention period still packs complete.
 
 The Rust store also owns every temporal semantic: it validates and normalizes snooze
 deadlines, expires due rows atomically under the same lock as the read, stamps

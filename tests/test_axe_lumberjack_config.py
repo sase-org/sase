@@ -267,11 +267,17 @@ def test_default_builtin_chops_use_explicit_full_script_names() -> None:
     assert "cl_submitted_checks" not in checks.chop_names
     housekeeping = config.lumberjacks["housekeeping"]
     assert "bead_stale_cleanup" in housekeeping.chop_names
+    assert "notification_store_compact" in housekeeping.chop_names
     stale_cleanup = next(
         chop for chop in housekeeping.chops if chop.name == "bead_stale_cleanup"
     )
     assert stale_cleanup.script == "sase_chop_bead_stale_cleanup"
     assert stale_cleanup.timeout == 120
+    compact = next(
+        chop for chop in housekeeping.chops if chop.name == "notification_store_compact"
+    )
+    assert compact.script == "sase_chop_notification_store_compact"
+    assert compact.timeout == 120
     scripts = tomllib.loads(
         (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
             encoding="utf-8"

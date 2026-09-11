@@ -27,6 +27,11 @@ _LOAD_CACHE: dict[tuple[int, int, int, bool], list[Notification]] = {}
 def _invalidate_load_cache() -> None:
     """Drop the cached parse — call after any in-process write."""
     _LOAD_CACHE.clear()
+    from sase.core.notification_store_facade import (
+        invalidate_notification_snapshot_cache,
+    )
+
+    invalidate_notification_snapshot_cache()
 
 
 def _notifications_dir() -> str:
@@ -286,6 +291,23 @@ def rewrite_notifications(notifications: list[Notification]) -> None:
     _ensure_notifications_dir()
     _rust_rewrite_notifications(_notifications_path(), notifications)
     _invalidate_load_cache()
+
+
+def compact_notification_store() -> Any:
+    """Archive old dismissed rows out of the live store.
+
+    Housekeeping only: the TUI refresh path must not invoke this. The Rust
+    store still compact-on-read when thresholds are met; this entry point
+    forces that pass off the interactive cadence.
+    """
+    from sase.core.notification_store_facade import (
+        compact_notification_store as compact_store,
+    )
+
+    _ensure_notifications_dir()
+    outcome = compact_store(_notifications_path())
+    _invalidate_load_cache()
+    return outcome
 
 
 def mark_read(notification_id: str) -> bool:

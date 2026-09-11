@@ -51,6 +51,7 @@ from sase.notifications.senders import (
 )
 from sase.notifications.store import (
     append_notification,
+    compact_notification_store,
     dismiss_agent_completion_notifications_matching_agents,
     dismiss_notifications_matching_agents,
     expire_due_snoozes,
@@ -81,6 +82,7 @@ __all__ = [
     "QuestionSummary",
     "append_notification",
     "cleanup_transport_actions",
+    "compact_notification_store",
     "dismiss_agent_completion_notifications_matching_agents",
     "dismiss_notifications_matching_agents",
     "expire_due_snoozes",
