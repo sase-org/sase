@@ -61,7 +61,9 @@ Without a reference, `list` shows the current project's newest 50 rows. With one
 shows that artifact's neighborhood. `-d in|out|both`, `-R/--relation`, and `-o/--origin`
 (`manual`, `migrated`, `prompt_ref`, `read`, `derived`, or `projected`) narrow it;
 `-l 0` is unlimited and `-j` emits a stable JSON array. The default `--source index`
-includes machine-local projected rows; `--source store` reads durable truth only.
+reads the rebuildable machine-local aggregate and includes computed projections.
+`--source store` rebuilds rows from document events, bead events, and pending event
+outbox entries instead, and excludes computed projections.
 
 Ask SASE for write-free, hard-evidence suggestions before adding a deliberate edge:
 
@@ -100,8 +102,10 @@ neighbors, semantic links first, followed by `(+N more)` when needed. Reading an
 artifact that is the target of `supersedes` also emits a direct warning naming its
 replacement.
 
-`link add`, `link rm`, and `migrate-notes --apply` write the artifact-link graph
-directly. `link list` reads the current graph rows.
+`link add`, `link rm`, and `migrate-notes --apply` publish immutable operations. A
+removal is a tombstone over the active operation IDs the command observed; it does not
+delete history. The shared Rust reducer folds those operations into the current graph
+rows that `link list` displays.
 
 ## Projected relationships
 
@@ -217,24 +221,58 @@ Historical `RELATED:` notes remain in bead history. `sase artifact link migrate-
 dry-runs the conversion, and `--apply` writes typed `related` edges plus `MIGRATED:`
 notes without deleting the original text.
 
-Historical schema-v1 `Referenced By` JSON sidecars must be migrated before graph reads.
-After artifact-link graduation, readers fail loudly on schema-v1 files instead of
-rewriting them implicitly.
+## Legacy index cutover
+
+Existing installations may still have mutable per-artifact indexes under document
+sidecar `links/` trees. Upgrade every SASE machine that can write those sidecars, then
+preview the one-time import:
+
+```bash
+sase artifact link import-indexes
+```
+
+The preview requires clean Git document sidecars, freezes each current `HEAD` and
+`links/` tree digest, and reports the unique and duplicate rows, legacy or invalid
+queued outbox entries, deterministic baseline-event path, enrolled machine names, and a
+capability attestation. Review that fleet list before applying: the marker fences
+current binaries only, and older binaries do not understand it.
+
+Apply with the exact token printed by the preview:
+
+```bash
+sase artifact link import-indexes --apply <attestation>
+```
+
+Apply first commits a `link-events/STORE.json` fence to every document sidecar, converts
+legacy outbox rows, publishes the same deterministic baseline event to every sidecar,
+marks the import complete, and rebuilds the aggregate. The operation is idempotent and
+resumable: rerunning preview and apply with the reported token completes an interrupted
+import rather than creating a second baseline. Once every marker says `imported`,
+current readers ignore the frozen `links/` indexes. Do not edit or delete that legacy
+tree by hand; `sase doctor` reports post-import stragglers.
 
 ## Health and recovery
 
 `sase artifact doctor` reports link health alongside the file index: dangling or
 unpublished agent references, stale rendered tables, missing or orphaned companions,
 aggregate drift from the expected durable-plus-projected rows, audited reads versus
-durable `read` rows, queued and dropped outbox rows, derived-link coverage, and counts
-by origin and relation. When drift exists, the report breaks out missing and extra rows
-by relation, origin, and endpoint. It exits 1 for unhealthy state; unpublished agent
-references are informational because a queued publication may still resolve them.
+durable `read` rows, immutable-event validation or reduction failures, orphaned
+tombstones, pending-event age, publication retries, cutover state, queued and dropped
+outbox rows, derived-link coverage, and counts by origin and relation. When drift
+exists, the report breaks out missing and extra rows by relation, origin, and endpoint.
+It exits 1 for unhealthy state; unpublished agent references are informational because a
+queued publication may still resolve them.
 
 `sase artifact doctor --fix` rebuilds the aggregate and managed projections from durable
 truth, repairs references whose files can be followed through Git rename history, and
 performs the ordinary artifact-index enrichment pass. It does not infer graph state by
-parsing hand-authored Markdown.
+parsing hand-authored Markdown, run the legacy-index import, or fabricate missing
+events.
+
+The project-level `sase doctor -C project.artifact_link_cutover` check reports
+incomplete or inconsistent cutover markers and any post-import `links/` tree changes.
+Resume an incomplete import with the attested `import-indexes --apply` command printed
+by the diagnostic.
 
 `sase doctor -C project.primary_sidecar_link_dirt` flags uncommitted `links/` dirt in
 sidecar clones nested under a project's primary (human) checkout. That dirt blocks
@@ -247,27 +285,29 @@ primary through auto-sync.
 
 Artifact-link truth lives in several places with different durability:
 
-| Path                                                        | Role                                                                                                   | Versioned?                                                                                                                               |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Sidecar `links/**/*.json`                                   | Per-artifact schema-v2 index. This is the durable source used to rebuild the graph.                    | Yes. Committed in the owning document sidecar.                                                                                           |
-| Sidecar `links/**/*.lock`                                   | Zero-byte `flock` sentinel for one index. Synchronization state only; never graph data.                | No. Ignored by `/links/**/*.lock`. Existing tracked empty sentinels may remain as compatibility residue; new locks are not added to VCS. |
-| `~/.sase/projects/<key>/artifact-links.json`                | Rebuildable project-local aggregate of durable rows plus projected relationships, with its lock.       | No. Local SASE state, never a sidecar commit.                                                                                            |
-| `~/.sase/projects/<key>/artifact-link-outbox.jsonl`         | Replay queue for an agent's `read` rows until its published identity can own the durable sidecar link. | No. Machine-local; drained after publication and by hourly housekeeping.                                                                 |
-| `~/.sase/projects/<key>/artifact-link-outbox-dropped.jsonl` | Audit trail for stale terminal-agent rows that could not become publishable.                           | No. Machine-local.                                                                                                                       |
+| Path                                                        | Role                                                                                                   | Versioned?                                                         |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Sidecar `link-events/v1/<shard>/<digest>.json`              | Content-addressed immutable operation objects; the reducer derives the current graph from their union. | Yes. Each owning document sidecar commits the exact event bytes.   |
+| Sidecar `link-events/STORE.json`                            | Fleet-safety fence and legacy-import progress marker (`fenced` or `imported`).                         | Yes. One canonical marker in every document sidecar.               |
+| Sidecar `links/**/*.json`                                   | Frozen legacy schema-v2 indexes, read only before cutover and ignored after every marker is imported.  | Historical compatibility data only; never a current write target.  |
+| `~/.sase/projects/<key>/link-events/v1/...`                 | Durable root for an event with no document or bead owner.                                              | No. Machine-local SASE state.                                      |
+| `~/.sase/projects/<key>/artifact-links.json`                | Rebuildable aggregate of reduced store rows plus projected relationships, with its lock.               | No. Machine-local SASE state.                                      |
+| `~/.sase/projects/<key>/artifact-link-outbox.jsonl`         | Replay queue of canonical event payloads awaiting all required durability receipts.                    | No. Machine-local; retried by publication and hourly housekeeping. |
+| `~/.sase/projects/<key>/artifact-link-outbox-dropped.jsonl` | Audit trail for stale terminal-agent observations that could not become publishable.                   | No. Machine-local.                                                 |
 
-`sase artifact link add` and `rm` commit each sidecar they actually change once the
-graph mutation succeeds. One command that updates many indexes in the same repository
-still creates one `chore(artifact-links): persist link indexes` commit. Crossing
-repository boundaries is the lower bound on commit count: two document sidecars means
-two commits. Bead endpoints write `LinkAdded` / `LinkRemoved` events and fold into the
-existing bead-store commit and publication boundary rather than a document-sidecar file.
-A no-op upsert or removal creates no commit.
+`sase artifact link add` publishes an `edge-put`; `rm` publishes an `edge-remove`
+tombstone. One canonical event is installed in every document sidecar that owns either
+endpoint, and one command creates at most one
+`chore(artifact-links): persist link events` commit per affected repository. Bead
+ownership is acknowledged through the bead event store. Events with neither a document
+nor bead owner use the machine-local event root. SASE updates the aggregate only after
+the operation has every required durability receipt, so an ephemeral checkout cannot
+report success while holding the only copy. An unchanged put or a removal with no active
+edge writes nothing.
 
-An audited agent `read` updates the local graph immediately and appends a replayable
-outbox row. Once that agent has a published sidecar identity, the commit workflow drains
-its rows and commits eligible link JSON; the hourly backfill retries publication gaps.
-Rows for terminal agents that remain unpublished for 90 days are removed from the live
-queue and appended to the dropped audit. Link commits peel only eligible JSON (and the
-lock-ignore rule on first use) out of each sidecar, leaving unrelated or pre-existing
-dirty paths for the normal declaration. Publication is verified so an ephemeral checkout
-cannot report success while holding the only copy.
+An audited agent `read` updates the local reduced view and appends a replayable event to
+the outbox until the agent's published identity can satisfy document ownership. The
+commit workflow and hourly backfill retry those events. Rows for terminal agents that
+remain unpublished for 90 days leave the live queue and enter the dropped audit.
+Publication commits isolate only canonical event and marker paths, leaving unrelated or
+pre-existing sidecar dirt for the normal declaration workflow.

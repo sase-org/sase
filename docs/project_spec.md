@@ -271,7 +271,7 @@ Common workflows:
 - Re-enable from the CLI: `sase project enable old-project`
 - Add a short project alias: `sase project alias add bob-cli bob`
 - Inspect project aliases as JSON: `sase project alias list bob-cli --json`
-- Make a project current from ACE: press `#`, switch to the Projects tab (`4`),
+- Make a project current from ACE: press `#`, switch to the Projects tab (`5`),
   highlight the project, then press `c`
 - Re-enable from ACE: press `#`, switch to the Projects tab, highlight the project, then
   press `a`

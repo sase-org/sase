@@ -591,6 +591,14 @@ creating a new commit would risk duplication. Fix the hook and run
 step is already recorded. After hooks should be repeatable because a crash between
 command success and checkpoint persistence has at-least-once execution semantics.
 
+The host-owned `builtin@commit` finalizer recognizes this state before it starts a new
+stitch. When `SASE_ARTIFACTS_DIR/commit_state.json` belongs to the same repository, run,
+and agent, carries an operation ID, and its normalized full commit message exactly
+matches the accepted declaration, the finalizer runs the resume path first and then
+recomputes remaining dirt. A malformed checkpoint, a foreign repository/run/agent, or
+even a same-subject message with a different body fails closed instead of being adopted
+or overwritten.
+
 ## Environment Variables
 
 | Variable                            | Purpose                                                                                          |

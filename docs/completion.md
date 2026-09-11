@@ -19,6 +19,7 @@ Pick your shell and write the script somewhere your shell already scans, or let
 sase completion install          # detect the shell, write, zcompile (zsh), verify, stamp
 sase completion install zsh      # or name one explicitly
 sase completion install -d       # dry run: print the plan, touch nothing
+sase completion refresh -d       # preview refreshes for existing stamped installs
 ```
 
 Open a new shell afterward — completion scripts are read once, at shell startup.
@@ -176,17 +177,39 @@ embedded fragment.
 | `SASE_COMPLETION_NO_CACHE`  | Set to `1` to bypass the on-disk candidates cache entirely (fish, or debugging any shell). |
 | `SASE_COMPLETION_DIR`       | Force `sase completion install`'s target directory, overriding auto-detection.             |
 
-## Refresh On Update
+## Refresh Existing Installs
 
-`sase update` regenerates, `zcompile`s, and re-stamps every previously installed
-completion script after a successful upgrade, so an installed script never drifts stale
-behind the CLI it completes.
+Refresh stamped local installs without changing where they live:
 
-Refresh skips any stamp whose owner is `chezmoi`, because those files are regenerated
-from the chezmoi source tree instead of being locally owned. An explicit local install
-refuses to take over a chezmoi-owned target unless you pass `--force`, making the
-ownership transition deliberate. Refresh failures are reported but never fail
-`sase update` itself.
+```bash
+sase completion refresh              # every stamped supported shell
+sase completion refresh zsh          # one shell only
+sase completion refresh bash -d      # show whether and why it would change
+sase completion refresh -j           # machine-readable per-shell outcomes
+```
+
+The command regenerates each script from the running CLI, rewrites its stamped target,
+`zcompile`s zsh, and records a fresh local stamp. With no shell argument it refreshes
+every stamped `zsh`, `bash`, and `fish` install. Naming a shell with no stamp is a
+successful no-op (`no stamped <shell> completion install`), as is running without a
+shell when there are no stamps. Dry-run reports `already current` or `would refresh`
+with the detected drift reasons and touches no scripts, stamps, or zsh bytecode.
+
+Refresh deliberately skips zsh's registration probe: that probe protects a first
+install, but can false-fail a refresh targeting a disposable or currently unregistered
+directory. Use `sase doctor -D -C completion.registration` when you want to test the
+active shell registration explicitly.
+
+Legacy stamps whose owner is `chezmoi` are reported but never overwritten by refresh,
+because those scripts must be regenerated from the chezmoi source tree. The explicit
+refresh command exits nonzero when any selected outcome cannot be refreshed. To convert
+a chezmoi-owned target to a local install, run
+`sase completion install <shell> --force`; without `--force`, install refuses the
+ownership change.
+
+After a successful upgrade, `sase update` runs this same refresh automatically for all
+stamped installs. Those refresh failures are displayed but do not fail the update
+itself.
 
 ## Troubleshooting
 

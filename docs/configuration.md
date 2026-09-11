@@ -161,17 +161,18 @@ import/publication commands, and recovery.
 
 Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press always
 starts on its lightweight home page, where the working sections—**Config**, **Logs**,
-**Procs**, **Projects**, **Statistics**, and **Updates**—are introduced without loading
-their data. Config's nested catalog is alphabetized. With the default-on
+**Machines**, **Procs**, **Projects**, **Statistics**, and **Updates**—are introduced
+without loading their data. Config's nested catalog is alphabetized. With the default-on
 `admin_center_flags` sunset flag it is **All**, **Flags**, **Launch**, **Memory**,
 **Snippets**, and **XPrompts**, labeled `01` through `06`. Disabling that flag omits
 Flags and numbers the remaining five children `01` through `05`. While home is visible,
 press `#` again to resume the last section that was successfully active in this ACE
 process. Before the first section visit, the repeated key leaves home unchanged and
-constructs no pane. Press `1`–`6` or click the numbered tab strip to enter a section.
-From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a working section
-they wrap across the same tabs. Pane-local `[` / `]` keys switch sub-tabs or views where
-the active pane provides them, including Config's nested catalog.
+constructs no pane. Press `1`–`7` or click the numbered tab strip to enter a section:
+`1` Config, `2` Logs, `3` Machines, `4` Procs, `5` Projects, `6` Statistics, and `7`
+Updates. From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a working
+section they wrap across the same tabs. Pane-local `[` / `]` keys switch sub-tabs or
+views where the active pane provides them, including Config's nested catalog.
 
 Inside a working section, the same opener key takes on a second meaning: it jumps to the
 section you were in immediately before the current one, and pressing it again toggles
@@ -181,17 +182,17 @@ jump target (or explains that none exists yet) and is itself clickable.
 
 Each pane is constructed only on first entry and is then reused until the Admin Center
 closes, preserving filters, selection, and scroll state while avoiding unrelated config,
-project, log, statistics, proc, update, and xprompt work on open. Direct commands such
-as **Open logs panel**, **Open procs panel**, **Open statistics**, and update actions
-still open their requested pane immediately and make that successfully mounted section
-the next resume target. Closing and reopening with one `#` still returns to home; only a
-second press while home is visible resumes. The top-level resume target and alternate
-are persisted machine-locally and survive ACE process restarts. Entry bookmarks for
-Config, Logs, Projects, Procs, and Updates last only for the current ACE process. They
-restore by stable identity, along with minimal scope or sub-tab context when needed, but
-reset when ACE restarts. Filters, marks, scroll positions, loaded data, pane instances,
-Statistics controls, and other pane-local state are never carried between modal
-lifetimes.
+project, machine, log, statistics, proc, update, and xprompt work on open. Direct
+commands such as **Open logs panel**, **Open procs panel**, **Open statistics**, and
+update actions still open their requested pane immediately and make that successfully
+mounted section the next resume target. Closing and reopening with one `#` still returns
+to home; only a second press while home is visible resumes. The top-level resume target
+and alternate are persisted machine-locally and survive ACE process restarts. Entry
+bookmarks for Config, Logs, Machines, Projects, Procs, and Updates last only for the
+current ACE process. They restore by stable identity, along with minimal scope or
+sub-tab context when needed, but reset when ACE restarts. Filters, marks, scroll
+positions, loaded data, pane instances, Statistics controls, and other pane-local state
+are never carried between modal lifetimes.
 
 ### Config tab
 
@@ -276,6 +277,22 @@ on that failure's source, highlights the matching header line, and scrolls the d
 pane to it. The jump target is session-scoped: it is the most recent error toast in this
 ACE process, not a durable pointer, and it degrades to the ordinary tail with an in-pane
 notice if the entry has rotated out of the log.
+
+### Machines tab
+
+The Machines tab is the controller's local fleet inventory. It always includes the local
+controller and adds every enrolled remote alias, with columns for enrollment state,
+health, advertised capacity, last observation, and endpoint. Opening or reloading the
+tab reads local inventory only; it never contacts every gateway implicitly. A remote
+therefore starts as **not checked** until you press `s` for one bounded, authenticated
+hello.
+
+Use `/` to filter, `j` / `k` to move, `U` to reload inventory, and `Enter` to close
+Admin Center and open Agents filtered to `machine:<alias>` (`machine:here` for the local
+row). `c` shows the persistent enrollment flow. For a selected remote, `r`, `R`, and `x`
+show repair, rename, and removal guidance, while `y` copies the displayed command; these
+guidance actions do not mutate machine state by themselves. See the
+[Remote Dispatch Runbook](remote_dispatch.md) for enrollment and credential handling.
 
 ### Projects tab
 
@@ -449,7 +466,7 @@ behavior after the other legs finish. The context-sensitive keymaps are:
 | `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                              |
 | `/`                 | Focus the filter input (matches every row's own name / description / topics, across all sections)           |
 | `#` (default)       | From home, resume the last section used; in a section, jump to the previous one, press again to toggle      |
-| `Tab` / `Shift+Tab` | From home enter Config / Updates; otherwise switch SASE Admin Center tabs (`1`–`6` jump directly)           |
+| `Tab` / `Shift+Tab` | From home enter Config / Updates; otherwise switch SASE Admin Center tabs (`1`–`7` jump directly)           |
 | `Esc`               | Clear every mark first, including any hidden by the filter; close when no marks are active                  |
 | `q`                 | Close SASE Admin Center                                                                                     |
 
@@ -922,7 +939,8 @@ that means something about what kind of tab it is), and finally `•` for a tab 
 kind at all. Unlike color, an icon never falls back to a hashed auto-palette entry — an
 arbitrary glyph would teach the reader something false, so the chain always bottoms out
 at a meaningful or honestly generic mark instead. The bundled defaults are `⚑` `hitl`,
-`✖` `errors`, `◈` `beads`, `✉` `general`, `☾` `snoozed`, and `⊘` `muted`.
+`?` `attention`, `✖` `errors`, `◈` `beads`, `✉` `general`, `☾` `snoozed`, and `⊘`
+`muted`.
 
 Configured icons are explicit choices and are never overridden. ACE guarantees
 distinctness only for SASE-chosen generic icons from the kind and last-resort rungs: on
@@ -993,7 +1011,8 @@ taking effect.
 
 #### `ace.keymaps`
 
-All TUI keybindings are configurable. The `keymaps` section has six scopes:
+All TUI keybindings are configurable. The `keymaps` section has focused modal and pane
+scopes, app-wide bindings, and prefix-mode maps:
 
 **`gate`** — Bindings active in the shared branch controls used by plan and custom gate
 modals, plus the input panel those modals open when a selection needs typed input:
@@ -1020,7 +1039,7 @@ available actions are:
 
 | Field           | Default | Description                                                                                      |
 | --------------- | ------- | ------------------------------------------------------------------------------------------------ |
-| `select_subtab` | `0`     | Arm numbered Config-child selection (`01`-`07` when Flags is visible, `01`-`06` when it is not). |
+| `select_subtab` | `0`     | Arm numbered Config-child selection (`01`-`06` when Flags is visible, `01`-`05` when it is not). |
 
 **`statistics`** — Bindings active only while the Admin Center Statistics pane is
 focused. The available actions are:
@@ -1206,14 +1225,14 @@ The top-level Agents query editor is available as the app-level `agents_filters`
 binding, default `f`, and through the leader-mode `edit_query` chord, default `,/`. Bare
 `/` remains the Agents inline metadata-search key.
 
-| Field                       | Default   | Action                                                       |
-| --------------------------- | --------- | ------------------------------------------------------------ |
-| `agents_filters`            | `f`       | Open the top-level Agents `agents-live` filter bar.          |
-| `connect_agent_machine`     | `unbound` | Show the selected row's machine alias and connection health. |
-| `setup_agent_machine`       | `unbound` | Show canonical `sase machine init` enrollment guidance.      |
-| `retry_remote_agent`        | `unbound` | Retry the selected row on its owning host.                   |
-| `view_remote_agent_content` | `unbound` | Fetch bounded remote chat, output, or diff content.          |
-| `answer_remote_attention`   | `unbound` | Answer a pending remote question or approve a pending gate.  |
+| Field                       | Default   | Action                                                      |
+| --------------------------- | --------- | ----------------------------------------------------------- |
+| `agents_filters`            | `f`       | Open the top-level Agents `agents-live` filter bar.         |
+| `connect_agent_machine`     | `unbound` | Open the Admin Center Machines tab.                         |
+| `setup_agent_machine`       | `unbound` | Open the Admin Center Machines tab for enrollment guidance. |
+| `retry_remote_agent`        | `unbound` | Retry the selected row on its owning host.                  |
+| `view_remote_agent_content` | `unbound` | Fetch bounded remote chat, output, or diff content.         |
+| `answer_remote_attention`   | `unbound` | Answer a pending remote question or approve a pending gate. |
 
 Remote stop and fork reuse the ordinary `kill_agent` and `edit_hooks` actions when the
 row advertises those capabilities. See [Machines](ace.md#machines).
@@ -5754,7 +5773,8 @@ works outside an agent run.
 | `sase artifact create`               | `-b/--bead`, `-k/--kind`, `-l/--label`, `-m/--move`, `-p/--path`                                                                 | Store one explicit artifact for the current agent                                                                                       |
 | `sase artifact doctor`               | `-f/--fix`, `-v/--verify`                                                                                                        | Report file-index and link-graph health; repair projections/renames and backfill enrichment with `--fix`, verify hashes with `--verify` |
 | `sase artifact link add`             | (positionals `source_ref`, `relation`, `target_ref`, `why`)                                                                      | Add or rewrite one typed artifact link                                                                                                  |
-| `sase artifact link list`            | `-d/--direction`, `-j/--json`, `-l/--limit`, `-o/--origin`, `-R/--relation`, optional `ref`                                      | List recent artifact links or one artifact's neighborhood                                                                               |
+| `sase artifact link import-indexes`  | optional attestation, `-a/--apply`, `-j/--json`                                                                                  | Preview or apply the attested, resumable legacy `links/` to immutable-event cutover                                                     |
+| `sase artifact link list`            | `-d/--direction`, `-j/--json`, `-l/--limit`, `-o/--origin`, `-R/--relation`, `-s/--source`, optional `ref`                       | List recent artifact links or one artifact's neighborhood                                                                               |
 | `sase artifact link migrate-notes`   | `-a/--apply`, `-j/--json`                                                                                                        | Convert parseable historical `RELATED:` bead notes to typed links                                                                       |
 | `sase artifact link relation`        | `list` / `show <slug>`, `-j/--json`                                                                                              | Inspect the closed relation registry, direction, examples, and recommended endpoint kinds                                               |
 | `sase artifact link rm`              | `-R/--relation`, (positionals `source_ref`, `target_ref`)                                                                        | Remove typed links between two artifacts                                                                                                |

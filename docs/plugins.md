@@ -301,7 +301,7 @@ Axe restarted (pid 12345) to load the updated code.
   stamped script does not drift behind the CLI it completes. A successful update
   regenerates, `zcompile`s, and re-stamps every previously installed script, adds a
   `completion_refresh` object to the JSON payload, and reports failures without failing
-  the update itself. See [Shell Completion](completion.md#refresh-on-update).
+  the update itself. See [Shell Completion](completion.md#refresh-existing-installs).
 - A no-op run (nothing to upgrade) renders a clean "Already up to date" state and still
   exits `0`.
 - The authoritative record of what is in sase's environment is uv's own

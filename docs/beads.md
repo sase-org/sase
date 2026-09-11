@@ -77,6 +77,7 @@ sase bead pages refresh --write                        # Regenerate, commit, and
 sase bead pages url beads-001.1                        # Print the hosted page URL when available
 sase bead stats                                         # Project statistics
 sase bead doctor                                        # Health check
+sase bead doctor --fix-plan-archive                     # Backfill recoverable missing plan archives
 sase bead doctor --fix-issue-prefix                     # Reset a leaked ProjectSpec-key issue prefix
 sase bead doctor --fix-projection                       # Repair issues.jsonl from canonical events
 sase bead work "$PLANS_ROOT/202605/epic.md" --dry-run   # Preview bead creation and launch waves
@@ -1290,6 +1291,8 @@ Run health checks on the beads database. Checks for:
 - Invalid events or unreduced orphan phase records
 - Uncommitted bead-state changes
 - Orphan children (phase or nested-plan beads whose parent is missing)
+- Plan-archive sidecar drift: bead-linked plans missing from the sidecar, orphaned
+  legacy plan-link indexes, and canonical plans found only in local plan roots
 - Legacy or unresolved `design` plan references
 - Issue prefix leaked as the project's ProjectSpec directory key instead of its
   `PROJECT_NAME` (reported; automatically repaired before the next top-level bead is
@@ -1324,8 +1327,23 @@ also runs automatically before the next top-level bead is minted. A deliberately
 customized prefix is never flagged. The repair is forward-only: existing bead IDs keep
 the old prefix, and only new top-level beads use the corrected one.
 
+`--fix-plan-archive` previews recoverable plan-sidecar gaps and separates them from
+entries that cannot be repaired safely on this machine. A candidate is recoverable only
+when its canonical source exists in a resolved local plan root, does not name another
+bead, and passes committed-plan validation. Local-only canonical plans are reported as
+drift but are explicitly “not necessarily approved”; review the preview before applying.
+
+After confirmation, the repair rechecks the complete finding set to catch races, adds a
+missing `bead_id` to a bead-owned local source when required, archives the plan without
+overwriting an existing canonical copy, and commits the plans sidecar as
+`Backfill missing plan archives`. When that sidecar has a push remote, success also
+requires the commit to be published. Missing, conflicting, or invalid source content is
+reported as unrecoverable and is never fabricated. Use `--yes` only after reviewing the
+same preview in automation.
+
 | Flag                     | Description                                                                         |
 | ------------------------ | ----------------------------------------------------------------------------------- |
+| `-A, --fix-plan-archive` | Backfill recoverable missing canonical plans into the plans sidecar                 |
 | `-F, --fix-design-refs`  | Repair recoverable legacy design references after confirmation                      |
 | `-I, --fix-issue-prefix` | Repair a leaked ProjectSpec-key issue prefix to the project name after confirmation |
 | `-P, --fix-projection`   | Rewrite `issues.jsonl` from canonical event streams after confirmation              |

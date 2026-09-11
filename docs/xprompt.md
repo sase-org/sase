@@ -1939,7 +1939,7 @@ launch-time meaning.
 The LSP reads the launcher-materialized catalog snapshot, so restart the editor session
 after alias or provider config changes. ACE's live prompt bar can additionally overlay
 temporary alias overrides for `=alias`; see the ACE
-[model shortcut](ace.md#prompt-input) and the
+[model shortcut](ace.md#prompt-input-widget) and the
 [editor integration](editor.md#equals-model-shortcuts) notes.
 
 Provider rows such as `claude/` and `opencode/` are listed after model and alias rows in

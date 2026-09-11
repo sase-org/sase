@@ -1169,7 +1169,7 @@ Agents list after they settle. Setup and recovery commands are covered by the
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                         |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                       |
 | `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor                                              |
-| `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS`)                                                                                |
+| `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS` ↔ `BY_MACHINE`)                                                                 |
 | `~`                       | Jump among agent-node-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                              |
 | `g`                       | Scroll to top (file, tools, or metadata panel)                                                                                                              |
 | `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                                                                           |
@@ -2042,15 +2042,16 @@ tree.
 
 ### Grouping Modes
 
-Press `o` on the Agents tab to cycle the L0 grouping bucket through three modes, or `O`
+Press `o` on the Agents tab to cycle the L0 grouping bucket through four modes, or `O`
 to cycle it in reverse. The Agents tab shows a brief toast (`Grouping: by project` /
-`by date` / `by status`) on each cycle:
+`by date` / `by status` / `by machine`) on each cycle:
 
-| Mode        | L0 buckets                                                                    | Notes                                                                                                                                                                               |
-| ----------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STANDARD`  | Project (with optional Patch sub-level)                                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                                                               |
-| `BY_DATE`   | `Today` / `Yesterday` / `This Week` / `Earlier`                               | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                                           |
-| `BY_STATUS` | `Stopped` / `Failed` / `Running` / `Queued` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position. Standalone agent nodes precede name subgroups, with launch recency sorting units inside each partition. |
+| Mode         | L0 buckets                                                                    | Notes                                                                                                                                                                               |
+| ------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `STANDARD`   | Project (with optional Patch sub-level)                                       | The "by project" default. Uses the 2-/3-level layout described above.                                                                                                               |
+| `BY_DATE`    | `Today` / `Yesterday` / `This Week` / `Earlier`                               | Date bucket at L0, then a date-aware L1 subgroup. Sorted newest-first within each bucket.                                                                                           |
+| `BY_STATUS`  | `Stopped` / `Failed` / `Running` / `Queued` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position. Standalone agent nodes precede name subgroups, with launch recency sorting units inside each partition. |
+| `BY_MACHINE` | `here`, then remote aliases alphabetically                                    | Machine at L0, status at L1, then name-root/name-prefix groups. Project and Patch levels are omitted.                                                                               |
 
 In `BY_DATE` mode, ACE chooses one L1 subgroup style from the L0 date bucket: one-hour
 windows (`09:00`) for `Today` and `Yesterday`, calendar-day labels for `This Week`, and
@@ -2082,6 +2083,15 @@ displace active rows during daemon or launch refreshes. Each mode keeps its own
 per-group fold registry, so collapsing buckets in `BY_STATUS` doesn't affect the project
 layout you had in `STANDARD`. `BY_STATUS` banners are prefixed with semantic glyphs
 (`▲`, `✗`, `▶`, `…`, `⏳`, `✓`, `◐`) so the bucket title still leads visually.
+
+In `BY_MACHINE` mode, local rows use the `here` L0 bucket and remote rows use their
+enrolled alias. Every machine is divided into the same priority-ordered status groups as
+`BY_STATUS`, and every status banner remains visible even for a singleton because it
+communicates lifecycle state. Within a status group, standalone sase agents precede
+name-root/name-prefix groups and launch recency supplies the same deterministic
+ordering. A status change can therefore move a row between subgroups while keeping it
+under the same machine. As in the other nonstandard modes, project and Patch grouping
+levels disappear and this mode keeps an independent fold registry.
 
 The active grouping strategy is also surfaced in the Agents tab header via a
 `[group: <label> (o)]` badge so the current session mode is always visible after the
@@ -2138,13 +2148,15 @@ sequence of independent tokens: agent counts keep the established status glyphs
 (`✗1 ▶1 ✓1 ?1`), while bead counts keep the canonical Beads-tab status glyph (`○` open,
 `◐` in progress, `●` closed). When a bead status matches a present agent bucket, the
 bead token follows that agent token, for example `WAITING ▶1 ◐2` or `WAITING ✓1 ●1`;
-unmatched bead tokens trail in canonical bead order. Zero entries are omitted and the
-count is always shown. Unknown agents and unknown beads both render as `?N`; when both
-are present they appear as adjacent independent counts, as in `WAITING ?1 ?2`. These
-tokens sit directly after `WAITING` and before a reserved-tribe `!`, duration, or
-countdown annotation. They are not the trailing gold `◆` linked-bead badge that marks an
-agent launched by `sase bead work`. **Stopped** keeps the strict "you need to act"
-semantics for plan approval, questions, and workflow input.
+unmatched bead tokens trail in canonical bead order. Zero entries are omitted. When a
+row waits on exactly one bead and no agents, ACE shows that bead's ID instead of a
+count, optionally prefixed by its known status glyph; multiple or mixed waits keep the
+counts. Unknown agents and unknown beads both render as `?N`; when both are present they
+appear as adjacent independent counts, as in `WAITING ?1 ?2`. These tokens sit directly
+after `WAITING` and before a reserved-tribe `!`, duration, or countdown annotation. They
+are not the trailing gold `◆` linked-bead badge that marks an agent launched by
+`sase bead work`. **Stopped** keeps the strict "you need to act" semantics for plan
+approval, questions, and workflow input.
 
 ### Agent Row Glyphs
 
@@ -2965,12 +2977,13 @@ takes on a second meaning: it jumps to the section you were in immediately befor
 current one, and pressing it again toggles back — exactly two sections remembered, like
 a two-slot alternate. A color-coded, clickable footer along the bottom of the working
 section names the jump target (or explains that none exists yet). The numbered strip
-remains clickable, `Tab` enters Config, and `Shift+Tab` enters Updates. Each working
-pane and its data are loaded only on first entry, then cached while the modal remains
-open. Command-palette actions such as **Open logs panel**, **Open procs panel**, and
-**Open statistics**, plus update shortcuts and indicators, enter their requested pane
-directly and make a successful entry the next resume target. Closing from home does not
-clear an older target.
+remains clickable: `1` Config, `2` Logs, `3` Machines, `4` Procs, `5` Projects, `6`
+Statistics, and `7` Updates. `Tab` enters Config, and `Shift+Tab` enters Updates. Each
+working pane and its data are loaded only on first entry, then cached while the modal
+remains open. Command-palette actions such as **Open logs panel**, **Open procs panel**,
+and **Open statistics**, plus update shortcuts and indicators, enter their requested
+pane directly and make a successful entry the next resume target. Closing from home does
+not clear an older target.
 
 Both the top-level resume target and the alternate are persisted machine-locally and
 survive across ACE process restarts. Within one running ACE process, closing and
@@ -3049,9 +3062,41 @@ The `:` / `;` binding follows your configured keymap. To rebind it, set
 `ace.keymaps.app.open_command_palette` in `~/.config/sase/sase.yml`; comma-separated
 keys in that setting are treated as alternate bindings for the same action.
 
+## Machines Tab
+
+Open the SASE Admin Center with `#`, then press `3` or select **Machines**. This is a
+local inventory and administration surface for the controller plus every enrolled
+remote. It does not contact all gateways when opened: remote rows begin as **not
+checked**, with capacity **not reported**, until you request an explicit status check.
+The local row reports the controller's configured runner capacity immediately.
+
+The list shows Alias, State, Health, Capacity, Last observed, and Endpoint. The detail
+card adds capabilities, provider, pinned installation identity, quarantine state, and
+the status message from the most recent check in this ACE session.
+
+| Key       | Action                                                                      |
+| --------- | --------------------------------------------------------------------------- |
+| `j` / `k` | Move selection                                                              |
+| `'`       | Jump to a machine row via adaptive hints                                    |
+| `/`       | Filter aliases, endpoints, providers, installation identity, and quarantine |
+| `s`       | Run one bounded authenticated hello for the selected remote                 |
+| `c`       | Show the persistent connect/enrollment flow                                 |
+| `r`       | Show repair guidance for the selected remote                                |
+| `R`       | Show the rename command for the selected remote                             |
+| `x`       | Show removal guidance for the selected remote                               |
+| `y`       | Copy the commands shown in the action card                                  |
+| `Enter`   | Close Admin Center and open Agents filtered to this machine                 |
+| `U`       | Reload local machine inventory without probing gateways                     |
+
+Connect, repair, rename, and remove are guidance actions: they display canonical CLI
+commands and safety notes but do not mutate machine state themselves. `Enter` applies an
+Agents query of `machine:here` for the local controller or `machine:<alias>` for a
+remote. See the [Remote Dispatch Runbook](remote_dispatch.md) for the credentialed
+enrollment and recovery procedures.
+
 ## Projects Tab
 
-Open the SASE Admin Center with `#` and switch to the **Projects** tab with `4`, `Tab` /
+Open the SASE Admin Center with `#` and switch to the **Projects** tab with `5`, `Tab` /
 `Shift+Tab`, or the main tab strip. The tab contains a second clickable strip:
 **Projects · Repos · Workspaces**. `[` / `]` cycle these sub-tabs while `Tab` /
 `Shift+Tab` continue switching the main Admin Center tabs.
@@ -3156,7 +3201,7 @@ system-managed projects such as `home` are excluded from the panel.
 
 ## Statistics Tab
 
-Open the SASE Admin Center with `#`, then press `5` or switch to **Statistics**. Its
+Open the SASE Admin Center with `#`, then press `6` or switch to **Statistics**. Its
 eight sub-tabs summarize overview, runners, projects, providers, agent activity, xprompt
 usage, plan/question activity, and performance for the selected time range. The strip is
 numbered **01 Overview · 02 Runners · 03 Projects · 04 Providers · 05 Activity · 06
@@ -3980,6 +4025,7 @@ is selected. The following notification action types are supported:
 | `JumpToMentorReview` | Mentors         | Jumps to the Patch and opens mentor review output when available                |
 | `LaunchApproval`     | Agent           | Opens the launch approval modal for an agent-requested launch                   |
 | `PlanApproval`       | Agent           | Opens the plan approval modal                                                   |
+| `RemoteAttention`    | Remote machine  | Opens the remote question or gate modal and submits to the owning machine       |
 | `Tmux`               | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`   |
 | `UserQuestion`       | Agent           | Opens the structured user-question response modal                               |
 | `ViewErrorReport`    | Axe/agent       | Opens `action_data.error_report_path`, or the first attached file, in `$EDITOR` |
@@ -5305,6 +5351,7 @@ separator cannot fit both the readout and the `agent N` label.
 | `Ctrl+G -`                   | Add an empty bottom pane                                                                                                                 |
 | `Ctrl+G G`                   | Open the Memory panel; seeds from the glossary term under the cursor when there is one                                                   |
 | `Ctrl+G m`                   | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                      |
+| `Ctrl+G D`                   | Choose a local or eligible enrolled launch target and update the pane's `%dispatch` selector                                             |
 | `Ctrl+G d`                   | Edit the xprompt definition under the cursor in the prompt bar                                                                           |
 | `Ctrl+G f`                   | Reformat the active prompt pane's Markdown with Prettier                                                                                 |
 | `Ctrl+G w`                   | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                 |
@@ -5461,6 +5508,30 @@ inputs; Jinja-variable inference for `gL` still runs. See
 [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders) for the exact conversion
 and naming rules.
 
+### Launch Target Picker
+
+From any ordinary prompt pane, press `gD` in NORMAL mode or `Ctrl+G D` in INSERT mode to
+open **Launch Target**. The first row is `here`, followed by enrolled aliases in
+alphabetical order. Only machines whose local enrollment status is `ok` are selectable;
+quarantined rows remain visible with their diagnostic context but are disabled. This is
+a local eligibility catalog, not a live gateway health check; use the Admin Center
+Machines tab's `s` action when current reachability matters. Move with `j` / `k` and
+press `Enter`, or select one of the first ten rows directly with `1`–`9` / `0`.
+
+Choosing a remote inserts or replaces the pane's single `%dispatch:<alias>` selector.
+Choosing `here` removes it. The prompt context line shows the cached Target and Source;
+for a remote it also states that source proof is checked on submit. Submission runs that
+proof preflight off the UI thread before launch. A failure leaves the prompt intact,
+reports the exact reason, and returns focus to the originating pane.
+
+ACE inserts a provisional remote row in Agents as soon as local submission is accepted.
+An accepted owner response remains `QUEUED` while waiting for the real fleet row; a
+rejection remains visible as `FAILED`; and an uncertain result becomes `WAITING` with a
+check-outcome action. Once the owner's catalog exposes the matching logical or exact
+locator, ACE removes the provisional row in favor of that authoritative row. The
+[Remote Dispatch Runbook](remote_dispatch.md#launch-and-operate) explains the portable
+source requirements and remote operation model.
+
 ### Prompt Stacks
 
 Prompt stacks are the ACE editing surface for literal `---` multi-agent prompts. Loading
@@ -5513,6 +5584,7 @@ prefix actions currently available.
 | `g-`        | Add an empty bottom pane in NORMAL mode and switch it to INSERT mode                                                                     |
 | `gG`        | Open the Memory panel; seeds from the glossary term under the cursor when there is one                                                   |
 | `gm`        | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                      |
+| `gD`        | Choose a local or eligible enrolled launch target and update the pane's `%dispatch` selector                                             |
 | `gT`        | Open the Snippets panel; seeds from a bare trigger or `#[trigger]` under the cursor when one can be resolved without I/O                 |
 | `g=`        | Show/focus the xprompt frontmatter panel; in panel rows mode, return to the originating prompt pane                                      |
 | `gs`        | Bundle every non-empty pane into one stash row and dismiss the prompt bar                                                                |
@@ -6603,7 +6675,7 @@ and writes when the shard directory has not already been created.
 
 ## Procs Tab
 
-Open the SASE Admin Center with `#`, then press `3` (or switch tabs until you reach
+Open the SASE Admin Center with `#`, then press `4` (or switch tabs until you reach
 **Procs**). You can also run the keyless **Open procs panel** command from the command
 palette. The tab shows procs (hook runs, mentor executions, agent launches, plugin
 operations, etc.) with live output for running procs and completed output for finished
@@ -6842,7 +6914,7 @@ tab.
 
 ## Updates Tab
 
-Open the SASE Admin Center with `#`, then press `6`. The Updates tab is one
+Open the SASE Admin Center with `#`, then press `7`. The Updates tab is one
 master/detail inventory: every SASE core package, plugin, and registered agent CLI
 appears as a row, grouped into **SASE**, **Plugins · Built-in**, **Plugins ·
 Community**, and **Agent CLIs** sections. An always-visible header above the list shows

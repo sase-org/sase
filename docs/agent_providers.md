@@ -310,7 +310,7 @@ sase usage refresh
 ```
 
 ACE exposes the same cache from Launch Control: press `u`, or choose **Open Providers ·
-Usage** from the command palette. See [Providers · Usage](ace.md#providers--usage).
+Usage** from the command palette. See [Providers · Usage](ace.md#providers-usage).
 
 Observations are dated best-effort readings from each provider's own CLI, not guarantees
 of remaining capacity. Collection is on by default; opt out with

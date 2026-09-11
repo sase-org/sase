@@ -215,6 +215,13 @@ allowed, and `%dispatch:local` is reserved — omit the directive for a local la
 remote launch does not combine with `%wait`, `%queue`, or `%clan`. The controller strips
 only the dispatch selector, so other launch directives are processed on the target.
 
+In ACE, `gD` from prompt NORMAL mode or `Ctrl+G D` from INSERT mode opens the **Launch
+Target** picker. It lists `here` plus every enrolled alias, but enables only remote rows
+whose local enrollment status is `ok`; quarantined rows remain visible but disabled.
+This picker does not probe gateway health. Choosing a remote inserts or replaces the
+single dispatch selector; choosing `here` removes it. The prompt's Target/Source context
+line makes the selected owner and portable source explicit before submission.
+
 Remote launch carries portable project evidence rather than the controller's local
 paths. A trusted launch integration can supply a Patch reference or explicit revision in
 the durable request payload. Merely mentioning a Patch or xprompt in the prompt does not
@@ -227,16 +234,33 @@ A submitted request is durable and idempotent; an acceptance-uncertain response 
 retried without intentionally duplicating the launch.
 
 ACE consumes the same fleet records. `sase ace --tmux` prints the tmux target for the
-session. Once a machine is enrolled, the Agents tab shows local and remote rows in one
-list with machine chips such as `here`, `apollo`, or `mac`.
+session. Open Admin Center with `#` and press `3` for the **Machines** tab: it reads the
+local controller and enrolled aliases without probing the network, and `s` runs a
+bounded authenticated hello only for the selected remote. Its connect, repair, rename,
+and remove actions show persistent CLI guidance rather than mutating immediately;
+`Enter` returns to Agents with a `machine:<alias>` filter.
+
+Once a machine is enrolled, the Agents tab shows local and remote rows in one list with
+machine chips such as `here`, `apollo`, or `mac`. Group with `o` until the header says
+**by machine** to render `here` first, then remote aliases, each split into status
+subgroups.
 
 - The list loads the bounded remote catalog across enrolled machines and keeps host
   failures visible as diagnostics rather than hiding healthy hosts.
 - Remote stop, retry, fork, bounded content, machine status, launch-outcome checks, and
   pending question/gate actions appear only when the selected row advertises the
   matching capability.
-- Pending remote attention is reconciled through the durable notification inbox rather
-  than inferred from row-follow state.
+- Pending remote questions and gates are reconciled through the durable notification
+  inbox rather than inferred from row-follow state. They resurface while the request
+  remains pending, and a host outage does not dismiss them; see
+  [Remote Attention](notifications.md#remote-attention).
+
+Prompt submission first validates portable source proof off the TUI event loop. A
+preflight failure keeps and refocuses the draft. Once local submission is accepted, ACE
+shows a provisional owner row immediately: accepted requests are `QUEUED`, rejected
+requests remain visible as `FAILED`, and acceptance-uncertain requests become `WAITING`
+with an explicit outcome-check action. The provisional disappears when the target's
+authoritative fleet row arrives with the matching locator.
 
 Those operations are journaled through `sase machine agent` and
 `sase machine attention`. Use the ACE command palette or configure the corresponding

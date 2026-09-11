@@ -127,7 +127,7 @@ completion also works while the caret is in a valid equals token.
 
 `ace.prompt_completion.auto_directive_menu` remains an ACE prompt-bar setting and does
 not govern an editor client's trigger policy. The ACE prompt input uses these same
-shortcuts; see [Prompt Input](ace.md#prompt-input) and
+shortcuts; see [Prompt Input](ace.md#prompt-input-widget) and
 [Equals model shortcuts](xprompt.md#equals-model-shortcuts).
 
 Artifact assistance is local-only. Before a `:` appears, `@` completion withholds local
