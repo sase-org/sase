@@ -8,18 +8,28 @@ any conservative gate fails.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from datetime import datetime
 from typing import Any
 from unittest.mock import patch
+
+import pytest
 
 from sase.ace.tui.actions.agents import AgentsMixin
 from sase.ace.tui.actions.agents._dismissing import AgentDismissingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.widgets.agent_list import AgentList
+from sase.feature_flags import override_flags
 
 from tests._agent_cleanup_proc_helpers import TrackedProcRecorderMixin
+
+
+@pytest.fixture(autouse=True)
+def _pin_legacy_agent_query_dialect() -> Iterator[None]:
+    """sase-zf.2: these tests exercise the legacy agent_query dialect explicitly."""
+    with override_flags(agents_unified_query=False):
+        yield
 
 
 # ---------------------------------------------------------------------------

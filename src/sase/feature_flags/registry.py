@@ -23,6 +23,7 @@ class FeatureFlag(StrEnum):
 
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
+    agents_unified_query = "agents_unified_query"
     provider_drain = "provider_drain"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
@@ -45,6 +46,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "feature-flag control."
         ),
         bead="sase-rx",
+    ),
+    FeatureFlag.agents_unified_query: FeatureFlagDefinition(
+        key=FeatureFlag.agents_unified_query,
+        kind="sunset",
+        description=(
+            "The Agents tab parses, evaluates, and edits its filter with the "
+            "shared agents-live boolean query profile through the Rust corpus "
+            "engine and the FilterBar chrome."
+        ),
+        bead="sase-zg",
     ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,

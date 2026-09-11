@@ -138,26 +138,103 @@ def get_or_parse_agent_query(app: AgentLoadingMixin) -> QueryExpr | None:
     return parsed
 
 
+def _notify_bad_query(app: AgentLoadingMixin, msg: str) -> None:
+    try:
+        app.notify(f"Bad query: {msg}", severity="warning")  # type: ignore[attr-defined]
+    except Exception:
+        log.warning("agent query parse error: %s", msg)
+
+
+def _apply_live_query_filter_inline(app: AgentLoadingMixin) -> None:
+    """Apply the agents-live engine's committed query to ``app._agents`` (sase-zf.2).
+
+    Reached only by the in-memory refilter path (:func:`_refilter_agents`),
+    which has no fresh off-thread computation of its own. This phase has no
+    per-keystroke preview yet (the modal validates on Apply/Enter, not per
+    character), so a cache-miss rebuild here fires only on a committed-query
+    change or a list mutation (kill/dismiss/fold) — the same frequency and
+    row-count order as the legacy per-row Python loop this branch replaces,
+    not a keystroke-hot path. When a cached facade already matches the
+    current committed query (built off-thread by the content-index refresh
+    worker or a prior full reload), it is reused instead of rebuilding.
+    """
+    from ...models.agent_live_query_engine import (
+        agents_live_query_profile,
+        augment_error_with_legacy_hint,
+        build_agents_live_query_index,
+        evaluate_agents_live_query,
+    )
+
+    raw = getattr(app, "_agent_search_query", "") or ""
+    if not raw:
+        app._agent_query_parse_error = None
+        return
+
+    from sase.ace.query.profile_reference import canonical_query_for_profile
+    from sase.ace.query.profile_reference_support import ProfileQueryError
+
+    profile = agents_live_query_profile()
+    try:
+        canonical = canonical_query_for_profile(raw, profile)
+    except ProfileQueryError as exc:
+        msg = augment_error_with_legacy_hint(str(exc), raw)
+        app._agent_query_parse_error = msg
+        _notify_bad_query(app, msg)
+        return
+
+    app._agent_query_parse_error = None
+    facade = getattr(app, "_agents_live_query_facade", None)
+    if facade is None or not facade.is_current_for(canonical, profile):
+        content_index = getattr(app, "_agent_content_search_index", None)
+        unread_agent_ids = getattr(app, "_unread_completed_agent_ids", ())
+        index = build_agents_live_query_index(
+            app._agents,
+            generation=0,
+            content_index=content_index,
+            unread_agent_ids=unread_agent_ids,
+            profile=profile,
+        )
+        new_facade, error = evaluate_agents_live_query(raw, index)
+        if new_facade is None:
+            # Canonicalization above already succeeded, so evaluation should
+            # not fail here — but stay defensive rather than crash a render.
+            if error is not None:
+                app._agent_query_parse_error = error
+                _notify_bad_query(app, error)
+            return
+        facade = new_facade
+        app._agents_live_query_facade = facade
+
+    from ...models._agent_tree import filter_tree_rows
+
+    app._agents = filter_tree_rows(app._agents, facade.matches)
+    app._agent_content_search_cache.prune(app._agents)
+
+
 def _surface_query_parse_error_from_plan(
     app: AgentLoadingMixin,
     plan: PreparedFinalizePlan,
 ) -> None:
     """Mirror the UI-thread parse-error behavior from a precomputed plan."""
+    from ...models.agent_live_query_engine import agents_unified_query_enabled
+
     raw = plan.query.raw_query
     if not raw:
         app._agent_query_cache = None
         app._agent_query_parse_error = None
         return
+    if agents_unified_query_enabled():
+        # The agents-live engine owns its own facade cache (see
+        # ``_apply_finalize_plan``); the legacy AST cache stays untouched.
+        app._agent_query_parse_error = plan.query.parse_error
+        if plan.query.parse_error is not None:
+            _notify_bad_query(app, plan.query.parse_error)
+        return
     if plan.query.parse_error is not None:
         msg = plan.query.parse_error
         app._agent_query_parse_error = msg
         app._agent_query_cache = (raw, None)
-        try:
-            app.notify(  # type: ignore[attr-defined]
-                f"Bad query: {msg}", severity="warning"
-            )
-        except Exception:
-            log.warning("agent query parse error: %s", msg)
+        _notify_bad_query(app, msg)
         return
     app._agent_query_parse_error = None
     app._agent_query_cache = (raw, plan.query.parsed_ast)
@@ -175,6 +252,12 @@ def _apply_finalize_plan(
 ) -> None:
     """UI-thread half of the precomputed-plan apply path."""
     _surface_query_parse_error_from_plan(app, plan)
+
+    # Cache the agents-live facade (sase-zf.2) so a later sync refilter
+    # (kill/dismiss/fold toggle — no fresh disk load) can re-apply this
+    # committed query's mask without rebuilding the Rust corpus inline.
+    if plan.query.live_facade is not None:
+        app._agents_live_query_facade = plan.query.live_facade
 
     # Install the post-query agent list and prune the content cache to match.
     app._agents = list(plan.query.filtered_agents)
@@ -308,29 +391,34 @@ def finalize_agent_list(
         )
         return
 
-    # Apply agent search filter via the structured agent query language.
-    # The haystack includes metadata fields plus each agent's cached
-    # prompt/reply content — see ``AgentContentSearchCache``. Content
-    # reads only happen when a query is active. Parse errors are
-    # non-fatal: surface a toast and skip filtering for this render.
-    parsed_ast = get_or_parse_agent_query(app)
-    if parsed_ast is not None:
-        from ....agent_query import evaluate_agent_query
+    from ...models.agent_live_query_engine import agents_unified_query_enabled
 
-        content_index = getattr(app, "_agent_content_search_index", None)
-        now = local_now()
+    if agents_unified_query_enabled():
+        _apply_live_query_filter_inline(app)
+    else:
+        # Apply agent search filter via the structured agent query language.
+        # The haystack includes metadata fields plus each agent's cached
+        # prompt/reply content — see ``AgentContentSearchCache``. Content
+        # reads only happen when a query is active. Parse errors are
+        # non-fatal: surface a toast and skip filtering for this render.
+        parsed_ast = get_or_parse_agent_query(app)
+        if parsed_ast is not None:
+            from ....agent_query import evaluate_agent_query
 
-        def _matches(agent: Agent) -> bool:
-            return evaluate_agent_query(
-                parsed_ast, agent, now=now, content_cache=content_index
-            )
+            content_index = getattr(app, "_agent_content_search_index", None)
+            now = local_now()
 
-        from ...models._agent_tree import filter_tree_rows
+            def _matches(agent: Agent) -> bool:
+                return evaluate_agent_query(
+                    parsed_ast, agent, now=now, content_cache=content_index
+                )
 
-        app._agents = filter_tree_rows(app._agents, _matches)
-        # Release cache entries for agents no longer in the list so
-        # memory stays bounded across many refresh cycles.
-        app._agent_content_search_cache.prune(app._agents)
+            from ...models._agent_tree import filter_tree_rows
+
+            app._agents = filter_tree_rows(app._agents, _matches)
+            # Release cache entries for agents no longer in the list so
+            # memory stays bounded across many refresh cycles.
+            app._agent_content_search_cache.prune(app._agents)
 
     # Apply status overrides (PLAN/PLAN APPROVED/QUESTION), clearing entries
     # that the fresh loader state has overtaken.

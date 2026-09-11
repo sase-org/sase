@@ -141,6 +141,9 @@ def init_agent_state(self: Any) -> None:
     self._agent_query_cache = None
     # Last agent-query parse error, surfaced by the filter modal.
     self._agent_query_parse_error = None
+    # Cached mask facade from the last successful agents-live engine
+    # evaluation (sase-zf.2, behind the agents_unified_query flag).
+    self._agents_live_query_facade = None
 
     # Lazy cache of lowercased prompt/reply content for the `/` filter.
     # Populated only when a search query is active.

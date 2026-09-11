@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
 
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
+from sase.feature_flags import override_flags
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
+
+
+@pytest.fixture(autouse=True)
+def _pin_legacy_agent_query_dialect() -> Iterator[None]:
+    """sase-zf.2: these tests exercise the legacy agent_query dialect explicitly."""
+    with override_flags(agents_unified_query=False):
+        yield
 
 
 def test_on_tab_finalizer_defers_selected_agent_file_refresh() -> None:

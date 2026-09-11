@@ -25,6 +25,7 @@ if TYPE_CHECKING:
         AgentContentSearchIndex,
     )
     from ...models.agent_group_fold import AgentGroupFoldRegistry
+    from ...models.agent_live_query_engine import AgentsLiveQueryFacade
     from ...models.agent_loader import AgentLoadState
     from ...models.agent_runner_slots import RunnerCapacitySnapshot
     from ...models.fold_state import FoldStateManager
@@ -103,6 +104,10 @@ class AgentLoadingStateMixin:
     # Last parse error message (for the modal to surface). ``None`` means the
     # current query parsed cleanly or is empty.
     _agent_query_parse_error: str | None
+    # Cached mask facade from the last successful agents-live engine
+    # evaluation (sase-zf.2), reused by the in-memory sync refilter path.
+    # ``None`` under the legacy dialect or before the first evaluation lands.
+    _agents_live_query_facade: AgentsLiveQueryFacade | None
 
     # Loading guard
     _agents_loading: bool

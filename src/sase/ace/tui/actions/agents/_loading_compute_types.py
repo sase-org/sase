@@ -91,6 +91,11 @@ class PreparedApplySnapshot:
     )
     grouping_mode: GroupingMode | None = None
     agent_panels_grouped: bool = False
+    # Snapshot of completion-notification unread ids for the ``unread:``
+    # agents-live query field (sase-zf.2). Captured at request time; the
+    # notification-store reconcile that follows finalize may drift by one
+    # cycle, the same bounded staleness the query engine accepts elsewhere.
+    unread_agent_ids: frozenset[tuple[AgentType, str, str | None]] = frozenset()
 
 
 @dataclass(frozen=True)

@@ -134,6 +134,9 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         self._agent_content_search_refresh_generation = generation
         source_generation = getattr(self, "_agent_content_search_source_generation", 0)
         source_identities = tuple(agent.identity for agent in agents)
+        unread_agent_ids = frozenset(
+            getattr(self, "_unread_completed_agent_ids", ()) or ()
+        )
         fork_cache = getattr(self._agent_content_search_cache, "fork", None)
         if not callable(fork_cache):
             return
@@ -149,6 +152,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
                 generation=generation,
                 source_generation=source_generation,
                 source_identities=source_identities,
+                unread_agent_ids=unread_agent_ids,
             )
         )
         self._agent_content_search_refresh_task = task  # type: ignore[attr-defined]
@@ -162,6 +166,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         generation: int,
         source_generation: int,
         source_identities: tuple[tuple[AgentType, str, str | None], ...],
+        unread_agent_ids: frozenset[tuple[AgentType, str, str | None]] = frozenset(),
     ) -> None:
         """Worker body for cached-agent content index refresh."""
         try:
@@ -169,6 +174,34 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         except Exception:
             log.debug("background agent content index refresh failed", exc_info=True)
             return
+
+        live_facade = None
+        from ...models.agent_live_query_engine import (
+            agents_unified_query_enabled,
+            build_agents_live_query_index,
+            evaluate_agents_live_query,
+        )
+
+        if agents_unified_query_enabled():
+
+            def _build_and_evaluate() -> tuple[Any, str | None]:
+                live_index = build_agents_live_query_index(
+                    agents,
+                    generation=generation,
+                    content_index=index,
+                    unread_agent_ids=unread_agent_ids,
+                )
+                return evaluate_agents_live_query(query, live_index)
+
+            try:
+                live_facade, _ = await asyncio.to_thread(_build_and_evaluate)
+            except Exception:
+                log.debug(
+                    "background agents-live query index refresh failed",
+                    exc_info=True,
+                )
+                live_facade = None
+
         if generation != getattr(self, "_agent_content_search_refresh_generation", 0):
             return
         if query != (getattr(self, "_agent_search_query", "") or ""):
@@ -183,6 +216,8 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
 
         self._agent_content_search_cache.merge(worker_cache)
         self._agent_content_search_index = index
+        if live_facade is not None:
+            self._agents_live_query_facade = live_facade  # type: ignore[attr-defined]
 
         on_agents_tab = self.current_tab == "agents"
         selected_identity: tuple[AgentType, str, str | None] | None = None

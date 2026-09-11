@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
     from ...models.agent_content_search import AgentContentSearchIndex
     from ...models.agent_groups import GroupingMode
+    from ...models.agent_live_query_engine import AgentsLiveQueryFacade
     from ...models.fold_state import FoldLevel
 
 
@@ -42,6 +43,10 @@ class PreparedQueryFilter:
     parsed_ast: QueryExpr | None
     parse_error: str | None
     filtered_agents: list[Agent]
+    # Set only by the agents-live engine (sase-zf.2), so a later sync
+    # refilter can reuse this committed query's mask without rebuilding the
+    # Rust corpus inline on the UI thread. ``None`` under the legacy dialect.
+    live_facade: AgentsLiveQueryFacade | None = None
 
 
 @dataclass(frozen=True)
@@ -79,6 +84,7 @@ class PreparedFinalizeStaleToken:
     grouping_mode: GroupingMode | None
     agent_panels_grouped: bool
     hide_non_run_agents: bool
+    unread_agent_ids: frozenset[tuple[AgentType, str, str | None]]
 
 
 def attach_finalize_plan_to_boundary(
@@ -122,6 +128,54 @@ def _filter_agents_by_query(
     return filter_tree_rows(agents, _matches)
 
 
+def _compute_live_query_plan(
+    agents: list[Agent],
+    raw: str,
+    content_index: AgentContentSearchIndex | None,
+    unread_agent_ids: frozenset[tuple[AgentType, str, str | None]],
+) -> PreparedQueryFilter:
+    """Build the Rust corpus and evaluate *raw* off-thread (sase-zf.2).
+
+    The index is built fresh every call. This function only ever runs
+    inside an already off-event-loop worker (``attach_finalize_plan_to_boundary``
+    is always invoked via ``asyncio.to_thread``), so a per-reload corpus
+    build here costs the same order of work as the per-row Python loop it
+    replaces — no separate index cache is needed for this call site.
+    """
+    from ...models.agent_live_query_engine import (
+        agents_live_query_profile,
+        build_agents_live_query_index,
+        evaluate_agents_live_query,
+    )
+
+    profile = agents_live_query_profile()
+    index = build_agents_live_query_index(
+        agents,
+        generation=0,
+        content_index=content_index,
+        unread_agent_ids=unread_agent_ids,
+        profile=profile,
+    )
+    facade, error = evaluate_agents_live_query(raw, index)
+    if facade is None:
+        return PreparedQueryFilter(
+            raw_query=raw,
+            parsed_ast=None,
+            parse_error=error,
+            filtered_agents=list(agents),
+        )
+
+    from ...models._agent_tree import filter_tree_rows
+
+    return PreparedQueryFilter(
+        raw_query=raw,
+        parsed_ast=None,
+        parse_error=None,
+        filtered_agents=filter_tree_rows(agents, facade.matches),
+        live_facade=facade,
+    )
+
+
 def _compute_query_plan(
     agents: list[Agent],
     snapshot: PreparedApplySnapshot,
@@ -143,6 +197,13 @@ def _compute_query_plan(
             parsed_ast=None,
             parse_error=None,
             filtered_agents=list(agents),
+        )
+
+    from ...models.agent_live_query_engine import agents_unified_query_enabled
+
+    if agents_unified_query_enabled():
+        return _compute_live_query_plan(
+            agents, raw, content_index, snapshot.unread_agent_ids
         )
 
     cached = snapshot.agent_query_cache
@@ -253,6 +314,7 @@ def make_finalize_stale_token(
         grouping_mode=snapshot.grouping_mode,
         agent_panels_grouped=snapshot.agent_panels_grouped,
         hide_non_run_agents=snapshot.hide_non_run_agents,
+        unread_agent_ids=snapshot.unread_agent_ids,
     )
 
 

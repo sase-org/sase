@@ -13,12 +13,14 @@ from sase.core.agent_scan_facade import (
     rebuild_agent_artifact_index,
     scan_agent_artifacts,
 )
+from sase.feature_flags import override_flags
 from tests._agents_tab_query_helpers import _make_agent
 
 
 def test_load_tiered_agents_uses_bounded_safe_query_pushdown(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """sase-zf.2: the legacy pushdown compiler stays exercised with the flag off."""
     target = _make_agent(cl_name="target")
     later_target = _make_agent(cl_name="target-later")
     calls: list[dict[str, object]] = []
@@ -49,7 +51,8 @@ def test_load_tiered_agents_uses_bounded_safe_query_pushdown(
         lambda agents, _steps: list(agents),
     )
 
-    agents, state = load_tiered_agents(search_query="cl:target", requested_limit=1)
+    with override_flags(agents_unified_query=False):
+        agents, state = load_tiered_agents(search_query="cl:target", requested_limit=1)
 
     assert agents == [target]
     assert state.returned_count == 1
@@ -66,6 +69,57 @@ def test_load_tiered_agents_uses_bounded_safe_query_pushdown(
                 "field": "cl",
                 "value": "target",
             },
+        }
+    ]
+
+
+def test_load_tiered_agents_unified_query_skips_pushdown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """sase-zf.2: with the flag on, a non-empty query never reaches pushdown.
+
+    The legacy pushdown compiler must never see agents-live dialect strings;
+    until sase-zf.3 lands a unified-AST pushdown compiler, a non-empty
+    committed query always takes the full-history load path — even for a
+    query like ``cl:target`` that the legacy compiler could otherwise push
+    down safely.
+    """
+    calls: list[dict[str, object]] = []
+
+    def fake_load_agents_with_state(**kwargs: object) -> SimpleNamespace:
+        calls.append(kwargs)
+        return SimpleNamespace(
+            agents=[],
+            workflow_agent_steps=[],
+            state=AgentLoadState(
+                tier="tier2",
+                complete_history=True,
+                artifact_source="source_scan",
+                used_artifact_index=False,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        fake_load_agents_with_state,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        lambda agents, _steps: list(agents),
+    )
+
+    with override_flags(agents_unified_query=True):
+        _agents, state = load_tiered_agents(search_query="cl:target", requested_limit=1)
+
+    assert state.complete_history is True
+    assert calls == [
+        {
+            "patch_snapshot": None,
+            "full_history": True,
+            "use_artifact_index": True,
+            "index_freshness": "cached",
+            "requested_limit": None,
+            "candidate_filter": None,
         }
     ]
 

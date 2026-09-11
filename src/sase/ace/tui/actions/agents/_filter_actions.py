@@ -22,8 +22,8 @@ class AgentFilterActionsMixin:
 
     def _edit_agent_search_query(self) -> None:
         """Open modal to edit the agent search/filter query."""
-        from ....agent_query import parse_agent_query
         from ...modals import QueryEditModal
+        from ...models.agent_live_query_engine import agents_unified_query_enabled
 
         def on_dismiss(new_query: str | None) -> None:
             if new_query is None:
@@ -33,14 +33,40 @@ class AgentFilterActionsMixin:
             self._refilter_agents()  # type: ignore[attr-defined]
             self._schedule_agents_async_refresh(source="filter")  # type: ignore[attr-defined]
 
-        def _validator(value: str) -> None:
-            if value:
-                parse_agent_query(value)
+        if agents_unified_query_enabled():
+            from sase.ace.query.profile_reference import canonical_query_for_profile
+            from sase.ace.query.profile_reference_support import ProfileQueryError
 
-        hint = (
-            "status:foo  cl:bar  project:baz  age>2h  attention:true  "
-            "AND/OR/NOT  (?: help)"
-        )
+            from ...models.agent_live_query_engine import (
+                agents_live_query_profile,
+                augment_error_with_legacy_hint,
+            )
+
+            def _validator(value: str) -> None:
+                if not value:
+                    return
+                try:
+                    canonical_query_for_profile(value, agents_live_query_profile())
+                except ProfileQueryError as exc:
+                    raise ValueError(
+                        augment_error_with_legacy_hint(str(exc), value)
+                    ) from exc
+
+            hint = (
+                "status:FOO  cl:bar  project:baz  until:2h  attention:true  "
+                "AND/OR/NOT  (?: help)"
+            )
+        else:
+            from ....agent_query import parse_agent_query
+
+            def _validator(value: str) -> None:
+                if value:
+                    parse_agent_query(value)
+
+            hint = (
+                "status:foo  cl:bar  project:baz  age>2h  attention:true  "
+                "AND/OR/NOT  (?: help)"
+            )
         initial_error = getattr(self, "_agent_query_parse_error", None)
         self.push_screen(  # type: ignore[attr-defined]
             QueryEditModal(

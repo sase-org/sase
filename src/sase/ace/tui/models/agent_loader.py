@@ -497,9 +497,27 @@ def load_tiered_agents(
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load agents through the TUI tiered artifact path."""
 
-    from sase.ace.agent_query.pushdown import compile_agent_query_pushdown
+    from sase.ace.agent_query.pushdown import (
+        AgentQueryPushdownPlan,
+        compile_agent_query_pushdown,
+    )
+    from .agent_live_query_engine import agents_unified_query_enabled
 
-    query_plan = compile_agent_query_pushdown(search_query)
+    if search_query and agents_unified_query_enabled():
+        # The legacy pushdown compiler must never see agents-live dialect
+        # strings (sase-zf.2): its closed key allowlist and ``age`` grammar
+        # would misparse or silently mismatch unified-only spellings. Until
+        # sase-zf.3 lands a pushdown compiler over the unified AST, any
+        # non-empty committed query takes the full-history load path — the
+        # same fallback an unsupported legacy query already takes today.
+        query_plan = AgentQueryPushdownPlan(
+            raw_query=search_query,
+            parsed_query=None,
+            candidate_filter=None,
+            window_safe=False,
+        )
+    else:
+        query_plan = compile_agent_query_pushdown(search_query)
     effective_full_history = full_history or (
         bool(query_plan.raw_query) and not query_plan.window_safe
     )

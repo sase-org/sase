@@ -8,6 +8,7 @@ re-renders.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -16,8 +17,22 @@ import pytest
 from sase.ace.tui.actions.agents._filter_actions import AgentFilterActionsMixin
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_content_search import AgentContentSearchIndex
+from sase.feature_flags import override_flags
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
+
+
+@pytest.fixture(autouse=True)
+def _pin_legacy_agent_query_dialect() -> Iterator[None]:
+    """These tests exercise the legacy agent_query dialect explicitly.
+
+    sase-zf.2's agents-live engine is a sunset flag defaulting on; pinning it
+    off here keeps this module an "Off-state sweep" over the retained
+    legacy path (see tests/test_agents_tab_query_filter_unified.py for the
+    on-state coverage).
+    """
+    with override_flags(agents_unified_query=False):
+        yield
 
 
 class _FilterActionApp(AgentFilterActionsMixin):

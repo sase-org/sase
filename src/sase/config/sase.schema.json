@@ -4380,6 +4380,12 @@
           "default": true,
           "deprecated": true
         },
+        "agents_unified_query": {
+          "type": "boolean",
+          "description": "The Agents tab parses, evaluates, and edits its filter with the shared agents-live boolean query profile through the Rust corpus engine and the FilterBar chrome.",
+          "default": true,
+          "deprecated": true
+        },
         "provider_drain": {
           "type": "boolean",
           "description": "Hard-disabling an LLM provider drains it: a usage-limit disable submits a durable 'sase agent drain' proc that relaunches the agents that provider stranded and sends one enriched usage-limit notification naming what moved and what did not, and a manual disable in Launch Control offers the same relaunch.",

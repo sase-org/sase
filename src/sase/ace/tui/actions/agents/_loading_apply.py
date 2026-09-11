@@ -184,6 +184,9 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             agent_status_overrides=dict(getattr(self, "_agent_status_overrides", {})),
             grouping_mode=grouping_mode,
             agent_panels_grouped=bool(getattr(self, "_agent_panels_grouped", False)),
+            unread_agent_ids=frozenset(
+                getattr(self, "_unread_completed_agent_ids", ()) or ()
+            ),
         )
 
     def _select_finalize_plan(
