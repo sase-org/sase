@@ -109,7 +109,9 @@ def patch_projection_sources(monkeypatch) -> None:  # type: ignore[no-untyped-de
     )
 
 
-def fake_replace_update(index_path: Path, identities: list[object]) -> object:
+def fake_replace_update(
+    index_path: Path, identities: list[object], **_kwargs: object
+) -> object:
     return AgentArtifactIndexUpdateWire(
         schema_version=1,
         index_path=str(index_path),

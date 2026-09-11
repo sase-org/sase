@@ -199,7 +199,9 @@ def _sync_projection(
     else:
         projection = build_dismissed_agent_projection_inputs(dismissed)
     try:
-        replace_agent_artifact_index_dismissed_agents(index, projection.identities)
+        replace_agent_artifact_index_dismissed_agents(
+            index, projection.identities, force=force
+        )
         try:
             reconcile = reconcile_agent_artifact_index_dismissed_family_members(index)
         except _INDEX_ERRORS as error:

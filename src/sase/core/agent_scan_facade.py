@@ -253,16 +253,27 @@ def prune_hidden_terminal_agent_artifact_index_rows(
 def replace_agent_artifact_index_dismissed_agents(
     index_path: Path | str,
     dismissed: Sequence[AgentCleanupIdentityWire],
+    *,
+    force: bool = False,
 ) -> AgentArtifactIndexUpdateWire:
-    """Replace the artifact index's dismissed identity table."""
+    """Replace the artifact index's dismissed identity table.
+
+    The Rust core diffs the incoming identities against the stored table
+    unless *force* is true, which keeps the unconditional full-table rewrite.
+    """
     with agent_artifact_index_operation_lock():
         rust_replace = require_rust_binding(
             "replace_agent_artifact_index_dismissed_agents"
         )
-        payload: dict[str, Any] = rust_replace(
-            str(index_path),
-            agent_cleanup_wire_to_json_dict(list(dismissed)),
-        )
+        identities = agent_cleanup_wire_to_json_dict(list(dismissed))
+        index = str(index_path)
+        if force:
+            try:
+                payload: dict[str, Any] = rust_replace(index, identities, True)
+            except TypeError:
+                payload = rust_replace(index, identities)
+        else:
+            payload = rust_replace(index, identities)
     return agent_artifact_index_update_from_dict(payload)
 
 

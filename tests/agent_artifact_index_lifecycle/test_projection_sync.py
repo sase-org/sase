@@ -41,7 +41,9 @@ def test_sync_dismissed_agent_artifact_index_serializes_identities(
     install_projection_meta_store(monkeypatch)
     calls: list[tuple[Path, list[object]]] = []
 
-    def fake_replace(index_path: Path, identities: list[object]) -> object:
+    def fake_replace(
+        index_path: Path, identities: list[object], **_kwargs: object
+    ) -> object:
         calls.append((index_path, identities))
         return AgentArtifactIndexUpdateWire(
             schema_version=1,
@@ -336,7 +338,9 @@ def test_projection_sync_can_skip_active_tier_maintenance(
         lambda: (1, 30, 40, 0),
     )
 
-    def fake_replace(index_path: Path, identities: list[object]) -> object:
+    def fake_replace(
+        index_path: Path, identities: list[object], **_kwargs: object
+    ) -> object:
         calls.append((index_path, identities))
         return AgentArtifactIndexUpdateWire(
             schema_version=1,
@@ -482,7 +486,9 @@ def test_authoritative_dismissed_sync_bypasses_matching_metadata(
         lambda: (1, 30, 40, 2),
     )
 
-    def fake_replace(index_path: Path, identities: list[object]) -> object:
+    def fake_replace(
+        index_path: Path, identities: list[object], **_kwargs: object
+    ) -> object:
         calls.append((index_path, identities))
         return AgentArtifactIndexUpdateWire(
             schema_version=1,
@@ -537,7 +543,9 @@ def test_sync_dismissed_projection_writes_metadata(
         lambda: {("workflow", "bundle", "20260502020202")},
     )
 
-    def fake_replace(index_path: Path, identities: list[object]) -> object:
+    def fake_replace(
+        index_path: Path, identities: list[object], **_kwargs: object
+    ) -> object:
         calls.append((index_path, identities))
         return AgentArtifactIndexUpdateWire(
             schema_version=1,

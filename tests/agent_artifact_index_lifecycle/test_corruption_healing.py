@@ -95,7 +95,9 @@ def test_corruption_reported_by_replace_triggers_heal(
     install_projection_meta_store(monkeypatch)
     replace_calls: list[int] = []
 
-    def flaky_replace(index_path: Path, identities: list[object]) -> object:
+    def flaky_replace(
+        index_path: Path, identities: list[object], **_kwargs: object
+    ) -> object:
         replace_calls.append(1)
         if len(replace_calls) == 1:
             raise RuntimeError("database disk image is malformed (11)")
