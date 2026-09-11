@@ -269,6 +269,7 @@ def _base_prompt_kwargs(
             envelope=envelope,
             response=response,
             declared=policy.prompt,
+            gate_state=gate_state,
         ),
     }
 

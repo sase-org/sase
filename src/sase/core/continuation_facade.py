@@ -17,6 +17,7 @@ from sase.core.continuation_wire import (
     DiagnosticManifestWire,
     JsonMapping,
     JsonObject,
+    LaunchRequesterContinuationWire,
     MonitorResultWire,
     continuation_wire_to_json_dict,
 )
@@ -108,6 +109,20 @@ def validate_continuation_delivery_record(record: JsonMapping) -> JsonObject:
     )
 
 
+def validate_launch_requester_continuation(
+    continuation: LaunchRequesterContinuationWire | JsonMapping,
+) -> JsonObject:
+    """Validate one LaunchApproval requester-continuation contract."""
+
+    binding = require_rust_binding(
+        "continuation_validate_launch_requester_continuation"
+    )
+    return _json_object(
+        binding(continuation_wire_to_json_dict(continuation)),
+        "continuation_validate_launch_requester_continuation",
+    )
+
+
 def plan_continuation_replay(
     request: ContinuationReplayPlanRequestWire | JsonMapping,
 ) -> JsonObject:
@@ -175,5 +190,6 @@ __all__ = [
     "validate_continuation_intent",
     "validate_continuation_node",
     "validate_diagnostic_manifest",
+    "validate_launch_requester_continuation",
     "validate_monitor_result",
 ]

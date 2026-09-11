@@ -285,6 +285,34 @@ def test_spawn_agent_subprocess_scrubs_ambient_chop_context_without_recording(
     assert get_chop_agent_records("hooks", chop_name="split") == []
 
 
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_scrubs_proc_operation_context(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nested agent launches do not inherit the caller's proc ownership."""
+    for key in (
+        "SASE_PROC_REQUEST_PATH",
+        "SASE_PROC_RESULT_PATH",
+        "SASE_PROC_OPERATION",
+        "SASE_PROC_ID",
+        "SASE_PROC_LOG_PATH",
+        "SASE_PROC_SESSION_ID",
+    ):
+        monkeypatch.setenv(key, f"/tmp/stale-{key}")
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path, monkeypatch=monkeypatch, mock_spawn=mock_spawn
+    )
+
+    env = mock_spawn.call_args.kwargs["env"]
+    proc_keys = sorted(key for key in env if key.startswith("SASE_PROC_"))
+    assert proc_keys == []
+
+
 @patch(
     "sase.running_field.transfer_workspace_claim",
     return_value=ClaimResult(success=True),

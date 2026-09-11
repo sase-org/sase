@@ -69,6 +69,10 @@ ContinuationBudgetReductionKind = Literal[
     "checkpoint",
 ]
 ContinuationBudgetDecisionKind = Literal["fits", "compact", "refuse"]
+LaunchRequesterContinuationMode = Literal[
+    "resume_requester",
+    "terminal_handoff",
+]
 
 
 class ContinuationExecutionIdentityWire(TypedDict):
@@ -230,6 +234,16 @@ class ContinuationBudgetRequestWire(TypedDict):
     reduction_candidates: NotRequired[list[JsonObject]]
 
 
+class LaunchRequesterContinuationWire(TypedDict):
+    schema_version: int
+    mode: LaunchRequesterContinuationMode
+    required: bool
+    checkpoint: str
+    context: NotRequired[dict[str, str]]
+    resume_branches: NotRequired[list[str]]
+    terminal_branches: NotRequired[list[str]]
+
+
 def continuation_wire_to_json_dict(value: Any) -> Any:
     """Project continuation wire values to plain dict/list primitives."""
 
@@ -271,6 +285,8 @@ __all__ = [
     "DiagnosticStageWire",
     "JsonMapping",
     "JsonObject",
+    "LaunchRequesterContinuationMode",
+    "LaunchRequesterContinuationWire",
     "MonitorOutcome",
     "MonitorResultWire",
     "MonitorTimeoutKind",

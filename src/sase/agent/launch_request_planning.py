@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Mapping
 from pathlib import Path
@@ -59,6 +60,8 @@ def normalize_request_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         "approval": approval,
         "max_slots": max_slots,
     }
+    if "requester_continuation" in payload:
+        normalized["requester_continuation"] = payload["requester_continuation"]
     family_type = payload.get("family_type")
     if family_type is not None:
         if not isinstance(family_type, str) or not family_type.strip():
@@ -257,5 +260,43 @@ def requester_context() -> dict[str, str]:
         "SASE_AGENT_NAME",
         "SASE_ARTIFACTS_DIR",
         "SASE_AGENT_WORKFLOW_NAME",
+        "SASE_BEAD_ID",
+        "SASE_ACTIVE_PROJECT_DIR",
+        "SASE_PROJECT",
     )
-    return {key: value for key in keys if (value := os.environ.get(key))}
+    context = {key: value for key in keys if (value := os.environ.get(key))}
+    context.update(_agent_meta_requester_context(context.get("SASE_ARTIFACTS_DIR")))
+    return context
+
+
+def _agent_meta_requester_context(artifacts_dir: str | None) -> dict[str, str]:
+    if not artifacts_dir:
+        return {}
+    try:
+        raw = json.loads(
+            (Path(artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return {}
+    if not isinstance(raw, Mapping):
+        return {}
+    selected = (
+        "name",
+        "agent_family",
+        "agent_family_role",
+        "agent_clan",
+        "workspace_dir",
+        "workspace_num",
+        "project_name",
+        "cl_name",
+        "timestamp",
+        "parent_agent_name",
+    )
+    context: dict[str, str] = {}
+    for key in selected:
+        value = raw.get(key)
+        if isinstance(value, str) and value.strip():
+            context[f"agent_meta.{key}"] = value.strip()
+        elif isinstance(value, int) and not isinstance(value, bool):
+            context[f"agent_meta.{key}"] = str(value)
+    return context

@@ -16,6 +16,8 @@ from sase.agent.launch_request import (
     create_launch_approval_request,
     wait_for_launch_approval,
 )
+from sase.agent.launch_request_followup import launch_next_action
+from sase.agent.launch_request_types import LaunchRequestError
 from sase.agent.launch_types import AgentLaunchResult
 from sase.gate_shell.followup_policy import resolve_gate_branch_presentation
 from sase.launch_approval_actions import (
@@ -74,6 +76,7 @@ def test_create_launch_request_writes_preview_and_notification(
     assert envelope["continuation_mode"] == "wait_for_launch"
     assert written["source_surface"] == "agent_skill"
     assert written["launch_request"]["reason"] == "Need reviewer follow-up"
+    assert written["requester_continuation"]["mode"] == "terminal_handoff"
     assert written["dispatch"] == {
         "cwd": str(tmp_path),
         "prompt": "%i(reviewer, family=foo)\nDo work",
@@ -95,9 +98,10 @@ def test_create_launch_request_writes_preview_and_notification(
     )
     assert result.request_path.name == "request.json"
     assert result.response_path.name == "response.json"
-    assert result.preview_path.read_text(encoding="utf-8").startswith(
-        "# Launch Preview\n"
-    )
+    preview = result.preview_path.read_text(encoding="utf-8")
+    assert preview.startswith("# Launch Preview\n")
+    assert "## Requester continuation" in preview
+    assert "mode `terminal_handoff`" in preview
 
     from sase.notifications.store import load_notifications
 
@@ -115,6 +119,9 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "requester--0")
+    monkeypatch.setenv("SASE_BEAD_ID", "sase-demo.1")
+    monkeypatch.setenv("SASE_ACTIVE_PROJECT_DIR", str(tmp_path))
     monkeypatch.chdir(tmp_path)
     captured: dict[str, Any] = {}
 
@@ -144,7 +151,7 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
     result = create_launch_approval_request(
         {
             "schema_version": 1,
-            "prompt": "%i(reviewer, family=parent)\nReview",
+            "prompt": "%i(reviewer, family=review-family)\nReview",
             "reason": "Need reviewer",
             "max_slots": 1,
         }
@@ -153,9 +160,24 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
     assert result.gate_shell_creation is not None
     assert result.to_dict()["gate_shell"]["workspace_policy"] == "inherit"
     envelope = json.loads(result.request_path.read_text(encoding="utf-8"))
+    continuation = envelope["payload"]["requester_continuation"]
+    assert continuation["mode"] == "resume_requester"
+    assert continuation["context"]["SASE_AGENT_NAME"] == "requester--0"
+    assert continuation["context"]["SASE_BEAD_ID"] == "sase-demo.1"
+    assert continuation["resume_branches"] == [
+        "approve",
+        "reject",
+        "timeout",
+        "failed",
+    ]
     shell = envelope["shell"]
     assert shell["pending_status"] == "LAUNCH"
     assert shell["branches"]["approve"]["status"] == "LAUNCHED"
+    assert shell["branches"]["approve"]["prompt"]
+    assert shell["branches"]["reject"]["prompt"]
+    assert shell["branches"]["timeout"]["prompt"]
+    assert shell["branches"]["stopped"]["prompt"] is None
+    assert shell["branches"]["failed"]["prompt"]
     assert shell["branches"]["reject"]["status"] == "LAUNCH REJECTED"
     assert resolve_gate_branch_presentation(
         envelope,
@@ -168,6 +190,75 @@ def test_agent_launch_request_uses_shell_gate_outcome_branches(
         response={},
     ) == ("LAUNCH TIMED OUT", "#FFAF00")
     assert captured["spec"]["shell"]["workspace"] == "inherit"
+    assert "Requester continuation: resume after" in (
+        "\n".join(envelope["presentation"]["notes"])
+    )
+
+
+def test_agent_launch_request_rejects_competing_family_successor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "requester--0")
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.raises(LaunchRequestError, match="requester's family lane"):
+        create_launch_approval_request(
+            {
+                "schema_version": 1,
+                "prompt": "%i(reviewer, family=parent)\nReview",
+                "reason": "Need reviewer",
+                "max_slots": 1,
+            }
+        )
+
+
+def test_launch_followup_next_action_reports_dispatch_failure() -> None:
+    text = launch_next_action(
+        envelope={
+            "payload": {
+                "requester_continuation": {
+                    "schema_version": 1,
+                    "mode": "resume_requester",
+                    "required": True,
+                    "checkpoint": "Finish bead work after launch settlement.",
+                    "context": {
+                        "SASE_AGENT_NAME": "requester--0",
+                        "SASE_BEAD_ID": "sase-demo.1",
+                    },
+                    "resume_branches": [
+                        "approve",
+                        "reject",
+                        "timeout",
+                        "failed",
+                    ],
+                    "terminal_branches": ["stopped"],
+                }
+            }
+        },
+        response={
+            "selected_option_ids": ["approve"],
+            "option_results": [
+                {
+                    "id": "approve",
+                    "result": {
+                        "action": "approve",
+                        "dispatch_status": "failed",
+                        "dispatch_error": "workspace missing",
+                    },
+                }
+            ],
+        },
+        gate_state="answered",
+        declared="fallback",
+    )
+
+    assert text is not None
+    assert "dispatch failed" in text
+    assert "recoverable launch failure" in text
+    assert "sase-demo.1" in text
 
 
 def test_neutral_launch_shell_response_settles_gate_shell(

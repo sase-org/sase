@@ -17,6 +17,7 @@ from sase.core.continuation_facade import (
     validate_continuation_intent,
     validate_continuation_node,
     validate_diagnostic_manifest,
+    validate_launch_requester_continuation,
     validate_monitor_result,
 )
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
@@ -145,6 +146,23 @@ def test_node_intent_monitor_manifest_and_delivery_validation_round_trip() -> No
     }
     assert (
         validate_continuation_delivery_record(delivery)["disposition"] == "acknowledged"
+    )
+
+    launch_continuation = {
+        "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+        "mode": "resume_requester",
+        "required": True,
+        "checkpoint": "Continue the phase after helper approval.",
+        "context": {
+            "SASE_AGENT_NAME": "agent--0",
+            "SASE_BEAD_ID": "sase-1.2",
+        },
+        "resume_branches": ["approve", "reject", "timeout", "failed"],
+        "terminal_branches": ["stopped"],
+    }
+    assert (
+        validate_launch_requester_continuation(launch_continuation)["mode"]
+        == "resume_requester"
     )
 
 

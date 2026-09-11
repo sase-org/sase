@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.agent.launch_preview import LAUNCH_PREVIEW_FILE
+from sase.agent.launch_request_continuation import requester_continuation_note
 from sase.agent.launch_request_response import dispatch_approved_launch_request
 from sase.agent.launch_request_types import ApprovedLaunchDispatchResult
 from sase.notification_gates.entrypoints import python_gate_command_script
@@ -236,6 +237,7 @@ def launch_gate_spec(
                 f"Launch approval requested: {slot_count} slot"
                 f"{'s' if slot_count != 1 else ''}",
                 f"Source: {source_surface}",
+                requester_continuation_note(request),
             ],
             "tags": ["launch"],
             "files": [LAUNCH_PREVIEW_FILE],

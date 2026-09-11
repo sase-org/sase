@@ -24,17 +24,26 @@ _NextActionHook = Callable[..., str | None]
 def _plan_next_action(**kwargs: Any) -> str | None:
     from sase.plan_shell.followup import plan_next_action
 
+    kwargs.pop("gate_state", None)
     return plan_next_action(**kwargs)
 
 
 def _question_next_action(**kwargs: Any) -> str | None:
     from sase.question_shell.followup import question_next_action
 
+    kwargs.pop("gate_state", None)
     return question_next_action(**kwargs)
+
+
+def _launch_next_action(**kwargs: Any) -> str | None:
+    from sase.agent.launch_request_followup import launch_next_action
+
+    return launch_next_action(**kwargs)
 
 
 _KIND_NEXT_ACTIONS: dict[str, _NextActionHook] = {
     "epic_plan": _plan_next_action,
+    "launch": _launch_next_action,
     "plan": _plan_next_action,
     "question": _question_next_action,
 }
@@ -50,6 +59,7 @@ def resolve_shell_next_action(
     envelope: dict[str, Any],
     response: dict[str, Any],
     declared: str | None,
+    gate_state: str | None = None,
 ) -> str | None:
     """Return the kind's rebuilt next-action text, or *declared* as a fallback."""
     hook = _KIND_NEXT_ACTIONS.get(kind or "")
@@ -61,6 +71,7 @@ def resolve_shell_next_action(
             meta=meta,
             envelope=envelope,
             response=response,
+            gate_state=gate_state,
             declared=declared,
         )
     except Exception:

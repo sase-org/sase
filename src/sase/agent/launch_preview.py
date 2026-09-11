@@ -159,6 +159,10 @@ def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
             for line in preview_lines:
                 lines.append(f"- {line}")
             lines.append("")
+    continuation_lines = _requester_continuation_preview_lines(request)
+    if continuation_lines:
+        lines.extend(continuation_lines)
+        lines.append("")
     for ordinal, (slot, clan_annotation) in enumerate(
         zip(slots, clan_annotations, strict=True),
         start=1,
@@ -261,6 +265,29 @@ def _model_summary_for_preview(request: Mapping[str, Any]) -> str | None:
         f"`{model}`" if counts[model] == 1 else f"`{model}` x{counts[model]}"
         for model in ordered
     )
+
+
+def _requester_continuation_preview_lines(
+    request: Mapping[str, Any],
+) -> list[str]:
+    continuation = request.get("requester_continuation")
+    if not isinstance(continuation, Mapping):
+        return []
+    mode = str(continuation.get("mode") or "unknown")
+    checkpoint = str(continuation.get("checkpoint") or "").strip()
+    resume_branches = [
+        str(branch) for branch in continuation.get("resume_branches") or []
+    ]
+    lines = [
+        "## Requester continuation",
+        "",
+        f"mode `{mode}`",
+    ]
+    if resume_branches:
+        lines.append(f"resume branches `{', '.join(resume_branches)}`")
+    if checkpoint:
+        lines.append(f"checkpoint `{checkpoint}`")
+    return lines
 
 
 def _model_directives_for_preview(prompt: str) -> tuple[str | None, dict[str, str]]:

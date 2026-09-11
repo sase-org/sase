@@ -15,3 +15,10 @@ def scrub_chop_context_env(env: MutableMapping[str, str]) -> None:
     for key in list(env):
         if key.startswith("SASE_CHOP_"):
             env.pop(key, None)
+
+
+def scrub_proc_operation_env(env: MutableMapping[str, str]) -> None:
+    """Remove ambient proc-operation ownership variables from *env*."""
+    for key in list(env):
+        if key.startswith("SASE_PROC_"):
+            env.pop(key, None)

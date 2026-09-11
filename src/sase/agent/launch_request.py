@@ -21,6 +21,10 @@ from sase.agent.launch_request_gate import (
     launch_gate_command_script,
     launch_gate_spec as _launch_gate_spec,
 )
+from sase.agent.launch_request_continuation import (
+    launch_shell_branch_prompt,
+    normalize_requester_continuation,
+)
 from sase.agent.launch_request_planning import (
     build_preview_plan as _build_preview_plan,
     expand_prompt_for_typed_launch as _expand_prompt_for_typed_launch,
@@ -98,8 +102,15 @@ def create_launch_approval_request(
         submitted_prompt=prompt,
         response_file=RESPONSE_FILENAME,
     )
+    requester = _requester_context()
     request["launch_request"] = normalized
-    request["requester"] = _requester_context()
+    request["requester"] = requester
+    request["requester_continuation"] = normalize_requester_continuation(
+        normalized.get("requester_continuation"),
+        requester=requester,
+        reason=str(normalized["reason"]),
+        prompt=prompt,
+    )
     request["dispatch"] = {
         "cwd": str(Path.cwd()),
         "prompt": prompt,
@@ -196,6 +207,8 @@ def maybe_handoff_launch_approval_from_agent(
 
 def _launch_shell_gate_spec(spec: dict[str, Any]) -> dict[str, Any]:
     shell_spec = dict(spec)
+    payload = shell_spec.get("payload")
+    request_payload = payload if isinstance(payload, Mapping) else {}
     shell_spec["shell"] = {
         "pending_status": "LAUNCH",
         "settled_status": "LAUNCHED",
@@ -209,17 +222,17 @@ def _launch_shell_gate_spec(spec: dict[str, Any]) -> dict[str, Any]:
             "approve": {
                 "status": "LAUNCHED",
                 "accent": "#00D7D7",
-                "prompt": None,
+                "prompt": launch_shell_branch_prompt("approve", request_payload),
             },
             "reject": {
                 "status": "LAUNCH REJECTED",
                 "accent": "#FF5F5F",
-                "prompt": None,
+                "prompt": launch_shell_branch_prompt("reject", request_payload),
             },
             "timeout": {
                 "status": "LAUNCH TIMED OUT",
                 "accent": "#FFAF00",
-                "prompt": None,
+                "prompt": launch_shell_branch_prompt("timeout", request_payload),
             },
             "stopped": {
                 "status": "LAUNCH CANCELLED",
@@ -229,7 +242,7 @@ def _launch_shell_gate_spec(spec: dict[str, Any]) -> dict[str, Any]:
             "failed": {
                 "status": "LAUNCH FAILED",
                 "accent": "#FF5F5F",
-                "prompt": None,
+                "prompt": launch_shell_branch_prompt("failed", request_payload),
             },
         },
     }
