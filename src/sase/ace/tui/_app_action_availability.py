@@ -89,6 +89,13 @@ def check_app_action(
         selected_agent is not None
         and getattr(selected_agent, "fleet_origin_alias", None)
     )
+    # A mounted prompt owns Enter/x and the rest of the Agents row map. The
+    # underlying filtered list must not bulk-stop remote rows while the user
+    # is typing or returning from the launch-target picker.
+    if _prompt_input_owns_keys(app) and (
+        action in _AGENT_FLEET_ACTIONS or action in _LOCAL_AGENT_ROW_ACTIONS
+    ):
+        return False
     if action in _AGENT_FLEET_ACTIONS:
         if app.current_tab != "agents":
             return False
@@ -421,6 +428,12 @@ def _artifact_contract_action_available(app: Any, action: str) -> bool:
     if action in _ARTIFACT_GROUP_FOLD_ACTIONS | _ARTIFACT_GROUP_CYCLE_ACTIONS:
         return contract.has(PaneCapability.GROUPING)
     return True
+
+
+def _prompt_input_owns_keys(app: Any) -> bool:
+    """Return True while a prompt bar owns keyboard input."""
+    prompt_active = getattr(app, "_prompt_input_active", None)
+    return callable(prompt_active) and bool(prompt_active())
 
 
 def _selected_agent(app: Any) -> Any:

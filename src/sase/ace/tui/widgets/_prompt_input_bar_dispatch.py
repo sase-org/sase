@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
@@ -27,6 +28,15 @@ else:
 
 
 _DispatchSeverity = str
+
+
+@dataclass(frozen=True, slots=True)
+class _DispatchPickerFocusOwner:
+    """Prompt pane that opened the launch-target picker."""
+
+    text_area: Any
+    vim_mode: str
+    cursor: tuple[int, int]
 
 
 class PromptInputBarDispatchMixin(_MixinBase):
@@ -120,17 +130,60 @@ class PromptInputBarDispatchMixin(_MixinBase):
         self._sync_state_from_widgets()
         choices = self._dispatch_target_choices()
         current_alias = self._current_dispatch_target_alias()
+        owner = self._capture_dispatch_picker_focus_owner()
 
         def _on_result(option_id: str | None) -> None:
-            if option_id is None:
-                return
-            alias = None if option_id == LOCAL_DISPATCH_TARGET_ID else option_id
-            self._apply_dispatch_target(alias)
+            if option_id is not None:
+                alias = None if option_id == LOCAL_DISPATCH_TARGET_ID else option_id
+                self._apply_dispatch_target(alias)
+            self._restore_dispatch_picker_focus(owner, restore_cursor=option_id is None)
 
         self.app.push_screen(
             DispatchTargetPickerModal(choices, current_alias=current_alias),
             _on_result,
         )
+
+    def _capture_dispatch_picker_focus_owner(self) -> _DispatchPickerFocusOwner | None:
+        """Record the prompt pane that owns keys around the target picker."""
+        try:
+            text_area = self.active_text_area()
+            cursor = text_area.cursor_location
+        except Exception:
+            return None
+        if not isinstance(cursor, tuple) or len(cursor) != 2:
+            cursor = (0, 0)
+        return _DispatchPickerFocusOwner(
+            text_area=text_area,
+            vim_mode=str(getattr(text_area, "_vim_mode", "insert") or "insert"),
+            cursor=(int(cursor[0]), int(cursor[1])),
+        )
+
+    def _restore_dispatch_picker_focus(
+        self,
+        owner: _DispatchPickerFocusOwner | None,
+        *,
+        restore_cursor: bool,
+    ) -> None:
+        """Return Enter ownership to the prompt after picker select or cancel."""
+
+        def _restore() -> None:
+            try:
+                text_area = owner.text_area if owner is not None else None
+                if text_area is None or not getattr(text_area, "is_mounted", False):
+                    text_area = self.active_text_area()
+                text_area.focus()
+                if owner is None:
+                    return
+                if owner.vim_mode == "insert":
+                    text_area._enter_insert_mode()
+                else:
+                    text_area._enter_normal_mode()
+                if restore_cursor:
+                    text_area.cursor_location = owner.cursor
+            except Exception:
+                return
+
+        self.call_after_refresh(_restore)  # type: ignore[attr-defined]
 
     def _dispatch_target_choices(self) -> tuple[DispatchTargetChoice, ...]:
         choices: list[DispatchTargetChoice] = [
