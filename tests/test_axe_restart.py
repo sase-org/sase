@@ -5,11 +5,12 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.config import AxeConfig, LumberjackConfig
+from sase.axe._config_types import AxeConfigDiagnostic
+from sase.axe.config import AxeConfig, AxeConfigError, LumberjackConfig
 from sase.axe._process_restart import _verify_startup
 from sase.axe.desired_state import read_desired_state, write_desired_state
 from sase.axe.lifecycle_journal import read_recent_lifecycle_events
-from sase.axe.process import AxeStartResult, restart_axe_daemon_result
+from sase.axe.process import AxeStartResult, AxeStopResult, restart_axe_daemon_result
 from sase.axe.state import LumberjackStatus
 
 
@@ -207,3 +208,188 @@ def test_restart_verification_requires_advancing_heartbeats() -> None:
 
     assert verified is False
     assert error == "timed out waiting for fresh heartbeats: hooks"
+
+
+def _fresh_lumberjack_status() -> LumberjackStatus:
+    return LumberjackStatus(
+        name="hooks",
+        pid=99,
+        started_at="2026-07-19T12:00:01-04:00",
+        status="running",
+        interval=5,
+        last_cycle="2026-07-19T12:00:01-04:00",
+    )
+
+
+def test_restart_emits_ordered_event_sequence_on_happy_path(tmp_path: Path) -> None:
+    state_dir = tmp_path / "axe"
+    events: list[object] = []
+
+    with (
+        patch("sase.axe.state.axe_state_dir", return_value=state_dir),
+        patch(
+            "sase.axe._process_restart.stop_axe_daemon_result",
+            return_value=AxeStopResult(),
+        ),
+        patch(
+            "sase.axe._process_restart.start_axe_daemon_result",
+            return_value=AxeStartResult(status="started", pid=99, message="started"),
+        ),
+        patch("sase.axe._process_restart.get_axe_pid", return_value=99),
+        patch(
+            "sase.axe._process_restart.read_lumberjack_status",
+            return_value=_fresh_lumberjack_status(),
+        ),
+        patch(
+            "sase.axe._process_restart._heartbeat_snapshot",
+            return_value=(100, "old"),
+        ),
+    ):
+        result = restart_axe_daemon_result(
+            _config(),
+            sleep_fn=lambda _delay: None,
+            on_event=events.append,
+        )
+
+    assert result.succeeded is True
+    assert result.verified is True
+    assert [type(event).__name__ for event in events] == [
+        "RestartPlanned",
+        "StopBegan",
+        "StopFinished",
+        "StartAttemptBegan",
+        "StartAttemptSpawned",
+        "VerifyProgress",
+        "StartAttemptSettled",
+        "RestartFinished",
+    ]
+    planned = events[0]
+    assert planned.lumberjacks == ("hooks",)
+    assert planned.max_attempts == 3
+    finished = events[-1]
+    assert finished.result is result
+
+
+def test_restart_emits_retry_scheduled_and_second_attempt_events(
+    tmp_path: Path,
+) -> None:
+    state_dir = tmp_path / "axe"
+    events: list[object] = []
+
+    with (
+        patch("sase.axe.state.axe_state_dir", return_value=state_dir),
+        patch(
+            "sase.axe._process_restart.stop_axe_daemon_result",
+            return_value=AxeStopResult(),
+        ),
+        patch(
+            "sase.axe._process_restart.start_axe_daemon_result",
+            side_effect=[
+                AxeStartResult(status="blocked", message="lock held"),
+                AxeStartResult(status="started", pid=99, message="started"),
+            ],
+        ),
+        patch("sase.axe._process_restart.get_axe_pid", return_value=99),
+        patch(
+            "sase.axe._process_restart.read_lumberjack_status",
+            return_value=_fresh_lumberjack_status(),
+        ),
+        patch(
+            "sase.axe._process_restart._heartbeat_snapshot",
+            return_value=(100, "old"),
+        ),
+    ):
+        result = restart_axe_daemon_result(
+            _config(),
+            sleep_fn=lambda _delay: None,
+            on_event=events.append,
+        )
+
+    assert result.succeeded is True
+    assert result.verified is True
+    event_types = [type(event).__name__ for event in events]
+    assert event_types == [
+        "RestartPlanned",
+        "StopBegan",
+        "StopFinished",
+        "StartAttemptBegan",
+        "StartAttemptSpawned",
+        "StartAttemptSettled",
+        "RetryScheduled",
+        "StartAttemptBegan",
+        "StartAttemptSpawned",
+        "VerifyProgress",
+        "StartAttemptSettled",
+        "RestartFinished",
+    ]
+    retry_event = events[event_types.index("RetryScheduled")]
+    assert retry_event.next_number == 2
+    assert retry_event.delay_seconds == 0.25
+
+
+def test_restart_blocked_in_tests_still_emits_restart_finished() -> None:
+    events: list[object] = []
+
+    with patch(
+        "sase.axe._process_restart.axe_lifecycle_blocked_in_tests",
+        return_value=True,
+    ):
+        result = restart_axe_daemon_result(on_event=events.append)
+
+    assert result.status == "blocked_in_tests"
+    assert [type(event).__name__ for event in events] == ["RestartFinished"]
+    assert events[0].result is result
+
+
+def test_restart_config_error_still_emits_restart_finished(tmp_path: Path) -> None:
+    state_dir = tmp_path / "axe"
+    events: list[object] = []
+    diagnostic = AxeConfigDiagnostic(code="bad_axe_config", message="boom")
+
+    with (
+        patch("sase.axe.state.axe_state_dir", return_value=state_dir),
+        patch(
+            "sase.axe._process_restart.load_axe_config",
+            side_effect=AxeConfigError([diagnostic]),
+        ),
+    ):
+        result = restart_axe_daemon_result(on_event=events.append)
+
+    assert result.status == "failed"
+    assert [type(event).__name__ for event in events] == ["RestartFinished"]
+    assert events[0].result is result
+
+
+def test_restart_event_callback_exception_does_not_change_result(
+    tmp_path: Path,
+) -> None:
+    state_dir = tmp_path / "axe"
+
+    def _raising_callback(_event: object) -> None:
+        raise RuntimeError("boom")
+
+    with (
+        patch("sase.axe.state.axe_state_dir", return_value=state_dir),
+        patch(
+            "sase.axe._process_restart.stop_axe_daemon_result",
+            return_value=AxeStopResult(),
+        ),
+        patch(
+            "sase.axe._process_restart.start_axe_daemon_result",
+            return_value=AxeStartResult(status="started", pid=99, message="started"),
+        ),
+        patch("sase.axe._process_restart._verify_startup", return_value=(True, None)),
+        patch(
+            "sase.axe._process_restart._heartbeat_snapshot",
+            return_value=(100, "old"),
+        ),
+    ):
+        result = restart_axe_daemon_result(
+            _config(),
+            sleep_fn=lambda _delay: None,
+            on_event=_raising_callback,
+        )
+
+    assert result.succeeded is True
+    assert result.verified is True
+    assert result.pid == 99

@@ -18,6 +18,16 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
+def _positive_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a positive number") from exc
+    if not parsed > 0:
+        raise argparse.ArgumentTypeError("must be a positive number")
+    return parsed
+
+
 def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'ace' subcommand parser."""
     ace_parser = subparsers.add_parser(
@@ -141,7 +151,7 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     axe_subparsers = axe_parser.add_subparsers(
         dest="axe_subcommand",
         help="Axe subcommands",
-        metavar="{chop,ensure,lumberjack,maintenance,start,status,stop}",
+        metavar="{chop,ensure,lumberjack,maintenance,restart,start,status,stop}",
     )
 
     axe_bgcmd_parser = axe_subparsers.add_parser(
@@ -327,6 +337,54 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     axe_maintenance_subparsers.add_parser("exit", help="Exit maintenance mode")
     axe_maintenance_subparsers.add_parser("status", help="Show maintenance status")
+
+    # --- axe restart ---
+    axe_restart_parser = axe_subparsers.add_parser(
+        "restart",
+        help="Restart the axe orchestrator and verify fresh lumberjack heartbeats "
+        "(works even when axe is not running)",
+    )
+    axe_restart_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Suppress progress output and emit one deterministic JSON result object",
+    )
+    axe_restart_parser.add_argument(
+        "-A",
+        "--max-agent-runners",
+        type=int,
+        default=None,
+        help="Maximum concurrent agent runners (default: config value)",
+    )
+    axe_restart_parser.add_argument(
+        "-H",
+        "--max-hook-runners",
+        type=int,
+        default=None,
+        help="Maximum concurrent hook runners (default: config value)",
+    )
+    axe_restart_parser.add_argument(
+        "-q",
+        "--query",
+        default="",
+        help="Query string for filtering Patches (empty = config value)",
+    )
+    axe_restart_parser.add_argument(
+        "-t",
+        "--verify-timeout",
+        type=_positive_float,
+        default=15.0,
+        help="Heartbeat verification timeout per start attempt, in seconds "
+        "(default: 15)",
+    )
+    axe_restart_parser.add_argument(
+        "-z",
+        "--zombie-timeout",
+        type=int,
+        default=None,
+        help="Zombie detection timeout in seconds (default: config value)",
+    )
 
     # --- axe status ---
     axe_status_parser = axe_subparsers.add_parser(

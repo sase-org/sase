@@ -56,27 +56,28 @@ also manage it directly with `sase axe start` and `sase axe stop`.
 `sase axe chop` and `sase axe lumberjack` default to their `list` views when invoked
 without a nested subcommand.
 
-| Command                                    | Description                                            |
-| ------------------------------------------ | ------------------------------------------------------ |
-| `sase axe start`                           | Start the orchestrator (spawns all lumberjacks)        |
-| `sase axe stop`                            | Stop the orchestrator gracefully                       |
-| `sase axe ensure`                          | Heal a missing daemon unless it was explicitly stopped |
-| `sase axe ensure install`                  | Install and start the optional user-systemd watchdog   |
-| `sase axe ensure uninstall`                | Stop and remove the optional user-systemd watchdog     |
-| `sase axe status`                          | Show the read-only whole-system health snapshot        |
-| `sase axe status --json`                   | Emit the schema-version-1 status object                |
-| `sase axe chop list`                       | List configured chops with status (`-a` adds scripts)  |
-| `sase axe chop list -v`                    | Add a panel with each chop's full description          |
-| `sase axe chop doctor`                     | Diagnose configured/available chops and Telegram setup |
-| `sase axe chop run <name>`                 | Run a single chop in the foreground                    |
-| `sase axe chop run <name> -L <lumberjack>` | Run a single chop attributed to a specific lumberjack  |
-| `sase axe lumberjack list`                 | List configured lumberjacks and their chops            |
-| `sase axe lumberjack list -v`              | Add each lumberjack's full description under `details` |
-| `sase axe lumberjack run <name>`           | Run a single lumberjack in the foreground              |
-| `sase axe lumberjack status`               | Show status of all lumberjacks                         |
-| `sase axe maintenance enter`               | Pause lumberjack ticks until maintenance exits         |
-| `sase axe maintenance exit`                | Clear the maintenance marker                           |
-| `sase axe maintenance status`              | Show whether maintenance mode is active                |
+| Command                                    | Description                                                                   |
+| ------------------------------------------ | ----------------------------------------------------------------------------- |
+| `sase axe start`                           | Start the orchestrator (spawns all lumberjacks)                               |
+| `sase axe stop`                            | Stop the orchestrator gracefully                                              |
+| `sase axe restart`                         | Verified stop/start/heartbeat-verify restart; works even from a stopped state |
+| `sase axe ensure`                          | Heal a missing daemon unless it was explicitly stopped                        |
+| `sase axe ensure install`                  | Install and start the optional user-systemd watchdog                          |
+| `sase axe ensure uninstall`                | Stop and remove the optional user-systemd watchdog                            |
+| `sase axe status`                          | Show the read-only whole-system health snapshot                               |
+| `sase axe status --json`                   | Emit the schema-version-1 status object                                       |
+| `sase axe chop list`                       | List configured chops with status (`-a` adds scripts)                         |
+| `sase axe chop list -v`                    | Add a panel with each chop's full description                                 |
+| `sase axe chop doctor`                     | Diagnose configured/available chops and Telegram setup                        |
+| `sase axe chop run <name>`                 | Run a single chop in the foreground                                           |
+| `sase axe chop run <name> -L <lumberjack>` | Run a single chop attributed to a specific lumberjack                         |
+| `sase axe lumberjack list`                 | List configured lumberjacks and their chops                                   |
+| `sase axe lumberjack list -v`              | Add each lumberjack's full description under `details`                        |
+| `sase axe lumberjack run <name>`           | Run a single lumberjack in the foreground                                     |
+| `sase axe lumberjack status`               | Show status of all lumberjacks                                                |
+| `sase axe maintenance enter`               | Pause lumberjack ticks until maintenance exits                                |
+| `sase axe maintenance exit`                | Clear the maintenance marker                                                  |
+| `sase axe maintenance status`              | Show whether maintenance mode is active                                       |
 
 ### Examples
 
@@ -84,6 +85,11 @@ without a nested subcommand.
 # Start/stop the daemon
 sase axe start
 sase axe stop
+
+# Verified restart: stop (no-op if already down), start, and wait for fresh
+# lumberjack heartbeats; exits 0 only once the restart is verified
+sase axe restart
+sase axe restart --json
 
 # Check desired state and heal an unexpected outage
 sase axe ensure
@@ -170,8 +176,11 @@ actionable degradation, and `2` means collection/classification error.
 Use these related commands according to intent:
 
 - `sase axe status` is the read-only first look at whole-system intent and health.
+- `sase axe restart` is the explicit operator action: stop (if running), start, and
+  verify fresh lumberjack heartbeats before reporting success.
 - `sase axe ensure` reconciles desired state and may start a missing orchestrator; it is
-  a recovery command.
+  a recovery command that lets the watchdog heal, rather than an operator-initiated
+  restart.
 - `sase doctor --deep` runs broader, slower diagnostics when the status evidence needs
   deeper investigation.
 - `sase axe maintenance status` remains the compatibility/debugging view of only the
@@ -1403,6 +1412,9 @@ live and every configured lumberjack reports `running` with PID and heartbeat va
 changed from the pre-restart snapshot. If all attempts fail, SASE records the attempt
 summaries in `recent_errors.json` and sends a durable **Axe restart failed**
 notification; an installed watchdog can try a clean start on a later tick.
+`sase axe restart` exposes this same verified orchestration directly to operators, with
+a live TTY panel, plain milestone lines when piped, or `--json` for scripts; it exits 0
+only once the restart is verified.
 
 ## State Directory
 

@@ -23,13 +23,37 @@ from ._process_types import (
     AxeStopResult,
     StartStatus,
 )
+from ._restart_events import (
+    AxeRestartEvent,
+    RestartEventCallback,
+    RestartFinished,
+    RestartPlanned,
+    RetryScheduled,
+    StartAttemptBegan,
+    StartAttemptSettled,
+    StartAttemptSpawned,
+    StopBegan,
+    StopFinished,
+    VerifyProgress,
+)
 
 
 __all__ = [
+    "AxeRestartEvent",
     "AxeStartResult",
     "AxeStartAttempt",
     "AxeStopResult",
+    "RestartEventCallback",
+    "RestartFinished",
+    "RestartPlanned",
+    "RetryScheduled",
+    "StartAttemptBegan",
+    "StartAttemptSettled",
+    "StartAttemptSpawned",
     "StartStatus",
+    "StopBegan",
+    "StopFinished",
+    "VerifyProgress",
     "canonical_axe_start_command",
     "get_axe_pid",
     "get_axe_status",

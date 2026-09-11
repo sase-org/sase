@@ -1,10 +1,18 @@
 """Handler for the 'sase axe' command."""
 
+from __future__ import annotations
+
 import argparse
 import os
 import sys
+from typing import TYPE_CHECKING
 
 from sase.ace.query import QueryParseError
+from sase.axe.process import restart_axe_daemon_result
+from sase.main.update_types import RestartAxeFn
+
+if TYPE_CHECKING:
+    from sase.axe.config import AxeConfig
 
 
 def handle_axe_command(args: argparse.Namespace) -> None:
@@ -30,6 +38,8 @@ def handle_axe_command(args: argparse.Namespace) -> None:
         _handle_lumberjack(args)
     elif axe_sub == "maintenance":
         _handle_maintenance(args)
+    elif axe_sub == "restart":
+        _handle_restart(args)
     elif axe_sub == "start":
         _handle_start(args)
     elif axe_sub == "status":
@@ -37,7 +47,10 @@ def handle_axe_command(args: argparse.Namespace) -> None:
     elif axe_sub == "stop":
         _handle_stop(args)
     else:
-        print("Usage: sase axe {chop,ensure,lumberjack,maintenance,start,status,stop}")
+        print(
+            "Usage: sase axe "
+            "{chop,ensure,lumberjack,maintenance,restart,start,status,stop}"
+        )
         sys.exit(1)
 
 
@@ -206,9 +219,42 @@ def _handle_status(args: argparse.Namespace) -> None:
     sys.exit(snapshot.exit_code)
 
 
+def _load_axe_config_with_overrides(args: argparse.Namespace) -> AxeConfig:
+    """Load the effective axe config with CLI runner/query/timeout overrides applied."""
+    from dataclasses import replace
+
+    from sase.axe.config import load_axe_config
+
+    config = load_axe_config()
+    max_hook_runners = (
+        args.max_hook_runners
+        if getattr(args, "max_hook_runners", None) is not None
+        else config.max_hook_runners
+    )
+    max_agent_runners = (
+        args.max_agent_runners
+        if getattr(args, "max_agent_runners", None) is not None
+        else config.max_agent_runners
+    )
+    zombie_timeout = (
+        args.zombie_timeout
+        if getattr(args, "zombie_timeout", None) is not None
+        else config.zombie_timeout_seconds
+    )
+    query = getattr(args, "query", "") or config.query
+
+    return replace(
+        config,
+        max_hook_runners=max_hook_runners,
+        max_agent_runners=max_agent_runners,
+        zombie_timeout_seconds=zombie_timeout,
+        query=query,
+    )
+
+
 def _handle_start(args: argparse.Namespace) -> None:
     """Handle 'sase axe start' — orchestrator mode."""
-    from sase.axe.config import AxeConfig, AxeConfigError, load_axe_config
+    from sase.axe.config import AxeConfigError
     from sase.axe.desired_state import write_desired_state
     from sase.axe.orchestrator import Orchestrator
     from sase.axe._process_start import AXE_START_SOURCE_ENV
@@ -234,45 +280,10 @@ def _handle_start(args: argparse.Namespace) -> None:
     os.chdir(os.path.expanduser("~"))
 
     try:
-        config = load_axe_config()
+        config = _load_axe_config_with_overrides(args)
     except AxeConfigError as exc:
         print(str(exc), file=sys.stderr)
         sys.exit(2)
-
-    # Apply CLI overrides
-    max_hook_runners = (
-        args.max_hook_runners
-        if args.max_hook_runners is not None
-        else config.max_hook_runners
-    )
-    max_agent_runners = (
-        args.max_agent_runners
-        if args.max_agent_runners is not None
-        else config.max_agent_runners
-    )
-    zombie_timeout = (
-        args.zombie_timeout
-        if args.zombie_timeout is not None
-        else config.zombie_timeout_seconds
-    )
-    query = args.query or config.query
-
-    config = AxeConfig(
-        max_hook_runners=max_hook_runners,
-        max_agent_runners=max_agent_runners,
-        zombie_timeout_seconds=zombie_timeout,
-        lumberjack_log_max_bytes=config.lumberjack_log_max_bytes,
-        lumberjack_log_temp_max_age_seconds=(
-            config.lumberjack_log_temp_max_age_seconds
-        ),
-        lumberjack_restart_backoff_max_seconds=(
-            config.lumberjack_restart_backoff_max_seconds
-        ),
-        verbose_lumberjack_diagnostics=config.verbose_lumberjack_diagnostics,
-        query=query,
-        chop_script_dirs=config.chop_script_dirs,
-        lumberjacks=config.lumberjacks,
-    )
 
     try:
         orchestrator = Orchestrator(config)
@@ -281,6 +292,64 @@ def _handle_start(args: argparse.Namespace) -> None:
         sys.exit(1)
     success = orchestrator.run()
     sys.exit(0 if success else 1)
+
+
+def _handle_restart(
+    args: argparse.Namespace,
+    *,
+    restart_axe_fn: RestartAxeFn = restart_axe_daemon_result,
+) -> None:
+    """Handle 'sase axe restart' — verified stop/start/heartbeat-verify restart."""
+    import time as _time
+
+    from rich.console import Console
+
+    from sase.axe.config import AxeConfigError
+    from sase.axe.restart_render import (
+        RestartLiveRenderer,
+        RestartPlainRenderer,
+        render_restart_json,
+        render_restart_settle_panel,
+        should_render_restart_live,
+    )
+
+    as_json = bool(getattr(args, "json", False))
+    verify_timeout = float(getattr(args, "verify_timeout", 15.0))
+
+    try:
+        config = _load_axe_config_with_overrides(args)
+    except AxeConfigError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(2)
+
+    if as_json:
+        t0 = _time.monotonic()
+        result = restart_axe_fn(config, verification_timeout=verify_timeout)
+        render_restart_json(result, _time.monotonic() - t0)
+        sys.exit(0 if (result.succeeded and result.verified) else 1)
+
+    console = Console()
+    t0 = _time.monotonic()
+    if should_render_restart_live(as_json=as_json):
+        with RestartLiveRenderer(console) as renderer:
+            result = restart_axe_fn(
+                config,
+                verification_timeout=verify_timeout,
+                on_event=renderer.handle_event,
+            )
+        console.print(
+            render_restart_settle_panel(
+                result, renderer.state, elapsed_seconds=_time.monotonic() - t0
+            )
+        )
+    else:
+        plain_renderer = RestartPlainRenderer(console)
+        result = restart_axe_fn(
+            config,
+            verification_timeout=verify_timeout,
+            on_event=plain_renderer.handle_event,
+        )
+    sys.exit(0 if (result.succeeded and result.verified) else 1)
 
 
 def _handle_stop(args: argparse.Namespace) -> None:
