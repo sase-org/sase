@@ -62,7 +62,7 @@ def _wait_for_file(path: Path, *, timeout: float = 30.0) -> None:
     while time.monotonic() < deadline:
         if path.is_file():
             return
-        time.sleep(0.01)
+        time.sleep(0.01)  # sase-test-wait: poll for the child-written file
     raise AssertionError(f"timed out waiting for {path}")
 
 
@@ -83,7 +83,7 @@ def _wait_for_json(
             else:
                 if isinstance(payload, dict) and predicate(payload):
                     return payload
-        time.sleep(0.01)
+        time.sleep(0.01)  # sase-test-wait: poll for the child-written JSON
     suffix = f": {last_error}" if last_error is not None else ""
     raise AssertionError(f"timed out waiting for matching JSON in {path}{suffix}")
 

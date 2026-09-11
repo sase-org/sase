@@ -192,6 +192,70 @@ def test_locator_projection_and_validation_round_trip_without_local_data() -> No
         _binding("fleet_project_resolved_agent_detail")(path_handle)
 
 
+def test_projection_normalizes_multiline_owner_prompt_into_safe_intent() -> None:
+    installation_id = _known_installation_id("a")
+    request = _projection_request(installation_id)
+    request["record"]["raw_prompt_snippet"] = (
+        "Refactor the widget\nand update the tests\r\nplease\tthanks"
+    )
+
+    summary = _binding("fleet_project_resolved_agent_summary")(request)
+
+    assert summary["intent"] == (
+        "Refactor the widget and update the tests  please thanks"
+    )
+    assert _binding("fleet_validate_resolved_agent_summary")(summary) == summary
+
+    detail = _binding("fleet_project_resolved_agent_detail")(request)
+    assert detail["summary"]["intent"] == summary["intent"]
+
+
+def test_projection_normalizes_multiline_plan_action_into_safe_intent() -> None:
+    installation_id = _known_installation_id("a")
+    request = _projection_request(installation_id)
+    request["record"]["agent_meta"]["plan_action"] = "Step 1: build\nStep 2: test"
+
+    summary = _binding("fleet_project_resolved_agent_summary")(request)
+
+    assert summary["intent"] == "Step 1: build Step 2: test"
+
+
+def test_projection_bounds_multiline_unicode_intent_to_byte_limit() -> None:
+    installation_id = _known_installation_id("a")
+    request = _projection_request(installation_id)
+    request["record"]["raw_prompt_snippet"] = "line one\nline two\n" + "é" * 400
+
+    summary = _binding("fleet_project_resolved_agent_summary")(request)
+
+    intent = summary["intent"]
+    assert len(intent.encode("utf-8")) <= 512
+    assert not any(ord(char) < 0x20 for char in intent)
+    assert _binding("fleet_validate_resolved_agent_summary")(summary) == summary
+
+
+def test_projection_omits_intent_that_normalizes_to_empty() -> None:
+    installation_id = _known_installation_id("a")
+    request = _projection_request(installation_id)
+    # Non-whitespace control characters survive naive ``str.strip``-style
+    # filtering, so only intent-specific normalization reduces this to
+    # nothing.
+    request["record"]["raw_prompt_snippet"] = chr(1) + chr(2) + chr(3)
+
+    summary = _binding("fleet_project_resolved_agent_summary")(request)
+
+    assert summary.get("intent") is None
+
+
+def test_external_wire_summary_with_raw_control_character_intent_is_rejected() -> None:
+    installation_id = _known_installation_id("a")
+    request = _projection_request(installation_id)
+    summary = _binding("fleet_project_resolved_agent_summary")(request)
+
+    summary["intent"] = "bad\nintent"
+    with pytest.raises(ValueError, match="control characters"):
+        _binding("fleet_validate_resolved_agent_summary")(summary)
+
+
 def test_importing_primary_package_has_no_network_provider_side_effects() -> None:
     script = """
 import json

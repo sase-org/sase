@@ -40,6 +40,7 @@ def test_count_contract_deduplicates_current_instances_and_buckets() -> None:
         installation_id, agent_id="agent-monitor", run_id="run-1", revision=5
     )
     monitor["row_kind"] = "monitor"
+    monitor["family_role"] = "monitor"
 
     counts = _binding("fleet_count_logical_agents")(
         {
