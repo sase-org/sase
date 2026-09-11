@@ -22,6 +22,24 @@ def test_mobile_name_guard_recognizes_id_with_only_tribe_keyword() -> None:
     assert mobile_agents._prompt_has_name_directive("%id(tribe=review)\nDo work")
 
 
+def test_mobile_launch_prompt_ignores_matching_name_when_prompt_has_id() -> None:
+    prompt = mobile_agents._mobile_launch_prompt(
+        {"prompt": "%id:observer\n#gh:sase Watch", "name": "observer"}
+    )
+    assert prompt.startswith("%id:observer")
+    assert prompt.count("%id:") == 1
+
+
+def test_mobile_launch_prompt_rejects_conflicting_name_when_prompt_has_id() -> None:
+    with pytest.raises(
+        mobile_agents._MobileAgentBridgeError,
+        match="name cannot be provided when prompt already has a %id directive",
+    ):
+        mobile_agents._mobile_launch_prompt(
+            {"prompt": "%id:observer\nWatch", "name": "dispatch-abc"}
+        )
+
+
 def test_launch_mobile_text_agents_normalizes_prompt_and_returns_slots(
     monkeypatch,
     tmp_path: Path,

@@ -174,6 +174,9 @@ class AgentUnitWire:
     wait_priority: int | None = None
     queue_weight: float | None = None
     queue_weight_explicit: bool = False
+    workspace_provider: str | None = None
+    workspace_reference: str | None = None
+    dispatch_target: str | None = None
 
 
 @dataclass(frozen=True)
@@ -209,6 +212,13 @@ class LaunchUnitResultWire:
     logical_id: str
     outcome: str
     message: str | None = None
+    identity: str | None = None
+    dispatch_target: str | None = None
+    workspace_reference: str | None = None
+    operation_key: dict[str, Any] | None = None
+    locator: dict[str, Any] | None = None
+    receipt_state: str | None = None
+    uncertain: bool | None = None
 
 
 @dataclass(frozen=True)
@@ -286,6 +296,9 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
             "wait_runners",
             "wait_priority",
             "queue_weight",
+            "workspace_provider",
+            "workspace_reference",
+            "dispatch_target",
         ):
             if agent_payload.get(key) is None:
                 agent_payload.pop(key, None)
@@ -366,6 +379,28 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
         if record.condition is not None:
             unit["condition"] = agent_launch_wire_to_json_dict(record.condition)
         return unit
+    if isinstance(record, LaunchUnitResultWire):
+        result: dict[str, Any] = {
+            "logical_id": record.logical_id,
+            "outcome": record.outcome,
+        }
+        if record.message is not None:
+            result["message"] = record.message
+        if record.identity is not None:
+            result["identity"] = record.identity
+        if record.dispatch_target is not None:
+            result["dispatch_target"] = record.dispatch_target
+        if record.workspace_reference is not None:
+            result["workspace_reference"] = record.workspace_reference
+        if record.operation_key is not None:
+            result["operation_key"] = dict(record.operation_key)
+        if record.locator is not None:
+            result["locator"] = dict(record.locator)
+        if record.receipt_state is not None:
+            result["receipt_state"] = record.receipt_state
+        if record.uncertain is not None:
+            result["uncertain"] = record.uncertain
+        return result
     if hasattr(record, "__dataclass_fields__"):
         return agent_launch_wire_to_json_dict(asdict(record))
     return record
@@ -570,6 +605,9 @@ def _launch_unit_payload_from_dict(
                 else float(data["queue_weight"])
             ),
             queue_weight_explicit=bool(data.get("queue_weight_explicit", False)),
+            workspace_provider=_optional_str(data.get("workspace_provider")),
+            workspace_reference=_optional_str(data.get("workspace_reference")),
+            dispatch_target=_optional_str(data.get("dispatch_target")),
         )
     if kind == "proc":
         return ProcUnitWire(
@@ -645,10 +683,20 @@ def _code_value_from_dict(data: dict[str, Any]) -> Any:
 
 
 def launch_unit_result_from_dict(data: dict[str, Any]) -> LaunchUnitResultWire:
+    operation_key = data.get("operation_key")
+    locator = data.get("locator")
+    uncertain = data.get("uncertain")
     return LaunchUnitResultWire(
         logical_id=str(data["logical_id"]),
         outcome=str(data["outcome"]),
         message=None if data.get("message") is None else str(data["message"]),
+        identity=_optional_str(data.get("identity")),
+        dispatch_target=_optional_str(data.get("dispatch_target")),
+        workspace_reference=_optional_str(data.get("workspace_reference")),
+        operation_key=dict(operation_key) if isinstance(operation_key, dict) else None,
+        locator=dict(locator) if isinstance(locator, dict) else None,
+        receipt_state=_optional_str(data.get("receipt_state")),
+        uncertain=None if uncertain is None else bool(uncertain),
     )
 
 

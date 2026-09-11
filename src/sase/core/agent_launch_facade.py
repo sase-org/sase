@@ -253,6 +253,13 @@ def agent_unit_dispatch_prompt(agent: AgentUnitWire) -> str:
     )
 
 
+def prompt_has_identity_directive(prompt: str) -> bool:
+    """Return True when *prompt* already carries an active ``%id`` directive."""
+
+    binding = require_rust_binding("prompt_has_identity_directive")
+    return bool(binding(prompt))
+
+
 def classify_condition_status(
     *,
     exit_code: int | None = None,
@@ -461,6 +468,7 @@ __all__ = [
     "_allocate_launch_timestamp_batch",
     "admission_unit_results",
     "agent_unit_dispatch_prompt",
+    "prompt_has_identity_directive",
     "build_condition_context",
     "classify_condition_status",
     "cleanup_proc_private_inputs",

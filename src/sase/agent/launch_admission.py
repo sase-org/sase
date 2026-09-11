@@ -237,7 +237,9 @@ def _agent_dispatcher_for_request(
             )
 
         return _missing_metadata
-    return None
+    from sase.agent.launch_admission_runtime import make_approved_agent_dispatcher
+
+    return make_approved_agent_dispatcher(data)
 
 
 def _should_notify_admission_complete(

@@ -113,17 +113,24 @@ def mobile_launch_prompt(payload: dict[str, Any]) -> str:
     name = optional_str(payload.get("name"))
     if name:
         if prompt_has_name_directive(prompt):
-            raise MobileAgentBridgeError(
-                "name cannot be provided when prompt already has a %id directive"
-            )
-        from sase.agent.launch_validation import validate_user_agent_name
-        from ._mobile_agent_common import directive_name
+            from sase.agent.multi_prompt_references import extract_static_name_directive
 
-        try:
-            validate_user_agent_name(name)
-        except RuntimeError as exc:
-            raise MobileAgentBridgeError(str(exc)) from exc
-        directives.append(f"%id:{directive_name(name)}")
+            existing = extract_static_name_directive(prompt)
+            if existing is not None and existing == name:
+                name = None
+            else:
+                raise MobileAgentBridgeError(
+                    "name cannot be provided when prompt already has a %id directive"
+                )
+        if name:
+            from sase.agent.launch_validation import validate_user_agent_name
+            from ._mobile_agent_common import directive_name
+
+            try:
+                validate_user_agent_name(name)
+            except RuntimeError as exc:
+                raise MobileAgentBridgeError(str(exc)) from exc
+            directives.append(f"%id:{directive_name(name)}")
 
     model = optional_str(payload.get("model"))
     provider = optional_str(payload.get("provider"))

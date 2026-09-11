@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, Protocol
 
 from sase.agent.launch_types import AgentLaunchResult
@@ -15,6 +17,10 @@ from sase.core.agent_launch_wire import (
     WaitTargetWire,
     agent_launch_wire_to_json_dict,
 )
+
+DispatchResultWithExtra = tuple[
+    bool, str | None, str | None, list[AgentLaunchResult], dict[str, Any]
+]
 
 
 class ConditionEvaluator(Protocol):
@@ -32,8 +38,11 @@ class UnitDispatcher(Protocol):
         self,
         unit: LaunchUnitWire,
         fingerprint: str,
-    ) -> tuple[bool, str | None, str | None, list[AgentLaunchResult]]:
-        """Return ok, identity, message, and any spawned agent results."""
+    ) -> (
+        tuple[bool, str | None, str | None, list[AgentLaunchResult]]
+        | DispatchResultWithExtra
+    ):
+        """Return ok, identity, message, spawned results, and optional extra."""
 
 
 class WaitResolver(Protocol):
@@ -90,23 +99,223 @@ def evaluate_launch_condition(
 def dispatch_agent_unit(
     unit: LaunchUnitWire,
     fingerprint: str,
-) -> tuple[bool, str | None, str | None, list[AgentLaunchResult]]:
+    *,
+    selected_project: str | None = None,
+    source_cwd: str | None = None,
+) -> DispatchResultWithExtra:
     """Dispatch one eligible agent through the established launch path."""
 
     if not isinstance(unit.payload, AgentUnitWire):
-        return False, None, "not_an_agent_unit", []
+        return False, None, "not_an_agent_unit", [], {}
     prompt = agent_unit_dispatch_prompt(unit.payload)
     extra_env = {
         "SASE_LAUNCH_DISPATCH_FINGERPRINT": fingerprint,
         "SASE_LAUNCH_LOGICAL_ID": unit.logical_id,
     }
+    if unit.payload.dispatch_target:
+        return _dispatch_remote_agent_unit(
+            unit,
+            prompt,
+            fingerprint,
+            selected_project=selected_project,
+            source_cwd=source_cwd,
+        )
     from sase.agent import launcher as launcher_mod
 
     results = launcher_mod.launch_agents_from_cwd(prompt, extra_env=extra_env)
     if not results:
-        return False, None, "agent_dispatch_produced_no_results", []
+        return False, None, "agent_dispatch_produced_no_results", [], {}
     identity = results[0].agent_name or f"pid:{results[0].pid}"
-    return True, identity, None, list(results)
+    extra = {
+        "workspace_reference": unit.payload.workspace_reference,
+        "dispatch_target": None,
+    }
+    return True, identity, None, list(results), extra
+
+
+def make_approved_agent_dispatcher(
+    data: Mapping[str, Any],
+) -> UnitDispatcher:
+    """Bind approved-request context into the default agent dispatcher."""
+
+    selected = data.get("selected_project")
+    selected_project = str(selected) if isinstance(selected, str) else None
+    dispatch = data.get("dispatch")
+    source_cwd = None
+    if isinstance(dispatch, Mapping) and dispatch.get("cwd"):
+        source_cwd = str(dispatch["cwd"])
+
+    def _dispatch(
+        unit: LaunchUnitWire,
+        fingerprint: str,
+    ) -> DispatchResultWithExtra:
+        return dispatch_agent_unit(
+            unit,
+            fingerprint,
+            selected_project=selected_project,
+            source_cwd=source_cwd,
+        )
+
+    return _dispatch
+
+
+def _dispatch_remote_agent_unit(
+    unit: LaunchUnitWire,
+    prompt: str,
+    fingerprint: str,
+    *,
+    selected_project: str | None,
+    source_cwd: str | None,
+) -> DispatchResultWithExtra:
+    if not isinstance(unit.payload, AgentUnitWire):
+        return False, None, "not_an_agent_unit", [], {}
+    agent = unit.payload
+    extra: dict[str, Any] = {
+        "dispatch_target": agent.dispatch_target,
+        "workspace_reference": agent.workspace_reference,
+    }
+    payload = _remote_dispatch_payload(
+        agent,
+        fingerprint,
+        selected_project=selected_project,
+    )
+    if payload.get("error"):
+        extra["receipt_state"] = "unsent"
+        return False, None, str(payload["error"]), [], extra
+
+    from sase.dispatch.launch import (
+        RemoteDispatchLaunchError,
+        maybe_dispatch_launch,
+    )
+
+    work_dir = _remote_dispatch_workdir(agent, source_cwd)
+    original_cwd = Path.cwd()
+    try:
+        if work_dir is not None:
+            os.chdir(work_dir)
+        result = maybe_dispatch_launch(prompt, payload=payload)
+    except RemoteDispatchLaunchError as exc:
+        message = str(exc)
+        extra["receipt_state"] = (
+            "acceptance_uncertain" if "uncertain" in message else "failed"
+        )
+        extra["uncertain"] = "uncertain" in message
+        extra["operation_key"] = {
+            "schema_version": 1,
+            "operation_id": fingerprint,
+        }
+        if extra["uncertain"]:
+            return (
+                True,
+                agent.identity or fingerprint,
+                message,
+                [],
+                extra,
+            )
+        return False, None, message, [], extra
+    finally:
+        os.chdir(original_cwd)
+
+    if result is None:
+        extra["receipt_state"] = "unsent"
+        return (
+            False,
+            None,
+            "remote dispatch produced no result",
+            [],
+            extra,
+        )
+    dispatch_payload = result.payload.get("dispatch")
+    operation_key: dict[str, Any] | None = None
+    locator: dict[str, Any] | None = None
+    receipt_state = None
+    if isinstance(dispatch_payload, Mapping):
+        extra["dispatch_target"] = (
+            dispatch_payload.get("target") or agent.dispatch_target
+        )
+        raw_key = dispatch_payload.get("operation_key")
+        if isinstance(raw_key, Mapping):
+            operation_key = dict(raw_key)
+        raw_receipt = dispatch_payload.get("receipt")
+        if isinstance(raw_receipt, Mapping):
+            raw_locator = raw_receipt.get("logical_locator")
+            if isinstance(raw_locator, Mapping):
+                locator = dict(raw_locator)
+        receipt_state = dispatch_payload.get("source_status") or dispatch_payload.get(
+            "state"
+        )
+    extra["operation_key"] = operation_key
+    extra["locator"] = locator
+    extra["receipt_state"] = receipt_state
+    extra["uncertain"] = receipt_state == "acceptance_uncertain"
+    identity = None
+    if locator is not None:
+        agent_id = locator.get("agent_id")
+        if isinstance(agent_id, str) and agent_id:
+            identity = agent_id
+    if identity is None and operation_key is not None:
+        operation_id = operation_key.get("operation_id")
+        if isinstance(operation_id, str) and operation_id:
+            identity = operation_id
+    if identity is None:
+        identity = agent.identity or fingerprint
+    return True, identity, result.message, [], extra
+
+
+def _remote_dispatch_payload(
+    agent: AgentUnitWire,
+    fingerprint: str,
+    *,
+    selected_project: str | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "request_id": fingerprint,
+        "follow": True,
+    }
+    project = _resolve_unit_project(agent, selected_project)
+    if isinstance(project, str) and project.strip() and project != "home":
+        payload["project"] = project
+    else:
+        payload["error"] = (
+            "remote dispatch has no project target; refusing local or home fallback"
+        )
+        return payload
+    if agent.identity_explicit and agent.identity:
+        payload["name"] = agent.identity
+    return payload
+
+
+def _resolve_unit_project(
+    agent: AgentUnitWire,
+    selected_project: str | None,
+) -> str | None:
+    if agent.workspace_reference:
+        from sase.agent.launch_cwd_common import resolve_known_project_vcs_launch_ref
+
+        known = resolve_known_project_vcs_launch_ref(agent.workspace_reference)
+        if known is not None:
+            return known.ref
+        return None
+    if selected_project and selected_project.strip() and selected_project != "home":
+        return selected_project
+    return None
+
+
+def _remote_dispatch_workdir(
+    agent: AgentUnitWire,
+    source_cwd: str | None,
+) -> Path | None:
+    if agent.workspace_reference:
+        from sase.agent.launch_cwd_common import resolve_known_project_vcs_launch_ref
+
+        known = resolve_known_project_vcs_launch_ref(agent.workspace_reference)
+        if known is not None:
+            return Path(known.workspace_dir)
+    if source_cwd:
+        path = Path(source_cwd)
+        if path.is_dir():
+            return path
+    return None
 
 
 def dispatch_proc_unit(
@@ -131,7 +340,8 @@ def call_proc_dispatcher(
 ) -> tuple[bool, str | None, str | None, list[AgentLaunchResult]]:
     if dispatcher is dispatch_proc_unit:
         return dispatch_proc_unit(unit, fingerprint, context)
-    return dispatcher(unit, fingerprint)
+    ok, identity, message, spawned, *_extra = dispatcher(unit, fingerprint)
+    return ok, identity, message, spawned
 
 
 def stop_proc_identity(identity: str) -> None:

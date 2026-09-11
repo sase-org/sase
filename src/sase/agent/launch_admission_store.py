@@ -95,6 +95,7 @@ def write_unit_receipt(
     fingerprint: str,
     identity: str,
     unit: LaunchUnitWire | None = None,
+    extra: Mapping[str, Any] | None = None,
 ) -> None:
     units_dir = root / UNITS_DIRNAME
     payload: dict[str, Any] = {
@@ -106,6 +107,22 @@ def write_unit_receipt(
         if unit.payload.queue_weight is not None:
             payload["queue_weight"] = unit.payload.queue_weight
         payload["queue_weight_explicit"] = unit.payload.queue_weight_explicit
+        if unit.payload.workspace_reference:
+            payload["workspace_reference"] = unit.payload.workspace_reference
+        if unit.payload.dispatch_target:
+            payload["dispatch_target"] = unit.payload.dispatch_target
+    if extra:
+        for key in (
+            "dispatch_target",
+            "workspace_reference",
+            "operation_key",
+            "locator",
+            "receipt_state",
+            "uncertain",
+        ):
+            value = extra.get(key)
+            if value is not None:
+                payload[key] = value
     write_json_marker_atomic(
         units_dir / f"{logical_id}.json",
         payload,

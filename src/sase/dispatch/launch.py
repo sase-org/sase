@@ -198,7 +198,13 @@ def preview_dispatch_launch(
     context = _portable_project_context(payload, machine)
     intent = _launch_intent(scan, payload, context)
     operation_key = _operation_key(payload, scan, intent)
-    if intent["follow"] and intent["name"] is None:
+    from sase.core.agent_launch_facade import prompt_has_identity_directive
+
+    if prompt_has_identity_directive(scan.prompt):
+        # Prompt identity is the owner. Do not inject an operation-derived
+        # name that the mobile bridge would prepend as a second %id.
+        pass
+    elif intent["follow"] and intent["name"] is None:
         intent["name"] = operation_key["operation_id"]
     fingerprint = _call_dict_binding(
         "fleet_launch_payload_fingerprint",

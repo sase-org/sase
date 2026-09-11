@@ -142,6 +142,17 @@ class AdmissionEngine:
             ):
                 continue
             state["identity"] = identity
+            for key in (
+                "dispatch_target",
+                "workspace_reference",
+                "operation_key",
+                "locator",
+                "receipt_state",
+                "uncertain",
+            ):
+                value = receipt.get(key)
+                if value is not None:
+                    state[key] = value
         return states
 
     def _wait_facts(self, states: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
@@ -176,23 +187,23 @@ class AdmissionEngine:
             fingerprint = str(action.get("fingerprint") or "")
             self._journal(logical_id, "dispatching", fingerprint=fingerprint)
             unit = _unit(self.plan, logical_id)
-            dispatcher = (
-                self.proc_dispatcher
-                if str(action.get("unit_kind") or "") == "proc"
-                else self.agent_dispatcher
-            )
-            if dispatcher is None:
-                dispatcher = (
-                    dispatch_proc_unit
-                    if str(action.get("unit_kind") or "") == "proc"
-                    else dispatch_agent_unit
-                )
-            if dispatcher is self.proc_dispatcher or (dispatcher is dispatch_proc_unit):
+            if str(action.get("unit_kind") or "") == "proc":
+                proc_dispatcher = self.proc_dispatcher or dispatch_proc_unit
                 ok, identity, message, spawned = call_proc_dispatcher(
-                    dispatcher, unit, fingerprint, self._proc_context(unit, action)
+                    proc_dispatcher,
+                    unit,
+                    fingerprint,
+                    self._proc_context(unit, action),
+                )
+                extra: dict[str, Any] = {}
+            elif self.agent_dispatcher is None:
+                ok, identity, message, spawned, extra = _unpack_agent_dispatch(
+                    dispatch_agent_unit(unit, fingerprint)
                 )
             else:
-                ok, identity, message, spawned = dispatcher(unit, fingerprint)
+                ok, identity, message, spawned, extra = _unpack_agent_dispatch(
+                    self.agent_dispatcher(unit, fingerprint)
+                )
             self.results.extend(spawned)
             if ok:
                 write_unit_receipt(
@@ -201,6 +212,7 @@ class AdmissionEngine:
                     fingerprint=fingerprint,
                     identity=identity or logical_id,
                     unit=unit,
+                    extra=extra,
                 )
                 self._journal(
                     logical_id,
@@ -208,6 +220,7 @@ class AdmissionEngine:
                     fingerprint=fingerprint,
                     identity=identity or logical_id,
                     message=message,
+                    extra=extra,
                 )
                 return None
             self._journal(
@@ -215,6 +228,7 @@ class AdmissionEngine:
                 "launch_error",
                 fingerprint=fingerprint,
                 message=message or "launch_error",
+                extra=extra,
             )
             return None
         if kind == "fail_check":
@@ -408,6 +422,7 @@ class AdmissionEngine:
         identity: str | None = None,
         waited_outcomes: list[dict[str, Any]] | None = None,
         message: str | None = None,
+        extra: Mapping[str, Any] | None = None,
     ) -> None:
         entry: dict[str, Any] = {
             "schema_version": LAUNCH_ADMISSION_JOURNAL_SCHEMA_VERSION,
@@ -425,6 +440,18 @@ class AdmissionEngine:
             entry["waited_outcomes"] = waited_outcomes
         if message:
             entry["message"] = message
+        if extra:
+            for key in (
+                "dispatch_target",
+                "workspace_reference",
+                "operation_key",
+                "locator",
+                "receipt_state",
+                "uncertain",
+            ):
+                value = extra.get(key)
+                if value is not None:
+                    entry[key] = value
         append_journal(self.admission_dir, entry)
 
     def _progress(self, *, complete: bool) -> AdmissionProgress:
@@ -506,6 +533,22 @@ def _unit(plan: LaunchPlanWire, logical_id: str) -> LaunchUnitWire:
         logical_id,
         f"typed launch plan has no unit {logical_id}",
     )
+
+
+def _unpack_agent_dispatch(
+    result: Any,
+) -> tuple[bool, str | None, str | None, list[AgentLaunchResult], dict[str, Any]]:
+    if not isinstance(result, tuple) or len(result) < 4:
+        raise LaunchRequestError(
+            "invalid_request",
+            "dispatch",
+            "agent dispatcher returned an invalid result",
+        )
+    ok, identity, message, spawned = result[0], result[1], result[2], result[3]
+    extra = (
+        dict(result[4]) if len(result) > 4 and isinstance(result[4], Mapping) else {}
+    )
+    return bool(ok), identity, message, list(spawned or []), extra
 
 
 def _all_terminal(

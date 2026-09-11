@@ -82,10 +82,14 @@ def test_legacy_agent_unit_json_defaults_to_plain_identity() -> None:
     assert agent.clan_declared is False
     assert agent.tribe is None
     assert agent.family_attach_parent is None
+    assert agent.workspace_reference is None
+    assert agent.dispatch_target is None
     payload = agent_launch_wire_to_json_dict(agent)
     assert "clan" not in payload
     assert "clan_declared" not in payload
     assert "tribe" not in payload
+    assert "workspace_reference" not in payload
+    assert "dispatch_target" not in payload
 
 
 @pytest.mark.parametrize(
