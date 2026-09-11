@@ -58,8 +58,9 @@ def seed_patch_epic(project_dir: Path) -> tuple[str, list[str]]:
 
 
 def make_args(
-    target: str,
+    target: str | list[str],
     *,
+    capacity: int | str | None = None,
     dry_run: bool = False,
     yes: bool = False,
     yes_to_all: bool = False,
@@ -72,6 +73,7 @@ def make_args(
         target=target,
         dry_run=dry_run,
         json=json_output,
+        capacity=capacity,
         yes=yes,
         yes_to_all=yes_to_all,
         no_push=no_push,

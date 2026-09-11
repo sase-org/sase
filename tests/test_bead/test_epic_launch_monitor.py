@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import shlex
 from pathlib import Path
 from types import SimpleNamespace
@@ -115,6 +116,48 @@ def test_start_epic_launch_monitor_forwards_wait_spec_into_argv(
     assert request.command == shlex.join(logical)
     assert list(request.execution_argv) == guarded_exec_argv(logical)
     assert logical_argv_from_guarded_exec(list(request.execution_argv)) == logical
+
+
+def test_start_epic_launch_monitor_forwards_capacity_and_records_resume_argv(
+    tmp_path: Path,
+) -> None:
+    plan = tmp_path / "auth rewrite.md"
+    artifacts = tmp_path / "artifacts"
+    monitor = SimpleNamespace(monitor_id="m7k2xyz")
+    lease = fake_lease(tmp_path)
+    with (
+        patch("sase.procs.procs_dir", return_value=tmp_path / "tasks"),
+        patch("sase.procs.read_procs", return_value=[]),
+        patch(
+            "sase.workspace_provider.lease.acquire_operational_lease",
+            return_value=lease,
+        ),
+        patch("sase.workspace_provider.lease.release_operational_lease"),
+        patch(
+            "sase.monitor.start.start_monitor",
+            return_value=monitor,
+        ) as start_monitor,
+    ):
+        start_epic_launch_monitor(
+            plan,
+            project="sase",
+            host_action_data={"agent_name": "planner"},
+            artifacts_dir=artifacts,
+            capacity=0,
+            cl_name="demo",
+        )
+
+    request = start_monitor.call_args.args[0]
+    logical = build_epic_launch_argv(
+        plan,
+        artifacts_dir=artifacts,
+        capacity=0,
+        cl_name="demo",
+    )
+    assert request.command == shlex.join(logical)
+    assert list(request.execution_argv) == guarded_exec_argv(logical)
+    recorded = json.loads((artifacts / "epic_launch_argv.json").read_text())
+    assert recorded["argv"] == logical
 
 
 def test_start_epic_launch_monitor_uses_clan_member_name_as_lane(

@@ -196,6 +196,7 @@ def launch_epic_bead_work(
     before_agent_launch: Callable[[BeadProject, str], Any] | None = None,
     timer: LaunchTimingRecorder | None = None,
     extra_waits: PromptWaitDirective | None = None,
+    capacity: int | None = None,
 ) -> _EpicWorkResult:
     """Run the epic bead-work path, returning the structured launch outcome.
 
@@ -217,6 +218,7 @@ def launch_epic_bead_work(
                 before_agent_launch=before_agent_launch,
                 timer=owned_timer,
                 extra_waits=extra_waits,
+                capacity=capacity,
             )
 
     if not dry_run:
@@ -274,6 +276,7 @@ def launch_epic_bead_work(
             patch_context=patch_context,
             declare_clan=plan.epic_id not in get_reserved_clan_names(),
             extra_waits=extra_waits,
+            capacity=capacity,
         )
 
     if issue.is_ready_to_work:
@@ -316,6 +319,7 @@ def launch_epic_bead_work(
             declare_clan=plan.epic_id not in get_reserved_clan_names(),
             launch_names=selection.launch_names,
             extra_waits=extra_waits,
+            capacity=capacity,
         )
         print("\n--- Multi-prompt (dry run) ---")
         print(dry_query)
@@ -408,6 +412,7 @@ def launch_epic_bead_work(
                 declare_clan=plan.epic_id not in get_reserved_clan_names(),
                 launch_names=selection.launch_names,
                 extra_waits=extra_waits,
+                capacity=capacity,
             )
             query = prepare_selected_bead_work_force_reuse(
                 query,
@@ -441,7 +446,7 @@ def launch_epic_bead_work(
                     lambda: proj.mark_ready_to_work(epic_id),
                     beads_dir=proj.beads_dir,
                     what=f"mark epic {epic_id} ready to work",
-                    resume_command=f"sase bead work {epic_id}",
+                    resume_command=_resume_command(epic_id, capacity=capacity),
                 )
                 marked_ready_this_run = True
         except AlreadyReadyError:
@@ -462,7 +467,7 @@ def launch_epic_bead_work(
                 ),
                 beads_dir=proj.beads_dir,
                 what=f"preclaim epic {epic_id}",
-                resume_command=f"sase bead work {epic_id}",
+                resume_command=_resume_command(epic_id, capacity=capacity),
             )
     except (BeadStoreContentionError, KeyError, NotAPlanError, ValueError) as exc:
         rollback_work_launch(
@@ -606,6 +611,13 @@ def _epic_bead_assignees(proj: BeadProject, plan: Any) -> dict[str, str]:
         bead_id: issue.assignee if (issue := issues.get(bead_id)) is not None else ""
         for bead_id in bead_ids
     }
+
+
+def _resume_command(epic_id: str, *, capacity: int | None) -> str:
+    command = f"sase bead work {epic_id}"
+    if capacity is not None:
+        command += f" --capacity {capacity}"
+    return command
 
 
 def _ordered_selected_names(plan: Any, launch_names: frozenset[str]) -> tuple[str, ...]:

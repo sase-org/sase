@@ -117,6 +117,22 @@ def test_work_dry_run_matches_confirmed_launch_before_force_reuse_rewrite(
     assert bead_wait_lines(launched_queries[0]) == bead_wait_lines(dry_query)
 
 
+def test_work_dry_run_renders_zero_capacity_on_selected_segments(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, phase_ids = seed_diamond(project_dir)
+
+    bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True, capacity=0))
+
+    dry_query = (
+        capsys.readouterr().out.split("--- Multi-prompt (dry run) ---\n", 1)[1].rstrip()
+    )
+    segments = dry_query.split("\n---\n")
+    assert len(segments) == len(phase_ids) + 1
+    assert all(segment.count("%queue(capacity=0)") == 1 for segment in segments)
+
+
 def test_work_dry_run_renders_model_directives(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

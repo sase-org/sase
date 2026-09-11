@@ -17,6 +17,15 @@ _AT_PATH_READS_THEM = (
 )
 
 
+def _queue_capacity_arg(value: str) -> int:
+    from sase.xprompt.queue_directive import validate_queue_capacity
+
+    try:
+        return validate_queue_capacity(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
 def register_bead_plus_one_parser(
     subparsers: argparse._SubParsersAction,
 ) -> None:
@@ -385,6 +394,17 @@ def register_bead_work_parser(
     )
     parser.add_argument(
         "-c",
+        "--capacity",
+        metavar="N",
+        type=_queue_capacity_arg,
+        help=(
+            "Epic targets only: maximum already-running weighted load allowed "
+            "before admission. Omit for default queue behavior; 0 waits for "
+            "a full drain. N must be 0..4294967295."
+        ),
+    )
+    parser.add_argument(
+        "-C",
         "--cl-name",
         metavar="NAME",
         help="Patch name for the approved epic completion notification",

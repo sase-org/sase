@@ -85,9 +85,10 @@ class PlanFileWorkResult:
     launched: bool = False
     resumed: bool = False
     waves: tuple[tuple[str, ...], ...] = ()
+    capacity: int | None = None
 
     def to_json(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "ok": True,
             "mode": "plan_file",
             "dry_run": self.dry_run,
@@ -105,3 +106,6 @@ class PlanFileWorkResult:
             "resumed": self.resumed,
             "waves": [list(wave) for wave in self.waves],
         }
+        if self.capacity is not None:
+            payload["capacity"] = self.capacity
+        return payload

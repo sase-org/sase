@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 from sase.bead.work import (
     PatchLaunchContext,
     EPIC_CLAN_SUMMARY_SCRIPT,
@@ -23,7 +25,7 @@ from sase.bead.work import (
 )
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.xprompt.directive_edit import PromptWaitDirective
-from sase.xprompt.directives import extract_prompt_directives
+from sase.xprompt.directives import DirectiveError, extract_prompt_directives
 from sase.xprompt.workflow_models import Workflow
 
 from .work_test_helpers import depends, epic, phase, seed
@@ -278,13 +280,135 @@ class TestRenderEdgeCases:
         assert all(SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV not in env for env in envs[1:])
 
 
-def _render(plan: EpicWorkPlan, extra_waits: PromptWaitDirective | None = None) -> str:
+def _render(
+    plan: EpicWorkPlan,
+    extra_waits: PromptWaitDirective | None = None,
+    *,
+    capacity: int | None = None,
+) -> str:
     return render_multi_prompt(
         plan,
         work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
         land_epic_xprompt=Workflow(name="bd/land_epic"),
         extra_waits=extra_waits,
+        capacity=capacity,
     )
+
+
+class TestCapacityDirective:
+    def test_capacity_emits_queue_line_on_every_selected_segment(self) -> None:
+        plan = EpicWorkPlan(
+            epic_id="sase-42",
+            launch_tag_id="sase-42",
+            total_phase_count=2,
+            phase_bead_ids=("sase-42.1", "sase-42.2"),
+            waves=(
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.1",
+                        agent_name="sase-42.1",
+                        waits_on=(),
+                        blocker_bead_ids=(),
+                        wave=0,
+                    ),
+                ),
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.2",
+                        agent_name="sase-42.2",
+                        waits_on=("sase-42.1",),
+                        blocker_bead_ids=("sase-42.1",),
+                        wave=1,
+                    ),
+                ),
+            ),
+            land_agent_name="sase-42.land",
+            land_waits_on=("sase-42.1", "sase-42.2"),
+        )
+
+        rendered = _render(plan, capacity=0)
+        segments = rendered.split("\n---\n")
+
+        assert "%queue(" not in _render(plan)
+        assert len(segments) == 3
+        assert all(segment.count("%queue(capacity=0)") == 1 for segment in segments)
+
+        subset = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            launch_names=frozenset({"sase-42.2", "sase-42.land"}),
+            capacity=3,
+        )
+        subset_segments = subset.split("\n---\n")
+        assert len(subset_segments) == 2
+        assert all(
+            segment.count("%queue(capacity=3)") == 1 for segment in subset_segments
+        )
+
+        land_only = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            launch_names=frozenset({"sase-42.land"}),
+            capacity=0,
+        )
+        assert "\n---\n" not in land_only
+        assert land_only.count("%queue(capacity=0)") == 1
+
+    def test_capacity_composes_with_weight_only_land_queue(self) -> None:
+        plan = EpicWorkPlan(
+            epic_id="sase-42",
+            launch_tag_id="sase-42",
+            total_phase_count=1,
+            phase_bead_ids=("sase-42.1",),
+            waves=(
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.1",
+                        agent_name="sase-42.1",
+                        waits_on=(),
+                        blocker_bead_ids=(),
+                        wave=0,
+                    ),
+                ),
+            ),
+            land_agent_name="sase-42.land",
+            land_waits_on=("sase-42.1",),
+        )
+
+        land_segment = _render(plan, capacity=3).split("\n---\n")[-1]
+        _cleaned, directives = extract_prompt_directives(land_segment + "\n%q(w=2.0)")
+
+        assert directives.wait_runners == 3
+        assert directives.queue_weight == 2.0
+        assert directives.queue_weight_explicit is True
+
+    def test_duplicate_capacity_still_comes_from_shared_validation(self) -> None:
+        plan = EpicWorkPlan(
+            epic_id="sase-42",
+            launch_tag_id="sase-42",
+            total_phase_count=1,
+            phase_bead_ids=("sase-42.1",),
+            waves=(
+                (
+                    PhaseAssignment(
+                        bead_id="sase-42.1",
+                        agent_name="sase-42.1",
+                        waits_on=(),
+                        blocker_bead_ids=(),
+                        wave=0,
+                    ),
+                ),
+            ),
+            land_agent_name="sase-42.land",
+            land_waits_on=("sase-42.1",),
+        )
+
+        phase_segment = _render(plan, capacity=3).split("\n---\n")[0]
+
+        with pytest.raises(DirectiveError, match="Duplicate %queue capacity"):
+            extract_prompt_directives(phase_segment + "\n%q(capacity=4)")
 
 
 class TestExtraWaits:

@@ -197,6 +197,31 @@ def test_work_launches_and_passes_rendered_multi_prompt(
     assert "Launched" in out
 
 
+def test_work_launch_threads_capacity_into_rendered_multi_prompt(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    epic_id, phase_ids = seed_diamond(project_dir)
+    captured: dict[str, str] = {}
+
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
+        del extra_env, segment_extra_env
+        captured["query"] = query
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+
+    bead_cli.handle_bead_work(make_args(epic_id, yes=True, capacity=3))
+
+    segments = captured["query"].split("\n---\n")
+    assert len(segments) == len(phase_ids) + 1
+    assert all(segment.count("%queue(capacity=3)") == 1 for segment in segments)
+
+
 def test_launch_snapshots_authoritative_plan_and_overwrites_on_relaunch(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,

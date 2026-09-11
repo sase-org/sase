@@ -131,6 +131,33 @@ def test_runner_defers_epic_completion_with_round_trippable_payload() -> None:
     assert pending["payload"]["tags"] == ["done"]
 
 
+def test_runner_defers_epic_completion_with_recorded_resume_argv() -> None:
+    artifacts = _artifacts()
+    plan = artifacts / "epic.md"
+    argv = [
+        "sase",
+        "bead",
+        "work",
+        str(plan),
+        "--yes-to-all",
+        "--capacity",
+        "0",
+    ]
+    (artifacts / "plan_path.json").write_text(
+        json.dumps({"plan_path": str(plan)}),
+        encoding="utf-8",
+    )
+    (artifacts / "epic_launch_argv.json").write_text(
+        json.dumps({"argv": argv}),
+        encoding="utf-8",
+    )
+
+    assert defer_epic_completion(artifacts, _payload())
+
+    pending = json.loads(_pending_path(artifacts).read_text(encoding="utf-8"))
+    assert pending["resume_argv"] == argv
+
+
 def test_runner_sends_immediately_when_handoff_store_is_unusable(
     tmp_path: Path,
 ) -> None:
@@ -286,6 +313,43 @@ def test_sweep_preserves_active_then_flushes_orphan_once() -> None:
     assert kwargs["tags"] is None
     assert "Epic launch outcome is unknown." in kwargs["notes"]
     assert any("Resume with:" in note for note in kwargs["notes"])
+
+
+def test_sweep_unknown_outcome_uses_recorded_capacity_resume_argv() -> None:
+    artifacts = _artifacts(project="recorded")
+    plan = artifacts / "epic.md"
+    argv = [
+        "sase",
+        "bead",
+        "work",
+        str(plan),
+        "--yes-to-all",
+        "--capacity",
+        "0",
+    ]
+    (artifacts / "plan_path.json").write_text(
+        json.dumps({"plan_path": str(plan)}),
+        encoding="utf-8",
+    )
+    (artifacts / "epic_launch_argv.json").write_text(
+        json.dumps({"argv": argv}),
+        encoding="utf-8",
+    )
+    assert defer_epic_completion(artifacts, _payload())
+    pending_path = _pending_path(artifacts)
+    pending = json.loads(pending_path.read_text(encoding="utf-8"))
+    pending["created_at"] = (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
+    pending_path.write_text(json.dumps(pending), encoding="utf-8")
+
+    with (
+        patch("sase.procs.read_procs", return_value=[]),
+        patch("sase.notifications.senders.notify_workflow_complete") as notify,
+    ):
+        result = flush_orphaned_deferrals()
+
+    assert result.flushed == 1
+    notes = notify.call_args.kwargs["notes"]
+    assert any("Resume with:" in note and "--capacity 0" in note for note in notes)
 
 
 def test_sweep_leaves_young_pending_and_reaps_stale_settle() -> None:

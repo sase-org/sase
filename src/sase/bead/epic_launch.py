@@ -48,16 +48,20 @@ def build_epic_launch_argv(
     plan_file: str | Path,
     *,
     artifacts_dir: str | Path | None = None,
+    capacity: int | None = None,
     cl_name: str | None = None,
     yes_to_all: bool = True,
     expect_prompt_snapshot: bool = True,
     wait_spec: PromptWaitDirective | None = None,
 ) -> list[str]:
     """Build the canonical approved-epic launch command."""
+    capacity = _validated_capacity_or_none(capacity)
     confirmation_flag = "--yes-to-all" if yes_to_all else "--yes"
     argv = ["sase", "bead", "work", str(plan_file), confirmation_flag]
     if artifacts_dir is not None:
         argv.extend(["--artifacts-dir", str(artifacts_dir)])
+    if capacity is not None:
+        argv.extend(["--capacity", str(capacity)])
     if cl_name:
         argv.extend(["--cl-name", cl_name])
     if expect_prompt_snapshot:
@@ -67,6 +71,32 @@ def build_epic_launch_argv(
 
         argv.extend(["--wait", format_wait_spec(wait_spec)])
     return argv
+
+
+def _validated_capacity_or_none(capacity: int | None) -> int | None:
+    if capacity is None:
+        return None
+    from sase.xprompt.queue_directive import validate_queue_capacity
+
+    return validate_queue_capacity(capacity)
+
+
+def _write_epic_launch_argv(
+    artifacts_dir: str | Path | None,
+    argv: list[str],
+) -> None:
+    """Best-effort durable recovery hint for orphaned epic-launch handoffs."""
+    if artifacts_dir is None:
+        return
+    path = Path(artifacts_dir).expanduser() / "epic_launch_argv.json"
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"argv": list(argv)}, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        return
 
 
 def resolve_epic_launch_project(
@@ -120,6 +150,7 @@ def start_epic_launch_monitor(
     project: str,
     host_action_data: dict[str, str] | None = None,
     artifacts_dir: str | Path | None = None,
+    capacity: int | None = None,
     cl_name: str | None = None,
     origin: EpicLaunchOrigin = "api",
     wait_spec: PromptWaitDirective | None = None,
@@ -152,9 +183,11 @@ def start_epic_launch_monitor(
     logical_argv, execution_argv = _epic_launch_command_pair(
         plan_file,
         artifacts_dir=artifacts_dir,
+        capacity=capacity,
         cl_name=cl_name,
         wait_spec=wait_spec,
     )
+    _write_epic_launch_argv(artifacts_dir, logical_argv)
     command = shlex.join(logical_argv)
     label = f"Epic launch · {Path(plan_file).stem}"
     with log_file_lock(procs_dir() / _EPIC_LAUNCH_SUBMIT_LOCK):
@@ -213,6 +246,7 @@ def start_epic_launch_monitor(
                 plan_file,
                 lease=lease,
                 artifacts_dir=artifacts_dir,
+                capacity=capacity,
                 cl_name=cl_name,
                 origin=origin,
                 project=project,
@@ -279,6 +313,7 @@ def _submit_epic_launch_task(
     *,
     lease: OperationalLease,
     artifacts_dir: str | Path | None,
+    capacity: int | None,
     cl_name: str | None,
     origin: EpicLaunchOrigin,
     project: str,
@@ -295,6 +330,7 @@ def _submit_epic_launch_task(
     logical_argv, execution_argv = _epic_launch_command_pair(
         plan_file,
         artifacts_dir=artifacts_dir,
+        capacity=capacity,
         cl_name=cl_name,
         wait_spec=wait_spec,
     )
@@ -341,6 +377,7 @@ def _epic_launch_command_pair(
     plan_file: str | Path,
     *,
     artifacts_dir: str | Path | None,
+    capacity: int | None,
     cl_name: str | None,
     wait_spec: PromptWaitDirective | None = None,
 ) -> tuple[list[str], list[str]]:
@@ -349,6 +386,7 @@ def _epic_launch_command_pair(
     logical_argv = build_epic_launch_argv(
         plan_file,
         artifacts_dir=artifacts_dir,
+        capacity=capacity,
         cl_name=cl_name,
         wait_spec=wait_spec,
     )
@@ -413,6 +451,7 @@ def finish_epic_launch(
     result: Any | None = None,
     error: Exception | None = None,
     wait_spec: PromptWaitDirective | None = None,
+    capacity: int | None = None,
 ) -> None:
     """Best-effort approval metadata and notification handling."""
     if artifacts_dir is None and not cl_name:
@@ -447,6 +486,7 @@ def finish_epic_launch(
         argv = build_epic_launch_argv(
             plan_file,
             artifacts_dir=artifacts_dir,
+            capacity=capacity,
             cl_name=cl_name,
             yes_to_all=False,
             wait_spec=wait_spec,

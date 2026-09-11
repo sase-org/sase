@@ -239,6 +239,33 @@ def test_prepare_epic_launch_forwards_wait_spec_to_the_monitor(
     assert start_launch.call_args.kwargs["wait_spec"] is wait_spec
 
 
+def test_prepare_epic_launch_forwards_capacity_to_the_monitor(
+    tmp_path: Path,
+) -> None:
+    context, _response_dir, workspace = _epic_context(tmp_path)
+    plan = context.host_files[0]
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patch("sase.bead.epic_launch.start_epic_launch_monitor") as start_launch,
+    ):
+        prepare_epic_launch(
+            context,
+            plan,
+            mode="launch",
+            response_dir=tmp_path,
+            capacity=0,
+        )
+
+    assert start_launch.call_args.kwargs["capacity"] == 0
+
+
 def test_prepare_epic_launch_keeps_the_wait_in_the_monitor_failure_resume_hint(
     tmp_path: Path,
 ) -> None:
@@ -269,6 +296,37 @@ def test_prepare_epic_launch_keeps_the_wait_in_the_monitor_failure_resume_hint(
         )
 
     assert "--wait sase-s7.2" in str(exc_info.value)
+
+
+def test_prepare_epic_launch_keeps_capacity_in_monitor_failure_resume_hint(
+    tmp_path: Path,
+) -> None:
+    context, _response_dir, workspace = _epic_context(tmp_path)
+    plan = context.host_files[0]
+    with (
+        patch(
+            "sase.bead.epic_launch.resolve_epic_launch_project",
+            return_value="canonical",
+        ),
+        patch(
+            "sase.running_field.get_workspace_directory",
+            return_value=str(workspace),
+        ),
+        patch(
+            "sase.bead.epic_launch.start_epic_launch_monitor",
+            side_effect=OSError("no process"),
+        ),
+        pytest.raises(PlanApprovalActionError) as exc_info,
+    ):
+        prepare_epic_launch(
+            context,
+            plan,
+            mode="launch",
+            response_dir=tmp_path,
+            capacity=0,
+        )
+
+    assert "--capacity 0" in str(exc_info.value)
 
 
 def test_prepare_epic_launch_keeps_the_wait_in_the_unusable_store_resume_hint(

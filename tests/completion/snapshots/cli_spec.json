@@ -8206,7 +8206,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "97460ca162abeab1",
+            "description_digest": "51f75eecf4ce8be4",
             "hidden": false,
             "mutex_groups": [],
             "name": "work",
@@ -8237,12 +8237,24 @@
               },
               {
                 "choices": null,
-                "dest": "cl_name",
+                "dest": "capacity",
                 "hidden": false,
                 "kind": null,
                 "repeatable": false,
                 "strings": [
                   "-c",
+                  "--capacity"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "cl_name",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-C",
                   "--cl-name"
                 ],
                 "takes_value": true
@@ -10192,6 +10204,55 @@
               "list"
             ],
             "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "bd031323f4b14d41",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "prepare",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "final",
+              "prepare"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "manifest",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "<manifest-file|->",
+                "nargs": null
+              }
+            ],
             "subcommands": []
           },
           {
@@ -15317,7 +15378,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "f4549f3bb3c30d8c",
+            "description_digest": "651fc630a4a0ae0b",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -15366,6 +15427,18 @@
                 "strings": [
                   "-c",
                   "--command"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "completion",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--completion"
                 ],
                 "takes_value": true
               },
@@ -15454,6 +15527,30 @@
                 "repeatable": false,
                 "strings": [
                   "--next-output"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "policy",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-P",
+                  "--policy"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "profile",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--profile"
                 ],
                 "takes_value": true
               },

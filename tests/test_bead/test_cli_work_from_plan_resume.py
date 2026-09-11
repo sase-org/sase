@@ -54,14 +54,16 @@ def test_plan_file_resume_reuses_linked_epic(
         EPIC_PLAN.replace("tier: epic", f"tier: epic\nbead_id: {epic.id}"),
         encoding="utf-8",
     )
-    launches: list[tuple[str, bool]] = []
+    launches: list[tuple[str, bool, int | None]] = []
 
     def launch(
         _project: BeadProject,
         epic_id: str,
         **kwargs: object,
     ) -> bool:
-        launches.append((epic_id, bool(kwargs["yes_to_all"])))
+        capacity = kwargs["capacity"]
+        assert capacity is None or isinstance(capacity, int)
+        launches.append((epic_id, bool(kwargs["yes_to_all"]), capacity))
         return True
 
     monkeypatch.setattr(
@@ -80,13 +82,14 @@ def test_plan_file_resume_reuses_linked_epic(
         yes=True,
         no_push=False,
         render=False,
+        capacity=0,
     )
 
     assert result.epic_id == epic.id
     assert result.resumed is True
     assert result.phase_bead_ids == (core.id, cli.id, verify.id)
     assert child_epic.id not in result.phase_bead_ids
-    assert launches == [(epic.id, False)]
+    assert launches == [(epic.id, False, 0)]
     assert pushes == [True]
     with BeadProject(project_dir) as project:
         assert len(project.list_issues()) == 5
@@ -256,6 +259,44 @@ def test_plan_file_launch_failure_rolls_back_for_resume(
         archived.read_text(encoding="utf-8")
     )
     assert "bead_id" not in frontmatter
+
+
+def test_plan_file_launch_failure_resume_command_preserves_capacity(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = project_dir / "rollout.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            BeadWorkError("agent launch failed")
+        ),
+    )
+
+    with pytest.raises(PlanFileWorkError, match="agent launch failed") as excinfo:
+        work_from_plan_file(
+            str(source),
+            dry_run=False,
+            yes=True,
+            no_push=True,
+            render=False,
+            capacity=0,
+        )
+
+    resume = excinfo.value.resume_command or ""
+    assert "--capacity 0" in resume
+    assert "--no-push" in resume
+    with BeadProject(project_dir) as project:
+        assert project.list_issues() == []
 
 
 def test_stale_link_replacement_launch_failure_restores_stale_link(

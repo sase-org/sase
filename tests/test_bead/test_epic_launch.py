@@ -34,6 +34,30 @@ def test_build_epic_launch_argv_carries_approval_linking_options() -> None:
     ]
 
 
+def test_build_epic_launch_argv_preserves_explicit_zero_capacity() -> None:
+    argv = build_epic_launch_argv(
+        "/tmp/epic plan.md",
+        artifacts_dir="/tmp/artifacts",
+        capacity=0,
+        cl_name="demo",
+    )
+
+    assert argv == [
+        "sase",
+        "bead",
+        "work",
+        "/tmp/epic plan.md",
+        "--yes-to-all",
+        "--artifacts-dir",
+        "/tmp/artifacts",
+        "--capacity",
+        "0",
+        "--cl-name",
+        "demo",
+        "--expect-prompt-snapshot",
+    ]
+
+
 def test_build_epic_launch_argv_defaults_to_expecting_prompt_snapshot() -> None:
     argv = build_epic_launch_argv("/tmp/epic plan.md")
 

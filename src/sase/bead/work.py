@@ -365,6 +365,7 @@ def render_multi_prompt(
     declare_clan: bool = True,
     launch_names: frozenset[str] | None = None,
     extra_waits: PromptWaitDirective | None = None,
+    capacity: int | None = None,
 ) -> str:
     """Render *plan* as a ``---``-separated multi-prompt string.
 
@@ -428,6 +429,7 @@ def render_multi_prompt(
             )
             lines.append(f"%model:{model_value}")
             lines.append("%auto")
+            lines.extend(_queue_capacity_lines(capacity))
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
             lines.extend(
@@ -456,6 +458,7 @@ def render_multi_prompt(
         )
         land_lines.append(f"%model:{land_model}")
         land_lines.append("%auto")
+        land_lines.extend(_queue_capacity_lines(capacity))
         if plan.land_waits_on:
             land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
         land_lines.extend(f"%w(bead={bead_id})" for bead_id in plan.phase_bead_ids)
@@ -465,6 +468,16 @@ def render_multi_prompt(
         segments.append("\n".join(land_lines))
 
     return "\n---\n".join(segments)
+
+
+def _queue_capacity_lines(capacity: int | None) -> list[str]:
+    """Render the epic-launch capacity directive, preserving omitted defaults."""
+    if capacity is None:
+        return []
+    from sase.xprompt.queue_directive import format_queue_directive
+
+    line = format_queue_directive(capacity=capacity)
+    return [line] if line else []
 
 
 def _extra_wait_lines(extra_waits: PromptWaitDirective | None) -> list[str]:

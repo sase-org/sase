@@ -29,6 +29,8 @@ def handle_bead_work(
     first_target = targets[0] if targets else ""
     correlation_id = uuid4().hex
     _wait_spec_from_args(args)
+    capacity = _capacity_from_args(args)
+    args.capacity = capacity
     from sase.dev_update.code_swap_lock import code_swap_reader_lock
 
     with code_swap_reader_lock(op="bead.work", command=sys.argv) as lock:
@@ -74,6 +76,7 @@ def _handle_bead_work_locked(
     correlation_id: str,
 ) -> None:
     artifacts_dir = getattr(args, "artifacts_dir", None)
+    capacity = getattr(args, "capacity", None)
     cl_name = getattr(args, "cl_name", None)
     dry_run = bool(getattr(args, "dry_run", False))
     yes = bool(getattr(args, "yes", False))
@@ -140,6 +143,7 @@ def _handle_bead_work_locked(
                     expect_prompt_snapshot=expect_prompt_snapshot,
                     timer=timer,
                     extra_waits=extra_waits,
+                    capacity=capacity,
                 )
         except PlanFileWorkError as exc:
             finish_epic_launch(
@@ -148,6 +152,7 @@ def _handle_bead_work_locked(
                 cl_name=cl_name,
                 error=exc,
                 wait_spec=extra_waits,
+                capacity=capacity,
             )
             if json_output:
                 payload: dict[str, object] = {
@@ -184,6 +189,7 @@ def _handle_bead_work_locked(
                 cl_name=cl_name,
                 error=exc,
                 wait_spec=extra_waits,
+                capacity=capacity,
             )
             raise
         finish_epic_launch(
@@ -192,6 +198,7 @@ def _handle_bead_work_locked(
             cl_name=cl_name,
             result=result,
             wait_spec=extra_waits,
+            capacity=capacity,
         )
         if json_output:
             print(json.dumps(result.to_json(), sort_keys=True))
@@ -248,6 +255,13 @@ def _handle_bead_work_locked(
                 )
         if issue.issue_type != IssueType.PLAN:
             if issue.issue_type is IssueType.TASK:
+                if capacity is not None:
+                    _exit_bead_id_error(
+                        "--capacity only applies to epic plan bead or plan-file "
+                        f"targets (got task bead {target})",
+                        target=target,
+                        json_output=json_output,
+                    )
                 from sase.bead.cli_work_from_plan_store import epic_plan_launch_lock
 
                 captured = io.StringIO()
@@ -342,6 +356,7 @@ def _handle_bead_work_locked(
                         yes_to_all=yes_to_all,
                         timer=timer,
                         extra_waits=extra_waits,
+                        capacity=capacity,
                     )
             except cli_work_handler.BeadWorkError as exc:
                 if json_output:
@@ -376,27 +391,21 @@ def _handle_bead_work_locked(
                         f"{target}.land",
                     ),
                 )
-                print(
-                    json.dumps(
-                        {
-                            "ok": True,
-                            "mode": "bead_id",
-                            "dry_run": dry_run,
-                            "epic_id": target,
-                            "phase_bead_ids": phase_ids,
-                            "launch_state": launch_view.launch_state,
-                            "launched": launch_view.launched,
-                            "launched_agent_names": list(
-                                launch_view.launched_agent_names
-                            ),
-                            "preserved_agent_names": list(
-                                launch_view.preserved_agent_names
-                            ),
-                            "workspace_num": launch_view.workspace_num,
-                        },
-                        sort_keys=True,
-                    )
-                )
+                success_payload: dict[str, object] = {
+                    "ok": True,
+                    "mode": "bead_id",
+                    "dry_run": dry_run,
+                    "epic_id": target,
+                    "phase_bead_ids": phase_ids,
+                    "launch_state": launch_view.launch_state,
+                    "launched": launch_view.launched,
+                    "launched_agent_names": list(launch_view.launched_agent_names),
+                    "preserved_agent_names": list(launch_view.preserved_agent_names),
+                    "workspace_num": launch_view.workspace_num,
+                }
+                if capacity is not None:
+                    success_payload["capacity"] = capacity
+                print(json.dumps(success_payload, sort_keys=True))
             return
 
         tier = issue.tier.value if issue.tier else "missing tier"
@@ -417,6 +426,20 @@ def _wait_spec_from_args(args: argparse.Namespace) -> PromptWaitDirective | None
     try:
         return parse_wait_spec(raw)
     except WaitSpecError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
+
+
+def _capacity_from_args(args: argparse.Namespace) -> int | None:
+    """Validate ``--capacity`` before any store or launch side effects."""
+    raw = getattr(args, "capacity", None)
+    if raw is None:
+        return None
+    from sase.xprompt.queue_directive import validate_queue_capacity
+
+    try:
+        return validate_queue_capacity(raw)
+    except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
 

@@ -69,6 +69,7 @@ def resume_linked_epic(
     push_store_after_launch: _PushStoreAfterLaunch,
     timer: LaunchTimingRecorder,
     extra_waits: PromptWaitDirective | None = None,
+    capacity: int | None = None,
 ) -> PlanFileWorkResult:
     from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
 
@@ -129,6 +130,7 @@ def resume_linked_epic(
                 before_agent_launch=publish_resumed_graph,
                 timer=timer,
                 extra_waits=extra_waits,
+                capacity=capacity,
             )
             launch_result = normalize_epic_launch_result(
                 raw_launch_result,
@@ -153,6 +155,7 @@ def resume_linked_epic(
             detail,
             archived_path,
             no_push=no_push and not exc.retry_requires_push,
+            capacity=capacity,
         ) from exc
     except Exception as exc:
         push_store_after_launch(
@@ -160,7 +163,12 @@ def resume_linked_epic(
             no_push=no_push,
             archived_plan_path=archived_path,
         )
-        raise error_with_resume(str(exc), archived_path, no_push=no_push) from exc
+        raise error_with_resume(
+            str(exc),
+            archived_path,
+            no_push=no_push,
+            capacity=capacity,
+        ) from exc
 
     if launch_result.launched:
         push_store_after_launch(
@@ -181,6 +189,7 @@ def resume_linked_epic(
         launched=launch_result.launched,
         resumed=True,
         waves=waves,
+        capacity=capacity,
     )
     if render:
         render_final(result)

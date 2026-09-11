@@ -79,6 +79,7 @@ class _DeferredCompletion:
     created_at: str
     plan_file: str | None
     payload: CompletionNotificationPayload
+    resume_argv: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -86,6 +87,7 @@ class _DeferredCompletion:
             "artifacts_dir": self.artifacts_dir,
             "created_at": self.created_at,
             **({"plan_file": self.plan_file} if self.plan_file else {}),
+            **({"resume_argv": list(self.resume_argv)} if self.resume_argv else {}),
             "payload": self.payload.to_dict(),
         }
 
@@ -94,6 +96,7 @@ class _DeferredCompletion:
         payload = value.get("payload")
         if not isinstance(payload, Mapping):
             raise ValueError("deferred epic completion payload is not an object")
+        raw_resume_argv = value.get("resume_argv")
         return cls(
             key=str(value["key"]),
             artifacts_dir=str(value["artifacts_dir"]),
@@ -102,6 +105,11 @@ class _DeferredCompletion:
                 str(value["plan_file"]) if value.get("plan_file") is not None else None
             ),
             payload=CompletionNotificationPayload.from_dict(payload),
+            resume_argv=(
+                tuple(str(item) for item in raw_resume_argv)
+                if isinstance(raw_resume_argv, list)
+                else ()
+            ),
         )
 
 
@@ -156,6 +164,7 @@ def defer_epic_completion(
                 created_at=_utc_now(),
                 plan_file=_read_plan_file(artifacts_dir),
                 payload=payload,
+                resume_argv=tuple(_read_epic_launch_argv(artifacts_dir) or ()),
             )
             _write_json_atomic(pending_path, deferred.to_dict())
         return True
@@ -324,6 +333,19 @@ def _read_plan_file(artifacts_dir: str | Path) -> str | None:
     return str(value) if isinstance(value, str) and value else None
 
 
+def _read_epic_launch_argv(artifacts_dir: str | Path) -> list[str] | None:
+    try:
+        value = _read_json_object(Path(artifacts_dir) / "epic_launch_argv.json").get(
+            "argv"
+        )
+    except Exception:
+        return None
+    if not isinstance(value, list):
+        return None
+    argv = [str(item) for item in value]
+    return argv or None
+
+
 def _read_json_object(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -397,11 +419,14 @@ def _unknown_outcome_payload(
     from sase.bead.epic_launch import build_epic_launch_argv
 
     plan_file = deferred.plan_file or "<approved-plan>"
-    argv = build_epic_launch_argv(
-        plan_file,
-        artifacts_dir=deferred.artifacts_dir,
-        cl_name=deferred.payload.cl_name,
-        yes_to_all=False,
+    argv = list(
+        deferred.resume_argv
+        or build_epic_launch_argv(
+            plan_file,
+            artifacts_dir=deferred.artifacts_dir,
+            cl_name=deferred.payload.cl_name,
+            yes_to_all=False,
+        )
     )
     tags = [tag for tag in deferred.payload.tags or [] if tag != "done"] or None
     return replace(

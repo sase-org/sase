@@ -12,7 +12,7 @@ from sase.bead import cli as bead_cli
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import BeadProject
 
-from .cli_work_helpers import make_args, seed_patch_epic, seed_diamond
+from .cli_work_helpers import make_args, seed_patch_epic, seed_diamond, seed_task
 
 pytestmark = pytest.mark.usefixtures("fake_cli_work_xprompts")
 
@@ -90,6 +90,59 @@ def test_work_accepts_flag_bead(
     bead_cli.handle_bead_work(make_args(flag.id, dry_run=True))
 
     assert "only applies to epic plan" not in capsys.readouterr().err
+
+
+def test_work_rejects_capacity_on_standalone_task_json(
+    project_dir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    task_id = seed_task(project_dir)
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(make_args(task_id, json_output=True, capacity=0))
+
+    assert excinfo.value.code == 1
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    payload = json.loads(captured.out)
+    assert payload["ok"] is False
+    assert payload["mode"] == "bead_id"
+    assert payload["epic_id"] == task_id
+    assert "task bead" in payload["error"]
+
+
+def test_capacity_error_after_prior_multi_target_success_keeps_json_lines(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, _phase_ids = seed_diamond(project_dir)
+    task_id = seed_task(project_dir)
+    launches: list[tuple[str, int | None]] = []
+
+    def launch(_project: BeadProject, active_epic_id: str, **kwargs: object) -> bool:
+        launches.append((active_epic_id, kwargs["capacity"]))
+        return True
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_epic_bead_work",
+        launch,
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_work(
+            make_args([epic_id, task_id], json_output=True, capacity=2)
+        )
+
+    assert excinfo.value.code == 1
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert lines[0]["ok"] is True
+    assert lines[0]["epic_id"] == epic_id
+    assert lines[0]["capacity"] == 2
+    assert lines[1]["ok"] is False
+    assert lines[1]["epic_id"] == task_id
+    assert "task bead" in lines[1]["error"]
+    assert launches == [(epic_id, 2)]
 
 
 def test_work_missing_bead_json_error_is_one_envelope(

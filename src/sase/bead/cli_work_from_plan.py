@@ -70,6 +70,7 @@ def work_from_plan_file(
     expect_prompt_snapshot: bool = False,
     timer: LaunchTimingRecorder | None = None,
     extra_waits: PromptWaitDirective | None = None,
+    capacity: int | None = None,
 ) -> _PlanFileWorkResult:
     """Validate, archive, materialize, link, and launch one epic plan."""
     if timer is None:
@@ -88,6 +89,7 @@ def work_from_plan_file(
                 expect_prompt_snapshot=expect_prompt_snapshot,
                 timer=owned_timer,
                 extra_waits=extra_waits,
+                capacity=capacity,
             )
 
     from sase.sdd.plan_archive import plan_archive_destination
@@ -143,6 +145,7 @@ def work_from_plan_file(
                 f"could not resolve the SDD and bead stores: {exc}",
                 source_path,
                 no_push=no_push,
+                capacity=capacity,
             ) from exc
         if render:
             Console().print(
@@ -180,6 +183,7 @@ def work_from_plan_file(
                     source_path,
                     no_push=no_push,
                     parent_override=parent,
+                    capacity=capacity,
                 ) from exc
 
         if dry_run:
@@ -191,6 +195,7 @@ def work_from_plan_file(
                     source_title=plan.title,
                     archived_path=archive_destination,
                     no_push=no_push,
+                    capacity=capacity,
                 )
             linked_epic_id = _linked_bead_id_if_present(archive_destination)
             existing_epic_id: str | None = None
@@ -250,6 +255,7 @@ def work_from_plan_file(
                 replaced_stale_epic_id=stale_epic_id,
                 resumed=existing_epic_id is not None,
                 waves=waves,
+                capacity=capacity,
             )
 
         return _work_from_plan_file_locked(
@@ -270,6 +276,7 @@ def work_from_plan_file(
             expect_prompt_snapshot=expect_prompt_snapshot,
             timer=timer,
             extra_waits=extra_waits,
+            capacity=capacity,
         )
 
 
@@ -292,6 +299,7 @@ def _work_from_plan_file_locked(
     expect_prompt_snapshot: bool = False,
     timer: LaunchTimingRecorder,
     extra_waits: PromptWaitDirective | None = None,
+    capacity: int | None = None,
 ) -> _PlanFileWorkResult:
     """Run one mutation transaction while its store launch lock is held."""
     from sase.bead.cli_work_handler import preload_launch_imports
@@ -307,6 +315,7 @@ def _work_from_plan_file_locked(
             f"approved epic plans store is not safe to use: {exc}",
             source_path,
             no_push=no_push,
+            capacity=capacity,
         ) from exc
 
     try:
@@ -324,6 +333,7 @@ def _work_from_plan_file_locked(
             f"could not archive epic plan {source_path}: {exc}",
             source_path,
             no_push=no_push,
+            capacity=capacity,
         ) from exc
     archived_path = archive_result.path
     if not archive_result.written and not _same_path(source_path, archived_path):
@@ -332,6 +342,7 @@ def _work_from_plan_file_locked(
             source_title=plan.title,
             archived_path=archived_path,
             no_push=no_push,
+            capacity=capacity,
         )
     with timer.stage("archived_plan_commit", written=archive_result.written):
         archive_committed = not archive_result.written or _commit_plan_file(
@@ -345,6 +356,7 @@ def _work_from_plan_file_locked(
             f"failed to commit archived epic plan {archived_path}",
             archived_path,
             no_push=no_push,
+            capacity=capacity,
         )
     if render:
         detail = "committed" if archive_result.written else "already archived"
@@ -358,6 +370,7 @@ def _work_from_plan_file_locked(
             f"approved epic plans store is not safe to use: {exc}",
             source_path,
             no_push=no_push,
+            capacity=capacity,
         ) from exc
 
     linked_epic_id = _linked_bead_id_if_present(archived_path)
@@ -405,6 +418,7 @@ def _work_from_plan_file_locked(
                 waves=waves,
                 timer=timer,
                 extra_waits=extra_waits,
+                capacity=capacity,
             )
         stale_epic_id = linked_epic_id
         if render:
@@ -475,6 +489,7 @@ def _work_from_plan_file_locked(
             before_agent_launch=publish_created_graph,
             timer=timer,
             extra_waits=extra_waits,
+            capacity=capacity,
         )
         result = _normalize_epic_launch_result(
             raw_result,
@@ -539,6 +554,7 @@ def _work_from_plan_file_locked(
             archived_path,
             no_push=no_push and not retry_requires_push,
             parent_override=parent,
+            capacity=capacity,
         ) from exc
 
     _push_store_after_launch(
@@ -565,6 +581,7 @@ def _work_from_plan_file_locked(
         launched=True,
         resumed=False,
         waves=waves,
+        capacity=capacity,
     )
     if render:
         _render_final(result)
@@ -585,6 +602,7 @@ def _resume_linked_epic(
     waves: tuple[tuple[str, ...], ...],
     timer: LaunchTimingRecorder,
     extra_waits: PromptWaitDirective | None = None,
+    capacity: int | None = None,
 ) -> _PlanFileWorkResult:
     return _resume_linked_epic_impl(
         location,
@@ -602,6 +620,7 @@ def _resume_linked_epic(
         push_store_after_launch=_push_store_after_launch,
         timer=timer,
         extra_waits=extra_waits,
+        capacity=capacity,
     )
 
 

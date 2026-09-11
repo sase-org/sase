@@ -49,6 +49,22 @@ def test_bead_work_parser_accepts_one_or_more_targets_in_order() -> None:
     assert mixed.yes is True
 
 
+def test_bead_work_parser_assigns_capacity_and_cl_name_short_aliases() -> None:
+    parser = create_parser()
+
+    args = parser.parse_args(
+        ["bead", "work", "./epic_plan.md", "-c", "0", "-C", "demo"]
+    )
+
+    assert args.capacity == 0
+    assert args.cl_name == "demo"
+
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["bead", "work", "./epic_plan.md", "-c", "demo"])
+
+    assert exc_info.value.code == 2
+
+
 def test_bead_work_parser_still_requires_at_least_one_target() -> None:
     parser = create_parser()
 
@@ -108,7 +124,7 @@ def test_legacy_id_namespace_target_remains_compatible(
 def test_multi_target_dispatch_reuses_options_and_one_lock(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[tuple[str, bool, str | None, bool, int, int, str]] = []
+    calls: list[tuple[str, bool, str | None, int | None, bool, int, int, str]] = []
     lock = _FakeCodeSwapLock()
     monkeypatch.setattr(
         "sase.dev_update.code_swap_lock.code_swap_reader_lock",
@@ -132,6 +148,7 @@ def test_multi_target_dispatch_reuses_options_and_one_lock(
                 target,
                 args.yes,
                 args.parent,
+                args.capacity,
                 json_output,
                 target_index,
                 target_count,
@@ -147,20 +164,40 @@ def test_multi_target_dispatch_reuses_options_and_one_lock(
             json=True,
             yes=True,
             parent="top-level",
+            capacity="0",
         ),
         timer_factory=_timer_factory,
     )
 
-    assert [
-        (target, yes, parent, json_output, index, count)
-        for target, yes, parent, json_output, index, count, _correlation_id in calls
-    ] == [
-        ("./epic.md", True, "top-level", True, 1, 2),
-        ("sase-task", True, "top-level", True, 2, 2),
+    assert [call[:-1] for call in calls] == [
+        ("./epic.md", True, "top-level", 0, True, 1, 2),
+        ("sase-task", True, "top-level", 0, True, 2, 2),
     ]
-    assert calls[0][6] == calls[1][6]
+    assert calls[0][7] == calls[1][7]
     assert lock.enter_count == 1
     assert lock.exit_count == 1
+
+
+def test_capacity_validation_happens_before_code_swap_lock(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fail_lock(**_kwargs: object) -> object:
+        raise AssertionError("invalid capacity must stop before the lock")
+
+    monkeypatch.setattr(
+        "sase.dev_update.code_swap_lock.code_swap_reader_lock",
+        fail_lock,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli_work_entry.handle_bead_work(
+            argparse.Namespace(target=["sase-one"], json=False, capacity=True),
+            timer_factory=_timer_factory,
+        )
+
+    assert exc_info.value.code == 2
+    assert "boolean values are rejected" in capsys.readouterr().err
 
 
 def test_multi_target_short_circuits_on_first_failure_with_json_lines(

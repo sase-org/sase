@@ -53,6 +53,7 @@ def require_matching_plan_identity(
     source_title: str,
     archived_path: Path,
     no_push: bool,
+    capacity: int | None = None,
 ) -> None:
     """Reject a preserved archive entry belonging to a different plan."""
     from sase.sdd.plan_tiers import normalize_plan_tier, parse_plan_frontmatter
@@ -64,6 +65,7 @@ def require_matching_plan_identity(
             f"could not read existing archived plan {archived_path}: {exc}",
             archived_path,
             no_push=no_push,
+            capacity=capacity,
         ) from exc
     frontmatter, error = parse_plan_frontmatter(content)
     archived_tier = (
@@ -83,6 +85,7 @@ def require_matching_plan_identity(
         ),
         archived_path,
         no_push=no_push,
+        capacity=capacity,
     )
 
 
@@ -164,8 +167,11 @@ def error_with_resume(
     *,
     no_push: bool,
     parent_override: str | None = None,
+    capacity: int | None = None,
 ) -> PlanFileWorkError:
     command = f"sase bead work {shlex.quote(str(archived_path))} --yes"
+    if capacity is not None:
+        command += f" --capacity {capacity}"
     if no_push:
         command += " --no-push"
     if parent_override is not None:
