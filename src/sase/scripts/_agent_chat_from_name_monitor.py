@@ -22,6 +22,7 @@ def resolve_monitor_fork_source(name: str, artifacts_dir: Path) -> ForkSource:
         kind="proc",
         name=name,
         path="",
+        artifact_dir=str(artifacts_dir),
         proc=proc_info_from_monitor(record),
     )
 

@@ -81,6 +81,7 @@ class ForkSource:
     kind: str
     name: str
     path: str
+    artifact_dir: str | None = None
     generation: str | None = None
     tribe: str | None = None
     members: tuple[ForkClanMemberSource | ForkFamilyMemberSource, ...] = ()
@@ -96,6 +97,8 @@ class ForkSource:
                 "name": self.name,
                 "path": self.path,
             }
+            if self.artifact_dir is not None:
+                data["artifact_dir"] = self.artifact_dir
             if self.failure is not None:
                 data["failure"] = self.failure.to_json_data()
             return data
@@ -104,6 +107,8 @@ class ForkSource:
                 "kind": self.kind,
                 "name": self.name,
             }
+            if self.artifact_dir is not None:
+                data["artifact_dir"] = self.artifact_dir
             if self.proc is not None:
                 data["proc"] = self.proc.to_json_data()
             return data

@@ -202,6 +202,15 @@ def test_fork_target_prefers_the_family_transcript() -> None:
         fork_target_for_settled_starter(
             starter_name="acme--code",
             family_name="acme",
+            settled=True,
+            prefer_exact_starter=True,
+        )
+        == "acme--code"
+    )
+    assert (
+        fork_target_for_settled_starter(
+            starter_name="acme--code",
+            family_name="acme",
             settled=False,
         )
         is None

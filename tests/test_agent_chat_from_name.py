@@ -209,7 +209,7 @@ def test_main_emits_parseable_json(
 ) -> None:
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     chat = tmp_path / "chat.md"
-    write_agent(
+    artifacts_dir = write_agent(
         tmp_path,
         "20260504010101",
         "delta",
@@ -220,7 +220,12 @@ def test_main_emits_parseable_json(
     output = json.loads(capsys.readouterr().out)
     assert output["path"] == str(chat)
     assert json.loads(output["sources_json"]) == [
-        {"kind": "agent", "name": "delta", "path": str(chat)}
+        {
+            "artifact_dir": str(artifacts_dir),
+            "kind": "agent",
+            "name": "delta",
+            "path": str(chat),
+        }
     ]
 
 

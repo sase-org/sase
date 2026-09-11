@@ -218,6 +218,14 @@ def test_replay_planning_is_parent_first_and_reports_shared_ancestry() -> None:
     plan = plan_continuation_replay(request)
 
     assert plan["ordered_node_ids"] == ["base", "leaf-left", "leaf-right"]
+    assert [block["node_id"] for block in plan["stable_blocks"]] == [
+        "base",
+        "leaf-left",
+        "leaf-right",
+    ]
+    assert all(
+        block["block_id"].startswith("block:v1:") for block in plan["stable_blocks"]
+    )
     assert plan["selected_evidence_refs"] == ["file:explicit:diagnostics"]
     assert plan["rendered_component_sizes"]["total_utf8_bytes"] == 125
     assert plan["checkpoint_coverage"][0]["covered_node_ids"] == ["base"]

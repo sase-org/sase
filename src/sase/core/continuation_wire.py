@@ -213,6 +213,33 @@ class ContinuationReplayPlanRequestWire(TypedDict):
     max_depth: NotRequired[int | None]
 
 
+class ContinuationReplayBlockWire(TypedDict):
+    block_id: str
+    node_id: str
+    kind: ContinuationNodeKind
+    content_ref: str
+    content_sha256: str
+    parent_ids: NotRequired[list[str]]
+    checkpoint_ref: NotRequired[str | None]
+    intent_ref: NotRequired[str | None]
+    workspace_ref: NotRequired[str | None]
+
+
+class ContinuationReplayManifestWire(TypedDict):
+    schema_version: int
+    projection_version: int
+    ordered_node_ids: NotRequired[list[str]]
+    parent_edges: NotRequired[list[JsonObject]]
+    branch_attribution: NotRequired[list[JsonObject]]
+    selected_evidence_refs: NotRequired[list[str]]
+    checkpoint_coverage: NotRequired[list[JsonObject]]
+    omissions: NotRequired[list[JsonObject]]
+    stable_blocks: NotRequired[list[ContinuationReplayBlockWire]]
+    rendered_component_sizes: JsonObject
+    budget: NotRequired[JsonObject | None]
+    prefix_reset_reason: NotRequired[str | None]
+
+
 class ContinuationPolicyResolutionRequestWire(TypedDict):
     schema_version: int
     outcome: MonitorOutcome
@@ -279,6 +306,8 @@ __all__ = [
     "ContinuationPolicyResolutionRequestWire",
     "ContinuationPromptSegmentProvenance",
     "ContinuationPromptSegmentWire",
+    "ContinuationReplayBlockWire",
+    "ContinuationReplayManifestWire",
     "ContinuationReplayPlanRequestWire",
     "DiagnosticManifestWire",
     "DiagnosticStageStatus",

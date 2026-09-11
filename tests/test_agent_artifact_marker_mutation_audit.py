@@ -131,6 +131,7 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
             "copy2",
             "write_text",
             "write_text",
+            "write_text",
             "copy2",
             "write_text",
             "write_text",

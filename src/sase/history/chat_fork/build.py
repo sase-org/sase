@@ -18,6 +18,7 @@ from .common import (
     fork_source_string,
     require_proc_info,
 )
+from .continuation import render_versioned_continuation_history
 from .failure import (
     FAILED_PARENT_GUIDANCE,
     format_failed_agent_body,
@@ -37,6 +38,12 @@ def build_fork_injected_history(
     rendered: str
     if not sources:
         raise ValueError("Fork history requires at least one source")
+
+    versioned_history = render_versioned_continuation_history(sources)
+    if versioned_history:
+        rendered = _wrap_fork_history("# Previous Continuation", versioned_history)
+        _record_fork_shadow_measurement(sources, rendered)
+        return rendered
 
     if len(sources) == 1 and fork_source_kind(sources[0]) == "agent":
         failure = fork_source_failure(sources[0])

@@ -93,6 +93,7 @@ def _routing_prefix(
         starter_name=starter_name,
         family_name=family_name,
         settled=starter_name is not None,
+        prefer_exact_starter=True,
     )
     return shell_routing_prefix(fork_target, model, reasoning_effort, next_model)
 

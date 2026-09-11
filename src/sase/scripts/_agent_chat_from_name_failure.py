@@ -43,6 +43,7 @@ def failed_agent_fork_source(
         kind="agent",
         name=name,
         path=transcript_path,
+        artifact_dir=str(artifact_dir),
         failure=failure,
     )
 

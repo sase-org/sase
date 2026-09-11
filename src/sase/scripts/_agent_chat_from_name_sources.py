@@ -317,6 +317,7 @@ def _resolve_agent_fork_source(name: str) -> ForkSource:
         kind="agent",
         name=name,
         path=resolve_agent_chat_path(name),
+        artifact_dir=str(agent.artifacts_dir) if agent is not None else None,
     )
     validate_readable_transcript(source.name, source.path)
     return source

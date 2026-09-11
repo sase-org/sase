@@ -454,14 +454,17 @@ def fork_target_for_settled_starter(
     starter_name: str | None,
     family_name: str | None,
     settled: bool,
+    prefer_exact_starter: bool = False,
 ) -> str | None:
     """Return the transcript target a settled follow-up should fork."""
     if not settled:
         return None
+    starter = _clean_str(starter_name)
+    if prefer_exact_starter and starter:
+        return starter
     family = _clean_str(family_name)
     if family:
         return family
-    starter = _clean_str(starter_name)
     if not starter:
         return None
     return agent_family_base(starter) or starter

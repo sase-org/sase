@@ -90,7 +90,12 @@ def _fork_source_from_tribe_candidate(candidate: TribeCandidate) -> ForkSource:
             Path(member.artifact_dir),
             archived_completion=member.archived_completion,
         )
-        return ForkSource(kind="agent", name=member.name, path=path)
+        return ForkSource(
+            kind="agent",
+            name=member.name,
+            path=path,
+            artifact_dir=member.artifact_dir,
+        )
 
     members = tuple(
         ForkClanMemberSource(
