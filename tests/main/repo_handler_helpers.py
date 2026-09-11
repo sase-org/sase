@@ -29,6 +29,7 @@ def repo_record(
     kind: str,
     slug: str | None = None,
     clones: tuple[RepoCloneRecord, ...] = (),
+    remote_url: str | None = None,
 ) -> RepoRecord:
     path = tmp_path / f"{kind}-{name}"
     path.mkdir(parents=True, exist_ok=True)
@@ -44,6 +45,7 @@ def repo_record(
         source="test",
         env_name=None,
         slug=slug,
+        remote_url=remote_url,
         clones=clones,
     )
 

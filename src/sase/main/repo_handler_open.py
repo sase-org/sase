@@ -79,6 +79,7 @@ def handle_open_command(
             getattr(args, "repo", ""),
             host_ctx=host_ctx,
             inventory=inventory,
+            workspace_num=workspace_num,
         )
     except (RepoInventoryProjectNotFoundError, RepoOpenResolutionError) as exc:
         print(str(exc), file=sys.stderr)

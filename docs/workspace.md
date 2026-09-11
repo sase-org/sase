@@ -461,6 +461,18 @@ prepared path, write the agent artifact markers used by ACE and the commit final
 and append the project's durable repo-open audit event. Agents use this surface through
 `/sase_repo` and treat the printed path as authoritative.
 
+Provider refs are resolved against the host project's configured repositories before
+SASE materializes an external checkout. For example, if a configured linked repo's
+GitHub origin is `git@github.com:sase-org/sase-core.git`, then
+`sase repo open gh:sase-org/sase-core` and `sase repo open sase-org/sase-core` reuse
+that configured checkout, so build commands and host commit hooks see the same files. If
+more than one configured repo has the same verified remote, the command reports an
+ambiguity and asks for an explicit configured name or path. If the current workspace
+already contains an external checkout for the same provider identity, the provider alias
+reports a collision naming both checkouts; recover or intentionally select the existing
+checkout before using the alias. Exact configured names remain valid even while such a
+duplicate external checkout exists.
+
 | Command                                                               | Description                                                                              |
 | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `sase repo list [-a] [-p PROJECT] [-w N] [-j]`                        | Show repo kinds and clone status for one workspace; JSON includes the full clone matrix. |
