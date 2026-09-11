@@ -82,7 +82,7 @@ def test_prepare_workspace_skips_shared_agents_clone_while_sync_holds_lock(
         with (
             patch("sase.workflows.commit_utils.run_sase_hg_clean", clean),
             patch(
-                "sase.axe.runner_workspace.get_vcs_provider",
+                "sase.axe.runner_workspace_prepare.get_vcs_provider",
                 return_value=_successful_provider(),
             ),
         ):
@@ -112,7 +112,9 @@ def test_prepare_workspace_holds_agents_lock_across_the_clean(
 
     with (
         patch("sase.workflows.commit_utils.run_sase_hg_clean", _clean),
-        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=provider),
+        patch(
+            "sase.axe.runner_workspace_prepare.get_vcs_provider", return_value=provider
+        ),
     ):
         result = prepare_workspace(str(repo), "agents", VCS_DEFAULT_REVISION)
 
@@ -140,7 +142,7 @@ def test_prepare_workspace_leaves_workspace_scoped_agents_clone_unguarded(
     with (
         patch("sase.workflows.commit_utils.run_sase_hg_clean", _clean),
         patch(
-            "sase.axe.runner_workspace.get_vcs_provider",
+            "sase.axe.runner_workspace_prepare.get_vcs_provider",
             return_value=_successful_provider(),
         ),
     ):

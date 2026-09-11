@@ -7,7 +7,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.axe.runner_workspace import _top_level_beads_dir, prepare_workspace
+from sase.axe.runner_workspace import prepare_workspace
+from sase.axe.runner_workspace_beads import _top_level_beads_dir
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead.sync import (
     commit_bead_claim,
@@ -94,7 +95,7 @@ def test_prepare_workspace_rescues_unpushed_bead_commits_before_sidecar_reset(
         lambda *_args: (True, ""),
     )
     monkeypatch.setattr(
-        "sase.axe.runner_workspace.get_vcs_provider",
+        "sase.axe.runner_workspace_prepare.get_vcs_provider",
         lambda _cwd: provider,
     )
 

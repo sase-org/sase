@@ -8,13 +8,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.axe import runner_workspace as workspace_module
-from sase.axe.runner_workspace import (
-    _WorkspaceBeadEvictionRefused,
-    _workspace_bead_store_dirs,
-    _workspace_sidecar_repo_roots,
-    prepare_launch_workspace_repos,
-)
+from sase.axe import runner_workspace_sidecar as workspace_module
+from sase.axe.runner_workspace import prepare_launch_workspace_repos
+from sase.axe.runner_workspace_beads import _workspace_bead_store_dirs
+from sase.axe.runner_workspace_prepare import _WorkspaceBeadEvictionRefused
+from sase.axe.runner_workspace_sidecar import _workspace_sidecar_repo_roots
 from sase.bead.model import IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.bead.sync import commit_bead_claim, unpushed_bead_commit_count
@@ -292,7 +290,7 @@ def test_eviction_retries_when_remote_writer_wins_after_first_integration(
         return actual_push(repo)
 
     monkeypatch.setattr(
-        "sase.axe.runner_workspace._run_sidecar_push",
+        "sase.axe.runner_workspace_sidecar._run_sidecar_push",
         push_with_race,
     )
     monkeypatch.setattr(
@@ -335,7 +333,7 @@ def test_eviction_stops_within_bound_when_remote_keeps_advancing(
         return actual_push(repo)
 
     monkeypatch.setattr(
-        "sase.axe.runner_workspace._run_sidecar_push",
+        "sase.axe.runner_workspace_sidecar._run_sidecar_push",
         push_after_remote_advances,
     )
     monkeypatch.setattr(
@@ -435,7 +433,7 @@ def test_eviction_refuses_to_trash_unpublished_plans_sidecar_commit(
     notified: list[tuple[object, ...]] = []
 
     monkeypatch.setattr(
-        "sase.axe.runner_workspace._run_sidecar_push",
+        "sase.axe.runner_workspace_sidecar._run_sidecar_push",
         lambda _repo: subprocess.CompletedProcess(
             ["git", "push"],
             1,

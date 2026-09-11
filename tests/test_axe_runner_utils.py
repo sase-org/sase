@@ -444,7 +444,10 @@ def test_prepare_workspace_update_fails() -> None:
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
+        patch(
+            "sase.axe.runner_workspace_prepare.get_vcs_provider",
+            return_value=mock_provider,
+        ),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -464,7 +467,10 @@ def test_prepare_workspace_default_parent_syncs_after_checkout() -> None:
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
+        patch(
+            "sase.axe.runner_workspace_prepare.get_vcs_provider",
+            return_value=mock_provider,
+        ),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -492,7 +498,10 @@ def test_prepare_workspace_default_parent_sync_failure_fails() -> None:
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
+        patch(
+            "sase.axe.runner_workspace_prepare.get_vcs_provider",
+            return_value=mock_provider,
+        ),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -550,7 +559,10 @@ def test_prepare_workspace_clears_stale_lock_before_clean(tmp_path: Path) -> Non
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
+        patch(
+            "sase.axe.runner_workspace_prepare.get_vcs_provider",
+            return_value=mock_provider,
+        ),
     ):
         result = prepare_workspace(
             str(tmp_path), "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -571,7 +583,10 @@ def test_prepare_workspace_default_parent_sync_not_implemented_passes() -> None:
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
+        patch(
+            "sase.axe.runner_workspace_prepare.get_vcs_provider",
+            return_value=mock_provider,
+        ),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
@@ -591,7 +606,10 @@ def test_prepare_workspace_non_sentinel_passes_through() -> None:
         patch(
             "sase.workflows.commit_utils.run_sase_hg_clean", return_value=(True, None)
         ),
-        patch("sase.axe.runner_workspace.get_vcs_provider", return_value=mock_provider),
+        patch(
+            "sase.axe.runner_workspace_prepare.get_vcs_provider",
+            return_value=mock_provider,
+        ),
     ):
         result = prepare_workspace(
             "/workspace", "my_cl", "my_branch", backup_suffix="ace"
