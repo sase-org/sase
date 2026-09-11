@@ -25,6 +25,12 @@ DISMISSED_AGENT_OBJECTS_MAX = 500
 log = logging.getLogger(__name__)
 
 
+def _notify_dismissed_index_sync_failed(owner: object) -> None:
+    notify = getattr(owner, "notify", None)
+    if callable(notify):
+        notify("Dismissed-agent artifact index sync failed", severity="error")
+
+
 def trim_dismissed_agent_objects(agents: list[Agent]) -> list[Agent]:
     """Return *agents* trimmed to the most-recent ``DISMISSED_AGENT_OBJECTS_MAX``."""
     if len(agents) <= DISMISSED_AGENT_OBJECTS_MAX:
@@ -203,11 +209,16 @@ class AgentDismissMemoryMixin:
             revived_suffixes.discard(identity[2])
         if save_dismissed_agents(self._dismissed_agents):
             try:
-                sync_dismissed_agent_artifact_index(
+                synced = sync_dismissed_agent_artifact_index(
                     self._dismissed_agents, added={identity}
                 )
             except Exception:
                 log.exception("Failed to sync dismissed-agent artifact index")
+                _notify_dismissed_index_sync_failed(self)
+            else:
+                if not synced:
+                    log.error("Dismissed-agent artifact index sync returned false")
+                    _notify_dismissed_index_sync_failed(self)
 
     def _collect_dismissal_identities(self, agents: list[Agent]) -> set[AgentIdentity]:
         """Return identities hidden immediately after dismissing agents."""

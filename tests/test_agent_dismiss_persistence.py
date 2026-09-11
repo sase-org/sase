@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import call, patch
@@ -12,6 +14,27 @@ from sase.running_field import ClaimResult, WorkspaceClaim
 
 from tests._agent_cleanup_proc_helpers import run_tracked_proc
 from tests._agent_dismiss_helpers import FakeDismissApp, make_agent
+
+
+def _artifact(projects_root: Path, timestamp: str) -> Path:
+    return projects_root / "proj" / "artifacts" / "ace-run" / timestamp
+
+
+def _write_json(path: Path, payload: dict[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _visible_index_timestamps(index_path: Path, projects_root: Path) -> set[str]:
+    from sase.core.agent_scan_facade import query_agent_artifact_index
+    from sase.core.agent_scan_wire import AgentArtifactIndexQueryWire
+
+    snapshot = query_agent_artifact_index(
+        index_path,
+        projects_root,
+        AgentArtifactIndexQueryWire(),
+    )
+    return {record.timestamp for record in snapshot.records}
 
 
 def test_release_held_workspace_claims_matches_timestamp_cl_and_dead_pid() -> None:
@@ -230,6 +253,131 @@ def test_dismiss_persistence_callback_reloads_on_failure(tmp_path) -> None:  # t
     assert ("Dismiss cleanup failed: boom", "error") in app.notifications
 
 
+def test_dismiss_persistence_false_index_sync_notifies_and_refreshes(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    """A false dismissed-index sync result must not look like a clean dismiss."""
+    app = FakeDismissApp()
+    agent = make_agent(
+        raw_suffix="20240101120000",
+        artifacts_dir=str(tmp_path / "artifacts"),
+    )
+    app._agents_with_children = [agent]
+    app._agents = [agent]
+
+    app._dismiss_done_agent(agent)
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._dismissing.persist_cleanup_side_effect_intents",
+            return_value=True,
+        ),
+        patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing."
+            "sync_dismissed_agent_artifact_index",
+            return_value=False,
+        ),
+        patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
+    ):
+        completion = run_tracked_proc(app, app.tracked_procs[0])
+
+    mock_save.assert_called_once_with({agent.identity})
+    assert not completion.success
+    assert app.notification_refreshes_async == 1
+    assert app.async_refreshes == 1
+    assert (
+        "Dismiss cleanup failed: dismissed-agent artifact index sync failed",
+        "error",
+    ) in app.notifications
+
+
+def test_normal_dismiss_reconciles_unloaded_family_members_after_root_delete(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    """Dismiss sync finds dead family members that were not loaded in the TUI."""
+    from sase.core.agent_scan_facade import rebuild_agent_artifact_index
+
+    sase_home = tmp_path / "sase-home"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    projects_root = sase_home / "projects"
+    index_path = sase_home / "agent_artifact_index.sqlite"
+    root_ts = "20260517120000"
+    terminal_member_ts = "20260517120500"
+    dead_active_member_ts = "20260517121000"
+    unknown_member_ts = "20260517121500"
+
+    root_dir = _artifact(projects_root, root_ts)
+    _write_json(
+        root_dir / "agent_meta.json",
+        {"name": "fam", "cl_name": "fam", "agent_family": "fam"},
+    )
+    _write_json(root_dir / "done.json", {"outcome": "completed", "cl_name": "fam"})
+
+    terminal_member = _artifact(projects_root, terminal_member_ts)
+    _write_json(
+        terminal_member / "agent_meta.json",
+        {
+            "name": "fam--code",
+            "cl_name": "fam--code",
+            "agent_family": "fam",
+            "parent_timestamp": root_ts,
+        },
+    )
+    _write_json(
+        terminal_member / "done.json",
+        {"outcome": "completed", "cl_name": "fam--code"},
+    )
+
+    dead_active_member = _artifact(projects_root, dead_active_member_ts)
+    _write_json(
+        dead_active_member / "agent_meta.json",
+        {
+            "name": "fam--dead-active",
+            "cl_name": "fam--dead-active",
+            "agent_family": "fam",
+            "parent_timestamp": root_ts,
+            "pid": 99999999,
+            "run_started_at": "2026-05-17T12:10:00Z",
+        },
+    )
+
+    unknown_member = _artifact(projects_root, unknown_member_ts)
+    _write_json(
+        unknown_member / "agent_meta.json",
+        {
+            "name": "fam--unknown",
+            "cl_name": "fam--unknown",
+            "agent_family": "fam",
+            "parent_timestamp": root_ts,
+        },
+    )
+    _write_json(unknown_member / "running.json", {})
+
+    rebuild_agent_artifact_index(index_path, projects_root)
+    assert _visible_index_timestamps(index_path, projects_root) == {
+        root_ts,
+        terminal_member_ts,
+        dead_active_member_ts,
+        unknown_member_ts,
+    }
+
+    app = FakeDismissApp()
+    root = make_agent(
+        cl_name="fam",
+        raw_suffix=root_ts,
+        artifacts_dir=str(root_dir),
+        project_file=str(projects_root / "proj" / "proj.sase"),
+    )
+    app._agents_with_children = [root]
+    app._agents = [root]
+
+    app._dismiss_done_agent(root)
+    completion = run_tracked_proc(app, app.tracked_procs[0])
+
+    assert completion.success
+    assert _visible_index_timestamps(index_path, projects_root) == {unknown_member_ts}
+
+
 def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
     tmp_path,
 ) -> None:  # type: ignore[no-untyped-def]
@@ -263,6 +411,11 @@ def test_dismiss_workflow_parent_persistence_uses_pre_removal_snapshot(
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing."
+            "sync_dismissed_agent_artifact_index",
+            return_value=True,
+        ),
         patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
         run_tracked_proc(app, app.tracked_procs[0])
@@ -305,6 +458,11 @@ def test_do_dismiss_all_persistence_callback_runs_deferred_work() -> None:
             "sase.ace.tui.actions.agents._dismissing.dismiss_notifications_for_agents"
         ) as mock_dismiss_many,
         patch("sase.ace.dismissed_agents.save_dismissed_agents") as mock_save,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing."
+            "sync_dismissed_agent_artifact_index",
+            return_value=True,
+        ),
         patch("sase.ace.dismissed_agents.record_recent_dismissed_agent_group"),
     ):
         run_tracked_proc(app, _find_bulk_persistence_task(app))

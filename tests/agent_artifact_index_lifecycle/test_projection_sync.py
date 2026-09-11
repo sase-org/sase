@@ -83,6 +83,58 @@ def test_sync_dismissed_agent_artifact_index_serializes_identities(
     assert calls[0][1][0].raw_suffix == "20260501010101"
 
 
+def test_sync_dismissed_projection_reports_reconcile_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    index = tmp_path / "agent_artifact_index.sqlite"
+    index.touch()
+    install_projection_meta_store(monkeypatch)
+
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.dismissed_agents_file_signature",
+        lambda: None,
+    )
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.dismissed_bundle_index_signature",
+        lambda: (1, 0, 0, 0),
+    )
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.verify_dismissed_bundle_index",
+        lambda: {"ok": True},
+    )
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.load_dismissed_bundle_identities",
+        set,
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "replace_agent_artifact_index_dismissed_agents",
+        lambda *_args, **_kwargs: AgentArtifactIndexUpdateWire(
+            schema_version=1,
+            index_path=str(index),
+            projects_root="",
+            rows_indexed=1,
+        ),
+    )
+
+    def fail_reconcile(*_args: object, **_kwargs: object) -> object:
+        raise RuntimeError("busy")
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "reconcile_agent_artifact_index_dismissed_family_members",
+        fail_reconcile,
+    )
+
+    report = sync_dismissed_agent_artifact_index_report(
+        {(AgentType.RUNNING, "feature", "20260501010101")},
+        index_path=index,
+    )
+
+    assert not report.synced
+
+
 def test_build_dismissed_projection_inputs_reads_json_only(monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setattr(
         "sase.ace.dismissed_agents.dismissed_agents_file_signature",

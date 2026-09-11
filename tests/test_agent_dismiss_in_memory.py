@@ -178,6 +178,27 @@ def test_persist_dismissed_agent_syncs_projection() -> None:
     mock_sync_index.assert_called_once_with(app._dismissed_agents, added={identity})
 
 
+def test_persist_dismissed_agent_false_sync_notifies() -> None:
+    """Legacy direct persistence surfaces a failed projection sync."""
+    app = FakeDismissApp()
+    identity = make_agent(raw_suffix="20240101120000").identity
+
+    with (
+        patch("sase.ace.dismissed_agents.save_dismissed_agents", return_value=True),
+        patch(
+            "sase.ace.tui.actions.agents._dismiss_memory."
+            "sync_dismissed_agent_artifact_index",
+            return_value=False,
+        ),
+    ):
+        app._persist_dismissed_agent(identity)
+
+    assert (
+        "Dismissed-agent artifact index sync failed",
+        "error",
+    ) in app.notifications
+
+
 def test_dismiss_done_agent_is_optimistic_and_schedules_once(tmp_path) -> None:  # type: ignore[no-untyped-def]
     """_dismiss_done_agent removes the row before persistence callbacks run."""
     app = FakeDismissApp()
@@ -361,6 +382,11 @@ def test_bulk_dismiss_transaction_uses_one_notification_update() -> None:
             "sase.notifications.store._rust_apply_notification_state_update",
             return_value=outcome,
         ) as mock_update,
+        patch(
+            "sase.ace.tui.actions.agents._dismissing."
+            "sync_dismissed_agent_artifact_index",
+            return_value=True,
+        ),
     ):
         _persist_bulk_dismiss_transaction(
             [a1, a2],

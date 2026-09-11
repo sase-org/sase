@@ -54,6 +54,12 @@ _agents_related_to_dismissal = agents_related_to_dismissal
 log = logging.getLogger(__name__)
 
 
+def _raise_on_dismissed_agent_artifact_index_sync_failure(synced: bool) -> None:
+    """Fail the cleanup proc visibly when the projection did not sync."""
+    if not synced:
+        raise RuntimeError("dismissed-agent artifact index sync failed")
+
+
 class AgentDismissingMixin(CleanupProcMixin, AgentDismissMemoryMixin):
     """Mixin providing agent dismissal methods.
 
@@ -459,9 +465,14 @@ def _persist_single_dismiss_transaction(
         record_recent_dismissed_agent_group(recent_group)
     if save_dismissed_agents(dismissed_snapshot):
         try:
-            sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
+            synced = sync_dismissed_agent_artifact_index(
+                dismissed_snapshot,
+                added=added,
+            )
         except Exception:
             log.exception("Failed to sync dismissed-agent artifact index")
+            raise
+        _raise_on_dismissed_agent_artifact_index_sync_failure(synced)
 
 
 def _unique_related_agents_for_dismissal(
@@ -525,9 +536,14 @@ def _persist_bulk_dismiss_transaction(
         record_recent_dismissed_agent_group(recent_group)
     if save_dismissed_agents(dismissed_snapshot):
         try:
-            sync_dismissed_agent_artifact_index(dismissed_snapshot, added=added)
+            synced = sync_dismissed_agent_artifact_index(
+                dismissed_snapshot,
+                added=added,
+            )
         except Exception:
             log.exception("Failed to sync dismissed-agent artifact index")
+            raise
+        _raise_on_dismissed_agent_artifact_index_sync_failure(synced)
 
 
 persist_bulk_dismiss_transaction = _persist_bulk_dismiss_transaction

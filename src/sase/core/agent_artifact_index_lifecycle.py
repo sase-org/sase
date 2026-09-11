@@ -202,12 +202,14 @@ def _sync_projection(
         replace_agent_artifact_index_dismissed_agents(index, projection.identities)
         try:
             reconcile = reconcile_agent_artifact_index_dismissed_family_members(index)
-        except _INDEX_ERRORS:
-            log.debug(
+        except _INDEX_ERRORS as error:
+            if _is_corruption_error(error):
+                raise _CorruptArtifactIndexError from error
+            log.warning(
                 "agent artifact index dismissed-family reconciliation failed",
                 exc_info=True,
             )
-            reconcile = None
+            return DismissedProjectionSyncReport(synced=False)
         _write_projection_metadata(index, projection)
     except _INDEX_ERRORS as error:
         if _is_corruption_error(error):
