@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Iterable, Mapping
+from hashlib import sha256
 from typing import Any
 
 from tests.ace.tui._fleet_locator_fixture import fleet_installation_id
@@ -65,6 +66,7 @@ def fleet_host_response(
                     ),
                     "page": {
                         "schema_version": 1,
+                        "snapshot_id": fleet_catalog_snapshot_id(alias),
                         "rows": summary_list,
                         "limit": 100,
                         "total_matching_rows": host_counts["logical_agent_total"],
@@ -220,6 +222,16 @@ def fleet_counts(
         "attention": attention_count,
         "occupied_runner_slots": occupied_count,
     }
+
+
+def fleet_catalog_snapshot_id(seed: str) -> str:
+    """Build a valid fleet catalog snapshot id for test payloads."""
+    return f"catsnap_v1_{sha256(seed.encode()).hexdigest()}"
+
+
+def fleet_catalog_cursor(snapshot_id: str, offset: int) -> str:
+    """Build a valid presentation catalog continuation cursor."""
+    return f"catcur_v1:p:{snapshot_id}:{offset}"
 
 
 def fleet_attention_response(

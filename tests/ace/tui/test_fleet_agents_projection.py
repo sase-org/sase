@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_live_query import agent_live_query_entry
 from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
 from sase.ace.tui.models.fleet_agents import project_fleet_agents
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
@@ -283,6 +284,43 @@ def test_project_fleet_agents_sources_host_running_and_total_counts() -> None:
     for row in projection.fleet_rows:
         assert row.fleet_host_running_count == 1
         assert row.fleet_host_total_count == 2
+
+
+def test_project_fleet_agents_carries_remote_family_lineage_into_agent_rows() -> None:
+    """Remote family metadata feeds the common Agent model and agents-live."""
+    root = fleet_summary(
+        agent_id="family-root",
+        run_id="20260910120000",
+        agent_name="remote-family",
+        family_id="remote-family",
+    )
+    root["family_role"] = "root"
+    child = fleet_summary(
+        agent_id="family-code",
+        run_id="20260910120100",
+        agent_name="remote-family--code",
+        family_id="remote-family",
+    )
+    child["family_role"] = "member"
+    child["parent_timestamp"] = "20260910120000"
+    response = fleet_host_response(alias="apollo", summaries=(root, child))
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    by_name = {row.agent_name: row for row in projection.fleet_rows}
+    root_row = by_name["remote-family"]
+    child_row = by_name["remote-family--code"]
+    assert root_row.agent_family is None
+    assert root_row.agent_family_role == "root"
+    assert child_row.agent_family == "remote-family"
+    assert child_row.agent_family_role == "member"
+    assert child_row.role_suffix == "--code"
+    assert child_row.parent_timestamp == root_row.raw_suffix
+    assert child_row.is_family_member_child is True
+    entry = agent_live_query_entry(child_row)
+    assert entry["fields"]["kind"] == ("member",)
+    assert entry["fields"]["role"] == ("member", "code")
+    assert entry["fields"]["family"] == ("remote-family",)
 
 
 def test_project_fleet_agents_downgrades_fresh_chip_for_a_cached_aged_host() -> None:

@@ -62,12 +62,12 @@ class _BannerSummary:
     running: int
     failed: int
     awaiting: int
+    done: int = 0
     # Set for a remote-machine L0 banner sourced from the host's
-    # authoritative counts rather than a recount of loaded rows: ``unknown``
-    # is the honest remainder outside the authoritative ``running`` count,
-    # and ``failed``/``awaiting`` are not broken out (the counts wire does
-    # not carry them), so the chip renders "N agents · R running · U
-    # unknown" instead of implying a full status breakdown it cannot back.
+    # authoritative counts rather than a recount of loaded rows. ``unknown``
+    # is only displayed when the host supplied an explicit unknown count;
+    # it is never inferred as ``total - running`` because queued, waiting,
+    # failed, and done rows are known non-running states.
     unknown: int = 0
     authoritative: bool = False
 
@@ -541,9 +541,10 @@ def _authoritative_machine_summary(roots: list[Agent]) -> _BannerSummary | None:
         return _BannerSummary(
             count=total,
             running=running,
-            failed=0,
-            awaiting=0,
-            unknown=max(0, total - running),
+            failed=agent.fleet_host_failed_count or 0,
+            awaiting=agent.fleet_host_waiting_count or 0,
+            done=agent.fleet_host_done_count or 0,
+            unknown=agent.fleet_host_unknown_count or 0,
             authoritative=True,
         )
     return None
@@ -581,10 +582,9 @@ def banner_label(group: GroupRow) -> str:
 def banner_summary_text(summary: _BannerSummary) -> str:
     """Compact ``"N agents · 2 running · 1 failed"``-style label.
 
-    An authoritative remote-machine summary uses honest scope wording
-    instead: ``"N agents · R running · U unknown"``. The counts wire does
-    not break failed/awaiting out, so this never claims a status breakdown
-    it cannot back.
+    An authoritative remote-machine summary uses only explicit host count
+    evidence. It never renders ``unknown`` from a remainder because known
+    non-running states are not unknown.
 
     Returns an empty string when the summary is empty (count == 0).
     """
@@ -595,6 +595,12 @@ def banner_summary_text(summary: _BannerSummary) -> str:
     if summary.authoritative:
         if summary.running:
             parts.append(f"{summary.running} running")
+        if summary.awaiting:
+            parts.append(f"{summary.awaiting} awaiting")
+        if summary.failed:
+            parts.append(f"{summary.failed} failed")
+        if summary.done:
+            parts.append(f"{summary.done} done")
         if summary.unknown:
             parts.append(f"{summary.unknown} unknown")
         return " · ".join(parts)

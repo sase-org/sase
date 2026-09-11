@@ -18,6 +18,8 @@ from tests.ace.tui._fleet_locator_fixture import (
 )
 from tests.ace.tui._fleet_response_fixture import (
     fleet_attention_response,
+    fleet_catalog_cursor,
+    fleet_catalog_snapshot_id,
     fleet_counts,
     fleet_fault_diagnostic,
     fleet_host_payload,
@@ -30,6 +32,8 @@ __all__ = [
     "OfflineFleetFacade",
     "ScriptedFleetFacade",
     "fleet_attention_response",
+    "fleet_catalog_cursor",
+    "fleet_catalog_snapshot_id",
     "fleet_config",
     "fleet_config_for_hosts",
     "fleet_counts",

@@ -53,6 +53,16 @@ def rows_from_response(
         host_counts = mapping(host.get("authoritative_counts"))
         host_running_count = int_or_none(host_counts.get("running"))
         host_total_count = int_or_none(host_counts.get("logical_agent_total"))
+        host_waiting_count = int_or_none(host_counts.get("waiting"))
+        host_failed_count = int_or_none(host_counts.get("failed"))
+        host_done_count = int_or_none(
+            host_counts.get("done"),
+            host_counts.get("completed"),
+            host_counts.get("terminal"),
+        )
+        host_unknown_count = int_or_none(host_counts.get("unknown"))
+        host_rows: list[Agent] = []
+        host_summary_pairs: list[tuple[Mapping[str, Any], Agent]] = []
         for summary_index, summary in enumerate(summary_payloads(host)):
             agent = _agent_from_summary(
                 summary,
@@ -65,6 +75,10 @@ def rows_from_response(
                 observed_at_unix=observed_at,
                 host_running_count=host_running_count,
                 host_total_count=host_total_count,
+                host_waiting_count=host_waiting_count,
+                host_failed_count=host_failed_count,
+                host_done_count=host_done_count,
+                host_unknown_count=host_unknown_count,
                 summary_index=summary_index,
                 attention_by_logical_key=attention_by_logical_key,
             )
@@ -72,7 +86,10 @@ def rows_from_response(
             agent.fleet_followed = followed
             if followed_only and not followed:
                 continue
-            rows.append(agent)
+            host_rows.append(agent)
+            host_summary_pairs.append((summary, agent))
+        _resolve_host_parent_lineage(host_summary_pairs)
+        rows.extend(host_rows)
     return rows
 
 
@@ -88,6 +105,10 @@ def _agent_from_summary(
     observed_at_unix: float | None,
     host_running_count: int | None,
     host_total_count: int | None,
+    host_waiting_count: int | None,
+    host_failed_count: int | None,
+    host_done_count: int | None,
+    host_unknown_count: int | None,
     summary_index: int,
     attention_by_logical_key: Mapping[str, Mapping[str, Any]],
 ) -> Agent:
@@ -100,12 +121,29 @@ def _agent_from_summary(
     logical_key = optional_str(summary.get("logical_key"))
     exact_key = optional_str(summary.get("exact_key"))
     row_revision = mapping(summary.get("row_revision"))
+    row_kind = optional_str(summary.get("row_kind"))
+    family_role = optional_str(
+        summary.get("family_role"),
+        summary.get("agent_family_role"),
+    )
+    parent_timestamp = optional_str(summary.get("parent_timestamp"))
+    family_name = _agent_family_name(
+        summary,
+        labels,
+        logical_locator,
+        family_role=family_role,
+        parent_timestamp=parent_timestamp,
+    )
     agent_name = _agent_name(
         summary,
         labels,
         logical_key,
         exact_key,
         summary_index,
+    )
+    role_suffix = optional_str(summary.get("role_suffix")) or _role_suffix_from_name(
+        agent_name,
+        family_role,
     )
     patch_name = _patch_name(
         summary,
@@ -199,11 +237,36 @@ def _agent_from_summary(
         fleet_observed_at_unix=observed_at_unix,
         fleet_host_running_count=host_running_count,
         fleet_host_total_count=host_total_count,
+        fleet_host_waiting_count=host_waiting_count,
+        fleet_host_failed_count=host_failed_count,
+        fleet_host_done_count=host_done_count,
+        fleet_host_unknown_count=host_unknown_count,
         fleet_capabilities=dict(capabilities) if capabilities else None,
         fleet_content=dict(content) if content else None,
         fleet_bounded_intent=bounded_intent,
         fleet_diagnostic=host_diagnostic,
         fleet_attention=dict(attention) if attention else None,
+        role_suffix=role_suffix,
+        agent_family=family_name,
+        agent_family_role=family_role,
+        agent_family_parallel=bool(summary.get("agent_family_parallel")),
+        parent_timestamp=parent_timestamp,
+        plan_chain_root=bool(summary.get("plan_chain_root")),
+        monitor_id=optional_str(summary.get("monitor_id")),
+        monitor_state=optional_str(summary.get("monitor_state")),
+        monitor_command=optional_str(summary.get("monitor_command")),
+        monitor_label=optional_str(summary.get("monitor_label")),
+        gate_id=optional_str(summary.get("gate_id")),
+        gate_kind=optional_str(summary.get("gate_kind")),
+        gate_state=optional_str(summary.get("gate_state")),
+        gate_label=optional_str(summary.get("gate_label")),
+        proc_id=optional_str(summary.get("proc_id")) if row_kind == "proc" else None,
+        proc_status=optional_str(summary.get("proc_status"))
+        if row_kind == "proc"
+        else None,
+        proc_label=optional_str(summary.get("proc_label"))
+        if row_kind == "proc"
+        else None,
         queue_weight=(
             None
             if summary.get("queue_weight_invalid") is True
@@ -214,6 +277,58 @@ def _agent_from_summary(
         queue_weight_error=optional_str(summary.get("queue_weight_error")),
     )
     return agent
+
+
+def _resolve_host_parent_lineage(
+    summary_pairs: list[tuple[Mapping[str, Any], Agent]],
+) -> None:
+    """Map owner-local parent tokens to rendered host-qualified row ids."""
+    by_owner_key: dict[str, str] = {}
+    for summary, agent in summary_pairs:
+        if not agent.raw_suffix:
+            continue
+        for key in _summary_owner_lineage_keys(summary):
+            by_owner_key.setdefault(key, agent.raw_suffix)
+
+    for _summary, agent in summary_pairs:
+        raw_parent = agent.parent_timestamp
+        if not raw_parent:
+            continue
+        resolved = by_owner_key.get(raw_parent)
+        if resolved is None:
+            # Unresolved lineage should not hide a row beneath a parent that
+            # is outside this bounded fleet page. Keeping it top-level
+            # preserves visibility while still carrying family_role/role query
+            # metadata from the summary.
+            agent.parent_timestamp = None
+        else:
+            agent.parent_timestamp = resolved
+
+
+def _summary_owner_lineage_keys(summary: Mapping[str, Any]) -> tuple[str, ...]:
+    logical_locator = mapping(summary.get("logical_locator"))
+    exact_locator = mapping(summary.get("exact_locator"))
+    nested_logical = mapping(exact_locator.get("logical"))
+    keys = (
+        summary.get("raw_suffix"),
+        summary.get("timestamp"),
+        summary.get("agent_timestamp"),
+        summary.get("logical_key"),
+        summary.get("exact_key"),
+        logical_locator.get("agent_id"),
+        nested_logical.get("agent_id"),
+        exact_locator.get("run_id"),
+        exact_locator.get("shell_id"),
+    )
+    seen: set[str] = set()
+    result: list[str] = []
+    for key in keys:
+        value = optional_str(key)
+        if value is None or value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return tuple(result)
 
 
 def _host_alias(host: Mapping[str, Any], host_index: int) -> str:
@@ -229,6 +344,22 @@ def _host_alias(host: Mapping[str, Any], host_index: int) -> str:
     if alias:
         return display_token(alias)
     return f"remote-{host_index + 1}"
+
+
+def _agent_family_name(
+    summary: Mapping[str, Any],
+    labels: Mapping[str, Any],
+    logical_locator: Mapping[str, Any],
+    *,
+    family_role: str | None,
+    parent_timestamp: str | None,
+) -> str | None:
+    explicit = optional_str(summary.get("agent_family"))
+    if explicit is not None:
+        return explicit
+    if family_role == "root" and parent_timestamp is None:
+        return None
+    return optional_str(labels.get("family_label"), logical_locator.get("family_id"))
 
 
 def _agent_name(
@@ -250,6 +381,20 @@ def _agent_name(
     if key:
         return key.rsplit("/", 1)[-1].rsplit(":", 1)[-1] or key
     return f"remote-agent-{summary_index + 1}"
+
+
+def _role_suffix_from_name(
+    agent_name: str | None, family_role: str | None
+) -> str | None:
+    if family_role in {None, "root", "historical_shell"} or not agent_name:
+        return None
+    for separator in ("--", "."):
+        if separator not in agent_name:
+            continue
+        base, suffix = agent_name.rsplit(separator, 1)
+        if base and suffix and not any(character.isspace() for character in suffix):
+            return f"{separator}{suffix}"
+    return None
 
 
 def _patch_name(

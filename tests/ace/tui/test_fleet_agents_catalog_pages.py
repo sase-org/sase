@@ -8,6 +8,8 @@ from sase.ace.tui.models.fleet_agents import (
 )
 from sase.dispatch.follow_store import FollowStoreSnapshot
 from tests.ace.tui.fleet_fixture import (
+    fleet_catalog_cursor,
+    fleet_catalog_snapshot_id,
     fleet_counts,
     fleet_host_response,
     fleet_installation_id,
@@ -50,6 +52,7 @@ def _worker_catalog_response(
 ) -> dict[str, object]:
     installation_id = fleet_installation_id("a")
     counts = fleet_counts(summaries, running=running, observed_at_unix=1_800_000_000.0)
+    snapshot_id = fleet_catalog_snapshot_id("apollo")
     return {
         "schema_version": 1,
         "operation": "catalog",
@@ -68,6 +71,11 @@ def _worker_catalog_response(
                 if error is not None
                 else {
                     "schema_version": 1,
+                    "cursor": {
+                        "schema_version": 1,
+                        "store_generation": "gen-apollo",
+                        "sequence": 1,
+                    },
                     "counts": counts,
                     "freshness": {
                         "schema_version": 1,
@@ -78,6 +86,7 @@ def _worker_catalog_response(
                     },
                     "page": {
                         "schema_version": 1,
+                        "snapshot_id": snapshot_id,
                         "rows": list(summaries),
                         "limit": 100,
                         "total_matching_rows": len(summaries),
@@ -214,7 +223,8 @@ def test_merge_catalog_pages_keeps_authoritative_counts_and_second_page_rows() -
         status="done",
         lifecycle="terminal",
     )
-    first = _worker_catalog_response(first_row, running=1, next_cursor="off:100")
+    page_cursor = fleet_catalog_cursor(fleet_catalog_snapshot_id("apollo"), 100)
+    first = _worker_catalog_response(first_row, running=1, next_cursor=page_cursor)
     second = _worker_catalog_response(second_row, running=1, next_cursor=None)
 
     merged = merge_catalog_pages(first, second)
@@ -222,7 +232,7 @@ def test_merge_catalog_pages_keeps_authoritative_counts_and_second_page_rows() -
 
     assert [row.agent_name for row in projection.fleet_rows] == ["page-one", "page-two"]
     assert projection.counts["fleet"] == 1
-    assert catalog_next_cursor(first) == "off:100"
+    assert catalog_next_cursor(first) == page_cursor
     assert catalog_next_cursor(second) is None
 
 
@@ -231,13 +241,21 @@ def test_catalog_next_cursors_by_host_keeps_continuations_separate() -> None:
     second_installation = fleet_installation_id("b")
     third_installation = fleet_installation_id("c")
     first = fleet_host_response(alias="apollo", installation_id=first_installation)
+    first_cursor = fleet_catalog_cursor(
+        str(first["hosts"][0]["payload"]["page"]["snapshot_id"]),
+        100,
+    )
     first["hosts"][0]["payload"]["page"]["total_matching_rows"] = 250
-    first["hosts"][0]["payload"]["page"]["next_cursor"] = "off:100"
+    first["hosts"][0]["payload"]["page"]["next_cursor"] = first_cursor
     first["hosts"][0]["payload"]["page"]["has_more"] = True
     second = fleet_host_response(alias="zeus", installation_id=second_installation)
     third = fleet_host_response(alias="hera", installation_id=third_installation)
+    third_cursor = fleet_catalog_cursor(
+        str(third["hosts"][0]["payload"]["page"]["snapshot_id"]),
+        300,
+    )
     third["hosts"][0]["payload"]["page"]["total_matching_rows"] = 400
-    third["hosts"][0]["payload"]["page"]["next_cursor"] = "off:300"
+    third["hosts"][0]["payload"]["page"]["next_cursor"] = third_cursor
     third["hosts"][0]["payload"]["page"]["has_more"] = True
     response = {
         "schema_version": 1,
@@ -251,8 +269,8 @@ def test_catalog_next_cursors_by_host_keeps_continuations_separate() -> None:
     }
 
     assert catalog_next_cursors_by_host(response) == {
-        first_installation: "off:100",
-        third_installation: "off:300",
+        first_installation: first_cursor,
+        third_installation: third_cursor,
     }
 
 
@@ -260,22 +278,29 @@ def _normalized_host(
     *,
     alias: str,
     generation: str,
+    snapshot_id: str | None = None,
+    sequence: int = 1,
+    observed_at_unix: float = 1_800_000_000.0,
     rows: list[dict[str, object]],
 ) -> dict[str, object]:
+    cursor: dict[str, object] = {
+        "schema_version": 1,
+        "store_generation": generation,
+        "sequence": sequence,
+    }
+    if snapshot_id is not None:
+        cursor["snapshot_id"] = snapshot_id
     return {
         "schema_version": 1,
         "alias": alias,
         "status": "ok",
         "cached": False,
         "age_seconds": None,
+        "observed_at_unix": observed_at_unix,
         "summaries": rows,
         "catalog": {
             "schema_version": 1,
-            "snapshot_cursor": {
-                "schema_version": 1,
-                "store_generation": generation,
-                "sequence": 1,
-            },
+            "snapshot_cursor": cursor,
             "limit": 100,
             "total_matching_rows": len(rows),
             "next_cursor": None,
@@ -309,6 +334,66 @@ def test_merge_catalog_pages_drops_rows_absent_from_a_newer_snapshot_generation(
     )
 
     merged = merge_catalog_pages(older, newer)
+
+    assert merged is not None
+    assert [row["logical_key"] for row in merged["summaries"]] == ["kept"]
+
+
+def test_merge_catalog_pages_uses_snapshot_identity_with_same_store_generation() -> (
+    None
+):
+    """An age rebuild with no event-generation change still resets rows."""
+    vanished: dict[str, object] = {"logical_key": "vanished", "exact_key": "old-1"}
+    kept: dict[str, object] = {"logical_key": "kept", "exact_key": "kept-1"}
+    older = _normalized_response(
+        _normalized_host(
+            alias="apollo",
+            generation="gen-1",
+            snapshot_id=fleet_catalog_snapshot_id("old"),
+            observed_at_unix=10.0,
+            rows=[vanished, kept],
+        )
+    )
+    newer = _normalized_response(
+        _normalized_host(
+            alias="apollo",
+            generation="gen-1",
+            snapshot_id=fleet_catalog_snapshot_id("new"),
+            observed_at_unix=20.0,
+            rows=[kept],
+        )
+    )
+
+    merged = merge_catalog_pages(older, newer)
+
+    assert merged is not None
+    assert [row["logical_key"] for row in merged["summaries"]] == ["kept"]
+
+
+def test_merge_catalog_pages_rejects_late_older_snapshot_arrival() -> None:
+    """A late stale page cannot replace a newer snapshot's accumulation."""
+    vanished: dict[str, object] = {"logical_key": "vanished", "exact_key": "old-1"}
+    kept: dict[str, object] = {"logical_key": "kept", "exact_key": "kept-1"}
+    newer = _normalized_response(
+        _normalized_host(
+            alias="apollo",
+            generation="gen-1",
+            snapshot_id=fleet_catalog_snapshot_id("new"),
+            observed_at_unix=20.0,
+            rows=[kept],
+        )
+    )
+    older = _normalized_response(
+        _normalized_host(
+            alias="apollo",
+            generation="gen-1",
+            snapshot_id=fleet_catalog_snapshot_id("old"),
+            observed_at_unix=10.0,
+            rows=[vanished, kept],
+        )
+    )
+
+    merged = merge_catalog_pages(newer, older)
 
     assert merged is not None
     assert [row["logical_key"] for row in merged["summaries"]] == ["kept"]

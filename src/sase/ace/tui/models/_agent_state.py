@@ -542,6 +542,10 @@ class AgentState:
     # pair, so a group banner can read either member row for host totals.
     fleet_host_running_count: int | None = field(default=None, compare=False)
     fleet_host_total_count: int | None = field(default=None, compare=False)
+    fleet_host_waiting_count: int | None = field(default=None, compare=False)
+    fleet_host_failed_count: int | None = field(default=None, compare=False)
+    fleet_host_done_count: int | None = field(default=None, compare=False)
+    fleet_host_unknown_count: int | None = field(default=None, compare=False)
     fleet_capabilities: dict[str, Any] | None = field(
         default=None,
         compare=False,

@@ -298,12 +298,14 @@ def _freshness_value(value: object) -> object:
     return value
 
 
-def _snapshot_generation(host: Mapping[str, Any]) -> str | None:
-    """Return the owner snapshot generation *host*'s page was built from.
+def _snapshot_identity(host: Mapping[str, Any]) -> tuple[str, str] | None:
+    """Return the owner snapshot identity *host*'s page was built from.
 
-    ``None`` when the generation can't be determined (missing/malformed
-    cursor), in which case the caller falls back to the old union behavior
-    rather than risk dropping rows it can't prove are stale.
+    Newer gateways expose a snapshot-specific identity. Older gateways only
+    expose the event-store generation; keep accepting that as a conservative
+    compatibility identity, but prefer the richer snapshot token whenever it
+    exists so age-based rebuilds with unchanged events/counts still reset
+    the viewer accumulation.
     """
     catalog = _catalog(host)
     if catalog is None:
@@ -311,28 +313,84 @@ def _snapshot_generation(host: Mapping[str, Any]) -> str | None:
     cursor = catalog.get("snapshot_cursor")
     if not isinstance(cursor, Mapping):
         return None
+    for source in (cursor, catalog):
+        for key in (
+            "snapshot_id",
+            "snapshot_identity",
+            "snapshot_generation",
+            "snapshot_revision",
+            "snapshot_token",
+        ):
+            value = source.get(key)
+            if isinstance(value, str) and value.strip():
+                return ("snapshot", value.strip())
+            if isinstance(value, int) and not isinstance(value, bool):
+                return ("snapshot", str(value))
     generation = cursor.get("store_generation")
-    return generation if isinstance(generation, str) and generation else None
+    if isinstance(generation, str) and generation:
+        return ("store_generation", generation)
+    return None
+
+
+def _snapshot_order(host: Mapping[str, Any]) -> tuple[float, ...] | None:
+    """Return best-effort monotonic order evidence for one host snapshot."""
+    catalog = _catalog(host) or {}
+    cursor = catalog.get("snapshot_cursor")
+    cursor_map = cursor if isinstance(cursor, Mapping) else {}
+    values: list[float] = []
+    for value in (
+        catalog.get("snapshot_sequence"),
+        cursor_map.get("snapshot_sequence"),
+        catalog.get("sequence"),
+        cursor_map.get("sequence"),
+        host.get("count_revision"),
+        host.get("observed_at_unix"),
+        host.get("observed_at"),
+    ):
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)):
+            values.append(float(value))
+        elif isinstance(value, str) and value.strip():
+            try:
+                values.append(float(value))
+            except ValueError:
+                continue
+    return tuple(values) if values else None
+
+
+def _host_page_merge_mode(
+    first: Mapping[str, Any],
+    second: Mapping[str, Any],
+) -> str:
+    first_identity = _snapshot_identity(first)
+    second_identity = _snapshot_identity(second)
+    if (
+        first_identity is None
+        or second_identity is None
+        or first_identity == second_identity
+    ):
+        return "union"
+    first_order = _snapshot_order(first)
+    second_order = _snapshot_order(second)
+    if first_order is not None and second_order is not None:
+        return "second" if second_order >= first_order else "first"
+    return "second"
 
 
 def _merge_normalized_host_pages(
     first: Mapping[str, Any],
     second: Mapping[str, Any],
 ) -> dict[str, Any]:
-    first_generation = _snapshot_generation(first)
-    second_generation = _snapshot_generation(second)
-    if (
-        first_generation is not None
-        and second_generation is not None
-        and first_generation != second_generation
-    ):
-        # `second` was fetched later and belongs to a newer owner snapshot
-        # build than the rows already accumulated in `first`. A page from an
-        # older generation must never resurrect a row the newer generation
-        # no longer serves (dismissed, demoted, or aged out since), so the
-        # newer page's own rows replace the stale accumulation instead of
-        # being unioned with it.
+    merge_mode = _host_page_merge_mode(first, second)
+    if merge_mode == "first":
+        rows = [dict(item) for item in summary_payloads(first)]
+        winner = first
+    elif merge_mode == "second":
+        # A replacement snapshot drops rows and count/cursor evidence absent
+        # from that snapshot so vanished rows cannot persist client-side.
         rows = [dict(item) for item in summary_payloads(second)]
+        winner = second
     else:
         rows = [dict(item) for item in summary_payloads(first)]
         seen = {_summary_identity(item) for item in rows}
@@ -342,32 +400,34 @@ def _merge_normalized_host_pages(
                 continue
             rows.append(dict(item))
             seen.add(key)
+        winner = second
 
     merged = dict(first)
-    merged.update(
-        {
-            key: second[key]
-            for key in (
-                "status",
-                "cached",
-                "age_seconds",
-                "partial",
-                "freshness",
-                "observed_at_unix",
-                "authoritative_counts",
-                "count_revision",
-                "catalog",
-                "unresolved_logical_keys",
-            )
-            if key in second
-        }
-    )
+    if winner is second:
+        merged.update(
+            {
+                key: second[key]
+                for key in (
+                    "status",
+                    "cached",
+                    "age_seconds",
+                    "partial",
+                    "freshness",
+                    "observed_at_unix",
+                    "authoritative_counts",
+                    "count_revision",
+                    "catalog",
+                    "unresolved_logical_keys",
+                )
+                if key in second
+            }
+        )
     merged["summaries"] = rows
     merged["diagnostics"] = [
         *tuple(dict(item) for item in _mapping_sequence(first.get("diagnostics"))),
         *tuple(dict(item) for item in _mapping_sequence(second.get("diagnostics"))),
     ]
-    count_input = second.get("count_input") or first.get("count_input")
+    count_input = winner.get("count_input") or first.get("count_input")
     if isinstance(count_input, Mapping):
         merged["count_input"] = {
             **dict(count_input),

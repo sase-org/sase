@@ -373,18 +373,20 @@ def test_banner_summary_text_empty_when_count_is_zero() -> None:
 def test_compute_banner_summary_by_machine_l0_uses_authoritative_host_counts() -> None:
     """A remote-machine banner sources counts from the host, not a recount.
 
-    Loaded rows say 2 agents both look RUNNING; the host's own authoritative
-    counts (as apollo itself would report) say only 1 is really running, so
-    the banner must show the host's numbers, not the client recount.
+    Loaded rows say two agents both look RUNNING. The host's authoritative
+    counts say only one is really running and the other is waiting, so the
+    banner must show the host's known states without inventing unknown.
     """
     stale = _agent(cl_name="a", status="RUNNING")
     stale.fleet_origin_alias = "apollo"
     stale.fleet_host_running_count = 1
     stale.fleet_host_total_count = 2
+    stale.fleet_host_waiting_count = 1
     live = _agent(cl_name="b", status="RUNNING")
     live.fleet_origin_alias = "apollo"
     live.fleet_host_running_count = 1
     live.fleet_host_total_count = 2
+    live.fleet_host_waiting_count = 1
     agents = [stale, live]
     group = GroupRow(level=0, group_key=("apollo",), agent_indices=(0, 1))
 
@@ -393,13 +395,14 @@ def test_compute_banner_summary_by_machine_l0_uses_authoritative_host_counts() -
     assert summary.authoritative is True
     assert summary.count == 2
     assert summary.running == 1
-    assert summary.unknown == 1
+    assert summary.awaiting == 1
+    assert summary.unknown == 0
     text = banner_summary_text(summary)
     assert "2 agents" in text
     assert "1 running" in text
-    assert "1 unknown" in text
+    assert "1 awaiting" in text
+    assert "unknown" not in text
     assert "failed" not in text
-    assert "awaiting" not in text
 
 
 def test_compute_banner_summary_by_machine_l0_keeps_recount_for_here_group() -> None:
@@ -425,6 +428,22 @@ def test_compute_banner_summary_by_machine_l0_falls_back_without_host_counts() -
     assert summary.authoritative is False
     assert summary.count == 1
     assert summary.running == 1
+
+
+def test_compute_banner_summary_by_machine_l0_shows_explicit_unknown_count() -> None:
+    """Unknown renders only when the host reports it explicitly."""
+    agent = _agent(cl_name="a", status="RUNNING")
+    agent.fleet_origin_alias = "apollo"
+    agent.fleet_host_total_count = 3
+    agent.fleet_host_running_count = 1
+    agent.fleet_host_unknown_count = 1
+    group = GroupRow(level=0, group_key=("apollo",), agent_indices=(0,))
+
+    summary = compute_banner_summary(group, [agent], mode=GroupingMode.BY_MACHINE)
+
+    assert summary.authoritative is True
+    assert summary.unknown == 1
+    assert "1 unknown" in banner_summary_text(summary)
 
 
 # --- Snap-to-ancestor helper ---
