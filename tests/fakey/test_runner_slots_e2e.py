@@ -5,7 +5,8 @@ mutations, live config reload, and a real bundled ``fakey`` subprocess.  The
 only shortened production behavior is the two-second parked-agent poll.
 
 Real monitor and gate-shell lifecycle acceptance lives in the sibling
-``test_monitor_gate_capacity_e2e.py``, which shares this module's harness.
+``test_monitor_capacity_e2e.py`` and ``test_gate_capacity_e2e.py``, which
+share this module's harness.
 """
 
 from __future__ import annotations
