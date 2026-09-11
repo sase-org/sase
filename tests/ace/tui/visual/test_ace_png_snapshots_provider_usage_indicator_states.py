@@ -67,11 +67,29 @@ async def _snapshot_top_bar(
         ace_png_visual.assert_page_png(page, name, title=title)
 
 
-async def test_top_bar_usage_badges_extra_wide_png_snapshot(
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "top_bar_usage_groups_weekly_dark_160x24",
+            "ACE top bar with three weekly usage groups in full - dark theme",
+        ),
+        (
+            "textual-light",
+            "top_bar_usage_groups_weekly_light_160x24",
+            "ACE top bar with three weekly usage groups in full - light theme",
+        ),
+    ],
+)
+async def test_top_bar_usage_groups_extra_wide_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
 ) -> None:
-    """A 160-column bar shows every weekly entry in full with no overflow count."""
+    """A 160-column bar shows every weekly group in full with no overflow count."""
     patch_startup_loaders(monkeypatch)
     quiet_top_bar(monkeypatch)
 
@@ -133,8 +151,9 @@ async def test_top_bar_usage_badges_extra_wide_png_snapshot(
     await _snapshot_top_bar(
         ace_png_visual,
         size=(160, 24),
-        name="top_bar_usage_badges_weekly_160x24",
-        title="ACE top bar with three weekly usage badges in full at 160 columns",
+        name=snapshot_name,
+        title=title,
+        theme=theme,
     )
 
 
@@ -187,7 +206,7 @@ async def test_top_bar_claude_three_windows_png_snapshot(
         ace_png_visual,
         size=(140, 24),
         name="top_bar_usage_claude_three_windows_140x24",
-        title="ACE top bar with Claude session, weekly, and weekly-Fable badges",
+        title="ACE top bar with Claude session, weekly, and weekly-Fable group",
     )
 
 
@@ -218,6 +237,56 @@ async def test_top_bar_usage_badges_crowded_narrow_png_snapshot(
         size=(60, 24),
         name="top_bar_usage_badges_crowded_60x24",
         title="ACE top bar with usage disclosure squeezed beside routing at 60 columns",
+    )
+
+
+async def test_top_bar_usage_partial_group_overflow_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An 80-column bar keeps a partial provider group plus a +N disclosure."""
+    patch_startup_loaders(monkeypatch)
+    quiet_top_bar(monkeypatch)
+
+    patch_projection(
+        monkeypatch,
+        _entries_projection(
+            entry(provider="claude", window_key="weekly", remaining_percent=62.0),
+            entry(
+                provider="claude",
+                window_key="weekly:claude-fable-5",
+                window_label="Claude weekly Fable",
+                weekly_all=False,
+                period_kind="weekly",
+                duration_seconds=None,
+                entry_scope=scope(
+                    kind="product", product="claude", model_ids=("claude-fable-5",)
+                ),
+                remaining_percent=7.0,
+                seconds_until_reset=115_200.0,
+                resets_at=FROZEN_NOW + 115_200.0,
+                display_attention="very_low",
+            ),
+            entry(
+                provider="claude",
+                window_key="session",
+                weekly_all=False,
+                period_kind="session",
+                duration_seconds=None,
+                remaining_percent=18.0,
+                seconds_until_reset=7_740.0,
+                resets_at=FROZEN_NOW + 7_740.0,
+                display_attention="low",
+            ),
+            entry(provider="codex", window_key="weekly", remaining_percent=81.0),
+        ),
+    )
+
+    await _snapshot_top_bar(
+        ace_png_visual,
+        size=(80, 24),
+        name="top_bar_usage_partial_group_overflow_80x24",
+        title="ACE top bar with partial grouped usage overflow at 80 columns",
     )
 
 
@@ -268,7 +337,7 @@ async def test_top_bar_usage_collector_failure_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A failing collector keeps its warning marker beside healthy badges."""
+    """A failing collector keeps tooltip prose without a warning marker."""
     patch_startup_loaders(monkeypatch)
     quiet_top_bar(monkeypatch)
 
@@ -287,7 +356,7 @@ async def test_top_bar_usage_collector_failure_png_snapshot(
         ace_png_visual,
         size=(140, 24),
         name="top_bar_usage_collector_failure_140x24",
-        title="ACE top bar usage badges with a failing collector warning marker",
+        title="ACE top bar grouped usage with collector failure prose",
     )
 
 
@@ -319,8 +388,8 @@ async def test_top_bar_usage_palette_png_snapshot(
 
     deciles = tuple(
         entry(
-            provider="claude",
-            window_key=f"weekly:bucket-{index}",
+            provider=f"p{index}",
+            window_key="weekly",
             remaining_percent=index * 10.0 + 5.0,
             reset_state="unknown",
             seconds_until_reset=None,

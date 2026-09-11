@@ -5,8 +5,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from rich.text import Text
-
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
@@ -14,7 +12,7 @@ from sase.ace.tui.widgets import (
     ProviderDisablesIndicator,
     UpdatesAvailableIndicator,
 )
-from sase.ace.tui.widgets._provider_usage_indicator import UsageBadge
+from sase.ace.tui.widgets._provider_usage_indicator import usage_indicator_groups
 from sase.llm_provider.config import (
     DEFAULT_MODEL_FIELD,
     launch_model_setting_override_key,
@@ -28,6 +26,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 )
 from tests.ace.tui.visual._provider_usage_indicator_fixtures import (
     disable,
+    entry,
     override,
     paint_current_project_chip,
     patch_projection,
@@ -62,17 +61,22 @@ async def test_top_bar_usage_attention_narrow_png_snapshot(
         SimpleNamespace(entries=(), providers=(), generated_at=100.0),
     )
 
-    usage_badges = (
-        UsageBadge(
-            provider="grok",
-            text=Text("🛰️ ⚠"),
-            tooltip_lines=("GROK - usage collection is failing",),
+    usage_groups = usage_indicator_groups(
+        (
+            entry(
+                provider="grok",
+                remaining_percent=4.0,
+                vendor_state="rejected",
+                display_attention="rejected",
+            ),
+            entry(
+                provider="codex",
+                remaining_percent=12.0,
+                display_attention="low",
+            ),
         ),
-        UsageBadge(
-            provider="codex",
-            text=Text("🤖 12% 3d4h"),
-            tooltip_lines=("CODEX - low · 12% left · Shared 5h",),
-        ),
+        dark=True,
+        now=100.0,
     )
 
     async with AcePage(
@@ -89,7 +93,7 @@ async def test_top_bar_usage_attention_narrow_png_snapshot(
             "#provider-disables-indicator",
             ProviderDisablesIndicator,
         )
-        provider_indicator._usage_badges = usage_badges
+        provider_indicator._usage_groups = usage_groups
         provider_indicator._usage_open_provider = "grok"
         page.app.query_one("#llm-override-indicator", LLMOverrideIndicator)
         page.app.query_one("#alias-overrides-indicator", AliasOverridesIndicator)
@@ -97,7 +101,7 @@ async def test_top_bar_usage_attention_narrow_png_snapshot(
         provider_indicator.update(
             ProviderDisablesIndicator._build_content(
                 {"claude": disable("claude")},
-                usage_badges=usage_badges,
+                usage_groups=usage_groups,
                 usage_budget=3,
                 now=100.0,
             )

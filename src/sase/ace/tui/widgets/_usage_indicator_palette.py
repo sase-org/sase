@@ -49,8 +49,6 @@ GAP_SURFACE_DARK_COLOR = "#121212"
 GAP_SURFACE_LIGHT_COLOR = "#FAFAFA"
 NEUTRAL_DARK_COLOR = "#B8C0CC"
 NEUTRAL_LIGHT_COLOR = "#4B535F"
-WARNING_DARK_COLOR = "#FF8A5F"
-WARNING_LIGHT_COLOR = "#A03620"
 REJECTED_DARK_COLOR = "#FF5F6D"
 REJECTED_LIGHT_COLOR = "#A22534"
 
@@ -114,9 +112,17 @@ def usage_disclosure_style(*, dark: bool) -> str:
     return f"bold {usage_neutral_color(dark=dark)} on {_usage_badge_surface_color(dark=dark)}"
 
 
-def usage_warning_style(*, dark: bool) -> str:
-    """Return the bold collector-failure marker style; never color-only."""
-    return f"bold {WARNING_DARK_COLOR if dark else WARNING_LIGHT_COLOR}"
+def usage_value_style(color: str, *, dark: bool) -> str:
+    """Return the bold value style for a window name, percent, and countdown."""
+    return f"bold {color} on {_usage_badge_surface_color(dark=dark)}"
+
+
+def usage_divider_style(color: str, *, dark: bool) -> str:
+    """Return the normal-weight pipe style on the continuous provider surface."""
+    return (
+        f"not bold not dim not reverse {color} "
+        f"on {_usage_badge_surface_color(dark=dark)}"
+    )
 
 
 def usage_rejected_style(*, dark: bool) -> str:
@@ -129,10 +135,11 @@ __all__ = [
     "NEUTRAL_LIGHT_COLOR",
     "usage_badge_base_style",
     "usage_disclosure_style",
+    "usage_divider_style",
     "usage_gap_style",
     "usage_neutral_color",
     "usage_percent_color",
     "usage_rejected_style",
     "usage_secondary_style",
-    "usage_warning_style",
+    "usage_value_style",
 ]

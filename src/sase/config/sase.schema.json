@@ -3482,7 +3482,7 @@
               "properties": {
                 "enabled": {
                   "type": "boolean",
-                  "description": "Show usage-window indicators in ACE. False hides numeric windows and collector-health usage marks while leaving collection and the Providers · Usage view active.",
+                  "description": "Show usage-window indicators in ACE. False hides display entries while leaving collection and the Providers · Usage view active.",
                   "default": true
                 },
                 "default": {

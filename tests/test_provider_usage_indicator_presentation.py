@@ -10,7 +10,7 @@ from rich.text import Text
 
 from sase.ace.tui.widgets._provider_usage_indicator import (
     build_usage_indicator_segment,
-    usage_indicator_badges,
+    usage_indicator_groups,
     usage_indicator_open_provider,
     usage_indicator_tooltip_lines,
 )
@@ -21,17 +21,29 @@ from sase.ace.tui.widgets._usage_indicator_palette import (
     usage_neutral_color,
     usage_percent_color,
     usage_rejected_style,
-    usage_warning_style,
 )
+from sase.llm_provider.usage.store import provider_usage_project_indicator
+from tests._usage_view_helpers import usage_provider, usage_window
 
 FROZEN_NOW = 1_800_000_000.0
 
-_CONSOLE = Console(width=200)
+_CONSOLE = Console(width=240)
 
 
 def _rendered_segments(text: Text) -> list[tuple[str, Style | None]]:
     """Return the fully resolved (base + span) style for each rendered run."""
     return [(segment.text, segment.style) for segment in text.render(_CONSOLE)]
+
+
+def _segments_with_offsets(text: Text) -> list[tuple[int, int, str, Style | None]]:
+    offset = 0
+    result: list[tuple[int, int, str, Style | None]] = []
+    for segment in text.render(_CONSOLE):
+        length = len(segment.text)
+        if length:
+            result.append((offset, offset + length, segment.text, segment.style))
+        offset += length
+    return result
 
 
 def _style_for(text: Text, token: str) -> Style:
@@ -45,6 +57,33 @@ def _style_for(text: Text, token: str) -> Style:
     style = matches[0]
     assert style is not None
     return style
+
+
+def _style_at_token(text: Text, token: str, *, occurrence: int = 0) -> Style:
+    start = -1
+    cursor = 0
+    for _ in range(occurrence + 1):
+        start = text.plain.find(token, cursor)
+        assert start >= 0, f"missing {token!r} occurrence {occurrence}"
+        cursor = start + len(token)
+    for seg_start, seg_end, _rendered, style in _segments_with_offsets(text):
+        if seg_start <= start < seg_end:
+            assert style is not None
+            return style
+    raise AssertionError(f"no style for {token!r} in {text.plain!r}")
+
+
+def _pipe_styles(text: Text) -> list[Style]:
+    styles: list[Style] = []
+    for index, character in enumerate(text.plain):
+        if character != "|":
+            continue
+        for seg_start, seg_end, _rendered, style in _segments_with_offsets(text):
+            if seg_start <= index < seg_end:
+                assert style is not None
+                styles.append(style)
+                break
+    return styles
 
 
 def _hex_to_rgb(value: str) -> tuple[int, int, int]:
@@ -135,179 +174,263 @@ def _entry(
     }
 
 
-def _badges(*entries: dict[str, object], providers=(), dark: bool = True):
-    return usage_indicator_badges(entries, providers, dark=dark, now=FROZEN_NOW)
+def _groups(*entries: dict[str, object], dark: bool = True):
+    return usage_indicator_groups(entries, dark=dark, now=FROZEN_NOW)
 
 
-def test_weekly_all_model_window_omits_specifier() -> None:
-    entry = _entry(provider="claude", remaining_percent=62.0)
+@pytest.mark.parametrize(
+    ("entry", "expected"),
+    [
+        pytest.param(_entry(), "🎭 62% 3d4h", id="weekly-all-default"),
+        pytest.param(
+            _entry(
+                window_key="session",
+                window_label="Claude five-hour session",
+                weekly_all=False,
+                period_kind="session",
+                duration_seconds=None,
+                scope=_scope(kind="all_models", product="claude"),
+                remaining_percent=18.0,
+                seconds_until_reset=7_740.0,
+                resets_at=FROZEN_NOW + 7_740.0,
+            ),
+            "🎭 5h 18% 2h9m",
+            id="session-all",
+        ),
+        pytest.param(
+            _entry(
+                window_key="weekly:claude-fable-5",
+                window_label="Claude weekly Fable",
+                weekly_all=False,
+                period_kind="weekly",
+                duration_seconds=None,
+                scope=_scope(
+                    kind="product",
+                    product="claude",
+                    model_ids=("claude-fable-5",),
+                ),
+                remaining_percent=7.0,
+                seconds_until_reset=115_200.0,
+                resets_at=FROZEN_NOW + 115_200.0,
+            ),
+            "🎭 fable 7% 1d8h",
+            id="weekly-model",
+        ),
+        pytest.param(
+            _entry(
+                provider="grok",
+                window_key="included_monthly",
+                window_label="Grok included monthly allowance",
+                weekly_all=False,
+                period_kind="monthly",
+                duration_seconds=None,
+                scope=_scope(kind="all_models"),
+                remaining_percent=44.0,
+                seconds_until_reset=112_200.0,
+                resets_at=FROZEN_NOW + 112_200.0,
+            ),
+            "🛰️ mo 44% 1d7h",
+            id="monthly-all",
+        ),
+        pytest.param(
+            _entry(
+                provider="codex",
+                window_key="fast:secondary",
+                window_label="Fast",
+                weekly_all=False,
+                period_kind="duration",
+                duration_seconds=18_000.0,
+                scope=_scope(kind="unknown", vendor_label="Fast"),
+                remaining_percent=12.0,
+                seconds_until_reset=7_740.0,
+                resets_at=FROZEN_NOW + 7_740.0,
+            ),
+            "🤖 Fast/5h/scope? 12% 2h9m",
+            id="unknown-scope",
+        ),
+    ],
+)
+def test_compact_window_names(entry: dict[str, object], expected: str) -> None:
+    segment = build_usage_indicator_segment(_groups(entry))
 
-    badges = _badges(entry)
-    segment = build_usage_indicator_segment(badges)
-
-    assert segment.plain.strip() == "🎭 62% 3d4h"
+    assert segment.plain.strip() == expected
 
 
-def test_claude_five_hour_session_uses_all_specifier() -> None:
-    entry = _entry(
-        provider="claude",
-        window_key="session",
-        window_label="Claude five-hour session",
-        weekly_all=False,
-        period_kind="session",
-        duration_seconds=None,
-        scope=_scope(kind="all_models", product="claude"),
-        remaining_percent=18.0,
-        seconds_until_reset=7_740.0,
-        resets_at=FROZEN_NOW + 7_740.0,
-    )
-
-    segment = build_usage_indicator_segment(_badges(entry))
-
-    assert segment.plain.strip() == "🎭 5h/all 18% 2h9m"
-
-
-def test_claude_weekly_fable_uses_short_model_alias() -> None:
-    entry = _entry(
+def test_grouped_default_first_text_order_icons_and_pipes() -> None:
+    all_model = _entry(provider="claude", window_key="weekly", remaining_percent=62.0)
+    fable = _entry(
         provider="claude",
         window_key="weekly:claude-fable-5",
-        window_label="Claude weekly Fable",
         weekly_all=False,
-        period_kind="weekly",
-        duration_seconds=None,
         scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
         remaining_percent=7.0,
         seconds_until_reset=115_200.0,
         resets_at=FROZEN_NOW + 115_200.0,
+        display_attention="very_low",
     )
-
-    segment = build_usage_indicator_segment(_badges(entry))
-
-    assert segment.plain.strip() == "🎭 wk/fable 7% 1d8h"
-
-
-def test_grok_monthly_account_uses_all_specifier() -> None:
-    entry = _entry(
-        provider="grok",
-        window_key="included_monthly",
-        window_label="Grok included monthly allowance",
+    session = _entry(
+        provider="claude",
+        window_key="session",
         weekly_all=False,
-        period_kind="monthly",
+        period_kind="session",
         duration_seconds=None,
-        scope=_scope(kind="all_models"),
-        remaining_percent=44.0,
-        seconds_until_reset=112_200.0,
-        resets_at=FROZEN_NOW + 112_200.0,
+        remaining_percent=18.0,
+        seconds_until_reset=7_740.0,
+        resets_at=FROZEN_NOW + 7_740.0,
+        display_attention="low",
+    )
+    codex = _entry(
+        provider="codex",
+        window_key="weekly",
+        remaining_percent=81.0,
+        seconds_until_reset=439_200.0,
+        resets_at=FROZEN_NOW + 439_200.0,
+        display_attention="low",
     )
 
-    segment = build_usage_indicator_segment(_badges(entry))
+    segment = build_usage_indicator_segment(_groups(codex, session, fable, all_model))
 
-    assert segment.plain.strip() == "🛰️ mo/all 44% 1d7h"
+    assert segment.plain.strip() == (
+        "🎭 62% 3d4h | fable 7% 1d8h | 5h 18% 2h9m | 🤖 81% 5d2h"
+    )
+    assert segment.plain.count("🎭") == 1
+    assert segment.plain.count("🤖") == 1
+    assert segment.plain.count("|") == 3
+    assert "⚠" not in segment.plain
 
 
-def test_unknown_scope_vendor_label_leads_specifier() -> None:
+def test_hidden_default_starts_with_named_extra() -> None:
+    fable = _entry(
+        provider="claude",
+        window_key="weekly:claude-fable-5",
+        weekly_all=False,
+        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
+        remaining_percent=7.0,
+        seconds_until_reset=115_200.0,
+        resets_at=FROZEN_NOW + 115_200.0,
+        display_attention="very_low",
+    )
+
+    segment = build_usage_indicator_segment(_groups(fable))
+
+    assert segment.plain.strip() == "🎭 fable 7% 1d8h"
+    assert "|" not in segment.plain
+
+
+def test_multiple_default_classified_entries_keep_lowest_key_unnamed() -> None:
+    later = _entry(window_key="weekly:b", remaining_percent=55.0)
+    anchor = _entry(window_key="weekly:a", remaining_percent=62.0)
+
+    segment = build_usage_indicator_segment(_groups(later, anchor))
+
+    assert segment.plain.strip() == "🎭 62% 3d4h | wk/all 55% 3d4h"
+
+
+def test_colliding_compact_names_receive_stable_key_suffixes() -> None:
+    first = _entry(
+        window_key="fable-a",
+        weekly_all=False,
+        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
+        remaining_percent=9.0,
+    )
+    second = _entry(
+        window_key="fable-b",
+        weekly_all=False,
+        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
+        remaining_percent=8.0,
+    )
+
+    segment = build_usage_indicator_segment(_groups(second, first))
+
+    assert "fable [fable-a] 9%" in segment.plain
+    assert "fable [fable-b] 8%" in segment.plain
+
+
+def test_names_normalize_controls_and_structural_pipes() -> None:
     entry = _entry(
         provider="codex",
-        window_key="fast:secondary",
-        window_label="Fast",
+        window_key="fast",
         weekly_all=False,
         period_kind="duration",
         duration_seconds=18_000.0,
-        scope=_scope(kind="unknown", vendor_label="Fast"),
+        scope=_scope(kind="unknown", vendor_label="Fast|\nTier\tA"),
         remaining_percent=12.0,
         seconds_until_reset=7_740.0,
         resets_at=FROZEN_NOW + 7_740.0,
     )
 
-    segment = build_usage_indicator_segment(_badges(entry))
+    segment = build_usage_indicator_segment(_groups(entry))
 
-    assert segment.plain.strip() == "🤖 Fast/5h/scope? 12% 2h9m"
+    assert "Fast/ Tier A/5h/scope? 12%" in segment.plain
+    assert segment.plain.count("|") == 0
 
 
-def test_vendor_rejected_window_shows_marker() -> None:
+def test_vendor_rejected_window_shows_marker_before_percentage() -> None:
     entry = _entry(
         provider="grok",
-        weekly_all=True,
         remaining_percent=4.0,
         vendor_state="rejected",
-        window_attention="rejected",
         display_attention="rejected",
     )
 
-    segment = build_usage_indicator_segment(_badges(entry))
+    segment = build_usage_indicator_segment(_groups(entry))
 
     assert segment.plain.strip() == "🛰️ ! 4% 3d4h"
 
 
-def test_collector_problem_entry_shows_warning_marker() -> None:
-    entry = _entry(provider="codex", remaining_percent=50.0, collector_problem=True)
-
-    segment = build_usage_indicator_segment(_badges(entry))
-
-    assert segment.plain.strip() == "🤖 ⚠ 50% 3d4h"
-
-
-def test_standalone_collector_failure_without_selected_window() -> None:
-    providers = (
-        {
-            "provider": "grok",
-            "collection_status": "error",
-            "collection_reason": "vendor_drift",
-            "diagnostic": None,
-            "collector_health": {
-                "state": "failing",
-                "consecutive_failures": 5,
-                "failing_since": FROZEN_NOW - 172_800.0,
-                "last_success_at": FROZEN_NOW - 259_200.0,
-            },
-            "collector_problem": True,
-        },
-    )
-
-    badges = _badges(providers=providers)
-    segment = build_usage_indicator_segment(badges)
-    tooltip_lines = usage_indicator_tooltip_lines(badges)
-
-    assert segment.plain.strip() == "🛰️ ⚠"
-    assert tooltip_lines[0] == "GROK - usage collection is failing"
-    assert any("failing since: 2d ago" in line for line in tooltip_lines)
-    assert any("last success: 3d ago" in line for line in tooltip_lines)
-
-
-def test_stale_reading_appends_tilde_and_uses_neutral_style() -> None:
-    entry = _entry(provider="claude", remaining_percent=62.0, freshness="stale")
-
-    segment = build_usage_indicator_segment(_badges(entry))
-
-    assert segment.plain.strip() == "🎭 62%~ 3d4h"
-
-
-def test_reset_passed_shows_question_percent_and_reset_glyph() -> None:
+def test_collector_problem_entry_has_no_warning_marker_but_keeps_tooltip_prose() -> (
+    None
+):
     entry = _entry(
-        provider="claude",
+        provider="codex",
+        remaining_percent=50.0,
+        collector_problem=True,
+        vendor_state="rejected",
+        display_attention="collection_problem",
+    )
+    groups = _groups(entry)
+
+    segment = build_usage_indicator_segment(groups)
+    tooltip = usage_indicator_tooltip_lines(groups)
+
+    assert segment.plain.strip() == "🤖 ! 50% 3d4h"
+    assert "⚠" not in segment.plain
+    assert any("collector is currently failing" in line for line in tooltip)
+
+
+def test_collector_only_state_produces_no_group_or_overflow_count() -> None:
+    groups = usage_indicator_groups((), dark=True, now=FROZEN_NOW)
+
+    assert groups == ()
+    assert build_usage_indicator_segment(groups).plain == ""
+    assert usage_indicator_tooltip_lines(groups) == ()
+
+
+def test_stale_passed_unknown_reset_and_percent_edges() -> None:
+    stale = _entry(remaining_percent=62.0, freshness="stale")
+    passed = _entry(
         remaining_percent=62.0,
         reset_state="passed",
         seconds_until_reset=0.0,
         resets_at=FROZEN_NOW - 10.0,
     )
-
-    segment = build_usage_indicator_segment(_badges(entry))
-
-    assert segment.plain.strip() == "🎭 ?% 0h0m↻"
-
-
-def test_missing_reset_shows_question_mark_countdown() -> None:
-    entry = _entry(
-        provider="claude",
+    unknown_reset = _entry(
         remaining_percent=62.0,
         reset_state="unknown",
         seconds_until_reset=None,
         resets_at=None,
     )
 
-    segment = build_usage_indicator_segment(_badges(entry))
-
-    assert segment.plain.strip() == "🎭 62% ?"
+    assert build_usage_indicator_segment(_groups(stale)).plain.strip() == "🎭 62%~ 3d4h"
+    assert build_usage_indicator_segment(_groups(passed)).plain.strip() == (
+        "🎭 ?% 0h0m↻"
+    )
+    assert build_usage_indicator_segment(_groups(unknown_reset)).plain.strip() == (
+        "🎭 62% ?"
+    )
+    assert format_usage_percent_text(0.0) == "0%"
+    assert format_usage_percent_text(0.4) == "<1%"
+    assert format_usage_percent_text(100.0) == "100%"
 
 
 def test_countdown_boundary_values() -> None:
@@ -318,7 +441,7 @@ def test_countdown_boundary_values() -> None:
             seconds_until_reset=seconds,
             resets_at=FROZEN_NOW + seconds,
         )
-        segment = build_usage_indicator_segment(_badges(entry))
+        segment = build_usage_indicator_segment(_groups(entry))
         return segment.plain.strip().rsplit(" ", 1)[-1]
 
     assert _countdown(59.0) == "0h1m"
@@ -329,8 +452,8 @@ def test_countdown_boundary_values() -> None:
     assert _countdown(86_400.0) == "1d0h"
 
 
-def test_ten_bucket_percent_boundaries_use_the_documented_dark_palette() -> None:
-    expected = (
+def test_ten_bucket_percent_boundaries_use_the_documented_palettes() -> None:
+    expected_dark = (
         "#FF5F6D",
         "#FF805F",
         "#FFA552",
@@ -342,266 +465,247 @@ def test_ten_bucket_percent_boundaries_use_the_documented_dark_palette() -> None
         "#48CCD0",
         "#65C3ED",
     )
-    for decile, color in enumerate(expected):
+    for decile, color in enumerate(expected_dark):
         assert usage_percent_color(decile * 10, dark=True) == color
         assert usage_percent_color(decile * 10 + 9.99, dark=True) == color
-    assert usage_percent_color(100, dark=True) == expected[9]
-    assert (
-        len({usage_percent_color(decile * 10, dark=True) for decile in range(10)}) == 10
-    )
-
-
-def test_ten_bucket_percent_uses_a_distinct_light_theme_palette() -> None:
+    assert usage_percent_color(100, dark=True) == expected_dark[9]
     assert usage_percent_color(0, dark=False) == "#A22534"
     assert usage_percent_color(95, dark=False) == "#006381"
-    assert usage_percent_color(0, dark=False) != usage_percent_color(0, dark=True)
 
 
-def test_multi_window_same_provider_orders_and_joins_with_two_spaces() -> None:
-    all_model = _entry(provider="claude", window_key="weekly", remaining_percent=62.0)
-    fable = _entry(
-        provider="claude",
+@pytest.mark.parametrize("dark", [True, False])
+def test_name_percent_and_countdown_share_bold_value_color(dark: bool) -> None:
+    entry = _entry(
         window_key="weekly:claude-fable-5",
         weekly_all=False,
         scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
         remaining_percent=7.0,
+        seconds_until_reset=115_200.0,
+        resets_at=FROZEN_NOW + 115_200.0,
         display_attention="very_low",
     )
-
-    segment = build_usage_indicator_segment(_badges(fable, all_model))
-
-    assert segment.plain.strip() == "🎭 wk/fable 7% 3d4h  🎭 62% 3d4h"
-
-
-def test_budget_packing_falls_back_through_the_full_ladder() -> None:
-    grok = _entry(provider="grok", remaining_percent=4.0, display_attention="rejected")
-    codex = _entry(provider="codex", remaining_percent=50.0)
-    claude = _entry(provider="claude", remaining_percent=62.0)
-    badges = _badges(grok, codex, claude)
-
-    full = build_usage_indicator_segment(badges)
-    assert cell_len(full.plain) == full.cell_len
-
-    overflow = build_usage_indicator_segment(badges, budget=full.cell_len - 1)
-    assert overflow.cell_len <= full.cell_len - 1
-    assert overflow.plain.strip().endswith("+1")
-    assert "🛰️" in overflow.plain
-
-    count_only = build_usage_indicator_segment(badges, budget=cell_len(" usage 3"))
-    assert count_only.plain.strip() == "usage 3"
-
-    micro = build_usage_indicator_segment(badges, budget=cell_len(" 3"))
-    assert micro.plain.strip() == "3"
-
-    assert build_usage_indicator_segment(badges, budget=1).plain == ""
-    assert build_usage_indicator_segment(badges, budget=0).plain == ""
-
-
-def test_open_provider_prefers_first_ranked_badge() -> None:
-    grok = _entry(provider="grok", remaining_percent=4.0, display_attention="rejected")
-    claude = _entry(provider="claude", remaining_percent=62.0)
-
-    assert usage_indicator_open_provider(_badges(claude, grok)) == "grok"
-    assert usage_indicator_open_provider(()) is None
-
-
-def test_healthy_weekly_window_is_still_open_provider_target() -> None:
-    entry = _entry(provider="claude", remaining_percent=62.0)
-
-    badges = _badges(entry)
-
-    assert usage_indicator_open_provider(badges) == "claude"
-
-
-def test_unknown_provider_falls_back_to_id_marker() -> None:
-    entry = _entry(provider="acme", remaining_percent=62.0)
-
-    segment = build_usage_indicator_segment(_badges(entry))
-
-    assert segment.plain.strip() == "ACME 62% 3d4h"
-
-
-@pytest.mark.parametrize("dark", [True, False])
-@pytest.mark.parametrize("decile", range(10))
-def test_fresh_percent_and_countdown_share_bold_bucket_color(
-    dark: bool, decile: int
-) -> None:
-    remaining = decile * 10.0 + 5.0
-    entry = _entry(provider="claude", remaining_percent=remaining)
-    badge = _badges(entry, dark=dark)[0]
-    bucket_color = usage_percent_color(remaining, dark=dark)
+    segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
+    bucket_color = usage_percent_color(7.0, dark=dark)
     badge_surface = _usage_badge_surface_color(dark=dark)
 
-    percent_style = _style_for(badge.text, format_usage_percent_text(remaining))
-    countdown_style = _style_for(badge.text, "3d4h")
-
-    for style in (percent_style, countdown_style):
+    for token in ("fable", "7%", "1d8h"):
+        style = _style_at_token(segment, token)
         assert style.bold is True
         assert style.color is not None
         assert style.color.get_truecolor().hex == bucket_color.lower()
         assert style.bgcolor is not None
         assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
-    assert percent_style.color == countdown_style.color
-    assert percent_style.bgcolor == countdown_style.bgcolor
 
 
 @pytest.mark.parametrize("dark", [True, False])
-def test_stale_percent_and_countdown_use_bold_neutral_color(dark: bool) -> None:
-    entry = _entry(provider="claude", remaining_percent=62.0, freshness="stale")
-    badge = _badges(entry, dark=dark)[0]
-    neutral = usage_neutral_color(dark=dark)
-    badge_surface = _usage_badge_surface_color(dark=dark)
-
-    percent_style = _style_for(badge.text, "62%~")
-    countdown_style = _style_for(badge.text, "3d4h")
-
-    for style in (percent_style, countdown_style):
-        assert style.bold is True
-        assert style.color is not None
-        assert style.color.get_truecolor().hex == neutral.lower()
-        assert style.bgcolor is not None
-        assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
-
-
-@pytest.mark.parametrize("dark", [True, False])
-def test_passed_reset_percent_and_countdown_use_bold_neutral_color(dark: bool) -> None:
-    entry = _entry(
-        provider="claude",
+def test_stale_and_passed_values_use_bold_neutral_color(dark: bool) -> None:
+    stale = _entry(remaining_percent=62.0, freshness="stale")
+    passed = _entry(
         remaining_percent=62.0,
         reset_state="passed",
         seconds_until_reset=0.0,
         resets_at=FROZEN_NOW - 10.0,
     )
-    badge = _badges(entry, dark=dark)[0]
     neutral = usage_neutral_color(dark=dark)
 
-    percent_style = _style_for(badge.text, "?%")
-    countdown_style = _style_for(badge.text, "0h0m↻")
-
-    for style in (percent_style, countdown_style):
-        assert style.bold is True
-        assert style.color is not None
-        assert style.color.get_truecolor().hex == neutral.lower()
+    for segment, tokens in (
+        (
+            build_usage_indicator_segment(_groups(stale, dark=dark), dark=dark),
+            ("62%~", "3d4h"),
+        ),
+        (
+            build_usage_indicator_segment(_groups(passed, dark=dark), dark=dark),
+            ("?%", "0h0m↻"),
+        ),
+    ):
+        for token in tokens:
+            style = _style_at_token(segment, token)
+            assert style.bold is True
+            assert style.color is not None
+            assert style.color.get_truecolor().hex == neutral.lower()
 
 
 @pytest.mark.parametrize("dark", [True, False])
-def test_fresh_unknown_reset_countdown_matches_percent_bucket_color(dark: bool) -> None:
+def test_rejected_marker_renders_bold_on_badge_surface(dark: bool) -> None:
     entry = _entry(
-        provider="claude",
-        remaining_percent=62.0,
-        reset_state="unknown",
-        seconds_until_reset=None,
-        resets_at=None,
-    )
-    badge = _badges(entry, dark=dark)[0]
-    bucket_color = usage_percent_color(62.0, dark=dark)
-
-    percent_style = _style_for(badge.text, "62%")
-    countdown_style = _style_for(badge.text, "?")
-
-    for style in (percent_style, countdown_style):
-        assert style.bold is True
-        assert style.color is not None
-        assert style.color.get_truecolor().hex == bucket_color.lower()
-
-
-@pytest.mark.parametrize(
-    ("remaining", "expected_text"),
-    [(0.0, "0%"), (0.4, "<1%"), (100.0, "100%")],
-)
-@pytest.mark.parametrize("dark", [True, False])
-def test_percent_text_edge_values_share_color_with_countdown(
-    dark: bool, remaining: float, expected_text: str
-) -> None:
-    entry = _entry(provider="claude", remaining_percent=remaining)
-    badge = _badges(entry, dark=dark)[0]
-    bucket_color = usage_percent_color(remaining, dark=dark)
-
-    percent_style = _style_for(badge.text, expected_text)
-    countdown_style = _style_for(badge.text, "3d4h")
-
-    assert percent_style.color is not None
-    assert percent_style.color.get_truecolor().hex == bucket_color.lower()
-    assert percent_style == countdown_style
-
-
-@pytest.mark.parametrize("dark", [True, False])
-def test_specifier_and_separators_use_normal_weight_neutral_on_badge_surface(
-    dark: bool,
-) -> None:
-    entry = _entry(
-        provider="claude",
-        window_key="weekly:claude-fable-5",
-        window_label="Claude weekly Fable",
-        weekly_all=False,
-        period_kind="weekly",
-        duration_seconds=None,
-        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
-        remaining_percent=7.0,
-    )
-    badge = _badges(entry, dark=dark)[0]
-    neutral = usage_neutral_color(dark=dark)
-    badge_surface = _usage_badge_surface_color(dark=dark)
-
-    specifier_style = _style_for(badge.text, "wk/fable")
-    icon_style = _style_for(badge.text, "🎭 ")
-
-    for style in (specifier_style, icon_style):
-        assert not style.bold
-        assert style.color is not None
-        assert style.color.get_truecolor().hex == neutral.lower()
-        assert style.bgcolor is not None
-        assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
-
-
-@pytest.mark.parametrize("dark", [True, False])
-def test_warning_and_rejected_markers_render_bold_on_badge_surface(dark: bool) -> None:
-    warning_entry = _entry(
-        provider="codex", remaining_percent=50.0, collector_problem=True
-    )
-    rejected_entry = _entry(
         provider="grok",
         remaining_percent=4.0,
         vendor_state="rejected",
         display_attention="rejected",
     )
-    warning_badge = _badges(warning_entry, dark=dark)[0]
-    rejected_badge = _badges(rejected_entry, dark=dark)[0]
+    segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
     badge_surface = _usage_badge_surface_color(dark=dark)
 
     base_style = Style.parse(f"not bold not dim not reverse on {badge_surface}")
-    warning_style = _style_for(warning_badge.text, "⚠")
-    rejected_style = _style_for(rejected_badge.text, "!")
+    rejected_style = _style_for(segment, "!")
 
-    assert warning_style == Style.combine(
-        [base_style, Style.parse(usage_warning_style(dark=dark))]
-    )
     assert rejected_style == Style.combine(
         [base_style, Style.parse(usage_rejected_style(dark=dark))]
     )
 
 
 @pytest.mark.parametrize("dark", [True, False])
-def test_badge_gaps_use_the_app_background_not_the_badge_surface(dark: bool) -> None:
-    grok = _entry(provider="grok", remaining_percent=4.0, display_attention="rejected")
-    claude = _entry(provider="claude", remaining_percent=62.0)
-    segment = build_usage_indicator_segment(_badges(grok, claude, dark=dark), dark=dark)
-    gap_surface = _usage_gap_surface_color(dark=dark)
+def test_final_visible_window_colors_all_provider_dividers(dark: bool) -> None:
+    default = _entry(provider="claude", window_key="weekly", remaining_percent=62.0)
+    fable = _entry(
+        provider="claude",
+        window_key="weekly:claude-fable-5",
+        weekly_all=False,
+        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
+        remaining_percent=7.0,
+        seconds_until_reset=115_200.0,
+        resets_at=FROZEN_NOW + 115_200.0,
+        display_attention="very_low",
+    )
+    session = _entry(
+        provider="claude",
+        window_key="session",
+        weekly_all=False,
+        period_kind="session",
+        duration_seconds=None,
+        remaining_percent=18.0,
+        seconds_until_reset=7_740.0,
+        resets_at=FROZEN_NOW + 7_740.0,
+        display_attention="low",
+    )
+    codex = _entry(provider="codex", remaining_percent=81.0)
+    groups = _groups(default, fable, session, codex, dark=dark)
+    segment = build_usage_indicator_segment(groups, dark=dark)
+    session_color = usage_percent_color(18.0, dark=dark)
     badge_surface = _usage_badge_surface_color(dark=dark)
 
-    segments = _rendered_segments(segment)
-    # The leading run (before the first badge) and any exact two-space run
-    # (between badges) are gaps; single-space runs elsewhere are a badge's
-    # own internal separators, painted on the badge surface instead.
-    gap_runs = [segments[0][1]] + [
-        style for text, style in segments[1:] if text == "  "
-    ]
-    assert gap_runs, "expected at least one blank gap run"
-    for gap_style in gap_runs:
-        assert gap_style is not None
-        assert gap_style.bgcolor is not None
-        assert gap_style.bgcolor.get_truecolor().hex == gap_surface.lower()
-        assert gap_style.bgcolor.get_truecolor().hex != badge_surface.lower()
+    assert segment.plain.count("|") == 3
+    for style in _pipe_styles(segment):
+        assert style.bold is False
+        assert style.color is not None
+        assert style.color.get_truecolor().hex == session_color.lower()
+        assert style.bgcolor is not None
+        assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
+
+    boundary_pipe_index = segment.plain.rfind("|")
+    gap_style = _style_at_token(
+        segment, " ", occurrence=segment.plain[: boundary_pipe_index + 1].count(" ")
+    )
+    assert gap_style.bgcolor is not None
+    assert (
+        gap_style.bgcolor.get_truecolor().hex
+        == _usage_gap_surface_color(dark=dark).lower()
+    )
+
+
+def test_overflow_recolors_divider_to_new_final_visible_window() -> None:
+    default = _entry(provider="claude", window_key="weekly", remaining_percent=62.0)
+    fable = _entry(
+        provider="claude",
+        window_key="weekly:claude-fable-5",
+        weekly_all=False,
+        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
+        remaining_percent=7.0,
+        seconds_until_reset=115_200.0,
+        resets_at=FROZEN_NOW + 115_200.0,
+        display_attention="very_low",
+    )
+    session = _entry(
+        provider="claude",
+        window_key="session",
+        weekly_all=False,
+        period_kind="session",
+        duration_seconds=None,
+        remaining_percent=18.0,
+        seconds_until_reset=7_740.0,
+        resets_at=FROZEN_NOW + 7_740.0,
+        display_attention="low",
+    )
+    codex = _entry(provider="codex", remaining_percent=81.0)
+    groups = _groups(default, fable, session, codex)
+    expected = " 🎭 62% 3d4h | fable 7% 1d8h  +2"
+
+    segment = build_usage_indicator_segment(groups, budget=cell_len(expected))
+
+    assert segment.plain == expected
+    assert len(_pipe_styles(segment)) == 1
+    assert _pipe_styles(segment)[0].color is not None
+    assert (
+        _pipe_styles(segment)[0].color.get_truecolor().hex
+        == usage_percent_color(7.0, dark=True).lower()
+    )
+
+
+def test_neutral_final_window_colors_dividers_neutral() -> None:
+    default = _entry(provider="claude", window_key="weekly", remaining_percent=62.0)
+    stale = _entry(
+        provider="claude",
+        window_key="weekly:claude-fable-5",
+        weekly_all=False,
+        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
+        remaining_percent=50.0,
+        freshness="stale",
+    )
+
+    segment = build_usage_indicator_segment(_groups(default, stale))
+
+    assert len(_pipe_styles(segment)) == 1
+    assert _pipe_styles(segment)[0].color is not None
+    assert (
+        _pipe_styles(segment)[0].color.get_truecolor().hex
+        == usage_neutral_color(dark=True).lower()
+    )
+
+
+def test_budget_packing_falls_back_through_the_full_ladder() -> None:
+    grok = _entry(provider="grok", remaining_percent=4.0, display_attention="rejected")
+    codex = _entry(provider="codex", remaining_percent=50.0)
+    claude = _entry(provider="claude", remaining_percent=62.0)
+    groups = _groups(grok, codex, claude)
+
+    full = build_usage_indicator_segment(groups)
+    assert cell_len(full.plain) == full.cell_len
+
+    overflow = build_usage_indicator_segment(groups, budget=full.cell_len - 1)
+    assert overflow.cell_len <= full.cell_len - 1
+    assert overflow.plain.strip().endswith("+1")
+    assert "🛰️" in overflow.plain
+
+    count_only = build_usage_indicator_segment(groups, budget=cell_len(" usage 3"))
+    assert count_only.plain.strip() == "usage 3"
+
+    micro = build_usage_indicator_segment(groups, budget=cell_len(" 3"))
+    assert micro.plain.strip() == "3"
+
+    assert build_usage_indicator_segment(groups, budget=1).plain == ""
+    assert build_usage_indicator_segment(groups, budget=0).plain == ""
+
+
+@pytest.mark.parametrize("leading_space", [True, False])
+def test_budget_packing_respects_leading_space(leading_space: bool) -> None:
+    groups = _groups(_entry(provider="claude", remaining_percent=62.0))
+
+    segment = build_usage_indicator_segment(
+        groups,
+        budget=cell_len("🎭 62% 3d4h"),
+        leading_space=leading_space,
+    )
+
+    if leading_space:
+        assert segment.plain == " usage 1"
+    else:
+        assert segment.plain == "🎭 62% 3d4h"
+
+
+def test_open_provider_prefers_first_ranked_group() -> None:
+    grok = _entry(provider="grok", remaining_percent=4.0, display_attention="rejected")
+    claude = _entry(provider="claude", remaining_percent=62.0)
+
+    assert usage_indicator_open_provider(_groups(claude, grok)) == "grok"
+    assert usage_indicator_open_provider(()) is None
+
+
+def test_unknown_provider_falls_back_to_id_marker() -> None:
+    entry = _entry(provider="acme", remaining_percent=62.0)
+
+    segment = build_usage_indicator_segment(_groups(entry))
+
+    assert segment.plain.strip() == "ACME 62% 3d4h"
 
 
 @pytest.mark.parametrize("dark", [True, False])
@@ -611,18 +715,18 @@ def test_overflow_and_fallback_disclosure_render_bold_neutral_on_badge_surface(
     grok = _entry(provider="grok", remaining_percent=4.0, display_attention="rejected")
     codex = _entry(provider="codex", remaining_percent=50.0)
     claude = _entry(provider="claude", remaining_percent=62.0)
-    badges = _badges(grok, codex, claude, dark=dark)
-    full = build_usage_indicator_segment(badges, dark=dark)
+    groups = _groups(grok, codex, claude, dark=dark)
+    full = build_usage_indicator_segment(groups, dark=dark)
     neutral = usage_neutral_color(dark=dark)
     badge_surface = _usage_badge_surface_color(dark=dark)
 
     overflow = build_usage_indicator_segment(
-        badges, budget=full.cell_len - 1, dark=dark
+        groups, budget=full.cell_len - 1, dark=dark
     )
     plus_one_style = _style_for(overflow, "+1")
 
     count_only = build_usage_indicator_segment(
-        badges, budget=cell_len(" usage 3"), dark=dark
+        groups, budget=cell_len(" usage 3"), dark=dark
     )
     count_style = _style_for(count_only, "usage 3")
 
@@ -639,7 +743,137 @@ def test_defined_colors_meet_minimum_contrast_on_badge_surface() -> None:
         badge_surface = _usage_badge_surface_color(dark=dark)
         colors = [usage_percent_color(decile * 10.0, dark=dark) for decile in range(10)]
         colors.append(usage_neutral_color(dark=dark))
-        colors.append(usage_warning_style(dark=dark).rsplit(" ", 1)[-1])
         colors.append(usage_rejected_style(dark=dark).rsplit(" ", 1)[-1])
         for color in colors:
             assert _contrast_ratio(color, badge_surface) >= 4.5, (dark, color)
+
+
+def _indicator_snapshot(*windows: dict[str, object]) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "generated_at": FROZEN_NOW,
+        "collection_health": "ok",
+        "providers": [
+            usage_provider(
+                "claude",
+                used_percent=10.0,
+                remaining_percent=90.0,
+                attention={
+                    "kind": "none",
+                    "provider": "claude",
+                    "window_key": "weekly",
+                },
+                windows=list(windows),
+                known_constraints=[],
+            )
+        ],
+        "attention": None,
+    }
+
+
+def _weekly_usage_window(
+    *,
+    key: str,
+    label: str,
+    remaining_percent: float,
+    resets_at: float,
+    applicability: dict[str, object],
+) -> dict[str, object]:
+    window = usage_window(
+        key=key,
+        label=label,
+        used_percent=max(0.0, 100.0 - remaining_percent),
+        remaining_percent=remaining_percent,
+        resets_at=resets_at,
+        applicability=applicability,
+    )
+    window["duration_seconds"] = 604_800.0
+    return window
+
+
+def test_real_projection_selection_boundary_and_renderer_integration() -> None:
+    snapshot = _indicator_snapshot(
+        _weekly_usage_window(
+            key="weekly",
+            label="Week",
+            remaining_percent=90.0,
+            resets_at=FROZEN_NOW + 1_000.0,
+            applicability={"kind": "account"},
+        ),
+        _weekly_usage_window(
+            key="fable-1999",
+            label="Fable 19.99",
+            remaining_percent=19.99,
+            resets_at=FROZEN_NOW + 2_000.0,
+            applicability={"kind": "models", "model_ids": ["claude-fable-5"]},
+        ),
+        _weekly_usage_window(
+            key="fable-20",
+            label="Fable 20",
+            remaining_percent=20.0,
+            resets_at=FROZEN_NOW + 3_000.0,
+            applicability={"kind": "models", "model_ids": ["claude-fable-5"]},
+        ),
+    )
+
+    projection = provider_usage_project_indicator(
+        snapshot,
+        indicator={
+            "default": {"below_remaining_percent": 20},
+            "weekly_all": "always",
+        },
+        eligible_providers=["claude"],
+        now=FROZEN_NOW,
+    )
+    assert [entry["window_key"] for entry in projection.entries] == [
+        "fable-1999",
+        "weekly",
+    ]
+    segment = build_usage_indicator_segment(
+        usage_indicator_groups(projection.entries, dark=True, now=FROZEN_NOW)
+    )
+    assert "🎭 90%" in segment.plain
+    assert "fable 19%" in segment.plain
+    assert "20%" not in segment.plain
+
+    override_projection = provider_usage_project_indicator(
+        snapshot,
+        indicator={
+            "default": {"below_remaining_percent": 20},
+            "weekly_all": "always",
+            "providers": {"claude": {"windows": {"fable-20": "always"}}},
+        },
+        eligible_providers=["claude"],
+        now=FROZEN_NOW,
+    )
+    override_segment = build_usage_indicator_segment(
+        usage_indicator_groups(override_projection.entries, dark=True, now=FROZEN_NOW)
+    )
+    assert "fable [fable-1999] 19%" in override_segment.plain
+    assert "fable [fable-20] 20%" in override_segment.plain
+
+    always_projection = provider_usage_project_indicator(
+        snapshot,
+        indicator={"default": "always"},
+        eligible_providers=["claude"],
+        now=FROZEN_NOW,
+    )
+    assert {entry["window_key"] for entry in always_projection.entries} == {
+        "weekly",
+        "fable-1999",
+        "fable-20",
+    }
+
+    never_projection = provider_usage_project_indicator(
+        snapshot,
+        indicator={"enabled": False},
+        eligible_providers=["claude"],
+        now=FROZEN_NOW,
+    )
+    assert never_projection.entries == ()
+    assert (
+        build_usage_indicator_segment(
+            usage_indicator_groups(never_projection.entries, dark=True, now=FROZEN_NOW)
+        ).plain
+        == ""
+    )

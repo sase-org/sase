@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import re
+import unicodedata
 from collections.abc import Mapping
 from typing import Any
 
@@ -59,6 +61,27 @@ def format_usage_specifier(entry: Mapping[str, Any]) -> str | None:
     """Return the short window specifier, or ``None`` for a weekly/all-model window."""
     if entry.get("weekly_all") is True:
         return None
+    return _usage_specifier(entry, compact=False)
+
+
+def format_usage_compact_name(entry: Mapping[str, Any]) -> str:
+    """Return the grouped-indicator name for a non-default usage window.
+
+    Weekly periods and all-model scopes are omitted in the compact form. If that
+    simplification removes every useful component, fall back to the full specifier,
+    then to the exact window key, and finally to ``?``.
+    """
+    compact = _usage_specifier(entry, compact=True)
+    if compact:
+        return compact
+    full = _usage_specifier(entry, compact=False)
+    if full:
+        return full
+    key = _optional_text(entry.get("window_key"))
+    return (_sanitize_usage_label(key) or "?") if key else "?"
+
+
+def _usage_specifier(entry: Mapping[str, Any], *, compact: bool) -> str | None:
     scope = entry.get("scope")
     scope = scope if isinstance(scope, Mapping) else {}
     period = entry.get("period")
@@ -66,7 +89,16 @@ def format_usage_specifier(entry: Mapping[str, Any]) -> str | None:
     bucket = _scope_bucket_prefix(scope)
     period_token = _period_token(period)
     suffix = _scope_suffix(scope)
-    parts = [part for part in (bucket, period_token, suffix) if part]
+    if compact:
+        if period_token == "wk":
+            period_token = None
+        if suffix == "all":
+            suffix = None
+    parts = [
+        sanitized
+        for part in (bucket, period_token, suffix)
+        if (sanitized := _sanitize_usage_label(part))
+    ]
     return "/".join(parts) if parts else None
 
 
@@ -149,6 +181,23 @@ def _optional_text(value: object) -> str | None:
     return stripped or None
 
 
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def _sanitize_usage_label(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = unicodedata.normalize("NFKC", value)
+    cleaned = "".join(
+        " "
+        if character.isspace() or unicodedata.category(character)[0] == "C"
+        else character
+        for character in normalized
+    )
+    cleaned = _WHITESPACE_RE.sub(" ", cleaned).strip().replace("|", "/")
+    return cleaned or None
+
+
 def _optional_float(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
@@ -157,6 +206,7 @@ def _optional_float(value: object) -> float | None:
 
 
 __all__ = [
+    "format_usage_compact_name",
     "format_usage_countdown",
     "format_usage_percent_text",
     "format_usage_specifier",

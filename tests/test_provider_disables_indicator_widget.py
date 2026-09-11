@@ -9,7 +9,7 @@ import pytest
 from rich.text import Text
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets._provider_usage_indicator import usage_indicator_badges
+from sase.ace.tui.widgets._provider_usage_indicator import usage_indicator_groups
 from sase.ace.tui.widgets.provider_disables_indicator import (
     ProviderDisablesIndicator,
     _text_signature,
@@ -114,13 +114,13 @@ async def test_theme_switch_repaints_usage_gaps_with_identical_plain_text(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _mock_usage_projection(monkeypatch)
-    dark_badges = usage_indicator_badges(
+    dark_groups = usage_indicator_groups(
         [_usage_entry(provider="grok", remaining_percent=7.0)],
         dark=True,
         now=_FROZEN_NOW,
     )
     dark_reference = ProviderDisablesIndicator._build_content(
-        {}, usage_badges=dark_badges, dark=True, now=100.0
+        {}, usage_groups=dark_groups, dark=True, now=100.0
     )
     assert "7%" in dark_reference.plain
 

@@ -3395,39 +3395,42 @@ successful probe age when known. This health describes the collector pipeline on
 stale-but-numeric allowance data can still render, passive stream observations do not
 hide a dead probe pipeline, and the indicator never changes launch routing.
 
-The top bar shows one small badge per independently selected usage window, for example:
+The top bar groups independently selected usage windows by provider, for example:
 
 ```text
-🎭 62% 3d4h    🤖 81% 5d2h    🛰️ 44% 1d7h
-🎭 5h/all 18% 2h9m    🎭 wk/fable 7% 1d6h
+🎭 62% 3d4h | fable 7% 1d8h | 5h 18% 2h9m | 🤖 81% 5d2h
 ```
 
-Each badge is `<provider-icon> [<specifier> ]<remaining-percent> <reset-countdown>`,
-reusing the same provider emoji as the Agents tab. A weekly window covering all models
-never shows a specifier; other windows keep a short one such as `5h/all`, `wk/fable`, or
-`mo/all` (`wk`/`mo`/`5h`/`session` name the window period, `all` means account-wide, and
-`scope?` means the provider did not expose exact applicability). The percentage is
-colored on a ten-step gradient from red (nearly exhausted) to blue (nearly full) so
-healthy windows read as calm, not alarming. Which windows appear, and at what remaining
-percentage, is fully configurable through
+Each provider icon appears once. Its default weekly all-model window renders as
+`<remaining-percent> <reset-countdown>`; additional selected windows include compact
+names such as `fable`, `5h`, `mo`, or `5h/fable`. Compact names omit redundant weekly
+and all-model components while retaining model/family distinctions; `scope?` means the
+provider did not expose exact applicability. The name, percentage, and reset countdown
+share the window's ten-step remaining-capacity color, from red (nearly exhausted) to
+blue (nearly full). The `|` separators belong to the provider on their left and use that
+provider group's final visible window color, so a partial overflow can recolor the
+remaining visible dividers. Which windows appear, and at what remaining percentage, is
+fully configurable through
 [`llm_provider.usage_metrics.indicator`](configuration.md#llm_providerusage_metrics).
 
 A `~` after a percentage means the reading is a retained stale or unknown-age
 observation, not a fresh one. `?% 0h0m↻` means the window's reset has passed and ACE is
 awaiting a new observation, retaining the last known percentage only in the tooltip. A
 bare `?` in the countdown position means the provider never reported a reset time. `!`
-marks a vendor-rejected window and `⚠` marks a provider whose collector is currently
-failing; neither relies on color alone. Model picker hints keep their own separate
-`⚠ usage failing` identity.
+marks a vendor-rejected window. Collector failures no longer add a top-bar warning
+glyph; selected failing windows keep collector-failure prose in the tooltip, and model
+picker hints keep their own separate `⚠ usage failing` identity.
 
-Badges are ranked by attention severity, then provider, then weekly/all-model first,
-then window key, and ACE shows as many complete badges as fit half the top bar's width
+Provider groups are ranked by their highest selected attention severity, then provider.
+Within a provider, the default window is first, followed by additional windows by
+attention severity and key. ACE shows the longest prefix of complete windows that fits
+half the top bar's width, allowing the final provider group to be partially visible,
 before falling back to a `+N` overflow count, then a bare count, then `…`. Every
 selected and overflowed window's full identity, exact key, precise percentage, scope,
-effective display policy, and reset timestamp are in the tooltip. Clicking any rendered
-badge or overflow affordance opens Providers · Usage, including for an always-visible
-healthy window; the Usage command is also reachable from the command palette when there
-is no display space at all.
+effective display policy, and reset timestamp are in the tooltip. Clicking rendered
+usage or overflow opens Providers · Usage, including for an always-visible healthy
+window; the Usage command is also reachable from the command palette when there is no
+display space at all.
 
 Press `u` inside the view to submit or join bounded refresh work for eligible providers.
 The modal stays responsive, reattaches to an in-flight refresh when reopened, reloads

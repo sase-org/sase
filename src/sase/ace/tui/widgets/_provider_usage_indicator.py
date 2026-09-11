@@ -9,26 +9,22 @@ from typing import Any
 from rich.text import Text
 
 from sase.ace.tui.provider_styles import provider_emoji_badge
-from sase.llm_provider.usage.presentation import (
-    collector_health_label,
-    duration_label,
-    timestamp_label,
-)
+from sase.llm_provider.usage.presentation import timestamp_label
 
 from ._usage_indicator_format import (
+    format_usage_compact_name,
     format_usage_countdown,
     format_usage_percent_text,
-    format_usage_specifier,
 )
 from ._usage_indicator_palette import (
     usage_badge_base_style,
     usage_disclosure_style,
+    usage_divider_style,
     usage_gap_style,
     usage_neutral_color,
     usage_percent_color,
     usage_rejected_style,
-    usage_secondary_style,
-    usage_warning_style,
+    usage_value_style,
 )
 
 _ATTENTION_RANK: Mapping[str, int] = {
@@ -41,10 +37,13 @@ _ATTENTION_RANK: Mapping[str, int] = {
 
 
 @dataclass(frozen=True, slots=True)
-class UsageBadge:
-    """One immutable, fully rendered usage-window badge for the top bar."""
+class UsageWindowFragment:
+    """One complete selected usage-window value within a provider group."""
 
     provider: str
+    window_key: str
+    attention_rank: int
+    value_color: str
     text: Text
     tooltip_lines: tuple[str, ...]
 
@@ -54,98 +53,256 @@ class UsageBadge:
         return self.text.cell_len
 
 
-def usage_indicator_badges(
+@dataclass(frozen=True, slots=True)
+class UsageProviderGroup:
+    """One provider icon plus its selected usage windows in display order."""
+
+    provider: str
+    icon: str
+    fragments: tuple[UsageWindowFragment, ...]
+
+    @property
+    def icon_width(self) -> int:
+        """Return the provider icon's terminal-cell width."""
+        return Text(self.icon).cell_len
+
+
+def usage_indicator_groups(
     entries: Sequence[Mapping[str, Any]],
-    providers: Sequence[Mapping[str, Any]] = (),
     *,
     dark: bool,
     now: float,
-) -> tuple[UsageBadge, ...]:
-    """Build one badge per selected window, plus any standalone collector failure."""
-    records: list[tuple[tuple[Any, ...], UsageBadge]] = [
-        _entry_badge(entry, dark=dark, now=now) for entry in entries
-    ]
-    covered = {
-        str(entry.get("provider"))
-        for entry in entries
-        if entry.get("collector_problem") is True
-    }
-    for provider in providers:
-        name = _optional_text(provider.get("provider"))
-        if not name or name in covered:
+) -> tuple[UsageProviderGroup, ...]:
+    """Build provider-grouped usage display data from selected projection entries."""
+    by_provider: dict[str, list[Mapping[str, Any]]] = {}
+    for entry in entries:
+        provider = str(entry.get("provider") or "")
+        by_provider.setdefault(provider, []).append(entry)
+
+    records: list[tuple[tuple[Any, ...], UsageProviderGroup]] = []
+    for provider, provider_entries in by_provider.items():
+        ordered_entries = _ordered_provider_entries(provider_entries)
+        named_entries = _entry_display_names(ordered_entries)
+        fragments = tuple(
+            _entry_fragment(entry, name=name, dark=dark, now=now)
+            for entry, name in zip(ordered_entries, named_entries, strict=True)
+        )
+        if not fragments:
             continue
-        if provider.get("collector_problem") is True:
-            records.append(_collector_only_badge(name, provider, dark=dark, now=now))
+        group_rank = max(fragment.attention_rank for fragment in fragments)
+        group = UsageProviderGroup(
+            provider=provider,
+            icon=_provider_icon(provider),
+            fragments=fragments,
+        )
+        records.append(((-group_rank, provider), group))
     records.sort(key=lambda record: record[0])
-    return tuple(badge for _key, badge in records)
+    return tuple(group for _key, group in records)
 
 
-def usage_indicator_open_provider(badges: Sequence[UsageBadge]) -> str | None:
-    """Return the provider a usage click should open, if any badge is selected."""
-    return badges[0].provider if badges else None
+def usage_indicator_open_provider(groups: Sequence[UsageProviderGroup]) -> str | None:
+    """Return the provider a usage click should open, if any group is selected."""
+    return groups[0].provider if groups else None
 
 
-def usage_indicator_tooltip_lines(badges: Sequence[UsageBadge]) -> tuple[str, ...]:
+def usage_indicator_tooltip_lines(
+    groups: Sequence[UsageProviderGroup],
+) -> tuple[str, ...]:
     """Return full-disclosure tooltip lines for every selected and overflow badge."""
     lines: list[str] = []
-    for badge in badges:
-        lines.extend(badge.tooltip_lines)
+    for group in groups:
+        for fragment in group.fragments:
+            lines.extend(fragment.tooltip_lines)
     return tuple(lines)
 
 
 def build_usage_indicator_segment(
-    badges: Sequence[UsageBadge],
+    groups: Sequence[UsageProviderGroup],
     *,
     budget: int | None = None,
     leading_space: bool = True,
     dark: bool = True,
 ) -> Text:
-    """Return the richest whole-badge packing of *badges* that fits *budget*."""
-    if not badges:
+    """Return the richest complete-window prefix of *groups* that fits *budget*."""
+    total = _window_count(groups)
+    if not total:
         return Text("")
-    gap_style = usage_gap_style(dark=dark)
-    disclosure_style = usage_disclosure_style(dark=dark)
-    leading = " " if leading_space else ""
-    full = _join_badges(badges, leading=leading, dark=dark)
+    full = _render_visible_windows(
+        groups,
+        visible_count=total,
+        hidden_count=0,
+        leading_space=leading_space,
+        dark=dark,
+    )
     if budget is None or full.cell_len <= budget:
         return full
-    total = len(badges)
+    prefix_widths = _prefix_cell_widths(groups, leading_space=leading_space)
     for keep in range(total - 1, 0, -1):
-        candidate = _join_badges(badges[:keep], leading=leading, dark=dark)
-        candidate.append("  ", style=gap_style)
-        candidate.append(f"+{total - keep}", style=disclosure_style)
-        if candidate.cell_len <= budget:
-            return candidate
+        hidden = total - keep
+        if prefix_widths[keep] + _overflow_width(hidden) <= budget:
+            return _render_visible_windows(
+                groups,
+                visible_count=keep,
+                hidden_count=hidden,
+                leading_space=leading_space,
+                dark=dark,
+            )
+    return _fallback_segment(
+        total,
+        budget=budget,
+        leading_space=leading_space,
+        dark=dark,
+    )
+
+
+def _fallback_segment(
+    total: int,
+    *,
+    budget: int,
+    leading_space: bool,
+    dark: bool,
+) -> Text:
+    leading = " " if leading_space else ""
     for suffix in (f"usage {total}", str(total), "…"):
-        text = Text(leading, style=gap_style)
-        text.append(suffix, style=disclosure_style)
+        text = Text(leading, style=usage_gap_style(dark=dark))
+        text.append(suffix, style=usage_disclosure_style(dark=dark))
         if text.cell_len <= budget:
             return text
     return Text("")
 
 
-def _join_badges(badges: Sequence[UsageBadge], *, leading: str, dark: bool) -> Text:
-    text = Text(leading, style=usage_gap_style(dark=dark))
-    for index, badge in enumerate(badges):
-        if index:
-            text.append("  ", style=usage_gap_style(dark=dark))
-        text.append_text(badge.text)
+def _render_visible_windows(
+    groups: Sequence[UsageProviderGroup],
+    *,
+    visible_count: int,
+    hidden_count: int,
+    leading_space: bool,
+    dark: bool,
+) -> Text:
+    visible_groups = _visible_groups(groups, visible_count)
+    text = Text()
+    if leading_space:
+        text.append(" ", style=usage_gap_style(dark=dark))
+
+    for group_index, (group, fragments) in enumerate(visible_groups):
+        if group_index:
+            previous_final = visible_groups[group_index - 1][1][-1]
+            text.append(
+                " |",
+                style=usage_divider_style(previous_final.value_color, dark=dark),
+            )
+            text.append(" ", style=usage_gap_style(dark=dark))
+        base_style = usage_badge_base_style(dark=dark)
+        text.append(group.icon, style=base_style)
+        text.append(" ", style=base_style)
+        divider_style = usage_divider_style(fragments[-1].value_color, dark=dark)
+        for fragment_index, fragment in enumerate(fragments):
+            if fragment_index:
+                text.append(" | ", style=divider_style)
+            text.append_text(fragment.text)
+
+    if hidden_count:
+        text.append("  ", style=usage_gap_style(dark=dark))
+        text.append(f"+{hidden_count}", style=usage_disclosure_style(dark=dark))
     return text
 
 
-def _entry_badge(
+def _window_count(groups: Sequence[UsageProviderGroup]) -> int:
+    return sum(len(group.fragments) for group in groups)
+
+
+def _visible_groups(
+    groups: Sequence[UsageProviderGroup],
+    visible_count: int,
+) -> tuple[tuple[UsageProviderGroup, tuple[UsageWindowFragment, ...]], ...]:
+    remaining = visible_count
+    visible: list[tuple[UsageProviderGroup, tuple[UsageWindowFragment, ...]]] = []
+    for group in groups:
+        if remaining <= 0:
+            break
+        count = min(len(group.fragments), remaining)
+        if count:
+            visible.append((group, group.fragments[:count]))
+            remaining -= count
+    return tuple(visible)
+
+
+def _prefix_cell_widths(
+    groups: Sequence[UsageProviderGroup],
+    *,
+    leading_space: bool,
+) -> tuple[int, ...]:
+    width = 1 if leading_space else 0
+    widths = [width]
+    previous_provider: str | None = None
+    for group in groups:
+        for fragment_index, fragment in enumerate(group.fragments):
+            if previous_provider is None:
+                width += group.icon_width + 1 + fragment.width
+            elif fragment_index == 0:
+                width += 2 + 1 + group.icon_width + 1 + fragment.width
+            else:
+                width += 3 + fragment.width
+            widths.append(width)
+            previous_provider = group.provider
+    return tuple(widths)
+
+
+def _overflow_width(hidden_count: int) -> int:
+    return Text(f"  +{hidden_count}").cell_len
+
+
+def _ordered_provider_entries(
+    entries: Sequence[Mapping[str, Any]],
+) -> tuple[Mapping[str, Any], ...]:
+    defaults = [entry for entry in entries if entry.get("weekly_all") is True]
+    anchor = min(defaults, key=_window_key_sort_text) if defaults else None
+    extras = [entry for entry in entries if entry is not anchor]
+    extras.sort(
+        key=lambda entry: (-_entry_attention_rank(entry), _window_key_sort_text(entry))
+    )
+    if anchor is None:
+        return tuple(extras)
+    return (anchor, *extras)
+
+
+def _entry_display_names(
+    entries: Sequence[Mapping[str, Any]],
+) -> tuple[str | None, ...]:
+    names: list[str | None] = []
+    for index, entry in enumerate(entries):
+        if index == 0 and entry.get("weekly_all") is True:
+            names.append(None)
+        else:
+            names.append(format_usage_compact_name(entry))
+
+    counts: dict[str, int] = {}
+    for name in names:
+        if name is not None:
+            counts[name] = counts.get(name, 0) + 1
+    disambiguated: list[str | None] = []
+    for entry, name in zip(entries, names, strict=True):
+        if name is None or counts.get(name, 0) <= 1:
+            disambiguated.append(name)
+            continue
+        key = _optional_text(entry.get("window_key")) or "?"
+        disambiguated.append(f"{name} [{key.replace('|', '/')}]")
+    return tuple(disambiguated)
+
+
+def _entry_fragment(
     entry: Mapping[str, Any],
     *,
+    name: str | None,
     dark: bool,
     now: float,
-) -> tuple[tuple[Any, ...], UsageBadge]:
+) -> UsageWindowFragment:
     provider = str(entry.get("provider") or "")
     remaining = _optional_float(entry.get("remaining_percent")) or 0.0
     freshness = _optional_text(entry.get("freshness")) or "unknown"
     reset_state = _optional_text(entry.get("reset_state")) or "unknown"
     stale = freshness in {"stale", "unknown"}
     passed = reset_state == "passed"
-    secondary_style = usage_secondary_style(dark=dark)
     base_style = usage_badge_base_style(dark=dark)
 
     if passed:
@@ -164,26 +321,19 @@ def _entry_badge(
         reset_state=reset_state,
         seconds_until_reset=_optional_float(entry.get("seconds_until_reset")),
     )
-    specifier = format_usage_specifier(entry)
+    value_style = usage_value_style(value_color, dark=dark)
 
-    marker: str | None = None
-    marker_style: str | None = None
-    if entry.get("collector_problem") is True:
-        marker, marker_style = "⚠", usage_warning_style(dark=dark)
-    elif _optional_text(entry.get("vendor_state")) == "rejected":
-        marker, marker_style = "!", usage_rejected_style(dark=dark)
-
-    text = Text(_provider_icon(provider), style=base_style)
-    if marker:
-        text.append(" ")
-        text.append(marker, style=marker_style)
-    if specifier:
-        text.append(" ")
-        text.append(specifier, style=secondary_style)
-    text.append(" ")
-    text.append(percent_text, style=f"bold {value_color}")
-    text.append(" ")
-    text.append(countdown_text, style=f"bold {value_color}")
+    text = Text("", style=base_style)
+    rejected = _optional_text(entry.get("vendor_state")) == "rejected"
+    if name:
+        text.append(name, style=value_style)
+        text.append(" ", style=value_style if not rejected else base_style)
+    if rejected:
+        text.append("!", style=usage_rejected_style(dark=dark))
+        text.append(" ", style=base_style)
+    text.append(percent_text, style=value_style)
+    text.append(" ", style=value_style)
+    text.append(countdown_text, style=value_style)
 
     tooltip = _entry_tooltip_lines(
         entry,
@@ -193,18 +343,22 @@ def _entry_badge(
         passed=passed,
         freshness=freshness,
     )
-    sort_key = _entry_sort_key(entry)
-    return sort_key, UsageBadge(provider=provider, text=text, tooltip_lines=tooltip)
-
-
-def _entry_sort_key(entry: Mapping[str, Any]) -> tuple[Any, ...]:
-    rank = _ATTENTION_RANK.get(_optional_text(entry.get("display_attention")) or "", 0)
-    return (
-        -rank,
-        str(entry.get("provider") or ""),
-        not bool(entry.get("weekly_all")),
-        str(entry.get("window_key") or ""),
+    return UsageWindowFragment(
+        provider=provider,
+        window_key=_optional_text(entry.get("window_key")) or "",
+        attention_rank=_entry_attention_rank(entry),
+        value_color=value_color,
+        text=text,
+        tooltip_lines=tooltip,
     )
+
+
+def _entry_attention_rank(entry: Mapping[str, Any]) -> int:
+    return _ATTENTION_RANK.get(_optional_text(entry.get("display_attention")) or "", 0)
+
+
+def _window_key_sort_text(entry: Mapping[str, Any]) -> str:
+    return str(entry.get("window_key") or "")
 
 
 def _entry_tooltip_lines(
@@ -241,7 +395,7 @@ def _entry_tooltip_lines(
     if stale and not passed:
         lines.append("~ shows the last observed capacity; it may be out of date")
     if entry.get("collector_problem") is True:
-        lines.append("⚠ collector is currently failing for this provider")
+        lines.append("collector is currently failing for this provider")
     return tuple(lines)
 
 
@@ -278,46 +432,6 @@ def _policy_tooltip_text(policy: object) -> str | None:
     return None
 
 
-def _collector_only_badge(
-    provider: str,
-    provider_status: Mapping[str, Any],
-    *,
-    dark: bool,
-    now: float,
-) -> tuple[tuple[Any, ...], UsageBadge]:
-    text = Text(_provider_icon(provider), style=usage_badge_base_style(dark=dark))
-    text.append(" ")
-    text.append("⚠", style=usage_warning_style(dark=dark))
-    lines = [f"{provider.upper()} - usage collection is failing"]
-    health = provider_status.get("collector_health")
-    if isinstance(health, Mapping):
-        label = collector_health_label(
-            health, reason=_optional_text(provider_status.get("diagnostic"))
-        )
-        if label:
-            lines.append(f"collector health: {label}")
-        since = _relative_age(health.get("failing_since"), now=now)
-        if since is not None:
-            lines.append(f"failing since: {since} ago")
-        last_success = _relative_age(health.get("last_success_at"), now=now)
-        lines.append(
-            f"last success: {last_success} ago"
-            if last_success is not None
-            else "last success: unknown"
-        )
-    sort_key = (-_ATTENTION_RANK["collection_problem"], provider, True, "")
-    return sort_key, UsageBadge(
-        provider=provider, text=text, tooltip_lines=tuple(lines)
-    )
-
-
-def _relative_age(value: object, *, now: float) -> str | None:
-    timestamp = _optional_float(value)
-    if timestamp is None:
-        return None
-    return duration_label(max(now - timestamp, 0.0))
-
-
 def _provider_icon(provider: str) -> str:
     icon = provider_emoji_badge(provider)
     if icon:
@@ -343,9 +457,10 @@ def _optional_float(value: object) -> float | None:
 
 
 __all__ = [
-    "UsageBadge",
+    "UsageProviderGroup",
+    "UsageWindowFragment",
     "build_usage_indicator_segment",
-    "usage_indicator_badges",
+    "usage_indicator_groups",
     "usage_indicator_open_provider",
     "usage_indicator_tooltip_lines",
 ]

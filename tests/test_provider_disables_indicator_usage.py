@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 from rich.color import Color
-from rich.text import Text
 
 from sase.ace.tui.widgets._override_pill import (
     PROVIDER_DISABLE_PALETTE,
@@ -12,8 +11,7 @@ from sase.ace.tui.widgets._override_pill import (
     PROVIDER_SOFT_DISABLE_PALETTE,
 )
 from sase.ace.tui.widgets._provider_usage_indicator import (
-    UsageBadge,
-    usage_indicator_badges,
+    usage_indicator_groups,
 )
 from sase.ace.tui.widgets.provider_disables_indicator import ProviderDisablesIndicator
 from sase.llm_provider.provider_disable import (
@@ -27,7 +25,7 @@ from tests._provider_disables_indicator_helpers import (
     _disable,
     _priority,
     _segments_with_offsets,
-    _usage_badges,
+    _usage_groups,
     _usage_entry,
 )
 
@@ -37,7 +35,7 @@ def test_usage_attention_renders_micro_total_beside_disable_when_budget_is_tiny(
 ):
     text = ProviderDisablesIndicator._build_content(
         {"claude": _disable(expires_at=None)},
-        usage_badges=_usage_badges(),
+        usage_groups=_usage_groups(),
         usage_budget=3,
         now=100.0,
     )
@@ -47,55 +45,63 @@ def test_usage_attention_renders_micro_total_beside_disable_when_budget_is_tiny(
 
 
 def test_priority_pill_does_not_suppress_usage_attention() -> None:
-    grok_badge = _usage_badges()[0]
+    grok_group = _usage_groups()[0]
     text = ProviderDisablesIndicator._build_content(
         {},
         priority=_priority("codex", expires_at=3_820.0),
-        usage_badges=(grok_badge,),
+        usage_groups=(grok_group,),
         width=80,
         now=100.0,
     )
 
     assert "CODEX ★ priority 1h2m" in text.plain
-    assert grok_badge.text.plain in text.plain
+    assert "🛰️ ! 0% 3d4h" in text.plain
 
 
 def test_usage_tooltip_lists_attention_items() -> None:
     tooltip = ProviderDisablesIndicator._build_tooltip(
         {"claude": _disable("claude", expires_at=None, source="ace")},
-        usage_badges=_usage_badges(),
+        usage_groups=_usage_groups(),
         now=100.0,
     )
 
     assert tooltip is not None
     assert "CLAUDE - hard · manual, until cleared" in tooltip
     assert "Usage windows:" in tooltip
-    assert "GROK - rejected · 0% left · Week · all" in tooltip
+    assert "GROK - Week - all (key weekly) · 0% remaining" in tooltip
     assert "Providers · Usage" in tooltip
 
 
-def test_usage_tooltip_lists_failing_collector_health_lines() -> None:
-    badge = UsageBadge(
-        provider="codex",
-        text=Text("🤖 ⚠"),
-        tooltip_lines=(
-            "CODEX - collection problem · usage failing",
-            "collector health: failing · vendor drift · 5x",
-            "failing since: 2d ago",
-            "last success: 3d ago",
+def test_selected_collector_failure_keeps_tooltip_prose_without_top_bar_triangle() -> (
+    None
+):
+    groups = usage_indicator_groups(
+        (
+            _usage_entry(
+                provider="codex",
+                remaining_percent=12.0,
+                collector_problem=True,
+                display_attention="collection_problem",
+            ),
         ),
+        dark=True,
+        now=_FROZEN_NOW,
     )
     tooltip = ProviderDisablesIndicator._build_tooltip(
         {},
-        usage_badges=(badge,),
+        usage_groups=groups,
+        now=100.0,
+    )
+    content = ProviderDisablesIndicator._build_content(
+        {},
+        usage_groups=groups,
+        dark=True,
         now=100.0,
     )
 
     assert tooltip is not None
-    assert "CODEX - collection problem · usage failing" in tooltip
-    assert "collector health: failing · vendor drift · 5x" in tooltip
-    assert "failing since: 2d ago" in tooltip
-    assert "last success: 3d ago" in tooltip
+    assert "collector is currently failing for this provider" in tooltip
+    assert "⚠" not in content.plain
 
 
 @pytest.mark.parametrize(
@@ -127,7 +133,7 @@ def test_routing_prefix_keeps_its_style_and_usage_never_inherits_its_background(
     priority: TemporaryProviderPriority | None,
     accent: str | None,
 ) -> None:
-    badges = usage_indicator_badges(
+    groups = usage_indicator_groups(
         [_usage_entry(provider="grok", remaining_percent=7.0)],
         dark=True,
         now=_FROZEN_NOW,
@@ -138,7 +144,7 @@ def test_routing_prefix_keeps_its_style_and_usage_never_inherits_its_background(
     content = ProviderDisablesIndicator._build_content(
         disables,
         priority=priority,
-        usage_badges=badges,
+        usage_groups=groups,
         dark=True,
         now=100.0,
     )
@@ -159,14 +165,14 @@ def test_routing_prefix_keeps_its_style_and_usage_never_inherits_its_background(
 
 
 def test_composed_percent_and_countdown_pairs_agree_after_composition() -> None:
-    badges = usage_indicator_badges(
+    groups = usage_indicator_groups(
         [_usage_entry(provider="grok", remaining_percent=7.0)],
         dark=True,
         now=_FROZEN_NOW,
     )
     content = ProviderDisablesIndicator._build_content(
         {"claude": _disable("claude")},
-        usage_badges=badges,
+        usage_groups=groups,
         dark=True,
         now=100.0,
     )
@@ -180,30 +186,24 @@ def test_composed_percent_and_countdown_pairs_agree_after_composition() -> None:
     assert percent_style.bold and countdown_style.bold
 
 
-def test_collector_only_usage_badge_survives_composition_with_routing() -> None:
-    badge = usage_indicator_badges(
+def test_collector_only_state_contributes_no_usage_content() -> None:
+    groups = usage_indicator_groups(
         [],
-        providers=({"provider": "grok", "collector_problem": True},),
         dark=True,
         now=100.0,
-    )[0]
+    )
     content = ProviderDisablesIndicator._build_content(
         {"claude": _disable("claude")},
-        usage_badges=(badge,),
+        usage_groups=groups,
         dark=True,
         now=100.0,
     )
 
-    segments = {segment.text: segment.style for segment in content.render(_CONSOLE)}
-    marker_style = segments["⚠"]
-    assert marker_style is not None
-    accent_color = Color.parse(PROVIDER_DISABLE_PALETTE.accent)
-    assert marker_style.bgcolor != accent_color
-    assert marker_style.bold
+    assert content.plain == " CLAUDE off 15m "
 
 
 def test_narrow_budget_collapses_then_wide_budget_restores_full_badge_packing() -> None:
-    badges = usage_indicator_badges(
+    groups = usage_indicator_groups(
         [
             _usage_entry(provider="grok", remaining_percent=4.0),
             _usage_entry(provider="codex", remaining_percent=50.0),
@@ -213,13 +213,13 @@ def test_narrow_budget_collapses_then_wide_budget_restores_full_badge_packing() 
         now=_FROZEN_NOW,
     )
     full = ProviderDisablesIndicator._build_content(
-        {}, usage_badges=badges, dark=True, now=100.0
+        {}, usage_groups=groups, dark=True, now=100.0
     )
     narrow = ProviderDisablesIndicator._build_content(
-        {}, usage_badges=badges, usage_budget=len(" usage 3"), dark=True, now=100.0
+        {}, usage_groups=groups, usage_budget=len(" usage 3"), dark=True, now=100.0
     )
     wide_again = ProviderDisablesIndicator._build_content(
-        {}, usage_badges=badges, dark=True, now=100.0
+        {}, usage_groups=groups, dark=True, now=100.0
     )
 
     assert narrow.plain.strip() == "usage 3"
@@ -227,7 +227,7 @@ def test_narrow_budget_collapses_then_wide_budget_restores_full_badge_packing() 
     assert "🛰️" in full.plain and "🤖" in full.plain and "🎭" in full.plain
 
     tooltip = ProviderDisablesIndicator._build_tooltip(
-        {}, usage_badges=badges, now=100.0
+        {}, usage_groups=groups, now=100.0
     )
     assert tooltip is not None
     for provider_upper in ("GROK", "CODEX", "CLAUDE"):

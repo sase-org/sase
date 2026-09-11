@@ -9,7 +9,10 @@ from rich.console import Console
 from rich.style import Style
 from rich.text import Text
 
-from sase.ace.tui.widgets._provider_usage_indicator import UsageBadge
+from sase.ace.tui.widgets._provider_usage_indicator import (
+    UsageProviderGroup,
+    usage_indicator_groups,
+)
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
@@ -41,11 +44,16 @@ def _usage_entry(
     *,
     provider: str,
     remaining_percent: float,
+    window_key: str = "weekly",
+    window_label: str = "Week - all",
+    vendor_state: str = "allowed",
+    display_attention: str = "none",
+    collector_problem: bool = False,
 ) -> dict[str, object]:
     return {
         "provider": provider,
-        "window_key": "weekly",
-        "window_label": "Week - all",
+        "window_key": window_key,
+        "window_label": window_label,
         "weekly_all": True,
         "period": {"kind": "weekly", "duration_seconds": 604_800.0},
         "scope": {"kind": "all_models"},
@@ -55,9 +63,9 @@ def _usage_entry(
         "reset_state": "future",
         "seconds_until_reset": 273_840.0,
         "resets_at": _FROZEN_NOW + 273_840.0,
-        "vendor_state": "allowed",
-        "display_attention": "none",
-        "collector_problem": False,
+        "vendor_state": vendor_state,
+        "display_attention": display_attention,
+        "collector_problem": collector_problem,
         "policy_source": "weekly_all",
         "effective_policy": {"kind": "always"},
     }
@@ -113,18 +121,24 @@ def _patch_priority_facts(
     )
 
 
-def _usage_badges() -> tuple[UsageBadge, UsageBadge]:
-    return (
-        UsageBadge(
-            provider="grok",
-            text=Text("🛰️ ! 0% 3d4h"),
-            tooltip_lines=("GROK - rejected · 0% left · Week · all",),
+def _usage_groups() -> tuple[UsageProviderGroup, ...]:
+    return usage_indicator_groups(
+        (
+            _usage_entry(
+                provider="grok",
+                remaining_percent=0.0,
+                vendor_state="rejected",
+                display_attention="rejected",
+            ),
+            _usage_entry(
+                provider="codex",
+                remaining_percent=12.0,
+                display_attention="low",
+                window_label="Shared 5h",
+            ),
         ),
-        UsageBadge(
-            provider="codex",
-            text=Text("🤖 12% 3d4h"),
-            tooltip_lines=("CODEX - low · 12% left · Shared 5h",),
-        ),
+        dark=True,
+        now=_FROZEN_NOW,
     )
 
 

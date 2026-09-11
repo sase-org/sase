@@ -37,9 +37,9 @@ from ._override_pill import (
     format_remaining_until,
 )
 from ._provider_usage_indicator import (
-    UsageBadge,
+    UsageProviderGroup,
     build_usage_indicator_segment,
-    usage_indicator_badges,
+    usage_indicator_groups,
     usage_indicator_open_provider,
     usage_indicator_tooltip_lines,
 )
@@ -53,7 +53,7 @@ class ProviderDisablesIndicator(Static):
     """Shows active machine-wide provider disables in one compact pill."""
 
     def __init__(self, **kwargs: Any) -> None:
-        self._usage_badges: tuple[UsageBadge, ...] = ()
+        self._usage_groups: tuple[UsageProviderGroup, ...] = ()
         self._usage_open_provider: str | None = None
         self._usage_peek_in_flight = False
         self._usage_peek_loaded = False
@@ -62,12 +62,12 @@ class ProviderDisablesIndicator(Static):
         self._usage_layout_refresh_scheduled = False
         context = self._active_provider_routing_context()
         priority_state = self._priority_availability(context)
-        self._sync_usage_badges()
+        self._sync_usage_groups()
         initial_content = self._build_content(
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
-            usage_badges=self._usage_badges,
+            usage_groups=self._usage_groups,
             dark=self._current_dark_theme(),
         )
         self._content_signature = _text_signature(initial_content)
@@ -79,7 +79,7 @@ class ProviderDisablesIndicator(Static):
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
-            usage_badges=self._usage_badges,
+            usage_groups=self._usage_groups,
         )
 
     @property
@@ -134,12 +134,12 @@ class ProviderDisablesIndicator(Static):
     def _build_initial_content(self, *, now: float | None = None) -> Text:
         """Render the current provider-disable map."""
         context = self._active_provider_routing_context(now=now)
-        self._sync_usage_badges(now=now)
+        self._sync_usage_groups(now=now)
         return self._build_content(
             context.provider_disables,
             priority=context.priority,
             priority_availability=self._priority_availability(context),
-            usage_badges=self._usage_badges,
+            usage_groups=self._usage_groups,
             dark=self._current_dark_theme(),
             now=now,
         )
@@ -148,7 +148,7 @@ class ProviderDisablesIndicator(Static):
         """Update content and tooltip from one current peek snapshot."""
         context = self._active_provider_routing_context(now=now)
         priority_state = self._priority_availability(context)
-        self._sync_usage_badges(now=now)
+        self._sync_usage_groups(now=now)
         routing = self._build_routing_content(
             context.provider_disables,
             priority=context.priority,
@@ -157,7 +157,7 @@ class ProviderDisablesIndicator(Static):
         )
         content = self._append_usage_content(
             routing,
-            self._usage_badges,
+            self._usage_groups,
             usage_budget=self._usage_segment_budget(routing),
             dark=self._current_dark_theme(),
         )
@@ -165,22 +165,21 @@ class ProviderDisablesIndicator(Static):
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
-            usage_badges=self._usage_badges,
+            usage_groups=self._usage_groups,
             now=now,
         )
         self._replace_content(content, tooltip)
 
-    def _sync_usage_badges(self, *, now: float | None = None) -> None:
-        """Rebuild usage badges from the memory-only peek snapshot and clock."""
+    def _sync_usage_groups(self, *, now: float | None = None) -> None:
+        """Rebuild usage groups from the memory-only peek snapshot and clock."""
         projection = cached_usage_indicator_projection(now=now)
-        badges = usage_indicator_badges(
+        groups = usage_indicator_groups(
             projection.entries,
-            projection.providers,
             dark=self._current_dark_theme(),
             now=projection.generated_at,
         )
-        self._usage_badges = badges
-        self._usage_open_provider = usage_indicator_open_provider(badges)
+        self._usage_groups = groups
+        self._usage_open_provider = usage_indicator_open_provider(groups)
 
     def _current_dark_theme(self) -> bool:
         """Return whether the active app theme is dark, defaulting to dark."""
@@ -258,7 +257,7 @@ class ProviderDisablesIndicator(Static):
         *,
         priority: TemporaryProviderPriority | None = None,
         priority_availability: ProviderAvailability | None = None,
-        usage_badges: Sequence[UsageBadge] = (),
+        usage_groups: Sequence[UsageProviderGroup] = (),
         width: int | None = None,
         usage_budget: int | None = None,
         dark: bool = True,
@@ -275,7 +274,7 @@ class ProviderDisablesIndicator(Static):
             usage_budget = max(0, width - routing.cell_len)
         return ProviderDisablesIndicator._append_usage_content(
             routing,
-            usage_badges,
+            usage_groups,
             usage_budget=usage_budget,
             dark=dark,
         )
@@ -392,16 +391,16 @@ class ProviderDisablesIndicator(Static):
     @staticmethod
     def _append_usage_content(
         routing: Text,
-        usage_badges: Sequence[UsageBadge] = (),
+        usage_groups: Sequence[UsageProviderGroup] = (),
         *,
         usage_budget: int | None = None,
         dark: bool = True,
     ) -> Text:
         """Append quiet usage attention without replacing a routing pill."""
-        if not usage_badges:
+        if not usage_groups:
             return routing
         usage = build_usage_indicator_segment(
-            usage_badges,
+            usage_groups,
             budget=usage_budget,
             leading_space=not bool(routing.plain),
             dark=dark,
@@ -417,7 +416,7 @@ class ProviderDisablesIndicator(Static):
         *,
         priority: TemporaryProviderPriority | None = None,
         priority_availability: ProviderAvailability | None = None,
-        usage_badges: Sequence[UsageBadge] = (),
+        usage_groups: Sequence[UsageProviderGroup] = (),
         now: float | None = None,
     ) -> str | None:
         """Build sorted long-form details for provider routing state."""
@@ -457,7 +456,7 @@ class ProviderDisablesIndicator(Static):
             mode = "soft" if disable.is_soft else "hard"
             lines.append(f"{provider.upper()} - {mode} · {provenance}, {remaining}")
             has_disables = True
-        usage_lines = list(usage_indicator_tooltip_lines(usage_badges))
+        usage_lines = list(usage_indicator_tooltip_lines(usage_groups))
         if not lines and not usage_lines:
             return None
         parts: list[str] = []
@@ -487,7 +486,8 @@ class ProviderDisablesIndicator(Static):
                     "Usage windows:",
                     "Included subscription allowance readings from provider CLIs.",
                     *usage_lines,
-                    "Notation: wk/mo/5h/session are windows; all is account-wide; "
+                    "Notation: compact names omit weekly/all-model defaults; pipes "
+                    "separate visible windows; 5h/mo name non-weekly windows; "
                     "scope? means the provider did not expose exact applicability.",
                     "~ marks a retained stale/unknown-age reading; ↻ marks a passed "
                     "reset awaiting a new observation; +N counts hidden windows.",
