@@ -108,6 +108,17 @@ class AgentLoadingStateMixin:
     # evaluation (sase-zf.2), reused by the in-memory sync refilter path.
     # ``None`` under the legacy dialect or before the first evaluation lands.
     _agents_live_query_facade: AgentsLiveQueryFacade | None
+    # ``(matched, loaded)`` for the last committed query, rendered by the
+    # info-panel readout (sase-zf.4). ``None`` when idle with no filter.
+    _agents_committed_match_count: tuple[int, int] | None
+
+    # Auto-hiding FilterBar editing session (sase-zf.4). See
+    # ``AgentsFilterBarSessionMixin`` for the full state machine.
+    _agents_filter_session_open: bool
+    _agents_live_preview_query: str
+    _agents_filter_query_error: str | None
+    _agents_live_preview_facade: AgentsLiveQueryFacade | None
+    _agents_filter_match_count: tuple[int, int] | None
 
     # Loading guard
     _agents_loading: bool

@@ -121,6 +121,13 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         ("revive dismissed agent", "agent pane revive"),
     ),
+    (
+        "agents_filters",
+        "Agents: filter bar",
+        "Display",
+        AGENTS_ONLY,
+        ("filter agents", "agent query", "search agents"),
+    ),
     # Folding
     (
         "hooks_or_collapse",

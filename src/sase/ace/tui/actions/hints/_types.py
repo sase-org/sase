@@ -66,11 +66,19 @@ class HintMixinBase:
     _failed_hooks_file_path: str | None
 
     def _hint_input_bar_active(self) -> bool:
-        """Return whether any transient hint input mode is active."""
+        """Return whether any transient hint input mode is active.
+
+        Also true while the auto-hiding Agents FilterBar (sase-zf.4) is
+        being edited: without this, a per-keystroke preview's display
+        refresh (``_refresh_panel_widgets_impl``) steals focus back to the
+        focused-panel ``AgentList`` mid-keystroke, since that refresh path
+        otherwise assumes the list itself is what should hold focus.
+        """
         return (
             self._hint_mode_active
             or self._accept_mode_active
             or self._rewind_mode_active
+            or bool(getattr(self, "_agents_filter_session_open", False))
         )
 
     def _refocus_existing_hint_bar(self) -> bool:

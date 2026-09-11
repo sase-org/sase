@@ -226,10 +226,22 @@ def check_app_action(
         if app.current_tab != ARTIFACTS_TAB:
             return False
     if action in _ARTIFACT_QUERY_HISTORY_ACTIONS:
+        if app.current_tab == "agents":
+            from .models.agent_live_query_engine import agents_unified_query_enabled
+
+            return agents_unified_query_enabled() and bool(
+                getattr(app, "_agents_filter_session_open", False)
+            )
         if app.current_tab != ARTIFACTS_TAB:
             return False
         if not _artifact_contract_action_available(app, action):
             return False
+    if action == "agents_filters":
+        if app.current_tab != "agents":
+            return False
+        from .models.agent_live_query_engine import agents_unified_query_enabled
+
+        return agents_unified_query_enabled()
     if action in {"cycle_files_subtab", "cycle_files_subtab_reverse"}:
         return False
     if action in {

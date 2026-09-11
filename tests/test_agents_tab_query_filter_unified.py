@@ -189,29 +189,27 @@ def test_facade_is_cached_and_reused_across_renders(
     assert build_calls["n"] == 2
 
 
-def test_edit_agent_search_query_validates_unified_dialect() -> None:
+def test_edit_agent_search_query_opens_filter_bar_on_flag() -> None:
+    """On-flag, ``,/`` opens the FilterBar (sase-zf.4) instead of the modal.
+
+    The interim on-flag modal (this file's original coverage) was replaced
+    once the filter-bar-ui phase landed; the legacy modal path remains the
+    Off-flag rollback lever (see ``test_agents_tab_query_filter.py``).
+    """
+
     class _App(AgentFilterActionsMixin):
         def __init__(self) -> None:
             self.hide_non_run_agents = False
             self._agent_search_query = ""
             self._agent_search_query_seeded = True
-            self.pushed_screen: Any = None
+            self.show_agents_filters_calls = 0
 
-        def push_screen(self, modal: Any, _callback: Any) -> None:
-            self.pushed_screen = modal
+        def show_agents_filters(self) -> None:
+            self.show_agents_filters_calls += 1
 
     app = _App()
     app._edit_agent_search_query()
-    modal = app.pushed_screen
-    assert modal is not None
-    assert "until:2h" in modal._hint
-
-    # A unified-dialect query validates cleanly.
-    modal._validator("until:2h")
-
-    # A retired legacy spelling raises with the unified replacement hint.
-    with pytest.raises(ValueError, match="until:2h"):
-        modal._validator("age>2h")
+    assert app.show_agents_filters_calls == 1
 
 
 def test_compute_finalize_plan_builds_live_facade_off_thread() -> None:

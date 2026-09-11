@@ -4,6 +4,7 @@ from .artifacts.types import ARTIFACTS_SUBTAB_ORDER as ARTIFACTS_SUBTAB_ORDER
 from .xprompt_arg_assist import ActiveXPromptArgHint as ActiveXPromptArgHint
 from .agent_detail import AgentDetail as AgentDetail
 from .agent_info_panel import AgentInfoPanel as AgentInfoPanel
+from .agents_filter_bar import AgentsFilterBar as AgentsFilterBar
 from .agent_list import AgentList as AgentList
 from .agent_onboarding import AgentOnboarding as AgentOnboarding
 from .tools_panel import AgentToolsPanel as AgentToolsPanel

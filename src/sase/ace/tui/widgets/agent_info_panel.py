@@ -4,6 +4,8 @@ from typing import Any
 
 from rich.style import Style
 from rich.text import Text
+from textual.events import Click
+from textual.message import Message
 from textual.widgets import Static
 
 from ..agent_count_chip import AGENT_COUNT_CHIP_QUEUED_STYLE
@@ -13,6 +15,9 @@ from ..models.agent_runner_slots import format_capacity_value
 
 class AgentInfoPanel(Static):
     """Top bar showing agent metrics and auto-refresh countdown."""
+
+    class FilterClicked(Message):
+        """The rendered filter-query segment was clicked; open the editor."""
 
     _TOTAL_COUNT_STYLE = "bold #FFFFFF"
     _PROC_SHELL_BADGE_STYLE = "bold #5FD7FF"
@@ -48,6 +53,9 @@ class AgentInfoPanel(Static):
         self._grouping_mode: str = ""
         self._search_query: str = ""
         self._search_query_seeded: bool = False
+        self._search_query_rich: Text | None = None
+        self._search_query_match_count: tuple[int, int] | None = None
+        self._search_query_click_span: tuple[int, int] | None = None
         self._loading: bool = False
         self._registry = load_keymap_registry({})
 
@@ -160,16 +168,31 @@ class AgentInfoPanel(Static):
         self._grouping_mode = label
         self._update_display()
 
-    def update_search_query(self, query: str, *, seeded: bool = False) -> None:
+    def update_search_query(
+        self,
+        query: str,
+        *,
+        seeded: bool = False,
+        rich: Text | None = None,
+        match_count: tuple[int, int] | None = None,
+    ) -> None:
         """Update the search query filter display.
 
         Args:
             query: The current search query string. Empty string hides the filter.
             seeded: When True, the query is the unedited current-project seed
                 and a dim ``seeded`` tag is shown beside it.
+            rich: Pre-rendered, syntax-highlighted canonical query (the
+                unified ``agents-live`` dialect, sase-zf.4). When given, it
+                replaces the plain gold rendering of *query* and the segment
+                becomes clickable (see :class:`FilterClicked`).
+            match_count: Optional ``(matched, loaded)`` pair rendered beside
+                *rich*.
         """
         self._search_query = query
         self._search_query_seeded = seeded
+        self._search_query_rich = rich
+        self._search_query_match_count = match_count
         self._update_display()
 
     def update_state(
@@ -193,6 +216,8 @@ class AgentInfoPanel(Static):
         grouping_mode: str,
         search_query: str,
         search_query_seeded: bool = False,
+        search_query_rich: Text | None = None,
+        search_query_match_count: tuple[int, int] | None = None,
         runner_limit: float = 0.0,
         runner_occupied_capacity: float | None = None,
         runner_queue_count: int = 0,
@@ -224,6 +249,8 @@ class AgentInfoPanel(Static):
             grouping_mode,
             search_query,
             search_query_seeded,
+            search_query_rich.plain if search_query_rich is not None else None,
+            search_query_match_count,
         )
         old_stable = (
             self._position,
@@ -245,10 +272,18 @@ class AgentInfoPanel(Static):
             self._grouping_mode,
             self._search_query,
             self._search_query_seeded,
+            (
+                self._search_query_rich.plain
+                if self._search_query_rich is not None
+                else None
+            ),
+            self._search_query_match_count,
         )
         if new_stable == old_stable:
             self.update_countdown_only(countdown, interval)
             return
+        self._search_query_rich = search_query_rich
+        self._search_query_match_count = search_query_match_count
         (
             self._position,
             self._total,
@@ -269,6 +304,8 @@ class AgentInfoPanel(Static):
             self._grouping_mode,
             self._search_query,
             self._search_query_seeded,
+            _,
+            _,
         ) = new_stable
         self._countdown = countdown
         self._interval = interval
@@ -411,7 +448,19 @@ class AgentInfoPanel(Static):
         self._append_status_strip(text)
         self._append_proc_shell_badge(text)
         self._append_neighbor_badge(text)
-        if self._search_query:
+        self._search_query_click_span = None
+        if self._search_query_rich is not None:
+            text.append("   ")
+            text.append("filter: ", style="dim italic")
+            click_start = text.cell_len
+            text.append_text(self._search_query_rich)
+            if self._search_query_seeded:
+                text.append(" seeded", style="dim")
+            if self._search_query_match_count is not None:
+                matched, loaded = self._search_query_match_count
+                text.append(f"  {matched}/{loaded}", style="dim")
+            self._search_query_click_span = (click_start, text.cell_len)
+        elif self._search_query:
             text.append("   ")
             text.append("filter: ", style="dim italic")
             text.append(self._search_query, style="bold #FFD700")
@@ -460,3 +509,13 @@ class AgentInfoPanel(Static):
     def _update_display(self) -> None:
         """Refresh the displayed text after a stable-state change."""
         self._render_panel_text(layout=False)
+
+    def on_click(self, event: Click) -> None:
+        """Open the filter editor when the rendered query segment is clicked."""
+        span = self._search_query_click_span
+        if span is None:
+            return
+        start, end = span
+        if start <= event.x < end:
+            event.stop()
+            self.post_message(self.FilterClicked())

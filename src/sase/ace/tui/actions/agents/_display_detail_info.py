@@ -108,6 +108,51 @@ class AgentInfoDisplayMixin:
             return 0
         return int(getter(current_agent))
 
+    def _agents_info_panel_query_display(
+        self,
+    ) -> tuple[str, Any | None, tuple[int, int] | None]:
+        """Return ``(plain_query, highlighted_rich_text, match_count)``.
+
+        Off-flag, or with no active query, ``highlighted_rich_text`` and
+        ``match_count`` are ``None`` and the info panel falls back to its
+        legacy plain-gold rendering. On-flag with a non-empty query
+        (sase-zf.4), the canonical query is rendered with the shared
+        profile syntax highlighting plus the last known ``(matched,
+        loaded)`` pair -- the live preview count while the FilterBar is
+        open, else the last committed count.
+        """
+        session_open = getattr(self, "_agents_filter_session_open", False)
+        display_query = (
+            self._agents_live_preview_query  # type: ignore[attr-defined]
+            if session_open
+            else self._agent_search_query
+        )
+        if not display_query.strip():
+            return display_query, None, None
+
+        from ...models.agent_live_query_engine import agents_unified_query_enabled
+
+        if not agents_unified_query_enabled():
+            return display_query, None, None
+
+        from ....query.profile_highlighting import highlight_query
+        from ....query.profile_reference import canonical_query_for_profile
+        from ....query.profile_reference_support import ProfileQueryError
+        from ...models.agent_live_query_engine import agents_live_query_profile
+
+        profile = agents_live_query_profile()
+        try:
+            canonical = canonical_query_for_profile(display_query, profile)
+        except ProfileQueryError:
+            return display_query, None, None
+
+        match_count = (
+            getattr(self, "_agents_filter_match_count", None)
+            if session_open
+            else getattr(self, "_agents_committed_match_count", None)
+        )
+        return display_query, highlight_query(canonical, profile), match_count
+
     def _update_agents_info_panel_impl(self) -> None:
         from textual.css.query import NoMatches
 
@@ -159,6 +204,7 @@ class AgentInfoDisplayMixin:
         runner_capacity = getattr(
             self, "_agent_runner_capacity", _NEUTRAL_RUNNER_CAPACITY
         )
+        display_query, query_rich, match_count = self._agents_info_panel_query_display()
         update_state = getattr(agent_info_panel, "update_state", None)
         if callable(update_state):
             update_state(
@@ -176,10 +222,12 @@ class AgentInfoDisplayMixin:
                 neighbor_count=neighbor_count,
                 countdown=self._countdown_remaining,
                 interval=self.refresh_interval,
-                search_query=self._agent_search_query,
+                search_query=display_query,
                 search_query_seeded=bool(
                     getattr(self, "_agent_search_query_seeded", False)
                 ),
+                search_query_rich=query_rich,
+                search_query_match_count=match_count,
                 grouping_mode=grouping_mode,
                 view_mode=view_mode,
                 runner_limit=runner_capacity.effective_limit,
@@ -215,8 +263,10 @@ class AgentInfoDisplayMixin:
             self._countdown_remaining, self.refresh_interval
         )
         agent_info_panel.update_search_query(
-            self._agent_search_query,
+            display_query,
             seeded=bool(getattr(self, "_agent_search_query_seeded", False)),
+            rich=query_rich,
+            match_count=match_count,
         )
         agent_info_panel.update_grouping_mode(grouping_mode)
         agent_info_panel.update_view_mode(view_mode)

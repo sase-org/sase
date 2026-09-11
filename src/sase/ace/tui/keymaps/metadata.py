@@ -108,6 +108,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("agents_next", "Next Agent", False),
     ("agents_prev", "Previous Agent", False),
     ("agents_revive", "Revive Agent", False),
+    ("agents_filters", "Agent Filters", False),
     ("connect_agent_machine", "Machine", False),
     ("setup_agent_machine", "Connect Machine", False),
     ("retry_remote_agent", "Retry Remote Agent", False),

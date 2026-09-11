@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -10,9 +11,51 @@ from ..tab_order import ARTIFACTS_TAB
 
 if TYPE_CHECKING:
     from ...query_history import QueryHistoryStacks
+    from ...query_profile import CompiledQueryProfile
     from ...query_record import QueryRecord
-    from .._artifact_tab_model import ArtifactsPaneContract
+    from .._artifact_tab_model import ArtifactsPaneContract, PaneCapability
     from ..widgets.artifacts import ArtifactEntryNavigator
+
+
+@dataclass(frozen=True, slots=True)
+class _AgentsLiveHistoryContract:
+    """Minimal pane-contract stand-in for the live Agents tab (sase-zf.4).
+
+    The Agents tab has no ``ArtifactsPaneContract`` -- it isn't an Artifacts
+    pane -- but query history's generic navigation machinery only ever
+    reads ``id``, ``has(QUERY_HISTORY)``, and ``query_profile`` off the
+    contract, so a tiny stand-in lets the Agents tab reuse it as-is.
+    """
+
+    id: str
+    query_profile: CompiledQueryProfile
+
+    def has(self, capability: PaneCapability) -> bool:
+        del capability
+        return True
+
+    def is_document_provider(self) -> bool:
+        return False
+
+
+if TYPE_CHECKING:
+    type _QueryHistoryContract = ArtifactsPaneContract | _AgentsLiveHistoryContract
+
+_agents_live_history_contract_cache: _AgentsLiveHistoryContract | None = None
+
+
+def _agents_live_history_contract() -> _AgentsLiveHistoryContract:
+    """Return the memoized query-history contract stand-in for Agents-live."""
+    global _agents_live_history_contract_cache
+    if _agents_live_history_contract_cache is None:
+        from ..models.agent_live_query_engine import agents_live_query_profile
+
+        _agents_live_history_contract_cache = _AgentsLiveHistoryContract(
+            id="agents-live",
+            query_profile=agents_live_query_profile(),
+        )
+    return _agents_live_history_contract_cache
+
 
 log = logging.getLogger(__name__)
 
@@ -78,7 +121,15 @@ class ArtifactsQueryHistoryActionsMixin:
         self._query_history[pane_id] = stacks
         self._schedule_query_history_persist()
 
-    def _active_query_history_contract(self) -> ArtifactsPaneContract | None:
+    def _active_query_history_contract(self) -> _QueryHistoryContract | None:
+        if self.current_tab == "agents":
+            from ..models.agent_live_query_engine import agents_unified_query_enabled
+
+            if not agents_unified_query_enabled() or not getattr(
+                self, "_agents_filter_session_open", False
+            ):
+                return None
+            return _agents_live_history_contract()
         if self.current_tab != ARTIFACTS_TAB:
             return None
         from ..artifact_tabs import PaneCapability, artifacts_pane_contract
@@ -93,7 +144,7 @@ class ArtifactsQueryHistoryActionsMixin:
 
     def _active_artifacts_query_record(
         self,
-        contract: ArtifactsPaneContract,
+        contract: _QueryHistoryContract,
     ) -> QueryRecord | None:
         from ...query_record import QueryRecord
 
@@ -113,7 +164,7 @@ class ArtifactsQueryHistoryActionsMixin:
 
     def _apply_artifacts_query_record(
         self,
-        contract: ArtifactsPaneContract,
+        contract: _QueryHistoryContract,
         record: QueryRecord,
     ) -> bool:
         pane_id = contract.id
@@ -188,7 +239,7 @@ class ArtifactsQueryHistoryActionsMixin:
 
     def _query_history_pane(
         self,
-        contract: ArtifactsPaneContract,
+        contract: _QueryHistoryContract,
     ) -> ArtifactEntryNavigator | Any | None:
         pane_id = contract.id
         if pane_id == "patches":
@@ -199,6 +250,8 @@ class ArtifactsQueryHistoryActionsMixin:
             return self._beads_pane()  # type: ignore[attr-defined]
         if pane_id == "files":
             return self._files_pane()  # type: ignore[attr-defined]
+        if pane_id == "agents-live":
+            return self
         if contract.is_document_provider():
             return self._active_documents_pane()  # type: ignore[attr-defined]
         return self._artifacts_entry_navigator(pane_id)  # type: ignore[attr-defined]
@@ -206,7 +259,7 @@ class ArtifactsQueryHistoryActionsMixin:
     def _query_profile_digest(
         self,
         *,
-        contract: ArtifactsPaneContract,
+        contract: _QueryHistoryContract,
         pane: Any | None = None,
     ) -> str | None:
         profile = getattr(pane, "_query_profile", None)

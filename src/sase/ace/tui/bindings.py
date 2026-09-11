@@ -192,6 +192,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("j", "agents_next", "Next Agent", show=False),
     Binding("k", "agents_prev", "Previous Agent", show=False),
     Binding("w", "agents_revive", "Revive Agent", show=False),
+    Binding("f", "agents_filters", "Agent Filters", show=False),
     # Agent cleanup on Agents; clear output on AXE.
     Binding("X", "open_agent_cleanup_panel", "Agent Cleanup", show=False),
     Binding("Q", "stop_axe_and_quit", "Quit / Restart", show=False),

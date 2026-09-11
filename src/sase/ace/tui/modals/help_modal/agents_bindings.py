@@ -1,6 +1,7 @@
 """Agents tab keybinding sections for the help modal."""
 
 from ...keymaps import KeymapRegistry, key_display_name, leader_key_display
+from ...models.agent_live_query_engine import agents_unified_query_enabled
 from .binding_common import (
     ADMIN_CENTER_TASKS_SECTION,
     ADMIN_CENTER_UPDATES_SECTION,
@@ -31,6 +32,12 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
     ag_fold = fm.keys["agents"]
     assert isinstance(ag_fold, dict)
     link_follow_row = _link_follow_row(d(a.follow_artifact_link))
+    unified_query = agents_unified_query_enabled()
+    filter_query_keys = (
+        f"{leader_key_display(km, 'edit_query')} / {d(a.agents_filters)}"
+        if unified_query
+        else leader_key_display(km, "edit_query")
+    )
 
     sections: Sections = [
         (
@@ -274,7 +281,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'repeat_last'))}",
                     "Repeat last leader command",
                 ),
-                (leader_key_display(km, "edit_query"), "Filter agents by query"),
+                (filter_query_keys, "Filter agents by query"),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
                     "Run agent (home)",
@@ -428,27 +435,56 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         ),
         (
             "Agent Query Syntax",
-            [
-                ("status:VAL", "Substring on status (e.g. queued)"),
-                ("cl:VAL", "Substring on Patch name"),
-                ("project:VAL", "Substring on project basename"),
-                ("name:VAL", "Substring on agent name"),
-                ("model:VAL", "Substring on model"),
-                ("provider:VAL", "Substring on llm provider"),
-                ("machine:VAL  machine:", "Exact machine/here / any remote"),
-                ("type:VAL", "workflow | run | running"),
-                ("source:VAL", "axe | manual"),
-                ("needs:input", "Question / waiting input"),
-                ("attention:BOOL", "true | false (needs attention)"),
-                ("pinned:BOOL", "true | false (sugar tribe:pinned)"),
-                ("hidden:BOOL", "true | false (show hidden)"),
-                ("tribe:VAL  tribe:", "Exact tribe / any tribe"),
-                ("age>=2h", "Op: > >= < <= = ; unit s|m|h|d"),
-                ("age:2h", "Sugar for age>=2h"),
-                ('text:"..."', "Quoted substring (whole hay)"),
-                ('c"FAILED"', "Case-sensitive quoted"),
-                ("AND OR NOT ( )", "Boolean ops; juxtapose = AND"),
-            ],
+            (
+                [
+                    ("status:VAL", "Enum on status; Tab-completed"),
+                    ("kind:VAL", "Kind enum; Tab-completed"),
+                    ("cl:VAL", "Substring on Patch name"),
+                    ("project:VAL", "Exact project; Tab-completed"),
+                    ("name:VAL", "Exact agent name"),
+                    ("family:VAL  clan:VAL", "Exact family / clan name"),
+                    ("role:VAL", "code | plan | mon"),
+                    ("workflow:VAL", "Substring on workflow name"),
+                    ("model:VAL", "Substring on model"),
+                    ("provider:VAL", "Enum on llm provider"),
+                    ("machine:VAL  machine:", "Exact machine/here / any remote"),
+                    ("tribe:VAL", "Exact user-defined live tribe"),
+                    ("source:VAL", "axe | manual"),
+                    ("needs:input", "Question / waiting input"),
+                    ("attention:BOOL", "true | false (needs attention)"),
+                    ("pinned:BOOL  unread:BOOL", "true | false"),
+                    ("hidden:BOOL  retry:BOOL", "true | false"),
+                    ("since:2h  until:2h", "Started at/after / at-before"),
+                    ("after:2h  before:2h", "Finished at/after / at-before"),
+                    ("min:5m  max:1h", "Runtime at least / at most"),
+                    ("attempt:N", "Retry attempt number (equality)"),
+                    ('text:"..."', "Quoted substring (whole hay)"),
+                    ('c"FAILED"', "Case-sensitive quoted"),
+                    ("AND OR NOT ( )", "Boolean ops; juxtapose = AND"),
+                ]
+                if unified_query
+                else [
+                    ("status:VAL", "Substring on status (e.g. queued)"),
+                    ("cl:VAL", "Substring on Patch name"),
+                    ("project:VAL", "Substring on project basename"),
+                    ("name:VAL", "Substring on agent name"),
+                    ("model:VAL", "Substring on model"),
+                    ("provider:VAL", "Substring on llm provider"),
+                    ("machine:VAL  machine:", "Exact machine/here / any remote"),
+                    ("type:VAL", "workflow | run | running"),
+                    ("source:VAL", "axe | manual"),
+                    ("needs:input", "Question / waiting input"),
+                    ("attention:BOOL", "true | false (needs attention)"),
+                    ("pinned:BOOL", "true | false (sugar tribe:pinned)"),
+                    ("hidden:BOOL", "true | false (show hidden)"),
+                    ("tribe:VAL  tribe:", "Exact tribe / any tribe"),
+                    ("age>=2h", "Op: > >= < <= = ; unit s|m|h|d"),
+                    ("age:2h", "Sugar for age>=2h"),
+                    ('text:"..."', "Quoted substring (whole hay)"),
+                    ('c"FAILED"', "Case-sensitive quoted"),
+                    ("AND OR NOT ( )", "Boolean ops; juxtapose = AND"),
+                ]
+            ),
         ),
         (
             "Grouping",

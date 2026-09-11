@@ -10,6 +10,13 @@ class AgentFilterActionsMixin:
     _agent_search_query: str
     _agent_search_query_seeded: bool
 
+    def action_agents_filters(self) -> None:
+        """Open the auto-hiding Agents-tab filter bar directly (bound to ``f``)."""
+        from ...models.agent_live_query_engine import agents_unified_query_enabled
+
+        if agents_unified_query_enabled():
+            self.show_agents_filters()  # type: ignore[attr-defined]
+
     def _toggle_hide_non_run_agents(self) -> None:
         """Toggle visibility of non-run agents and refresh the display."""
         self.hide_non_run_agents = not self.hide_non_run_agents
@@ -21,9 +28,21 @@ class AgentFilterActionsMixin:
         self._schedule_agents_async_refresh(source="filter")  # type: ignore[attr-defined]
 
     def _edit_agent_search_query(self) -> None:
-        """Open modal to edit the agent search/filter query."""
-        from ...modals import QueryEditModal
+        """Edit the agent search/filter query.
+
+        On-flag (``agents_unified_query``), this opens the auto-hiding
+        ``AgentsFilterBar`` (sase-zf.4) instead of the legacy modal below --
+        that entry point, and the modal it opens, are the Off-flag rollback
+        lever and stay untouched.
+        """
         from ...models.agent_live_query_engine import agents_unified_query_enabled
+
+        if agents_unified_query_enabled():
+            self.show_agents_filters()  # type: ignore[attr-defined]
+            return
+
+        from ...modals import QueryEditModal
+        from ....agent_query import parse_agent_query
 
         def on_dismiss(new_query: str | None) -> None:
             if new_query is None:
@@ -33,40 +52,14 @@ class AgentFilterActionsMixin:
             self._refilter_agents()  # type: ignore[attr-defined]
             self._schedule_agents_async_refresh(source="filter")  # type: ignore[attr-defined]
 
-        if agents_unified_query_enabled():
-            from sase.ace.query.profile_reference import canonical_query_for_profile
-            from sase.ace.query.profile_reference_support import ProfileQueryError
+        def _validator(value: str) -> None:
+            if value:
+                parse_agent_query(value)
 
-            from ...models.agent_live_query_engine import (
-                agents_live_query_profile,
-                augment_error_with_legacy_hint,
-            )
-
-            def _validator(value: str) -> None:
-                if not value:
-                    return
-                try:
-                    canonical_query_for_profile(value, agents_live_query_profile())
-                except ProfileQueryError as exc:
-                    raise ValueError(
-                        augment_error_with_legacy_hint(str(exc), value)
-                    ) from exc
-
-            hint = (
-                "status:FOO  cl:bar  project:baz  until:2h  attention:true  "
-                "AND/OR/NOT  (?: help)"
-            )
-        else:
-            from ....agent_query import parse_agent_query
-
-            def _validator(value: str) -> None:
-                if value:
-                    parse_agent_query(value)
-
-            hint = (
-                "status:foo  cl:bar  project:baz  age>2h  attention:true  "
-                "AND/OR/NOT  (?: help)"
-            )
+        hint = (
+            "status:foo  cl:bar  project:baz  age>2h  attention:true  "
+            "AND/OR/NOT  (?: help)"
+        )
         initial_error = getattr(self, "_agent_query_parse_error", None)
         self.push_screen(  # type: ignore[attr-defined]
             QueryEditModal(

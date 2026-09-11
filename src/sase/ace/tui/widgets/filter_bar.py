@@ -51,6 +51,21 @@ class _FilterBarInput(SingleLineVimTextArea):
             event.stop()
             event.prevent_default()
             return
+        if (
+            event.key in {"circumflex_accent", "underscore"}
+            and bar.FORWARD_QUERY_HISTORY_KEYS
+        ):
+            action_name = (
+                "action_prev_query"
+                if event.key == "circumflex_accent"
+                else "action_next_query"
+            )
+            handler = getattr(self.app, action_name, None)
+            if callable(handler):
+                handler()
+            event.stop()
+            event.prevent_default()
+            return
         if event.key not in {
             "escape",
             "tab",
@@ -101,6 +116,11 @@ class FilterBar(FilterBarCompletionMixin, Static):
     #: Artifacts paging actions. Wrong for a host, like the Admin Center,
     #: that does not have those actions.
     FORWARD_ARTIFACTS_PAGING: ClassVar[bool] = True
+    #: Whether the inner editor forwards ``^``/``_`` to the app's
+    #: ``prev_query``/``next_query`` history actions instead of inserting the
+    #: literal character. Off by default so existing bars keep typing those
+    #: characters into the query text unchanged.
+    FORWARD_QUERY_HISTORY_KEYS: ClassVar[bool] = False
 
     class QueryChanged(Message):
         """The user changed the query text."""

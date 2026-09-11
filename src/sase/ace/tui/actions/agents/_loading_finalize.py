@@ -146,43 +146,78 @@ def _notify_bad_query(app: AgentLoadingMixin, msg: str) -> None:
 
 
 def _apply_live_query_filter_inline(app: AgentLoadingMixin) -> None:
-    """Apply the agents-live engine's committed query to ``app._agents`` (sase-zf.2).
+    """Apply the agents-live engine's active query to ``app._agents`` (sase-zf.2).
 
     Reached only by the in-memory refilter path (:func:`_refilter_agents`),
-    which has no fresh off-thread computation of its own. This phase has no
-    per-keystroke preview yet (the modal validates on Apply/Enter, not per
-    character), so a cache-miss rebuild here fires only on a committed-query
-    change or a list mutation (kill/dismiss/fold) — the same frequency and
-    row-count order as the legacy per-row Python loop this branch replaces,
-    not a keystroke-hot path. When a cached facade already matches the
-    current committed query (built off-thread by the content-index refresh
-    worker or a prior full reload), it is reused instead of rebuilding.
+    which has no fresh off-thread computation of its own. Outside an
+    editing session, a cache-miss rebuild here fires only on a
+    committed-query change or a list mutation (kill/dismiss/fold) — the
+    same frequency and row-count order as the legacy per-row Python loop
+    this branch replaces, not a keystroke-hot path. When a cached facade
+    already matches the active query (built off-thread by the content-index
+    refresh worker, the FilterBar preview worker, or a prior full reload),
+    it is reused instead of rebuilding.
+
+    While the FilterBar editing session is open (sase-zf.4), the *live*
+    uncommitted text drives filtering instead of the committed
+    ``_agent_search_query``, and results land in the session-scoped
+    ``_agents_live_preview_facade``/``_agents_filter_query_error`` instead
+    of the committed fields, so Escape can restore the prior committed view
+    without any rebuild.
     """
     from ...models.agent_live_query_engine import (
         apply_agents_live_query_filter,
     )
 
-    raw = getattr(app, "_agent_search_query", "") or ""
+    session_open = getattr(app, "_agents_filter_session_open", False)
+    if session_open:
+        raw = getattr(app, "_agents_live_preview_query", "") or ""
+    else:
+        raw = getattr(app, "_agent_search_query", "") or ""
+
     if not raw:
-        app._agent_query_parse_error = None
+        if session_open:
+            app._agents_filter_query_error = None
+            app._agents_filter_match_count = (len(app._agents), len(app._agents))
+        else:
+            app._agent_query_parse_error = None
+            app._agents_committed_match_count = None
         return
 
+    total_before = len(app._agents)
+    cached_facade = (
+        getattr(app, "_agents_live_preview_facade", None)
+        if session_open
+        else getattr(app, "_agents_live_query_facade", None)
+    )
     filtered, facade, error = apply_agents_live_query_filter(
         raw,
         app._agents,
         content_index=getattr(app, "_agent_content_search_index", None),
         unread_agent_ids=getattr(app, "_unread_completed_agent_ids", ()),
-        cached_facade=getattr(app, "_agents_live_query_facade", None),
+        cached_facade=cached_facade,
     )
     if error is not None:
-        app._agent_query_parse_error = error
-        _notify_bad_query(app, error)
+        if session_open:
+            app._agents_filter_query_error = error
+        else:
+            app._agent_query_parse_error = error
+            _notify_bad_query(app, error)
         return
-    app._agent_query_parse_error = None
-    if facade is not None:
-        app._agents_live_query_facade = facade
+    if session_open:
+        app._agents_filter_query_error = None
+        if facade is not None:
+            app._agents_live_preview_facade = facade
+    else:
+        app._agent_query_parse_error = None
+        if facade is not None:
+            app._agents_live_query_facade = facade
     app._agents = filtered
     app._agent_content_search_cache.prune(app._agents)
+    if session_open:
+        app._agents_filter_match_count = (len(app._agents), total_before)
+    else:
+        app._agents_committed_match_count = (len(app._agents), total_before)
 
 
 def _surface_query_parse_error_from_plan(
@@ -232,6 +267,12 @@ def _apply_finalize_plan(
     # committed query's mask without rebuilding the Rust corpus inline.
     if plan.query.live_facade is not None:
         app._agents_live_query_facade = plan.query.live_facade
+        app._agents_committed_match_count = (
+            len(plan.query.filtered_agents),
+            plan.query.total_count,
+        )
+    elif plan.query.raw_query:
+        app._agents_committed_match_count = None
 
     # Install the post-query agent list and prune the content cache to match.
     app._agents = list(plan.query.filtered_agents)

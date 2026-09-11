@@ -262,6 +262,25 @@ ProcsFilterBar .filter-bar-completion > .option-list--option-highlighted {
     text-style: bold;
 }
 
+/* AgentsFilterBar is neither PERSISTENT nor SHOW_WHEN_ACTIVE, so
+   FilterBar._apply_accent() never runs for it (it only fires for bars that
+   can be visible outside an editing session); its accent colors are CSS,
+   like the pre-accent-mechanism bars (PlanFilterBar). */
+AgentsFilterBar .filter-bar-sigil {
+    color: #FFD700;
+}
+
+AgentsFilterBar .filter-bar-input,
+AgentsFilterBar .filter-bar-completion {
+    border: solid #FFD700;
+}
+
+AgentsFilterBar .filter-bar-completion > .option-list--option-highlighted {
+    color: $background;
+    background: #FFD700;
+    text-style: bold;
+}
+
 #stitches-info {
     width: 100%;
     height: 3;

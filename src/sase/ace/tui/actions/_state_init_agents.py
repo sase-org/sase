@@ -144,6 +144,22 @@ def init_agent_state(self: Any) -> None:
     # Cached mask facade from the last successful agents-live engine
     # evaluation (sase-zf.2, behind the agents_unified_query flag).
     self._agents_live_query_facade = None
+    # ``(matched, loaded)`` for the last committed query (sase-zf.4).
+    self._agents_committed_match_count = None
+
+    # Auto-hiding FilterBar editing session (sase-zf.4, on-flag only): the
+    # live/uncommitted text and its off-thread-evaluated preview facade
+    # never touch ``_agent_search_query``/``_agents_live_query_facade``
+    # until the session commits.
+    self._agents_filter_session_open = False
+    self._agents_filter_restore_query = None
+    self._agents_filter_restore_focus = None
+    self._agents_live_preview_query = ""
+    self._agents_filter_query_error = None
+    self._agents_live_preview_facade = None
+    self._agents_filter_preview_generation = 0
+    self._agents_filter_preview_task = None
+    self._agents_filter_match_count = None
 
     # Lazy cache of lowercased prompt/reply content for the `/` filter.
     # Populated only when a search query is active.

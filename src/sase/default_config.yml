@@ -534,6 +534,7 @@ ace:
       agents_next: "j"
       agents_prev: "k"
       agents_revive: "w"
+      agents_filters: "f"
       connect_agent_machine: "unbound"
       setup_agent_machine: "unbound"
       # Compatibility action ids. Remote rows use the shared row actions by

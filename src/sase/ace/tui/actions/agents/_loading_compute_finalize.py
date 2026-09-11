@@ -47,6 +47,9 @@ class PreparedQueryFilter:
     # refilter can reuse this committed query's mask without rebuilding the
     # Rust corpus inline on the UI thread. ``None`` under the legacy dialect.
     live_facade: AgentsLiveQueryFacade | None = None
+    # Pre-filter row count, used by the info-panel ``N/M`` readout
+    # (sase-zf.4). Only meaningful alongside ``live_facade``.
+    total_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -167,12 +170,14 @@ def _compute_live_query_plan(
 
     from ...models._agent_tree import filter_tree_rows
 
+    filtered_agents = filter_tree_rows(agents, facade.matches)
     return PreparedQueryFilter(
         raw_query=raw,
         parsed_ast=None,
         parse_error=None,
-        filtered_agents=filter_tree_rows(agents, facade.matches),
+        filtered_agents=filtered_agents,
         live_facade=facade,
+        total_count=len(agents),
     )
 
 

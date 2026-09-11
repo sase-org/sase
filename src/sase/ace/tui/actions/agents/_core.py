@@ -8,6 +8,7 @@ from ._approve import AgentApproveMixin
 from ._patch_navigation import AgentPatchNavigationMixin
 from ._display import AgentDisplayMixin
 from ._filter_actions import AgentFilterActionsMixin
+from ._filter_bar_session import AgentsFilterBarSessionMixin
 from ._fold_persistence import AgentFoldPersistenceMixin
 from ._folding import AgentFoldingMixin
 from ._fleet import AgentFleetMixin
@@ -78,6 +79,7 @@ class AgentsMixinCore(
     AgentUnreadMixin,
     AgentPatchNavigationMixin,
     AgentFilterActionsMixin,
+    AgentsFilterBarSessionMixin,
     AgentNotificationMixin,
     AgentKillingMixin,
     AgentRevertMixin,
@@ -135,6 +137,14 @@ class AgentsMixinCore(
     _agent_search_query: str
     _agent_search_query_seeded: bool
     _agent_search_query_seed_attempted: bool
+
+    # Auto-hiding FilterBar editing session (sase-zf.4). See
+    # ``AgentsFilterBarSessionMixin`` for the full state machine.
+    _agents_filter_session_open: bool
+    _agents_live_preview_query: str
+    _agents_filter_query_error: str | None
+    _agents_filter_match_count: tuple[int, int] | None
+    _agents_committed_match_count: tuple[int, int] | None
 
     # Debouncer for j/k navigation detail panel updates
     _agent_detail_debouncer: DetailPanelDebouncer

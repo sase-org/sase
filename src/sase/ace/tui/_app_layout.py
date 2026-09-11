@@ -8,6 +8,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Header, Static
 
+from .models.agent_live_query_engine import agents_live_query_profile
 from ._patch_list_layout import (
     CL_LIST_MAX_PANEL_WIDTH,
     CL_LIST_MIN_PANEL_WIDTH,
@@ -16,6 +17,7 @@ from .widgets import (
     AgentDetail,
     AgentInfoPanel,
     AgentList,
+    AgentsFilterBar,
     AliasOverridesIndicator,
     ArtifactsView,
     AxeDashboard,
@@ -82,6 +84,10 @@ class AppLayoutMixin:
             )
             with Vertical(id="agents-view", classes=agents_classes):
                 yield AgentInfoPanel(id="agent-info-panel")
+                yield AgentsFilterBar(
+                    id="agents-filter-bar",
+                    profile=agents_live_query_profile(),
+                )
                 with Horizontal(id="agents-header", classes="hidden"):
                     yield Static("", id="agents-fleet-status")
                 with Horizontal(id="agents-content"):

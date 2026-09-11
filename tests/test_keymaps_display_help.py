@@ -54,7 +54,10 @@ def test_contextual_query_and_help_overrides_update_help_displays() -> None:
         for _section, bindings in agents_bindings(reg)
         for key, label in bindings
     }
-    assert ("gf", "Filter agents by query") in agent_pairs
+    # The unified-dialect FilterBar (sase-zf.4, on by default) adds the
+    # direct `agents_filters` binding alongside the remapped leader chord.
+    filters_key = key_display_name(reg.app.agents_filters)
+    assert (f"gf / {filters_key}", "Filter agents by query") in agent_pairs
     assert ("f6", "Show this help") in agent_pairs
     assert ("gh", "Show this help") not in agent_pairs
 
