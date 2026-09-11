@@ -223,6 +223,14 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "separately."
         ),
     ),
+    "src/sase/gate_shell/handoff_launch.py:_read_meta": PathPassingReview(
+        exemption=(
+            "Read-only gate-shell handoff recovery bootstrap: agent_meta.json "
+            "is inspected to merge follow-up fields written during successor "
+            "preparation before marker writes go through the atomic metadata "
+            "and done-marker helpers."
+        ),
+    ),
     "src/sase/gate_shell/settlement.py:_read_meta": PathPassingReview(
         exemption=(
             "Read-only gate-shell settlement bootstrap and post-settlement "

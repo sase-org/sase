@@ -132,7 +132,8 @@ def _register_answer_parser(gate_subparsers: argparse._SubParsersAction) -> None
             "    --set target_env=staging --feedback 'ship it'\n"
             "  sase gate answer -i custom-1 -k custom -o restart -o verify \\\n"
             "    -O verify=@verify-input.json\n"
-            "  sase gate answer -i custom-1 -k custom -o restart --resume"
+            "  sase gate answer -i custom-1 -k custom -o restart --resume\n"
+            "  sase gate answer -i plan-123 -k plan -o approve -o commit --resume"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -221,7 +222,10 @@ def _register_answer_parser(gate_subparsers: argparse._SubParsersAction) -> None
         "-r",
         "--resume",
         action="store_true",
-        help="Continue after the failed option of a partially executed attempt",
+        help=(
+            "Continue a partially executed option branch, or resume an "
+            "already-answered shell whose requested follow-up never launched"
+        ),
     )
     answer_parser.add_argument(
         "-s",

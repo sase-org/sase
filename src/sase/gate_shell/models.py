@@ -74,6 +74,11 @@ class GateShellRecord:
     followup_error: str | None = None
     followup_degraded_reason: str | None = None
     followup_prompt_path: str | None = None
+    followup_attempt_id: str | None = None
+    followup_attempt_stage: str | None = None
+    followup_error_stage: str | None = None
+    followup_error_type: str | None = None
+    claim_holder_pid: int | None = None
 
     @property
     def status_bucket(self) -> str:
@@ -136,6 +141,11 @@ class GateShellRecord:
             followup_error=shell.followup_error,
             followup_degraded_reason=shell.followup_degraded_reason,
             followup_prompt_path=shell.followup_prompt_path,
+            followup_attempt_id=shell.followup_attempt_id,
+            followup_attempt_stage=shell.followup_attempt_stage,
+            followup_error_stage=shell.followup_error_stage,
+            followup_error_type=shell.followup_error_type,
+            claim_holder_pid=(gate.claim_holder_pid if gate is not None else None),
         )
 
 

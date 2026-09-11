@@ -98,7 +98,7 @@ def test_launcher_only_runs_after_the_shell_is_terminal_and_indexed(
         return FollowupLaunchResult(launched=True, agent_name="lane--1")
 
     monkeypatch.setattr(
-        settlement_module, "launch_gate_followup_agent", observing_launcher
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", observing_launcher
     )
 
     settle_gate_shell(record, gate_state="answered", reason="gate answered")
@@ -127,8 +127,7 @@ def test_timeout_with_no_timeout_branch_launches_nothing(
         return FollowupLaunchResult(launched=True)
 
     monkeypatch.setattr(
-        settlement_module,
-        "launch_gate_followup_agent",
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent",
         launch_timeout_unmapped,
     )
 
@@ -158,8 +157,7 @@ def test_timeout_with_a_timeout_branch_launches(
         return FollowupLaunchResult(launched=True, agent_name="lane--1")
 
     monkeypatch.setattr(
-        settlement_module,
-        "launch_gate_followup_agent",
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent",
         launch_timeout_mapped,
     )
 
@@ -192,8 +190,7 @@ def test_unparseable_shell_block_records_followup_error(
     assert record is not None
 
     monkeypatch.setattr(
-        settlement_module,
-        "launch_gate_followup_agent",
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent",
         lambda *a, **k: pytest.fail("unparseable shell must not launch"),
     )
 
@@ -252,7 +249,7 @@ def test_tale_approve_commit_settlement_launches_coder_followup(
         return _fake_launcher(called_artifacts_dir, meta, **kwargs)
 
     monkeypatch.setattr(
-        settlement_module, "launch_gate_followup_agent", observing_launcher
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", observing_launcher
     )
 
     settle_gate_shell(record, gate_state="answered", reason="plan approval answered")
@@ -273,6 +270,150 @@ def test_tale_approve_commit_settlement_launches_coder_followup(
     assert meta["gate_followup_agent"] == "lane--1"
 
 
+def test_preparation_exception_persists_failure_without_placeholder_launch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "prep-boom"
+    gate = create_gate(gate_spec(request_id, shell=DEFAULT_SHELL))
+    artifacts_dir = make_gate_shell_member(
+        request_id, gate.bundle_path, shell=DEFAULT_SHELL
+    )
+    execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+
+    def exploding_launcher(*args: Any, **kwargs: Any) -> FollowupLaunchResult:
+        del args, kwargs
+        raise RuntimeError("model resolution failed")
+
+    monkeypatch.setattr(
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", exploding_launcher
+    )
+    monkeypatch.setattr(
+        "sase.gate_shell.handoff_launch.notify_handoff_failure",
+        lambda *a, **k: None,
+    )
+
+    settle_gate_shell(record, gate_state="answered", reason="gate answered")
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    done = json.loads((Path(artifacts_dir) / "done.json").read_text())
+    assert meta["gate_state"] == "answered"
+    assert meta["gate_followup_outcome"] == "failed"
+    assert "RuntimeError" in meta["gate_followup_error"]
+    assert meta["gate_followup_error_stage"] == "launching"
+    assert meta["gate_followup_error_type"] == "RuntimeError"
+    assert done["gate_state"] == "answered"
+    assert "gate_followup_agent" not in meta
+
+
+def test_second_settle_without_resume_does_not_relaunch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "settle-once"
+    gate = create_gate(gate_spec(request_id, shell=DEFAULT_SHELL))
+    artifacts_dir = make_gate_shell_member(
+        request_id, gate.bundle_path, shell=DEFAULT_SHELL
+    )
+    execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+    calls: list[str] = []
+
+    def counting_launcher(*args: Any, **kwargs: Any) -> FollowupLaunchResult:
+        del kwargs
+        calls.append("called")
+        return _fake_launcher(*args)
+
+    monkeypatch.setattr(
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", counting_launcher
+    )
+
+    settle_gate_shell(record, gate_state="answered", reason="gate answered")
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+    settle_gate_shell(record, gate_state="answered", reason="gate answered")
+
+    assert calls == ["called"]
+
+
+def test_resume_recovers_incomplete_terminal_handoff(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "resume-incomplete"
+    gate = create_gate(gate_spec(request_id, shell=DEFAULT_SHELL))
+    artifacts_dir = make_gate_shell_member(
+        request_id, gate.bundle_path, shell=DEFAULT_SHELL
+    )
+    execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+
+    def exploding_launcher(*args: Any, **kwargs: Any) -> FollowupLaunchResult:
+        del args, kwargs
+        raise RuntimeError("spawn failed")
+
+    monkeypatch.setattr(
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", exploding_launcher
+    )
+    monkeypatch.setattr(
+        "sase.gate_shell.handoff_launch.notify_handoff_failure",
+        lambda *a, **k: None,
+    )
+    settle_gate_shell(record, gate_state="answered", reason="gate answered")
+
+    calls: list[str] = []
+
+    def recovering_launcher(*args: Any, **kwargs: Any) -> FollowupLaunchResult:
+        del kwargs
+        calls.append("resumed")
+        return _fake_launcher(*args)
+
+    monkeypatch.setattr(
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", recovering_launcher
+    )
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+    settle_gate_shell(
+        record, gate_state="answered", reason="gate answered", resume=True
+    )
+
+    assert calls == ["resumed"]
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["gate_followup_outcome"] == "launched"
+    assert meta["gate_followup_agent"] == "lane--1"
+
+
+def test_resume_after_successful_launch_is_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "resume-noop"
+    gate = create_gate(gate_spec(request_id, shell=DEFAULT_SHELL))
+    artifacts_dir = make_gate_shell_member(
+        request_id, gate.bundle_path, shell=DEFAULT_SHELL
+    )
+    execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+    calls: list[str] = []
+
+    def counting_launcher(*args: Any, **kwargs: Any) -> FollowupLaunchResult:
+        del kwargs
+        calls.append("called")
+        return _fake_launcher(*args)
+
+    monkeypatch.setattr(
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", counting_launcher
+    )
+    settle_gate_shell(record, gate_state="answered", reason="gate answered")
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+    settle_gate_shell(
+        record, gate_state="answered", reason="gate answered", resume=True
+    )
+    assert calls == ["called"]
+
+
 def test_creator_live_suppresses_launch_and_stashes_the_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -289,7 +430,7 @@ def test_creator_live_suppresses_launch_and_stashes_the_prompt(
         raise AssertionError("launch must not run when creator_live=True")
 
     monkeypatch.setattr(
-        settlement_module, "launch_gate_followup_agent", failing_launcher
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", failing_launcher
     )
 
     settled = settle_gate_shell(
@@ -333,7 +474,7 @@ def test_creator_live_leaves_the_workspace_claim_alone(
         raise AssertionError("launch must not run when creator_live=True")
 
     monkeypatch.setattr(
-        settlement_module, "launch_gate_followup_agent", failing_launcher
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", failing_launcher
     )
 
     settle_gate_shell(
@@ -361,7 +502,9 @@ def test_done_marker_carries_the_followup_outcome_and_agent(
     record = read_gate_shell_marker("proj", artifacts_dir)
     assert record is not None
 
-    monkeypatch.setattr(settlement_module, "launch_gate_followup_agent", _fake_launcher)
+    monkeypatch.setattr(
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", _fake_launcher
+    )
 
     settle_gate_shell(record, gate_state="answered", reason="gate answered")
 

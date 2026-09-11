@@ -34,6 +34,7 @@ from sase.notification_gates.cli_support import (
     resolve_gate_cli_bundle,
     split_assignment,
 )
+from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.model_options import GateOption
@@ -112,10 +113,14 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
         bundle.envelope, default_feedback=bundle.adapter.default_feedback
     )
     request = load_request(GATE_ANSWER, args)
+    retry = request.payload.get("retry")
+    retry = retry if retry in {"resume", "restart"} else _retry_choice(args)
     request_options = _request_option_ids(request.payload)
-    selected = _resolve_selection(
-        gate.options, request_options or getattr(args, "option", None) or []
-    )
+    requested = request_options or getattr(args, "option", None) or []
+    if retry == "resume" and not requested and bundle.response_path.exists():
+        stored = read_json_object(bundle.response_path).get("selected_option_ids")
+        requested = [str(item) for item in stored] if isinstance(stored, list) else []
+    selected = _resolve_selection(gate.options, requested)
     reader = JsonArgumentReader()
     input_data = (
         request.payload.get("input_data")
@@ -136,14 +141,21 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
     feedback = (
         feedback if isinstance(feedback, str) else getattr(args, "feedback", None)
     )
-    retry = request.payload.get("retry")
-    retry = retry if retry in {"resume", "restart"} else _retry_choice(args)
+    selected_ids = [option.id for option in selected]
 
     # A shell-backed gate is defined by the envelope's ``shell`` block (the
     # source of truth per the gate-shell design), never by whether the
     # family-member lookup below happens to resolve one -- that lookup goes
     # through the artifact-index scan, which is best-effort here.
     shell_backed = isinstance(bundle.envelope.get("shell"), dict)
+    if retry == "resume" and shell_backed and bundle.response_path.exists():
+        return _resume_answered_shell(
+            bundle,
+            selected_ids=selected_ids,
+            input_data=input_data,
+            option_inputs=option_inputs,
+            feedback=feedback,
+        )
     if _effective_detach(args, shell_backed=shell_backed):
         return _submit_detached_answer(
             bundle,
@@ -174,8 +186,68 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
         **execution_kwargs,
     )
     if gate_shell is not None:
-        settle_gate_shell(gate_shell, gate_state="answered", reason="gate answered")
+        settle_gate_shell(
+            gate_shell,
+            gate_state="answered",
+            reason="gate answered",
+            resume=retry == "resume",
+        )
     return _answered_payload(bundle, execution.response, execution.already_completed)
+
+
+def _resume_answered_shell(
+    bundle: ResolvedGateCliBundle,
+    *,
+    selected_ids: list[str],
+    input_data: object | None,
+    option_inputs: Mapping[str, object] | None,
+    feedback: str | None,
+) -> dict[str, Any]:
+    """Resume an unfinished coder handoff using the persisted answer."""
+    existing = read_json_object(bundle.response_path)
+    raw_ids = existing.get("selected_option_ids")
+    stored_ids = [str(item) for item in raw_ids] if isinstance(raw_ids, list) else []
+    if stored_ids != selected_ids:
+        raise GateCliError(
+            "answered-gate --resume must repeat the stored options "
+            f"{', '.join(stored_ids) or '(none)'}; got {', '.join(selected_ids)}"
+        )
+    stored_feedback = existing.get("feedback")
+    if feedback is not None and stored_feedback not in (None, feedback):
+        raise GateCliError(
+            "answered-gate --resume feedback does not match the stored answer"
+        )
+    stored_inputs = existing.get("option_inputs")
+    if option_inputs is not None and stored_inputs not in (None, dict(option_inputs)):
+        raise GateCliError(
+            "answered-gate --resume option inputs do not match the stored answer"
+        )
+    if input_data is not None and existing.get("input") not in (None, input_data):
+        raise GateCliError(
+            "answered-gate --resume --input does not match the stored answer"
+        )
+    gate_shell = find_gate_shell_by_gate_id(None, bundle.request_id)
+    if gate_shell is None:
+        raise GateCliError(
+            "answered-gate --resume requires the original gate-shell member"
+        )
+    settled = settle_gate_shell(
+        gate_shell,
+        gate_state="answered",
+        reason="gate answered",
+        resume=True,
+    )
+    payload = _answered_payload(bundle, existing, True)
+    payload["followup_agent"] = settled.followup_agent
+    payload["followup_outcome"] = settled.followup_outcome
+    payload["followup_error"] = settled.followup_error
+    payload["handoff_resumed"] = True
+    if settled.followup_agent and settled.followup_outcome in {
+        "launched",
+        "launched-degraded",
+    }:
+        payload["message"] = f"Gate handoff already complete: {settled.followup_agent}"
+    return payload
 
 
 def _effective_detach(args: argparse.Namespace, *, shell_backed: bool) -> bool:

@@ -68,6 +68,7 @@ class FamilyShellGateWire:
     bundle_path: str | None = None
     notification_id: str | None = None
     decision_path: str | None = None
+    claim_holder_pid: int | None = None
 
 
 @dataclass(frozen=True)
@@ -100,6 +101,11 @@ class FamilyShellWire:
     followup_error: str | None = None
     followup_degraded_reason: str | None = None
     followup_prompt_path: str | None = None
+    followup_attempt_id: str | None = None
+    followup_attempt_fingerprint: str | None = None
+    followup_attempt_stage: str | None = None
+    followup_error_stage: str | None = None
+    followup_error_type: str | None = None
     monitor: FamilyShellMonitorWire | None = None
     gate: FamilyShellGateWire | None = None
 
@@ -126,6 +132,11 @@ _MONITOR_SHARED_KEYS: dict[str, str] = {
     "monitor_followup_error": "followup_error",
     "monitor_followup_degraded_reason": "followup_degraded_reason",
     "monitor_followup_prompt_path": "followup_prompt_path",
+    "monitor_followup_attempt_id": "followup_attempt_id",
+    "monitor_followup_attempt_fingerprint": "followup_attempt_fingerprint",
+    "monitor_followup_attempt_stage": "followup_attempt_stage",
+    "monitor_followup_error_stage": "followup_error_stage",
+    "monitor_followup_error_type": "followup_error_type",
 }
 
 _MONITOR_SPECIFIC_KEYS: dict[str, str] = {
@@ -160,6 +171,11 @@ _GATE_SHARED_KEYS: dict[str, str] = {
     "gate_followup_error": "followup_error",
     "gate_followup_degraded_reason": "followup_degraded_reason",
     "gate_followup_prompt_path": "followup_prompt_path",
+    "gate_followup_attempt_id": "followup_attempt_id",
+    "gate_followup_attempt_fingerprint": "followup_attempt_fingerprint",
+    "gate_followup_attempt_stage": "followup_attempt_stage",
+    "gate_followup_error_stage": "followup_error_stage",
+    "gate_followup_error_type": "followup_error_type",
 }
 
 _GATE_SPECIFIC_KEYS: dict[str, str] = {
@@ -174,6 +190,7 @@ _GATE_SPECIFIC_KEYS: dict[str, str] = {
     "gate_bundle_path": "bundle_path",
     "gate_notification_id": "notification_id",
     "gate_decision_path": "decision_path",
+    "gate_claim_holder_pid": "claim_holder_pid",
 }
 
 

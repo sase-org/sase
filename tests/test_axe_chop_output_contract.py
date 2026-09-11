@@ -16,7 +16,7 @@ import pytest
 
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 from sase.chops.builtin import run_builtin_chop
-from sase.gate_shell.reclaim import GateShellReclaimSummary
+from sase.gate_shell.reclaim import GateHandoffReconcileSummary, GateShellReclaimSummary
 
 
 @pytest.fixture(autouse=True)
@@ -247,6 +247,11 @@ def test_managed_tmp_reap_emits_action_summary(
 _COUNTERS_ZERO = {
     "answered": 0,
     "errors": 0,
+    "handoff_adopted": 0,
+    "handoff_errors": 0,
+    "handoff_incomplete": 0,
+    "handoff_scanned": 0,
+    "handoff_skipped": 0,
     "lost": 0,
     "scanned": 0,
     "stopped": 0,
@@ -266,6 +271,11 @@ def test_gate_shell_reclaim_emits_noop_summary(
         script,
         "reclaim_pending_gate_shells",
         lambda: GateShellReclaimSummary(),
+    )
+    monkeypatch.setattr(
+        script,
+        "reconcile_incomplete_gate_handoffs",
+        lambda: GateHandoffReconcileSummary(),
     )
 
     run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
@@ -294,6 +304,11 @@ def test_gate_shell_reclaim_emits_action_summary(
         "reclaim_pending_gate_shells",
         lambda: GateShellReclaimSummary(scanned=3, answered=1, lost=1),
     )
+    monkeypatch.setattr(
+        script,
+        "reconcile_incomplete_gate_handoffs",
+        lambda: GateHandoffReconcileSummary(),
+    )
 
     run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
 
@@ -308,6 +323,11 @@ def test_gate_shell_reclaim_emits_action_summary(
     assert result["counters"] == {
         "answered": 1,
         "errors": 0,
+        "handoff_adopted": 0,
+        "handoff_errors": 0,
+        "handoff_incomplete": 0,
+        "handoff_scanned": 0,
+        "handoff_skipped": 0,
         "lost": 1,
         "scanned": 3,
         "stopped": 0,
@@ -333,6 +353,11 @@ def test_gate_shell_reclaim_reports_check_error_on_reclaim_errors(
             error_details=(detail,),
         ),
     )
+    monkeypatch.setattr(
+        script,
+        "reconcile_incomplete_gate_handoffs",
+        lambda: GateHandoffReconcileSummary(),
+    )
 
     run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
 
@@ -346,6 +371,11 @@ def test_gate_shell_reclaim_reports_check_error_on_reclaim_errors(
     assert result["counters"] == {
         "answered": 0,
         "errors": 1,
+        "handoff_adopted": 0,
+        "handoff_errors": 0,
+        "handoff_incomplete": 0,
+        "handoff_scanned": 0,
+        "handoff_skipped": 0,
         "lost": 0,
         "scanned": 1,
         "stopped": 0,

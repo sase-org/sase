@@ -1034,11 +1034,16 @@ to the ACE modals: `answer` selects a branch and supplies each selected option's
 declared input (`--set field=value` typed by its declaration,
 `--option-input <opt>=@file.json` for a whole per-option value, or `--input @file.json`
 for the legacy shared value) and resumes or restarts a partially executed AND branch
-with `--resume` / `--restart`; `act` runs one declared action headlessly, including
-opening `$EDITOR` for an `edit_file` action, without answering the gate; `show` prints a
-gate's declared branches, each option's input fields, and its declared actions, so an
-author can check that the gate they wrote asks for what they intended. See `--help` on
-each for the full flag reference.
+with `--resume` / `--restart`. On an already-answered shell-backed tale whose selected
+branch requested a coder, `--resume` retries only that unfinished handoff: it reuses the
+stored answer, skips option commands and plan archival, and launches nothing when the
+successor is already recorded. Conflicting `--option` / input values are refused.
+`--restart` still means "run the whole option branch again" and does not recover a coder
+handoff. `act` runs one declared action headlessly, including opening `$EDITOR` for an
+`edit_file` action, without answering the gate; `show` prints a gate's declared
+branches, each option's input fields, and its declared actions, so an author can check
+that the gate they wrote asks for what they intended. See `--help` on each for the full
+flag reference.
 
 For read-only inspection, list recent notifications as either a compact table or stable
 JSON:
@@ -1212,9 +1217,12 @@ default, so they survive the client that submitted the decision;
 `sase gate answer --no-detach` opts into inline execution. Use `sase gate list` for
 pending shells, `sase gate list --all` for their history, `sase gate show <shell>` for
 the resolved branches and follow-up disposition, and `sase gate cancel <shell>` to
-settle a pending shell without a follow-up. An agent that creates a gate shell must end
-its turn rather than call `sase gate wait`; direct waiting remains available to
-non-agent scripts.
+settle a pending shell without a follow-up. Approval history keeps its decision label
+(`TALE APPROVED` and similar); that label does not imply the coder is running. A failed
+or interrupted handoff is shown as needing attention with the
+`sase gate answer --kind <kind> --id <id> --option ... --resume` recovery command. An
+agent that creates a gate shell must end its turn rather than call `sase gate wait`;
+direct waiting remains available to non-agent scripts.
 
 ### Gate inputs
 

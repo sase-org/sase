@@ -65,6 +65,14 @@ def test_raising_hook_falls_back_to_declared(monkeypatch: pytest.MonkeyPatch) ->
     assert resolve_shell_next_action(**_kwargs()) == "declared prompt"
 
 
+def test_plan_kind_falsy_return_is_strict(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sase.gate_shell.kind_next_action as module
+
+    monkeypatch.setitem(module._KIND_NEXT_ACTIONS, "plan", _rebuild_empty)
+    with pytest.raises(RuntimeError, match="produced no prompt"):
+        resolve_shell_next_action(**_kwargs(kind="plan"))
+
+
 def test_falsy_return_falls_back_to_declared(monkeypatch: pytest.MonkeyPatch) -> None:
     import sase.gate_shell.kind_next_action as module
 

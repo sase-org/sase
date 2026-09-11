@@ -8,9 +8,18 @@ from pathlib import Path
 from typing import Any
 
 from sase.config import get_gate_shell_reclaim_grace_seconds
+from sase.gate_shell.handoff import (
+    RECONCILE_BATCH_SIZE,
+    apply_decision,
+    classify_gate_handoff,
+    collect_successor_evidence,
+    load_reconcile_cursor,
+    store_reconcile_cursor,
+    with_gate_followup_lock,
+)
 from sase.gate_shell.models import GateShellRecord
 from sase.gate_shell.settlement import settle_gate_shell
-from sase.gate_shell.store import list_gate_shells
+from sase.gate_shell.store import list_gate_shells, read_gate_shell_marker
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.executor import cancel_gate
 from sase.notification_gates.hashing import load_and_verify_bundle
@@ -150,4 +159,151 @@ def _read_json(path: Path) -> dict[str, Any]:
         return {}
 
 
-__all__ = ["GateShellReclaimSummary", "reclaim_pending_gate_shells"]
+@dataclass(frozen=True)
+class GateHandoffReconcileSummary:
+    """Summary of one incomplete-handoff diagnosis pass."""
+
+    scanned: int = 0
+    incomplete: int = 0
+    adopted: int = 0
+    skipped: int = 0
+    errors: int = 0
+    error_details: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, int]:
+        return {
+            "handoff_scanned": self.scanned,
+            "handoff_incomplete": self.incomplete,
+            "handoff_adopted": self.adopted,
+            "handoff_skipped": self.skipped,
+            "handoff_errors": self.errors,
+        }
+
+
+def reconcile_incomplete_gate_handoffs(
+    *,
+    project: str | None = None,
+    batch_size: int = RECONCILE_BATCH_SIZE,
+) -> GateHandoffReconcileSummary:
+    """Diagnose terminal gates whose requested successor never recorded."""
+    counts = {
+        "scanned": 0,
+        "incomplete": 0,
+        "adopted": 0,
+        "skipped": 0,
+        "errors": 0,
+    }
+    error_details: list[str] = []
+    records = [
+        record for record in list_gate_shells(project=project) if record.is_terminal
+    ]
+    records.sort(key=lambda record: (record.timestamp, record.artifacts_dir))
+    grouped: dict[str, list[Any]] = {}
+    for record in records:
+        grouped.setdefault(record.project_name, []).append(record)
+    for project_name, project_records in grouped.items():
+        _reconcile_project(
+            project_name,
+            project_records,
+            batch_size=batch_size,
+            counts=counts,
+            error_details=error_details,
+        )
+    return GateHandoffReconcileSummary(**counts, error_details=tuple(error_details))
+
+
+def _reconcile_project(
+    project_name: str,
+    records: list[Any],
+    *,
+    batch_size: int,
+    counts: dict[str, int],
+    error_details: list[str],
+) -> None:
+    cursor = load_reconcile_cursor(project_name)
+    last_ts = str(cursor.get("timestamp") or "")
+    last_dir = str(cursor.get("artifacts_dir") or "")
+    remaining = batch_size
+    last_seen: dict[str, str] | None = None
+    for record in records:
+        key = (record.timestamp, record.artifacts_dir)
+        if last_ts and key <= (last_ts, last_dir):
+            continue
+        if remaining <= 0:
+            break
+        remaining -= 1
+        counts["scanned"] += 1
+        last_seen = {
+            "timestamp": record.timestamp,
+            "artifacts_dir": record.artifacts_dir,
+        }
+        try:
+            outcome = _diagnose_one(record)
+        except Exception as error:
+            counts["errors"] += 1
+            if len(error_details) < _MAX_ERROR_DETAILS:
+                error_details.append(
+                    f"{record.member_agent_name or record.gate_id}: "
+                    f"{type(error).__name__}: {error}"
+                )
+            continue
+        if outcome == "incomplete":
+            counts["incomplete"] += 1
+        elif outcome == "adopted":
+            counts["adopted"] += 1
+        else:
+            counts["skipped"] += 1
+    if last_seen is not None:
+        store_reconcile_cursor(project_name, last_seen)
+
+
+def _diagnose_one(record: Any) -> str:
+    with with_gate_followup_lock(record.artifacts_dir):
+        live = read_gate_shell_marker(record.project_name, record.artifacts_dir)
+        if live is None:
+            return "skipped"
+        meta = {
+            "gate_id": live.gate_id,
+            "gate_kind": live.kind,
+            "gate_state": live.gate_state,
+            "gate_request_fingerprint": live.request_fingerprint,
+            "name": live.member_agent_name,
+            "agent_family": live.lane,
+            "gate_followup_outcome": live.followup_outcome,
+            "gate_followup_agent": live.followup_agent,
+            "gate_followup_error": live.followup_error,
+            "gate_followup_degraded_reason": live.followup_degraded_reason,
+            "gate_followup_prompt_path": live.followup_prompt_path,
+            "gate_followup_attempt_id": live.followup_attempt_id,
+            "gate_followup_attempt_stage": live.followup_attempt_stage,
+            "gate_followup_error_stage": live.followup_error_stage,
+            "gate_followup_error_type": live.followup_error_type,
+        }
+        evidence = collect_successor_evidence(
+            project_name=live.project_name,
+            family=live.lane,
+            expected_suffix=live.next_suffix,
+            recorded_agent=live.followup_agent,
+        )
+        decision = classify_gate_handoff(
+            meta,
+            mode="diagnose",
+            already_settled=True,
+            followup_requested=bool(live.next_action),
+            successor_evidence=evidence,
+        )
+        apply_decision(live.artifacts_dir, meta, decision)
+        recovery = str(decision.get("recovery") or "")
+        if recovery == "adopt":
+            return "adopted"
+        if decision.get("needs_attention"):
+            return "incomplete"
+        return "skipped"
+
+
+__all__ = [
+    "GateHandoffReconcileSummary",
+    "GateShellReclaimSummary",
+    "reclaim_pending_gate_shells",
+    "reconcile_incomplete_gate_handoffs",
+]

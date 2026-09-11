@@ -14,33 +14,31 @@ from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
-from sase.gate_shell.followup import (
-    GATE_FOLLOWUP_PERSISTENCE,
-    build_suppressed_gate_followup_prompt,
-    launch_gate_followup_agent,
-)
+
 from sase.gate_shell.followup_policy import (
     GateFollowupPolicy,
     resolve_gate_branch_presentation,
     resolve_gate_followup,
     shell_block_unparseable,
 )
+from sase.gate_shell.handoff import merge_followup_fields, with_gate_followup_lock
+from sase.gate_shell.handoff_launch import (
+    launch_or_record_followup,
+    record_selected_options,
+    settle_already_terminal_handoff,
+    suppress_live_creator_followup,
+)
 from sase.gate_shell.log import gate_shell_output_tail
 from sase.gate_shell.models import GateShellRecord, GateShellState
-from sase.gate_shell.start_claim import (
-    hold_gate_shell_claim_for_settlement,
-    release_gate_shell_claim,
-)
+from sase.gate_shell.start_claim import hold_gate_shell_claim_for_settlement
 from sase.history.chat import save_chat_history
 from sase.notification_gates.branches import GateBranchData
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.paths import CANCELLATION_FILENAME, RESPONSE_FILENAME
-from sase.shells.followup import persist_followup_prompt
 from sase.shells.settlement import (
     ShellSettlementConfig,
     finalize_shell_workflow_state,
     project_name_from_artifacts_dir as shell_project_name_from_artifacts_dir,
-    settle_shell_claim_and_followup,
     stamp_shell_finished_at,
     touch_shell_refresh_pulse,
 )
@@ -75,6 +73,7 @@ def settle_gate_shell(
     gate_state: GateShellState,
     reason: str | None = None,
     creator_live: bool = False,
+    resume: bool = False,
 ) -> GateShellRecord:
     """Settle a gate-shell member into ``gate_state``.
 
@@ -89,13 +88,58 @@ def settle_gate_shell(
     the creator itself still owns the lane and the workspace. A policy that
     would otherwise have launched is stashed as an artifact instead, so
     nothing the shell's author declared is silently lost.
+
+    ``resume=True`` recovers an already-answered shell whose requested coder
+    handoff never completed. Approval and archive receipts stay as they are.
     """
     artifacts_dir = record.artifacts_dir
+    with with_gate_followup_lock(artifacts_dir):
+        return _settle_gate_shell_locked(
+            record,
+            gate_state=gate_state,
+            reason=reason,
+            creator_live=creator_live,
+            resume=resume,
+        )
+
+
+def _settle_gate_shell_locked(
+    record: GateShellRecord,
+    *,
+    gate_state: GateShellState,
+    reason: str | None,
+    creator_live: bool,
+    resume: bool,
+) -> GateShellRecord:
+    artifacts_dir = record.artifacts_dir
     meta = _read_meta(artifacts_dir)
-    if _is_terminal_meta(meta):
-        return record
+    already_settled = _is_terminal_meta(meta)
+    if already_settled:
+        envelope, response, _cancellation = _bundle_documents(meta)
+        record_selected_options(meta, response)
+        policy = resolve_gate_followup(
+            envelope,
+            gate_state=gate_state,
+            response=response,
+        )
+        return settle_already_terminal_handoff(
+            record,
+            meta,
+            envelope=envelope,
+            response=response,
+            policy=policy,
+            reason=reason,
+            resume=resume,
+            config=_GATE_SETTLEMENT_CONFIG,
+            done_marker=_done_marker(
+                meta,
+                gate_state=gate_state,
+                reason=reason,
+            ),
+        )
 
     envelope, response, cancellation = _bundle_documents(meta)
+    record_selected_options(meta, response)
     policy = resolve_gate_followup(envelope, gate_state=gate_state, response=response)
     status, accent = resolve_gate_branch_presentation(
         envelope, gate_state=gate_state, response=response
@@ -144,7 +188,7 @@ def settle_gate_shell(
     _write_meta(artifacts_dir, meta)
 
     if creator_live:
-        _suppress_live_creator_followup(
+        suppress_live_creator_followup(
             artifacts_dir,
             meta,
             policy=policy,
@@ -154,32 +198,21 @@ def settle_gate_shell(
             reason=reason,
         )
     else:
-        settle_error = settle_shell_claim_and_followup(
+        launch_or_record_followup(
             artifacts_dir,
             meta,
-            shell_state=gate_state,
+            gate_state=gate_state,
             project_name=project_name,
+            policy=policy,
+            envelope=envelope,
+            response=response,
+            reason=reason,
+            already_settled=False,
+            resume=False,
             config=_GATE_SETTLEMENT_CONFIG,
-            release_claim=lambda release_meta, release_project_name: (
-                release_gate_shell_claim(
-                    release_meta,
-                    release_project_name,
-                    artifacts_dir=artifacts_dir,
-                )
-            ),
-            launch_followup=launch_gate_followup_agent,
-            launch_kwargs={
-                "project_name": project_name,
-                "gate_state": gate_state,
-                "policy": policy,
-                "envelope": envelope,
-                "response": response,
-                "reason": reason,
-            },
-            update_meta_field=update_meta_field,
         )
-        if settle_error:
-            meta["gate_followup_error"] = settle_error
+    disk = _read_meta(artifacts_dir)
+    merge_followup_fields(meta, disk)
     _write_meta(artifacts_dir, meta)
 
     done_marker = _done_marker(meta, gate_state=gate_state, reason=reason)
@@ -192,38 +225,6 @@ def settle_gate_shell(
         read_gate_shell_marker(project_name or record.project_name, artifacts_dir)
         or record
     )
-
-
-def _suppress_live_creator_followup(
-    artifacts_dir: str,
-    meta: dict[str, Any],
-    *,
-    policy: GateFollowupPolicy | None,
-    gate_state: GateShellState,
-    envelope: dict[str, Any],
-    response: dict[str, Any],
-    reason: str | None,
-) -> None:
-    if policy is None:
-        return
-    if meta.get("gate_kind") in {"plan", "epic_plan"}:
-        meta["gate_followup_outcome"] = "suppressed"
-        return
-    prompt = build_suppressed_gate_followup_prompt(
-        artifacts_dir,
-        meta,
-        gate_state=gate_state,
-        policy=policy,
-        envelope=envelope,
-        response=response,
-        reason=reason,
-    )
-    prompt_path = persist_followup_prompt(
-        artifacts_dir, prompt, GATE_FOLLOWUP_PERSISTENCE
-    )
-    meta["gate_followup_outcome"] = "suppressed"
-    if prompt_path:
-        meta["gate_followup_prompt_path"] = prompt_path
 
 
 def _done_marker(
@@ -255,6 +256,13 @@ def _done_marker(
         "gate_followup_error",
         "gate_followup_degraded_reason",
         "gate_followup_prompt_path",
+        "gate_followup_attempt_id",
+        "gate_followup_attempt_fingerprint",
+        "gate_followup_attempt_stage",
+        "gate_followup_error_stage",
+        "gate_followup_error_type",
+        "gate_followup_error_message",
+        "gate_selected_option_ids",
         "gate_claim_holder_pid",
         "gate_decision_path",
         "chat_path",

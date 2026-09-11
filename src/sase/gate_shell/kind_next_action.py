@@ -83,6 +83,13 @@ def resolve_shell_next_action(
             exc_info=True,
         )
         return declared
+    if kind in _STRICT_KIND_NEXT_ACTIONS:
+        if not resolved:
+            raise RuntimeError(
+                "plan-kind follow-up reconstruction produced no prompt; "
+                "refusing the placeholder declared next action"
+            )
+        return resolved
     return resolved or declared
 
 

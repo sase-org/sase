@@ -322,6 +322,9 @@ def _print_gate_shell_runtime(console: Console, gate_shell: Mapping[str, Any]) -
             Text(f"  ⚑ follow-up needs attention: {reason}", style="bold yellow"),
             soft_wrap=True,
         )
+        resume = gate_shell.get("followup_resume_command")
+        if resume:
+            console.print(Text(f"  resume with: {resume}", style="dim"), soft_wrap=True)
 
 
 def _status_style(status: str) -> str:

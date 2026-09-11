@@ -28,6 +28,11 @@ def plan_next_action(
         response=response,
     )
     if result is None:
+        selected = response.get("selected_option_ids")
+        if isinstance(selected, list) and "approve" in selected:
+            raise RuntimeError(
+                "could not reconstruct the approved plan result from gate artifacts"
+            )
         return declared
     if result.action == "feedback":
         return _feedback_next_action(artifacts_dir, response, declared)
@@ -145,7 +150,9 @@ def _accepted_tale_next_action(
 
     prepared = prepare_accepted_plan_successor(plan_result, ctx, state)
     if prepared.successor is None:
-        return None
+        raise RuntimeError(
+            "approved tale successor preparation produced no coder prompt"
+        )
     record_workflow_metadata(artifacts_dir, prepared.successor.relationships)
     return prepared.successor.prompt
 
