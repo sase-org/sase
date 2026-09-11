@@ -382,7 +382,7 @@ async def test_top_bar_usage_palette_png_snapshot(
     snapshot_name: str,
     title: str,
 ) -> None:
-    """Every ten-bucket remaining-percent decile stays distinct in both themes."""
+    """Exact zero plus other remaining-percent buckets stay distinct in both themes."""
     patch_startup_loaders(monkeypatch)
     quiet_top_bar(monkeypatch)
 
@@ -390,7 +390,7 @@ async def test_top_bar_usage_palette_png_snapshot(
         entry(
             provider=f"p{index}",
             window_key="weekly",
-            remaining_percent=index * 10.0 + 5.0,
+            remaining_percent=0.0 if index == 0 else index * 10.0 + 5.0,
             reset_state="unknown",
             seconds_until_reset=None,
             resets_at=None,

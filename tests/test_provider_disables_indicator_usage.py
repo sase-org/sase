@@ -13,6 +13,7 @@ from sase.ace.tui.widgets._override_pill import (
 from sase.ace.tui.widgets._provider_usage_indicator import (
     usage_indicator_groups,
 )
+from sase.ace.tui.widgets._usage_indicator_palette import usage_percent_color
 from sase.ace.tui.widgets.provider_disables_indicator import ProviderDisablesIndicator
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_SOFT,
@@ -134,7 +135,7 @@ def test_routing_prefix_keeps_its_style_and_usage_never_inherits_its_background(
     accent: str | None,
 ) -> None:
     groups = usage_indicator_groups(
-        [_usage_entry(provider="grok", remaining_percent=7.0)],
+        [_usage_entry(provider="grok", remaining_percent=0.0)],
         dark=True,
         now=_FROZEN_NOW,
     )
@@ -162,6 +163,12 @@ def test_routing_prefix_keeps_its_style_and_usage_never_inherits_its_background(
             if start >= prefix_len:
                 assert style is not None
                 assert style.bgcolor != accent_color
+
+    segments = {segment.text: segment.style for segment in content.render(_CONSOLE)}
+    zero_style = segments["0%"]
+    assert zero_style is not None
+    assert zero_style.bgcolor is not None
+    assert zero_style.bgcolor == Color.parse(usage_percent_color(0, dark=True))
 
 
 def test_composed_percent_and_countdown_pairs_agree_after_composition() -> None:

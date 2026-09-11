@@ -21,6 +21,7 @@ from sase.ace.tui.widgets._usage_indicator_palette import (
     usage_neutral_color,
     usage_percent_color,
     usage_rejected_style,
+    usage_zero_percent_style,
 )
 from sase.llm_provider.usage.store import provider_usage_project_indicator
 from tests._usage_view_helpers import usage_provider, usage_window
@@ -71,6 +72,14 @@ def _style_at_token(text: Text, token: str, *, occurrence: int = 0) -> Style:
             assert style is not None
             return style
     raise AssertionError(f"no style for {token!r} in {text.plain!r}")
+
+
+def _style_at_offset(text: Text, offset: int) -> Style:
+    for seg_start, seg_end, _rendered, style in _segments_with_offsets(text):
+        if seg_start <= offset < seg_end:
+            assert style is not None
+            return style
+    raise AssertionError(f"no style at offset {offset} in {text.plain!r}")
 
 
 def _pipe_styles(text: Text) -> list[Style]:
@@ -406,8 +415,9 @@ def test_collector_only_state_produces_no_group_or_overflow_count() -> None:
     assert usage_indicator_tooltip_lines(groups) == ()
 
 
-def test_stale_passed_unknown_reset_and_percent_edges() -> None:
+def test_stale_unknown_age_passed_unknown_reset_and_percent_edges() -> None:
     stale = _entry(remaining_percent=62.0, freshness="stale")
+    unknown_age = _entry(remaining_percent=62.0, freshness="unknown")
     passed = _entry(
         remaining_percent=62.0,
         reset_state="passed",
@@ -421,7 +431,10 @@ def test_stale_passed_unknown_reset_and_percent_edges() -> None:
         resets_at=None,
     )
 
-    assert build_usage_indicator_segment(_groups(stale)).plain.strip() == "🎭 62%~ 3d4h"
+    assert build_usage_indicator_segment(_groups(stale)).plain.strip() == "🎭 62% 3d4h"
+    assert build_usage_indicator_segment(_groups(unknown_age)).plain.strip() == (
+        "🎭 62% 3d4h"
+    )
     assert build_usage_indicator_segment(_groups(passed)).plain.strip() == (
         "🎭 ?% 0h0m↻"
     )
@@ -431,6 +444,30 @@ def test_stale_passed_unknown_reset_and_percent_edges() -> None:
     assert format_usage_percent_text(0.0) == "0%"
     assert format_usage_percent_text(0.4) == "<1%"
     assert format_usage_percent_text(100.0) == "100%"
+
+
+def test_stale_tooltip_explains_uncertainty_without_a_visible_marker() -> None:
+    stale = _entry(remaining_percent=62.0, freshness="stale")
+    unknown_age = _entry(
+        window_key="session",
+        weekly_all=False,
+        period_kind="session",
+        duration_seconds=None,
+        remaining_percent=42.0,
+        freshness="unknown",
+    )
+    groups = _groups(stale, unknown_age)
+    segment = build_usage_indicator_segment(groups)
+    tooltip = usage_indicator_tooltip_lines(groups)
+
+    assert "~" not in segment.plain
+    assert all("~" not in line for line in tooltip)
+    assert "freshness: stale" in tooltip
+    assert "freshness: unknown" in tooltip
+    assert (
+        sum("last observed capacity; it may be out of date" in line for line in tooltip)
+        == 2
+    )
 
 
 def test_countdown_boundary_values() -> None:
@@ -498,8 +535,156 @@ def test_name_percent_and_countdown_share_bold_value_color(dark: bool) -> None:
 
 
 @pytest.mark.parametrize("dark", [True, False])
+def test_exact_zero_percent_uses_inverted_token_style(dark: bool) -> None:
+    entry = _entry(remaining_percent=0.0)
+    segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
+    exhausted_color = usage_percent_color(0, dark=dark)
+    badge_surface = _usage_badge_surface_color(dark=dark)
+
+    zero_start = segment.plain.find("0%")
+    assert zero_start >= 0
+    zero_style = _style_at_token(segment, "0%")
+    assert zero_style == Style.parse(usage_zero_percent_style(dark=dark))
+    assert zero_style.bold is True
+    assert zero_style.dim is False
+    assert zero_style.reverse is False
+    assert zero_style.color is not None
+    assert zero_style.color.get_truecolor().hex == badge_surface.lower()
+    assert zero_style.bgcolor is not None
+    assert zero_style.bgcolor.get_truecolor().hex == exhausted_color.lower()
+
+    for offset in (zero_start - 1, zero_start + len("0%")):
+        adjacent_style = _style_at_offset(segment, offset)
+        assert adjacent_style.bgcolor is not None
+        assert adjacent_style.bgcolor.get_truecolor().hex == badge_surface.lower()
+
+    countdown_style = _style_at_token(segment, "3d4h")
+    assert countdown_style.color is not None
+    assert countdown_style.color.get_truecolor().hex == exhausted_color.lower()
+    assert countdown_style.bgcolor is not None
+    assert countdown_style.bgcolor.get_truecolor().hex == badge_surface.lower()
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_named_and_rejected_zero_neighbors_keep_normal_badge_surface(
+    dark: bool,
+) -> None:
+    entry = _entry(
+        provider="grok",
+        window_key="weekly:grok-preview",
+        weekly_all=False,
+        scope=_scope(kind="product", product="grok", model_ids=("grok-preview",)),
+        remaining_percent=0.0,
+        vendor_state="rejected",
+        display_attention="rejected",
+    )
+    segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
+    badge_surface = _usage_badge_surface_color(dark=dark)
+    exhausted_color = usage_percent_color(0, dark=dark)
+
+    assert segment.plain.strip() == "🛰️ grok-preview ! 0% 3d4h"
+    for token in ("grok-preview", "!", "3d4h"):
+        style = _style_at_token(segment, token)
+        assert style.bgcolor is not None
+        assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
+    assert _style_at_token(segment, "0%").bgcolor is not None
+    assert (
+        _style_at_token(segment, "0%").bgcolor.get_truecolor().hex
+        == exhausted_color.lower()
+    )
+
+
+@pytest.mark.parametrize(
+    ("entry", "expected", "percent_token", "zero_emphasized"),
+    [
+        pytest.param(
+            _entry(remaining_percent=0.0), "🎭 0% 3d4h", "0%", True, id="zero"
+        ),
+        pytest.param(
+            _entry(remaining_percent=-3.0),
+            "🎭 0% 3d4h",
+            "0%",
+            True,
+            id="negative-clamped-zero",
+        ),
+        pytest.param(
+            _entry(remaining_percent=0.4),
+            "🎭 <1% 3d4h",
+            "<1%",
+            False,
+            id="subpercent",
+        ),
+        pytest.param(_entry(remaining_percent=7.0), "🎭 7% 3d4h", "7%", False, id="7"),
+        pytest.param(
+            _entry(remaining_percent=0.0, freshness="stale"),
+            "🎭 0% 3d4h",
+            "0%",
+            True,
+            id="stale-zero",
+        ),
+        pytest.param(
+            _entry(
+                provider="grok",
+                remaining_percent=0.0,
+                vendor_state="rejected",
+                display_attention="rejected",
+            ),
+            "🛰️ ! 0% 3d4h",
+            "0%",
+            True,
+            id="rejected-zero",
+        ),
+        pytest.param(
+            _entry(
+                remaining_percent=0.0,
+                reset_state="passed",
+                seconds_until_reset=0.0,
+                resets_at=FROZEN_NOW - 10.0,
+            ),
+            "🎭 ?% 0h0m↻",
+            "?%",
+            False,
+            id="passed-retained-zero",
+        ),
+        pytest.param(
+            _entry(
+                remaining_percent=0.0,
+                reset_state="unknown",
+                seconds_until_reset=None,
+                resets_at=None,
+            ),
+            "🎭 0% ?",
+            "0%",
+            True,
+            id="unknown-reset-zero",
+        ),
+    ],
+)
+def test_zero_percent_state_contract(
+    entry: dict[str, object],
+    expected: str,
+    percent_token: str,
+    zero_emphasized: bool,
+) -> None:
+    segment = build_usage_indicator_segment(_groups(entry))
+    percent_style = _style_at_token(segment, percent_token)
+    badge_surface = _usage_badge_surface_color(dark=True)
+    exhausted_color = usage_percent_color(0, dark=True)
+
+    assert segment.plain.strip() == expected
+    assert percent_style.bgcolor is not None
+    if zero_emphasized:
+        assert percent_style.color is not None
+        assert percent_style.color.get_truecolor().hex == badge_surface.lower()
+        assert percent_style.bgcolor.get_truecolor().hex == exhausted_color.lower()
+    else:
+        assert percent_style.bgcolor.get_truecolor().hex == badge_surface.lower()
+
+
+@pytest.mark.parametrize("dark", [True, False])
 def test_stale_and_passed_values_use_bold_neutral_color(dark: bool) -> None:
     stale = _entry(remaining_percent=62.0, freshness="stale")
+    unknown_age = _entry(remaining_percent=62.0, freshness="unknown")
     passed = _entry(
         remaining_percent=62.0,
         reset_state="passed",
@@ -511,7 +696,11 @@ def test_stale_and_passed_values_use_bold_neutral_color(dark: bool) -> None:
     for segment, tokens in (
         (
             build_usage_indicator_segment(_groups(stale, dark=dark), dark=dark),
-            ("62%~", "3d4h"),
+            ("62%", "3d4h"),
+        ),
+        (
+            build_usage_indicator_segment(_groups(unknown_age, dark=dark), dark=dark),
+            ("62%", "3d4h"),
         ),
         (
             build_usage_indicator_segment(_groups(passed, dark=dark), dark=dark),
@@ -746,6 +935,13 @@ def test_defined_colors_meet_minimum_contrast_on_badge_surface() -> None:
         colors.append(usage_rejected_style(dark=dark).rsplit(" ", 1)[-1])
         for color in colors:
             assert _contrast_ratio(color, badge_surface) >= 4.5, (dark, color)
+
+
+def test_zero_percent_inverted_style_meets_minimum_contrast() -> None:
+    for dark in (True, False):
+        zero_background = usage_percent_color(0, dark=dark)
+        badge_foreground = _usage_badge_surface_color(dark=dark)
+        assert _contrast_ratio(badge_foreground, zero_background) >= 4.5
 
 
 def _indicator_snapshot(*windows: dict[str, object]) -> dict[str, object]:

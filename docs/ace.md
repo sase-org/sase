@@ -3407,19 +3407,22 @@ names such as `fable`, `5h`, `mo`, or `5h/fable`. Compact names omit redundant w
 and all-model components while retaining model/family distinctions; `scope?` means the
 provider did not expose exact applicability. The name, percentage, and reset countdown
 share the window's ten-step remaining-capacity color, from red (nearly exhausted) to
-blue (nearly full). The `|` separators belong to the provider on their left and use that
-provider group's final visible window color, so a partial overflow can recolor the
-remaining visible dividers. Which windows appear, and at what remaining percentage, is
-fully configurable through
+blue (nearly full), except exact `0%` inverts that same red onto the percentage token
+only. Adjacent names, spaces, reset countdowns, rejection markers, provider icons, and
+separators keep their normal badge surfaces. The `|` separators belong to the provider
+on their left and use that provider group's final visible window color, so a partial
+overflow can recolor the remaining visible dividers. Which windows appear, and at what
+remaining percentage, is fully configurable through
 [`llm_provider.usage_metrics.indicator`](configuration.md#llm_providerusage_metrics).
 
-A `~` after a percentage means the reading is a retained stale or unknown-age
-observation, not a fresh one. `?% 0h0m↻` means the window's reset has passed and ACE is
-awaiting a new observation, retaining the last known percentage only in the tooltip. A
-bare `?` in the countdown position means the provider never reported a reset time. `!`
-marks a vendor-rejected window. Collector failures no longer add a top-bar warning
-glyph; selected failing windows keep collector-failure prose in the tooltip, and model
-picker hints keep their own separate `⚠ usage failing` identity.
+Stale or unknown-age numeric observations render with neutral text and disclose their
+freshness in the tooltip instead of adding a visible marker. `<1%` remains a low but
+nonzero reading on the normal badge surface. `?% 0h0m↻` means the window's reset has
+passed and ACE is awaiting a new observation, retaining the last known percentage only
+in the tooltip. A bare `?` in the countdown position means the provider never reported a
+reset time. `!` marks a vendor-rejected window. Collector failures no longer add a
+top-bar warning glyph; selected failing windows keep collector-failure prose in the
+tooltip, and model picker hints keep their own separate `⚠ usage failing` identity.
 
 Provider groups are ranked by their highest selected attention severity, then provider.
 Within a provider, the default window is first, followed by additional windows by

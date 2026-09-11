@@ -25,6 +25,7 @@ from ._usage_indicator_palette import (
     usage_percent_color,
     usage_rejected_style,
     usage_value_style,
+    usage_zero_percent_style,
 )
 
 _ATTENTION_RANK: Mapping[str, int] = {
@@ -311,7 +312,6 @@ def _entry_fragment(
     else:
         percent_text = format_usage_percent_text(remaining)
         if stale:
-            percent_text = f"{percent_text}~"
             value_color = usage_neutral_color(dark=dark)
         else:
             value_color = usage_percent_color(remaining, dark=dark)
@@ -331,7 +331,10 @@ def _entry_fragment(
     if rejected:
         text.append("!", style=usage_rejected_style(dark=dark))
         text.append(" ", style=base_style)
-    text.append(percent_text, style=value_style)
+    percent_style = (
+        usage_zero_percent_style(dark=dark) if percent_text == "0%" else value_style
+    )
+    text.append(percent_text, style=percent_style)
     text.append(" ", style=value_style)
     text.append(countdown_text, style=value_style)
 
@@ -393,7 +396,7 @@ def _entry_tooltip_lines(
         lines.append(f"resets {timestamp_label(resets_at, now)}")
     lines.append(f"freshness: {freshness}")
     if stale and not passed:
-        lines.append("~ shows the last observed capacity; it may be out of date")
+        lines.append("last observed capacity; it may be out of date")
     if entry.get("collector_problem") is True:
         lines.append("collector is currently failing for this provider")
     return tuple(lines)

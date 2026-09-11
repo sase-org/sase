@@ -117,6 +117,14 @@ def usage_value_style(color: str, *, dark: bool) -> str:
     return f"bold {color} on {_usage_badge_surface_color(dark=dark)}"
 
 
+def usage_zero_percent_style(*, dark: bool) -> str:
+    """Return the inverted exhausted style for an exact ``0%`` percentage token."""
+    return (
+        f"bold not dim not reverse {_usage_badge_surface_color(dark=dark)} "
+        f"on {usage_percent_color(0, dark=dark)}"
+    )
+
+
 def usage_divider_style(color: str, *, dark: bool) -> str:
     """Return the normal-weight pipe style on the continuous provider surface."""
     return (
@@ -142,4 +150,5 @@ __all__ = [
     "usage_rejected_style",
     "usage_secondary_style",
     "usage_value_style",
+    "usage_zero_percent_style",
 ]

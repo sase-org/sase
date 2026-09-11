@@ -489,8 +489,9 @@ class ProviderDisablesIndicator(Static):
                     "Notation: compact names omit weekly/all-model defaults; pipes "
                     "separate visible windows; 5h/mo name non-weekly windows; "
                     "scope? means the provider did not expose exact applicability.",
-                    "~ marks a retained stale/unknown-age reading; ↻ marks a passed "
-                    "reset awaiting a new observation; +N counts hidden windows.",
+                    "Neutral text marks a retained stale/unknown-age reading; ↻ marks "
+                    "a passed reset awaiting a new observation; +N counts hidden "
+                    "windows.",
                     "Click to open Providers · Usage.",
                     "The Usage command is also reachable from the command palette.",
                 )
