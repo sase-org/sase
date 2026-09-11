@@ -5,6 +5,8 @@ from pathlib import Path
 
 from sase.ace.tui.models.agent import AgentType
 from sase.core.agent_artifact_index_lifecycle import (
+    _projection_identity_digest,
+    build_authoritative_dismissed_agent_projection_inputs,
     build_dismissed_agent_projection_inputs,
     read_agent_artifact_index_schema_status,
     refresh_agent_artifact_index_if_schema_stale,
@@ -12,6 +14,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     sync_dismissed_agent_artifact_index_report,
 )
 from sase.core.agent_scan_wire import (
+    AgentArtifactIndexDismissalReconcileWire,
     AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
     AgentArtifactIndexUpdateWire,
 )
@@ -462,7 +465,65 @@ def test_current_schema_refresh_skips_rebuild(
     assert report.stored_schema_version == AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
 
 
-def test_authoritative_dismissed_sync_bypasses_matching_metadata(
+def test_authoritative_dismissed_sync_skips_when_metadata_matches_projection(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    index = tmp_path / "agent_artifact_index.sqlite"
+    index.touch()
+    meta_store = install_projection_meta_store(monkeypatch)
+    identity = (AgentType.RUNNING, "kept", "20260501010101")
+    projection = build_authoritative_dismissed_agent_projection_inputs(
+        {identity},
+        (10, 20),
+        (1, 30, 40, 2),
+    )
+    write_projection_meta(
+        meta_store,
+        index,
+        dismissed_agents_signature=[10, 20],
+        dismissed_bundle_index_signature=[1, 30, 40, 2],
+        projected_identity_count=len(projection.identities),
+        projected_identity_digest=_projection_identity_digest(projection.identities),
+    )
+
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.dismissed_agents_file_signature",
+        lambda: (10, 20),
+    )
+    monkeypatch.setattr(
+        "sase.ace.dismissed_agents.dismissed_bundle_index_signature",
+        lambda: (1, 30, 40, 2),
+    )
+
+    def fail_replace(*args: object, **kwargs: object) -> object:
+        raise AssertionError("unchanged authoritative projection should skip replace")
+
+    def fail_reconcile(*args: object, **kwargs: object) -> object:
+        raise AssertionError("unchanged authoritative projection should skip reconcile")
+
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "replace_agent_artifact_index_dismissed_agents",
+        fail_replace,
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "reconcile_agent_artifact_index_dismissed_family_members",
+        fail_reconcile,
+    )
+
+    report = sync_dismissed_agent_artifact_index_report(
+        {identity},
+        added={identity},
+        index_path=index,
+    )
+
+    assert report.synced
+    assert not report.changed
+
+
+def test_authoritative_dismissed_sync_updates_when_projection_digest_differs(
     tmp_path: Path,
     monkeypatch,
 ) -> None:  # type: ignore[no-untyped-def]
@@ -474,8 +535,10 @@ def test_authoritative_dismissed_sync_bypasses_matching_metadata(
         index,
         dismissed_agents_signature=[10, 20],
         dismissed_bundle_index_signature=[1, 30, 40, 2],
+        projected_identity_count=1,
+        projected_identity_digest="stale",
     )
-    calls: list[tuple[Path, list[object]]] = []
+    calls: list[tuple[str, Path, list[object] | None]] = []
 
     monkeypatch.setattr(
         "sase.ace.dismissed_agents.dismissed_agents_file_signature",
@@ -489,7 +552,7 @@ def test_authoritative_dismissed_sync_bypasses_matching_metadata(
     def fake_replace(
         index_path: Path, identities: list[object], **_kwargs: object
     ) -> object:
-        calls.append((index_path, identities))
+        calls.append(("replace", index_path, identities))
         return AgentArtifactIndexUpdateWire(
             schema_version=1,
             index_path=str(index_path),
@@ -497,24 +560,45 @@ def test_authoritative_dismissed_sync_bypasses_matching_metadata(
             rows_indexed=len(identities),
         )
 
+    def fake_reconcile(index_path: Path) -> AgentArtifactIndexDismissalReconcileWire:
+        calls.append(("reconcile", index_path, None))
+        return AgentArtifactIndexDismissalReconcileWire(
+            schema_version=1,
+            index_path=str(index_path),
+            rows_backfilled=2,
+        )
+
     monkeypatch.setattr(
         "sase.core.agent_artifact_index_lifecycle."
         "replace_agent_artifact_index_dismissed_agents",
         fake_replace,
     )
+    monkeypatch.setattr(
+        "sase.core.agent_artifact_index_lifecycle."
+        "reconcile_agent_artifact_index_dismissed_family_members",
+        fake_reconcile,
+    )
 
-    assert sync_dismissed_agent_artifact_index(
+    report = sync_dismissed_agent_artifact_index_report(
         {(AgentType.RUNNING, "kept", "20260501010101")},
-        added={(AgentType.RUNNING, "removed", "20260502020202")},
+        added={(AgentType.RUNNING, "kept", "20260501010101")},
         index_path=index,
     )
 
-    assert len(calls) == 1
-    assert [(row.agent_type, row.cl_name, row.raw_suffix) for row in calls[0][1]] == [
+    assert report.synced
+    assert report.changed
+    assert report.dismissal_family_rows_backfilled == 2
+    assert len(calls) == 2
+    assert calls[0][0] == "replace"
+    replaced = calls[0][2]
+    assert replaced is not None
+    assert [(row.agent_type, row.cl_name, row.raw_suffix) for row in replaced] == [
         ("run", "kept", "20260501010101")
     ]
+    assert calls[1] == ("reconcile", index, None)
     metadata = read_projection_meta(meta_store, index)
     assert metadata["projected_identity_count"] == 1
+    assert metadata["projected_identity_digest"] != "stale"
 
 
 def test_sync_dismissed_projection_writes_metadata(

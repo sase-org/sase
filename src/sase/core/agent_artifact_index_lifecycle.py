@@ -8,11 +8,13 @@ from __future__ import annotations
 
 import json
 import logging
+from hashlib import sha256
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
+from sase.core.agent_cleanup_wire import AgentCleanupIdentityWire
 from sase.core.agent_artifact_index_lifecycle_common import (
     AgentIdentityLike,
     DismissedAgentsSignature,
@@ -36,7 +38,6 @@ from sase.core.agent_artifact_index_lifecycle_schema import (
     read_agent_artifact_index_schema_status,
     refresh_agent_artifact_index_if_schema_stale,
 )
-from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     read_agent_artifact_index_meta,
@@ -148,22 +149,21 @@ def sync_dismissed_agent_artifact_index_report(
     source artifacts, and re-synced; transient lock errors never trigger
     that heal.
     """
-    with agent_artifact_index_operation_lock():
-        index = (
-            Path(index_path).expanduser()
-            if index_path is not None
-            else default_agent_artifact_index_path()
-        )
-        if not index.is_file():
-            return DismissedProjectionSyncReport(synced=False)
+    index = (
+        Path(index_path).expanduser()
+        if index_path is not None
+        else default_agent_artifact_index_path()
+    )
+    if not index.is_file():
+        return DismissedProjectionSyncReport(synced=False)
 
-        try:
-            report = _sync_projection(index, dismissed, added=added, force=force)
-            if not run_active_tier_maintenance:
-                return report
-            return _run_active_tier_maintenance(index, report)
-        except _CorruptArtifactIndexError:
-            return _heal_corrupt_index_and_resync(index, dismissed)
+    try:
+        report = _sync_projection(index, dismissed, added=added, force=force)
+        if not run_active_tier_maintenance:
+            return report
+        return _run_active_tier_maintenance(index, report)
+    except _CorruptArtifactIndexError:
+        return _heal_corrupt_index_and_resync(index, dismissed)
 
 
 def _sync_projection(
@@ -178,24 +178,27 @@ def _sync_projection(
     dismissed_agents_signature, dismissed_bundle_index_signature = (
         _current_projection_source_metadata()
     )
-    if (
-        not authoritative
-        and not force
-        and _projection_metadata_matches(
-            index,
-            dismissed_agents_signature,
-            dismissed_bundle_index_signature,
+    authoritative_projection: DismissedProjectionInputs | None = None
+    if authoritative:
+        assert dismissed is not None
+        authoritative_projection = (
+            build_authoritative_dismissed_agent_projection_inputs(
+                dismissed,
+                dismissed_agents_signature,
+                dismissed_bundle_index_signature,
+            )
         )
+    if not force and _projection_metadata_matches(
+        index,
+        dismissed_agents_signature,
+        dismissed_bundle_index_signature,
+        authoritative_projection=authoritative_projection,
     ):
         return DismissedProjectionSyncReport(synced=True, changed=False)
 
     if authoritative:
-        assert dismissed is not None
-        projection = build_authoritative_dismissed_agent_projection_inputs(
-            dismissed,
-            dismissed_agents_signature,
-            dismissed_bundle_index_signature,
-        )
+        assert authoritative_projection is not None
+        projection = authoritative_projection
     else:
         projection = build_dismissed_agent_projection_inputs(dismissed)
     try:
@@ -368,16 +371,27 @@ def _projection_metadata_matches(
     index_path: Path,
     dismissed_agents_signature: DismissedAgentsSignature,
     dismissed_bundle_index_signature: DismissedBundleIndexSignature,
+    *,
+    authoritative_projection: DismissedProjectionInputs | None = None,
 ) -> bool:
     metadata = _read_projection_metadata(index_path)
     if metadata is None:
         return False
-    return (
+    signatures_match = (
         metadata.get("version") == _DISMISSED_PROJECTION_META_VERSION
         and metadata.get("dismissed_agents_signature")
         == _json_signature(dismissed_agents_signature)
         and metadata.get("dismissed_bundle_index_signature")
         == _json_signature(dismissed_bundle_index_signature)
+    )
+    if not signatures_match:
+        return False
+    if authoritative_projection is None:
+        return True
+    return metadata.get("projected_identity_count") == len(
+        authoritative_projection.identities
+    ) and metadata.get("projected_identity_digest") == _projection_identity_digest(
+        authoritative_projection.identities
     )
 
 
@@ -413,6 +427,7 @@ def _write_projection_metadata(
             projection.dismissed_bundle_index_signature
         ),
         "projected_identity_count": len(projection.identities),
+        "projected_identity_digest": _projection_identity_digest(projection.identities),
         "synced_at": datetime.now(UTC).isoformat(),
     }
     write_agent_artifact_index_meta(
@@ -424,6 +439,22 @@ def _write_projection_metadata(
 
 def _json_signature(signature: tuple[int, ...] | None) -> list[int] | None:
     return list(signature) if signature is not None else None
+
+
+def _projection_identity_digest(
+    identities: Iterable[AgentCleanupIdentityWire],
+) -> str:
+    digest = sha256()
+    for identity in identities:
+        digest.update(str(identity.agent_type).encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(identity.cl_name).encode("utf-8"))
+        digest.update(b"\0")
+        raw_suffix = identity.raw_suffix
+        if raw_suffix is not None:
+            digest.update(str(raw_suffix).encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
 
 
 __all__ = [

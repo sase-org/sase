@@ -77,14 +77,15 @@ def listing_snapshot(
     ) as extra:
         try:
             from sase.core.agent_scan_facade import (
+                agent_artifact_index_status_bounded,
                 default_agent_artifact_index_path,
-                query_agent_artifact_index,
+                query_agent_artifact_index_bounded,
             )
 
             index_path = default_agent_artifact_index_path()
             if index_path.is_file():
                 index_queries += 1
-                snapshot = query_agent_artifact_index(
+                snapshot = query_agent_artifact_index_bounded(
                     index_path,
                     sase_projects_dir(),
                     query=AgentArtifactIndexQueryWire(
@@ -101,8 +102,32 @@ def listing_snapshot(
                     ),
                     options=scan_options,
                 )
+                if snapshot is None:
+                    source_scans += 1
+                    snapshot = _scan_listing_snapshot(fallback_options)
+                    state = AgentListingLoadState(
+                        artifact_source="source_scan",
+                        used_artifact_index=False,
+                        index_error="artifact index operation lock busy",
+                        repair_recommended=False,
+                        repair_reason="artifact_index_lock_busy_bounded_fallback",
+                        record_count=len(snapshot.records),
+                    )
+                    _finish_snapshot_trace(
+                        extra,
+                        snapshot=snapshot,
+                        state=state,
+                        index_queries=index_queries,
+                        source_scans=source_scans,
+                    )
+                    return snapshot, state
                 state = _listing_state_from_index_snapshot(snapshot)
-                if _should_use_empty_index_fallback(snapshot, state, index_path):
+                if _should_use_empty_index_fallback(
+                    snapshot,
+                    state,
+                    index_path,
+                    index_status=agent_artifact_index_status_bounded,
+                ):
                     source_scans += 1
                     snapshot = _scan_listing_snapshot(fallback_options)
                     state = AgentListingLoadState(
@@ -215,20 +240,29 @@ def _should_use_empty_index_fallback(
     snapshot: AgentArtifactScanWire,
     state: AgentListingLoadState,
     index_path: Path,
+    *,
+    index_status: Any | None = None,
 ) -> bool:
     if snapshot.records:
         return False
     if state.returned_count not in (None, 0):
         return False
-    return _artifact_index_has_no_rows(index_path)
+    return _artifact_index_has_no_rows(index_path, index_status=index_status)
 
 
-def _artifact_index_has_no_rows(index_path: Path) -> bool:
+def _artifact_index_has_no_rows(
+    index_path: Path, *, index_status: Any | None = None
+) -> bool:
     try:
-        from sase.core.agent_scan_facade import agent_artifact_index_status
+        if index_status is None:
+            from sase.core.agent_scan_facade import agent_artifact_index_status_bounded
 
-        status = agent_artifact_index_status(index_path)
+            index_status = agent_artifact_index_status_bounded
+
+        status = index_status(index_path)
     except (ImportError, AttributeError, OSError, ValueError, RuntimeError):
+        return False
+    if status is None:
         return False
     return status.agent_artifacts_rows == 0
 

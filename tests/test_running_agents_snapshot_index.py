@@ -68,7 +68,7 @@ def test_listing_snapshot_uses_bounded_index_query_with_project_pushdown(
         lambda: index_path,
     )
     monkeypatch.setattr(
-        "sase.core.agent_scan_facade.query_agent_artifact_index",
+        "sase.core.agent_scan_facade.query_agent_artifact_index_bounded",
         fake_query_agent_artifact_index,
     )
     monkeypatch.setattr(
@@ -156,6 +156,56 @@ def test_listing_snapshot_missing_index_uses_bounded_source_fallback(
     assert options.only_projects == ("proj",)
 
 
+def test_listing_snapshot_busy_index_lock_uses_bounded_source_fallback(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    fallback = synthetic_snapshot(
+        tmp_path,
+        [synthetic_record(tmp_path, "20260717130005", "manual", done=True)],
+    )
+    scan_options: list[AgentArtifactScanOptionsWire | None] = []
+
+    def fake_scan_listing_snapshot(
+        options: AgentArtifactScanOptionsWire | None = None,
+    ) -> AgentArtifactScanWire:
+        scan_options.append(options)
+        return fallback
+
+    monkeypatch.setattr(
+        "sase.core.agent_scan_facade.default_agent_artifact_index_path",
+        lambda: index_path,
+    )
+    monkeypatch.setattr(
+        "sase.core.agent_scan_facade.query_agent_artifact_index_bounded",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "sase.agent.listing_snapshot.sase_projects_dir",
+        lambda: tmp_path,
+    )
+    monkeypatch.setattr(
+        "sase.agent.listing_snapshot._scan_listing_snapshot",
+        fake_scan_listing_snapshot,
+    )
+
+    loaded, state = listing_snapshot(project="proj")
+
+    assert loaded is fallback
+    assert state.artifact_source == "source_scan"
+    assert state.used_artifact_index is False
+    assert state.index_error == "artifact index operation lock busy"
+    assert state.repair_recommended is False
+    assert state.repair_reason == "artifact_index_lock_busy_bounded_fallback"
+    [options] = scan_options
+    assert options is not None
+    assert options.max_records == 200
+    assert options.newest_first is True
+    assert options.only_projects == ("proj",)
+
+
 def test_listing_snapshot_empty_index_uses_bounded_source_fallback(
     tmp_path: Path,
     monkeypatch,
@@ -180,11 +230,11 @@ def test_listing_snapshot_empty_index_uses_bounded_source_fallback(
         lambda: index_path,
     )
     monkeypatch.setattr(
-        "sase.core.agent_scan_facade.query_agent_artifact_index",
+        "sase.core.agent_scan_facade.query_agent_artifact_index_bounded",
         lambda *_args, **_kwargs: indexed,
     )
     monkeypatch.setattr(
-        "sase.core.agent_scan_facade.agent_artifact_index_status",
+        "sase.core.agent_scan_facade.agent_artifact_index_status_bounded",
         lambda _path: AgentArtifactIndexStatusWire(
             schema_version=1,
             index_path=str(index_path),

@@ -7,7 +7,7 @@ from typing import Literal, cast
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
-    query_agent_artifact_index,
+    query_agent_artifact_index_bounded as query_agent_artifact_index,
     scan_agent_artifact_dirs,
     scan_agent_artifacts,
 )

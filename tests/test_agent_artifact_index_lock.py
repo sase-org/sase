@@ -13,6 +13,7 @@ from sase.core.agent_scan_facade import (
     agent_artifact_index_status,
     delete_agent_artifact_index_row,
     query_agent_artifact_index,
+    query_agent_artifact_index_bounded,
     read_agent_artifact_index_meta,
     write_agent_artifact_index_meta,
 )
@@ -264,4 +265,41 @@ def test_bounded_operation_lock_reports_contention() -> None:
         release.set()
         thread.join(timeout=1.0)
 
+    assert not thread.is_alive()
+
+
+def test_bounded_artifact_index_query_returns_none_during_contention(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    acquired = threading.Event()
+    release = threading.Event()
+
+    def hold_lock() -> None:
+        with agent_artifact_index_operation_lock():
+            acquired.set()
+            release.wait(timeout=1.0)
+
+    def fail_require_binding(name: str) -> object:
+        raise AssertionError(f"bounded query entered Rust while lock was busy: {name}")
+
+    monkeypatch.setattr(
+        "sase.core.agent_scan_facade.require_rust_binding",
+        fail_require_binding,
+    )
+
+    thread = threading.Thread(target=hold_lock)
+    thread.start()
+    assert acquired.wait(timeout=1.0)
+    try:
+        snapshot = query_agent_artifact_index_bounded(
+            tmp_path / "index.sqlite",
+            tmp_path / "projects",
+            lock_timeout_seconds=0.01,
+        )
+    finally:
+        release.set()
+        thread.join(timeout=1.0)
+
+    assert snapshot is None
     assert not thread.is_alive()

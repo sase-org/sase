@@ -68,13 +68,17 @@ def write_projection_meta(
     *,
     dismissed_agents_signature: list[int] | None,
     dismissed_bundle_index_signature: list[int] | None,
+    projected_identity_count: int = 2,
+    projected_identity_digest: str | None = None,
 ) -> None:
     payload = {
         "version": 1,
         "dismissed_agents_signature": dismissed_agents_signature,
         "dismissed_bundle_index_signature": dismissed_bundle_index_signature,
-        "projected_identity_count": 2,
+        "projected_identity_count": projected_identity_count,
     }
+    if projected_identity_digest is not None:
+        payload["projected_identity_digest"] = projected_identity_digest
     store[(index, _DISMISSED_PROJECTION_META_KEY)] = json.dumps(payload)
 
 

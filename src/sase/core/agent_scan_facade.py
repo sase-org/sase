@@ -83,6 +83,8 @@ from sase.core.agent_scan_wire import (
 from sase.core.paths import sase_home as _sase_home
 from sase.core.rust import require_rust_binding
 
+_DEFAULT_READ_LOCK_TIMEOUT_SECONDS = 0.05
+
 
 def _options_to_dict(options: AgentArtifactScanOptionsWire) -> dict[str, Any]:
     return {
@@ -323,6 +325,20 @@ def agent_artifact_index_status(
     return agent_artifact_index_status_from_dict(payload)
 
 
+def agent_artifact_index_status_bounded(
+    index_path: Path | str,
+    *,
+    lock_timeout_seconds: float = _DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+) -> AgentArtifactIndexStatusWire | None:
+    """Return index status, or ``None`` when the process-local lock is busy."""
+    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
+        if not acquired:
+            return None
+        rust_status = require_rust_binding("agent_artifact_index_status")
+        payload: dict[str, Any] = rust_status(str(index_path))
+    return agent_artifact_index_status_from_dict(payload)
+
+
 def vacuum_agent_artifact_index(
     index_path: Path | str,
 ) -> AgentArtifactIndexVacuumWire:
@@ -409,6 +425,30 @@ def query_agent_artifact_index(
     return agent_scan_wire_from_dict(payload)
 
 
+def query_agent_artifact_index_bounded(
+    index_path: Path | str,
+    projects_root: Path | str,
+    query: AgentArtifactIndexQueryWire | None = None,
+    options: AgentArtifactScanOptionsWire | None = None,
+    *,
+    lock_timeout_seconds: float = _DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+) -> AgentArtifactScanWire | None:
+    """Query index rows, or ``None`` when the process-local lock is busy."""
+    opts = options or AgentArtifactScanOptionsWire()
+    query_wire = query or AgentArtifactIndexQueryWire()
+    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
+        if not acquired:
+            return None
+        rust_query = require_rust_binding("query_agent_artifact_index")
+        payload: dict[str, Any] = rust_query(
+            str(index_path),
+            str(projects_root),
+            agent_artifact_index_query_to_dict(query_wire),
+            _options_to_dict(opts),
+        )
+    return agent_scan_wire_from_dict(payload)
+
+
 def load_agent_artifact_records(
     index_path: Path | str,
     artifact_dirs: Sequence[Path | str],
@@ -424,6 +464,25 @@ def load_agent_artifact_records(
     return agent_artifact_records_from_dicts(payload)
 
 
+def load_agent_artifact_records_bounded(
+    index_path: Path | str,
+    artifact_dirs: Sequence[Path | str],
+    *,
+    lock_timeout_seconds: float = _DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+) -> list[AgentArtifactRecordWire] | None:
+    """Load exact index records, or ``None`` when the local lock is busy."""
+    index = Path(index_path).expanduser()
+    dirs = [str(Path(path).expanduser()) for path in artifact_dirs]
+    if not dirs:
+        return []
+    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
+        if not acquired:
+            return None
+        rust_load = require_rust_binding("load_agent_artifact_records")
+        payload: list[dict[str, Any]] = rust_load(str(index), dirs)
+    return agent_artifact_records_from_dicts(payload)
+
+
 def query_related_agent_artifact_dirs(
     index_path: Path | str,
     artifact_dir: Path | str,
@@ -434,6 +493,25 @@ def query_related_agent_artifact_dirs(
     artifact = Path(artifact_dir).expanduser()
     seeds = [str(value) for value in seed_timestamps if value]
     with agent_artifact_index_operation_lock():
+        rust_query = require_rust_binding("query_related_agent_artifact_dirs")
+        payload: list[str] = rust_query(str(index), str(artifact), seeds)
+    return [Path(path) for path in payload]
+
+
+def query_related_agent_artifact_dirs_bounded(
+    index_path: Path | str,
+    artifact_dir: Path | str,
+    seed_timestamps: Sequence[str],
+    *,
+    lock_timeout_seconds: float = _DEFAULT_READ_LOCK_TIMEOUT_SECONDS,
+) -> list[Path] | None:
+    """Return related artifact dirs, or ``None`` when the local lock is busy."""
+    index = Path(index_path).expanduser()
+    artifact = Path(artifact_dir).expanduser()
+    seeds = [str(value) for value in seed_timestamps if value]
+    with try_agent_artifact_index_operation_lock(lock_timeout_seconds) as acquired:
+        if not acquired:
+            return None
         rust_query = require_rust_binding("query_related_agent_artifact_dirs")
         payload: list[str] = rust_query(str(index), str(artifact), seeds)
     return [Path(path) for path in payload]
@@ -546,17 +624,21 @@ __all__ = [
     "WorkflowStateWire",
     "WorkflowStepStateWire",
     "agent_artifact_index_status",
+    "agent_artifact_index_status_bounded",
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
     "load_agent_artifact_records",
+    "load_agent_artifact_records_bounded",
     "parse_output_variable_selector",
     "prune_hidden_terminal_agent_artifact_index_rows",
     "query_agent_alias_history",
     "query_agent_artifact_index",
+    "query_agent_artifact_index_bounded",
     "query_agent_output_variable_history",
     "query_agent_output_variable_selectors",
     "query_related_agent_artifact_dirs",
+    "query_related_agent_artifact_dirs_bounded",
     "read_agent_artifact_index_meta",
     "rebuild_agent_artifact_index",
     "reconcile_agent_artifact_index_dismissed_family_members",

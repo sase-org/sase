@@ -86,7 +86,7 @@ class _ArtifactIndexQuery(Protocol):
         *,
         query: AgentArtifactIndexQueryWire,
         options: AgentArtifactScanOptionsWire,
-    ) -> AgentArtifactScanWire: ...
+    ) -> AgentArtifactScanWire | None: ...
 
 
 class _Tier1IndexLoader(Protocol):
@@ -146,6 +146,22 @@ def query_artifact_index_for_loader(
             query=query,
             options=_TUI_SCAN_OPTIONS,
         )
+        if snapshot is None:
+            fallback_snapshot = scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS)
+            return (
+                fallback_snapshot,
+                AgentLoadState(
+                    tier="tier1",
+                    complete_history=False,
+                    complete_visible_inbox=False,
+                    artifact_source="source_scan",
+                    used_artifact_index=False,
+                    index_error="artifact index operation lock busy",
+                    repair_recommended=False,
+                    repair_reason="artifact_index_lock_busy_bounded_fallback",
+                    record_count=len(fallback_snapshot.records),
+                ),
+            )
     except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
         fallback_snapshot = scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS)
         return (
@@ -270,12 +286,14 @@ def artifact_snapshot_for_live_plan_load(
             include_hidden=False,
         )
         try:
-            return query_index(
+            snapshot = query_index(
                 index_path,
                 projects_root(),
                 query=query,
                 options=_PLAN_LIVE_SCAN_OPTIONS,
             )
+            if snapshot is not None:
+                return snapshot
         except (ImportError, AttributeError, OSError, ValueError, RuntimeError):
             pass
 

@@ -140,7 +140,7 @@ def _discover_related_tool_artifact_dirs_from_index(
     try:
         from sase.core.agent_scan_facade import (
             default_agent_artifact_index_path,
-            query_related_agent_artifact_dirs,
+            query_related_agent_artifact_dirs_bounded as query_related_agent_artifact_dirs,
         )
     except ImportError:
         return []
@@ -149,11 +149,12 @@ def _discover_related_tool_artifact_dirs_from_index(
     if not index_path.is_file():
         return []
     try:
-        return query_related_agent_artifact_dirs(
+        related_dirs = query_related_agent_artifact_dirs(
             index_path,
             current,
             sorted(root_ids),
         )
+        return [] if related_dirs is None else related_dirs
     except (AttributeError, ImportError, OSError, RuntimeError, ValueError):
         return []
 

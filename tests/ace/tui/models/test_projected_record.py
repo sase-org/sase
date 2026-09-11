@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sase.ace.tui.models._projected_record import (
+    projected_agent_needs_hydration,
     hydrate_projected_agent,
     resolve_linked_repos,
 )
@@ -147,3 +148,35 @@ def test_hydrate_projected_workflow_step_uses_prompt_step_file_name(
         "_raw": "target output",
         "meta_keep": "loaded",
     }
+
+
+def test_busy_index_lock_leaves_projected_agent_retryable(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:  # type: ignore[no-untyped-def]
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    artifact_dir = "/tmp/projects/proj/artifacts/ace-run/20260519090000"
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models._projected_record.default_agent_artifact_index_path",
+        lambda: index_path,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models._projected_record.load_agent_artifact_records",
+        lambda _index, _dirs: None,
+    )
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="proj",
+        project_file="/tmp/projects/proj/proj.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 19, 9, 0, 0),
+        raw_suffix="20260519090000",
+        record_shape="list",
+        index_record_dir=artifact_dir,
+    )
+
+    assert hydrate_projected_agent(agent) is False
+
+    assert projected_agent_needs_hydration(agent) is True

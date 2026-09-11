@@ -17,9 +17,13 @@ from sase.completion.candidates.catalog_support import (
 )
 from sase.completion.candidates.protocol import Candidate
 
+_AGENT_INDEX_LOCK_TIMEOUT_SECONDS = 0.05
+
 
 def _query_agent_index(*, only_monitors: bool) -> tuple[Mapping[str, Any], ...]:
-    from sase.core.agent_artifact_index_lock import agent_artifact_index_operation_lock
+    from sase.core.agent_artifact_index_lock import (
+        try_agent_artifact_index_operation_lock,
+    )
     from sase.core.paths import sase_home
     from sase.core.paths import sase_projects_dir
     from sase.core.rust import require_rust_binding
@@ -51,7 +55,11 @@ def _query_agent_index(*, only_monitors: bool) -> tuple[Mapping[str, Any], ...]:
         "only_projects": [],
         "include_project_states": [],
     }
-    with agent_artifact_index_operation_lock():
+    with try_agent_artifact_index_operation_lock(
+        _AGENT_INDEX_LOCK_TIMEOUT_SECONDS
+    ) as acquired:
+        if not acquired:
+            return ()
         payload = require_rust_binding("query_agent_artifact_index")(
             str(sase_home() / "agent_artifact_index.sqlite"),
             str(sase_projects_dir()),

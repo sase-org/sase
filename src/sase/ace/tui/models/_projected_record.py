@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
-    load_agent_artifact_records,
+    load_agent_artifact_records_bounded as load_agent_artifact_records,
 )
 from sase.core.agent_scan_wire import AgentArtifactRecordWire, PromptStepMarkerWire
 
@@ -94,6 +94,9 @@ def hydrate_projected_agent(agent: Agent) -> bool:
             "projected record hydration failed for %s", artifact_dir, exc_info=True
         )
         mark_projected_agent_hydration_attempted(agent)
+        return False
+
+    if records is None:
         return False
 
     if not records:
