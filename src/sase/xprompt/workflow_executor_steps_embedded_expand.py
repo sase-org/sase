@@ -9,6 +9,7 @@ import json
 import os
 from typing import Any
 
+from sase.continuation_capture import embedded_workflow_prompt_segment
 from sase.content import (
     apply_section_marker_handling,
     content_ends_with_markdown_heading,
@@ -52,6 +53,7 @@ class EmbeddedWorkflowExpandMixin:
     workflow: Workflow
     artifacts_dir: str
     state: WorkflowState
+    _continuation_embedded_segments: list[Any]
 
     # Method type declarations for methods provided by other mixins
     _execute_embedded_workflow_steps: Any
@@ -311,6 +313,14 @@ class EmbeddedWorkflowExpandMixin:
                             )
 
             p.rendered_prompt_part = prompt_part_content
+            if prompt_part_content:
+                self._continuation_embedded_segments.append(
+                    embedded_workflow_prompt_segment(
+                        p.name,
+                        prompt_part_content,
+                        source_path=p.workflow.source_path,
+                    )
+                )
 
         # ── Phase 4: Text replacement ────────────────────────────────────
         # Sort by match_start descending so right-to-left replacement is position-safe.

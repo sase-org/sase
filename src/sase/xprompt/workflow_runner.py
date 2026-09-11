@@ -364,11 +364,13 @@ class WorkflowResult:
         output: JSON string of the last step's output.
         response_text: Newest raw response text from a completed prompt step, if any.
         artifacts_dir: Path to the artifacts directory.
+        continuation_prepared_ref: Ref for the last prepared local prompt capture.
     """
 
     output: str
     response_text: str | None
     artifacts_dir: str
+    continuation_prepared_ref: str | None = None
 
 
 def execute_workflow(
@@ -578,10 +580,13 @@ def execute_workflow(
                 response_text = raw_response
                 break
 
+    from sase.continuation_capture import read_prepared_prompt_capture_ref
+
     return WorkflowResult(
         output=output_str,
         response_text=response_text,
         artifacts_dir=artifacts_dir,
+        continuation_prepared_ref=read_prepared_prompt_capture_ref(artifacts_dir),
     )
 
 

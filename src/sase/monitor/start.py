@@ -311,7 +311,7 @@ def _start_monitor_locked(
         _teardown_failed_member(artifacts_dir, str(exc))
         raise MonitorError(str(exc)) from exc
 
-    return MonitorRecord(
+    record = MonitorRecord(
         monitor_id=monitor_id,
         member_agent_name=member_name,
         lane=durable_lane,
@@ -336,6 +336,13 @@ def _start_monitor_locked(
         request_fingerprint=request_fingerprint,
         output_path=str(log_path),
     )
+    _persist_monitor_start_intent_after_ack(
+        request,
+        record,
+        lane_start=lane_start,
+        request_fingerprint=request_fingerprint,
+    )
+    return record
 
 
 def _replayed_lane_monitor(
@@ -553,6 +560,50 @@ def _monitor_claim_error(
         for claim in conflicts
     )
     return f"{base}; conflicting RUNNING claim: {details}"
+
+
+def _persist_monitor_start_intent_after_ack(
+    request: StartMonitorRequest,
+    record: MonitorRecord,
+    *,
+    lane_start: _LaneStart,
+    request_fingerprint: str,
+) -> None:
+    parent_node_ids = _continuation_parent_node_ids(lane_start.member_meta)
+    from sase.continuation_capture import persist_monitor_start_intent_best_effort
+
+    persist_monitor_start_intent_best_effort(
+        artifacts_dir=record.artifacts_dir,
+        monitor_id=record.monitor_id,
+        member_agent_name=record.member_agent_name,
+        project_name=record.project_name,
+        command=record.command,
+        cwd=record.cwd,
+        next_action=record.next_action,
+        next_model=record.next_model,
+        next_output=record.next_output,
+        request_fingerprint=request_fingerprint,
+        parent_node_ids=parent_node_ids,
+        starter_agent=lane_start.starter_agent,
+    )
+
+
+def _continuation_parent_node_ids(meta: dict[str, Any]) -> list[str]:
+    ids: list[str] = []
+    raw_node_id = meta.get("continuation_node_id")
+    if isinstance(raw_node_id, str) and raw_node_id:
+        ids.append(raw_node_id)
+    raw_parent_ids = meta.get("continuation_parent_node_ids")
+    if isinstance(raw_parent_ids, list):
+        ids.extend(item for item in raw_parent_ids if isinstance(item, str) and item)
+    seen: set[str] = set()
+    result: list[str] = []
+    for node_id in ids:
+        if node_id in seen:
+            continue
+        seen.add(node_id)
+        result.append(node_id)
+    return result
 
 
 def _read_meta(artifacts_dir: str) -> dict[str, Any]:

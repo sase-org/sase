@@ -29,6 +29,7 @@ from sase.xprompt.workflow_models import (
 )
 
 if TYPE_CHECKING:
+    from sase.continuation_capture import ContinuationSegmentCapture
     from sase.xprompt.workflow_output import WorkflowOutputHandler
 
 # Import LoopInfo unconditionally since it's used at runtime
@@ -87,6 +88,7 @@ class WorkflowExecutor(StepMixin, LoopMixin, ParallelMixin):
         self._zero_iteration_steps: set[str] = set()
         self._last_for_zero_iterations: bool = False
         self._agents_launched: int = 0
+        self._continuation_embedded_segments: list[ContinuationSegmentCapture] = []
 
         # Detect step inputs - args that match step names with output schemas
         # These are used to skip steps and use pre-provided outputs

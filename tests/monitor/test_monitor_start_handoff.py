@@ -53,12 +53,18 @@ def test_write_monitor_pending_marker_pulses_artifacts_root(tmp_path: Path) -> N
     )
 
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
-    assert marker == {
-        "monitor_id": "m123",
-        "member_artifacts_dir": "/tmp/member",
-        "member_agent_name": "agent--mon",
-        "timestamp": 123.0,
-    }
+    assert marker["monitor_id"] == "m123"
+    assert marker["member_artifacts_dir"] == "/tmp/member"
+    assert marker["member_agent_name"] == "agent--mon"
+    assert marker["timestamp"] == 123.0
+    checkpoint_ref = marker["handoff_checkpoint_ref"]
+    assert isinstance(checkpoint_ref, str)
+    checkpoint_path = (
+        artifacts_dir
+        / "continuation"
+        / checkpoint_ref.removeprefix("local:continuation/")
+    )
+    assert checkpoint_path.exists()
     assert (tmp_path / "artifacts" / "ace-run" / ".ace_refresh_pulse").exists()
 
 
@@ -91,6 +97,10 @@ def test_maybe_handoff_monitor_from_agent_writes_marker_and_kills_runner(
         assert maybe_handoff_monitor_from_agent(record) is True
 
     assert (artifacts_dir / ".sase_monitor_pending").exists()
+    marker = json.loads((artifacts_dir / ".sase_monitor_pending").read_text())
+    assert marker["handoff_checkpoint_ref"].startswith(
+        "local:continuation/checkpoints/"
+    )
     kill.assert_called_once_with(str(artifacts_dir))
 
 

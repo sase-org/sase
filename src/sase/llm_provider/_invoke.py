@@ -8,8 +8,13 @@ import logging
 import os
 import subprocess
 import time
+from collections.abc import Sequence
 from typing import Any, Literal, cast
 
+from sase.continuation_capture import (
+    ContinuationSegmentCapture,
+    record_prepared_prompt_capture_best_effort,
+)
 from sase.core.time import generate_timestamp
 from .messages import AIMessage
 from sase.output import print_decision_counts, print_prompt_and_response
@@ -70,6 +75,8 @@ def invoke_agent(
     skip_preprocessing: bool = False,
     directives: PromptDirectives | None = None,
     launch_selection: LaunchSelection | None = None,
+    authored_local_request: str | None = None,
+    continuation_segments: Sequence[ContinuationSegmentCapture] = (),
 ) -> AIMessage:
     """Invoke an LLM agent with standard preprocessing, logging, and postprocessing.
 
@@ -110,6 +117,10 @@ def invoke_agent(
             instead of resolving *directives* itself, so a caller that
             already consumed a pooled model alias (e.g. the workflow
             executor's prompt step) does not advance its cursor twice.
+        authored_local_request: Optional raw local request corresponding to
+            *prompt* when the caller already preprocessed it.
+        continuation_segments: Optional local prompt provenance segments
+            collected by preprocessing or workflow expansion.
 
     Returns:
         The AIMessage response from the agent.
@@ -151,7 +162,15 @@ def invoke_agent(
         result = preprocess_prompt(prompt, is_home_mode=is_home_mode)
         query = result.prompt
         result_directives = result.directives
+        continuation_segments = result.continuation_segments
+        authored_local_request = prompt
     if artifacts_dir:
+        record_prepared_prompt_capture_best_effort(
+            artifacts_dir,
+            authored_local_request=authored_local_request or prompt,
+            materialized_prompt=query,
+            segments=continuation_segments,
+        )
         from sase.continuation_baseline import (
             measure_provider_preprocess,
             record_shadow_measurement,

@@ -154,6 +154,69 @@ def test_start_monitor_promotes_a_bare_lane_and_runs_to_completion(
     assert get_claimed_workspaces(project_file) == []
 
 
+def test_start_monitor_persists_next_action_intent_after_ack(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+        continuation_node_id="agent-delta:starter:abc123",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    record = start_monitor(
+        StartMonitorRequest(
+            command="sleep 30",
+            reason="verify",
+            timeout_seconds=30.0,
+            cwd=str(tmp_path),
+            project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
+            lane="acme",
+            next_action="Inspect the completed monitor output.",
+            next_model="claude-sonnet-5",
+        )
+    )
+
+    try:
+        root = Path(record.artifacts_dir) / "continuation"
+        manifest = json.loads(
+            (root / "monitor_intent_manifest.json").read_text(encoding="utf-8")
+        )
+        assert manifest["parent_node_ids"] == ["agent-delta:starter:abc123"]
+        intent_ref = manifest["intent_ref"]
+        intent = json.loads(
+            (root / intent_ref.removeprefix("local:continuation/")).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert intent["next_action"] == "Inspect the completed monitor output."
+        assert intent["route"]["model"] == "claude-sonnet-5"
+
+        meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+        assert meta["continuation_parent_node_ids"] == ["agent-delta:starter:abc123"]
+        assert meta["continuation_intent_ref"] == intent_ref
+    finally:
+        if record.pid is not None:
+            try:
+                os.kill(record.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        wait_for_done(record.artifacts_dir, timeout=10.0)
+
+
 def test_start_monitor_without_metadata_workspace_num_claims_the_cwd_checkout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

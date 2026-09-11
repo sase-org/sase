@@ -191,6 +191,8 @@ class PromptStepMixin(PromptStepPrepareMixin):
                 skip_preprocessing=True,
                 directives=effective_directives,
                 launch_selection=launch_selection,
+                authored_local_request=prepared.authored_local_request,
+                continuation_segments=prepared.continuation_segments,
             )
             response_text = ensure_str_content(response.content)
 

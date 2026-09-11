@@ -190,6 +190,24 @@ def finalize_loop(
     print(f"\nChat history saved to: {saved_path}")
 
     if state.loop_outcome in _COMPLETED_MARKER_LOOP_OUTCOMES:
+        continuation_projection: dict[str, str] | None = None
+        if state.loop_outcome == "completed":
+            from sase.continuation_capture import persist_agent_delta_best_effort
+
+            continuation_result = persist_agent_delta_best_effort(
+                ctx,
+                state,
+                status="completed",
+                final_response=response_content,
+            )
+            if continuation_result is not None:
+                continuation_projection = continuation_result.marker_projection()
+        else:
+            from sase.continuation_capture import read_latest_manifest_projection
+
+            continuation_projection = read_latest_manifest_projection(
+                state.current_artifacts_dir
+            )
         if state.loop_outcome == "completed":
             _link_saved_chats(state, saved_path)
         plan_path = _read_plan_path(state.current_artifacts_dir)
@@ -235,6 +253,8 @@ def finalize_loop(
             retry_metadata=retry_meta,
             default_artifacts_persisted=default_artifacts_persisted,
         )
+        if continuation_projection is not None:
+            done_marker["continuation"] = continuation_projection
         done_path = write_done_marker_and_update_index(
             state.current_artifacts_dir,
             done_marker,

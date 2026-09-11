@@ -15,6 +15,7 @@ import pytest
 from sase.core.paths import sase_projects_dir
 from sase.monitor.models import MonitorError
 from sase.monitor.start import StartMonitorRequest, start_monitor
+from sase.procs.service import ProcSubmitError
 from sase.running_field import WorkspaceClaim
 
 from ._fixtures import make_starter_agent, patch_project_records, write_project_file
@@ -136,3 +137,58 @@ def test_start_monitor_claim_failure_does_not_run_the_command(
     assert "monitor_pgid" not in meta
     done = json.loads((member_dirs[0] / "done.json").read_text())
     assert done["monitor_state"] == "failed"
+
+
+def test_start_monitor_submit_failure_does_not_arm_next_action_intent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--0",
+        agent_family="acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=0,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    def fake_submit_proc_request(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        raise ProcSubmitError("startup ack failed")
+
+    monkeypatch.setattr(
+        "sase.monitor.start.submit_proc_request",
+        fake_submit_proc_request,
+    )
+
+    request = StartMonitorRequest(
+        command="true",
+        reason="verify",
+        timeout_seconds=30.0,
+        cwd=str(tmp_path),
+        project_name="proj",
+        start_status="MONITORING",
+        stop_status="MONITORED",
+        lane="acme",
+        inherit_lane_workspace_claim=False,
+        next_action="Inspect the monitor output after it finishes.",
+    )
+
+    with pytest.raises(MonitorError, match="startup ack failed"):
+        start_monitor(request)
+
+    artifacts_root = sase_projects_dir() / "proj" / "artifacts" / "ace-run"
+    member_dirs = [
+        p.parent
+        for p in artifacts_root.glob("*/*/*/agent_meta.json")
+        if p.parent != Path(starter_dir)
+    ]
+    assert len(member_dirs) == 1
+    assert not (
+        member_dirs[0] / "continuation" / "monitor_intent_manifest.json"
+    ).exists()
+    meta = json.loads((member_dirs[0] / "agent_meta.json").read_text())
+    assert "continuation_intent_ref" not in meta

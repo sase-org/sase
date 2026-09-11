@@ -1,9 +1,10 @@
 """Per-attempt artifact snapshotting for retried agent executions.
 
 When the retry loop switches from attempt N to attempt N+1, this module
-moves the current `live_reply.md` / `live_reply_timestamps.jsonl` into
-`attempts/<N>/` alongside a per-attempt metadata record. The root
-artifacts dir is then truncated so attempt N+1 streams into clean files.
+moves the current `live_reply.md` / `live_reply_timestamps.jsonl` and the
+attempt's continuation capture directory into `attempts/<N>/` alongside a
+per-attempt metadata record. The root artifacts dir is then truncated so
+attempt N+1 streams into clean files.
 """
 
 from __future__ import annotations
@@ -87,6 +88,12 @@ def snapshot_attempt(
                 shutil.move(str(src), str(tmp_dir / name))
             except OSError:
                 pass
+    continuation_dir = root / "continuation"
+    if continuation_dir.exists():
+        try:
+            shutil.move(str(continuation_dir), str(tmp_dir / "continuation"))
+        except OSError:
+            pass
 
     meta = _AttemptMeta(
         attempt_number=attempt_number,

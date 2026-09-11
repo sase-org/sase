@@ -2,7 +2,10 @@
 
 from dataclasses import dataclass, replace
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from sase.continuation_capture import ContinuationSegmentCapture
 
 from sase.xprompt.directives import PromptDirectives
 from sase.xprompt.workflow_executor_steps_embedded_types import EmbeddedWorkflowInfo
@@ -33,6 +36,8 @@ class _PreparedPromptStep:
     embedded_workflows: list[EmbeddedWorkflowInfo]
     pre_step_count: int
     pre_step_meta: dict[str, str]
+    authored_local_request: str
+    continuation_segments: tuple["ContinuationSegmentCapture", ...]
 
 
 class PromptStepPrepareMixin:
@@ -54,6 +59,7 @@ class PromptStepPrepareMixin:
     artifacts_dir: str
     inherited_model_override: str | None
     inherited_vcs_tag: str | None
+    _continuation_embedded_segments: list[Any]
 
     _expand_embedded_workflows_in_prompt: Any  # (prompt) -> tuple
 
@@ -94,6 +100,7 @@ class PromptStepPrepareMixin:
             scope=self.context,
             context=self.context,
         )
+        continuation_segments = list(early.continuation_segments)
         effective_directives = early.directives
         if self.inherited_model_override:
             effective_directives = replace(
@@ -109,9 +116,12 @@ class PromptStepPrepareMixin:
 
         # Then expand embedded workflows
         # This executes pre-steps and replaces workflow refs with prompt_part content
+        self._continuation_embedded_segments.clear()
         expanded_prompt, embedded_workflows, pre_step_count = (
             self._expand_embedded_workflows_in_prompt(early.prompt)
         )
+        continuation_segments.extend(self._continuation_embedded_segments)
+        self._continuation_embedded_segments.clear()
 
         # Re-expand xprompts after embedded workflow pre-steps.  The pre-steps
         # may have updated the workspace (e.g. git pull), making CWD-relative
@@ -119,12 +129,17 @@ class PromptStepPrepareMixin:
         # present during the early phase.
         if embedded_workflows:
             from sase.xprompt import process_xprompt_references
+            from sase.xprompt._trace import ExpansionTrace
+            from sase.continuation_capture import xprompt_trace_segments
 
+            embedded_trace = ExpansionTrace()
             expanded_prompt = process_xprompt_references(
                 expanded_prompt,
                 extra_xprompts=self.workflow.xprompts,
                 scope=self.context,
+                trace=embedded_trace,
             )
+            continuation_segments.extend(xprompt_trace_segments(embedded_trace))
 
         # Late phase: command sub, file refs, Jinja2, prettier, HTML stripping
         from sase.artifact_ref_prompt_context import (
@@ -148,6 +163,10 @@ class PromptStepPrepareMixin:
             if format_instr:
                 expanded_prompt = expanded_prompt + format_instr
 
+        from sase.continuation_capture import local_materialized_prompt_segment
+
+        continuation_segments.append(local_materialized_prompt_segment(expanded_prompt))
+
         # Collect meta_* from embedded pre-steps so the TUI can display
         # Workspace/Project/Patch immediately when the agent starts.
         pre_step_meta = _collect_pre_step_meta(embedded_workflows)
@@ -158,4 +177,6 @@ class PromptStepPrepareMixin:
             embedded_workflows=embedded_workflows,
             pre_step_count=pre_step_count,
             pre_step_meta=pre_step_meta,
+            authored_local_request=step_prompt,
+            continuation_segments=tuple(continuation_segments),
         )

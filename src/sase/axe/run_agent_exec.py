@@ -264,6 +264,9 @@ def _run_execution_loop_bound(
         original_prompt=prompt,
         original_agent_timestamp=os.environ.get("SASE_AGENT_TIMESTAMP"),
     )
+    from sase.continuation_capture import persist_workspace_facts_best_effort
+
+    state.continuation_workspace_ref = persist_workspace_facts_best_effort(ctx, state)
     result = None
 
     def _rebind_workspace_identity(output: dict[str, Any], workspace_dir: str) -> None:
@@ -291,6 +294,11 @@ def _run_execution_loop_bound(
                 workflow_obj=anon_workflow,
                 project=_resolve_workflow_project(ctx),
                 workspace_rebind_callback=_rebind_workspace_identity,
+            )
+            state.continuation_prepared_ref = getattr(
+                result,
+                "continuation_prepared_ref",
+                None,
             )
         except Exception as wf_exc:
             if not was_killed():

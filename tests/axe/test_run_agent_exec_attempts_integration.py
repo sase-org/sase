@@ -117,8 +117,15 @@ def test_retry_branch_snapshots_failed_attempt(tmp_path: Path) -> None:
     # The preserved reply content matches what was streamed pre-retry.
     snap_reply = Path(ctx.artifacts_dir) / "attempts" / "01" / "live_reply.md"
     assert snap_reply.read_text() == "attempt 1 partial output"
+    snap_continuation = Path(ctx.artifacts_dir) / "attempts" / "01" / "continuation"
+    assert (snap_continuation / "manifest.json").exists()
+    attempt_manifest = json.loads(
+        (snap_continuation / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert attempt_manifest["status"] == "failed"
     # Root file is truncated so attempt 2 streams into a clean slate.
     assert (Path(ctx.artifacts_dir) / "live_reply.md").read_text() == ""
+    assert (Path(ctx.artifacts_dir) / "continuation" / "workspace_facts.json").exists()
 
 
 def test_exhausted_retries_snapshots_final_as_raised(tmp_path: Path) -> None:

@@ -223,6 +223,16 @@ def handle_workflow_error(
     error_str = str(exc)
     artifacts_dir = state.current_artifacts_dir or ctx.artifacts_dir
     _refresh_execution_provider(tracker, artifacts_dir)
+    from sase.continuation_capture import (
+        persist_agent_delta_best_effort,
+        persist_workspace_facts_best_effort,
+    )
+
+    persist_agent_delta_best_effort(
+        ctx,
+        state,
+        status="failed",
+    )
 
     # Second writer: Claude quota errors match none of Claude's retry
     # patterns, so this function used to ``return "raise"`` before any
@@ -383,6 +393,7 @@ def handle_workflow_error(
             workspace_dir=ctx.workspace_dir,
             workspace_num=ctx.workspace_num,
         )
+        persist_workspace_facts_best_effort(ctx, state)
         tracker.attempt_start_epoch = time.time()
         return "continue"
 
@@ -431,6 +442,7 @@ def handle_workflow_error(
             workspace_dir=ctx.workspace_dir,
             workspace_num=ctx.workspace_num,
         )
+        persist_workspace_facts_best_effort(ctx, state)
         tracker.attempt_start_epoch = time.time()
         return "continue"
 

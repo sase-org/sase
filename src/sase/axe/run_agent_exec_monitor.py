@@ -88,8 +88,39 @@ def handle_monitor_marker(
         )
     update_step_marker_chat_path(state.current_artifacts_dir, chat_path)
 
+    handoff_checkpoint_ref = _text(monitor_data.get("handoff_checkpoint_ref"))
+    if handoff_checkpoint_ref is None:
+        from sase.continuation_capture import publish_handoff_checkpoint_best_effort
+
+        handoff_checkpoint_ref = publish_handoff_checkpoint_best_effort(
+            state.current_artifacts_dir,
+            checkpoint_kind="monitor_handoff",
+            payload={
+                "monitor_id": monitor_id,
+                "member_artifacts_dir": member_artifacts_dir,
+                "member_agent_name": member_agent_name,
+                "starter_agent": starter_agent,
+                "chat_path": chat_path,
+            },
+        )
+    from sase.continuation_capture import persist_agent_delta_best_effort
+
+    continuation_result = persist_agent_delta_best_effort(
+        ctx,
+        state,
+        status="interrupted",
+        final_response=response,
+        handoff_checkpoint_ref=handoff_checkpoint_ref,
+    )
+
     if member_artifacts_dir and starter_agent:
         update_meta_field(member_artifacts_dir, "monitor_starter_agent", starter_agent)
+    if member_artifacts_dir and continuation_result is not None:
+        update_meta_field(
+            member_artifacts_dir,
+            "continuation_parent_node_ids",
+            [continuation_result.node_id],
+        )
 
     reset_killed()
     return "monitored"

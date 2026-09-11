@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from sase.agent.pending_handoff import MONITOR_PENDING_MARKER
 from sase.shells.handoff import (
@@ -46,11 +47,21 @@ def maybe_handoff_monitor_from_agent(
     no-op outside an agent process and terminates the current runner when
     ``SASE_AGENT`` is set.
     """
+    if not os.environ.get("SASE_AGENT"):
+        return False
+    resolved_artifacts_dir = artifacts_dir or os.environ.get("SASE_ARTIFACTS_DIR")
+    if not resolved_artifacts_dir:
+        raise MonitorError(
+            "cannot hand monitor to agent runner: SASE_ARTIFACTS_DIR is unset"
+        )
     try:
         return maybe_handoff_shell_from_agent(
             marker_name=MONITOR_PENDING_MARKER,
-            marker_data=_monitor_pending_payload(record),
-            artifacts_dir=artifacts_dir,
+            marker_data=_monitor_pending_payload(
+                record,
+                starter_artifacts_dir=resolved_artifacts_dir,
+            ),
+            artifacts_dir=resolved_artifacts_dir,
             env=os.environ,
         )
     except ShellHandoffError as exc:
@@ -67,7 +78,7 @@ def write_monitor_pending_marker(
     try:
         return write_shell_pending_marker(
             MONITOR_PENDING_MARKER,
-            _monitor_pending_payload(record),
+            _monitor_pending_payload(record, starter_artifacts_dir=artifacts_dir),
             artifacts_dir,
             timestamp=timestamp,
         )
@@ -75,12 +86,39 @@ def write_monitor_pending_marker(
         raise MonitorError(str(exc).replace("shell", "monitor")) from exc
 
 
-def _monitor_pending_payload(record: MonitorRecord) -> dict[str, str]:
-    return {
+def _monitor_pending_payload(
+    record: MonitorRecord,
+    *,
+    starter_artifacts_dir: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
         "monitor_id": record.monitor_id,
         "member_artifacts_dir": record.artifacts_dir,
         "member_agent_name": record.member_agent_name,
     }
+    if starter_artifacts_dir:
+        from sase.continuation_capture import publish_handoff_checkpoint_best_effort
+
+        checkpoint_ref = publish_handoff_checkpoint_best_effort(
+            starter_artifacts_dir,
+            checkpoint_kind="monitor_handoff",
+            payload={
+                "monitor_id": record.monitor_id,
+                "member_artifacts_dir": record.artifacts_dir,
+                "member_agent_name": record.member_agent_name,
+                "lane": record.lane,
+                "project_name": record.project_name,
+                "command": record.command,
+                "cwd": record.cwd,
+                "next_action": record.next_action,
+                "next_model": record.next_model,
+                "next_output": record.next_output,
+                "request_fingerprint": record.request_fingerprint,
+            },
+        )
+        if checkpoint_ref:
+            payload["handoff_checkpoint_ref"] = checkpoint_ref
+    return payload
 
 
 __all__ = [

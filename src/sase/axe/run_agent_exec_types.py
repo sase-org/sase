@@ -91,6 +91,11 @@ class LoopState:
     # In-process hint for plan gate-shell chain discovery. Durable cross-process
     # recovery uses the settled shell's ``gate_followup_agent`` link.
     plan_gate_artifacts_dir: str | None = None
+    # Continuation capture refs written during the current local turn.
+    continuation_workspace_ref: str | None = None
+    continuation_prepared_ref: str | None = None
+    continuation_node_id: str | None = None
+    continuation_manifest_ref: str | None = None
 
     def __post_init__(self) -> None:
         if not self.question_base_prompt:

@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
+    from sase.continuation_capture import ContinuationSegmentCapture
     from sase.artifact_ref_prompt_context import PromptRefContext
     from sase.xprompt._trace import ExpansionTrace
 
@@ -44,11 +45,15 @@ class PreprocessResult:
         segment_vcs_refs: Each top-level segment's own ``#git``/``#gh`` VCS
             tag (or ``None``), captured before embedded-workflow expansion
             can consume it.
+        continuation_segments: Provenance-aware local prompt fragments captured
+            before transcript rendering so continuation replay never recovers
+            structure from Markdown delimiters.
     """
 
     prompt: str
     directives: PromptDirectives = field(default_factory=PromptDirectives)
     segment_vcs_refs: tuple[str | None, ...] = ()
+    continuation_segments: tuple[ContinuationSegmentCapture, ...] = ()
 
 
 # Keep the old name as an alias so existing internal references still work.
@@ -85,6 +90,13 @@ def preprocess_prompt_early(
     """
     from sase.xprompt import process_xprompt_references
 
+    authored_prompt = prompt
+    trace_start_index = len(trace.records) if trace is not None else 0
+    if trace is None:
+        from sase.xprompt._trace import ExpansionTrace
+
+        trace = ExpansionTrace()
+
     # 1. Optional Jinja2 rendering (workflow variables)
     if context is not None:
         from sase.xprompt.workflow_executor_utils import render_template
@@ -114,11 +126,19 @@ def preprocess_prompt_early(
     prompt, directives = extract_prompt_directives(prompt, strip_disabled_markers=False)
 
     from sase.artifact_ref_prompt_context import prompt_segment_vcs_refs
+    from sase.continuation_capture import (
+        local_authored_prompt_segment,
+        xprompt_trace_segments,
+    )
 
     return PreprocessResult(
         prompt=prompt,
         directives=directives,
         segment_vcs_refs=prompt_segment_vcs_refs(prompt),
+        continuation_segments=(
+            local_authored_prompt_segment(authored_prompt),
+            *xprompt_trace_segments(trace, start_index=trace_start_index),
+        ),
     )
 
 
@@ -269,4 +289,14 @@ def preprocess_prompt(
         ref_contexts=ref_contexts,
         materialize_missing_roots=materialize_missing_roots,
     )
-    return PreprocessResult(prompt=final_prompt, directives=early.directives)
+    from sase.continuation_capture import local_materialized_prompt_segment
+
+    return PreprocessResult(
+        prompt=final_prompt,
+        directives=early.directives,
+        segment_vcs_refs=early.segment_vcs_refs,
+        continuation_segments=(
+            *early.continuation_segments,
+            local_materialized_prompt_segment(final_prompt),
+        ),
+    )
