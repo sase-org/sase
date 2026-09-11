@@ -1577,19 +1577,20 @@ git and a locally-missing ID can still be valid upstream.
 Behavior depends on the agent's status:
 
 - **WAITING or QUEUED agent**: Edit dependency names, bead gates, a time floor, the
-  `runners` threshold, or the runner-slot `priority`. A runner-slot-parked agent applies
-  a runners- or priority-only edit live on its next poll; changing earlier wait stages
-  restarts the agent. Clearing an explicit runner threshold returns it to the global
-  `max_running_agents` cap rather than bypassing that cap.
-- **RUNNING agent**: Enter a dependency, bead gate, time floor, runners threshold, or
-  priority to kill and restart the current agent with a canonical `%wait(...)`
-  directive.
+  weighted-load `capacity` threshold, or the runner-slot `priority`. A
+  runner-slot-parked agent applies a capacity- or priority-only edit live on its next
+  poll; changing earlier wait stages restarts the agent. Clearing an explicit capacity
+  threshold returns it to the global `max_running_agents` cap rather than bypassing that
+  cap.
+- **RUNNING agent**: Enter a dependency, bead gate, time floor, capacity threshold, or
+  priority to kill and restart the current agent with canonical `%wait(...)` /
+  `%queue(...)` directives.
 
-The **Runners** field is an admission threshold against the sase-agent occupancy count
-`R` in the Agents header, not a count of individual shells. A serial family — including
-its monitor and `--next` follow-up — still occupies one slot, so it still counts against
-this threshold. Only a root or a live parallel family member waits here; a serial family
-member rides the family's slot and never parks.
+The **Capacity** field is an admission threshold against already occupied weighted load,
+not a count of individual shells. A serial family — including its monitor and `--next`
+follow-up — still occupies one claim of its family weight, so that weight still counts
+against this threshold. Only a root or a live parallel family member waits here; a
+serial family member rides the family's slot and never parks.
 
 Priority must be a non-negative integer and defaults to `10`; lower values are admitted
 first. See [Runner slot waits](troubleshooting/runner-slots.md) for how priority
@@ -2137,15 +2138,15 @@ scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts 
 by-project grouping; cycling only changes the current session.
 
 **Queued** holds `QUEUED` agents that have cleared every dependency, bead, and time wait
-and need only runner capacity or an authored `%queue(runners=N)` count condition. A
-queued row renders as `QUEUED #3/12`; an explicit runner threshold keeps its arrow
-qualifier, such as `QUEUED #4/12 ▶7→0 p20`, so a drain barrier cannot be mistaken for a
-fraction. Non-default queue weights render as the same quiet `wN` badge used on running
-rows and queue-ladder entries. Implicit-cap rows omit the repeated count-condition
-suffix. **Waiting** holds genuinely blocked but self-progressing agents — `WAITING` with
-a time wait (`%wait(time=5m)`, `%wait(time=1430)`), a non-empty `waiting_for`
-dependency, or a bead wait. A compact `WAITING` row summarizes named waits as one
-sequence of independent tokens: agent counts keep the established status glyphs
+and need only runner capacity or an authored `%queue(capacity=N)` weighted-load
+threshold. A queued row renders as `QUEUED #3/12`; an explicit capacity threshold keeps
+its arrow qualifier, such as `QUEUED #4/12 ▶7→0 p20`, so a drain barrier cannot be
+mistaken for a fraction. Non-default queue weights render as the same quiet `wN` badge
+used on running rows and queue-ladder entries. Implicit-cap rows omit the repeated
+capacity-threshold suffix. **Waiting** holds genuinely blocked but self-progressing
+agents — `WAITING` with a time wait (`%wait(time=5m)`, `%wait(time=1430)`), a non-empty
+`waiting_for` dependency, or a bead wait. A compact `WAITING` row summarizes named waits
+as one sequence of independent tokens: agent counts keep the established status glyphs
 (`✗1 ▶1 ✓1 ?1`), while bead counts keep the canonical Beads-tab status glyph (`○` open,
 `◐` in progress, `●` closed). When a bead status matches a present agent bucket, the
 bead token follows that agent token, for example `WAITING ▶1 ◐2` or `WAITING ✓1 ●1`;
@@ -3536,7 +3537,7 @@ persistent edit does not clear a live temporary override. Lowering the effective
 never stops an already-running agent: occupied capacity may temporarily exceed the cap,
 and new work waits until enough capacity drains. Raising the cap lets eligible parked
 agents advance through the existing priority/FIFO gate on their next poll. Launches with
-an explicit `%queue(runners=N)` retain that additional runner-count condition, but it
+an explicit `%queue(capacity=N)` retain that additional weighted-load threshold, but it
 cannot bypass the global capacity budget. Question continuations reacquire against the
 current effective global cap after their gate shell has released capacity.
 
@@ -4772,7 +4773,7 @@ cursor.
   call to the child that made it.
 - **Wait state**: For a `WAITING` agent gated by `%wait`, a duration wait, or an
   absolute-time wait, the detail view shows a tagged `Wait:` block with one lane per
-  active dimension: `[agents]`, `[beads]`, `[time]`, then `[runners]`. Present tags
+  active dimension: `[agents]`, `[beads]`, `[time]`, then `[capacity]`. Present tags
   occupy a padded gutter, so every value begins in one aligned column and long
   dependency lists wrap with a hanging indent beneath that value column. The `[agents]`
   lane lists the dependency names recorded on the waiting agent, adds per-name status
@@ -4782,14 +4783,14 @@ cursor.
   `done-bead ●`, and `bead-id ?` for an unknown bead. A WAITING list row keeps agent and
   bead counts independent while placing matching bead statuses after their present agent
   status (`▶1 ◐2`, `✓1 ●1`); unmatched bead tokens trail in bead order. Unknown targets
-  can render as adjacent independent counts (`?1 ?2`). Timed-only and runner-only waits
-  do not receive those markers. Timed waits add compact duration, target time, and
-  countdown text when available. An explicit runner threshold on a `QUEUED` row shows
-  the live running count, threshold, and its `queue #N of M` capacity-aware display
-  rank; `runners=0` is labeled as a drain barrier. A `QUEUED` detail uses a separate
-  `Queue:` line led by its rank and elapsed time since `slot_requested_at`, followed by
-  cap context. It deliberately suppresses the marker's stale dependency, bead, and
-  time-wait fields.
+  can render as adjacent independent counts (`?1 ?2`). Timed-only and capacity-only
+  waits do not receive those markers. Timed waits add compact duration, target time, and
+  countdown text when available. An explicit capacity threshold on a `QUEUED` row shows
+  the live occupied weighted load, threshold, and its `queue #N of M` capacity-aware
+  display rank; `capacity=0` is labeled as a drain barrier. A `QUEUED` detail uses a
+  separate `Queue:` line led by its rank and elapsed time since `slot_requested_at`,
+  followed by cap context. It deliberately suppresses the marker's stale dependency,
+  bead, and time-wait fields.
 - **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent family
   with `sase var set`. Strings, numbers, booleans, null, lists, and nested maps retain
   their types. A single contributing agent renders as a flat sorted key/value block;
@@ -5827,13 +5828,14 @@ token under the cursor:
   parenthesized alias keys; `%effort`, `%auto`, `%repeat`, and `%xprompts_enabled`
   complete their fixed values; `%id`, `%clan`, and `%wait(...)` complete their supported
   keyword names and keyword-value rows. `%wait:` never offers structured keywords, so
-  `time=`, `runners=`, `priority=`, and `bead=` appear only in parenthesized
-  `%wait(...)`. Keyword completion suppresses duplicates and mutually exclusive
-  keywords, and `%model(..., alias=...)` suppresses the alias's own `@alias` value,
-  while manually typed values still flow to launch-time validation. Dynamic agent and
-  bead rows come from ACE's warmed snapshots rather than synchronous prompt-bar
-  bead-store reads; if a dynamic refresh is unavailable, static directive names,
-  aliases, keyword rows, and fixed values remain available.
+  `time=` and `bead=` appear only in parenthesized `%wait(...)`. `capacity=`,
+  `priority=`/`p=`, and `weight=`/`w=` complete on `%queue`/`%q` only. Keyword
+  completion suppresses duplicates and mutually exclusive keywords, and
+  `%model(..., alias=...)` suppresses the alias's own `@alias` value, while manually
+  typed values still flow to launch-time validation. Dynamic agent and bead rows come
+  from ACE's warmed snapshots rather than synchronous prompt-bar bead-store reads; if a
+  dynamic refresh is unavailable, static directive names, aliases, keyword rows, and
+  fixed values remain available.
 - **Model shortcuts**: When the cursor is on a `=alias` or `==model` token at the start
   of a logical line or immediately after a literal ASCII space, completion opens a model
   shortcut menu. `=alias` lists alias rows only; for example, typing `=la` can select

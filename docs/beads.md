@@ -83,6 +83,8 @@ sase bead doctor --fix-projection                       # Repair issues.jsonl fr
 sase bead work "$PLANS_ROOT/202605/epic.md" --dry-run   # Preview bead creation and launch waves
 sase bead work "$PLANS_ROOT/202605/epic.md" --yes       # Create, link, and launch an epic plan
 sase bead work "$PLANS_ROOT/202605/epic.md" --wait 'sase-s7.2,bead=sase-64.3' --yes
+sase bead work epic-a epic-b -c 3 --yes                 # Capacity 3 for every new phase and land agent
+sase bead work "$PLANS_ROOT/202605/epic.md" -C feature_epic --yes
 sase bead work beads-001                                # Launch agents for an epic plan bead
 sase bead work beads-002 --dry-run                      # Preview one standalone task worker
 sase bead work beads-002 --yes                          # Launch one standalone task worker
@@ -1962,6 +1964,17 @@ one complete result object per processed target. A one-target JSON run is unchan
 multi-target JSON run is newline-delimited JSON, one object per line, including the
 first failing target's error object when the command stops.
 
+`-c/--capacity N` is an epic-only invocation control: every selected phase and land
+segment emits `%queue(capacity=N)`. A capacity of `N` requires the already occupied
+weighted load to be at most `N` before admission; the candidate's own weight is excluded
+from that threshold, and the global `max_running_agents` budget still must fit occupied
+load plus that weight. Omission preserves default queue behavior. `0` waits for a true
+drain, including when a live claim has a very small positive weight. The option applies
+to epic bead IDs and epic Markdown plan targets. An explicit capacity on a standalone
+task target is an actionable error: earlier successful targets stand and processing
+stops. `-C/--cl-name NAME` retains the existing completion-notification behavior and
+plan-file restriction.
+
 `-w/--wait SPEC` holds launched epic phases until every named dependency finishes.
 `SPEC` is a comma-separated list of agent names and `bead=<id>` entries; `time=`,
 `runners=`, `priority=`, `unit=`, and `proc=` are rejected. A parse error exits 2 before
@@ -2132,16 +2145,17 @@ delegated phase. The land agent now genuinely requires every phase bead to close
 phase crashes before closure, retry or close that phase explicitly rather than expecting
 landing to sweep it up.
 
-| Flag                  | Description                                                                                          |
-| --------------------- | ---------------------------------------------------------------------------------------------------- |
-| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch; plan-file targets only       |
-| `-c, --cl-name`       | Patch name for the approved epic completion notification; plan-file targets only                     |
-| `-n, --dry-run`       | Preview the epic graph or task prompt, model routing, and cleanup without mutation                   |
-| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                                |
-| `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning                |
-| `-p, --parent`        | Override a plan file's `parent_bead`; use `top-level` for an unparented epic; plan-file targets only |
-| `-y, --yes`           | Skip only the launch confirmation prompt                                                             |
-| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                    |
+| Flag                  | Description                                                                                                          |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch; plan-file targets only                       |
+| `-c, --capacity`      | Epic-only max already-running weighted load before admission; omit for default queue behavior; `0` waits for a drain |
+| `-C, --cl-name`       | Patch name for the approved epic completion notification; plan-file targets only                                     |
+| `-n, --dry-run`       | Preview the epic graph or task prompt, model routing, and cleanup without mutation                                   |
+| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                                                |
+| `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning                                |
+| `-p, --parent`        | Override a plan file's `parent_bead`; use `top-level` for an unparented epic; plan-file targets only                 |
+| `-y, --yes`           | Skip only the launch confirmation prompt                                                                             |
+| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                                    |
 
 Progress, timing, and admission are separate from the dependency schedule. Kahn waves
 and `%w` waits decide _order_; they do not wait for an LLM or a runner slot merely to
@@ -2284,7 +2298,10 @@ approval saves to the resolved SDD `plans/` directory with `tier: tale`. Every e
 approval surface behaves the same way — ACE, `sase plan approve --kind epic`, Telegram,
 and bare gate responses all hand `sase bead work <plan-file> --yes-to-all` to a detached
 supervisor that runs it from the project's primary workspace, then record that the host
-owns the launch in the planner response.
+owns the launch in the planner response. Epic Custom Approval exposes an optional
+Capacity control (`c`) beside Wait: Default means omission, and `0` is an explicit drain
+threshold. The durable approve result retains that integer so launch argv can emit
+`--capacity N`; tale, reject, and feedback actions never submit it.
 
 The preferred handoff is a [monitor](monitors.md) shell under the planner's own agent
 family, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
@@ -2304,9 +2321,10 @@ approving process, and normal command success or failure emits the epic-completi
 notification. Inspect a monitor through `sase monitor list` /
 `sase monitor show <id> --follow`, and the proc fallback through every default
 `sase proc list` and Procs-tab scope, `sase proc show <id> --follow`, and
-`sase proc kill`. The approval passes `--artifacts-dir` (and `--cl-name` when a Patch is
-involved), so a successful launch attempts to back-fill the epic ID and committed plan
-path into planner metadata.
+`sase proc kill`. The approval passes `--artifacts-dir`, `--capacity N` when the durable
+result set an explicit capacity, and `--cl-name` when a Patch is involved, so a
+successful launch attempts to back-fill the epic ID and committed plan path into planner
+metadata.
 
 There is no planner-side subprocess fallback and no foreground path. An absent or
 unresolvable planner agent family selects the detached-proc fallback; other

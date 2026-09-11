@@ -2,21 +2,22 @@
 
 An agent shown as `QUEUED` is at an admission boundary: it has finished every
 dependency, bead, and time wait and is holding only for runner capacity or an explicit
-runner-count condition. The effective global `max_running_agents` value is an integer
+weighted-load threshold. The effective global `max_running_agents` value is an integer
 capacity budget (configured default: 10). A normal launch claims `1.0` unit, while
 `%queue(weight=...)` / `%q(w=...)` can request a positive finite fractional or larger
-weight. An authored `%queue(runners=N)` is an additional count condition over occupied
-participating lanes; it cannot bypass the global capacity budget.
+weight. An authored `%queue(capacity=N)` requires already occupied weighted load to be
+at most `N` before admission, excluding the candidate's own weight; it cannot bypass the
+global capacity budget.
 
 The ACE Agents header summarizes the same global capacity state as `C/L` before the
 status strip, for example `8.0/10.0 [8 running · 1 queued]`: occupied capacity units,
 effective limit, and live waiters at the runner-capacity admission gate. The effective
 value is an active machine-wide override from `~/.sase/max_running_agents_override.json`
 first and merged configuration second. The queued count includes implicit-cap waits and
-authored `runners=` waits.
+authored `capacity=` waits.
 
-Admission starts the first waiter that fits the current capacity and any explicit
-runner-count condition, ordered by lower numeric `%queue(priority=N)` first and then
+Admission starts the first waiter that fits the current global budget and any explicit
+capacity threshold, ordered by lower numeric `%queue(priority=N)` first and then
 first-in, first-out within the same priority. Non-fitting waiters are skipped instead of
 blocking later waiters that can run. ACE shows currently eligible waiters first, then
 parked waiters by current blocker severity, with priority/FIFO preserved inside each
@@ -35,15 +36,15 @@ choose a different priority or weight.
 
 Selecting a ranked waiter in ACE also shows a bounded `QUEUE` ladder in that same
 capacity-aware order. Its `N ahead` count is the number of earlier ladder entries.
-Entries whose capacity or count condition is not currently satisfied use a parked
-amethyst accent wherever they appear; the accent is display context, not a different
-status, because every entry is still `QUEUED`. The heading adds `N parked` when any
-waiter is currently blocked. The ladder includes the front, up to two entries on either
-side of the selected waiter, and gap counts; short queues show all entries, while long
-queues show at most seven actual queue entries. Explicit thresholds, non-default
-priorities, and non-default weights appear as `≤N`, `pN`, and `wN`. This is current
-admission context, not an ETA or a prediction that no new waiter will arrive, and its
-entries are not digit-jump targets.
+Entries whose capacity or global-budget condition is not currently satisfied use a
+parked amethyst accent wherever they appear; the accent is display context, not a
+different status, because every entry is still `QUEUED`. The heading adds `N parked`
+when any waiter is currently blocked. The ladder includes the front, up to two entries
+on either side of the selected waiter, and gap counts; short queues show all entries,
+while long queues show at most seven actual queue entries. Explicit thresholds,
+non-default priorities, and non-default weights appear as `≤N`, `pN`, and `wN`. This is
+current admission context, not an ETA or a prediction that no new waiter will arrive,
+and its entries are not digit-jump targets.
 
 A deprioritized waiter — one whose priority is numerically worse than the `10` default —
 is additionally held back for a bounded deference window before it may claim a freed
@@ -72,21 +73,21 @@ for the window currently in progress.
 An explicit priority is also visible in ACE, which is usually the fastest way to confirm
 which value the queue actually used. `QUEUED` rows with an authored threshold suffix the
 rank with the slot marker and priority (`QUEUED #4/4 ▶10→9 p20`), and the agent detail
-pane appends `· priority N` to its `runners: N/M in use · queue #P of Q` line. The queue
-ladder shows any normalized non-default value as `pN` beside the entry it reordered.
-Press `w` on the agent to open the wait modal and edit the priority in place.
+pane appends `· priority N` to its `capacity: N/M in use · queue #P of Q` line. The
+queue ladder shows any normalized non-default value as `pN` beside the entry it
+reordered. Press `w` on the agent to open the wait modal and edit the priority in place.
 
 To diagnose a wait:
 
 1. Check active, queued, and waiting agents with `sase agent list` or the ACE Agents
    tab.
-2. Inspect the launch's `waiting.json`. `wait_runners` is the effective existing-runner
-   threshold and `slot_requested_at` is its FIFO request time;
-   `runner_slot_queue_position` in `sase agent list -j` is its current capacity-aware
-   display rank among all live capacity waiters. `queue_weight` is the requested
-   capacity units, and `wait_priority` is the value used inside each eligible or parked
-   ordering group. `wait_priority_explicit` distinguishes a deliberate `priority=N` from
-   the implicit `10` default.
+2. Inspect the launch's `waiting.json`. `wait_runners` is the persisted spelling of the
+   effective weighted-load capacity threshold and `slot_requested_at` is its FIFO
+   request time; `runner_slot_queue_position` in `sase agent list -j` is its current
+   capacity-aware display rank among all live capacity waiters. `queue_weight` is the
+   requested capacity units, and `wait_priority` is the value used inside each eligible
+   or parked ordering group. `wait_priority_explicit` distinguishes a deliberate
+   `priority=N` from the implicit `10` default.
 3. Press fixed `Ctrl+R` in Launch Control to edit `max_running_agents` persistently or
    apply/clear a temporary value. Parked agents reread the effective capacity budget and
    normally react within about two seconds. Setting another temporary value replaces the
@@ -121,9 +122,10 @@ bounded temporary-state lock or file read is briefly unavailable, a launch fails
 for that poll, remains parked, releases the slot lock, and retries instead of crashing
 or silently admitting against configuration alone.
 
-A `%queue(runners=0)` launch is intentionally a drain barrier: it starts only at a true
-global participating-lane lull and when enough capacity is free for its requested
-weight. Newer immediate launches may start while the barrier is parked when their own
-conditions permit it, keeping the barrier waiting until they also finish. The barrier is
-a drain condition, not an exclusive fence: after it is admitted, later work can still
-start whenever its own conditions permit.
+A `%queue(capacity=0)` launch is intentionally a drain barrier: it starts only when
+occupied weighted load is truly `0` — including when a live claim has a very small
+positive weight — and when enough global capacity is free for its requested weight.
+Newer immediate launches may start while the barrier is parked when their own conditions
+permit it, keeping the barrier waiting until they also finish. The barrier is a drain
+condition, not an exclusive fence: after it is admitted, later work can still start
+whenever its own conditions permit.

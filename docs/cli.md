@@ -136,8 +136,8 @@ prints one stdout JSON envelope with no progress noise, so shell gates and comma
 substitution both stay predictable.
 
 `sase agent list -j` reports every live runner-slot waiter as `status: "QUEUED"`,
-whether it is waiting on weighted capacity or an authored `%queue(runners=N)` count
-condition. Its `queue_weight` reports requested capacity units, and
+whether it is waiting on the global budget or an authored `%queue(capacity=N)`
+weighted-load threshold. Its `queue_weight` reports requested capacity units, and
 `runner_slot_queue_position`/`runner_slot_queue_size` rank the same waiters in the
 capacity-aware display order used by ACE: eligible waiters first, then parked waiters by
 current blocker severity, with priority and request FIFO preserved inside each group.

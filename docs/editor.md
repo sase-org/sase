@@ -89,12 +89,13 @@ navigation in external editors is handled by the editor.
 
 Directive completion uses UTF-16 LSP ranges, so accepting a row replaces the correct
 token even after non-BMP characters earlier on the line. `%wait:` remains positional and
-never offers `bead=`, `priority=`, `runners=`, or `time=`; those keywords are only in
-parenthesized `%wait(...)`. Keyword menus omit duplicate and conflicting entries, and
-model keyword values omit a self-reference such as `@medium` while completing
-`%model(..., medium=...)`. Static directive names, aliases, keyword rows, and fixed
-values still complete if the helper bridge cannot refresh dynamic catalogs; model,
-agent, bead, repository, and artifact inventories degrade independently.
+never offers `bead=` or `time=`; those keywords are only in parenthesized `%wait(...)`.
+`capacity=`, `priority=`/`p=`, and `weight=`/`w=` complete on `%queue`/`%q` only.
+Keyword menus omit duplicate and conflicting entries, and model keyword values omit a
+self-reference such as `@medium` while completing `%model(..., medium=...)`. Static
+directive names, aliases, keyword rows, and fixed values still complete if the helper
+bridge cannot refresh dynamic catalogs; model, agent, bead, repository, and artifact
+inventories degrade independently.
 
 ### Equals model shortcuts
 

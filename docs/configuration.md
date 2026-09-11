@@ -2949,17 +2949,18 @@ providers. The legacy `changespec` key remains accepted as an alias. The clan pr
 requires a case-sensitive `name_prefix` and checks canonical clan metadata for active
 agents, including waiting members; it never infers clans from dotted names.
 `agent_runners.max` defaults to `0` and inhibits while more than that many participating
-agent lanes are occupied, the same count condition used by `%queue(runners=N)`. Weighted
-capacity is tracked separately by the runner-capacity snapshot and ACE header. A
-`STARTING` agent has not yet been admitted and does not count; an agent parked on a
-question has yielded its capacity and does not count. `trigger` accepts `always`,
-`git.commits_since`, or `fs`; the git provider requires `project` and `threshold`, and
-its checkpoint policy is `on_observation`, `on_action_accepted`, or `on_action_success`.
-The `fs` provider requires `paths` (bare path strings or `{path, glob}` objects, stat'd
-shallowly — no recursion, no content reads) and a positive `max_quiet` duration, fires
-when its computed state token changes or `max_quiet` elapses since the last fire, always
-uses `on_observation` checkpoint semantics, and fails open (fires without advancing its
-checkpoint) on an unreadable path. See
+agent lanes are occupied, a participating-lane count distinct from the weighted
+`%queue(capacity=N)` threshold. Weighted capacity is tracked separately by the
+runner-capacity snapshot and ACE header. A `STARTING` agent has not yet been admitted
+and does not count; an agent parked on a question has yielded its capacity and does not
+count. `trigger` accepts `always`, `git.commits_since`, or `fs`; the git provider
+requires `project` and `threshold`, and its checkpoint policy is `on_observation`,
+`on_action_accepted`, or `on_action_success`. The `fs` provider requires `paths` (bare
+path strings or `{path, glob}` objects, stat'd shallowly — no recursion, no content
+reads) and a positive `max_quiet` duration, fires when its computed state token changes
+or `max_quiet` elapses since the last fire, always uses `on_observation` checkpoint
+semantics, and fails open (fires without advancing its checkpoint) on an unreadable
+path. See
 [AXE — Triggers, Guards, Dedupe, and Targets](axe.md#triggers-guards-dedupe-and-targets)
 for the full contract. Skips are recorded with reasons. Manual runs bypass the trigger
 but honor guards; with `agent_runners`, a manual run while participating lanes are
@@ -3445,7 +3446,7 @@ previous value, expiry is enforced at its deadline, and a persistent edit leaves
 active override in force. Lowering the effective value is non-preemptive, so existing
 agents continue and new launches wait for occupied capacity to drain. Parked waiters and
 question continuations reread the effective cap on each normal poll. An explicit
-`%queue(runners=N)` keeps its own runner-count condition, but it cannot bypass the
+`%queue(capacity=N)` keeps its own weighted-load threshold, but it cannot bypass the
 global capacity budget.
 
 When upgrading from an unweighted scheduler build, restart ACE and AXE and let already
@@ -5238,7 +5239,8 @@ once. Removal is irreversible.
 | --------------------- | ---------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
 | `targets`             | bead IDs or plan paths | (required) | One or more epic/task beads or validated epic plan files, processed in order until the first error |
 | `-a, --artifacts-dir` | directory              | -          | Back-fill planner artifacts after each approved epic; plan-file targets only                       |
-| `-c, --cl-name`       | Patch name             | -          | Approved epic Patch name applied per plan-file target                                              |
+| `-c, --capacity`      | non-negative integer   | omitted    | Epic-only max already-running weighted load before admission; `0` waits for a drain                |
+| `-C, --cl-name`       | Patch name             | -          | Approved epic Patch name applied per plan-file target                                              |
 | `-n, --dry-run`       | flag                   | -          | Preview the epic wave plan or task prompt without mutating files, beads, or agents                 |
 | `-j, --json`          | flag                   | -          | Print one result object per processed target as JSON Lines and imply `--yes-to-all`                |
 | `-P, --no-push`       | flag                   | -          | Commit checkpoint state locally but skip post-commit pushes                                        |

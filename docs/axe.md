@@ -985,11 +985,12 @@ Policy is runner-owned and evaluated before the script:
   The legacy `changespec` guard key remains accepted as an alias.
   `agent_clan.name_prefix` matches canonical clan metadata on active agents only; dotted
   agent names are not treated as clans. `agent_runners.max` defaults to `0` and inhibits
-  while more than that many participating lanes are occupied, matching the population
-  counted by `%queue(runners=N)`. Weighted runner capacity is tracked separately by the
-  host-wide capacity budget. A `STARTING` agent has not yet been admitted and does not
-  count; an agent parked on a question has yielded capacity and does not count. A match
-  records a visible `skipped` run naming the guard and matching agent.
+  while more than that many participating lanes are occupied, a participating-lane count
+  distinct from the weighted `%queue(capacity=N)` threshold. Weighted runner capacity is
+  tracked separately by the host-wide capacity budget. A `STARTING` agent has not yet
+  been admitted and does not count; an agent parked on a question has yielded capacity
+  and does not count. A match records a visible `skipped` run naming the guard and
+  matching agent.
 - `trigger` defaults to `always`. `git.commits_since` observes a project repository,
   fires when its threshold is met, and owns its checkpoint under the chop's state
   directory. A missing checkpoint fires once so a new chop is not silently inert.
