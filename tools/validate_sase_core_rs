@@ -281,6 +281,7 @@ REQUIRED_BINDINGS = (
     "provider_usage_classify_freshness",
     "provider_usage_window_applies",
     "provider_usage_summarize_for_model",
+    "provider_usage_normalize_grok_billing",
     "runner_capacity_policy_schema_version",
     "runner_capacity_snapshot",
     "finalizer_wire_schema_version",

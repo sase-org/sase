@@ -59,8 +59,7 @@ def _decision_from_dict(raw: Any) -> SidecarPublicationDecision:
         ) from exc
     if decision.schema_version != SIDECAR_PUBLICATION_WIRE_SCHEMA_VERSION:
         raise RuntimeError(
-            "sase_core_rs sidecar publication wire is stale: "
-            f"{decision.schema_version}"
+            f"sase_core_rs sidecar publication wire is stale: {decision.schema_version}"
         )
     if decision.action not in {
         SIDECAR_PUBLICATION_ACTION_SUCCESS,

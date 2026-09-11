@@ -2176,6 +2176,18 @@ strategy that recovered. Collector health and diagnostics are display and
 troubleshooting signals only; they never disable providers, change routing eligibility,
 or alter round-robin/provider-priority decisions.
 
+Grok's included-allowance billing response may omit `creditUsagePercent` and the legacy
+`used` / `monthlyLimit` amounts after a weekly or monthly reset, leaving a unified
+`currentPeriod` with `isUnifiedBillingUser: true`. SASE treats that verified shape as
+zero used. Ambiguous or invalid billing payloads remain collection errors, and the usage
+store keeps the previous window until a later successful probe. Recover through the
+normal refresh path; do not edit the usage cache by hand:
+
+```bash
+sase usage refresh -p grok --json
+sase usage list -p grok --json
+```
+
 Configuration controls refresh cadence (minimum 60 seconds) and warning/critical
 thresholds as percentages used; UI copy converts those to percentage left. See
 [`llm_provider.usage_metrics`](configuration.md#llm_providerusage_metrics) and the

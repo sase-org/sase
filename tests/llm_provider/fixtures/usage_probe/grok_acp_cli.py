@@ -99,7 +99,14 @@ def main() -> int:
                 )
             else:
                 payload = json.loads(os.environ["SASE_FAKE_GROK_BILLING"])
-                _respond({"jsonrpc": "2.0", "id": request_id, "result": payload})
+                wrap = os.environ.get("SASE_FAKE_GROK_RESULT_WRAP", "")
+                if wrap == "string":
+                    result: object = json.dumps(payload)
+                elif wrap == "nested":
+                    result = {"result": payload}
+                else:
+                    result = payload
+                _respond({"jsonrpc": "2.0", "id": request_id, "result": result})
         else:
             _respond(
                 {

@@ -152,6 +152,7 @@ def test_validate_sase_core_rs_requires_provider_usage_store() -> None:
         "provider_usage_classify_freshness",
         "provider_usage_window_applies",
         "provider_usage_summarize_for_model",
+        "provider_usage_normalize_grok_billing",
     }
     assert bindings <= set(validator.REQUIRED_BINDINGS)
     for binding in bindings:

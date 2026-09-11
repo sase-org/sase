@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import json
 import logging
-import math
 import re
 import subprocess
 import time
 from collections.abc import Mapping
-from datetime import UTC, datetime
 from typing import Any, Literal
 
+from sase.core.rust import require_rust_binding
 from sase.llm_provider.usage._strategy import (
     ProbeStrategy,
     classify_probe_failure,
@@ -133,7 +132,7 @@ def _collect_grok_billing(
             reason_code="malformed_payload",
             diagnostic="grok_billing_config_missing",
         )
-    return _observation_from_config(config, payload, context)
+    return _observation_from_payload(payload, context)
 
 
 def _initialize_request() -> dict[str, Any]:
@@ -235,173 +234,30 @@ def _billing_payload(response: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return result
 
 
-def _observation_from_config(
-    config: Mapping[str, Any],
+def _observation_from_payload(
     payload: Mapping[str, Any],
     context: UsageProbeContext,
 ) -> dict[str, Any]:
-    usage_percent = _usage_percent(config)
-    if usage_percent is None:
+    binding = require_rust_binding("provider_usage_normalize_grok_billing")
+    observation = binding(
+        {
+            "schema_version": 1,
+            "payload": dict(payload),
+            "provider": context.provider,
+            "context_id": context.context_id,
+            "account_generation": context.account_generation,
+            "request_started_at": float(context.request_started_at),
+            "now": _clock_for_context(context),
+        }
+    )
+    if not isinstance(observation, dict):
         return _status(
             context,
             outcome="error",
             reason_code="malformed_payload",
-            diagnostic="grok_billing_usage_percent_missing",
+            diagnostic="grok_billing_payload_missing",
         )
-    period = _billing_period(config)
-    completeness = "complete"
-    diagnostic = "grok_build_billing_first_party_unstable"
-    if period.resets_at is None:
-        completeness = "partial"
-        diagnostic = "grok_billing_period_missing_reset"
-    window = {
-        "key": period.key,
-        "label": period.label,
-        "used_percent": usage_percent,
-        "resets_at": period.resets_at,
-        "duration_seconds": period.duration_seconds,
-        "period_start": period.period_start,
-        "applicability": {"kind": "account"},
-        "observed_at": _clock_for_context(context),
-        "source": "probe",
-        "vendor_state": "unknown",
-    }
-    return {
-        "schema_version": context.schema_version,
-        "provider": context.provider,
-        "context_id": context.context_id,
-        "account_generation": context.account_generation,
-        "ordering_token": float(context.request_started_at),
-        "received_at": _clock_for_context(context),
-        "source": "probe",
-        "outcome": "ok",
-        "reason_code": None,
-        "diagnostic": diagnostic,
-        "completeness": completeness,
-        "authoritative_empty": False,
-        "account_mode": "subscription",
-        "plan": _string_or_none(payload.get("subscriptionTier"))
-        or _string_or_none(config.get("subscriptionTier")),
-        "windows": [window],
-    }
-
-
-class _Period:
-    def __init__(
-        self,
-        key: str,
-        label: str,
-        resets_at: float | None,
-        duration_seconds: float | None,
-        period_start: float | None,
-    ) -> None:
-        self.key = key
-        self.label = label
-        self.resets_at = resets_at
-        self.duration_seconds = duration_seconds
-        self.period_start = period_start
-
-
-def _billing_period(config: Mapping[str, Any]) -> _Period:
-    current_period = config.get("currentPeriod")
-    period_kind = None
-    start_value = None
-    end_value = None
-    if isinstance(current_period, Mapping):
-        period_kind = _period_kind(current_period.get("type"))
-        start_value = current_period.get("start")
-        end_value = current_period.get("end")
-    if period_kind is None:
-        start_value = start_value or config.get("billingPeriodStart")
-        end_value = end_value or config.get("billingPeriodEnd")
-        if start_value is not None or end_value is not None:
-            period_kind = "monthly"
-    period_start = _timestamp(start_value)
-    resets_at = _timestamp(end_value)
-    duration_seconds = None
-    if period_start is not None and resets_at is not None and resets_at > period_start:
-        duration_seconds = resets_at - period_start
-    if period_kind == "weekly":
-        return _Period(
-            key="included_weekly",
-            label="Grok included weekly allowance",
-            resets_at=resets_at,
-            duration_seconds=duration_seconds,
-            period_start=period_start,
-        )
-    if period_kind == "monthly":
-        return _Period(
-            key="included_monthly",
-            label="Grok included monthly allowance",
-            resets_at=resets_at,
-            duration_seconds=duration_seconds,
-            period_start=period_start,
-        )
-    return _Period(
-        key="included",
-        label="Grok included allowance",
-        resets_at=resets_at,
-        duration_seconds=duration_seconds,
-        period_start=period_start,
-    )
-
-
-def _usage_percent(config: Mapping[str, Any]) -> float | None:
-    if "creditUsagePercent" in config:
-        return _finite_nonnegative_number(config.get("creditUsagePercent"))
-    used = _cent_value(config.get("used"))
-    limit = _cent_value(config.get("monthlyLimit"))
-    if used is None or limit is None or limit <= 0:
-        return None
-    return (used / limit) * 100.0
-
-
-def _cent_value(value: Any) -> float | None:
-    if not isinstance(value, Mapping):
-        return None
-    return _finite_nonnegative_number(value.get("val"))
-
-
-def _finite_nonnegative_number(value: Any) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, int | float):
-        return None
-    number = float(value)
-    if not math.isfinite(number) or number < 0:
-        return None
-    return number
-
-
-def _period_kind(value: Any) -> str | None:
-    if not isinstance(value, str):
-        return None
-    normalized = value.lower()
-    if "weekly" in normalized or "week" in normalized:
-        return "weekly"
-    if "monthly" in normalized or "month" in normalized:
-        return "monthly"
-    return None
-
-
-def _timestamp(value: Any) -> float | None:
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int | float):
-        number = float(value)
-        if math.isfinite(number):
-            return number
-        return None
-    if not isinstance(value, str) or not value.strip():
-        return None
-    text = value.strip()
-    if text.endswith("Z"):
-        text = f"{text[:-1]}+00:00"
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
-    return parsed.timestamp()
+    return observation
 
 
 def _not_applicable_status(
@@ -562,12 +418,6 @@ def _subprocess_deadline(context: UsageProbeContext) -> float:
         now + _MIN_SUBPROCESS_DEADLINE_SECONDS,
         context.deadline_at - _SUBPROCESS_CLEANUP_MARGIN_SECONDS,
     )
-
-
-def _string_or_none(value: Any) -> str | None:
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
 
 
 def _evidence_text(value: Any) -> str:
