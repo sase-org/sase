@@ -198,19 +198,17 @@ def settle_already_terminal_handoff(
     disk = _read_meta(artifacts_dir)
     merge_followup_fields(meta, disk)
     _write_meta(artifacts_dir, meta)
-    marker = {
-        **done_marker,
-        **{
-            key: meta[key]
-            for key in (
-                "gate_followup_agent",
-                "gate_followup_outcome",
-                "gate_followup_error",
-                "gate_followup_attempt_id",
-            )
-            if key in meta
-        },
+    followup_fields: dict[str, Any] = {
+        key: meta[key]
+        for key in (
+            "gate_followup_agent",
+            "gate_followup_outcome",
+            "gate_followup_error",
+            "gate_followup_attempt_id",
+        )
+        if key in meta
     }
+    marker: dict[str, Any] = {**done_marker, **followup_fields}
     stamp_shell_finished_at(marker)
     write_done_marker_and_update_index(artifacts_dir, marker)
     touch_shell_refresh_pulse(project_name)
