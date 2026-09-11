@@ -34,6 +34,7 @@ def build_fork_injected_history(
     resolve_resume_to_chat_path: ResolveResumeReference = resolve_resume_to_chat_path,
 ) -> str:
     """Build the context block injected by the ``#fork`` workflow."""
+    rendered: str
     if not sources:
         raise ValueError("Fork history requires at least one source")
 
@@ -41,7 +42,7 @@ def build_fork_injected_history(
         failure = fork_source_failure(sources[0])
         if failure is not None:
             name = fork_source_string(sources[0], "name")
-            return _wrap_fork_history(
+            rendered = _wrap_fork_history(
                 "# Previous Conversation — PARENT AGENT FAILED",
                 format_failed_agent_body(
                     sources[0],
@@ -51,16 +52,22 @@ def build_fork_injected_history(
                     heading_level=2,
                 ),
             )
+            _record_fork_shadow_measurement(sources, rendered)
+            return rendered
         history = load_resume_history(fork_source_string(sources[0], "path"))
-        return _wrap_fork_history("# Previous Conversation", history)
+        rendered = _wrap_fork_history("# Previous Conversation", history)
+        _record_fork_shadow_measurement(sources, rendered)
+        return rendered
 
     if len(sources) == 1 and fork_source_kind(sources[0]) == "proc":
         name = fork_source_string(sources[0], "name")
         proc = require_proc_info(sources[0], name)
-        return _wrap_fork_history(
+        rendered = _wrap_fork_history(
             "# Previous Proc Execution",
             format_proc_body(proc, name=name, heading_level=2),
         )
+        _record_fork_shadow_measurement(sources, rendered)
+        return rendered
 
     if all(fork_source_kind(source) == "agent" for source in sources):
         count = len(sources)
@@ -95,9 +102,11 @@ def build_fork_injected_history(
         )
         if any_failed:
             guidance += " " + FAILED_PARENT_GUIDANCE
-        return _wrap_fork_history(
+        rendered = _wrap_fork_history(
             "# Previous Conversations", guidance + "\n\n" + "\n\n".join(sections)
         )
+        _record_fork_shadow_measurement(sources, rendered)
+        return rendered
 
     count = len(sources)
     sections = [
@@ -130,9 +139,11 @@ def build_fork_injected_history(
     if any(fork_source_has_failure(source) for source in sources):
         guidance_parts.append(FAILED_PARENT_GUIDANCE)
     guidance = " ".join(guidance_parts)
-    return _wrap_fork_history(
+    rendered = _wrap_fork_history(
         "# Previous Conversations", guidance + "\n\n" + "\n\n".join(sections)
     )
+    _record_fork_shadow_measurement(sources, rendered)
+    return rendered
 
 
 def _wrap_fork_history(heading: str, body: str) -> str:
@@ -140,6 +151,23 @@ def _wrap_fork_history(heading: str, body: str) -> str:
 
     region_body = f"{heading}\n\n{body}\n\n---\n"
     return f"{wrap_disabled_region(region_body)}\n# New Query"
+
+
+def _record_fork_shadow_measurement(
+    sources: Sequence[Mapping[str, object]],
+    rendered: str,
+) -> None:
+    import os
+
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+    from sase.continuation_baseline import (
+        measure_fork_render,
+        record_shadow_measurement,
+    )
+
+    record_shadow_measurement(artifacts_dir, measure_fork_render(sources, rendered))
 
 
 def _format_fork_source(

@@ -256,6 +256,51 @@ def test_invoke_agent_execution_provider_override_preserves_requested_metadata(
     assert meta["finalizers"]["selected"] == ["commit"]
 
 
+def test_invoke_agent_records_provider_preprocess_shadow_measurement(
+    tmp_path: Path,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="response")
+
+    def passthrough_finalizers(**kwargs: object) -> InvokeResult:
+        result = kwargs["invoke_result"]
+        assert isinstance(result, InvokeResult)
+        return result
+
+    with (
+        patch("sase.llm_provider._invoke.get_provider", return_value=provider),
+        patch("sase.llm_provider._invoke.postprocess_success"),
+        patch("sase.finalizers.run_finalizers", side_effect=passthrough_finalizers),
+    ):
+        invoke_agent(
+            "hello provider",
+            agent_type="test",
+            artifacts_dir=str(artifacts),
+            provider_name="fakey",
+            suppress_output=True,
+        )
+
+    [record] = [
+        json.loads(line)
+        for line in (artifacts / "continuation_prompt_measurements.jsonl")
+        .read_text()
+        .splitlines()
+    ]
+    assert record["component"] == "provider_preprocess"
+    submitted_prompt = provider.invoke.call_args.args[0]
+    assert record["prompt_sizes"]["total_expanded_bytes"] == len(
+        submitted_prompt.encode()
+    )
+    assert record["fallback_routing"] == {
+        "active": False,
+        "model": "large",
+        "provider": "fakey",
+    }
+
+
 def test_execution_override_resolves_display_model_with_requested_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

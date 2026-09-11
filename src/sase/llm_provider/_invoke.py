@@ -151,6 +151,21 @@ def invoke_agent(
         result = preprocess_prompt(prompt, is_home_mode=is_home_mode)
         query = result.prompt
         result_directives = result.directives
+    if artifacts_dir:
+        from sase.continuation_baseline import (
+            measure_provider_preprocess,
+            record_shadow_measurement,
+        )
+
+        record_shadow_measurement(
+            artifacts_dir,
+            measure_provider_preprocess(
+                query,
+                model_tier=model_tier,
+                model_override=result_directives.model,
+                provider_name=provider_name,
+            ),
+        )
     from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 
     finalizer_plan = resolve_and_persist_finalizer_plan(

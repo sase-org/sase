@@ -21,11 +21,49 @@ shift
 tmp_file=$(mktemp)
 trap 'rm -f "$tmp_file"' EXIT
 
+record_diagnostic() {
+    artifacts_dir="${SASE_ARTIFACTS_DIR:-}"
+    if [ -z "$artifacts_dir" ] || ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    python3 - "$artifacts_dir" "$description" "$1" "$tmp_file" <<'PY' || true
+import json
+import pathlib
+import sys
+import time
+
+artifacts_dir, description, exit_code_raw, output_path = sys.argv[1:5]
+try:
+    output = pathlib.Path(output_path).read_bytes()
+    record = {
+        "schema_version": 1,
+        "producer": "tools/run_silent",
+        "description": description,
+        "exit_code": int(exit_code_raw),
+        "status": "passed" if int(exit_code_raw) == 0 else "failed",
+        "output_bytes": len(output),
+        "output_lines": output.count(b"\n"),
+        "recorded_at_epoch": time.time(),
+    }
+    root = pathlib.Path(artifacts_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    with (root / "continuation_stage_diagnostics.jsonl").open(
+        "a", encoding="utf-8"
+    ) as stream:
+        json.dump(record, stream, sort_keys=True)
+        stream.write("\n")
+except Exception:
+    pass
+PY
+}
+
 if "$@" >"$tmp_file" 2>&1; then
+    record_diagnostic 0
     printf '✓ %s\n' "$description"
     exit 0
 else
     exit_code=$?
+    record_diagnostic "$exit_code"
     printf '✗ %s\n' "$description"
     cat "$tmp_file"
     exit "$exit_code"
