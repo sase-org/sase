@@ -12,8 +12,9 @@ the Axe daemon.
 sase ace [QUERY] [options]
 ```
 
-If no query is provided, ACE loads the last used query, then the first saved query, then
-falls back to `!!!` for error suffixes.
+If no Patches query is provided, ACE loads the last used Patches query, then the first
+saved Patches query, then falls back to `!!!` for error suffixes. The top-level Agents
+tab restores its own last submitted Agents query after startup.
 
 ### CLI Options
 
@@ -2356,10 +2357,21 @@ prospective clans.
 
 The bar previews each valid edit against the loaded snapshot, `Enter` commits and adds
 the previous query to history, `Escape` restores the pre-edit query and result, `Tab`
-accepts completions, and `^` / `_` walk query history while the bar is open. A leading
-`#` saves or deletes an Agents-tab saved-query slot in the `agents-live` namespace:
-`#3 status:FAILED`, `# status:queued`, and `#3` save, allocate, or delete a slot without
-changing the committed query.
+accepts completions, and `^` / `_` walk query history while the bar is open. Each
+successful `Enter` commit is remembered in machine-local SASE state and restored in the
+next ACE session; submitting an empty or whitespace-only query remembers the unfiltered
+view. Typing, `Escape`, invalid submits, history preview, saved-slot commands, and bare
+`/` metadata search do not replace the remembered query.
+
+Restored Agents queries are applied before provider filtering and before current-project
+seeding. A restored query does not push history, change saved-query slots, or write back
+to disk until you submit again. Non-empty remembered records from the inactive query
+dialect, or from an older `agents-live` profile, are ignored with a warning; explicit
+empty records restore across dialects.
+
+A leading `#` saves or deletes an Agents-tab saved-query slot in the `agents-live`
+namespace: `#3 status:FAILED`, `# status:queued`, and `#3` save, allocate, or delete a
+slot without changing the committed query.
 
 Property keys (closed allowlist):
 
@@ -4262,7 +4274,9 @@ chip live but does not re-scope those surfaces. Turn seeding off with
 
 The Agents-tab search query is **not** seeded by default
 (`ace.current_project.seed_agents_query: false`) because that query also drives unread
-jumps and prospective clans, not just the visible list. One line of config turns it on.
+jumps and prospective clans, not just the visible list. When enabled, the seed is used
+only if there is no remembered Agents query; a remembered empty query restores the
+unfiltered view and suppresses the seed. One line of config turns seeding on.
 
 Inspect the resolved project from the CLI with `sase project current`. See
 [`ace.current_project`](configuration.md#acecurrent_project) for the three fields.

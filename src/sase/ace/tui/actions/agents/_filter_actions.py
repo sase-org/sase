@@ -47,8 +47,7 @@ class AgentFilterActionsMixin:
         def on_dismiss(new_query: str | None) -> None:
             if new_query is None:
                 return
-            self._agent_search_query = new_query
-            self._agent_search_query_seeded = False
+            self._record_explicit_agents_query_commit(new_query)  # type: ignore[attr-defined]
             self._refilter_agents()  # type: ignore[attr-defined]
             self._schedule_agents_async_refresh(source="filter")  # type: ignore[attr-defined]
 

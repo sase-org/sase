@@ -225,6 +225,9 @@ class LifecycleMixin:
             flush_admin_center = getattr(self, "_flush_admin_center_tab_state", None)
             if callable(flush_admin_center):
                 flushes.append(flush_admin_center())
+            flush_agents_query = getattr(self, "_flush_agents_query_state", None)
+            if callable(flush_agents_query):
+                flushes.append(flush_agents_query())
             if flushes:
                 await asyncio.gather(*flushes, return_exceptions=True)
         except Exception:
@@ -249,7 +252,11 @@ class LifecycleMixin:
         self._controlled_exit_started = True  # type: ignore[attr-defined]
         if not any(
             callable(getattr(self, name, None))
-            for name in ("_flush_agents_fold_state", "_flush_admin_center_tab_state")
+            for name in (
+                "_flush_agents_fold_state",
+                "_flush_admin_center_tab_state",
+                "_flush_agents_query_state",
+            )
         ):
             self._do_quit()
             return

@@ -183,8 +183,7 @@ class AgentsFilterBarSessionMixin:
                 old_profile_digest=self._agents_live_profile_digest(),
                 new_canonical=new_canonical,
             )
-        self._agent_search_query = source
-        self._agent_search_query_seeded = False
+        self._record_explicit_agents_query_commit(source)  # type: ignore[attr-defined]
         # Session is still open here, so this refilter uses (and, on a
         # cache-miss race, self-heals) the *preview* facade below -- copy it
         # into the committed slot only after that resolves, so a stale

@@ -25,6 +25,7 @@ from ._navigation_order import AgentNavigationOrderMixin
 from ._notifications import AgentNotificationMixin
 from ._panels import AgentPanelsMixin
 from ._panel_hint_folding import AgentPanelHintFoldingMixin
+from ._query_persistence import AgentQueryPersistenceMixin
 from ._revert import AgentRevertMixin
 from ._revive import AgentRevivalMixin
 from ._selection import AgentSelectionMixin
@@ -78,6 +79,7 @@ class AgentsMixinCore(
     AgentSelectionMixin,
     AgentUnreadMixin,
     AgentPatchNavigationMixin,
+    AgentQueryPersistenceMixin,
     AgentFilterActionsMixin,
     AgentsFilterBarSessionMixin,
     AgentNotificationMixin,
@@ -137,6 +139,7 @@ class AgentsMixinCore(
     _agent_search_query: str
     _agent_search_query_seeded: bool
     _agent_search_query_seed_attempted: bool
+    _agent_search_query_generation: int
 
     # Auto-hiding FilterBar editing session (sase-zf.4). See
     # ``AgentsFilterBarSessionMixin`` for the full state machine.

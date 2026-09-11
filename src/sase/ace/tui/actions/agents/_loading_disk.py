@@ -316,6 +316,9 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
             include_states="all",
         )
         disk_start = time.perf_counter()
+        restore_query = getattr(self, "_restore_agents_query_once", None)
+        if callable(restore_query):
+            await restore_query()
         need_seed = self._should_seed_agent_search_query()
         if need_seed:
             from sase.current_project import resolve_current_project

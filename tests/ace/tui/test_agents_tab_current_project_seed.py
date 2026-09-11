@@ -2,23 +2,25 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from sase.ace.agent_query import project_query_term
 from sase.ace.tui.actions.agents._loading import AgentLoadingMixin
+from sase.ace.tui.actions.agents._query_persistence import AgentQueryPersistenceMixin
 from sase.ace.tui.actions.agents._loading_helpers import _AgentDiskLoadResult
 from sase.ace.tui.actions.agents._prospective_clan import _apply_active_agent_query
 from sase.ace.tui.current_project_settings import CurrentProjectSettings
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.models import agent_query_persistence as query_store
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 from sase.current_project import CurrentProject
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
-from tests.ace.tui.widgets.test_agent_info_panel import (
-    _collect_rich_text,
-    _collect_text,
+from tests.ace.tui.widgets._agent_info_panel_helpers import (
+    collect_rich_text,
+    collect_text,
 )
 
 
@@ -54,7 +56,7 @@ def _load_state() -> AgentLoadState:
     )
 
 
-class _SeedLoadApp(AgentLoadingMixin):
+class _SeedLoadApp(AgentQueryPersistenceMixin, AgentLoadingMixin):
     def __init__(self, *, seed_agents_query: bool, query: str = "") -> None:
         self.current_tab = "agents"
         self.current_idx = 0
@@ -65,6 +67,7 @@ class _SeedLoadApp(AgentLoadingMixin):
         self._agent_search_query = query
         self._agent_search_query_seeded = False
         self._agent_search_query_seed_attempted = False
+        self._ensure_agents_query_persistence_state()
         self._current_project_settings = CurrentProjectSettings(
             seed_agents_query=seed_agents_query
         )
@@ -80,6 +83,7 @@ class _SeedLoadApp(AgentLoadingMixin):
         self._dismissed_agents_disk_signature_initialized = True
         self.applied = False
         self.applied_query = ""
+        self.notify = Mock()
 
     def _apply_loaded_agents(self, *_args: object, **_kwargs: object) -> None:
         self.applied = True
@@ -159,8 +163,8 @@ def test_info_panel_shows_dim_seeded_tag() -> None:
     with patch.object(panel, "update"):
         panel.update_search_query("project:sase", seeded=True)
 
-    plain = _collect_text(panel)
-    text = _collect_rich_text(panel)
+    plain = collect_text(panel)
+    text = collect_rich_text(panel)
     assert "filter: project:sase seeded" in plain
     seeded_index = text.plain.index(" seeded")
     matching = [
@@ -178,8 +182,8 @@ def test_info_panel_omits_seeded_tag_after_edit() -> None:
         panel.update_search_query("project:sase", seeded=True)
         panel.update_search_query("status:done", seeded=False)
 
-    assert "seeded" not in _collect_text(panel)
-    assert "filter: status:done" in _collect_text(panel)
+    assert "seeded" not in collect_text(panel)
+    assert "filter: status:done" in collect_text(panel)
 
 
 def test_update_state_rebuilds_when_seeded_flag_changes() -> None:
@@ -333,6 +337,130 @@ async def test_enabled_async_load_seeds_from_worker_resolve() -> None:
     assert app._agent_search_query == "project:widgets"
     assert app._agent_search_query_seeded is True
     assert app.applied_query == "project:widgets"
+
+
+async def test_async_load_restores_remembered_query_before_provider_and_seed() -> None:
+    app = _SeedLoadApp(seed_agents_query=True)
+    seen_queries: list[str | None] = []
+    query_store.save_agent_query_snapshot(
+        query_store.make_agent_query_snapshot(
+            "status:FAILED",
+            dialect=query_store.DIALECT_UNIFIED,
+        )
+    )
+
+    def fake_load_agents(*_args: object, **kwargs: object) -> _AgentDiskLoadResult:
+        seen_queries.append(kwargs.get("search_query"))  # type: ignore[arg-type]
+        return _AgentDiskLoadResult(
+            all_agents=[],
+            dismissed_from_loader=[],
+            load_state=_load_state(),
+        )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._loading_disk."
+            "_compute_external_dismissal_merge",
+            return_value=None,
+        ),
+        patch("sase.ace.patch.find_all_patches_cached", return_value=[]),
+        patch(
+            "sase.ace.tui.actions.agents._loading.load_agents_from_disk_with_state",
+            side_effect=fake_load_agents,
+        ),
+        patch("sase.current_project.resolve_current_project") as resolve_current,
+        patch("sase.ace.tui.repro.capture.record_agents_tab_loader_result"),
+    ):
+        await app._load_agents_async()
+
+    resolve_current.assert_not_called()
+    assert seen_queries == ["status:FAILED"]
+    assert app._agent_search_query == "status:FAILED"
+    assert app._agent_search_query_seeded is False
+    assert app.applied_query == "status:FAILED"
+
+
+async def test_async_load_explicit_empty_restore_suppresses_seed() -> None:
+    app = _SeedLoadApp(seed_agents_query=True)
+    seen_queries: list[str | None] = []
+    query_store.save_agent_query_snapshot(
+        query_store.make_agent_query_snapshot("   ", dialect=query_store.DIALECT_LEGACY)
+    )
+
+    def fake_load_agents(*_args: object, **kwargs: object) -> _AgentDiskLoadResult:
+        seen_queries.append(kwargs.get("search_query"))  # type: ignore[arg-type]
+        return _AgentDiskLoadResult(
+            all_agents=[],
+            dismissed_from_loader=[],
+            load_state=_load_state(),
+        )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._loading_disk."
+            "_compute_external_dismissal_merge",
+            return_value=None,
+        ),
+        patch("sase.ace.patch.find_all_patches_cached", return_value=[]),
+        patch(
+            "sase.ace.tui.actions.agents._loading.load_agents_from_disk_with_state",
+            side_effect=fake_load_agents,
+        ),
+        patch("sase.current_project.resolve_current_project") as resolve_current,
+        patch("sase.ace.tui.repro.capture.record_agents_tab_loader_result"),
+    ):
+        await app._load_agents_async()
+
+    resolve_current.assert_not_called()
+    assert seen_queries == [""]
+    assert app._agent_search_query == ""
+    assert app._agent_search_query_seed_attempted is True
+    assert app._agent_search_query_seeded is False
+    assert app.applied_query == ""
+
+
+async def test_async_load_rejected_remembered_query_falls_back_to_seed() -> None:
+    app = _SeedLoadApp(seed_agents_query=True)
+    seen_queries: list[str | None] = []
+    query_store.save_agent_query_snapshot(
+        query_store.make_agent_query_snapshot(
+            "status:failed",
+            dialect=query_store.DIALECT_LEGACY,
+        )
+    )
+
+    def fake_load_agents(*_args: object, **kwargs: object) -> _AgentDiskLoadResult:
+        seen_queries.append(kwargs.get("search_query"))  # type: ignore[arg-type]
+        return _AgentDiskLoadResult(
+            all_agents=[],
+            dismissed_from_loader=[],
+            load_state=_load_state(),
+        )
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agents._loading_disk."
+            "_compute_external_dismissal_merge",
+            return_value=None,
+        ),
+        patch("sase.ace.patch.find_all_patches_cached", return_value=[]),
+        patch(
+            "sase.ace.tui.actions.agents._loading.load_agents_from_disk_with_state",
+            side_effect=fake_load_agents,
+        ),
+        patch(
+            "sase.current_project.resolve_current_project",
+            return_value=_current_project(),
+        ) as resolve_current,
+        patch("sase.ace.tui.repro.capture.record_agents_tab_loader_result"),
+    ):
+        await app._load_agents_async()
+
+    resolve_current.assert_called_once()
+    assert seen_queries == ["project:sase"]
+    assert app._agent_search_query == "project:sase"
+    assert app._agent_search_query_seeded is True
+    assert "legacy dialect" in app.notify.call_args.args[0]
 
 
 def test_edited_query_survives_a_later_seed_attempt() -> None:

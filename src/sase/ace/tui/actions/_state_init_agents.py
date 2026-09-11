@@ -134,6 +134,18 @@ def init_agent_state(self: Any) -> None:
     self._agent_search_query = ""
     self._agent_search_query_seeded = False
     self._agent_search_query_seed_attempted = False
+    self._agent_search_query_generation = 0
+    self._agents_query_restore_attempted = False
+    self._agents_query_restore_task = None
+    self._agents_query_restore_warning_shown = False
+    self._agents_query_durable_snapshot = None
+    self._agents_query_queued_snapshot = None
+    self._agents_query_save_generation = 0
+    self._agents_query_completed_generation = 0
+    self._agents_query_save_pending = None
+    self._agents_query_dirty_snapshot = None
+    self._agents_query_save_task = None
+    self._agents_query_last_save_warning_mono = 0.0
     self._agents_provider_snapshot = None
 
     # Cached parsed agent-query AST keyed by raw query string so

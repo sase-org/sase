@@ -39,6 +39,9 @@ class _FlushQuitApp(_QuitApp):
     async def _flush_admin_center_tab_state(self) -> None:
         self.exit_events.append("flush-admin-center")
 
+    async def _flush_agents_query_state(self) -> None:
+        self.exit_events.append("flush-agents-query")
+
     def _do_quit(self) -> None:
         self.exit_events.append("quit")
         super()._do_quit()
@@ -127,7 +130,11 @@ async def test_ordinary_quit_flushes_fold_state_before_exit() -> None:
 
     await app.action_quit()
 
-    assert set(app.exit_events[:-1]) == {"flush-folds", "flush-admin-center"}
+    assert set(app.exit_events[:-1]) == {
+        "flush-folds",
+        "flush-admin-center",
+        "flush-agents-query",
+    }
     assert app.exit_events[-1] == "quit"
 
 
@@ -138,7 +145,11 @@ async def test_confirmed_quit_flushes_fold_state_before_exit() -> None:
     await app.action_quit()
     await asyncio.gather(*app.scheduled)
 
-    assert set(app.exit_events[:-1]) == {"flush-folds", "flush-admin-center"}
+    assert set(app.exit_events[:-1]) == {
+        "flush-folds",
+        "flush-admin-center",
+        "flush-agents-query",
+    }
     assert app.exit_events[-1] == "quit"
 
 
@@ -171,6 +182,28 @@ async def test_controlled_exit_waits_for_fold_state_flush() -> None:
 
     class _WaitingFlushApp(_QuitApp):
         async def _flush_agents_fold_state(self) -> None:
+            entered.set()
+            await release.wait()
+
+    app = _WaitingFlushApp()
+    quitting = asyncio.create_task(app.action_quit())
+    await asyncio.wait_for(entered.wait(), timeout=0.5)
+
+    assert shutdown._shutdown_signal.is_requested() is True
+    assert app.did_quit is False
+    release.set()
+    await quitting
+
+    assert app.did_quit is True
+
+
+@pytest.mark.asyncio
+async def test_controlled_exit_waits_for_agents_query_flush() -> None:
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    class _WaitingFlushApp(_QuitApp):
+        async def _flush_agents_query_state(self) -> None:
             entered.set()
             await release.wait()
 

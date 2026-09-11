@@ -55,13 +55,22 @@ class AgentSearchQuerySeedMixin:
                 agents_live_property_query_term,
             )
 
-            self._agent_search_query = agents_live_property_query_term(
+            query = agents_live_property_query_term(
                 "project",
                 display_name,
             )
         else:
             from sase.ace.agent_query import project_query_term
 
-            self._agent_search_query = project_query_term(display_name)
+            query = project_query_term(display_name)
+        apply_query = getattr(
+            self, "_apply_agents_query_source_without_persisting", None
+        )
+        if callable(apply_query):
+            apply_query(query, seeded=True, settle_seed=False)
+        else:
+            self._agent_search_query = query
+            self._agent_search_query_seeded = True
+            return True
         self._agent_search_query_seeded = True
         return True

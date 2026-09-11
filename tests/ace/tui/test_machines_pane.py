@@ -8,9 +8,12 @@ from textual.app import App, ComposeResult
 from textual.widgets import OptionList
 
 from sase.ace.testing import wait_for
+from sase.ace.tui.actions.agents._query_persistence import AgentQueryPersistenceMixin
+from sase.ace.tui.models import agent_query_persistence as query_store
 from sase.ace.tui.modals.config_center_session import SelectionBookmark
 from sase.ace.tui.modals.machines_pane import MachinesPane
 from sase.dispatch.models import MachineRecord, MachineStatus
+from sase.feature_flags import override_flags
 
 
 def _machine(alias: str = "apollo") -> MachineRecord:
@@ -52,13 +55,17 @@ class _MachineService:
         )
 
 
-class _MachinesPaneApp(App[None]):
+class _MachinesPaneApp(AgentQueryPersistenceMixin, App[None]):
     ENABLE_COMMAND_PALETTE = False
 
     def __init__(self, service: _MachineService) -> None:
         super().__init__()
         self.service = service
         self.current_tab = "artifacts"
+        self._agent_search_query = ""
+        self._agent_search_query_seeded = False
+        self._agent_search_query_seed_attempted = False
+        self._ensure_agents_query_persistence_state()
         self.refilter_count = 0
         self.refresh_sources: list[str] = []
         self.notifications: list[str] = []
@@ -135,6 +142,39 @@ async def test_show_agents_seeds_machine_query() -> None:
         assert pilot.app._agent_search_query == "machine:apollo"
         assert pilot.app.refilter_count == 1
         assert pilot.app.refresh_sources == ["machines_pane"]
+        await pilot.app._flush_agents_query_state()
+        result = query_store.load_agent_query_snapshot(
+            active_dialect=query_store.DIALECT_UNIFIED
+        )
+        assert result.snapshot is not None
+        assert result.snapshot.record.source == "machine:apollo"
+
+
+async def test_show_agents_persists_machine_query_with_legacy_flag() -> None:
+    service = _MachineService((_machine("apollo"),))
+    async with _MachinesPaneApp(service).run_test(size=(120, 36)) as pilot:
+        pane = pilot.app.query_one("#machines", MachinesPane)
+        await wait_for(pilot, lambda: pane._loaded_once)
+        pane.query_one("#machines-list", OptionList).highlighted = 1
+        await wait_for(
+            pilot,
+            lambda: (
+                (row := pane._selected_record()) is not None and row.alias == "apollo"
+            ),
+        )
+
+        with override_flags(agents_unified_query=False):
+            pane.action_show_agents()
+            await pilot.app._flush_agents_query_state()
+
+        assert pilot.app.current_tab == "agents"
+        assert pilot.app._agent_search_query == "machine:apollo"
+        result = query_store.load_agent_query_snapshot(
+            active_dialect=query_store.DIALECT_LEGACY
+        )
+        assert result.snapshot is not None
+        assert result.snapshot.dialect == query_store.DIALECT_LEGACY
+        assert result.snapshot.record.source == "machine:apollo"
 
 
 async def test_remote_actions_render_persistent_copyable_commands() -> None:

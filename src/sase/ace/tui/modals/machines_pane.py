@@ -216,8 +216,12 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
             query = machine_query_term(machine_name)
         app: Any = self.app
         app.current_tab = "agents"
-        app._agent_search_query = query
-        app._agent_search_query_seeded = False
+        record_query = getattr(app, "_record_explicit_agents_query_commit", None)
+        if callable(record_query):
+            record_query(query)
+        else:
+            app._agent_search_query = query
+            app._agent_search_query_seeded = False
         refilter = getattr(app, "_refilter_agents", None)
         if callable(refilter):
             refilter()

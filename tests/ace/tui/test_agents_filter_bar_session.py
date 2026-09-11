@@ -9,12 +9,17 @@ is covered separately in ``test_agents_tab_query_filter.py``.
 from __future__ import annotations
 
 from datetime import datetime
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from sase.ace.saved_queries import load_saved_queries
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agents import _loading
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.models import agent_query_persistence as query_store
 from sase.ace.tui.widgets.agents_filter_bar import AgentsFilterBar
 from sase.ace.tui.widgets.single_line_vim_text_area import SingleLineVimTextArea
 from tests.ace.tui.visual._ace_png_snapshot_startup import (
@@ -60,6 +65,43 @@ async def _clear_and_type(page: AcePage, bar: AgentsFilterBar, text: str) -> Non
     await _type(page, text)
 
 
+async def _wait_for_query_save(page: AcePage) -> None:
+    await page.wait_for(
+        lambda _state: (
+            page.app._agents_query_save_pending is None
+            and page.app._agents_query_dirty_snapshot is None
+            and (
+                page.app._agents_query_save_task is None
+                or page.app._agents_query_save_task.done()
+            )
+        )
+    )
+
+
+def _patch_recording_agent_loader(
+    monkeypatch: pytest.MonkeyPatch,
+    agents: list[Agent],
+) -> list[str | None]:
+    load_state = AgentLoadState(
+        tier="tier2",
+        complete_history=True,
+        artifact_source="source_scan",
+        used_artifact_index=False,
+    )
+    provider_queries: list[str | None] = []
+
+    def fake_load_agents(*_args: Any, **kwargs: Any) -> SimpleNamespace:
+        provider_queries.append(kwargs.get("search_query"))
+        return SimpleNamespace(
+            all_agents=list(agents),
+            dismissed_from_loader=[],
+            load_state=load_state,
+        )
+
+    monkeypatch.setattr(_loading, "load_agents_from_disk_with_state", fake_load_agents)
+    return provider_queries
+
+
 async def test_f_opens_the_bar_and_typing_previews_then_commits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -89,6 +131,69 @@ async def test_f_opens_the_bar_and_typing_previews_then_commits(
         assert bar.display is False
         assert page.app._agent_search_query == "status:FAILED"
         assert [a.cl_name for a in page.app._agents] == ["failed-one"]
+
+
+async def test_filter_commit_persists_and_restores_in_fresh_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = _fixture_agents()
+    patch_startup_loaders(monkeypatch, agents=agents)
+    provider_queries = _patch_recording_agent_loader(monkeypatch, agents)
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        await page.press("f")
+        await page.pause()
+        await _type(page, "status:FAILED")
+        await page.press("enter")
+        await _wait_for_query_save(page)
+
+    assert query_store.load_agent_query_snapshot(
+        active_dialect=query_store.DIALECT_UNIFIED
+    ).snapshot == query_store.make_agent_query_snapshot(
+        "status:FAILED",
+        dialect=query_store.DIALECT_UNIFIED,
+    )
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+
+        assert page.app._agent_search_query == "status:FAILED"
+        assert [a.cl_name for a in page.app._agents] == ["failed-one"]
+
+    assert "status:FAILED" in provider_queries
+
+
+async def test_explicit_empty_filter_commit_restores_unfiltered_view(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agents = _fixture_agents()
+    patch_startup_loaders(monkeypatch, agents=agents)
+    query_store.save_agent_query_snapshot(
+        query_store.make_agent_query_snapshot(
+            "status:FAILED",
+            dialect=query_store.DIALECT_UNIFIED,
+        )
+    )
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        bar = page.app.query_one(AgentsFilterBar)
+        await page.press("f")
+        await page.pause()
+        await _clear_and_type(page, bar, "   ")
+        await page.press("enter")
+        await _wait_for_query_save(page)
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+
+        assert page.app._agent_search_query == ""
+        assert [a.cl_name for a in page.app._agents] == [
+            "running-one",
+            "running-two",
+            "failed-one",
+        ]
 
 
 async def test_escape_restores_the_prior_committed_query(
@@ -147,6 +252,12 @@ async def test_invalid_query_shows_inline_error_and_keeps_last_good_list(
         assert page.app._agents_filter_query_error is not None
         # The invalid suffix never touched the last good preview.
         assert len(page.app._agents) == 2
+        assert (
+            query_store.load_agent_query_snapshot(
+                active_dialect=query_store.DIALECT_UNIFIED
+            ).snapshot
+            is None
+        )
 
         bar = page.app.query_one(AgentsFilterBar)
         status = bar.query_one(f"#{bar.STATUS_ID}")
@@ -172,6 +283,12 @@ async def test_hash_slot_saves_a_query_under_the_agents_live_namespace(
         assert saved["1"].canonical == "status:FAILED"
         # Saving does not commit the query.
         assert page.app._agent_search_query == ""
+        assert (
+            query_store.load_agent_query_snapshot(
+                active_dialect=query_store.DIALECT_UNIFIED
+            ).snapshot
+            is None
+        )
 
 
 async def test_circumflex_history_replaces_the_live_edit_while_the_bar_is_open(

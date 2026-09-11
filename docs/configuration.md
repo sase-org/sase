@@ -856,7 +856,7 @@ the same MRU promotion without a launch.
 | ------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `indicator`         | bool | `true`  | Show the `+<project>` chip in the ACE top bar, right of the default-model indicator. Governs the top-bar chip only; the Admin Center [Projects tab](ace.md#projects-tab) always shows the current project regardless of this setting. |
 | `seed_filters`      | bool | `true`  | Seed project filters that have no value yet. Never overrides an explicit choice or an already-open surface.                                                                                                                           |
-| `seed_agents_query` | bool | `false` | Also seed the Agents-tab `agents-live` query with the current project's exact `project:` term.                                                                                                                                        |
+| `seed_agents_query` | bool | `false` | Also seed the active Agents-tab query dialect with the current project's exact `project:` term when no submitted Agents query, including explicit empty, is remembered.                                                               |
 
 `seed_agents_query` is **off by default** on purpose. The Agents tab is the primary
 at-a-glance view, and its structured query is also read by unread-jump candidates and
@@ -866,8 +866,10 @@ re-scopes those surfaces. The capability is fully built; one line of config enab
 When `seed_filters` is on, a filter that already has a value — an explicit `project:` /
 `+name` query term, or a pick made this session — is left alone. The Patches query is
 one of those seeded surfaces: the seed appends a visible `project:<name>` term for the
-session only and does not write it to `last_query.txt`. A mid-session MRU change moves
-the chip but does not re-scope surfaces that are already open.
+session only and does not write it to `last_query.txt`. The Agents query seed is also
+session-only unless you submit it; it does not update the Agents remembered-query file
+on its own. A mid-session MRU change moves the chip but does not re-scope surfaces that
+are already open.
 
 #### `ace.tribes`
 
