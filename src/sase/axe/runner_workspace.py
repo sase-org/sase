@@ -1,8 +1,10 @@
 """Workspace preparation helpers shared by axe runners."""
 
 import contextlib
+from dataclasses import dataclass
 import logging
 import os
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Generator
@@ -25,6 +27,18 @@ logger = logging.getLogger(__name__)
 
 class _WorkspaceBeadEvictionRefused(RuntimeError):
     """Raised when eviction would destroy unpublished sidecar commits."""
+
+
+@dataclass(frozen=True)
+class _SidecarPublicationResult:
+    published: bool
+    detail: str | None = None
+
+
+@dataclass(frozen=True)
+class _SidecarUpstreamTarget:
+    branch: str
+    remote: str
 
 
 # Minimum age before a leftover ``.git/index.lock`` is treated as abandoned.
@@ -388,16 +402,18 @@ def _protect_sidecar_repo(
         f"{local_commits} unpushed local sidecar commit(s) in {repo_root}; "
         "publishing before workspace cleanup..."
     )
-    push_error = _push_sidecar_repo(repo_root)
+    publication = _publish_sidecar_repo(repo_root)
     remaining, remaining_error = _unpushed_sidecar_commit_count(repo_root)
     if remaining_error is not None:
         remaining = local_commits
-    if remaining <= 0:
+    if remaining <= 0 and publication.published:
         return True
+    if remaining <= 0:
+        remaining = local_commits
 
     detail = (
         remaining_error
-        or push_error
+        or publication.detail
         or "git push reported success but local sidecar commits remain"
     )
     recovery_ref, recovery_error = _retain_current_head_recovery_ref(repo_root)
@@ -459,9 +475,96 @@ def _unpushed_sidecar_commit_count(repo_root: Path) -> tuple[int, str | None]:
         return 0, f"git rev-list returned a non-integer count: {result.stdout!r}"
 
 
-def _push_sidecar_repo(repo_root: Path) -> str | None:
+def _publish_sidecar_repo(repo_root: Path) -> _SidecarPublicationResult:
+    """Publish the current sidecar branch, integrating retryable divergence."""
+    from sase.core.sidecar_publication_facade import (
+        SIDECAR_PUBLICATION_ACTION_INTEGRATE_AND_RETRY,
+        SIDECAR_PUBLICATION_ACTION_STOP,
+        SIDECAR_PUBLICATION_ACTION_SUCCESS,
+        decide_sidecar_publication_after_push,
+    )
+    from sase.sdd._git_contention import store_git_write_lock_factory
+    from sase.sdd._repository_transaction import integrate_sdd_repository
+
+    attempt = 1
+    while True:
+        push = _run_sidecar_push(repo_root)
+        try:
+            decision = decide_sidecar_publication_after_push(
+                returncode=push.returncode,
+                stdout=push.stdout or "",
+                stderr=push.stderr or "",
+                attempt=attempt,
+            )
+        except Exception as exc:  # noqa: BLE001 - fail closed and preserve.
+            return _SidecarPublicationResult(
+                published=False,
+                detail=f"sidecar publication policy failed: {exc}",
+            )
+
+        if decision.action == SIDECAR_PUBLICATION_ACTION_SUCCESS:
+            verification_error = _verify_sidecar_publication(repo_root)
+            if verification_error is None:
+                return _SidecarPublicationResult(published=True)
+            return _SidecarPublicationResult(
+                published=False,
+                detail=(
+                    f"sidecar publication verification failed after "
+                    f"{attempt} push attempt(s): {verification_error}"
+                ),
+            )
+
+        if decision.action == SIDECAR_PUBLICATION_ACTION_INTEGRATE_AND_RETRY:
+            target, target_error = _sidecar_upstream_target(repo_root)
+            if target_error is not None or target is None:
+                return _SidecarPublicationResult(
+                    published=False,
+                    detail=(
+                        "sidecar publication could not resolve the configured "
+                        f"upstream after push attempt {attempt}: {target_error}"
+                    ),
+                )
+            integration = integrate_sdd_repository(
+                repo_root,
+                upstream="@{upstream}",
+                fetch_remote=target.remote,
+                expected_branch=target.branch,
+                op_prefix="workspace.sidecar_safety.integrate",
+                lock_factory=store_git_write_lock_factory(
+                    op="workspace.sidecar_safety.integrate.transaction",
+                    mutates_worktree=True,
+                ),
+            )
+            if not integration.succeeded:
+                detail = (
+                    integration.error
+                    or f"SDD integration stopped with status {integration.status.value}"
+                )
+                return _SidecarPublicationResult(
+                    published=False,
+                    detail=(
+                        f"sidecar integration failed after push attempt {attempt}: "
+                        f"{detail}"
+                    ),
+                )
+            attempt += 1
+            continue
+
+        if decision.action == SIDECAR_PUBLICATION_ACTION_STOP:
+            return _SidecarPublicationResult(
+                published=False,
+                detail=_format_sidecar_push_failure(push, decision),
+            )
+
+        return _SidecarPublicationResult(
+            published=False,
+            detail=f"sidecar publication policy returned unknown action {decision.action!r}",
+        )
+
+
+def _run_sidecar_push(repo_root: Path) -> subprocess.CompletedProcess[str]:
     """Push the current sidecar branch to its configured upstream."""
-    from sase.sdd._repository_health import default_git_runner, format_git_error
+    from sase.sdd._repository_health import default_git_runner
 
     result = default_git_runner(
         repo_root,
@@ -469,9 +572,96 @@ def _push_sidecar_repo(repo_root: Path) -> str | None:
         op="workspace.sidecar_safety.push",
         network=True,
     )
-    if result.returncode == 0:
-        return None
-    return format_git_error("git push failed", result)
+    if not isinstance(result.stdout, str) or not isinstance(result.stderr, str):
+        return subprocess.CompletedProcess(
+            result.args,
+            result.returncode,
+            stdout=str(result.stdout or ""),
+            stderr=str(result.stderr or ""),
+        )
+    return result
+
+
+def _sidecar_upstream_target(
+    repo_root: Path,
+) -> tuple[_SidecarUpstreamTarget | None, str | None]:
+    """Return the configured upstream target for the current sidecar branch."""
+    from sase.sdd._repository_health import default_git_runner, format_git_error
+
+    branch_result = default_git_runner(
+        repo_root,
+        ["symbolic-ref", "--quiet", "--short", "HEAD"],
+        op="workspace.sidecar_safety.upstream_branch",
+    )
+    if branch_result.returncode != 0 or not branch_result.stdout.strip():
+        return None, format_git_error(
+            "could not resolve current sidecar branch", branch_result
+        )
+    branch = branch_result.stdout.strip()
+    remote_result = default_git_runner(
+        repo_root,
+        ["config", "--get", f"branch.{branch}.remote"],
+        op="workspace.sidecar_safety.upstream_remote",
+    )
+    if remote_result.returncode != 0 or not remote_result.stdout.strip():
+        return None, format_git_error(
+            f"could not resolve upstream remote for branch {branch!r}",
+            remote_result,
+        )
+    merge_result = default_git_runner(
+        repo_root,
+        ["config", "--get", f"branch.{branch}.merge"],
+        op="workspace.sidecar_safety.upstream_merge",
+    )
+    if merge_result.returncode != 0 or not merge_result.stdout.strip():
+        return None, format_git_error(
+            f"could not resolve upstream merge ref for branch {branch!r}",
+            merge_result,
+        )
+    return (
+        _SidecarUpstreamTarget(
+            branch=branch,
+            remote=remote_result.stdout.strip(),
+        ),
+        None,
+    )
+
+
+def _verify_sidecar_publication(repo_root: Path) -> str | None:
+    """Prove the sidecar HEAD is published to its configured upstream."""
+    from sase.sdd._repository_health import default_git_runner, format_git_error
+
+    remaining, count_error = _unpushed_sidecar_commit_count(repo_root)
+    if count_error is not None:
+        return count_error
+    if remaining > 0:
+        return f"{remaining} local sidecar commit(s) still appear ahead of upstream"
+    ancestor = default_git_runner(
+        repo_root,
+        ["merge-base", "--is-ancestor", "HEAD", "@{upstream}"],
+        op="workspace.sidecar_safety.verify_published",
+    )
+    if ancestor.returncode != 0:
+        return format_git_error(
+            "could not verify sidecar HEAD is reachable from upstream", ancestor
+        )
+    return None
+
+
+def _format_sidecar_push_failure(
+    result: subprocess.CompletedProcess[str],
+    decision: object,
+) -> str:
+    from sase.sdd._repository_health import format_git_error
+
+    reason = getattr(decision, "reason", "sidecar publication stopped")
+    classification = getattr(decision, "classification", "unknown")
+    attempt = getattr(decision, "attempt", "?")
+    max_attempts = getattr(decision, "max_attempts", "?")
+    return (
+        f"{format_git_error('git push failed', result)}; {reason} "
+        f"(classification={classification}, attempt {attempt}/{max_attempts})"
+    )
 
 
 def _report_sidecar_eviction_failure(

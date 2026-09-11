@@ -81,6 +81,7 @@ REQUIRED_BINDINGS = (
     "derive_git_workspace_name",
     "parse_git_conflicted_files",
     "parse_git_local_changes",
+    "decide_sidecar_publication_after_push",
     "prompt_archive_inventory",
     "prompt_archive_inventory_wire_schema_version",
     "read_project_lifecycle_from_content",

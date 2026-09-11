@@ -35,6 +35,7 @@ def integrate_sdd_repository_transaction(
     beads_dir: Path | None = None,
     upstream: str = "@{upstream}",
     fetch: bool = True,
+    fetch_remote: str = "origin",
     expected_branch: str | None = None,
     op_prefix: str = "sdd.integrate",
     git_runner: GitRunner,
@@ -77,7 +78,7 @@ def integrate_sdd_repository_transaction(
     if fetch:
         fetched = git_runner(
             root,
-            ["fetch", "--prune", "origin"],
+            ["fetch", "--prune", fetch_remote or "origin"],
             op=f"{op_prefix}.fetch",
             network=True,
         )

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from sase.axe import runner_workspace as workspace_module
 from sase.axe.runner_workspace import (
     _WorkspaceBeadEvictionRefused,
     _workspace_bead_store_dirs,
@@ -61,12 +62,14 @@ def _seed_workspace_sidecar_beads(tmp_path: Path) -> tuple[Path, Path, str]:
 def _seed_workspace_sidecar_repo(
     tmp_path: Path,
     *,
+    branch: str = "main",
+    remote_name: str = "origin",
     role: str = "plans",
 ) -> tuple[Path, Path, Path]:
     """Build a numbered workspace with one direct sidecar repo clone."""
     remote = tmp_path / f"{role}-remote.git"
     subprocess.run(
-        ["git", "init", "--bare", "-b", "main", str(remote)],
+        ["git", "init", "--bare", "-b", branch, str(remote)],
         check=True,
         capture_output=True,
         text=True,
@@ -74,11 +77,11 @@ def _seed_workspace_sidecar_repo(
     seed = tmp_path / f"{role}-seed"
     seed.mkdir()
     init_git_repo(seed)
-    _git(seed, "branch", "-M", "main")
+    _git(seed, "branch", "-M", branch)
     (seed / "README.md").write_text(f"# {role}\n", encoding="utf-8")
     _commit(seed, f"seed {role} sidecar")
     _git(seed, "remote", "add", "origin", str(remote))
-    _git(seed, "push", "-u", "origin", "main")
+    _git(seed, "push", "-u", "origin", branch)
 
     workspace = tmp_path / f"project_{_WORKSPACE_NUM}"
     workspace.mkdir()
@@ -86,6 +89,9 @@ def _seed_workspace_sidecar_repo(
     sidecar = workspace / "sase" / "repos" / role
     sidecar.parent.mkdir(parents=True)
     _clone(remote, sidecar)
+    if remote_name != "origin":
+        _git(sidecar, "remote", "rename", "origin", remote_name)
+        _git(sidecar, "branch", "--set-upstream-to", f"{remote_name}/{branch}", branch)
     return workspace, sidecar, remote
 
 
@@ -99,12 +105,46 @@ def _commit_unpushed_claim(sidecar: Path, phase_id: str) -> str:
     return _git(sidecar, "rev-parse", "HEAD").stdout.strip()
 
 
+def _commit_sidecar_file(
+    repo: Path,
+    relpath: str,
+    text: str,
+    message: str,
+) -> str:
+    path = repo / relpath
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    _commit(repo, message, relpath.split("/", 1)[0])
+    return _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+
 def _commit_unpushed_sidecar_file(sidecar: Path) -> str:
-    path = sidecar / "202609" / "rollout.md"
-    path.parent.mkdir(parents=True)
-    path.write_text("# Plan\n", encoding="utf-8")
-    _commit(sidecar, "archive rollout plan", "202609")
-    return _git(sidecar, "rev-parse", "HEAD").stdout.strip()
+    return _commit_sidecar_file(
+        sidecar,
+        "202609/rollout.md",
+        "# Plan\n",
+        "archive rollout plan",
+    )
+
+
+def _commit_remote_sidecar_file(
+    tmp_path: Path,
+    remote: Path,
+    relpath: str,
+    text: str,
+    message: str,
+    *,
+    writer_name: str = "remote-writer",
+) -> str:
+    writer = tmp_path / writer_name
+    _clone(remote, writer)
+    commit = _commit_sidecar_file(writer, relpath, text, message)
+    _git(writer, "push")
+    return commit
+
+
+def _remote_file(remote: Path, relpath: str, *, ref: str = "main") -> str:
+    return _git(remote, "show", f"{ref}:{relpath}").stdout
 
 
 def _recovery_refs(repo: Path) -> list[tuple[str, str]]:
@@ -161,6 +201,229 @@ def test_eviction_publishes_unpushed_plans_sidecar_commit(
     assert not (workspace / "sase" / "repos").exists()
 
 
+def test_eviction_integrates_disjoint_remote_plan_commit_before_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, plans, remote = _seed_workspace_sidecar_repo(tmp_path)
+    _commit_unpushed_sidecar_file(plans)
+    _commit_remote_sidecar_file(
+        tmp_path,
+        remote,
+        "202609/remote.md",
+        "# Remote\n",
+        "archive remote plan",
+    )
+    clones: list[tuple[str, int, bool]] = []
+    notified: list[tuple[object, ...]] = []
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+    monkeypatch.setattr(
+        "sase.notifications.notify_workflow_complete",
+        lambda *args, **kwargs: notified.append((*args, kwargs)),
+    )
+
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    assert _remote_file(remote, "202609/rollout.md") == "# Plan\n"
+    assert _remote_file(remote, "202609/remote.md") == "# Remote\n"
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+    assert notified == []
+    assert not (workspace / "sase" / "repos").exists()
+
+
+def test_eviction_converges_when_equivalent_plan_change_is_already_remote(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, plans, remote = _seed_workspace_sidecar_repo(tmp_path)
+    _commit_unpushed_sidecar_file(plans)
+    _commit_remote_sidecar_file(
+        tmp_path,
+        remote,
+        "202609/rollout.md",
+        "# Plan\n",
+        "archive equivalent rollout plan",
+    )
+    clones: list[tuple[str, int, bool]] = []
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    assert _remote_file(remote, "202609/rollout.md") == "# Plan\n"
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+    assert not (workspace / "sase" / "repos").exists()
+
+
+def test_eviction_retries_when_remote_writer_wins_after_first_integration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, plans, remote = _seed_workspace_sidecar_repo(tmp_path)
+    _commit_unpushed_sidecar_file(plans)
+    _commit_remote_sidecar_file(
+        tmp_path,
+        remote,
+        "202609/first-remote.md",
+        "# First\n",
+        "archive first remote plan",
+    )
+    clones: list[tuple[str, int, bool]] = []
+    push_calls = 0
+    actual_push = workspace_module._run_sidecar_push
+
+    def push_with_race(repo: Path) -> subprocess.CompletedProcess[str]:
+        nonlocal push_calls
+        push_calls += 1
+        if push_calls == 2:
+            _commit_remote_sidecar_file(
+                tmp_path,
+                remote,
+                "202609/race.md",
+                "# Race\n",
+                "archive racing remote plan",
+                writer_name="remote-race-writer",
+            )
+        return actual_push(repo)
+
+    monkeypatch.setattr(
+        "sase.axe.runner_workspace._run_sidecar_push",
+        push_with_race,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    assert push_calls == 3
+    assert _remote_file(remote, "202609/rollout.md") == "# Plan\n"
+    assert _remote_file(remote, "202609/first-remote.md") == "# First\n"
+    assert _remote_file(remote, "202609/race.md") == "# Race\n"
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+
+
+def test_eviction_stops_within_bound_when_remote_keeps_advancing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace, plans, remote = _seed_workspace_sidecar_repo(tmp_path)
+    _commit_unpushed_sidecar_file(plans)
+    local_path = plans / "202609" / "rollout.md"
+    clones: list[tuple[str, int, bool]] = []
+    push_calls = 0
+    actual_push = workspace_module._run_sidecar_push
+
+    def push_after_remote_advances(repo: Path) -> subprocess.CompletedProcess[str]:
+        nonlocal push_calls
+        push_calls += 1
+        _commit_remote_sidecar_file(
+            tmp_path,
+            remote,
+            f"202609/remote-{push_calls}.md",
+            f"# Remote {push_calls}\n",
+            f"archive remote plan {push_calls}",
+            writer_name=f"advancing-writer-{push_calls}",
+        )
+        return actual_push(repo)
+
+    monkeypatch.setattr(
+        "sase.axe.runner_workspace._run_sidecar_push",
+        push_after_remote_advances,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+
+    with pytest.raises(_WorkspaceBeadEvictionRefused):
+        prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    assert push_calls == 3
+    assert clones == []
+    assert (plans / ".git").is_dir()
+    assert local_path.read_text(encoding="utf-8") == "# Plan\n"
+    refs = _recovery_refs(plans)
+    assert len(refs) == 1
+    stderr = capsys.readouterr().err
+    assert "retry limit is exhausted" in stderr
+    assert refs[0][0] in stderr
+
+
+def test_eviction_preserves_sidecar_when_rebase_conflicts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace, plans, remote = _seed_workspace_sidecar_repo(tmp_path)
+    local_commit = _commit_sidecar_file(
+        plans,
+        "README.md",
+        "# local\n",
+        "edit local readme",
+    )
+    _commit_remote_sidecar_file(
+        tmp_path,
+        remote,
+        "README.md",
+        "# remote\n",
+        "edit remote readme",
+    )
+    clones: list[tuple[str, int, bool]] = []
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+
+    with pytest.raises(_WorkspaceBeadEvictionRefused):
+        prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    assert clones == []
+    assert (plans / ".git").is_dir()
+    assert _git(plans, "rev-parse", "HEAD").stdout.strip() == local_commit
+    assert not (plans / ".git" / "rebase-merge").exists()
+    assert not (plans / ".git" / "rebase-apply").exists()
+    assert _recovery_refs(plans)
+    assert "git rebase failed" in capsys.readouterr().err
+
+
+def test_eviction_uses_configured_non_origin_upstream(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, plans, remote = _seed_workspace_sidecar_repo(
+        tmp_path,
+        branch="stable",
+        remote_name="mirror",
+    )
+    _commit_unpushed_sidecar_file(plans)
+    _commit_remote_sidecar_file(
+        tmp_path,
+        remote,
+        "202609/mirror.md",
+        "# Mirror\n",
+        "archive mirror plan",
+    )
+    clones: list[tuple[str, int, bool]] = []
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    assert _remote_file(remote, "202609/rollout.md", ref="stable") == "# Plan\n"
+    assert _remote_file(remote, "202609/mirror.md", ref="stable") == "# Mirror\n"
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+
+
 def test_eviction_refuses_to_trash_unpublished_plans_sidecar_commit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -172,8 +435,13 @@ def test_eviction_refuses_to_trash_unpublished_plans_sidecar_commit(
     notified: list[tuple[object, ...]] = []
 
     monkeypatch.setattr(
-        "sase.axe.runner_workspace._push_sidecar_repo",
-        lambda _repo: "injected sidecar push failure",
+        "sase.axe.runner_workspace._run_sidecar_push",
+        lambda _repo: subprocess.CompletedProcess(
+            ["git", "push"],
+            1,
+            stdout="",
+            stderr="injected sidecar push failure",
+        ),
     )
     monkeypatch.setattr(
         "sase.sdd.store.ensure_workspace_sdd_clone",
