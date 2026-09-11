@@ -182,7 +182,7 @@ def _publish_event_objects_locked(
                         state.durable_roots.add(root)
                         break
 
-    local_created = _install_ownerless_local_events(store, states.values())
+    local_created = _install_local_receipt_events(store, states.values())
     committed = committed or local_created
     for state in states.values():
         if state.local_receipt:
@@ -386,14 +386,21 @@ def _documents_ready(state: _OperationPublicationState) -> bool:
     return all(root in state.durable_roots for root in _required_roots(state))
 
 
-def _install_ownerless_local_events(
+def _install_local_receipt_events(
     store: ArtifactLinkStore,
     states: Iterable[_OperationPublicationState],
 ) -> bool:
     created = False
-    for state in states:
-        if not _needs_local_receipt(state):
-            continue
+    local_states = [state for state in states if _needs_local_receipt(state)]
+    if not local_states:
+        return False
+    local_root = _artifact_link_local_event_root(store.project_key)
+    _reject_existing_operation_collisions(
+        local_root,
+        [state.item for state in local_states],
+    )
+    _clean_artifact_link_event_staging(local_root)
+    for state in local_states:
         try:
             created = (
                 _install_local_artifact_link_event(store.project_key, state.item)
@@ -410,7 +417,7 @@ def _install_ownerless_local_events(
 
 def _needs_local_receipt(state: _OperationPublicationState) -> bool:
     refs = state.requirements.get("document_refs")
-    return not refs and not state.forced_roots and not state.bead_owner
+    return not refs and not state.forced_roots
 
 
 def _published_operation_ids(

@@ -200,7 +200,10 @@ class ArtifactLinkStoreRowsMixin:
         )
         if self._legacy_indexes_imported():
             if self.beads_dir is not None and kind_of_ref(canonical) == BEAD_KIND:
-                bead_rows = self._load_bead_rows(canonical)
+                bead_rows = _rows_not_covered_by_events(
+                    self._load_bead_rows(canonical),
+                    event_snapshot,
+                )
                 return _merge_event_rows(bead_rows, event_rows)
             return event_rows
         root = self.sidecar_root_for(canonical)
@@ -213,7 +216,10 @@ class ArtifactLinkStoreRowsMixin:
             self._reject_legacy_event_overlap(legacy_rows, durable_event_rows)
             return _merge_event_rows(legacy_rows, event_rows)
         if self.beads_dir is not None and kind_of_ref(canonical) == BEAD_KIND:
-            bead_rows = self._load_bead_rows(canonical)
+            bead_rows = _rows_not_covered_by_events(
+                self._load_bead_rows(canonical),
+                event_snapshot,
+            )
             return _merge_event_rows(bead_rows, event_rows)
         aggregate_rows = tuple(
             dict(row)
@@ -248,11 +254,13 @@ class ArtifactLinkStoreRowsMixin:
             event_rows = (
                 event_snapshot.rows if include_pending else event_snapshot.durable_rows
             )
+            bead_rows = _rows_not_covered_by_events(bead_rows, event_snapshot)
             return tuple(unique_rows((*bead_rows, *event_rows)))
         self._reject_legacy_event_overlap(legacy_rows, event_snapshot.durable_rows)
         event_rows = (
             event_snapshot.rows if include_pending else event_snapshot.durable_rows
         )
+        bead_rows = _rows_not_covered_by_events(bead_rows, event_snapshot)
         base_rows = (*legacy_rows, *bead_rows)
         if not include_pending:
             return tuple(unique_rows((*base_rows, *event_rows)))
@@ -334,3 +342,12 @@ def _merge_event_rows(
         outcome = upsert_artifact_link_rows(rows, event_row)
         rows = [dict(row) for row in outcome.get("rows", []) if isinstance(row, dict)]
     return tuple(rows)
+
+
+def _rows_not_covered_by_events(
+    rows: Iterable[Mapping[str, Any]],
+    event_snapshot: Any,
+) -> tuple[dict[str, Any], ...]:
+    """Keep bead projection rows only until immutable event truth covers them."""
+
+    return tuple(dict(row) for row in rows if not event_snapshot.covers_row(row))
