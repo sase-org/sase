@@ -1329,9 +1329,11 @@ the old prefix, and only new top-level beads use the corrected one.
 
 `--fix-plan-archive` previews recoverable plan-sidecar gaps and separates them from
 entries that cannot be repaired safely on this machine. A candidate is recoverable only
-when its canonical source exists in a resolved local plan root, does not name another
-bead, and passes committed-plan validation. Local-only canonical plans are reported as
-drift but are explicitly “not necessarily approved”; review the preview before applying.
+when its canonical source exists in a resolved local plan root and passes committed-plan
+validation. For a bead-owned gap, source frontmatter may omit `bead_id` or name the
+expected bead; naming a different bead makes the candidate unrecoverable. Local-only
+canonical plans are reported as drift but are explicitly “not necessarily approved”;
+review the preview before applying.
 
 After confirmation, the repair rechecks the complete finding set to catch races, adds a
 missing `bead_id` to a bead-owned local source when required, archives the plan without

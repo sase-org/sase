@@ -282,16 +282,18 @@ notice if the entry has rotated out of the log.
 
 The Machines tab is the controller's local fleet inventory. It always includes the local
 controller and adds every enrolled remote alias, with columns for enrollment state,
-health, advertised capacity, last observation, and endpoint. Opening or reloading the
-tab reads local inventory only; it never contacts every gateway implicitly. A remote
-therefore starts as **not checked** until you press `s` for one bounded, authenticated
-hello.
+health, capacity, last observation, and endpoint. The local row shows configured runner
+capacity; every remote row shows **not reported** because the status response does not
+include capacity. Opening or reloading the tab reads local inventory only; it never
+contacts every gateway implicitly. A remote therefore starts with state **not checked**
+and health **unknown** until you press `s` for one bounded, authenticated hello.
 
 Use `/` to filter, `j` / `k` to move, `U` to reload inventory, and `Enter` to close
 Admin Center and open Agents filtered to `machine:<alias>` (`machine:here` for the local
-row). `c` shows the persistent enrollment flow. For a selected remote, `r`, `R`, and `x`
-show repair, rename, and removal guidance, while `y` copies the displayed command; these
-guidance actions do not mutate machine state by themselves. See the
+row, whose Alias column instead shows the configured machine name). `c` shows the
+persistent enrollment flow. For a selected remote, `r`, `R`, and `x` show repair,
+rename, and removal guidance, while `y` copies the displayed command; these guidance
+actions do not mutate machine state by themselves. See the
 [Remote Dispatch Runbook](remote_dispatch.md) for enrollment and credential handling.
 
 ### Projects tab
@@ -928,8 +930,8 @@ Colors resolve by precedence, highest first: this setting, then a color the send
 declared through `presentation.color`, then the built-in default for a tab ACE ships
 knowing about, and finally a stable auto-palette entry derived from the tab key. The
 last rung means a brand-new tag tab is never colorless and keeps the same color across
-restarts. The bundled defaults are amber-orange `hitl`, red `errors`, lavender-purple
-`beads`, gold `general`, grey `snoozed`, and teal `muted`.
+restarts. The bundled defaults are amber-orange `hitl`, sky-blue `attention`, red
+`errors`, lavender-purple `beads`, gold `general`, grey `snoozed`, and teal `muted`.
 
 Icons resolve through the same shape, with one deliberate difference at the last rung:
 this setting, then an icon the sending gate declared through `presentation.panel_icon`,

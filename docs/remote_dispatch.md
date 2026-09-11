@@ -216,11 +216,12 @@ remote launch does not combine with `%wait`, `%queue`, or `%clan`. The controlle
 only the dispatch selector, so other launch directives are processed on the target.
 
 In ACE, `gD` from prompt NORMAL mode or `Ctrl+G D` from INSERT mode opens the **Launch
-Target** picker. It lists `here` plus every enrolled alias, but enables only remote rows
-whose local enrollment status is `ok`; quarantined rows remain visible but disabled.
-This picker does not probe gateway health. Choosing a remote inserts or replaces the
-single dispatch selector; choosing `here` removes it. The prompt's Target/Source context
-line makes the selected owner and portable source explicit before submission.
+Target** picker. It lists `here` plus every enrolled alias. Local enrollment data labels
+each non-quarantined remote `ok` and enables it; quarantined rows remain visible but
+disabled. This is an eligibility label, not a gateway-health result—the picker performs
+no network probe. Choosing a remote inserts or replaces the single dispatch selector;
+choosing `here` removes it. The prompt's Target/Source context line makes the selected
+owner and portable source explicit before submission.
 
 Remote launch carries portable project evidence rather than the controller's local
 paths. A trusted launch integration can supply a Patch reference or explicit revision in
@@ -256,11 +257,14 @@ subgroups.
   [Remote Attention](notifications.md#remote-attention).
 
 Prompt submission first validates portable source proof off the TUI event loop. A
-preflight failure keeps and refocuses the draft. Once local submission is accepted, ACE
-shows a provisional owner row immediately: accepted requests are `QUEUED`, rejected
-requests remain visible as `FAILED`, and acceptance-uncertain requests become `WAITING`
-with an explicit outcome-check action. The provisional disappears when the target's
-authoritative fleet row arrives with the matching locator.
+preflight failure keeps and refocuses the draft. After preflight passes, ACE shows a
+provisional `QUEUED` owner row before the background launch settles. A structured
+accepted response keeps it `QUEUED`, while a settled response changes it to `STARTING`.
+When the launch finishes without a structured dispatch result—including the current
+rejection and failed-receipt paths—the row becomes outcome-unknown `WAITING`; run
+**Agents: check dispatch launch outcome** from the command palette. The provisional
+disappears when the target's authoritative fleet row arrives with the matching logical
+or exact locator.
 
 Those operations are journaled through `sase machine agent` and
 `sase machine attention`. Use the ACE command palette or configure the corresponding

@@ -2149,14 +2149,15 @@ sequence of independent tokens: agent counts keep the established status glyphs
 `◐` in progress, `●` closed). When a bead status matches a present agent bucket, the
 bead token follows that agent token, for example `WAITING ▶1 ◐2` or `WAITING ✓1 ●1`;
 unmatched bead tokens trail in canonical bead order. Zero entries are omitted. When a
-row waits on exactly one bead and no agents, ACE shows that bead's ID instead of a
-count, optionally prefixed by its known status glyph; multiple or mixed waits keep the
-counts. Unknown agents and unknown beads both render as `?N`; when both are present they
-appear as adjacent independent counts, as in `WAITING ?1 ?2`. These tokens sit directly
-after `WAITING` and before a reserved-tribe `!`, duration, or countdown annotation. They
-are not the trailing gold `◆` linked-bead badge that marks an agent launched by
-`sase bead work`. **Stopped** keeps the strict "you need to act" semantics for plan
-approval, questions, and workflow input.
+row waits on exactly one bead and has no agent, name, or group wait dependency, ACE
+shows that bead's ID instead of a count. The ID has no prefix until status resolution;
+afterward it is prefixed by the bead's status glyph (or `?` for an unknown status).
+Multiple or mixed waits keep the counts. Unknown agents and unknown beads both render as
+`?N`; when both are present they appear as adjacent independent counts, as in
+`WAITING ?1 ?2`. These tokens sit directly after `WAITING` and before a reserved-tribe
+`!`, duration, or countdown annotation. They are not the trailing gold `◆` linked-bead
+badge that marks an agent launched by `sase bead work`. **Stopped** keeps the strict
+"you need to act" semantics for plan approval, questions, and workflow input.
 
 ### Agent Row Glyphs
 
@@ -3066,18 +3067,21 @@ keys in that setting are treated as alternate bindings for the same action.
 
 Open the SASE Admin Center with `#`, then press `3` or select **Machines**. This is a
 local inventory and administration surface for the controller plus every enrolled
-remote. It does not contact all gateways when opened: remote rows begin as **not
-checked**, with capacity **not reported**, until you request an explicit status check.
-The local row reports the controller's configured runner capacity immediately.
+remote. It does not contact all gateways when opened: remote rows begin with state **not
+checked** and health **unknown** until you request an explicit status check. Remote
+capacity remains **not reported** even after that check because the status response does
+not carry runner capacity. The local row reports the controller's configured runner
+capacity immediately.
 
-The list shows Alias, State, Health, Capacity, Last observed, and Endpoint. The detail
-card adds capabilities, provider, pinned installation identity, quarantine state, and
-the status message from the most recent check in this ACE session.
+The list shows Alias, State, Health, Capacity, Last observed, and Endpoint. The local
+Alias is the controller's configured machine name even though its Agents query token is
+`here`. The detail card adds capabilities, provider, pinned installation identity,
+quarantine state, and the status message from the most recent check while this Admin
+Center remains open.
 
 | Key       | Action                                                                      |
 | --------- | --------------------------------------------------------------------------- |
 | `j` / `k` | Move selection                                                              |
-| `'`       | Jump to a machine row via adaptive hints                                    |
 | `/`       | Filter aliases, endpoints, providers, installation identity, and quarantine |
 | `s`       | Run one bounded authenticated hello for the selected remote                 |
 | `c`       | Show the persistent connect/enrollment flow                                 |
@@ -5512,11 +5516,12 @@ and naming rules.
 
 From any ordinary prompt pane, press `gD` in NORMAL mode or `Ctrl+G D` in INSERT mode to
 open **Launch Target**. The first row is `here`, followed by enrolled aliases in
-alphabetical order. Only machines whose local enrollment status is `ok` are selectable;
-quarantined rows remain visible with their diagnostic context but are disabled. This is
-a local eligibility catalog, not a live gateway health check; use the Admin Center
-Machines tab's `s` action when current reachability matters. Move with `j` / `k` and
-press `Enter`, or select one of the first ten rows directly with `1`–`9` / `0`.
+alphabetical order. Local enrollment data labels every non-quarantined remote `ok` and
+enables it; quarantined rows remain visible with their diagnostic context but are
+disabled. This is a local eligibility catalog, not a live gateway health check; use the
+Admin Center Machines tab's `s` action when current reachability matters. Move with `j`
+/ `k` and press `Enter`, or select one of the first ten rows directly with `1`–`9` /
+`0`.
 
 Choosing a remote inserts or replaces the pane's single `%dispatch:<alias>` selector.
 Choosing `here` removes it. The prompt context line shows the cached Target and Source;
@@ -5524,11 +5529,13 @@ for a remote it also states that source proof is checked on submit. Submission r
 proof preflight off the UI thread before launch. A failure leaves the prompt intact,
 reports the exact reason, and returns focus to the originating pane.
 
-ACE inserts a provisional remote row in Agents as soon as local submission is accepted.
-An accepted owner response remains `QUEUED` while waiting for the real fleet row; a
-rejection remains visible as `FAILED`; and an uncertain result becomes `WAITING` with a
-check-outcome action. Once the owner's catalog exposes the matching logical or exact
-locator, ACE removes the provisional row in favor of that authoritative row. The
+After source preflight passes, ACE inserts a provisional `QUEUED` remote row before the
+background launch settles. A structured accepted owner response keeps it `QUEUED`; a
+settled response changes it to `STARTING`. If the launch finishes without a structured
+dispatch result—including the current rejection and failed-receipt paths—the row becomes
+outcome-unknown `WAITING`; use **Agents: check dispatch launch outcome** from the
+command palette. Once the owner's catalog exposes the matching logical or exact locator,
+ACE removes the provisional row in favor of that authoritative row. The
 [Remote Dispatch Runbook](remote_dispatch.md#launch-and-operate) explains the portable
 source requirements and remote operation model.
 

@@ -207,9 +207,10 @@ a chezmoi-owned target to a local install, run
 `sase completion install <shell> --force`; without `--force`, install refuses the
 ownership change.
 
-After a successful upgrade, `sase update` runs this same refresh automatically for all
-stamped installs. Those refresh failures are displayed but do not fail the update
-itself.
+After every successful live `sase update` run, including an already-up-to-date no-op,
+SASE runs this same refresh automatically for all stamped installs. Dry-runs and `--to`
+mode switches do not refresh them. Refresh failures are displayed but do not fail the
+update itself.
 
 ## Troubleshooting
 
