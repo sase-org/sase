@@ -70,6 +70,7 @@ class _FakeExecutor(EmbeddedWorkflowMixin):
             start_time="",
         )
         self._current_embedded_workflow_name: str | None = None
+        self._continuation_embedded_segments: list[object] = []
 
     def _get_step_type(self, step: WorkflowStep) -> str:
         if step.is_bash_step():

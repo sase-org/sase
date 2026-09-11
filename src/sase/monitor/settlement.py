@@ -17,6 +17,7 @@ from sase.shells.settlement import (
 )
 
 from .followup import FollowupLaunchResult, launch_followup_agent
+from .host_completion import HOST_COMPLETED_OUTCOME, settle_host_completion
 from .models import MONITOR_FOLLOWUP_DEGRADED_OUTCOME, MonitorState
 from .output import OutputCapture
 
@@ -69,11 +70,38 @@ def settle_claim_and_followup(
     launcher = launch_followup or launch_followup_agent
     captured_launch_result: FollowupLaunchResult | None = None
 
-    def launch_and_capture(*args: Any, **kwargs: Any) -> bool | FollowupLaunchResult:
+    def launch_and_capture(*args: Any, **kwargs: Any) -> FollowupLaunchResult:
         nonlocal captured_launch_result
         raw = launcher(*args, **kwargs)
         captured_launch_result = _coerce_monitor_followup_result(raw, meta)
-        return raw
+        return captured_launch_result
+
+    host_settlement = settle_host_completion(
+        artifacts_dir,
+        meta,
+        monitor_state=monitor_state,
+        exit_code=exit_code,
+        elapsed_seconds=elapsed_seconds,
+        project_name=project_name,
+        launch_recovery=launch_and_capture,
+        release_claim=_release_monitor_claim_positional,
+    )
+    if host_settlement is not None:
+        captured_launch_result = host_settlement.launch_result or captured_launch_result
+        if (
+            captured_launch_result is not None
+            and captured_launch_result.host_completed
+            and not meta.get(_MONITOR_SETTLEMENT_CONFIG.outcome_field)
+        ):
+            meta[_MONITOR_SETTLEMENT_CONFIG.outcome_field] = HOST_COMPLETED_OUTCOME
+            update_meta_field(
+                artifacts_dir,
+                _MONITOR_SETTLEMENT_CONFIG.outcome_field,
+                HOST_COMPLETED_OUTCOME,
+            )
+        return _MonitorFollowupSettlementResult(
+            error=host_settlement.error, launch_result=captured_launch_result
+        )
 
     error = settle_shell_claim_and_followup(
         artifacts_dir,

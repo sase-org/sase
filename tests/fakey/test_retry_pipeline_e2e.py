@@ -58,6 +58,9 @@ def test_execution_override_runs_fakey_with_requested_model_metadata(
     assert invocation["outcome"]["status"] == "succeeded"
     meta = harness.agent_meta()
     finalizers = meta.pop("finalizers")
+    for key in list(meta):
+        if str(key).startswith("continuation_"):
+            meta.pop(key)
     assert meta == {
         **requested_meta,
         "model_alias_origin": "none",

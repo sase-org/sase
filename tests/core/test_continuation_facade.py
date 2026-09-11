@@ -9,7 +9,10 @@ import pytest
 
 from sase.core.continuation_facade import (
     bind_conditional_completion,
+    consume_conditional_completion,
     continuation_wire_schema_version,
+    evaluate_conditional_completion,
+    invalidate_conditional_completion,
     plan_continuation_budget,
     plan_continuation_replay,
     preview_conditional_completion,
@@ -505,3 +508,98 @@ def test_conditional_completion_rejects_missing_decisions_and_changed_commands()
                 "request_fingerprint": "sha256:abc",
             }
         )
+
+
+def _bound_intent() -> dict[str, Any]:
+    return bind_conditional_completion(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "intent": seal_conditional_completion(_prepare_request()),
+            "monitor_id": "monitor-1",
+            "command": ["just", "check-full"],
+            "request_fingerprint": "sha256:abc",
+        }
+    )
+
+
+def _passed_stage(stage_id: str, name: str) -> dict[str, Any]:
+    return {
+        "stage_id": stage_id,
+        "name": name,
+        "status": "passed",
+        "exit_code": 0,
+        "diagnostic_refs": [],
+        "counts": {},
+        "retained_ranges": [],
+        "capture_errors": [],
+    }
+
+
+def test_conditional_completion_evaluate_consume_and_recovery_reasons() -> None:
+    bound = _bound_intent()
+    observation = _prepare_request()["observations"][0]
+    executors = _prepare_request()["executors"]
+    stages = [
+        _passed_stage("formatting", "fmt (python)"),
+        _passed_stage("ruff", "lint (ruff)"),
+        _passed_stage("mypy", "lint (mypy)"),
+        _passed_stage("validation", "SASE validation"),
+        _passed_stage("full_tests", "test (full)"),
+    ]
+    eligible = evaluate_conditional_completion(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "intent": bound,
+            "outcome": "completed",
+            "exit_code": 0,
+            "command": ["just", "check-full"],
+            "observations": [observation],
+            "stages": stages,
+            "executors": executors,
+            "workspace_identity": "/ws/20",
+            "original_workspace_identity": "/ws/20",
+            "degraded_workspace": False,
+            "current_plan_digest": _digest("plan"),
+            "current_obligation_ids": ["repo-main"],
+            "substitutions": {"duration": "3m 02s"},
+        }
+    )
+    assert eligible["eligible"] is True
+    assert eligible["action"] == "complete"
+    assert eligible["rendered_message"] == "Required checks passed in 3m 02s."
+
+    consumed = consume_conditional_completion(
+        {"schema_version": CONTINUATION_WIRE_SCHEMA_VERSION, "intent": bound}
+    )
+    assert consumed["status"] == "consumed"
+    again = consume_conditional_completion(
+        {"schema_version": CONTINUATION_WIRE_SCHEMA_VERSION, "intent": consumed}
+    )
+    assert again["status"] == "consumed"
+
+    missing = evaluate_conditional_completion(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "intent": bound,
+            "outcome": "completed",
+            "exit_code": 0,
+            "command": ["just", "check-full"],
+            "observations": [observation],
+            "stages": stages[:-1],
+            "executors": executors,
+            "workspace_identity": "/ws/20",
+            "original_workspace_identity": "/ws/20",
+            "current_plan_digest": _digest("plan"),
+            "current_obligation_ids": ["repo-main"],
+        }
+    )
+    assert missing["eligible"] is False
+    assert missing["action"] == "recover"
+    assert any(
+        "missing_required_stage:full_tests" in item for item in missing["reasons"]
+    )
+
+    invalidated = invalidate_conditional_completion(
+        {"schema_version": CONTINUATION_WIRE_SCHEMA_VERSION, "intent": bound}
+    )
+    assert invalidated["status"] == "invalidated"

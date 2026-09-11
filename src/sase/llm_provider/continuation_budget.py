@@ -178,6 +178,10 @@ def _int_setting(
         return default
     if not isinstance(raw, (int, str)):
         return default
+    if isinstance(raw, int):
+        return raw if raw > 0 else default
+    if not isinstance(raw, str):
+        return default
     try:
         parsed = int(raw)
     except (TypeError, ValueError):

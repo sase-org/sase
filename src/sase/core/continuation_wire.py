@@ -395,6 +395,43 @@ class ConditionalCompletionPreviewWire(TypedDict):
     reasons: NotRequired[list[str]]
 
 
+class ConditionalCompletionEvaluateRequestWire(TypedDict):
+    schema_version: int
+    intent: ConditionalCompletionIntentWire
+    outcome: MonitorOutcome
+    command: list[str]
+    observations: list[RepositoryObservationWire]
+    workspace_identity: str
+    original_workspace_identity: str
+    current_plan_digest: str
+    exit_code: NotRequired[int | None]
+    stages: NotRequired[list[DiagnosticStageWire]]
+    executors: NotRequired[list[ExecutorCapabilityWire]]
+    degraded_workspace: NotRequired[bool]
+    current_obligation_ids: NotRequired[list[str]]
+    substitutions: NotRequired[dict[str, str]]
+
+
+class ConditionalCompletionDecisionWire(TypedDict):
+    schema_version: int
+    eligible: bool
+    action: str
+    reason: NotRequired[str | None]
+    reasons: NotRequired[list[str]]
+    rendered_message: NotRequired[str | None]
+
+
+class ConditionalCompletionConsumeRequestWire(TypedDict):
+    schema_version: int
+    intent: ConditionalCompletionIntentWire
+
+
+class ConditionalCompletionMessageRequestWire(TypedDict):
+    schema_version: int
+    success_message: str
+    substitutions: NotRequired[dict[str, str]]
+
+
 def continuation_wire_to_json_dict(value: Any) -> Any:
     """Project continuation wire values to plain dict/list primitives."""
 
@@ -414,8 +451,12 @@ __all__ = [
     "AgentDeltaWire",
     "ConditionalCompletionBindRequestWire",
     "ConditionalCompletionBindingWire",
+    "ConditionalCompletionConsumeRequestWire",
     "ConditionalCompletionContextWire",
+    "ConditionalCompletionDecisionWire",
+    "ConditionalCompletionEvaluateRequestWire",
     "ConditionalCompletionIntentWire",
+    "ConditionalCompletionMessageRequestWire",
     "ConditionalCompletionPrepareRequestWire",
     "ConditionalCompletionPreviewWire",
     "ConditionalCompletionRollbackRequestWire",

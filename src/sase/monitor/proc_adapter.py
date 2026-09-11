@@ -341,6 +341,9 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
         "monitor_followup_outcome",
         "monitor_followup_degraded_reason",
         "monitor_followup_prompt_path",
+        "monitor_host_completion_status",
+        "monitor_host_completion_message",
+        "monitor_host_completion_reason",
     ):
         if meta.get(key):
             done_marker[key] = meta[key]

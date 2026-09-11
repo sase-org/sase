@@ -48,7 +48,7 @@ from sase.finalizers.plan import (
     FinalizerPlanIntegrityError,
     authenticate_resolved_finalizer_plan_full,
 )
-from sase.finalizers.providers import BUILTIN_COMMIT_PROVIDER_REF
+from sase.finalizers.providers import BUILTIN_COMMIT_PROVIDER_REF, BUILTIN_PROVIDER_REFS
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
 from sase.llm_provider.types import ModelTier
 
@@ -108,6 +108,7 @@ def run_finalizers(
     model_override: str | None,
     artifacts_dir: str | None,
     options: Any = None,
+    mode: str = "normal",
 ) -> Any:
     """Drive selected finalizers to a bounded fixed point.
 
@@ -117,7 +118,8 @@ def run_finalizers(
     conflict repair keep separate one-shot budgets.
     """
 
-    if _should_skip_finalizers(artifacts_dir):
+    no_model = mode == "no_model"
+    if not no_model and _should_skip_finalizers(artifacts_dir):
         return invoke_result
 
     drift_by_key: dict[tuple[str, str], FinalizerConfigDiagnostic] = {}
@@ -149,16 +151,19 @@ def run_finalizers(
     cycles = 0
 
     try:
-        current_result = _ensure_current_declaration(
-            provider=provider,
-            invoke_result=current_result,
-            model_tier=model_tier,
-            suppress_output=suppress_output,
-            model_override=model_override,
-            artifacts_dir=artifacts_dir,
-            options=options,
-            original_prompt=original_prompt,
-        )
+        if no_model:
+            _reject_no_model_ineligible_plan(entries, artifacts_dir)
+        else:
+            current_result = _ensure_current_declaration(
+                provider=provider,
+                invoke_result=current_result,
+                model_tier=model_tier,
+                suppress_output=suppress_output,
+                model_override=model_override,
+                artifacts_dir=artifacts_dir,
+                options=options,
+                original_prompt=original_prompt,
+            )
         for cycle in range(1, MAX_CONTROLLER_CYCLES + 1):
             cycles = cycle
             authenticated = authenticate_resolved_finalizer_plan_full(artifacts_dir)
@@ -209,16 +214,17 @@ def run_finalizers(
                 started = time.monotonic()
                 active_started = started
                 if provider_ref == BUILTIN_COMMIT_PROVIDER_REF:
-                    current_result = _ensure_current_declaration(
-                        provider=provider,
-                        invoke_result=current_result,
-                        model_tier=model_tier,
-                        suppress_output=suppress_output,
-                        model_override=model_override,
-                        artifacts_dir=artifacts_dir,
-                        options=options,
-                        original_prompt=original_prompt,
-                    )
+                    if not no_model:
+                        current_result = _ensure_current_declaration(
+                            provider=provider,
+                            invoke_result=current_result,
+                            model_tier=model_tier,
+                            suppress_output=suppress_output,
+                            model_override=model_override,
+                            artifacts_dir=artifacts_dir,
+                            options=options,
+                            original_prompt=original_prompt,
+                        )
                     ledger = ledger_for_instance(
                         ledgers, instance_id, instance.max_attempts
                     )
@@ -234,6 +240,7 @@ def run_finalizers(
                         options=options,
                         artifacts_dir=artifacts_dir,
                         original_prompt=original_prompt,
+                        no_model=no_model,
                     )
                     current_result = execution.invoke_result
                     _remember_result(results_by_id, execution.result)
@@ -407,6 +414,32 @@ def run_finalizers(
     return current_result
 
 
+def _reject_no_model_ineligible_plan(
+    entries: tuple[dict[str, Any], ...],
+    artifacts_dir: str | None,
+) -> None:
+    from sase.finalizers.declaration import (
+        final_submission_is_current,
+        publish_final_context,
+    )
+
+    publication = publish_final_context(artifacts_dir=artifacts_dir)
+    if publication.submission_required and not final_submission_is_current(
+        artifacts_dir=artifacts_dir
+    ):
+        raise FinalizerControllerError(
+            "no-model host completion requires an accepted declaration",
+            code="no_model_declaration_missing",
+        )
+    for entry in entries:
+        if entry["provider_ref"] not in BUILTIN_PROVIDER_REFS:
+            raise FinalizerControllerError(
+                f"finalizer {entry['instance_id']!r} ({entry['provider_ref']}) "
+                "does not support no-model host completion",
+                code="no_model_unsupported_executor",
+            )
+
+
 def _run_budgeted_commit(
     instance: Any,
     context: FinalizerExecutionContext,
@@ -420,6 +453,7 @@ def _run_budgeted_commit(
     options: Any,
     artifacts_dir: str | None,
     original_prompt: str | None = None,
+    no_model: bool = False,
 ) -> BuiltinCommitExecution:
     current_result = invoke_result
     ledger_before_run = _load_commit_results(artifact_root(context.artifacts_dir))
@@ -441,6 +475,7 @@ def _run_budgeted_commit(
         except BuiltinCommitFinalizerError as exc:
             if (
                 exc.code == "stale_commit_declaration"
+                and not no_model
                 and not _declaration_recovery_spent(artifacts_dir)
                 and ledger.consumed == consumed_before
             ):

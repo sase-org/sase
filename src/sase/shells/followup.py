@@ -47,6 +47,7 @@ class FollowupLaunchResult:
     agent_name: str | None = None
     artifacts_dir: str | None = None
     pid: int | None = None
+    host_completed: bool = False
 
     def __bool__(self) -> bool:
         return self.launched

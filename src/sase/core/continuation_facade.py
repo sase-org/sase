@@ -9,7 +9,10 @@ from sase.core.continuation_wire import (
     AgentDeltaWire,
     CONTINUATION_WIRE_SCHEMA_VERSION,
     ConditionalCompletionBindRequestWire,
+    ConditionalCompletionConsumeRequestWire,
+    ConditionalCompletionEvaluateRequestWire,
     ConditionalCompletionIntentWire,
+    ConditionalCompletionMessageRequestWire,
     ConditionalCompletionPrepareRequestWire,
     ConditionalCompletionRollbackRequestWire,
     ContinuationBudgetRequestWire,
@@ -237,6 +240,54 @@ def rollback_conditional_completion_binding(
     )
 
 
+def evaluate_conditional_completion(
+    request: ConditionalCompletionEvaluateRequestWire | JsonMapping,
+) -> JsonObject:
+    """Decide whether a bound intent is eligible for no-model host completion."""
+
+    binding = require_rust_binding("continuation_evaluate_conditional_completion")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_evaluate_conditional_completion",
+    )
+
+
+def consume_conditional_completion(
+    request: ConditionalCompletionConsumeRequestWire | JsonMapping,
+) -> JsonObject:
+    """Mark a bound intent consumed after successful host completion."""
+
+    binding = require_rust_binding("continuation_consume_conditional_completion")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_consume_conditional_completion",
+    )
+
+
+def invalidate_conditional_completion(
+    request: ConditionalCompletionConsumeRequestWire | JsonMapping,
+) -> JsonObject:
+    """Invalidate a bound intent that cannot complete and must recover."""
+
+    binding = require_rust_binding("continuation_invalidate_conditional_completion")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_invalidate_conditional_completion",
+    )
+
+
+def render_conditional_completion_message(
+    request: ConditionalCompletionMessageRequestWire | JsonMapping,
+) -> JsonObject:
+    """Render a prepared success message with documented host-fact substitutions."""
+
+    binding = require_rust_binding("continuation_render_conditional_completion_message")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_render_conditional_completion_message",
+    )
+
+
 def _json_object(value: Any, operation: str) -> JsonObject:
     if not isinstance(value, Mapping):
         raise TypeError(f"{operation} returned a non-mapping payload")
@@ -246,10 +297,14 @@ def _json_object(value: Any, operation: str) -> JsonObject:
 __all__ = [
     "CONTINUATION_WIRE_SCHEMA_VERSION",
     "bind_conditional_completion",
+    "consume_conditional_completion",
     "continuation_wire_schema_version",
+    "evaluate_conditional_completion",
+    "invalidate_conditional_completion",
     "plan_continuation_budget",
     "plan_continuation_replay",
     "preview_conditional_completion",
+    "render_conditional_completion_message",
     "resolve_continuation_policy",
     "rollback_conditional_completion_binding",
     "seal_conditional_completion",
