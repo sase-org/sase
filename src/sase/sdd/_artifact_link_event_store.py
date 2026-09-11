@@ -66,10 +66,13 @@ class ArtifactLinkEventSnapshot:
 
     @property
     def healthy(self) -> bool:
-        return not (
-            self.validation_findings
-            or self.reduction_errors
-            or self.orphaned_tombstones
+        return not self.blocking_problem_messages
+
+    @property
+    def blocking_problem_messages(self) -> tuple[str, ...]:
+        return (
+            *(finding.render() for finding in self.validation_findings),
+            *self.reduction_errors,
         )
 
     @property
@@ -85,13 +88,13 @@ class ArtifactLinkEventSnapshot:
             return
         raise RuntimeError(
             "artifact-link event store is invalid: "
-            + _join_problems(self.problem_messages)
+            + _join_problems(self.blocking_problem_messages)
         )
 
     def covers_row(self, row: Mapping[str, Any]) -> bool:
         """Return whether event truth has consulted this row's identity."""
 
-        if not self.has_inputs or not self.healthy:
+        if not self.has_inputs or self.blocking_problem_messages:
             return False
         identities = _event_edge_identities(self.edges)
         if artifact_link_row_identity(row) in identities:

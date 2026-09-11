@@ -113,9 +113,7 @@ class AgentDeltaWire(TypedDict):
     node_id: str
     authored_local_request: str
     status: AgentDeltaStatus
-    materialized_local_prompt_segments: NotRequired[
-        list[ContinuationPromptSegmentWire]
-    ]
+    materialized_local_prompt_segments: NotRequired[list[ContinuationPromptSegmentWire]]
     final_response_ref: NotRequired[str | None]
     handoff_checkpoint_ref: NotRequired[str | None]
     source_refs: NotRequired[list[str]]
@@ -240,9 +238,7 @@ def continuation_wire_to_json_dict(value: Any) -> Any:
             str(key): continuation_wire_to_json_dict(item)
             for key, item in value.items()
         }
-    if isinstance(value, Sequence) and not isinstance(
-        value, str | bytes | bytearray
-    ):
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
         return [continuation_wire_to_json_dict(item) for item in value]
     return value
 

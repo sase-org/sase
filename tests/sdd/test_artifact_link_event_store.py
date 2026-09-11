@@ -16,6 +16,7 @@ from sase.sdd._artifact_link_cutover_state import (
     build_artifact_link_cutover_marker_payload,
     parse_artifact_link_cutover_marker_payload,
 )
+from sase.sdd._artifact_link_event_canonical import rows_from_events
 from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_event
 from sase.sdd.artifact_link_store import (
     ArtifactLinkStore,
@@ -281,7 +282,136 @@ def test_event_health_reports_orphaned_tombstones(
     snapshot = store.artifact_link_event_snapshot(strict=False)
 
     assert snapshot.orphaned_tombstones
-    assert snapshot.healthy is False
+    assert snapshot.healthy is True
+    assert snapshot.problem_messages == snapshot.orphaned_tombstones
+    store.artifact_link_event_snapshot(strict=True)
+
+
+def test_orphaned_tombstone_does_not_block_unrelated_durable_reads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    events = (
+        _edge_event(
+            "a" * 32,
+            source="plan:202609/hot.md",
+            relation="related",
+            target="plan:202609/target.md",
+            description="unrelated visible edge",
+        ),
+        _remove_event(
+            "b" * 32,
+            source="plan:202609/late.md",
+            relation="related",
+            target="plan:202609/other.md",
+            observed=("c" * 32,),
+        ),
+    )
+    for event in events:
+        _write_event(tmp_path / "plans", event)
+
+    assert store.load_durable_rows() == rows_from_events(events)
+    snapshot = store.artifact_link_event_snapshot(strict=True)
+    assert snapshot.orphaned_tombstones
+
+
+def test_orphaned_pending_tombstone_does_not_block_unrelated_reads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    visible = _edge_event(
+        "a" * 32,
+        source="plan:202609/hot.md",
+        relation="related",
+        target="plan:202609/target.md",
+        description="unrelated visible edge",
+    )
+    tombstone = _remove_event(
+        "b" * 32,
+        source="plan:202609/late.md",
+        relation="related",
+        target="plan:202609/other.md",
+        observed=("c" * 32,),
+    )
+    _write_event(tmp_path / "plans", visible)
+    append_artifact_link_outbox_event(
+        project_key=PROJECT_KEY,
+        agent_name="agent:pending.athena.worker",
+        run_id="run-1",
+        event=tombstone,
+    )
+
+    assert store.load_durable_rows() == rows_from_events((visible, tombstone))
+    snapshot = store.artifact_link_event_snapshot(strict=True)
+    assert snapshot.pending_event_count == 1
+    assert snapshot.orphaned_tombstones
+
+
+def test_orphaned_tombstone_prevents_legacy_fallback_resurrection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    stale_row = _row(
+        source="plan:202609/late.md",
+        relation="related",
+        target="plan:202609/other.md",
+        description="stale legacy row",
+    )
+    store.upsert_row(stale_row)
+    tombstone = _remove_event(
+        "b" * 32,
+        source="plan:202609/late.md",
+        relation="related",
+        target="plan:202609/other.md",
+        observed=("c" * 32,),
+    )
+    _write_event(tmp_path / "plans", tombstone)
+
+    assert store.load_artifact_rows("plan:202609/late.md") == ()
+    assert store.load_durable_rows() == ()
+
+
+def test_orphaned_tombstone_converges_when_predecessor_arrives(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store(tmp_path, monkeypatch)
+    visible = _edge_event(
+        "a" * 32,
+        source="plan:202609/hot.md",
+        relation="related",
+        target="plan:202609/target.md",
+        description="unrelated visible edge",
+    )
+    predecessor = _edge_event(
+        "c" * 32,
+        source="plan:202609/late.md",
+        relation="related",
+        target="plan:202609/other.md",
+        description="removed predecessor",
+    )
+    tombstone = _remove_event(
+        "b" * 32,
+        source="plan:202609/late.md",
+        relation="related",
+        target="plan:202609/other.md",
+        observed=("c" * 32,),
+    )
+    _write_event(tmp_path / "plans", visible)
+    _write_event(tmp_path / "plans", tombstone)
+
+    assert store.artifact_link_event_snapshot(strict=True).orphaned_tombstones
+
+    _write_event(tmp_path / "plans", predecessor)
+
+    snapshot = store.artifact_link_event_snapshot(strict=True)
+    assert snapshot.orphaned_tombstones == ()
+    assert store.load_durable_rows() == rows_from_events(
+        (visible, tombstone, predecessor)
+    )
 
 
 def _edge_event(
@@ -334,6 +464,9 @@ def _edge_event(
 def _remove_event(
     operation_id: str,
     *,
+    source: str = "plan:202608/a.md",
+    relation: str = "implements",
+    target: str = "plan:202608/b.md",
     observed: tuple[str, ...],
 ) -> dict[str, object]:
     return _canonicalize_event(
@@ -350,9 +483,9 @@ def _remove_event(
                 "type": "edge-remove",
                 "edge": {
                     "kind": "directed",
-                    "source_ref": "plan:202608/a.md",
-                    "relation": "implements",
-                    "target_ref": "plan:202608/b.md",
+                    "source_ref": source,
+                    "relation": relation,
+                    "target_ref": target,
                 },
                 "observed_operation_ids": list(observed),
             },

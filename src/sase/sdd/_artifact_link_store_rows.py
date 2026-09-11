@@ -214,6 +214,7 @@ class ArtifactLinkStoreRowsMixin:
             )
             legacy_rows = tuple(dict(row) for row in index.get("rows", []))
             self._reject_legacy_event_overlap(legacy_rows, durable_event_rows)
+            legacy_rows = _rows_not_removed_by_events(legacy_rows, event_snapshot)
             return _merge_event_rows(legacy_rows, event_rows)
         if self.beads_dir is not None and kind_of_ref(canonical) == BEAD_KIND:
             bead_rows = _rows_not_covered_by_events(
@@ -260,6 +261,7 @@ class ArtifactLinkStoreRowsMixin:
         event_rows = (
             event_snapshot.rows if include_pending else event_snapshot.durable_rows
         )
+        legacy_rows = _rows_not_removed_by_events(legacy_rows, event_snapshot)
         bead_rows = _rows_not_covered_by_events(bead_rows, event_snapshot)
         base_rows = (*legacy_rows, *bead_rows)
         if not include_pending:
@@ -287,6 +289,7 @@ class ArtifactLinkStoreRowsMixin:
                 )
             )
         self._reject_legacy_event_overlap(legacy_rows, event_snapshot.durable_rows)
+        legacy_rows = _rows_not_removed_by_events(legacy_rows, event_snapshot)
         if not include_pending:
             return tuple(unique_rows((*legacy_rows, *event_snapshot.durable_rows)))
         return _merge_event_rows(legacy_rows, event_snapshot.rows)
@@ -351,3 +354,23 @@ def _rows_not_covered_by_events(
     """Keep bead projection rows only until immutable event truth covers them."""
 
     return tuple(dict(row) for row in rows if not event_snapshot.covers_row(row))
+
+
+def _rows_not_removed_by_events(
+    rows: Iterable[Mapping[str, Any]],
+    event_snapshot: Any,
+) -> tuple[dict[str, Any], ...]:
+    """Keep legacy rows unless event truth only contains removals for their edge."""
+
+    active_identities = {
+        artifact_link_row_identity(row)
+        for row in event_snapshot.rows
+        if isinstance(row, Mapping)
+    }
+    kept: list[dict[str, Any]] = []
+    for row in rows:
+        identity = artifact_link_row_identity(row)
+        if event_snapshot.covers_row(row) and identity not in active_identities:
+            continue
+        kept.append(dict(row))
+    return tuple(kept)
