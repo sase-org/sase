@@ -1906,7 +1906,10 @@ llm_provider:
       default:
         below_remaining_percent: 20
       weekly_all: always
-      providers: {}
+      providers:
+        claude:
+          windows:
+            "weekly:claude-fable-5": always
     providers:
       claude:
         enabled: true
@@ -1922,7 +1925,7 @@ llm_provider:
 | `llm_provider.usage_metrics.indicator.default`                        | policy | `{below_remaining_percent: 20}` | Fallback display policy for windows that do not match a more specific display override.                                                           |
 | `llm_provider.usage_metrics.indicator.weekly_all`                     | policy | `always`                        | Display policy for positively classified weekly all-model windows after exact-window and provider defaults.                                       |
 | `llm_provider.usage_metrics.indicator.providers.<name>.default`       | policy | inherit                         | Optional display policy for all observed windows from one provider. This map is separate from the sibling collection `providers` map.             |
-| `llm_provider.usage_metrics.indicator.providers.<name>.windows.<key>` | policy | inherit                         | Exact provider-reported window-key override. Find keys with `sase usage list -p <provider> --json` at `windows[].key`.                            |
+| `llm_provider.usage_metrics.indicator.providers.<name>.windows.<key>` | policy | inherit; Fable `always`         | Exact provider-reported window-key override. Find keys with `sase usage list -p <provider> --json` at `windows[].key`.                            |
 | `llm_provider.usage_metrics.providers.<name>.enabled`                 | bool   | inherit                         | Optional per-provider collection override. Keys are registered provider names; the generic schema does not hard-code the initial three providers. |
 
 An indicator policy is exactly one of:
@@ -1938,12 +1941,33 @@ that includes full capacity.
 
 Display policy precedence is exact window key, provider default, `weekly_all` for a
 positively classified weekly all-model window, then global `indicator.default`. Provider
-and window IDs are open-ended; unmatched future provider/window keys are inert. Invalid
-indicator config is diagnosed with its config path, ignored at the smallest invalid
-override, and inherited/default policy is used instead of resetting unrelated valid
-usage settings. ACE display settings are cached by the merged-config token, so config
-changes reload on the normal usage refresh cadence even when the usage-state file does
-not change.
+and window IDs are open-ended; unmatched future provider/window keys are inert.
+
+The bundled default adds one exact Claude display override:
+
+```yaml
+llm_provider:
+  usage_metrics:
+    indicator:
+      providers:
+        claude:
+          windows:
+            "weekly:claude-fable-5": always
+```
+
+That observed weekly Fable window appears at any remaining percentage, including `100%`,
+while missing or collection-ineligible Fable windows are not synthesized. Set the same
+exact key to `never` to hide it, or to `{below_remaining_percent: 20}` to restore the
+general fallback threshold. Because config layers merge recursively, an empty user
+`indicator.providers: {}` does not erase this bundled key, while an explicit value for
+the key does override it. Broader provider/global defaults have lower selection
+precedence than the exact window key.
+
+Invalid indicator config is diagnosed with its config path, ignored at the smallest
+invalid override, and inherited/default policy is used instead of resetting unrelated
+valid usage settings. ACE display settings are cached by the merged-config token, so
+config changes reload on the normal usage refresh cadence even when the usage-state file
+does not change.
 
 Routing-disabled providers still refresh when collection is otherwise eligible, because
 reset information remains useful for them.

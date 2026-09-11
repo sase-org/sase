@@ -25,8 +25,13 @@ from ._usage_indicator_palette import (
     usage_percent_color,
     usage_rejected_style,
     usage_value_style,
-    usage_zero_percent_style,
+    usage_zero_value_style,
 )
+
+_OUTER_PADDING = "  "
+_PROVIDER_GAP = "  "
+_WINDOW_SEPARATOR = " | "
+_DISCLOSURE_GAP = "  "
 
 _ATTENTION_RANK: Mapping[str, int] = {
     "rejected": 4,
@@ -44,7 +49,6 @@ class UsageWindowFragment:
     provider: str
     window_key: str
     attention_rank: int
-    value_color: str
     text: Text
     tooltip_lines: tuple[str, ...]
 
@@ -121,23 +125,21 @@ def build_usage_indicator_segment(
     groups: Sequence[UsageProviderGroup],
     *,
     budget: int | None = None,
-    leading_space: bool = True,
     dark: bool = True,
 ) -> Text:
     """Return the richest complete-window prefix of *groups* that fits *budget*."""
     total = _window_count(groups)
-    if not total:
+    if not total or budget is not None and budget <= 0:
         return Text("")
     full = _render_visible_windows(
         groups,
         visible_count=total,
         hidden_count=0,
-        leading_space=leading_space,
         dark=dark,
     )
     if budget is None or full.cell_len <= budget:
         return full
-    prefix_widths = _prefix_cell_widths(groups, leading_space=leading_space)
+    prefix_widths = _prefix_cell_widths(groups)
     for keep in range(total - 1, 0, -1):
         hidden = total - keep
         if prefix_widths[keep] + _overflow_width(hidden) <= budget:
@@ -145,13 +147,11 @@ def build_usage_indicator_segment(
                 groups,
                 visible_count=keep,
                 hidden_count=hidden,
-                leading_space=leading_space,
                 dark=dark,
             )
     return _fallback_segment(
         total,
         budget=budget,
-        leading_space=leading_space,
         dark=dark,
     )
 
@@ -160,15 +160,22 @@ def _fallback_segment(
     total: int,
     *,
     budget: int,
-    leading_space: bool,
     dark: bool,
 ) -> Text:
-    leading = " " if leading_space else ""
-    for suffix in (f"usage {total}", str(total), "…"):
+    candidates = (
+        (_OUTER_PADDING, f"usage {total}", _OUTER_PADDING),
+        (_OUTER_PADDING, str(total), _OUTER_PADDING),
+        (" ", str(total), " "),
+        ("", str(total), ""),
+        ("", "…", ""),
+    )
+    for leading, body, trailing in candidates:
+        if Text(f"{leading}{body}{trailing}").cell_len > budget:
+            continue
         text = Text(leading, style=usage_gap_style(dark=dark))
-        text.append(suffix, style=usage_disclosure_style(dark=dark))
-        if text.cell_len <= budget:
-            return text
+        text.append(body, style=usage_disclosure_style(dark=dark))
+        text.append(trailing, style=usage_gap_style(dark=dark))
+        return text
     return Text("")
 
 
@@ -177,34 +184,36 @@ def _render_visible_windows(
     *,
     visible_count: int,
     hidden_count: int,
-    leading_space: bool,
     dark: bool,
 ) -> Text:
     visible_groups = _visible_groups(groups, visible_count)
     text = Text()
-    if leading_space:
-        text.append(" ", style=usage_gap_style(dark=dark))
+    if not visible_groups:
+        return text
+
+    text.append(_OUTER_PADDING, style=usage_gap_style(dark=dark))
 
     for group_index, (group, fragments) in enumerate(visible_groups):
         if group_index:
-            previous_final = visible_groups[group_index - 1][1][-1]
-            text.append(
-                " |",
-                style=usage_divider_style(previous_final.value_color, dark=dark),
-            )
-            text.append(" ", style=usage_gap_style(dark=dark))
+            text.append(_PROVIDER_GAP, style=usage_gap_style(dark=dark))
         base_style = usage_badge_base_style(dark=dark)
         text.append(group.icon, style=base_style)
         text.append(" ", style=base_style)
-        divider_style = usage_divider_style(fragments[-1].value_color, dark=dark)
+        divider_style = usage_divider_style(dark=dark)
+        parenthesized = len(fragments) >= 2
+        if parenthesized:
+            text.append("(", style=divider_style)
         for fragment_index, fragment in enumerate(fragments):
             if fragment_index:
-                text.append(" | ", style=divider_style)
+                text.append(_WINDOW_SEPARATOR, style=divider_style)
             text.append_text(fragment.text)
+        if parenthesized:
+            text.append(")", style=divider_style)
 
     if hidden_count:
-        text.append("  ", style=usage_gap_style(dark=dark))
+        text.append(_DISCLOSURE_GAP, style=usage_gap_style(dark=dark))
         text.append(f"+{hidden_count}", style=usage_disclosure_style(dark=dark))
+    text.append(_OUTER_PADDING, style=usage_gap_style(dark=dark))
     return text
 
 
@@ -230,27 +239,36 @@ def _visible_groups(
 
 def _prefix_cell_widths(
     groups: Sequence[UsageProviderGroup],
-    *,
-    leading_space: bool,
 ) -> tuple[int, ...]:
-    width = 1 if leading_space else 0
-    widths = [width]
-    previous_provider: str | None = None
+    body_width = 0
+    widths = [0]
+    visible_provider_count = 0
+    separator_width = Text(_WINDOW_SEPARATOR).cell_len
     for group in groups:
+        visible_fragment_count = 0
         for fragment_index, fragment in enumerate(group.fragments):
-            if previous_provider is None:
-                width += group.icon_width + 1 + fragment.width
-            elif fragment_index == 0:
-                width += 2 + 1 + group.icon_width + 1 + fragment.width
+            if fragment_index == 0:
+                if visible_provider_count:
+                    body_width += Text(_PROVIDER_GAP).cell_len
+                visible_provider_count += 1
+                body_width += group.icon_width + 1 + fragment.width
+                visible_fragment_count = 1
+            elif visible_fragment_count == 1:
+                body_width += 2 + separator_width + fragment.width
+                visible_fragment_count = 2
             else:
-                width += 3 + fragment.width
-            widths.append(width)
-            previous_provider = group.provider
+                body_width += separator_width + fragment.width
+                visible_fragment_count += 1
+            widths.append(
+                Text(_OUTER_PADDING).cell_len
+                + body_width
+                + Text(_OUTER_PADDING).cell_len
+            )
     return tuple(widths)
 
 
 def _overflow_width(hidden_count: int) -> int:
-    return Text(f"  +{hidden_count}").cell_len
+    return Text(f"{_DISCLOSURE_GAP}+{hidden_count}").cell_len
 
 
 def _ordered_provider_entries(
@@ -331,12 +349,15 @@ def _entry_fragment(
     if rejected:
         text.append("!", style=usage_rejected_style(dark=dark))
         text.append(" ", style=base_style)
-    percent_style = (
-        usage_zero_percent_style(dark=dark) if percent_text == "0%" else value_style
-    )
-    text.append(percent_text, style=percent_style)
-    text.append(" ", style=value_style)
-    text.append(countdown_text, style=value_style)
+    if percent_text == "0%":
+        text.append(
+            f"{percent_text} {countdown_text}",
+            style=usage_zero_value_style(dark=dark),
+        )
+    else:
+        text.append(percent_text, style=value_style)
+        text.append(" ", style=value_style)
+        text.append(countdown_text, style=value_style)
 
     tooltip = _entry_tooltip_lines(
         entry,
@@ -350,7 +371,6 @@ def _entry_fragment(
         provider=provider,
         window_key=_optional_text(entry.get("window_key")) or "",
         attention_rank=_entry_attention_rank(entry),
-        value_color=value_color,
         text=text,
         tooltip_lines=tooltip,
     )

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 from rich.color import Color
+from rich.style import Style
+from rich.text import Text
 
 from sase.ace.tui.widgets._override_pill import (
     PROVIDER_DISABLE_PALETTE,
@@ -13,7 +15,10 @@ from sase.ace.tui.widgets._override_pill import (
 from sase.ace.tui.widgets._provider_usage_indicator import (
     usage_indicator_groups,
 )
-from sase.ace.tui.widgets._usage_indicator_palette import usage_percent_color
+from sase.ace.tui.widgets._usage_indicator_palette import (
+    usage_percent_color,
+    usage_zero_value_style,
+)
 from sase.ace.tui.widgets.provider_disables_indicator import ProviderDisablesIndicator
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_SOFT,
@@ -29,6 +34,14 @@ from tests._provider_disables_indicator_helpers import (
     _usage_groups,
     _usage_entry,
 )
+
+
+def _style_at_offset(text: Text, offset: int) -> Style:
+    for start, end, style in _segments_with_offsets(text):
+        if start <= offset < end:
+            assert style is not None
+            return style
+    raise AssertionError(f"no style at offset {offset}")
 
 
 def test_usage_attention_renders_micro_total_beside_disable_when_budget_is_tiny() -> (
@@ -164,11 +177,14 @@ def test_routing_prefix_keeps_its_style_and_usage_never_inherits_its_background(
                 assert style is not None
                 assert style.bgcolor != accent_color
 
-    segments = {segment.text: segment.style for segment in content.render(_CONSOLE)}
-    zero_style = segments["0%"]
-    assert zero_style is not None
-    assert zero_style.bgcolor is not None
-    assert zero_style.bgcolor == Color.parse(usage_percent_color(0, dark=True))
+    zero_run = "0% 3d4h"
+    zero_start = content.plain.find(zero_run)
+    assert zero_start >= 0
+    for offset in range(zero_start, zero_start + len(zero_run)):
+        style = _style_at_offset(content, offset)
+        assert style.bgcolor is not None
+        assert style.bgcolor == Color.parse(usage_percent_color(0, dark=True))
+        assert style == Style.parse(usage_zero_value_style(dark=True))
 
 
 def test_composed_percent_and_countdown_pairs_agree_after_composition() -> None:
@@ -223,13 +239,13 @@ def test_narrow_budget_collapses_then_wide_budget_restores_full_badge_packing() 
         {}, usage_groups=groups, dark=True, now=100.0
     )
     narrow = ProviderDisablesIndicator._build_content(
-        {}, usage_groups=groups, usage_budget=len(" usage 3"), dark=True, now=100.0
+        {}, usage_groups=groups, usage_budget=len("  usage 3  "), dark=True, now=100.0
     )
     wide_again = ProviderDisablesIndicator._build_content(
         {}, usage_groups=groups, dark=True, now=100.0
     )
 
-    assert narrow.plain.strip() == "usage 3"
+    assert narrow.plain == "  usage 3  "
     assert wide_again.plain == full.plain
     assert "🛰️" in full.plain and "🤖" in full.plain and "🎭" in full.plain
 

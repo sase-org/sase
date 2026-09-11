@@ -1357,13 +1357,17 @@ llm_provider:
       default:
         below_remaining_percent: 20
       weekly_all: always
-      providers: {}
+      providers:
+        claude:
+          windows:
+            "weekly:claude-fable-5": always
       # providers:
       #   claude:
       #     windows:
-      #       session: always
-      #       "weekly:claude-fable-5":
-      #         below_remaining_percent: 35
+      #       "weekly:claude-fable-5": never
+      #       # Or restore the generic fallback:
+      #       # "weekly:claude-fable-5":
+      #       #   below_remaining_percent: 20
       #   codex:
       #     windows:
       #       "codex:secondary":

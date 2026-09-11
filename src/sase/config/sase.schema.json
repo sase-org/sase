@@ -3501,7 +3501,13 @@
                   "additionalProperties": {
                     "$ref": "#/definitions/usageIndicatorProvider"
                   },
-                  "default": {}
+                  "default": {
+                    "claude": {
+                      "windows": {
+                        "weekly:claude-fable-5": "always"
+                      }
+                    }
+                  }
                 }
               }
             },

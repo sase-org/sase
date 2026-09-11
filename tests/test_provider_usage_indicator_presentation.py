@@ -18,10 +18,11 @@ from sase.ace.tui.widgets._usage_indicator_format import format_usage_percent_te
 from sase.ace.tui.widgets._usage_indicator_palette import (
     _usage_badge_surface_color,
     _usage_gap_surface_color,
+    usage_divider_style,
     usage_neutral_color,
     usage_percent_color,
     usage_rejected_style,
-    usage_zero_percent_style,
+    usage_zero_value_style,
 )
 from sase.llm_provider.usage.store import provider_usage_project_indicator
 from tests._usage_view_helpers import usage_provider, usage_window
@@ -93,6 +94,25 @@ def _pipe_styles(text: Text) -> list[Style]:
                 styles.append(style)
                 break
     return styles
+
+
+def _assert_style_run(
+    text: Text,
+    run: str,
+    expected: Style,
+    *,
+    occurrence: int = 0,
+) -> tuple[int, int]:
+    start = -1
+    cursor = 0
+    for _ in range(occurrence + 1):
+        start = text.plain.find(run, cursor)
+        assert start >= 0, f"missing {run!r} occurrence {occurrence}"
+        cursor = start + len(run)
+    end = start + len(run)
+    for offset in range(start, end):
+        assert _style_at_offset(text, offset) == expected
+    return start, end
 
 
 def _hex_to_rgb(value: str) -> tuple[int, int, int]:
@@ -265,7 +285,7 @@ def test_compact_window_names(entry: dict[str, object], expected: str) -> None:
     assert segment.plain.strip() == expected
 
 
-def test_grouped_default_first_text_order_icons_and_pipes() -> None:
+def test_grouped_default_first_text_order_icons_gaps_and_parentheses() -> None:
     all_model = _entry(provider="claude", window_key="weekly", remaining_percent=62.0)
     fable = _entry(
         provider="claude",
@@ -299,12 +319,13 @@ def test_grouped_default_first_text_order_icons_and_pipes() -> None:
 
     segment = build_usage_indicator_segment(_groups(codex, session, fable, all_model))
 
-    assert segment.plain.strip() == (
-        "🎭 62% 3d4h | fable 7% 1d8h | 5h 18% 2h9m | 🤖 81% 5d2h"
+    assert segment.plain == (
+        "  🎭 (62% 3d4h | fable 7% 1d8h | 5h 18% 2h9m)  🤖 81% 5d2h  "
     )
     assert segment.plain.count("🎭") == 1
     assert segment.plain.count("🤖") == 1
-    assert segment.plain.count("|") == 3
+    assert segment.plain.count("|") == 2
+    assert ")  🤖" in segment.plain
     assert "⚠" not in segment.plain
 
 
@@ -332,7 +353,7 @@ def test_multiple_default_classified_entries_keep_lowest_key_unnamed() -> None:
 
     segment = build_usage_indicator_segment(_groups(later, anchor))
 
-    assert segment.plain.strip() == "🎭 62% 3d4h | wk/all 55% 3d4h"
+    assert segment.plain == "  🎭 (62% 3d4h | wk/all 55% 3d4h)  "
 
 
 def test_colliding_compact_names_receive_stable_key_suffixes() -> None:
@@ -535,7 +556,7 @@ def test_name_percent_and_countdown_share_bold_value_color(dark: bool) -> None:
 
 
 @pytest.mark.parametrize("dark", [True, False])
-def test_exact_zero_percent_uses_inverted_token_style(dark: bool) -> None:
+def test_exact_zero_percent_uses_inverted_value_style(dark: bool) -> None:
     entry = _entry(remaining_percent=0.0)
     segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
     exhausted_color = usage_percent_color(0, dark=dark)
@@ -544,7 +565,7 @@ def test_exact_zero_percent_uses_inverted_token_style(dark: bool) -> None:
     zero_start = segment.plain.find("0%")
     assert zero_start >= 0
     zero_style = _style_at_token(segment, "0%")
-    assert zero_style == Style.parse(usage_zero_percent_style(dark=dark))
+    assert zero_style == Style.parse(usage_zero_value_style(dark=dark))
     assert zero_style.bold is True
     assert zero_style.dim is False
     assert zero_style.reverse is False
@@ -553,16 +574,17 @@ def test_exact_zero_percent_uses_inverted_token_style(dark: bool) -> None:
     assert zero_style.bgcolor is not None
     assert zero_style.bgcolor.get_truecolor().hex == exhausted_color.lower()
 
-    for offset in (zero_start - 1, zero_start + len("0%")):
+    zero_run = "0% 3d4h"
+    zero_start, zero_end = _assert_style_run(
+        segment,
+        zero_run,
+        Style.parse(usage_zero_value_style(dark=dark)),
+    )
+
+    for offset in (zero_start - 1, zero_end):
         adjacent_style = _style_at_offset(segment, offset)
         assert adjacent_style.bgcolor is not None
-        assert adjacent_style.bgcolor.get_truecolor().hex == badge_surface.lower()
-
-    countdown_style = _style_at_token(segment, "3d4h")
-    assert countdown_style.color is not None
-    assert countdown_style.color.get_truecolor().hex == exhausted_color.lower()
-    assert countdown_style.bgcolor is not None
-    assert countdown_style.bgcolor.get_truecolor().hex == badge_surface.lower()
+        assert adjacent_style.bgcolor.get_truecolor().hex != exhausted_color.lower()
 
 
 @pytest.mark.parametrize("dark", [True, False])
@@ -580,17 +602,16 @@ def test_named_and_rejected_zero_neighbors_keep_normal_badge_surface(
     )
     segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
     badge_surface = _usage_badge_surface_color(dark=dark)
-    exhausted_color = usage_percent_color(0, dark=dark)
 
     assert segment.plain.strip() == "🛰️ grok-preview ! 0% 3d4h"
-    for token in ("grok-preview", "!", "3d4h"):
+    for token in ("grok-preview", "!"):
         style = _style_at_token(segment, token)
         assert style.bgcolor is not None
         assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
-    assert _style_at_token(segment, "0%").bgcolor is not None
-    assert (
-        _style_at_token(segment, "0%").bgcolor.get_truecolor().hex
-        == exhausted_color.lower()
+    _assert_style_run(
+        segment,
+        "0% 3d4h",
+        Style.parse(usage_zero_value_style(dark=dark)),
     )
 
 
@@ -734,7 +755,9 @@ def test_rejected_marker_renders_bold_on_badge_surface(dark: bool) -> None:
 
 
 @pytest.mark.parametrize("dark", [True, False])
-def test_final_visible_window_colors_all_provider_dividers(dark: bool) -> None:
+def test_structural_punctuation_is_neutral_on_provider_badge_surface(
+    dark: bool,
+) -> None:
     default = _entry(provider="claude", window_key="weekly", remaining_percent=62.0)
     fable = _entry(
         provider="claude",
@@ -760,20 +783,28 @@ def test_final_visible_window_colors_all_provider_dividers(dark: bool) -> None:
     codex = _entry(provider="codex", remaining_percent=81.0)
     groups = _groups(default, fable, session, codex, dark=dark)
     segment = build_usage_indicator_segment(groups, dark=dark)
-    session_color = usage_percent_color(18.0, dark=dark)
     badge_surface = _usage_badge_surface_color(dark=dark)
+    neutral = usage_neutral_color(dark=dark)
 
-    assert segment.plain.count("|") == 3
-    for style in _pipe_styles(segment):
+    assert segment.plain.count("|") == 2
+    punctuation_offsets = [
+        index for index, character in enumerate(segment.plain) if character in "()|"
+    ]
+    assert punctuation_offsets
+    for offset in punctuation_offsets:
+        style = _style_at_offset(segment, offset)
         assert style.bold is False
+        assert style.dim is False
+        assert style.reverse is False
         assert style.color is not None
-        assert style.color.get_truecolor().hex == session_color.lower()
+        assert style.color.get_truecolor().hex == neutral.lower()
         assert style.bgcolor is not None
         assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
+        assert style == Style.parse(usage_divider_style(dark=dark))
 
-    boundary_pipe_index = segment.plain.rfind("|")
+    provider_gap_index = segment.plain.find(")  🤖") + 1
     gap_style = _style_at_token(
-        segment, " ", occurrence=segment.plain[: boundary_pipe_index + 1].count(" ")
+        segment, " ", occurrence=segment.plain[: provider_gap_index + 1].count(" ")
     )
     assert gap_style.bgcolor is not None
     assert (
@@ -782,7 +813,7 @@ def test_final_visible_window_colors_all_provider_dividers(dark: bool) -> None:
     )
 
 
-def test_overflow_recolors_divider_to_new_final_visible_window() -> None:
+def test_partial_overflow_keeps_balanced_parentheses_and_hidden_total() -> None:
     default = _entry(provider="claude", window_key="weekly", remaining_percent=62.0)
     fable = _entry(
         provider="claude",
@@ -807,17 +838,13 @@ def test_overflow_recolors_divider_to_new_final_visible_window() -> None:
     )
     codex = _entry(provider="codex", remaining_percent=81.0)
     groups = _groups(default, fable, session, codex)
-    expected = " 🎭 62% 3d4h | fable 7% 1d8h  +2"
+    expected = "  🎭 (62% 3d4h | fable 7% 1d8h)  +2  "
 
     segment = build_usage_indicator_segment(groups, budget=cell_len(expected))
 
     assert segment.plain == expected
     assert len(_pipe_styles(segment)) == 1
-    assert _pipe_styles(segment)[0].color is not None
-    assert (
-        _pipe_styles(segment)[0].color.get_truecolor().hex
-        == usage_percent_color(7.0, dark=True).lower()
-    )
+    assert segment.plain.count("(") == segment.plain.count(")") == 1
 
 
 def test_neutral_final_window_colors_dividers_neutral() -> None:
@@ -855,30 +882,36 @@ def test_budget_packing_falls_back_through_the_full_ladder() -> None:
     assert overflow.plain.strip().endswith("+1")
     assert "🛰️" in overflow.plain
 
-    count_only = build_usage_indicator_segment(groups, budget=cell_len(" usage 3"))
-    assert count_only.plain.strip() == "usage 3"
+    count_only = build_usage_indicator_segment(groups, budget=cell_len("  usage 3  "))
+    assert count_only.plain == "  usage 3  "
 
-    micro = build_usage_indicator_segment(groups, budget=cell_len(" 3"))
-    assert micro.plain.strip() == "3"
+    padded_total = build_usage_indicator_segment(groups, budget=cell_len("  3  "))
+    assert padded_total.plain == "  3  "
 
-    assert build_usage_indicator_segment(groups, budget=1).plain == ""
+    micro = build_usage_indicator_segment(groups, budget=cell_len(" 3 "))
+    assert micro.plain == " 3 "
+
+    bare = build_usage_indicator_segment(groups, budget=1)
+    assert bare.plain == "3"
     assert build_usage_indicator_segment(groups, budget=0).plain == ""
 
 
-@pytest.mark.parametrize("leading_space", [True, False])
-def test_budget_packing_respects_leading_space(leading_space: bool) -> None:
-    groups = _groups(_entry(provider="claude", remaining_percent=62.0))
-
-    segment = build_usage_indicator_segment(
-        groups,
-        budget=cell_len("🎭 62% 3d4h"),
-        leading_space=leading_space,
+def test_fallback_ladder_uses_ellipsis_when_total_digits_do_not_fit() -> None:
+    groups = _groups(
+        *(_entry(provider=f"p{index}", remaining_percent=62.0) for index in range(12))
     )
 
-    if leading_space:
-        assert segment.plain == " usage 1"
-    else:
-        assert segment.plain == "🎭 62% 3d4h"
+    assert build_usage_indicator_segment(groups, budget=1).plain == "…"
+
+
+def test_provider_badge_requires_owned_outer_margin() -> None:
+    groups = _groups(_entry(provider="claude", remaining_percent=62.0))
+    full = build_usage_indicator_segment(groups)
+
+    segment = build_usage_indicator_segment(groups, budget=full.cell_len - 1)
+
+    assert full.plain == "  🎭 62% 3d4h  "
+    assert "🎭" not in segment.plain
 
 
 def test_open_provider_prefers_first_ranked_group() -> None:
@@ -915,7 +948,7 @@ def test_overflow_and_fallback_disclosure_render_bold_neutral_on_badge_surface(
     plus_one_style = _style_for(overflow, "+1")
 
     count_only = build_usage_indicator_segment(
-        groups, budget=cell_len(" usage 3"), dark=dark
+        groups, budget=cell_len("  usage 3  "), dark=dark
     )
     count_style = _style_for(count_only, "usage 3")
 
@@ -1028,7 +1061,7 @@ def test_real_projection_selection_boundary_and_renderer_integration() -> None:
     segment = build_usage_indicator_segment(
         usage_indicator_groups(projection.entries, dark=True, now=FROZEN_NOW)
     )
-    assert "🎭 90%" in segment.plain
+    assert "🎭 (90%" in segment.plain
     assert "fable 19%" in segment.plain
     assert "20%" not in segment.plain
 

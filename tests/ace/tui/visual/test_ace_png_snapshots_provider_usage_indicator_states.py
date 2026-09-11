@@ -73,12 +73,12 @@ async def _snapshot_top_bar(
         (
             "textual-dark",
             "top_bar_usage_groups_weekly_dark_160x24",
-            "ACE top bar with three weekly usage groups in full - dark theme",
+            "ACE top bar with grouped weekly usage and healthy Fable - dark theme",
         ),
         (
             "textual-light",
             "top_bar_usage_groups_weekly_light_160x24",
-            "ACE top bar with three weekly usage groups in full - light theme",
+            "ACE top bar with grouped weekly usage and healthy Fable - light theme",
         ),
     ],
 )
@@ -89,7 +89,61 @@ async def test_top_bar_usage_groups_extra_wide_png_snapshot(
     snapshot_name: str,
     title: str,
 ) -> None:
-    """A 160-column bar shows every weekly group in full with no overflow count."""
+    """A 160-column bar shows grouped providers and a healthy Fable window."""
+    patch_startup_loaders(monkeypatch)
+    quiet_top_bar(monkeypatch)
+
+    patch_projection(
+        monkeypatch,
+        _entries_projection(
+            entry(provider="claude", window_key="weekly", remaining_percent=62.0),
+            entry(
+                provider="claude",
+                window_key="weekly:claude-fable-5",
+                window_label="Claude weekly Fable",
+                weekly_all=False,
+                period_kind="weekly",
+                duration_seconds=None,
+                entry_scope=scope(
+                    kind="product",
+                    product="claude",
+                    model_ids=("claude-fable-5",),
+                ),
+                remaining_percent=100.0,
+                seconds_until_reset=115_200.0,
+                resets_at=FROZEN_NOW + 115_200.0,
+            ),
+            entry(
+                provider="codex",
+                window_key="included_weekly",
+                remaining_percent=45.0,
+                seconds_until_reset=190_800.0,
+                resets_at=FROZEN_NOW + 190_800.0,
+            ),
+            entry(
+                provider="grok",
+                window_key="included_weekly",
+                remaining_percent=97.0,
+                seconds_until_reset=112_200.0,
+                resets_at=FROZEN_NOW + 112_200.0,
+            ),
+        ),
+    )
+
+    await _snapshot_top_bar(
+        ace_png_visual,
+        size=(160, 24),
+        name=snapshot_name,
+        title=title,
+        theme=theme,
+    )
+
+
+async def test_top_bar_usage_groups_real_projection_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The real projector still renders normal multi-provider weekly gaps."""
     patch_startup_loaders(monkeypatch)
     quiet_top_bar(monkeypatch)
 
@@ -150,10 +204,9 @@ async def test_top_bar_usage_groups_extra_wide_png_snapshot(
 
     await _snapshot_top_bar(
         ace_png_visual,
-        size=(160, 24),
-        name=snapshot_name,
-        title=title,
-        theme=theme,
+        size=(140, 24),
+        name="top_bar_usage_groups_real_projection_140x24",
+        title="ACE top bar with real-projected multi-provider usage gaps",
     )
 
 
@@ -192,7 +245,7 @@ async def test_top_bar_claude_three_windows_png_snapshot(
         entry_scope=scope(
             kind="product", product="claude", model_ids=("claude-fable-5",)
         ),
-        remaining_percent=7.0,
+        remaining_percent=0.0,
         seconds_until_reset=115_200.0,
         resets_at=FROZEN_NOW + 115_200.0,
         display_attention="very_low",
@@ -431,11 +484,11 @@ async def test_top_bar_disable_pill_usage_png_snapshot(
     snapshot_name: str,
     title: str,
 ) -> None:
-    """An orange disable pill sits beside low, stale, and healthy usage badges."""
+    """An orange disable pill sits beside exhausted, stale, and healthy usage."""
     patch_startup_loaders(monkeypatch)
     quiet_top_bar(monkeypatch, disables={"claude": disable("claude")})
 
-    low = entry(
+    exhausted = entry(
         provider="claude",
         window_key="weekly:claude-fable-5",
         window_label="Claude weekly Fable",
@@ -445,7 +498,7 @@ async def test_top_bar_disable_pill_usage_png_snapshot(
         entry_scope=scope(
             kind="product", product="claude", model_ids=("claude-fable-5",)
         ),
-        remaining_percent=7.0,
+        remaining_percent=0.0,
         seconds_until_reset=115_200.0,
         resets_at=FROZEN_NOW + 115_200.0,
         display_attention="very_low",
@@ -458,7 +511,7 @@ async def test_top_bar_disable_pill_usage_png_snapshot(
         freshness="stale",
     )
 
-    patch_projection(monkeypatch, _entries_projection(low, healthy, stale))
+    patch_projection(monkeypatch, _entries_projection(exhausted, healthy, stale))
 
     await _snapshot_top_bar(
         ace_png_visual,

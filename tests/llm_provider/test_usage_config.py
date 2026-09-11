@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
+from collections.abc import Mapping
+from typing import Any
 
+import pytest
+import yaml
+
+from sase.config import core as config_core
 from sase.llm_provider.usage import config as usage_config
 from sase.llm_provider.usage.config import (
     collection_skip_reason,
@@ -16,6 +21,7 @@ from sase.llm_provider.usage.probe import (
     run_usage_probe,
     worker_environ,
 )
+from sase.llm_provider.usage.store import provider_usage_project_indicator
 from sase.testing.usage_synthetic import (
     SECRET_CANARY,
     SYNTHETIC_PLUGIN_SPEC,
@@ -26,7 +32,140 @@ from sase.llm_provider.usage.types import (
     validated_status_observation,
 )
 from tests._rust_extension_module_helpers import install_fake_rust_extension
+from tests._usage_view_helpers import FROZEN_NOW, usage_provider, usage_window
 from tests.llm_provider._provider_config_helpers import mock_provider_config
+
+
+def _clear_usage_indicator_cache() -> None:
+    usage_config._indicator_settings_cache = None
+    usage_config._indicator_diagnostics_token = None
+
+
+def _write_user_config(config: Mapping[str, Any]) -> None:
+    config_core.CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    (config_core.CONFIG_DIR / "sase.yml").write_text(
+        yaml.safe_dump(dict(config)),
+        encoding="utf-8",
+    )
+    config_core.clear_config_cache()
+    _clear_usage_indicator_cache()
+
+
+def _claude_indicator_snapshot(
+    *,
+    include_fable: bool = True,
+    fable_remaining: float = 100.0,
+) -> dict[str, Any]:
+    windows = [
+        _weekly_window(
+            key="weekly",
+            label="Week",
+            remaining_percent=90.0,
+            resets_at=FROZEN_NOW + 604_800.0,
+            applicability={"kind": "account"},
+        ),
+        _usage_window(
+            key="session-low",
+            label="Claude five-hour session",
+            remaining_percent=19.99,
+            resets_at=FROZEN_NOW + 18_000.0,
+            applicability={"kind": "account"},
+            duration_seconds=18_000.0,
+        ),
+        _usage_window(
+            key="session-boundary",
+            label="Claude boundary session",
+            remaining_percent=20.0,
+            resets_at=FROZEN_NOW + 18_000.0,
+            applicability={"kind": "account"},
+            duration_seconds=18_000.0,
+        ),
+    ]
+    if include_fable:
+        windows.append(
+            _weekly_window(
+                key="weekly:claude-fable-5",
+                label="Claude weekly Fable",
+                remaining_percent=fable_remaining,
+                resets_at=FROZEN_NOW + 604_800.0,
+                applicability={
+                    "kind": "models",
+                    "model_ids": ["claude-fable-5"],
+                },
+            )
+        )
+    return {
+        "schema_version": 1,
+        "generated_at": FROZEN_NOW,
+        "collection_health": "ok",
+        "providers": [
+            usage_provider(
+                "claude",
+                used_percent=10.0,
+                remaining_percent=90.0,
+                attention={
+                    "kind": "none",
+                    "provider": "claude",
+                    "window_key": "weekly",
+                },
+                windows=windows,
+                known_constraints=[],
+            )
+        ],
+        "attention": None,
+    }
+
+
+def _weekly_window(
+    *,
+    key: str,
+    label: str,
+    remaining_percent: float,
+    resets_at: float,
+    applicability: Mapping[str, Any],
+) -> dict[str, Any]:
+    return _usage_window(
+        key=key,
+        label=label,
+        remaining_percent=remaining_percent,
+        resets_at=resets_at,
+        applicability=applicability,
+        duration_seconds=604_800.0,
+    )
+
+
+def _usage_window(
+    *,
+    key: str,
+    label: str,
+    remaining_percent: float,
+    resets_at: float,
+    applicability: Mapping[str, Any],
+    duration_seconds: float,
+) -> dict[str, Any]:
+    window = usage_window(
+        key=key,
+        label=label,
+        used_percent=max(0.0, 100.0 - remaining_percent),
+        remaining_percent=remaining_percent,
+        resets_at=resets_at,
+        applicability=applicability,
+    )
+    window["duration_seconds"] = duration_seconds
+    return window
+
+
+def _projected_window_keys(
+    snapshot: Mapping[str, Any] | None = None,
+) -> tuple[str, ...]:
+    settings = get_usage_indicator_settings()
+    projection = provider_usage_project_indicator(
+        snapshot or _claude_indicator_snapshot(),
+        indicator=settings.raw,
+        eligible_providers=["claude"],
+        now=FROZEN_NOW,
+    )
+    return tuple(str(entry["window_key"]) for entry in projection.entries)
 
 
 def test_usage_metrics_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -66,40 +205,20 @@ def test_usage_metrics_parses_per_provider_override(
 def test_usage_indicator_defaults_and_overrides(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[object] = []
+    _clear_usage_indicator_cache()
+    settings = get_usage_indicator_settings()
 
-    def provider_usage_validate_indicator_config(
-        indicator: object | None = None,
-    ) -> dict[str, object]:
-        calls.append(indicator)
-        return {
-            "schema_version": 1,
-            "config": {
-                "enabled": True,
-                "default": {
-                    "kind": "below_remaining_percent",
-                    "below_remaining_percent": 20.0,
-                },
-                "weekly_all": {"kind": "always"},
-                "providers": {
-                    "claude": {
-                        "default": None,
-                        "windows": {"session": {"kind": "always"}},
-                    }
-                },
-            },
-            "diagnostics": [],
-        }
+    assert settings.enabled is True
+    assert settings.raw is not None
+    assert settings.config["providers"]["claude"]["windows"][
+        "weekly:claude-fable-5"
+    ] == {"kind": "always"}
+    assert _projected_window_keys() == (
+        "session-low",
+        "weekly",
+        "weekly:claude-fable-5",
+    )
 
-    install_fake_rust_extension(
-        monkeypatch,
-        provider_usage_validate_indicator_config=provider_usage_validate_indicator_config,
-    )
-    monkeypatch.setattr(
-        usage_config, "current_config_token", lambda: ("config", "indicator-defaults")
-    )
-    monkeypatch.setattr(usage_config, "_indicator_settings_cache", None)
-    monkeypatch.setattr(usage_config, "_indicator_diagnostics_token", None)
     mock_provider_config(
         monkeypatch,
         {
@@ -112,6 +231,10 @@ def test_usage_indicator_defaults_and_overrides(
             }
         },
     )
+    monkeypatch.setattr(
+        usage_config, "current_config_token", lambda: ("config", "indicator-override")
+    )
+    _clear_usage_indicator_cache()
 
     settings = get_usage_indicator_settings()
 
@@ -120,7 +243,100 @@ def test_usage_indicator_defaults_and_overrides(
     assert settings.config["providers"]["claude"]["windows"]["session"] == {
         "kind": "always"
     }
-    assert calls == [settings.raw]
+
+
+@pytest.mark.parametrize(
+    ("user_config", "expected"),
+    [
+        pytest.param(
+            {"llm_provider": {"usage_metrics": {"indicator": {"providers": {}}}}},
+            ("session-low", "weekly", "weekly:claude-fable-5"),
+            id="empty-provider-map-keeps-bundled-exact-window",
+        ),
+        pytest.param(
+            {
+                "llm_provider": {
+                    "usage_metrics": {
+                        "indicator": {
+                            "providers": {
+                                "claude": {
+                                    "windows": {"weekly:claude-fable-5": "never"}
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            ("session-low", "weekly"),
+            id="exact-key-never-wins",
+        ),
+        pytest.param(
+            {
+                "llm_provider": {
+                    "usage_metrics": {
+                        "indicator": {
+                            "providers": {
+                                "claude": {
+                                    "windows": {
+                                        "weekly:claude-fable-5": {
+                                            "below_remaining_percent": 20
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            ("session-low", "weekly"),
+            id="exact-key-threshold-restores-generic-boundary",
+        ),
+        pytest.param(
+            {
+                "llm_provider": {
+                    "usage_metrics": {
+                        "indicator": {"providers": {"codex": {"default": "always"}}}
+                    }
+                }
+            },
+            ("session-low", "weekly", "weekly:claude-fable-5"),
+            id="unrelated-provider-override-keeps-claude-defaults",
+        ),
+        pytest.param(
+            {
+                "llm_provider": {
+                    "usage_metrics": {
+                        "indicator": {"providers": {"claude": {"default": "never"}}}
+                    }
+                }
+            },
+            ("weekly:claude-fable-5",),
+            id="broader-provider-default-loses-to-exact-window",
+        ),
+        pytest.param(
+            {"llm_provider": {"usage_metrics": {"indicator": {"enabled": False}}}},
+            (),
+            id="indicator-disabled",
+        ),
+    ],
+)
+def test_usage_indicator_real_bundled_default_and_user_override_projection(
+    user_config: Mapping[str, Any],
+    expected: tuple[str, ...],
+) -> None:
+    _write_user_config(user_config)
+
+    assert _projected_window_keys() == expected
+
+
+def test_usage_indicator_bundled_fable_default_does_not_synthesize_missing_window() -> (
+    None
+):
+    _clear_usage_indicator_cache()
+
+    keys = _projected_window_keys(_claude_indicator_snapshot(include_fable=False))
+
+    assert keys == ("session-low", "weekly")
 
 
 def test_usage_indicator_settings_are_cached_by_config_token(

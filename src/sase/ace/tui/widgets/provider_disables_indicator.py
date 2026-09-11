@@ -402,7 +402,6 @@ class ProviderDisablesIndicator(Static):
         usage = build_usage_indicator_segment(
             usage_groups,
             budget=usage_budget,
-            leading_space=not bool(routing.plain),
             dark=dark,
         )
         combined = Text()
@@ -486,9 +485,11 @@ class ProviderDisablesIndicator(Static):
                     "Usage windows:",
                     "Included subscription allowance readings from provider CLIs.",
                     *usage_lines,
-                    "Notation: compact names omit weekly/all-model defaults; pipes "
-                    "separate visible windows; 5h/mo name non-weekly windows; "
-                    "scope? means the provider did not expose exact applicability.",
+                    "Notation: compact names omit weekly/all-model defaults; "
+                    "parentheses group multiple visible windows for one provider; "
+                    "pipes separate windows inside that provider; 5h/mo name "
+                    "non-weekly windows; scope? means the provider did not expose "
+                    "exact applicability.",
                     "Neutral text marks a retained stale/unknown-age reading; ↻ marks "
                     "a passed reset awaiting a new observation; +N counts hidden "
                     "windows.",
