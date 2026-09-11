@@ -717,18 +717,18 @@ comparison. Agent cleanup is the current exception described above. The corpus p
 Rust extension's expected output byte-for-byte across parser, query, agent scan, status,
 and Git query helpers:
 
-| Surface                      | Tests                                                                                                                       |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Patch parser                 | `tests/test_core_golden.py`, `tests/test_core_wire.py`, `tests/test_core_facade/test_parser.py`                             |
-| Query parse / canonical form | `tests/test_core_query_golden_*` (errors / eval / tokens / wire), `tests/test_core_facade/test_query.py`                    |
-| Agent artifact scan          | `tests/test_core_agent_scan_*.py` + `tests/agent_scan_golden/` fixture builder                                              |
-| Notification store           | `tests/test_core_notification_store.py`, `tests/test_core_facade/test_notification_store.py`                                |
-| Snooze expiry end-to-end     | `tests/notification_store/test_snooze_e2e_matrix.py`, `../sase-core/crates/sase_core/tests/notification_store_parity.rs`    |
-| Status helpers + planner     | `tests/test_core_facade/test_status.py`, `tests/test_core_status_lines.py`, `tests/test_core_status_wire.py`                |
-| Git query parsers            | `tests/test_core_git_query.py`                                                                                              |
-| Agent launch                 | `tests/test_core_agent_launch_wire.py`, `tests/test_agent_launch_executor.py`, `tests/perf/test_agent_launch_regression.py` |
-| Beads                        | `tests/test_bead/`, `tests/test_core_facade/test_bead_*.py`, `../sase-core/crates/sase_core/tests/bead_*`                   |
-| Strict-loader contract       | `tests/test_core_rust.py`, `tests/test_core_health.py`                                                                      |
+| Surface                      | Tests                                                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Patch parser                 | `tests/test_core_golden.py`, `tests/test_core_wire.py`, `tests/test_core_facade/test_parser.py`                          |
+| Query parse / canonical form | `tests/test_core_query_golden_*` (errors / eval / tokens / wire), `tests/test_core_facade/test_query.py`                 |
+| Agent artifact scan          | `tests/test_core_agent_scan_*.py` + `tests/agent_scan_golden/` fixture builder                                           |
+| Notification store           | `tests/test_core_notification_store.py`, `tests/test_core_facade/test_notification_store.py`                             |
+| Snooze expiry end-to-end     | `tests/notification_store/test_snooze_e2e_matrix.py`, `../sase-core/crates/sase_core/tests/notification_store_parity.rs` |
+| Status helpers + planner     | `tests/test_core_facade/test_status.py`, `tests/test_core_status_lines.py`, `tests/test_core_status_wire.py`             |
+| Git query parsers            | `tests/test_core_git_query.py`                                                                                           |
+| Agent launch                 | `tests/core/test_agent_launch_*.py`, `tests/test_agent_launch_executor.py`, `tests/perf/test_agent_launch_regression.py` |
+| Beads                        | `tests/test_bead/`, `tests/test_core_facade/test_bead_*.py`, `../sase-core/crates/sase_core/tests/bead_*`                |
+| Strict-loader contract       | `tests/test_core_rust.py`, `tests/test_core_health.py`                                                                   |
 
 The `tests/core_golden/` corpus (`myproj.sase`, `myproj-archive.sase`) plus the
 `inline_snapshot` JSON expectations in `test_core_golden.py` are the cross-language
