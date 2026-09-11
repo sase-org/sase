@@ -39,7 +39,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "~/.sase/restarts, not into a live artifact directory."
         ),
     ),
-    "src/sase/continuation_capture.py:_parent_node_ids": PathPassingReview(
+    "src/sase/continuation_capture/agent_delta.py:_parent_node_ids": PathPassingReview(
         exemption=(
             "Read-only continuation capture ancestry merge: agent_meta.json is "
             "inspected only to recover already-persisted parent node IDs before "
