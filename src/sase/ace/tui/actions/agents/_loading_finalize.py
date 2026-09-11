@@ -159,10 +159,7 @@ def _apply_live_query_filter_inline(app: AgentLoadingMixin) -> None:
     worker or a prior full reload), it is reused instead of rebuilding.
     """
     from ...models.agent_live_query_engine import (
-        agents_live_query_profile,
-        augment_error_with_legacy_hint,
-        build_agents_live_query_index,
-        evaluate_agents_live_query,
+        apply_agents_live_query_filter,
     )
 
     raw = getattr(app, "_agent_search_query", "") or ""
@@ -170,44 +167,21 @@ def _apply_live_query_filter_inline(app: AgentLoadingMixin) -> None:
         app._agent_query_parse_error = None
         return
 
-    from sase.ace.query.profile_reference import canonical_query_for_profile
-    from sase.ace.query.profile_reference_support import ProfileQueryError
-
-    profile = agents_live_query_profile()
-    try:
-        canonical = canonical_query_for_profile(raw, profile)
-    except ProfileQueryError as exc:
-        msg = augment_error_with_legacy_hint(str(exc), raw)
-        app._agent_query_parse_error = msg
-        _notify_bad_query(app, msg)
+    filtered, facade, error = apply_agents_live_query_filter(
+        raw,
+        app._agents,
+        content_index=getattr(app, "_agent_content_search_index", None),
+        unread_agent_ids=getattr(app, "_unread_completed_agent_ids", ()),
+        cached_facade=getattr(app, "_agents_live_query_facade", None),
+    )
+    if error is not None:
+        app._agent_query_parse_error = error
+        _notify_bad_query(app, error)
         return
-
     app._agent_query_parse_error = None
-    facade = getattr(app, "_agents_live_query_facade", None)
-    if facade is None or not facade.is_current_for(canonical, profile):
-        content_index = getattr(app, "_agent_content_search_index", None)
-        unread_agent_ids = getattr(app, "_unread_completed_agent_ids", ())
-        index = build_agents_live_query_index(
-            app._agents,
-            generation=0,
-            content_index=content_index,
-            unread_agent_ids=unread_agent_ids,
-            profile=profile,
-        )
-        new_facade, error = evaluate_agents_live_query(raw, index)
-        if new_facade is None:
-            # Canonicalization above already succeeded, so evaluation should
-            # not fail here — but stay defensive rather than crash a render.
-            if error is not None:
-                app._agent_query_parse_error = error
-                _notify_bad_query(app, error)
-            return
-        facade = new_facade
+    if facade is not None:
         app._agents_live_query_facade = facade
-
-    from ...models._agent_tree import filter_tree_rows
-
-    app._agents = filter_tree_rows(app._agents, facade.matches)
+    app._agents = filtered
     app._agent_content_search_cache.prune(app._agents)
 
 

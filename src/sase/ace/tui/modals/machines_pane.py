@@ -13,7 +13,6 @@ from textual.containers import Vertical, VerticalScroll
 from textual.worker import Worker, WorkerState
 from textual.widgets import Input, OptionList, Static
 
-from sase.ace.agent_query import machine_query_term
 from sase.ace.tui.actions.clipboard import schedule_copy_delivery
 from sase.ace.tui.keymaps import (
     MachinesPaneKeymaps,
@@ -203,7 +202,18 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
         if row is None:
             self.notify("No machine selected", severity="warning")
             return
-        query = machine_query_term("here" if row.kind == "here" else row.alias)
+        machine_name = "here" if row.kind == "here" else row.alias
+        from sase.ace.tui.models.agent_live_query_engine import (
+            agents_live_property_query_term,
+            agents_unified_query_enabled,
+        )
+
+        if agents_unified_query_enabled():
+            query = agents_live_property_query_term("machine", machine_name)
+        else:
+            from sase.ace.agent_query import machine_query_term
+
+            query = machine_query_term(machine_name)
         app: Any = self.app
         app.current_tab = "agents"
         app._agent_search_query = query

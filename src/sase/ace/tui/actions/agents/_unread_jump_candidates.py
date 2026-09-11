@@ -72,6 +72,7 @@ class AgentUnreadJumpCandidatesMixin:
             getattr(self, "_grouping_mode", None),
             bool(getattr(self, "_agent_panels_grouped", False)),
             getattr(self, "_agent_search_query", "") or "",
+            id(getattr(self, "_agents_live_query_facade", None)),
             id(getattr(self, "_agent_content_search_index", None)),
             status_signature,
         )

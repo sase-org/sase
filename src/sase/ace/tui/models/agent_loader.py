@@ -497,35 +497,29 @@ def load_tiered_agents(
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load agents through the TUI tiered artifact path."""
 
-    from sase.ace.agent_query.pushdown import (
-        AgentQueryPushdownPlan,
-        compile_agent_query_pushdown,
-    )
     from .agent_live_query_engine import agents_unified_query_enabled
 
-    if search_query and agents_unified_query_enabled():
-        # The legacy pushdown compiler must never see agents-live dialect
-        # strings (sase-zf.2): its closed key allowlist and ``age`` grammar
-        # would misparse or silently mismatch unified-only spellings. Until
-        # sase-zf.3 lands a pushdown compiler over the unified AST, any
-        # non-empty committed query takes the full-history load path — the
-        # same fallback an unsupported legacy query already takes today.
-        query_plan = AgentQueryPushdownPlan(
-            raw_query=search_query,
-            parsed_query=None,
-            candidate_filter=None,
-            window_safe=False,
-        )
+    use_unified_query = agents_unified_query_enabled()
+    if use_unified_query:
+        from .agent_live_query_pushdown import compile_agents_live_query_pushdown
+
+        live_query_plan = compile_agents_live_query_pushdown(search_query)
+        raw_query = live_query_plan.raw_query
+        window_safe = live_query_plan.window_safe
+        candidate_filter = live_query_plan.candidate_filter
+        legacy_parsed_query = None
     else:
-        query_plan = compile_agent_query_pushdown(search_query)
-    effective_full_history = full_history or (
-        bool(query_plan.raw_query) and not query_plan.window_safe
-    )
+        from sase.ace.agent_query.pushdown import compile_agent_query_pushdown
+
+        legacy_query_plan = compile_agent_query_pushdown(search_query)
+        raw_query = legacy_query_plan.raw_query
+        window_safe = legacy_query_plan.window_safe
+        candidate_filter = legacy_query_plan.candidate_filter
+        legacy_parsed_query = legacy_query_plan.parsed_query
+    effective_full_history = full_history or (bool(raw_query) and not window_safe)
     effective_limit = (
         requested_limit
-        if requested_limit is not None
-        and not effective_full_history
-        and query_plan.window_safe
+        if requested_limit is not None and not effective_full_history and window_safe
         else None
     )
     result = _load_agents_with_load_state(
@@ -534,15 +528,22 @@ def load_tiered_agents(
         use_artifact_index=use_artifact_index,
         index_freshness=index_freshness,
         requested_limit=effective_limit,
-        candidate_filter=query_plan.candidate_filter if effective_limit else None,
+        candidate_filter=candidate_filter if effective_limit else None,
     )
     agents = _normalize_loaded_agents(result.agents, result.workflow_agent_steps)
     if effective_limit is not None and result.state.bounded_prefix:
-        agents, filtered_count = _filter_and_cap_windowed_agents(
-            agents,
-            query_plan.parsed_query,
-            effective_limit,
-        )
+        if use_unified_query and raw_query:
+            agents, filtered_count = _filter_and_cap_windowed_agents_live(
+                agents,
+                raw_query,
+                effective_limit,
+            )
+        else:
+            agents, filtered_count = _filter_and_cap_windowed_agents(
+                agents,
+                legacy_parsed_query,
+                effective_limit,
+            )
         state = replace(
             result.state,
             returned_count=len(agents),
@@ -573,6 +574,23 @@ def _filter_and_cap_windowed_agents(
             for agent in filtered
             if evaluate_agent_query(query_expr, agent, now=now, content_cache=None)
         ]
+    return filtered[: max(1, requested_limit)], len(filtered)
+
+
+def _filter_and_cap_windowed_agents_live(
+    agents: list[Agent],
+    raw_query: str,
+    requested_limit: int,
+) -> tuple[list[Agent], int]:
+    """Apply exact ``agents-live`` query semantics and cap a bounded prefix."""
+    from sase.project_display_names import attach_project_display_names
+
+    attach_project_display_names(agents)
+    from .agent_live_query_engine import apply_agents_live_query_filter
+
+    filtered, _facade, error = apply_agents_live_query_filter(raw_query, agents)
+    if error is not None:
+        filtered = list(agents)
     return filtered[: max(1, requested_limit)], len(filtered)
 
 

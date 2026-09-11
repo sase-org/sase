@@ -48,8 +48,20 @@ class AgentSearchQuerySeedMixin:
         display_name = (getattr(current, "display_name", None) or "").strip()
         if not display_name:
             return False
-        from sase.ace.agent_query import project_query_term
+        from ...models.agent_live_query_engine import agents_unified_query_enabled
 
-        self._agent_search_query = project_query_term(display_name)
+        if agents_unified_query_enabled():
+            from ...models.agent_live_query_engine import (
+                agents_live_property_query_term,
+            )
+
+            self._agent_search_query = agents_live_property_query_term(
+                "project",
+                display_name,
+            )
+        else:
+            from sase.ace.agent_query import project_query_term
+
+            self._agent_search_query = project_query_term(display_name)
         self._agent_search_query_seeded = True
         return True

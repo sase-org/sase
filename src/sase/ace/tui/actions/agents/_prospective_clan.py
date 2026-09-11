@@ -141,6 +141,22 @@ def _apply_active_agent_query(owner: Any, agents: list[Agent]) -> list[Agent]:
     if not raw_query:
         return agents
 
+    from ...models.agent_live_query_engine import agents_unified_query_enabled
+
+    if agents_unified_query_enabled():
+        from ...models.agent_live_query_engine import apply_agents_live_query_filter
+
+        filtered, facade, _error = apply_agents_live_query_filter(
+            raw_query,
+            agents,
+            content_index=getattr(owner, "_agent_content_search_index", None),
+            unread_agent_ids=getattr(owner, "_unread_completed_agent_ids", ()),
+            cached_facade=getattr(owner, "_agents_live_query_facade", None),
+        )
+        if facade is not None:
+            owner._agents_live_query_facade = facade
+        return filtered
+
     cached = getattr(owner, "_agent_query_cache", None)
     parsed = cached[1] if cached is not None and cached[0] == raw_query else None
     if parsed is None:

@@ -39,6 +39,7 @@ from typing import TYPE_CHECKING
 
 from sase.ace.query.profile_reference import canonical_query_for_profile
 from sase.ace.query.profile_reference_support import ProfileQueryError
+from sase.ace.query.types import PropertyMatch, to_canonical_string
 from sase.ace.query_profile import (
     CompiledQueryProfile,
     compiled_profile_for_builtin_pane,
@@ -107,10 +108,17 @@ class AgentsLiveQueryFacade:
 
     canonical_query: str
     profile_digest: str
+    source_row_ids: frozenset[str]
     matched_row_ids: frozenset[str]
 
     def matches(self, agent: Agent) -> bool:
         return agent_live_query_row_id(agent) in self.matched_row_ids
+
+    def covers(self, agents: Iterable[Agent]) -> bool:
+        """Return whether this mask was evaluated against every given row."""
+        return all(
+            agent_live_query_row_id(agent) in self.source_row_ids for agent in agents
+        )
 
     def is_current_for(
         self, canonical_query: str, profile: CompiledQueryProfile
@@ -125,7 +133,7 @@ _AGE_HINT_RE = re.compile(r"\bage\s*(<=|>=|<|>|:)\s*(\d+[smhd])\b", re.IGNORECAS
 _TYPE_HINT_RE = re.compile(r'\btype\s*:\s*"?(workflow|run|running)"?', re.IGNORECASE)
 
 
-def legacy_token_hint(raw_query: str) -> str | None:
+def _legacy_token_hint(raw_query: str) -> str | None:
     """Return a ``try <unified-term>`` hint when *raw_query* names a retired token.
 
     Mirrors the legacy -> unified mapping table in the epic plan
@@ -150,7 +158,7 @@ def legacy_token_hint(raw_query: str) -> str | None:
 
 def augment_error_with_legacy_hint(message: str, raw_query: str) -> str:
     """Append a legacy-token replacement hint to a parse-error message."""
-    hint = legacy_token_hint(raw_query)
+    hint = _legacy_token_hint(raw_query)
     return f"{message} — {hint}" if hint else message
 
 
@@ -172,18 +180,74 @@ def evaluate_agents_live_query(
     facade = AgentsLiveQueryFacade(
         canonical_query=result.cache_key.canonical_query,
         profile_digest=index.profile.digest,
+        source_row_ids=frozenset(index.row_ids),
         matched_row_ids=frozenset(result.matched_row_ids),
     )
     return facade, None
 
 
+def agents_live_property_query_term(key: str, value: str) -> str:
+    """Build and validate one ``key:value`` term through the live profile."""
+    raw = to_canonical_string(PropertyMatch(key=key, value=value))
+    return canonical_query_for_profile(raw, agents_live_query_profile())
+
+
+def apply_agents_live_query_filter(
+    query: str,
+    agents: Iterable[Agent],
+    *,
+    content_index: AgentContentSearchIndex | None = None,
+    unread_agent_ids: Collection[AgentIdentity] = (),
+    cached_facade: AgentsLiveQueryFacade | None = None,
+    generation: int = 0,
+    profile: CompiledQueryProfile | None = None,
+) -> tuple[list[Agent], AgentsLiveQueryFacade | None, str | None]:
+    """Filter *agents* through the committed live-query mask facade."""
+    materialized = list(agents)
+    raw = (query or "").strip()
+    if not raw:
+        return materialized, None, None
+
+    compiled_profile = profile if profile is not None else agents_live_query_profile()
+    try:
+        canonical = canonical_query_for_profile(raw, compiled_profile)
+    except ProfileQueryError as exc:
+        return (
+            materialized,
+            None,
+            augment_error_with_legacy_hint(str(exc), raw),
+        )
+
+    facade = cached_facade
+    if (
+        facade is None
+        or not facade.is_current_for(canonical, compiled_profile)
+        or not facade.covers(materialized)
+    ):
+        index = build_agents_live_query_index(
+            materialized,
+            generation=generation,
+            content_index=content_index,
+            unread_agent_ids=unread_agent_ids,
+            profile=compiled_profile,
+        )
+        facade, error = evaluate_agents_live_query(raw, index)
+        if facade is None:
+            return materialized, None, error
+
+    from ._agent_tree import filter_tree_rows
+
+    return filter_tree_rows(materialized, facade.matches), facade, None
+
+
 __all__ = [
     "AGENTS_LIVE_PANE_ID",
     "AgentsLiveQueryFacade",
+    "agents_live_property_query_term",
     "agents_live_query_profile",
     "agents_unified_query_enabled",
+    "apply_agents_live_query_filter",
     "augment_error_with_legacy_hint",
     "build_agents_live_query_index",
     "evaluate_agents_live_query",
-    "legacy_token_hint",
 ]

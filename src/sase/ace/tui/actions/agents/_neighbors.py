@@ -90,6 +90,7 @@ class AgentNeighborMixin:
         current_signature = tuple(agent.identity for agent in self._agents)
         query_signature = (
             getattr(self, "_agent_search_query", "") or "",
+            id(getattr(self, "_agents_live_query_facade", None)),
             id(getattr(self, "_agent_content_search_index", None)),
         )
         dismissed_signature = (
