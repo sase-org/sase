@@ -42,6 +42,7 @@ def create_monitor_member(
     execution_argv: Sequence[str] | None = None,
     completion_ref: str | None = None,
     profile: str | None = None,
+    policy_digest: str | None = None,
 ) -> str:
     """Create a monitor family member's artifacts directory.
 
@@ -86,6 +87,8 @@ def create_monitor_member(
         monitor_metadata["monitor_completion_ref"] = completion_ref
     if profile:
         monitor_metadata["monitor_profile"] = profile
+    if policy_digest:
+        monitor_metadata["monitor_policy_digest"] = policy_digest
 
     return create_family_shell_member(
         project_name,

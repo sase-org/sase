@@ -41,6 +41,7 @@ from sase.monitor.start import (
     DEFAULT_TAIL_LINES,
     DEFAULT_TIMEOUT_SECONDS,
 )
+from sase.monitor.profiles import resolve_monitor_profile
 from sase.monitor_status import MONITOR_STATUS_MAX_CHARS, clamp_monitor_status
 
 from .monitor_render import (
@@ -61,12 +62,12 @@ _FOLLOW_POLL_SECONDS = 0.5
 _MISSING_START_STATUS = (
     "sase monitor start: -s/--start-status is required -- give the label shown while the "
     "command runs (present tense, e.g. TESTING), and pair it with -S/--stop-status (e.g. "
-    "TESTED). Max 20 characters."
+    "TESTED), or pass -p/--profile verify. Max 20 characters."
 )
 _MISSING_STOP_STATUS = (
     "sase monitor start: -S/--stop-status is required -- give the label shown when the "
     "command finishes (past tense, e.g. TESTED), and pair it with -s/--start-status (e.g. "
-    "TESTING). Max 20 characters."
+    "TESTING), or pass -p/--profile verify. Max 20 characters."
 )
 _MODEL_WITHOUT_NEXT = (
     "sase monitor start: -m/--model requires -n/--next -- no follow-up agent would "
@@ -208,15 +209,6 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         print("sase monitor start: -r/--reason must not be empty", file=sys.stderr)
         return 2
 
-    raw_start_status = getattr(args, "start_status", None)
-    raw_stop_status = getattr(args, "stop_status", None)
-    if raw_start_status is None:
-        print(_MISSING_START_STATUS, file=sys.stderr)
-        return 2
-    if raw_stop_status is None:
-        print(_MISSING_STOP_STATUS, file=sys.stderr)
-        return 2
-
     next_action = getattr(args, "next", None)
     next_model = _optional_text(getattr(args, "model", None))
     if next_model and not _optional_text(next_action):
@@ -230,6 +222,28 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
+    profile_config = resolve_monitor_profile(profile)
+    if profile and profile_config is None:
+        print(f"sase monitor start: unknown -p/--profile {profile!r}", file=sys.stderr)
+        return 2
+    raw_start_status = getattr(args, "start_status", None) or (
+        profile_config.start_status if profile_config is not None else None
+    )
+    raw_stop_status = getattr(args, "stop_status", None) or (
+        profile_config.stop_status if profile_config is not None else None
+    )
+    if raw_start_status is None:
+        print(_MISSING_START_STATUS, file=sys.stderr)
+        return 2
+    if raw_stop_status is None:
+        print(_MISSING_STOP_STATUS, file=sys.stderr)
+        return 2
+    raw_next_output = getattr(args, "next_output", None)
+    next_output = (
+        raw_next_output
+        or (profile_config.next_output if profile_config is not None else None)
+        or DEFAULT_NEXT_OUTPUT
+    )
     completion_ref = _optional_text(getattr(args, "completion", None))
 
     try:
@@ -297,7 +311,7 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         stop_status=stop_status,
         tail_lines=getattr(args, "tail_lines", None) or DEFAULT_TAIL_LINES,
         idle_timeout_seconds=idle_timeout_seconds,
-        next_output=getattr(args, "next_output", None) or DEFAULT_NEXT_OUTPUT,
+        next_output=next_output,
         completion_ref=completion_ref,
         profile=profile,
         policy_digest=policy_digest,

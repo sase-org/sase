@@ -107,6 +107,9 @@ class MonitorRecord:
     next_action: str | None = None
     next_model: str | None = None
     next_output: str = DEFAULT_NEXT_OUTPUT
+    completion_ref: str | None = None
+    profile: str | None = None
+    policy_digest: str | None = None
     pid: int | None = None
     exit_code: int | None = None
     elapsed_seconds: float | None = None
@@ -122,6 +125,16 @@ class MonitorRecord:
     followup_error: str | None = None
     followup_degraded_reason: str | None = None
     followup_prompt_path: str | None = None
+    diagnostic_manifest_ref: str | None = None
+    retained_log_ref: str | None = None
+    monitor_result_id: str | None = None
+    monitor_result_ref: str | None = None
+    continuation_node_ref: str | None = None
+    continuation_manifest_ref: str | None = None
+    budget_decision_path: str | None = None
+    host_completion_status: str | None = None
+    host_completion_message: str | None = None
+    host_completion_reason: str | None = None
 
     @property
     def status_bucket(self) -> str:
@@ -194,12 +207,32 @@ class MonitorRecord:
         followup_prompt_path = (
             done_shell.followup_prompt_path if done_shell is not None else None
         ) or meta_shell.followup_prompt_path
+        host_completion_status = (
+            done_shell.host_completion_status if done_shell is not None else None
+        ) or meta_shell.host_completion_status
+        host_completion_message = (
+            done_shell.host_completion_message if done_shell is not None else None
+        ) or meta_shell.host_completion_message
+        host_completion_reason = (
+            done_shell.host_completion_reason if done_shell is not None else None
+        ) or meta_shell.host_completion_reason
 
         status_pair: MonitorStatusPair = monitor_status_pair(
             meta_shell.start_status, meta_shell.stop_status
         )
 
         command = meta_monitor.command if meta_monitor is not None else None
+        diagnostic_manifest_ref = _done_first(
+            done, meta, "monitor_diagnostic_manifest_ref"
+        )
+        retained_log_ref = _done_first(done, meta, "monitor_retained_log_ref")
+        monitor_result_id = _done_first(done, meta, "continuation_monitor_result_id")
+        monitor_result_ref = _done_first(done, meta, "continuation_monitor_result_ref")
+        continuation_node_ref = _done_first(done, meta, "continuation_node_ref")
+        continuation_manifest_ref = _done_first(done, meta, "continuation_manifest_ref")
+        budget_decision_path = _done_first(
+            done, meta, "continuation_budget_decision_path"
+        ) or _done_first(done, meta, "monitor_followup_budget_decision_path")
         return cls(
             monitor_id=meta_shell.id,
             member_agent_name=meta.name or "",
@@ -224,6 +257,9 @@ class MonitorRecord:
             next_action=meta_shell.next_action or None,
             next_model=meta_shell.next_model or None,
             next_output=meta_shell.next_output or LEGACY_NEXT_OUTPUT,
+            completion_ref=meta_shell.completion_ref or None,
+            profile=meta_shell.profile or None,
+            policy_digest=meta_shell.policy_digest or None,
             pid=meta.pid,
             exit_code=exit_code,
             elapsed_seconds=elapsed_seconds,
@@ -243,7 +279,32 @@ class MonitorRecord:
             followup_error=followup_error,
             followup_degraded_reason=followup_degraded_reason,
             followup_prompt_path=followup_prompt_path,
+            diagnostic_manifest_ref=diagnostic_manifest_ref,
+            retained_log_ref=retained_log_ref,
+            monitor_result_id=monitor_result_id,
+            monitor_result_ref=monitor_result_ref,
+            continuation_node_ref=continuation_node_ref,
+            continuation_manifest_ref=continuation_manifest_ref,
+            budget_decision_path=budget_decision_path,
+            host_completion_status=host_completion_status,
+            host_completion_message=host_completion_message,
+            host_completion_reason=host_completion_reason,
         )
+
+
+def _done_first(
+    done: DoneMarkerWire | None,
+    meta: AgentMetaWire | None,
+    field_name: str,
+) -> str | None:
+    """Return a string marker field, preferring terminal ``done.json``."""
+    for source in (done, meta):
+        if source is None:
+            continue
+        value = getattr(source, field_name, None)
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
 __all__ = [

@@ -182,6 +182,46 @@ def build_done_agent_from_record(
                 if done_monitor_shell is not None
                 else None
             ),
+            monitor_followup_agent=(
+                done_monitor_shell.followup_agent
+                if done_monitor_shell is not None
+                else None
+            ),
+            monitor_followup_degraded_reason=(
+                done_monitor_shell.followup_degraded_reason
+                if done_monitor_shell is not None
+                else None
+            ),
+            monitor_followup_prompt_path=(
+                done_monitor_shell.followup_prompt_path
+                if done_monitor_shell is not None
+                else None
+            ),
+            monitor_host_completion_status=(
+                done_monitor_shell.host_completion_status
+                if done_monitor_shell is not None
+                else None
+            ),
+            monitor_host_completion_message=(
+                done_monitor_shell.host_completion_message
+                if done_monitor_shell is not None
+                else None
+            ),
+            monitor_host_completion_reason=(
+                done_monitor_shell.host_completion_reason
+                if done_monitor_shell is not None
+                else None
+            ),
+            monitor_diagnostic_manifest_ref=done.monitor_diagnostic_manifest_ref,
+            monitor_retained_log_ref=done.monitor_retained_log_ref,
+            continuation_monitor_result_id=done.continuation_monitor_result_id,
+            continuation_monitor_result_ref=done.continuation_monitor_result_ref,
+            continuation_node_ref=done.continuation_node_ref,
+            continuation_manifest_ref=done.continuation_manifest_ref,
+            monitor_budget_decision_path=(
+                done.continuation_budget_decision_path
+                or done.monitor_followup_budget_decision_path
+            ),
         )
     elif outcome == "gated":
         apply_gate_done(

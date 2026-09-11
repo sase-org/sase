@@ -174,9 +174,21 @@ class AgentState:
     monitor_cwd: str | None = None
     monitor_reason: str | None = None
     monitor_next_action: str | None = None
+    monitor_next_output: str | None = None
+    monitor_next_model: str | None = None
+    monitor_completion_ref: str | None = None
+    monitor_profile: str | None = None
+    monitor_policy_digest: str | None = None
     monitor_timeout_seconds: float | None = None
     monitor_idle_timeout_seconds: float | None = None
     monitor_output_truncated: bool = False
+    monitor_diagnostic_manifest_ref: str | None = None
+    monitor_retained_log_ref: str | None = None
+    continuation_monitor_result_id: str | None = None
+    continuation_monitor_result_ref: str | None = None
+    continuation_node_ref: str | None = None
+    continuation_manifest_ref: str | None = None
+    monitor_budget_decision_path: str | None = None
 
     # Follow-up (``--next``) launch disposition, set once the monitor
     # settles. ``monitor_followup_error`` is the human-readable reason a
@@ -186,6 +198,12 @@ class AgentState:
     # finished.
     monitor_followup_outcome: str | None = None
     monitor_followup_error: str | None = None
+    monitor_followup_agent: str | None = None
+    monitor_followup_degraded_reason: str | None = None
+    monitor_followup_prompt_path: str | None = None
+    monitor_host_completion_status: str | None = None
+    monitor_host_completion_message: str | None = None
+    monitor_host_completion_reason: str | None = None
 
     # Gate-member projection. Gate rows are ordinary agent-family members whose
     # work is a durable human decision rather than an LLM turn.

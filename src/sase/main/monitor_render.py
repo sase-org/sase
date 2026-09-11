@@ -15,6 +15,15 @@ from rich.text import Text
 from sase.core.time import get_timezone
 from sase.monitor.models import MonitorRecord
 from sase.monitor.naming import short_monitor_id
+from sase.monitor.presentation import (
+    monitor_context_budget_object,
+    monitor_continuation_object,
+    monitor_evidence_object,
+    monitor_evidence_summary,
+    monitor_next_summary,
+    monitor_result_object,
+    monitor_result_summary,
+)
 from sase.monitor_state import MONITOR_TIMEOUT_GLYPH
 from sase.monitor_status import (
     MonitorStatusPair,
@@ -26,7 +35,7 @@ from sase.monitor_status import (
 )
 
 # Bumped only when the JSON payloads below change incompatibly.
-MONITOR_JSON_SCHEMA_VERSION = 2
+MONITOR_JSON_SCHEMA_VERSION = 3
 
 STATUS_DISPLAY: dict[str, tuple[str, str]] = {
     "running": ("●", "bold green"),
@@ -194,6 +203,9 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "settled": record.settled,
         "next_action": record.next_action,
         "next_model": record.next_model,
+        "completion_ref": record.completion_ref,
+        "profile": record.profile,
+        "policy_digest": record.policy_digest,
         "pid": record.pid,
         "exit_code": record.exit_code,
         "elapsed_seconds": _duration_seconds(record),
@@ -204,6 +216,20 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "followup_outcome": record.followup_outcome,
         "followup_error": record.followup_error,
         "followup_degraded_reason": record.followup_degraded_reason,
+        "followup_prompt_path": record.followup_prompt_path,
+        "diagnostic_manifest_ref": record.diagnostic_manifest_ref,
+        "retained_log_ref": record.retained_log_ref,
+        "monitor_result_id": record.monitor_result_id,
+        "monitor_result_ref": record.monitor_result_ref,
+        "continuation_node_ref": record.continuation_node_ref,
+        "continuation_manifest_ref": record.continuation_manifest_ref,
+        "host_completion_status": record.host_completion_status,
+        "host_completion_message": record.host_completion_message,
+        "host_completion_reason": record.host_completion_reason,
+        "result": _result_object(record),
+        "evidence": _evidence_object(record),
+        "continuation": _continuation_object(record),
+        "context_budget": _context_budget_object(record),
     }
 
 
@@ -228,13 +254,16 @@ def monitor_show_json(
     evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the stable ``sase monitor show`` JSON envelope."""
+    monitor = _monitor_json(record)
+    if evidence is not None:
+        monitor["evidence"] = _evidence_object(record, requested_output=evidence)
     payload = {
         "schema_version": MONITOR_JSON_SCHEMA_VERSION,
-        "monitor": _monitor_json(record),
+        "monitor": monitor,
         "output": output,
     }
     if evidence is not None:
-        payload["evidence"] = evidence
+        payload["output_evidence"] = evidence
     return payload
 
 
@@ -341,6 +370,45 @@ def monitor_detail(record: MonitorRecord) -> Panel:
     table.add_column("value", overflow="fold", ratio=1)
 
     rows: list[tuple[str, RenderableType]] = [
+        (
+            "Result",
+            Text(
+                monitor_result_summary(
+                    monitor_state=record.monitor_state,
+                    exit_code=record.exit_code,
+                    profile=record.profile,
+                )
+            ),
+        ),
+        (
+            "Next",
+            Text(
+                monitor_next_summary(
+                    monitor_state=record.monitor_state,
+                    next_action=record.next_action,
+                    next_model=record.next_model,
+                    followup_agent=record.followup_agent,
+                    followup_outcome=record.followup_outcome,
+                    followup_error=record.followup_error,
+                    followup_degraded_reason=record.followup_degraded_reason,
+                    completion_ref=record.completion_ref,
+                    host_completion_status=record.host_completion_status,
+                    host_completion_message=record.host_completion_message,
+                )
+            ),
+        ),
+        (
+            "Evidence",
+            Text(
+                monitor_evidence_summary(
+                    next_output=record.next_output,
+                    output_truncated=record.output_truncated,
+                    diagnostic_manifest_ref=record.diagnostic_manifest_ref,
+                    retained_log_ref=record.retained_log_ref,
+                    monitor_result_ref=record.monitor_result_ref,
+                )
+            ),
+        ),
         ("Status label", _status_pair_text(record)),
         ("Status", status_text(record.monitor_state)),
         (
@@ -357,6 +425,28 @@ def monitor_detail(record: MonitorRecord) -> Panel:
         rows.append(("Next action", Text(record.next_action)))
     if record.next_model:
         rows.append(("Next model", Text(record.next_model)))
+    if record.next_output:
+        rows.append(("Next output", Text(record.next_output)))
+    if record.profile:
+        rows.append(("Profile", Text(record.profile)))
+    if record.policy_digest:
+        rows.append(("Policy", Text(record.policy_digest)))
+    if record.completion_ref:
+        rows.append(("Completion", Text(record.completion_ref)))
+    if record.host_completion_status:
+        rows.append(("Host completion", Text(record.host_completion_status)))
+    if record.host_completion_message:
+        rows.append(("Host message", Text(record.host_completion_message)))
+    if record.diagnostic_manifest_ref:
+        rows.append(("Diagnostics", Text(record.diagnostic_manifest_ref)))
+    if record.retained_log_ref:
+        rows.append(("Retained log", Text(record.retained_log_ref)))
+    if record.monitor_result_ref:
+        rows.append(("Result ref", Text(record.monitor_result_ref)))
+    if record.continuation_node_ref:
+        rows.append(("Continuation node", Text(record.continuation_node_ref)))
+    if record.continuation_manifest_ref:
+        rows.append(("Continuation manifest", Text(record.continuation_manifest_ref)))
     rows.extend(
         [
             ("Started", Text(_relative_start(record))),
@@ -417,6 +507,55 @@ def _duration_label_seconds(seconds: float) -> str:
     from sase.ace.hooks.timestamps import format_duration
 
     return format_duration(seconds)
+
+
+def _result_object(record: MonitorRecord) -> dict[str, Any]:
+    return monitor_result_object(
+        monitor_state=record.monitor_state,
+        exit_code=record.exit_code,
+        profile=record.profile,
+    )
+
+
+def _continuation_object(record: MonitorRecord) -> dict[str, Any]:
+    return monitor_continuation_object(
+        monitor_state=record.monitor_state,
+        next_action=record.next_action,
+        next_model=record.next_model,
+        next_output=record.next_output,
+        followup_agent=record.followup_agent,
+        followup_outcome=record.followup_outcome,
+        followup_error=record.followup_error,
+        followup_degraded_reason=record.followup_degraded_reason,
+        followup_prompt_path=record.followup_prompt_path,
+        completion_ref=record.completion_ref,
+        host_completion_status=record.host_completion_status,
+        host_completion_message=record.host_completion_message,
+        host_completion_reason=record.host_completion_reason,
+        continuation_node_ref=record.continuation_node_ref,
+        continuation_manifest_ref=record.continuation_manifest_ref,
+    )
+
+
+def _evidence_object(
+    record: MonitorRecord,
+    requested_output: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return monitor_evidence_object(
+        next_output=record.next_output,
+        output_truncated=record.output_truncated,
+        diagnostic_manifest_ref=record.diagnostic_manifest_ref,
+        retained_log_ref=record.retained_log_ref,
+        monitor_result_id=record.monitor_result_id,
+        monitor_result_ref=record.monitor_result_ref,
+        requested_output=requested_output,
+    )
+
+
+def _context_budget_object(record: MonitorRecord) -> dict[str, Any]:
+    return monitor_context_budget_object(
+        budget_decision_path=record.budget_decision_path
+    )
 
 
 __all__ = [

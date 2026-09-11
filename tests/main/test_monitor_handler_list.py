@@ -177,7 +177,7 @@ def test_list_json_envelope_is_stable(
     assert dispatch(["monitor", "list", "--json"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["count"] == 1
     assert payload["scope"] == {
         "all": False,
@@ -198,6 +198,9 @@ def test_list_json_envelope_is_stable(
     assert monitor["status_accent"] == "#F8AD08"
     assert monitor["status_bucket"] == "Running"
     assert monitor["next_model"] is None
+    assert monitor["result"]["summary"] == "Command running"
+    assert monitor["evidence"]["summary"] == "tail - retained output tail"
+    assert monitor["continuation"]["summary"] == "None"
     assert monitor["is_terminal"] is False
 
 

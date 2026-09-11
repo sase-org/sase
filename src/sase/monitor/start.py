@@ -223,6 +223,7 @@ def _start_monitor_locked(
         execution_argv=request.execution_argv,
         completion_ref=request.completion_ref,
         profile=request.profile,
+        policy_digest=request.policy_digest,
     )
     log_path = monitor_log_path(artifacts_dir)
     update_meta_field(artifacts_dir, "monitor_output_path", str(log_path))
@@ -363,6 +364,9 @@ def _start_monitor_locked(
         monitor_state="running",
         next_action=request.next_action or None,
         next_model=request.next_model or None,
+        completion_ref=request.completion_ref or None,
+        profile=request.profile or None,
+        policy_digest=request.policy_digest or None,
         pid=proc.pid or claim_holder.get("pid"),
         supervisor_identity=proc.supervisor_id,
         request_fingerprint=request_fingerprint,

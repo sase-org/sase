@@ -75,15 +75,19 @@ def test_detail_pair_row_shows_the_inactive_half_dim() -> None:
     assert str(done.spans[-1].style) == _TESTING_ACCENT
 
 
-def test_detail_panel_puts_status_label_above_raw_state() -> None:
+def test_detail_panel_puts_compact_result_above_status_label() -> None:
     record = _record(monitor_state="running")
     buf = StringIO()
     Console(file=buf, force_terminal=False, color_system=None, width=80).print(
         monitor_detail(record)
     )
     out = buf.getvalue()
+    result_at = out.index("Result")
+    next_at = out.index("Next")
+    evidence_at = out.index("Evidence")
     label_at = out.index("Status label")
     status_at = out.index("Status", label_at + len("Status label"))
+    assert result_at < next_at < evidence_at < label_at
     assert label_at < status_at
     assert "TESTING" in out
     assert "TESTED" in out
@@ -113,10 +117,10 @@ def test_markdown_substitutes_the_effective_label() -> None:
     assert "⚑" in flagged
 
 
-def test_json_envelope_includes_status_label_accent_and_schema_v2() -> None:
-    assert MONITOR_JSON_SCHEMA_VERSION == 2
+def test_json_envelope_includes_status_label_accent_and_schema_v3() -> None:
+    assert MONITOR_JSON_SCHEMA_VERSION == 3
     payload = monitor_list_json([_record(monitor_state="running")], scope={})
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     monitor = payload["monitors"][0]
     assert monitor["start_status"] == "TESTING"
     assert monitor["stop_status"] == "TESTED"
@@ -124,6 +128,16 @@ def test_json_envelope_includes_status_label_accent_and_schema_v2() -> None:
     assert monitor["status_accent"] == _TESTING_ACCENT
     assert monitor["monitor_state"] == "running"
     assert monitor["next_model"] is None
+    assert monitor["result"] == {
+        "state": "running",
+        "exit_code": None,
+        "profile": None,
+        "summary": "Command running",
+    }
+    assert monitor["evidence"]["mode"] == "auto"
+    assert monitor["evidence"]["summary"] == "auto - outcome-aware evidence"
+    assert monitor["continuation"]["summary"] == "None"
+    assert monitor["context_budget"]["summary"] == "Inherited"
 
     done = monitor_list_json([_record(monitor_state="failed", settled=True)], scope={})[
         "monitors"

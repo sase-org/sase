@@ -41,6 +41,19 @@ monitor, pipe, or questions handoff is exempt.
 - Successfully executed handoffs through plan, monitor, pipe, or questions terminate the
   runner mechanically and do not need this skill.
 
+## Prepared Monitor Completion
+
+`sase final prepare <manifest>` publishes a prepared host-completion intent reference
+for monitor workflows. It does not submit a final declaration, commit, or end the turn.
+Bind the returned ref to a verification monitor explicitly, for example:
+
+```bash
+sase monitor start -p verify -f <ref> -r 'Verify before host completion' -- just check
+```
+
+The `verify` profile only supplies labels and evidence defaults; the `-f/--completion`
+ref is what authorizes a successful monitor result to hand completion back to the host.
+
 ## Steps
 
 1. Get the current host-issued context:

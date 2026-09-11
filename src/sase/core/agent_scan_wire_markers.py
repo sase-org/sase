@@ -106,6 +106,14 @@ class DoneMarkerWire:
     imported_source_owner: dict[str, Any] | None = None
     status_label: str | None = None
     family_shell: FamilyShellWire | None = None
+    monitor_diagnostic_manifest_ref: str | None = None
+    monitor_retained_log_ref: str | None = None
+    continuation_monitor_result_id: str | None = None
+    continuation_monitor_result_ref: str | None = None
+    continuation_node_ref: str | None = None
+    continuation_manifest_ref: str | None = None
+    continuation_budget_decision_path: str | None = None
+    monitor_followup_budget_decision_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -204,6 +212,14 @@ class AgentMetaWire:
     retry_error_category: str | None = None
     status_bucket: str | None = None
     family_shell: FamilyShellWire | None = None
+    monitor_diagnostic_manifest_ref: str | None = None
+    monitor_retained_log_ref: str | None = None
+    continuation_monitor_result_id: str | None = None
+    continuation_monitor_result_ref: str | None = None
+    continuation_node_ref: str | None = None
+    continuation_manifest_ref: str | None = None
+    continuation_budget_decision_path: str | None = None
+    monitor_followup_budget_decision_path: str | None = None
     shell_kind: str | None = None
     proc_id: str | None = None
 

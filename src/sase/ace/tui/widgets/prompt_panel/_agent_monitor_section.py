@@ -8,6 +8,11 @@ from rich.text import Text
 
 from sase.ace.hooks.timestamps import format_duration
 from sase.monitor.naming import short_monitor_id
+from sase.monitor.presentation import (
+    monitor_evidence_summary,
+    monitor_next_summary,
+    monitor_result_summary,
+)
 from sase.monitor_state import (
     MONITOR_GLYPH,
     MONITOR_GLYPH_COLOR,
@@ -77,6 +82,52 @@ def _monitor_output_source_id(agent: Agent) -> str:
     return f"monitor:{agent.monitor_id or agent.identity}"
 
 
+def _summary_style(summary: str) -> str:
+    if summary.startswith("Needs attention"):
+        return "bold yellow"
+    if summary.startswith("Finalizing") or summary.startswith("Continuing"):
+        return "bold cyan"
+    if "failed" in summary or "timed out" in summary or "unknown" in summary:
+        return "bold red"
+    if "passed" in summary or "completed" in summary:
+        return "bold green"
+    return COLOR_REASON
+
+
+def _append_compact_rows(text: Text, agent: Agent) -> None:
+    result = monitor_result_summary(
+        monitor_state=agent.monitor_state,
+        exit_code=agent.monitor_exit_code,
+        profile=agent.monitor_profile,
+    )
+    next_summary = monitor_next_summary(
+        monitor_state=agent.monitor_state,
+        next_action=agent.monitor_next_action,
+        next_model=agent.monitor_next_model,
+        followup_agent=agent.monitor_followup_agent,
+        followup_outcome=agent.monitor_followup_outcome,
+        followup_error=agent.monitor_followup_error,
+        followup_degraded_reason=agent.monitor_followup_degraded_reason,
+        completion_ref=agent.monitor_completion_ref,
+        host_completion_status=agent.monitor_host_completion_status,
+        host_completion_message=agent.monitor_host_completion_message,
+    )
+    evidence = monitor_evidence_summary(
+        next_output=agent.monitor_next_output,
+        output_truncated=agent.monitor_output_truncated,
+        diagnostic_manifest_ref=agent.monitor_diagnostic_manifest_ref,
+        retained_log_ref=agent.monitor_retained_log_ref,
+        monitor_result_ref=agent.continuation_monitor_result_ref,
+    )
+    for label, value in (
+        ("Result:", result),
+        ("Next:", next_summary),
+        ("Evidence:", evidence),
+    ):
+        text.append(_field_label(label), style=COLOR_SUMMARY)
+        text.append(f"{value}\n", style=_summary_style(value))
+
+
 def _monitor_field_parts(
     agent: Agent,
     *,
@@ -86,6 +137,7 @@ def _monitor_field_parts(
     """Return the MONITOR field block currently after the fold heading."""
     parts: list[object] = []
     text = prefix if prefix is not None else Text(end="")
+    _append_compact_rows(text, agent)
 
     if agent.monitor_command:
         text.append(_field_label("Command:") + "\n", style=COLOR_SUMMARY)
@@ -105,6 +157,21 @@ def _monitor_field_parts(
     if agent.monitor_next_action:
         text.append(_field_label("Next action:"), style=COLOR_SUMMARY)
         text.append(f"{agent.monitor_next_action}\n", style=COLOR_REASON)
+    if agent.monitor_next_model:
+        text.append(_field_label("Next model:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_next_model}\n", style=COLOR_REASON)
+    if agent.monitor_next_output:
+        text.append(_field_label("Next output:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_next_output}\n", style=COLOR_REASON)
+    if agent.monitor_profile:
+        text.append(_field_label("Profile:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_profile}\n", style=COLOR_REASON)
+    if agent.monitor_policy_digest:
+        text.append(_field_label("Policy:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_policy_digest}\n", style=COLOR_REASON)
+    if agent.monitor_completion_ref:
+        text.append(_field_label("Completion:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_completion_ref}\n", style=COLOR_REASON)
 
     text.append(_field_label("Status:"), style=COLOR_SUMMARY)
     text.append_text(_status_pair_text(agent))
@@ -138,6 +205,25 @@ def _monitor_field_parts(
             f"sase monitor show {short_monitor_id(agent.monitor_id)} --follow\n",
             style=COLOR_EMPTY,
         )
+
+    if agent.monitor_followup_error:
+        text.append(_field_label("Follow-up:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_followup_error}\n", style="bold yellow")
+    if agent.monitor_followup_degraded_reason:
+        text.append(_field_label("Degraded:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_followup_degraded_reason}\n", style="bold yellow")
+    if agent.monitor_host_completion_status:
+        text.append(_field_label("Host final:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_host_completion_status}\n", style=COLOR_REASON)
+    if agent.monitor_diagnostic_manifest_ref:
+        text.append(_field_label("Diagnostics:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_diagnostic_manifest_ref}\n", style=COLOR_REASON)
+    if agent.continuation_monitor_result_ref:
+        text.append(_field_label("Result ref:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.continuation_monitor_result_ref}\n", style=COLOR_REASON)
+    if agent.continuation_node_ref:
+        text.append(_field_label("Node ref:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.continuation_node_ref}\n", style=COLOR_REASON)
 
     parts.append(text)
     return parts

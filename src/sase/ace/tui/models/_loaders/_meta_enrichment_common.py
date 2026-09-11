@@ -57,11 +57,29 @@ def apply_monitor_meta(
     monitor_cwd: object = None,
     monitor_reason: object = None,
     monitor_next_action: object = None,
+    monitor_next_output: object = None,
+    monitor_next_model: object = None,
+    monitor_completion_ref: object = None,
+    monitor_profile: object = None,
+    monitor_policy_digest: object = None,
     monitor_timeout_seconds: object = None,
     monitor_idle_timeout_seconds: object = None,
     monitor_output_truncated: object = None,
+    monitor_diagnostic_manifest_ref: object = None,
+    monitor_retained_log_ref: object = None,
+    continuation_monitor_result_id: object = None,
+    continuation_monitor_result_ref: object = None,
+    continuation_node_ref: object = None,
+    continuation_manifest_ref: object = None,
+    monitor_budget_decision_path: object = None,
     monitor_followup_outcome: object = None,
     monitor_followup_error: object = None,
+    monitor_followup_agent: object = None,
+    monitor_followup_degraded_reason: object = None,
+    monitor_followup_prompt_path: object = None,
+    monitor_host_completion_status: object = None,
+    monitor_host_completion_message: object = None,
+    monitor_host_completion_reason: object = None,
     monitor_member: bool,
 ) -> None:
     """Apply monitor fields from ``agent_meta.json`` to one row."""
@@ -89,6 +107,21 @@ def apply_monitor_meta(
     agent.monitor_next_action = (
         monitor_next_action if isinstance(monitor_next_action, str) else None
     )
+    agent.monitor_next_output = (
+        monitor_next_output if isinstance(monitor_next_output, str) else None
+    )
+    agent.monitor_next_model = (
+        monitor_next_model if isinstance(monitor_next_model, str) else None
+    )
+    agent.monitor_completion_ref = (
+        monitor_completion_ref if isinstance(monitor_completion_ref, str) else None
+    )
+    agent.monitor_profile = (
+        monitor_profile if isinstance(monitor_profile, str) else None
+    )
+    agent.monitor_policy_digest = (
+        monitor_policy_digest if isinstance(monitor_policy_digest, str) else None
+    )
     if isinstance(monitor_timeout_seconds, (int, float)) and not isinstance(
         monitor_timeout_seconds, bool
     ):
@@ -98,11 +131,38 @@ def apply_monitor_meta(
     ):
         agent.monitor_idle_timeout_seconds = float(monitor_idle_timeout_seconds)
     agent.monitor_output_truncated = bool(monitor_output_truncated)
+    agent.monitor_diagnostic_manifest_ref = _string_or_none(
+        monitor_diagnostic_manifest_ref
+    )
+    agent.monitor_retained_log_ref = _string_or_none(monitor_retained_log_ref)
+    agent.continuation_monitor_result_id = _string_or_none(
+        continuation_monitor_result_id
+    )
+    agent.continuation_monitor_result_ref = _string_or_none(
+        continuation_monitor_result_ref
+    )
+    agent.continuation_node_ref = _string_or_none(continuation_node_ref)
+    agent.continuation_manifest_ref = _string_or_none(continuation_manifest_ref)
+    agent.monitor_budget_decision_path = _string_or_none(monitor_budget_decision_path)
     agent.monitor_followup_outcome = (
         monitor_followup_outcome if isinstance(monitor_followup_outcome, str) else None
     )
     agent.monitor_followup_error = (
         monitor_followup_error if isinstance(monitor_followup_error, str) else None
+    )
+    agent.monitor_followup_agent = _string_or_none(monitor_followup_agent)
+    agent.monitor_followup_degraded_reason = _string_or_none(
+        monitor_followup_degraded_reason
+    )
+    agent.monitor_followup_prompt_path = _string_or_none(monitor_followup_prompt_path)
+    agent.monitor_host_completion_status = _string_or_none(
+        monitor_host_completion_status
+    )
+    agent.monitor_host_completion_message = _string_or_none(
+        monitor_host_completion_message
+    )
+    agent.monitor_host_completion_reason = _string_or_none(
+        monitor_host_completion_reason
     )
     if not monitor_member:
         return
@@ -122,6 +182,19 @@ def apply_monitor_done(
     status_label: object,
     monitor_followup_outcome: object = None,
     monitor_followup_error: object = None,
+    monitor_followup_agent: object = None,
+    monitor_followup_degraded_reason: object = None,
+    monitor_followup_prompt_path: object = None,
+    monitor_host_completion_status: object = None,
+    monitor_host_completion_message: object = None,
+    monitor_host_completion_reason: object = None,
+    monitor_diagnostic_manifest_ref: object = None,
+    monitor_retained_log_ref: object = None,
+    continuation_monitor_result_id: object = None,
+    continuation_monitor_result_ref: object = None,
+    continuation_node_ref: object = None,
+    continuation_manifest_ref: object = None,
+    monitor_budget_decision_path: object = None,
 ) -> None:
     """Apply terminal monitor fields from ``done.json`` to one row."""
     state = monitor_state if isinstance(monitor_state, str) else agent.monitor_state
@@ -139,6 +212,54 @@ def apply_monitor_done(
         agent.monitor_followup_outcome = monitor_followup_outcome
     if isinstance(monitor_followup_error, str) and monitor_followup_error:
         agent.monitor_followup_error = monitor_followup_error
+    if isinstance(monitor_followup_agent, str) and monitor_followup_agent:
+        agent.monitor_followup_agent = monitor_followup_agent
+    if (
+        isinstance(monitor_followup_degraded_reason, str)
+        and monitor_followup_degraded_reason
+    ):
+        agent.monitor_followup_degraded_reason = monitor_followup_degraded_reason
+    if isinstance(monitor_followup_prompt_path, str) and monitor_followup_prompt_path:
+        agent.monitor_followup_prompt_path = monitor_followup_prompt_path
+    if (
+        isinstance(monitor_host_completion_status, str)
+        and monitor_host_completion_status
+    ):
+        agent.monitor_host_completion_status = monitor_host_completion_status
+    if (
+        isinstance(monitor_host_completion_message, str)
+        and monitor_host_completion_message
+    ):
+        agent.monitor_host_completion_message = monitor_host_completion_message
+    if (
+        isinstance(monitor_host_completion_reason, str)
+        and monitor_host_completion_reason
+    ):
+        agent.monitor_host_completion_reason = monitor_host_completion_reason
+    _set_optional_string(
+        agent, "monitor_diagnostic_manifest_ref", monitor_diagnostic_manifest_ref
+    )
+    _set_optional_string(agent, "monitor_retained_log_ref", monitor_retained_log_ref)
+    _set_optional_string(
+        agent, "continuation_monitor_result_id", continuation_monitor_result_id
+    )
+    _set_optional_string(
+        agent, "continuation_monitor_result_ref", continuation_monitor_result_ref
+    )
+    _set_optional_string(agent, "continuation_node_ref", continuation_node_ref)
+    _set_optional_string(agent, "continuation_manifest_ref", continuation_manifest_ref)
+    _set_optional_string(
+        agent, "monitor_budget_decision_path", monitor_budget_decision_path
+    )
+
+
+def _string_or_none(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _set_optional_string(agent: Agent, field_name: str, value: object) -> None:
+    if isinstance(value, str) and value:
+        setattr(agent, field_name, value)
 
 
 def apply_gate_meta(

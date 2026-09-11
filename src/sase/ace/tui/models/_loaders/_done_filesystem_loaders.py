@@ -220,6 +220,36 @@ def load_done_agent_for_dir(
                 status_label=data.get("status_label"),
                 monitor_followup_outcome=data.get("monitor_followup_outcome"),
                 monitor_followup_error=data.get("monitor_followup_error"),
+                monitor_followup_agent=data.get("monitor_followup_agent"),
+                monitor_followup_degraded_reason=data.get(
+                    "monitor_followup_degraded_reason"
+                ),
+                monitor_followup_prompt_path=data.get("monitor_followup_prompt_path"),
+                monitor_host_completion_status=data.get(
+                    "monitor_host_completion_status"
+                ),
+                monitor_host_completion_message=data.get(
+                    "monitor_host_completion_message"
+                ),
+                monitor_host_completion_reason=data.get(
+                    "monitor_host_completion_reason"
+                ),
+                monitor_diagnostic_manifest_ref=data.get(
+                    "monitor_diagnostic_manifest_ref"
+                ),
+                monitor_retained_log_ref=data.get("monitor_retained_log_ref"),
+                continuation_monitor_result_id=data.get(
+                    "continuation_monitor_result_id"
+                ),
+                continuation_monitor_result_ref=data.get(
+                    "continuation_monitor_result_ref"
+                ),
+                continuation_node_ref=data.get("continuation_node_ref"),
+                continuation_manifest_ref=data.get("continuation_manifest_ref"),
+                monitor_budget_decision_path=(
+                    data.get("continuation_budget_decision_path")
+                    or data.get("monitor_followup_budget_decision_path")
+                ),
             )
         elif outcome == "gated":
             apply_gate_done(

@@ -126,11 +126,12 @@ def test_show_json_envelope_is_stable(
     assert dispatch(["monitor", "show", "aaabbbcccddd", "--format", "json"]) == 0
 
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["monitor"]["monitor_id"] == "aaabbbcccddd"
     assert payload["monitor"]["exit_code"] == 3
     assert payload["monitor"]["status_bucket"] == "Failed"
     assert payload["monitor"]["next_model"] is None
+    assert payload["monitor"]["result"]["summary"] == "Command failed (exit 3)"
     assert payload["output"] == "boom\n"
 
 
@@ -184,11 +185,15 @@ def test_show_renders_a_dropped_followup_error(
 
     assert dispatch(["monitor", "show", "aaabbbcccddd"]) == 0
     out = capsys.readouterr().out
+    assert "Needs attention" in out
     assert "workspace #10 with pid 3333672 was not found" in out
 
     assert dispatch(["monitor", "show", "aaabbbcccddd", "--format", "json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["monitor"]["followup_outcome"] == "not-launchable"
+    assert payload["monitor"]["continuation"]["summary"] == (
+        "Needs attention - workspace #10 with pid 3333672 was not found"
+    )
     assert (
         payload["monitor"]["followup_error"]
         == "workspace #10 with pid 3333672 was not found"
@@ -215,12 +220,14 @@ def test_show_renders_a_degraded_followup_reason(
 
     assert dispatch(["monitor", "show", "aaabbbcccddd"]) == 0
     out = capsys.readouterr().out
+    assert "Continuing" in out
     assert "Follow-up degraded" in out
 
     assert dispatch(["monitor", "show", "aaabbbcccddd", "--format", "json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["monitor"]["followup_outcome"] == "launched-degraded"
     assert payload["monitor"]["followup_degraded_reason"] == reason
+    assert reason in payload["monitor"]["continuation"]["summary"]
 
 
 def test_show_follow_streams_new_output_until_terminal(

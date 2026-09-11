@@ -62,7 +62,7 @@ existing agent artifact index.
 
 ```bash
 sase monitor start \
-  -s TESTING -S TESTED \
+  -p verify \
   -r 'Verify the refactor before replying to the user' \
   -t 45m \
   -n 'Fix anything just check-full reported, then reply to the user.' \
@@ -86,12 +86,15 @@ and records the wait output where the follow-up can inspect it.
 - The command is the remainder after `--` (for example `-- just check-full`). That is
   the form `sase monitor start --help` shows. `-c/--command` still works as a hidden
   compatibility alias for a single shell string, but new invocations should use `--`.
-- `-s/--start-status` and `-S/--stop-status` are **required** — the present-tense label
-  shown while the command runs (e.g. `TESTING`) and the past-tense label shown when it
-  finishes (e.g. `TESTED`). Each is capped at 20 characters; over-length values are
-  truncated with a trailing `…` and a warning. `TESTING` / `TESTED` is the pair for
-  `just check` and `just check-full`; a different kind of wait picks its own pair (for
-  example `SLEEPING FOR 300s` → `SLEPT FOR 300s`).
+- `-p/--profile verify` supplies the standard verification defaults: `TESTING` /
+  `TESTED` labels and `--next-output auto`. Profile selection alone never authorizes
+  host completion; prepared completion still requires `-f/--completion`.
+- `-s/--start-status` and `-S/--stop-status` are required when no profile supplies them
+  — the present-tense label shown while the command runs (e.g. `TESTING`) and the
+  past-tense label shown when it finishes (e.g. `TESTED`). Each is capped at 20
+  characters; over-length values are truncated with a trailing `…` and a warning.
+  `TESTING` / `TESTED` is the pair for `just check` and `just check-full`; a different
+  kind of wait picks its own pair (for example `SLEEPING FOR 300s` → `SLEPT FOR 300s`).
 - `-r/--reason` defaults to `run command`. `-t/--timeout` defaults to `1h` (bare
   seconds, or `90s` / `45m` / `2h`). Pass both when the default reason or budget would
   be misleading.
@@ -104,7 +107,7 @@ and records the wait output where the follow-up can inspect it.
 - `--model` / `-m` selects a model or alias for that follow-up (for example `opus`,
   `opus@high`, `@small`, or `codex/gpt-5`). It requires `--next`. When omitted, the
   follow-up inherits the starter's model and reasoning effort.
-- `--next-output auto|tail|file|none` controls how much retained command output is
+- `-o/--next-output auto|tail|file|none` controls how much retained command output is
   handed to the follow-up agent. `auto` is the default and selects outcome-aware
   evidence; `tail` embeds a bounded raw tail; `file` points at refs and log locators;
   `none` gives only the outcome summary and `sase monitor show --all-lines` pointer.
@@ -363,14 +366,15 @@ whole tribe, so a fully collapsed panel still reports running and completed moni
 work.
 
 Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
-section in place of the usual prompt and reply body. It shows the shell-highlighted
-`Command`, then whichever of `Cwd`, `Reason`, and `Next action` were recorded, then
-`Status` (the effective label in its pair accent, with the other half dim after a `→`)
-and `State` (a colored glyph plus the machine state name, with `(exit N)` appended once
-an exit code is known). `Timeout` reports elapsed time against the budget
-(`3m12s of 45m0s budget`), falling back to a plain `Elapsed` row for a record with no
-recorded budget, and an `--idle-timeout` adds its own `Idle timeout` row. The section
-ends with the full `Monitor id`, its short form, and the exact
+section in place of the usual prompt and reply body. It opens with compact `Result`,
+`Next`, and `Evidence` rows, then shows the shell-highlighted `Command`, whichever of
+`Cwd`, `Reason`, `Next action`, `Next model`, profile, policy, and completion fields
+were recorded, then `Status` (the effective label in its pair accent, with the other
+half dim after a `→`) and `State` (a colored glyph plus the machine state name, with
+`(exit N)` appended once an exit code is known). `Timeout` reports elapsed time against
+the budget (`3m12s of 45m0s budget`), falling back to a plain `Elapsed` row for a record
+with no recorded budget, and an `--idle-timeout` adds its own `Idle timeout` row. The
+section ends with the full `Monitor id`, its short form, and the exact
 `sase monitor show <short-id> --follow` command to stream the rest from a shell.
 
 Beneath that, an `OUTPUT` block renders the captured stdout/stderr. Because
@@ -425,7 +429,8 @@ cell (in both the table and `--format markdown` output) so a stalled handoff is 
 without `--json` plumbing; `sase monitor show <id>` prints a `Follow-up error` line for
 a dropped follow-up and a `Follow-up degraded` line for a degraded one, and both
 commands' JSON envelopes carry `followup_outcome` (`launched` / `launched-degraded` /
-`not-launchable`), `followup_error`, and `followup_degraded_reason`.
+`not-launchable`), `followup_error`, and `followup_degraded_reason`, plus versioned
+`result`, `evidence`, `continuation`, and `context_budget` objects for compact clients.
 
 Monitors themselves are notification-neutral: a monitor is an execution and handoff
 mechanism, not a workflow that files notifications, so neither a completed monitor nor a

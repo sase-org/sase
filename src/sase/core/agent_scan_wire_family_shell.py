@@ -96,6 +96,9 @@ class FamilyShellWire:
     next_action: str | None = None
     next_output: str | None = None
     next_model: str | None = None
+    completion_ref: str | None = None
+    profile: str | None = None
+    policy_digest: str | None = None
     followup_agent: str | None = None
     followup_outcome: str | None = None
     followup_error: str | None = None
@@ -106,6 +109,9 @@ class FamilyShellWire:
     followup_attempt_stage: str | None = None
     followup_error_stage: str | None = None
     followup_error_type: str | None = None
+    host_completion_status: str | None = None
+    host_completion_message: str | None = None
+    host_completion_reason: str | None = None
     monitor: FamilyShellMonitorWire | None = None
     gate: FamilyShellGateWire | None = None
 
@@ -127,6 +133,9 @@ _MONITOR_SHARED_KEYS: dict[str, str] = {
     "monitor_next_action": "next_action",
     "monitor_next_output": "next_output",
     "monitor_next_model": "next_model",
+    "monitor_completion_ref": "completion_ref",
+    "monitor_profile": "profile",
+    "monitor_policy_digest": "policy_digest",
     "monitor_followup_agent": "followup_agent",
     "monitor_followup_outcome": "followup_outcome",
     "monitor_followup_error": "followup_error",
@@ -137,6 +146,9 @@ _MONITOR_SHARED_KEYS: dict[str, str] = {
     "monitor_followup_attempt_stage": "followup_attempt_stage",
     "monitor_followup_error_stage": "followup_error_stage",
     "monitor_followup_error_type": "followup_error_type",
+    "monitor_host_completion_status": "host_completion_status",
+    "monitor_host_completion_message": "host_completion_message",
+    "monitor_host_completion_reason": "host_completion_reason",
 }
 
 _MONITOR_SPECIFIC_KEYS: dict[str, str] = {

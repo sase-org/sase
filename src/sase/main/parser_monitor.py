@@ -20,6 +20,7 @@ MONITOR_STATE_CHOICES = (
 # Mirrors ``sase.monitor.followup_prompt.NEXT_OUTPUT_CHOICES``, spelled out
 # here for the same reason.
 NEXT_OUTPUT_CHOICES = ("auto", "tail", "file", "none")
+MONITOR_PROFILE_CHOICES = ("verify",)
 
 
 def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -215,15 +216,14 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
         epilog=(
             "examples:\n"
-            "  sase monitor start -s TESTING -S TESTED -- just check-full\n"
-            "  sase monitor start -s TESTING -S TESTED -r 'verify the fix' "
+            "  sase monitor start -p verify -- just check-full\n"
+            "  sase monitor start -p verify -r 'verify the fix' "
             "-t 20m -- just check-full\n"
             "  sase monitor start -s DEPLOYING -S DEPLOYED -n 'confirm the "
             "deploy succeeded' -- ./deploy.sh\n"
-            "  sase monitor start -s TESTING -S TESTED -n 'fix failures' "
+            "  sase monitor start -p verify -n 'fix failures' "
             "-m '@small' -- just check-full\n"
-            "  sase monitor start -s TESTING -S TESTED --json -- just "
-            "check-full"
+            "  sase monitor start -p verify --json -- just check-full"
         ),
     )
     start_parser.add_argument(
@@ -311,9 +311,11 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Next action for the follow-up agent; omit for no follow-up",
     )
     start_parser.add_argument(
+        "-o",
         "--next-output",
         choices=NEXT_OUTPUT_CHOICES,
         default=None,
+        metavar="MODE",
         help=(
             "How much retained output to hand the follow-up agent: 'auto' "
             "(default) selects outcome-aware evidence, 'tail' embeds the "
@@ -332,6 +334,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     start_parser.add_argument(
         "-p",
         "--profile",
+        choices=MONITOR_PROFILE_CHOICES,
         default=None,
         metavar="NAME",
         help=(
@@ -352,8 +355,9 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="TEXT",
         help=(
-            "Required label shown while the command runs (present tense, "
-            "e.g. TESTING). Pair with -S/--stop-status. Max 20 characters"
+            "Label shown while the command runs (present tense, e.g. "
+            "TESTING). Required unless -p/--profile supplies it. Pair with "
+            "-S/--stop-status. Max 20 characters"
         ),
     )
     start_parser.add_argument(
@@ -362,8 +366,9 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         metavar="TEXT",
         help=(
-            "Required label shown when the command finishes (past tense, "
-            "e.g. TESTED). Pair with -s/--start-status. Max 20 characters"
+            "Label shown when the command finishes (past tense, e.g. "
+            "TESTED). Required unless -p/--profile supplies it. Pair with "
+            "-s/--start-status. Max 20 characters"
         ),
     )
     start_parser.add_argument(
@@ -429,4 +434,9 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     supervise_parser.add_argument("--artifacts-dir", required=True)
 
 
-__all__ = ["MONITOR_STATE_CHOICES", "NEXT_OUTPUT_CHOICES", "register_monitor_parser"]
+__all__ = [
+    "MONITOR_PROFILE_CHOICES",
+    "MONITOR_STATE_CHOICES",
+    "NEXT_OUTPUT_CHOICES",
+    "register_monitor_parser",
+]

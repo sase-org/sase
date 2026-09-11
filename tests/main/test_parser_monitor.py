@@ -58,8 +58,9 @@ def test_monitor_start_help_documents_positional_command_and_optional_policy() -
     assert "-m '@small'" in start_help
     assert "(default: 1h)" in start_help
     assert "(default: 'run command')" in start_help
-    assert "sase monitor start -s TESTING -S TESTED -- just check-full" in start_help
+    assert "sase monitor start -p verify -- just check-full" in start_help
     assert_metavar_option_documented(start_help, "-f", "--completion", "REF")
+    assert_metavar_option_documented(start_help, "-o", "--next-output", "MODE")
     assert_metavar_option_documented(start_help, "-p", "--profile", "NAME")
     assert_metavar_option_documented(start_help, "-P", "--policy", "FILE")
     assert "Profile selection alone never authorizes host completion" in start_help
@@ -71,9 +72,10 @@ def test_monitor_start_help_names_status_flags_as_required() -> None:
 
     assert_metavar_option_documented(start_help, "-s", "--start-status", "TEXT")
     assert_metavar_option_documented(start_help, "-S", "--stop-status", "TEXT")
-    assert "Required label shown while the command runs" in start_help
+    assert "Label shown while the command runs" in start_help
+    assert "Required unless -p/--profile supplies it" in start_help
     assert "present tense, e.g. TESTING" in start_help
-    assert "Required label shown when the command finishes" in start_help
+    assert "Label shown when the command finishes" in start_help
     assert "past tense, e.g. TESTED" in start_help
     assert "Max 20 characters" in start_help
     assert "default: MONITORING" not in start_help
@@ -193,6 +195,7 @@ def test_monitor_short_options_have_the_documented_long_aliases() -> None:
         ("-L", "--label"),
         ("-m", "--model"),
         ("-n", "--next"),
+        ("-o", "--next-output"),
         ("-P", "--policy"),
         ("-p", "--profile"),
         ("-r", "--reason"),
@@ -324,3 +327,18 @@ def test_monitor_start_parses_model_short_and_long_flags() -> None:
     assert via_long.model == "@small"
     assert via_short.model == "opus@high"
     assert blank.model == "  "
+
+
+def test_monitor_start_profile_and_next_output_choices_are_validated() -> None:
+    """``verify`` is the public profile and next-output has a short alias."""
+    parser = create_parser()
+
+    args = parser.parse_args(
+        ["monitor", "start", "-c", "true", "-p", "verify", "-o", "tail"]
+    )
+
+    assert args.profile == "verify"
+    assert args.next_output == "tail"
+    with pytest.raises(SystemExit) as exit_info:
+        parser.parse_args(["monitor", "start", "-c", "true", "-p", "deploy"])
+    assert exit_info.value.code == 2

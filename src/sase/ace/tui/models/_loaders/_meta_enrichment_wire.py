@@ -329,6 +329,19 @@ def enrich_agent_from_meta_wire(
         monitor_next_action=(
             monitor_shell.next_action if monitor_shell is not None else None
         ),
+        monitor_next_output=(
+            monitor_shell.next_output if monitor_shell is not None else None
+        ),
+        monitor_next_model=(
+            monitor_shell.next_model if monitor_shell is not None else None
+        ),
+        monitor_completion_ref=(
+            monitor_shell.completion_ref if monitor_shell is not None else None
+        ),
+        monitor_profile=(monitor_shell.profile if monitor_shell is not None else None),
+        monitor_policy_digest=(
+            monitor_shell.policy_digest if monitor_shell is not None else None
+        ),
         monitor_timeout_seconds=(
             monitor_shell.timeout_seconds if monitor_shell is not None else None
         ),
@@ -338,11 +351,41 @@ def enrich_agent_from_meta_wire(
         monitor_output_truncated=(
             monitor_shell.output_truncated if monitor_shell is not None else None
         ),
+        monitor_diagnostic_manifest_ref=meta.monitor_diagnostic_manifest_ref,
+        monitor_retained_log_ref=meta.monitor_retained_log_ref,
+        continuation_monitor_result_id=meta.continuation_monitor_result_id,
+        continuation_monitor_result_ref=meta.continuation_monitor_result_ref,
+        continuation_node_ref=meta.continuation_node_ref,
+        continuation_manifest_ref=meta.continuation_manifest_ref,
+        monitor_budget_decision_path=(
+            meta.continuation_budget_decision_path
+            or meta.monitor_followup_budget_decision_path
+        ),
         monitor_followup_outcome=(
             monitor_shell.followup_outcome if monitor_shell is not None else None
         ),
         monitor_followup_error=(
             monitor_shell.followup_error if monitor_shell is not None else None
+        ),
+        monitor_followup_agent=(
+            monitor_shell.followup_agent if monitor_shell is not None else None
+        ),
+        monitor_followup_degraded_reason=(
+            monitor_shell.followup_degraded_reason
+            if monitor_shell is not None
+            else None
+        ),
+        monitor_followup_prompt_path=(
+            monitor_shell.followup_prompt_path if monitor_shell is not None else None
+        ),
+        monitor_host_completion_status=(
+            monitor_shell.host_completion_status if monitor_shell is not None else None
+        ),
+        monitor_host_completion_message=(
+            monitor_shell.host_completion_message if monitor_shell is not None else None
+        ),
+        monitor_host_completion_reason=(
+            monitor_shell.host_completion_reason if monitor_shell is not None else None
         ),
         monitor_member=is_monitor_member_role(
             agent.agent_family_role,

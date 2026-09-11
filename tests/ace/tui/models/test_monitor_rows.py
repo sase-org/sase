@@ -106,12 +106,29 @@ def test_running_monitor_meta_projects_detail_fields() -> None:
                 timeout_seconds=2700.0,
                 output_truncated=True,
                 next_action="Reply to the user.",
+                next_output="auto",
+                next_model="@small",
+                completion_ref="cci:test",
+                profile="verify",
+                policy_digest="sha256:policy",
+                followup_agent="alpha--next",
+                followup_outcome="launched-degraded",
+                followup_degraded_reason="workspace 0 fallback",
+                followup_prompt_path="/tmp/followup.md",
+                host_completion_status="finalizing",
                 monitor=FamilyShellMonitorWire(
                     command="just check-full",
                     cwd="/home/bryan/sase",
                     idle_timeout_seconds=600.0,
                 ),
             ),
+            monitor_diagnostic_manifest_ref="artifact:diag",
+            monitor_retained_log_ref="artifact:log",
+            continuation_monitor_result_id="result-1",
+            continuation_monitor_result_ref="artifact:result",
+            continuation_node_ref="node:1",
+            continuation_manifest_ref="artifact:manifest",
+            continuation_budget_decision_path="/tmp/budget.json",
             run_started_at="2026-08-12T13:00:00Z",
             agent_family="alpha",
             agent_family_role="monitor",
@@ -123,9 +140,26 @@ def test_running_monitor_meta_projects_detail_fields() -> None:
     assert agent.monitor_cwd == "/home/bryan/sase"
     assert agent.monitor_reason == "Verify the refactor"
     assert agent.monitor_next_action == "Reply to the user."
+    assert agent.monitor_next_output == "auto"
+    assert agent.monitor_next_model == "@small"
+    assert agent.monitor_completion_ref == "cci:test"
+    assert agent.monitor_profile == "verify"
+    assert agent.monitor_policy_digest == "sha256:policy"
     assert agent.monitor_timeout_seconds == 2700.0
     assert agent.monitor_idle_timeout_seconds == 600.0
     assert agent.monitor_output_truncated is True
+    assert agent.monitor_followup_agent == "alpha--next"
+    assert agent.monitor_followup_outcome == "launched-degraded"
+    assert agent.monitor_followup_degraded_reason == "workspace 0 fallback"
+    assert agent.monitor_followup_prompt_path == "/tmp/followup.md"
+    assert agent.monitor_host_completion_status == "finalizing"
+    assert agent.monitor_diagnostic_manifest_ref == "artifact:diag"
+    assert agent.monitor_retained_log_ref == "artifact:log"
+    assert agent.continuation_monitor_result_id == "result-1"
+    assert agent.continuation_monitor_result_ref == "artifact:result"
+    assert agent.continuation_node_ref == "node:1"
+    assert agent.continuation_manifest_ref == "artifact:manifest"
+    assert agent.monitor_budget_decision_path == "/tmp/budget.json"
 
 
 def test_wire_monitor_starter_keeps_reference_without_monitor_row_semantics() -> None:

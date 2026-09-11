@@ -29,23 +29,25 @@ Run a long verification command and hand the result to a follow-up agent:
 
 ```bash
 sase monitor start \
-  --command 'just check-full' \
+  --profile verify \
   --reason 'Verify the refactor before replying to the user' \
   --timeout 45m \
-  --start-status TESTING \
-  --stop-status TESTED \
   --model '@small' \
-  --next 'Fix anything just check-full reported, then reply to the user.'
+  --next 'Fix anything just check-full reported, then reply to the user.' \
+  -- just check-full
 ```
 
 ## Status Labels
 
-Both `-s/--start-status` and `-S/--stop-status` are required. Use present tense while
-the command runs and past tense when it finishes (`TESTING` → `TESTED`, `SLEEPING` →
-`SLEPT`, `DEPLOYING` → `DEPLOYED`). Each label is at most 20 characters; longer values
-are truncated with a trailing `…`. The pair determines the row color, so reusing one
-pair across related monitors makes them read as one lane. `TESTING` / `TESTED` is the
-pair for `just check` and `just check-full`.
+Use `-p/--profile verify` for verification commands; it supplies `TESTING` / `TESTED`
+and `--next-output auto`. Profile selection alone never authorizes host completion.
+
+When no profile supplies labels, both `-s/--start-status` and `-S/--stop-status` are
+required. Use present tense while the command runs and past tense when it finishes
+(`TESTING` → `TESTED`, `SLEEPING` → `SLEPT`, `DEPLOYING` → `DEPLOYED`). Each label is at
+most 20 characters; longer values are truncated with a trailing `…`. The pair determines
+the row color, so reusing one pair across related monitors makes them read as one lane.
+`TESTING` / `TESTED` is the pair for `just check` and `just check-full`.
 
 ## Hazards
 
@@ -76,12 +78,12 @@ limit, or a scheduled time. Pair the wait with labels that name what is being wa
 
 ```bash
 sase monitor start \
-  --command 'sleep 300' \
   --reason 'Wait for the CI run on PR #412 to finish' \
   --timeout 6m \
   --start-status 'SLEEPING FOR 300s' \
   --stop-status 'SLEPT FOR 300s' \
-  --next 'Check the CI status for PR #412 with `gh pr checks 412`.'
+  --next 'Check the CI status for PR #412 with `gh pr checks 412`.' \
+  -- sleep 300
 ```
 
 Do not add `--idle-timeout` to an intentional quiet wait unless the sleep itself should
@@ -94,17 +96,19 @@ command, reason, runtime, exit state, and retained output for later inspection:
 
 ```bash
 sase monitor start \
-  --command './collect-diagnostics.sh' \
   --reason 'Collect diagnostics for later inspection' \
   --timeout 20m \
   --start-status COLLECTING \
-  --stop-status COLLECTED
+  --stop-status COLLECTED \
+  -- ./collect-diagnostics.sh
 ```
 
 ## Useful Flags
 
 - `--cwd DIR` runs the command from a specific directory. The default is the agent's
   workspace when SASE can resolve it, otherwise the current directory.
+- `-p, --profile verify` supplies `TESTING` / `TESTED` labels and `--next-output auto`
+  for verification commands. It does not authorize host completion by itself.
 - `--agent NAME` targets a specific agent. Inside an agent, the current agent is the
   default -- including inside an epic phase lane and inside a promoted agent family, so
   no `--agent` is needed there either; outside an agent, pass it explicitly. (`--lane`
@@ -118,10 +122,10 @@ sase monitor start \
   is used for the follow-up prompt, and caps raw output selected by `auto`.
 - `--idle-timeout DURATION` kills a command that produces no bytes for that duration.
   Omit it for valid quiet commands such as `sleep`.
-- `--next-output auto|tail|file|none` controls output handed to the follow-up. `auto` is
-  the default and selects outcome-aware evidence, `tail` embeds the retained tail as
-  fenced untrusted output, `file` names refs and log locators, and `none` includes only
-  the outcome summary plus a `sase monitor show --all-lines` pointer.
+- `-o, --next-output auto|tail|file|none` controls output handed to the follow-up.
+  `auto` is the default and selects outcome-aware evidence, `tail` embeds the retained
+  tail as fenced untrusted output, `file` names refs and log locators, and `none`
+  includes only the outcome summary plus a `sase monitor show --all-lines` pointer.
 
 ## Inspect Or Stop
 

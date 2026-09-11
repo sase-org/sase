@@ -63,7 +63,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "2b093a02c1d8db1d",
+        "description_digest": "49b96897cd4cae1c",
         "hidden": false,
         "mutex_groups": [],
         "name": "ace",
@@ -15378,7 +15378,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "651fc630a4a0ae0b",
+            "description_digest": "0906cf3bf9c3b558",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -15526,6 +15526,7 @@
                 "kind": null,
                 "repeatable": false,
                 "strings": [
+                  "-o",
                   "--next-output"
                 ],
                 "takes_value": true
@@ -15543,7 +15544,9 @@
                 "takes_value": true
               },
               {
-                "choices": null,
+                "choices": [
+                  "verify"
+                ],
                 "dest": "profile",
                 "hidden": false,
                 "kind": null,

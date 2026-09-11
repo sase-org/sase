@@ -28,37 +28,40 @@ def _monitor_agent(
     exit_code: int | None = None,
     artifacts_dir: str | None = None,
     output_truncated: bool = False,
+    **monitor_overrides: object,
 ) -> Agent:
     started = datetime(2026, 8, 12, 9, 0, 0)
-    return Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="monitor-row",
-        project_file="/tmp/monitor.sase",
-        status=status,
-        status_bucket="Running" if monitor_state == "running" else "Done",
-        start_time=started,
-        run_start_time=started,
-        raw_suffix="20260812090000",
-        parent_timestamp="20260812085900",
-        agent_name="alpha--mon",
-        agent_family="alpha",
-        agent_family_role="monitor",
-        role_suffix="--mon",
-        artifacts_dir=artifacts_dir,
-        monitor_id="m123abc456def",
-        monitor_state=monitor_state,
-        monitor_label="just check",
-        monitor_start_status="TESTING",
-        monitor_stop_status="TESTED",
-        monitor_command="just check-full",
-        monitor_cwd="/home/bryan/sase",
-        monitor_reason="Verify the refactor before replying",
-        monitor_next_action="Reply to the user.",
-        monitor_timeout_seconds=2700.0,
-        monitor_idle_timeout_seconds=600.0,
-        monitor_exit_code=exit_code,
-        monitor_output_truncated=output_truncated,
-    )
+    values: dict[str, object] = {
+        "agent_type": AgentType.RUNNING,
+        "cl_name": "monitor-row",
+        "project_file": "/tmp/monitor.sase",
+        "status": status,
+        "status_bucket": "Running" if monitor_state == "running" else "Done",
+        "start_time": started,
+        "run_start_time": started,
+        "raw_suffix": "20260812090000",
+        "parent_timestamp": "20260812085900",
+        "agent_name": "alpha--mon",
+        "agent_family": "alpha",
+        "agent_family_role": "monitor",
+        "role_suffix": "--mon",
+        "artifacts_dir": artifacts_dir,
+        "monitor_id": "m123abc456def",
+        "monitor_state": monitor_state,
+        "monitor_label": "just check",
+        "monitor_start_status": "TESTING",
+        "monitor_stop_status": "TESTED",
+        "monitor_command": "just check-full",
+        "monitor_cwd": "/home/bryan/sase",
+        "monitor_reason": "Verify the refactor before replying",
+        "monitor_next_action": "Reply to the user.",
+        "monitor_timeout_seconds": 2700.0,
+        "monitor_idle_timeout_seconds": 600.0,
+        "monitor_exit_code": exit_code,
+        "monitor_output_truncated": output_truncated,
+    }
+    values.update(monitor_overrides)
+    return Agent(**values)  # type: ignore[arg-type]
 
 
 def _render(agent: Agent) -> object:
@@ -226,12 +229,57 @@ def test_monitor_section_shows_status_pair_above_state() -> None:
     rendered = _render(_monitor_agent())
     text = "\n".join(_console_lines(rendered))
 
+    result_at = text.index("Result:")
+    next_at = text.index("Next:")
+    evidence_at = text.index("Evidence:")
     status_at = text.index("Status:")
     state_at = text.index("State:")
+    assert result_at < next_at < evidence_at < status_at
     assert status_at < state_at
     assert "TESTING" in text
     assert "TESTED" in text
     assert "→" in text
+
+
+def test_monitor_section_shows_compact_completion_evidence_rows() -> None:
+    rendered = _render(
+        _monitor_agent(
+            status="TESTED",
+            monitor_state="completed",
+            exit_code=0,
+            monitor_profile="verify",
+            monitor_next_output="auto",
+            monitor_completion_ref="cci:test",
+            monitor_host_completion_status="completed_by_host",
+            monitor_diagnostic_manifest_ref="artifact:diag",
+            continuation_monitor_result_ref="artifact:result",
+        )
+    )
+    text = "\n".join(_console_lines(rendered))
+
+    assert "Required checks passed" in text
+    assert "Completed by host" in text
+    assert "auto - diagnostics, result ref" in text
+    assert "Profile:" in text
+    assert "verify" in text
+    assert "Completion:" in text
+    assert "cci:test" in text
+
+
+def test_monitor_section_marks_dropped_followup_needs_attention() -> None:
+    rendered = _render(
+        _monitor_agent(
+            status="TESTED",
+            monitor_state="completed",
+            exit_code=0,
+            monitor_followup_outcome="not-launchable",
+            monitor_followup_error="workspace missing",
+        )
+    )
+    text = "\n".join(_console_lines(rendered))
+
+    assert "Needs attention - workspace missing" in text
+    assert "Follow-up:" in text
 
 
 def test_monitor_section_dims_the_inactive_status_half() -> None:
