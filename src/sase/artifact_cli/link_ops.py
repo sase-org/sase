@@ -20,8 +20,12 @@ from rich.table import Table
 from sase.agent.identity import discover_agent_identity
 from sase.core.rust import require_rust_binding
 from sase.core.time import format_local
+from sase.sdd._artifact_link_commit import artifact_link_publication_error_for_roots
+from sase.sdd._artifact_link_event_canonical import ARTIFACT_LINK_EVENT_COMMIT_MESSAGE
+from sase.sdd._artifact_link_event_ownership import document_kinds_for_store
 from sase.sdd._artifact_link_store_support import unique_rows
 from sase.sdd._artifact_link_store_support import is_projected_row, pair_matches
+from sase.sdd._artifact_link_store_support import kind_of_ref
 from sase.sdd._artifact_link_store_support import row_touches
 from sase.sdd._artifact_link_store_support import upsert_artifact_link_rows
 from sase.sdd._artifact_link_store_support import validate_artifact_link_row
@@ -224,6 +228,13 @@ def _add_artifact_link_event(
     existing_rows = store.load_artifact_rows(str(validated["source_ref"]))
     outcome = upsert_artifact_link_rows(existing_rows, validated)
     if outcome["kind"] == "unchanged":
+        _verify_required_publication_for_refs(
+            store,
+            (
+                str(validated["source_ref"]),
+                str(validated["target_ref"]),
+            ),
+        )
         return {
             "kind": "unchanged",
             "row": dict(outcome["row"]),
@@ -287,6 +298,7 @@ def _remove_artifact_link_event(
         )
     stored_matching = [row for row in matching if not is_projected_row(row)]
     if not stored_matching:
+        _verify_required_publication_for_refs(store, (source, target))
         return {"rows": (), "changed_indexes": (), "beads_changed": False}
     created_by = _created_by()
     created_at = _created_at()
@@ -352,6 +364,48 @@ def _publication_store(checkout_store: ArtifactLinkStore) -> ArtifactLinkStore:
     if store.beads_dir is None and checkout_store.beads_dir is not None:
         return replace(store, beads_dir=checkout_store.beads_dir)
     return store
+
+
+def _verify_required_publication_for_refs(
+    store: ArtifactLinkStore,
+    refs: tuple[str, ...],
+) -> None:
+    roots = _publication_roots_for_refs(store, refs)
+    if not roots:
+        return
+    error = artifact_link_publication_error_for_roots(
+        roots,
+        store=store.sdd_store,
+        project_key=store.project_key,
+        register_retry=False,
+        description=ARTIFACT_LINK_EVENT_COMMIT_MESSAGE,
+    )
+    if error:
+        raise RuntimeError(error)
+
+
+def _publication_roots_for_refs(
+    store: ArtifactLinkStore,
+    refs: tuple[str, ...],
+) -> tuple[Path, ...]:
+    document_kinds = set(document_kinds_for_store(store))
+    roots: list[Path] = []
+    unresolved: set[str] = set()
+    for ref in refs:
+        kind = kind_of_ref(ref)
+        if kind not in document_kinds:
+            continue
+        root = store.sidecar_roots.get(kind)
+        if root is None:
+            unresolved.add(kind)
+            continue
+        roots.append(root.expanduser().resolve(strict=False))
+    if unresolved:
+        kinds = ", ".join(sorted(unresolved))
+        raise RuntimeError(
+            f"artifact-link publication owner root is unresolved for {kinds}"
+        )
+    return tuple(dict.fromkeys(roots))
 
 
 def _cli_writable_relation(slug: str) -> str:

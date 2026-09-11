@@ -8,6 +8,7 @@ import subprocess
 
 import pytest
 
+from sase.bead._sync_publication import PushOutcome
 from sase.sdd._artifact_link_cutover_state import read_artifact_link_cutover_marker
 from sase.sdd._artifact_link_cutover_state import artifact_link_cutover_marker_path
 from sase.sdd.artifact_link_import_indexes import import_artifact_link_indexes
@@ -193,6 +194,41 @@ def test_import_indexes_resumes_multi_root_after_partial_marker_write_failure(
     assert len(store.load_durable_rows()) == 1
 
 
+def test_import_retry_publishes_previously_failed_final_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
+    repo = _init_repo_with_remote(tmp_path, "plans")
+    _write_index(repo, "a.md", [_row(target="plan:b.md")])
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "legacy link indexes")
+    _git(repo, "push")
+    store = ArtifactLinkStore(project_key=PROJECT_KEY, sidecar_roots={"plan": repo})
+    from sase.bead.sync import push_bead_work_launch
+
+    def fail_imported_marker(root: Path, **kwargs: object) -> PushOutcome:
+        marker = read_artifact_link_cutover_marker(Path(root))
+        if marker is not None and marker.state == "imported":
+            return PushOutcome(
+                pushed=False,
+                skipped_no_remote=False,
+                error="simulated final-marker publication failure",
+            )
+        return push_bead_work_launch(root, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr("sase.bead.sync.push_bead_work_launch", fail_imported_marker)
+        with pytest.raises(RuntimeError, match="NOT published"):
+            import_artifact_link_indexes(store, apply=True, push_after_commit=True)
+
+    retried = import_artifact_link_indexes(store, apply=True, push_after_commit=True)
+
+    assert retried.already_imported is True
+    assert _git(repo, "rev-parse", "HEAD") == _git(repo, "rev-parse", "origin/main")
+
+
 def test_import_indexes_converts_legacy_outbox_and_preserves_invalid_lines(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -275,6 +311,26 @@ def _init_repo(repo: Path) -> Path:
     (repo / "b.md").write_text("# B\n", encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", "seed docs")
+    return repo
+
+
+def _init_repo_with_remote(tmp_path: Path, name: str) -> Path:
+    remote = tmp_path / "remotes" / f"{name}.git"
+    repo = tmp_path / name
+    remote.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["git", "init", "--bare", "-q", "-b", "main", str(remote)],
+        check=True,
+    )
+    subprocess.run(["git", "clone", "-q", str(remote), str(repo)], check=True)
+    _git(repo, "config", "user.email", "sase-test@example.invalid")
+    _git(repo, "config", "user.name", "SASE Test")
+    (repo / "202608").mkdir()
+    (repo / "202608" / "a.md").write_text("# A\n", encoding="utf-8")
+    (repo / "b.md").write_text("# B\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "seed docs")
+    _git(repo, "push", "-u", "origin", "main")
     return repo
 
 

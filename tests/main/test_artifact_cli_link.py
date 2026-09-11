@@ -10,6 +10,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from sase.bead._sync_publication import PushOutcome
 from sase.artifact_cli.link_migrate import handle_link_migrate_notes
 from sase.artifact_cli.link_import import handle_link_import_indexes
 from sase.artifact_cli.link_ops import (
@@ -17,6 +18,7 @@ from sase.artifact_cli.link_ops import (
     handle_link_add,
     handle_link_list,
     handle_link_rm,
+    remove_artifact_link,
 )
 from sase.artifact_cli.link_relations import handle_link_relation
 from sase.main.parser import create_parser
@@ -36,6 +38,46 @@ def _store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> ArtifactLinkStore
     )
 
 
+def _store_with_remotes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    kinds: tuple[str, ...] = ("plan",),
+) -> ArtifactLinkStore:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    roots: dict[str, Path] = {}
+    for kind in kinds:
+        remote = tmp_path / "remotes" / f"{kind}.git"
+        repo = tmp_path / kind
+        remote.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(
+            ["git", "init", "--bare", "-q", "-b", "main", str(remote)],
+            check=True,
+        )
+        subprocess.run(["git", "clone", "-q", str(remote), str(repo)], check=True)
+        subprocess.run(
+            ["git", "config", "user.name", "SASE Test"],
+            cwd=repo,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.email", "sase-test@example.invalid"],
+            cwd=repo,
+            check=True,
+        )
+        document = repo / "202608" / "a.md"
+        document.parent.mkdir(parents=True, exist_ok=True)
+        document.write_text(f"# {kind}\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "seed"], cwd=repo, check=True)
+        subprocess.run(["git", "push", "-u", "origin", "main"], cwd=repo, check=True)
+        roots[kind] = repo
+    return ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots=roots,
+    )
+
+
 def _init_git(repo: Path) -> None:
     repo.mkdir(parents=True, exist_ok=True)
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
@@ -48,6 +90,16 @@ def _init_git(repo: Path) -> None:
     (repo / "README.md").write_text("seed\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)
     subprocess.run(["git", "commit", "-q", "-m", "initial"], cwd=repo, check=True)
+
+
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args],
+        cwd=repo,
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout.strip()
 
 
 def _patch_store(monkeypatch: pytest.MonkeyPatch, store: ArtifactLinkStore) -> None:
@@ -116,6 +168,87 @@ def test_add_list_rm_round_trip(
     )
     assert "removed implements" in capsys.readouterr().out
     assert store.load_artifact_rows("plan:202608/a.md") == ()
+
+
+def test_unchanged_add_retries_unpublished_partial_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store_with_remotes(tmp_path, monkeypatch, kinds=("plan", "research"))
+    _patch_store(monkeypatch, store)
+    plan = store.sidecar_roots["plan"]
+    research = store.sidecar_roots["research"]
+    from sase.bead.sync import push_bead_work_launch
+
+    def fail_research_push(root: Path, **kwargs: object) -> PushOutcome:
+        if Path(root).resolve() == research.resolve():
+            return PushOutcome(
+                pushed=False,
+                skipped_no_remote=False,
+                error="simulated research publication failure",
+            )
+        return push_bead_work_launch(root, **kwargs)
+
+    args = {
+        "source_ref": "plan:202608/a.md",
+        "relation": "related",
+        "target_ref": "research:202608/a.md",
+        "why": "shares recovery evidence",
+    }
+    with monkeypatch.context() as patch:
+        patch.setattr("sase.bead.sync.push_bead_work_launch", fail_research_push)
+        with pytest.raises(RuntimeError, match="NOT published"):
+            add_artifact_link(**args)
+
+    result = add_artifact_link(**args)
+
+    assert result["kind"] == "unchanged"
+    assert _git(plan, "rev-parse", "HEAD") == _git(plan, "rev-parse", "origin/main")
+    assert _git(research, "rev-parse", "HEAD") == _git(
+        research, "rev-parse", "origin/main"
+    )
+
+
+def test_absent_remove_retries_unpublished_tombstone(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    store = _store_with_remotes(tmp_path, monkeypatch)
+    _patch_store(monkeypatch, store)
+    [plan] = store.sidecar_roots.values()
+    args = {
+        "source_ref": "plan:202608/a.md",
+        "relation": "related",
+        "target_ref": "plan:202608/b.md",
+        "why": "temporary relation",
+    }
+    add_artifact_link(**args)
+
+    def fail_push(root: Path, **_kwargs: object) -> PushOutcome:
+        assert Path(root).resolve() == plan.resolve()
+        return PushOutcome(
+            pushed=False,
+            skipped_no_remote=False,
+            error="simulated tombstone publication failure",
+        )
+
+    with monkeypatch.context() as patch:
+        patch.setattr("sase.bead.sync.push_bead_work_launch", fail_push)
+        with pytest.raises(RuntimeError, match="NOT published"):
+            remove_artifact_link(
+                source_ref=args["source_ref"],
+                target_ref=args["target_ref"],
+                relation=args["relation"],
+            )
+
+    retry = remove_artifact_link(
+        source_ref=args["source_ref"],
+        target_ref=args["target_ref"],
+        relation=args["relation"],
+    )
+
+    assert retry["rows"] == ()
+    assert _git(plan, "rev-parse", "HEAD") == _git(plan, "rev-parse", "origin/main")
 
 
 def test_add_and_rm_work_without_feature_override(

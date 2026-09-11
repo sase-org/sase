@@ -13,7 +13,10 @@ from sase.agents_sync.io import atomic_write_bytes
 from sase.core.paths import sase_projects_dir
 from sase.core.rust import require_rust_binding
 from sase.memory.locks import locked_file
-from sase.sdd._artifact_link_commit import commit_artifact_link_indexes
+from sase.sdd._artifact_link_commit import (
+    artifact_link_publication_error_for_roots,
+    commit_artifact_link_indexes,
+)
 from sase.sdd._artifact_link_cutover_state import (
     ArtifactLinkCutoverMarker,
     artifact_link_cutover_marker_path,
@@ -145,6 +148,13 @@ def _apply_import_locked(
 
         if phase == "complete":
             aggregate = store.rebuild_aggregate()
+            publication_error = _publication_error_for_imported_roots(
+                store,
+                plan,
+                push_after_commit,
+            )
+            if publication_error:
+                raise RuntimeError(publication_error)
             outbox = inspect_artifact_link_outbox(store.project_key)
             return ArtifactLinkIndexImportReport(
                 plan=plan,
@@ -174,6 +184,7 @@ def _apply_import_locked(
                     plan,
                     plan.fenced_marker,
                     progress["roles_needing_fence_marker"],
+                    store,
                     push_after_commit,
                 )
             )
@@ -214,6 +225,7 @@ def _apply_import_locked(
                     plan,
                     plan.imported_marker,
                     progress["roles_needing_imported_marker"],
+                    store,
                     push_after_commit,
                 )
             )
@@ -271,6 +283,7 @@ def _publish_marker(
     plan: ArtifactLinkIndexImportPlan,
     marker: ArtifactLinkCutoverMarker,
     roles: Iterable[str],
+    store: ArtifactLinkStore,
     push_after_commit: bool | Literal["async"] | None,
 ) -> tuple[Path, ...]:
     payload = marker.canonical_bytes
@@ -294,7 +307,7 @@ def _publish_marker(
     if changed:
         result = commit_artifact_link_indexes(
             (),
-            store=None,
+            store=store.sdd_store,
             project_key=plan.project_key,
             repo_roots=plan.sidecar_roots,
             extra_paths_by_root=changed_by_root,
@@ -306,6 +319,22 @@ def _publish_marker(
         if result.publication_error:
             raise RuntimeError(result.publication_error)
     return tuple(changed)
+
+
+def _publication_error_for_imported_roots(
+    store: ArtifactLinkStore,
+    plan: ArtifactLinkIndexImportPlan,
+    push_after_commit: bool | Literal["async"] | None,
+) -> str | None:
+    if push_after_commit is False:
+        return None
+    return artifact_link_publication_error_for_roots(
+        plan.sidecar_roots,
+        store=store.sdd_store,
+        project_key=store.project_key,
+        register_retry=True,
+        description="chore(artifact-links): persist link event store marker",
+    )
 
 
 def _assert_baseline_durable(plan: ArtifactLinkIndexImportPlan) -> None:
