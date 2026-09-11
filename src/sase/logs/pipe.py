@@ -8,6 +8,7 @@ import select
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase.logs._bounded import append_bytes_locked, log_file_lock
@@ -17,6 +18,24 @@ _DRAIN_POLL_SECONDS = 0.05
 # Join slop after the configured drain budget so a scheduled drain thread can
 # finish one last non-blocking poll. This is not a second drain window.
 _CLOSE_JOIN_ALLOWANCE_SECONDS = 0.1
+
+
+@dataclass(frozen=True)
+class RetainedByteRange:
+    """Half-open source byte range retained in a bounded log segment."""
+
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
+class BoundedLogRetention:
+    """Snapshot of what a :class:`BoundedLogPipe` retained."""
+
+    total_observed_bytes: int
+    retained_ranges: tuple[RetainedByteRange, ...]
+    complete: bool
+    drain_confirmed: bool
 
 
 class BoundedLogPipe(io.TextIOBase):
@@ -51,6 +70,13 @@ class BoundedLogPipe(io.TextIOBase):
         with log_file_lock(path):
             fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600)
             os.close(fd)
+        self._range_lock = threading.Lock()
+        self._observed_bytes = 0
+        self._active_bytes = 0
+        self._active_ranges: list[RetainedByteRange] = []
+        self._rotated_ranges: list[RetainedByteRange] = []
+        self._drain_confirmed = False
+        self._seed_existing_ranges()
         self._read_fd, self._write_fd = os.pipe()
         self._write_error: BaseException | None = None
         self._closing = threading.Event()
@@ -95,6 +121,19 @@ class BoundedLogPipe(io.TextIOBase):
         if self._write_error is not None:
             raise self._write_error
 
+    def retention_snapshot(self) -> BoundedLogRetention:
+        """Return byte-retention metadata for bytes drained so far."""
+        with self._range_lock:
+            ranges = (*self._rotated_ranges, *self._active_ranges)
+            retained_bytes = sum(item.end - item.start for item in ranges)
+            return BoundedLogRetention(
+                total_observed_bytes=self._observed_bytes,
+                retained_ranges=ranges,
+                complete=self._drain_confirmed
+                and retained_bytes == self._observed_bytes,
+                drain_confirmed=self._drain_confirmed,
+            )
+
     def _drain(self) -> None:
         try:
             while True:
@@ -127,6 +166,8 @@ class BoundedLogPipe(io.TextIOBase):
     def _ingest_chunk(self) -> bool:
         chunk = os.read(self._read_fd, READ_CHUNK_BYTES)
         if not chunk:
+            with self._range_lock:
+                self._drain_confirmed = True
             return False
         with log_file_lock(self._path):
             append_bytes_locked(
@@ -135,8 +176,63 @@ class BoundedLogPipe(io.TextIOBase):
                 max_bytes=self._max_bytes,
                 truncate_oversized=True,
             )
+        self._record_chunk(len(chunk))
         self._notify_chunk(chunk)
         return True
+
+    def _record_chunk(self, chunk_len: int) -> None:
+        if chunk_len <= 0:
+            return
+        with self._range_lock:
+            start = self._observed_bytes
+            end = start + chunk_len
+            self._observed_bytes = end
+            if self._max_bytes > 0 and chunk_len > self._max_bytes:
+                written_len = self._max_bytes
+                retained_range = RetainedByteRange(end - self._max_bytes, end)
+            else:
+                written_len = chunk_len
+                retained_range = RetainedByteRange(start, end)
+            if (
+                self._max_bytes > 0
+                and self._active_bytes > 0
+                and self._active_bytes + written_len > self._max_bytes
+            ):
+                self._rotated_ranges = list(self._active_ranges)
+                self._active_ranges = []
+                self._active_bytes = 0
+            self._append_active_range(retained_range)
+            self._active_bytes += written_len
+
+    def _append_active_range(self, retained_range: RetainedByteRange) -> None:
+        if self._active_ranges and self._active_ranges[-1].end == retained_range.start:
+            previous = self._active_ranges[-1]
+            self._active_ranges[-1] = RetainedByteRange(
+                previous.start,
+                retained_range.end,
+            )
+            return
+        self._active_ranges.append(retained_range)
+
+    def _seed_existing_ranges(self) -> None:
+        rotated = self._path.with_name(f"{self._path.name}.1")
+        try:
+            rotated_size = rotated.stat().st_size
+        except OSError:
+            rotated_size = 0
+        try:
+            active_size = self._path.stat().st_size
+        except OSError:
+            active_size = 0
+        with self._range_lock:
+            self._observed_bytes = rotated_size + active_size
+            self._active_bytes = active_size
+            if rotated_size > 0:
+                self._rotated_ranges = [RetainedByteRange(0, rotated_size)]
+            if active_size > 0:
+                self._active_ranges = [
+                    RetainedByteRange(rotated_size, rotated_size + active_size)
+                ]
 
     def _notify_chunk(self, chunk: bytes) -> None:
         if self._on_chunk is None:
@@ -159,4 +255,9 @@ class BoundedLogPipe(io.TextIOBase):
             raise ValueError("I/O operation on closed bounded log pipe")
 
 
-__all__ = ["BoundedLogPipe", "READ_CHUNK_BYTES"]
+__all__ = [
+    "BoundedLogPipe",
+    "BoundedLogRetention",
+    "READ_CHUNK_BYTES",
+    "RetainedByteRange",
+]

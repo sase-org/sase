@@ -152,6 +152,20 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Print the whole retained output instead of a tail",
     )
     show_parser.add_argument(
+        "-b",
+        "--max-bytes",
+        type=int,
+        default=64 * 1024,
+        metavar="N",
+        help="Maximum bytes for --diagnostics or --range output (default: 65536)",
+    )
+    show_parser.add_argument(
+        "-d",
+        "--diagnostics",
+        action="store_true",
+        help="Print bounded failed-stage diagnostics instead of raw output",
+    )
+    show_parser.add_argument(
         "-f",
         "--format",
         choices=("markdown", "json"),
@@ -177,6 +191,14 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         "--output-only",
         action="store_true",
         help="Print only the captured output, with no surrounding detail",
+    )
+    show_parser.add_argument(
+        "-R",
+        "--range",
+        dest="raw_range",
+        default=None,
+        metavar="START:END",
+        help="Print a bounded retained raw-output byte range",
     )
 
     start_parser = monitor_sub.add_parser(

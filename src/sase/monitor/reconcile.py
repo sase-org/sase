@@ -30,6 +30,12 @@ from sase.procs.store import read_proc_snapshot
 from sase.shells.settlement import stamp_shell_finished_at
 from sase.workflows.utils import get_project_file_path
 
+from .diagnostics import (
+    assemble_diagnostic_manifest,
+    diagnostic_manifest_path,
+    freeze_retained_log_metadata,
+    retained_log_metadata_path,
+)
 from .identity import supervisor_is_alive
 from .logs import append_monitor_log_bytes, monitor_log_path
 from .models import MonitorRecord, MonitorState
@@ -153,6 +159,26 @@ def _reconcile_dead_supervisor_locked(
     meta["monitor_state"] = monitor_state
     meta["monitor_output_truncated"] = capture.truncated
     meta["stopped_at"] = stopped_at
+    monitor_id = str(meta.get("monitor_id") or record.monitor_id or "monitor")
+    diagnostic_manifest = assemble_diagnostic_manifest(
+        record.artifacts_dir,
+        monitor_id=monitor_id,
+        complete=False,
+    )
+    retained_log = freeze_retained_log_metadata(
+        record.artifacts_dir,
+        output_path=monitor_log_path(record.artifacts_dir),
+        monitor_id=monitor_id,
+        retention=None,
+    )
+    meta["monitor_diagnostic_manifest_path"] = str(
+        diagnostic_manifest_path(record.artifacts_dir)
+    )
+    meta["monitor_diagnostic_manifest_ref"] = diagnostic_manifest.get("manifest_ref")
+    meta["monitor_retained_log_metadata_path"] = str(
+        retained_log_metadata_path(record.artifacts_dir)
+    )
+    meta["monitor_retained_log_ref"] = retained_log.get("log_ref")
     write_agent_meta_atomic(
         record.artifacts_dir,
         meta,
@@ -214,6 +240,14 @@ def _reconcile_dead_supervisor_locked(
         "monitor_followup_outcome",
         "monitor_followup_degraded_reason",
         "monitor_followup_prompt_path",
+    ):
+        if meta.get(key):
+            done_marker[key] = meta[key]
+    for key in (
+        "monitor_diagnostic_manifest_path",
+        "monitor_diagnostic_manifest_ref",
+        "monitor_retained_log_metadata_path",
+        "monitor_retained_log_ref",
     ):
         if meta.get(key):
             done_marker[key] = meta[key]

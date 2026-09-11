@@ -23,16 +23,148 @@ trap 'rm -f "$tmp_file"' EXIT
 
 record_diagnostic() {
     artifacts_dir="${SASE_ARTIFACTS_DIR:-}"
-    if [ -z "$artifacts_dir" ] || ! command -v python3 >/dev/null 2>&1; then
+    monitor_diagnostics_dir="${SASE_MONITOR_DIAGNOSTICS_DIR:-}"
+    if { [ -z "$artifacts_dir" ] && [ -z "$monitor_diagnostics_dir" ]; } || ! command -v python3 >/dev/null 2>&1; then
         return 0
     fi
-    python3 - "$artifacts_dir" "$description" "$1" "$tmp_file" <<'PY' || true
+    python3 - "$monitor_diagnostics_dir" "$artifacts_dir" "$description" "$1" "$tmp_file" <<'PY' || true
+import fcntl
+import hashlib
 import json
+import os
 import pathlib
+import re
 import sys
 import time
 
-artifacts_dir, description, exit_code_raw, output_path = sys.argv[1:5]
+monitor_dir, artifacts_dir, description, exit_code_raw, output_path = sys.argv[1:6]
+
+
+def _int_env(name, default):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return default
+
+
+def _slug(value):
+    slug = re.sub(r"[^A-Za-z0-9._:-]+", "-", value.strip().lower()).strip("-")
+    return slug[:64] or "stage"
+
+
+def _atomic_write(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.{time.time_ns()}.tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    finally:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _bounded_output(data, limit):
+    if limit <= 0:
+        return b"", [], True
+    if len(data) <= limit:
+        return data, [{"start": 0, "end": len(data)}], False
+    marker = b"\n... diagnostic output truncated ...\n"
+    if limit <= len(marker) + 2:
+        retained = data[-limit:]
+        return retained, [{"start": len(data) - len(retained), "end": len(data)}], True
+    payload_budget = limit - len(marker)
+    head_len = payload_budget // 2
+    tail_len = payload_budget - head_len
+    retained = data[:head_len] + marker + data[-tail_len:]
+    ranges = [
+        {"start": 0, "end": head_len},
+        {"start": len(data) - tail_len, "end": len(data)},
+    ]
+    return retained, ranges, True
+
+
+def _write_legacy_jsonl(root, record):
+    if not root:
+        return
+    root_path = pathlib.Path(root)
+    root_path.mkdir(parents=True, exist_ok=True)
+    with (root_path / "continuation_stage_diagnostics.jsonl").open(
+        "a", encoding="utf-8"
+    ) as stream:
+        json.dump(record, stream, sort_keys=True)
+        stream.write("\n")
+
+
+def _write_monitor_stage(root, record, output):
+    if not root:
+        return
+    root_path = pathlib.Path(root)
+    lock_path = root_path / ".diagnostics.lock"
+    root_path.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+b") as lock_stream:
+        fcntl.flock(lock_stream.fileno(), fcntl.LOCK_EX)
+        stage_id = (
+            f"{_slug(description)}-{os.getpid()}-{time.time_ns()}-"
+            f"{hashlib.sha256(description.encode()).hexdigest()[:8]}"
+        )
+        stage = {
+            "stage_id": stage_id,
+            "name": description,
+            "status": record["status"],
+            "exit_code": record["exit_code"],
+            "diagnostic_refs": [],
+            "diagnostic_locators": [],
+            "counts": {
+                "output_bytes": record["output_bytes"],
+                "output_lines": record["output_lines"],
+            },
+            "retained_ranges": [],
+            "capture_errors": [],
+            "recorded_at_epoch": record["recorded_at_epoch"],
+        }
+        if os.environ.get("SASE_RUN_SILENT_FORCE_CAPTURE_ERROR"):
+            stage["capture_errors"].append("forced diagnostic capture error")
+        elif record["exit_code"] != 0:
+            evidence_dir = root_path / "stage_output"
+            stage_max = _int_env("SASE_MONITOR_STAGE_DIAGNOSTIC_MAX_BYTES", 256 * 1024)
+            total_max = _int_env("SASE_MONITOR_DIAGNOSTIC_TOTAL_MAX_BYTES", 2 * 1024 * 1024)
+            existing = sum(
+                path.stat().st_size
+                for path in evidence_dir.glob("*.log")
+                if path.is_file()
+            )
+            allowed = min(stage_max, max(0, total_max - existing))
+            if allowed <= 0:
+                stage["capture_errors"].append("diagnostic quota exceeded")
+            else:
+                retained, ranges, truncated = _bounded_output(output, allowed)
+                evidence_path = evidence_dir / f"{stage_id}.log"
+                try:
+                    _atomic_write(evidence_path, retained)
+                except OSError as exc:
+                    stage["capture_errors"].append(f"could not write diagnostic: {exc}")
+                else:
+                    locator = evidence_path.relative_to(root_path.parent).as_posix()
+                    stage["diagnostic_refs"].append(f"file:monitor-stage:{stage_id}")
+                    stage["diagnostic_locators"].append(locator)
+                    stage["retained_ranges"] = ranges
+                    stage["counts"]["retained_bytes"] = len(retained)
+                    if truncated:
+                        stage["capture_errors"].append(
+                            "diagnostic output truncated to "
+                            f"{len(retained)} of {len(output)} bytes"
+                        )
+        _atomic_write(
+            root_path / "stages" / f"{stage_id}.json",
+            (json.dumps(stage, indent=2, sort_keys=True) + "\n").encode("utf-8"),
+        )
+
+
 try:
     output = pathlib.Path(output_path).read_bytes()
     record = {
@@ -45,13 +177,8 @@ try:
         "output_lines": output.count(b"\n"),
         "recorded_at_epoch": time.time(),
     }
-    root = pathlib.Path(artifacts_dir)
-    root.mkdir(parents=True, exist_ok=True)
-    with (root / "continuation_stage_diagnostics.jsonl").open(
-        "a", encoding="utf-8"
-    ) as stream:
-        json.dump(record, stream, sort_keys=True)
-        stream.write("\n")
+    _write_legacy_jsonl(artifacts_dir, record)
+    _write_monitor_stage(monitor_dir, record, output)
 except Exception:
     pass
 PY

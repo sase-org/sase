@@ -42,12 +42,59 @@ def test_close_returns_while_a_writer_remains_open(tmp_path: Path) -> None:
         started = time.monotonic()
         pipe.close()
         elapsed = time.monotonic() - started
+        snapshot = pipe.retention_snapshot()
     finally:
         os.close(leftover_writer)
         pipe._thread.join(timeout=1)
 
     assert elapsed < _PROMPT_CLOSE_SECONDS
     assert path.read_text(encoding="utf-8") == "kept open\n"
+    assert snapshot.drain_confirmed is False
+    assert snapshot.complete is False
+
+
+def test_retention_snapshot_tracks_rotation_and_oversized_chunks(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "stream.log"
+    pipe = BoundedLogPipe(path, max_bytes=10)
+    pipe.write("abcde")
+    _wait_for_size(path, 5)
+    pipe.write("fghijk")
+    pipe.close()
+
+    snapshot = pipe.retention_snapshot()
+    assert snapshot.total_observed_bytes == 11
+    assert [(item.start, item.end) for item in snapshot.retained_ranges] == [
+        (0, 5),
+        (5, 11),
+    ]
+    assert snapshot.complete is True
+    assert path.with_name("stream.log.1").read_text(encoding="utf-8") == "abcde"
+    assert path.read_text(encoding="utf-8") == "fghijk"
+
+    oversized = tmp_path / "oversized.log"
+    pipe = BoundedLogPipe(oversized, max_bytes=10)
+    pipe.write("0123456789ABCDEFGHIJ")
+    pipe.close()
+
+    snapshot = pipe.retention_snapshot()
+    assert snapshot.total_observed_bytes == 20
+    assert [(item.start, item.end) for item in snapshot.retained_ranges] == [(10, 20)]
+    assert snapshot.complete is False
+    assert oversized.read_text(encoding="utf-8") == "ABCDEFGHIJ"
+
+
+def _wait_for_size(path: Path, size: int) -> None:
+    deadline = time.monotonic() + 1.0
+    while time.monotonic() < deadline:
+        try:
+            if path.stat().st_size == size:
+                return
+        except OSError:
+            pass
+        time.sleep(0.01)  # sase-test-wait: wait for pipe drain thread
+    pytest.fail(f"{path} did not reach {size} bytes")
 
 
 def test_close_preserves_already_readable_bytes_after_deadline(

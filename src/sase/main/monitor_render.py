@@ -221,13 +221,21 @@ def monitor_list_json(
     }
 
 
-def monitor_show_json(record: MonitorRecord, *, output: str) -> dict[str, Any]:
+def monitor_show_json(
+    record: MonitorRecord,
+    *,
+    output: str,
+    evidence: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Return the stable ``sase monitor show`` JSON envelope."""
-    return {
+    payload = {
         "schema_version": MONITOR_JSON_SCHEMA_VERSION,
         "monitor": _monitor_json(record),
         "output": output,
     }
+    if evidence is not None:
+        payload["evidence"] = evidence
+    return payload
 
 
 def monitor_start_json(record: MonitorRecord, *, handed_off: bool) -> dict[str, Any]:

@@ -41,6 +41,7 @@ from sase.workflows.utils import get_project_file_path
 
 from . import naming, store
 from .claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
+from .diagnostics import diagnostics_dir
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, NEXT_OUTPUT_CHOICES
 from .handoff import (
     MONITOR_PENDING_MARKER,
@@ -260,6 +261,10 @@ def _start_monitor_locked(
                 ),
                 label=label,
                 cwd=request.cwd,
+                env={
+                    "SASE_MONITOR_DIAGNOSTICS_DIR": str(diagnostics_dir(artifacts_dir)),
+                    "SASE_MONITOR_ID": monitor_id,
+                },
                 origin=MONITOR_PROC_ORIGIN,
                 proc_id=monitor_id,
                 project=request.project_name,

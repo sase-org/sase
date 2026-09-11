@@ -28,7 +28,7 @@ from sase.core.agent_artifact_index_lifecycle import (
 )
 from sase.monitor_state import monitor_state_bucket
 from sase.history.chat import save_chat_history
-from sase.logs.pipe import BoundedLogPipe
+from sase.logs.pipe import BoundedLogPipe, BoundedLogRetention
 from sase.monitor_status import (
     DEFAULT_MONITOR_STOP_STATUS,
     clamp_monitor_status_or_default,
@@ -37,6 +37,13 @@ from sase.shells.followup import wait_for_followup_started
 from sase.shells.settlement import stamp_shell_finished_at
 from sase.workflows.utils import get_project_file_path
 
+from .diagnostics import (
+    assemble_diagnostic_manifest,
+    diagnostic_manifest_path,
+    diagnostics_dir,
+    freeze_retained_log_metadata,
+    retained_log_metadata_path,
+)
 from .followup import launch_followup_agent
 from .identity import process_identity
 from .logs import append_monitor_log_bytes, monitor_log_max_bytes, monitor_log_path
@@ -197,6 +204,10 @@ def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> 
             # scrubber matches on, but it still names the dead starter's
             # artifacts and must not leak into the monitored command.
             command_env.pop("SASE_ARTIFACTS_DIR", None)
+            command_env["SASE_MONITOR_DIAGNOSTICS_DIR"] = str(
+                diagnostics_dir(artifacts_dir)
+            )
+            command_env["SASE_MONITOR_ID"] = str(meta.get("monitor_id") or "")
             try:
                 child = _popen_monitored_command(
                     meta,
@@ -245,10 +256,14 @@ def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> 
         _append_supervisor_line(output_path, output_pipe, capture, error)
     finally:
         close_error = _close_output_pipe(output_pipe)
+        retention = (
+            output_pipe.retention_snapshot() if output_pipe is not None else None
+        )
         if close_error is not None:
             error = error or f"supervisor error: {_one_line(close_error)}"
             monitor_state = "failed"
             _append_supervisor_line(output_path, None, capture, error)
+            retention = None
         _finish_monitor(
             artifacts_dir,
             meta,
@@ -258,6 +273,7 @@ def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> 
             capture=capture,
             error=error,
             timeout_kind=timeout_kind,
+            retention=retention,
         )
     return 0 if monitor_state in {"completed", "stopped"} else 1
 
@@ -412,6 +428,7 @@ def _finish_monitor(
     capture: OutputCapture,
     error: str | None,
     timeout_kind: _TimeoutKind | None,
+    retention: BoundedLogRetention | None,
 ) -> None:
     """Write the terminal marker, save chat history, and settle the claim."""
     raw_stop = meta.get("monitor_stop_status")
@@ -436,6 +453,26 @@ def _finish_monitor(
         meta["monitor_timeout_kind"] = timeout_kind
         if timeout_message:
             meta["monitor_timeout_message"] = timeout_message
+    monitor_id = str(meta.get("monitor_id") or "monitor")
+    diagnostic_manifest = assemble_diagnostic_manifest(
+        artifacts_dir,
+        monitor_id=monitor_id,
+        complete=monitor_state == "completed",
+    )
+    retained_log = freeze_retained_log_metadata(
+        artifacts_dir,
+        output_path=monitor_log_path(artifacts_dir),
+        monitor_id=monitor_id,
+        retention=retention,
+    )
+    meta["monitor_diagnostic_manifest_path"] = str(
+        diagnostic_manifest_path(artifacts_dir)
+    )
+    meta["monitor_diagnostic_manifest_ref"] = diagnostic_manifest.get("manifest_ref")
+    meta["monitor_retained_log_metadata_path"] = str(
+        retained_log_metadata_path(artifacts_dir)
+    )
+    meta["monitor_retained_log_ref"] = retained_log.get("log_ref")
     persisted_meta = dict(meta)
     persisted_meta.pop("stopped_at", None)
     write_agent_meta_atomic(
@@ -518,6 +555,14 @@ def _finish_monitor(
         done_marker["monitor_timeout_kind"] = timeout_kind
         if timeout_message:
             done_marker["monitor_timeout_message"] = timeout_message
+    for key in (
+        "monitor_diagnostic_manifest_path",
+        "monitor_diagnostic_manifest_ref",
+        "monitor_retained_log_metadata_path",
+        "monitor_retained_log_ref",
+    ):
+        if meta.get(key):
+            done_marker[key] = meta[key]
     stamp_shell_finished_at(done_marker)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_monitor_workflow_state(artifacts_dir)

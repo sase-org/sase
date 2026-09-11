@@ -30,6 +30,12 @@ from sase.shells.followup import wait_for_followup_started
 from sase.shells.settlement import stamp_shell_finished_at
 from sase.workflows.utils import get_project_file_path
 
+from .diagnostics import (
+    assemble_diagnostic_manifest,
+    diagnostic_manifest_path,
+    freeze_retained_log_metadata,
+    retained_log_metadata_path,
+)
 from .followup import launch_followup_agent
 from .logs import monitor_log_path
 from .models import MonitorRecord, MonitorState
@@ -173,6 +179,26 @@ def settle_monitor_artifacts(state: dict[str, Any]) -> None:
         meta["monitor_timeout_kind"] = timeout_kind
         if timeout_message:
             meta["monitor_timeout_message"] = timeout_message
+    monitor_id = str(meta.get("monitor_id") or state.get("proc_id") or "monitor")
+    diagnostic_manifest = assemble_diagnostic_manifest(
+        artifacts_dir,
+        monitor_id=monitor_id,
+        complete=monitor_state == "completed",
+    )
+    retained_log = freeze_retained_log_metadata(
+        artifacts_dir,
+        output_path=Path(log_path) if log_path else monitor_log_path(artifacts_dir),
+        monitor_id=monitor_id,
+        retention=None,
+    )
+    meta["monitor_diagnostic_manifest_path"] = str(
+        diagnostic_manifest_path(artifacts_dir)
+    )
+    meta["monitor_diagnostic_manifest_ref"] = diagnostic_manifest.get("manifest_ref")
+    meta["monitor_retained_log_metadata_path"] = str(
+        retained_log_metadata_path(artifacts_dir)
+    )
+    meta["monitor_retained_log_ref"] = retained_log.get("log_ref")
     persisted_meta = dict(meta)
     persisted_meta.pop("stopped_at", None)
     write_agent_meta_atomic(
@@ -309,6 +335,14 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
         done_marker["monitor_timeout_kind"] = timeout_kind
         if timeout_message:
             done_marker["monitor_timeout_message"] = timeout_message
+    for key in (
+        "monitor_diagnostic_manifest_path",
+        "monitor_diagnostic_manifest_ref",
+        "monitor_retained_log_metadata_path",
+        "monitor_retained_log_ref",
+    ):
+        if meta.get(key):
+            done_marker[key] = meta[key]
     stamp_shell_finished_at(done_marker)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_monitor_workflow_state(artifacts_dir)
@@ -320,12 +354,14 @@ def _capture_from_log(path: str | Path) -> OutputCapture:
     capture = OutputCapture()
     if not path:
         return capture
-    try:
-        data = Path(path).read_bytes()
-    except OSError:
-        return capture
-    if data:
-        capture.append_bytes(data)
+    output_path = Path(path)
+    for candidate in (output_path.with_name(f"{output_path.name}.1"), output_path):
+        try:
+            data = candidate.read_bytes()
+        except OSError:
+            continue
+        if data:
+            capture.append_bytes(data)
     return capture
 
 

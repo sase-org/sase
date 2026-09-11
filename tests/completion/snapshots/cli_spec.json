@@ -5216,6 +5216,106 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "6871026ae7456d85",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "restart",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "max_agent_runners",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-A",
+                  "--max-agent-runners"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "max_hook_runners",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-H",
+                  "--max-hook-runners"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "query",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-q",
+                  "--query"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "verify_timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--verify-timeout"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "zombie_timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-z",
+                  "--zombie-timeout"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "axe",
+              "restart"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "30d43375b1672154",
             "hidden": false,
             "mutex_groups": [],
@@ -15081,7 +15181,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "4dc0617421289ae0",
+            "description_digest": "078651451eb31714",
             "hidden": false,
             "mutex_groups": [],
             "name": "show",
@@ -15107,6 +15207,30 @@
                 "strings": [
                   "-A",
                   "--all-lines"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "max_bytes",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-b",
+                  "--max-bytes"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "diagnostics",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--diagnostics"
                 ],
                 "takes_value": false
               },
@@ -15160,6 +15284,18 @@
                   "--output-only"
                 ],
                 "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "raw_range",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-R",
+                  "--range"
+                ],
+                "takes_value": true
               }
             ],
             "path": [
