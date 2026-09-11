@@ -273,7 +273,9 @@ def test_bead_work_help_describes_both_targets_and_options(
     assert "-j JSON, --json JSON" not in help_text
     assert "-a DIR" in help_text
     assert "--artifacts-dir DIR" in help_text
-    assert "-c NAME" in help_text
+    assert "-c N" in help_text
+    assert "--capacity N" in help_text
+    assert "-C NAME" in help_text
     assert "--cl-name NAME" in help_text
     assert "-j, --json" in help_text
     assert "--dry-run" in help_text

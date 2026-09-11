@@ -37,6 +37,7 @@ from ._plan_gate_shared import (
     PLAN_CONTINUATION_MODE,
     PLAN_EDIT_OPERATION_ID,
     PLAN_FEEDBACK_OPTION_ID,
+    PLAN_GATE_CAPACITY_SCHEMA,
     PLAN_REJECT_OPTION_ID,
     PLAN_RESOURCE_PATH,
     PlanGateTier,
@@ -263,6 +264,7 @@ def _plan_input_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]:
         # rejects submissions the responder and prepare_epic_launch both accept.
         properties["epic_launch_mode"] = {"enum": list(get_args(EpicLaunchMode))}
         properties["wait"] = {"type": "string"}
+        properties["capacity"] = dict(PLAN_GATE_CAPACITY_SCHEMA)
     return {
         "type": "object",
         "properties": properties,
@@ -286,19 +288,22 @@ def _plan_result_schema(option_id: str, *, tier: PlanGateTier) -> dict[str, Any]
             "additionalProperties": False,
         }
     action = "epic" if tier == "epic" else "approve"
+    approve_properties: dict[str, Any] = {
+        "action": {"const": action},
+        "commit_plan": {"type": "boolean"},
+        "run_coder": {"type": "boolean"},
+        "coder_prompt": {"type": "string"},
+        "coder_model": {"type": "string"},
+        "epic_launch_owner": {"const": "host"},
+        "wait_agents": {"type": "array", "items": {"type": "string"}},
+        "wait_beads": {"type": "array", "items": {"type": "string"}},
+    }
+    if tier == "epic":
+        approve_properties["capacity"] = dict(PLAN_GATE_CAPACITY_SCHEMA)
     return {
         "type": "object",
         "required": ["action", "commit_plan", "run_coder"],
-        "properties": {
-            "action": {"const": action},
-            "commit_plan": {"type": "boolean"},
-            "run_coder": {"type": "boolean"},
-            "coder_prompt": {"type": "string"},
-            "coder_model": {"type": "string"},
-            "epic_launch_owner": {"const": "host"},
-            "wait_agents": {"type": "array", "items": {"type": "string"}},
-            "wait_beads": {"type": "array", "items": {"type": "string"}},
-        },
+        "properties": approve_properties,
         "additionalProperties": False,
     }
 
@@ -309,6 +314,7 @@ __all__ = [
     "PLAN_CONTINUATION_MODE",
     "PLAN_EDIT_OPERATION_ID",
     "PLAN_FEEDBACK_OPTION_ID",
+    "PLAN_GATE_CAPACITY_SCHEMA",
     "PLAN_REJECT_OPTION_ID",
     "PLAN_RESOURCE_PATH",
     "build_plan_approval_gate_spec",

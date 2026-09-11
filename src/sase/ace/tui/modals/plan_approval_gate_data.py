@@ -36,11 +36,18 @@ PLAN_GATE_STATIC_BINDINGS = [
 ]
 DEFAULT_GATE_KEYMAPS = GateModalKeymaps(**load_builtin_gate_defaults())
 #: Approval fields are already collected by the "c" ApproveOptionsModal
-#: (`coder_prompt`/`coder_model`/`wait`) and by the host's own epic launch
-#: choice (`epic_launch_mode`), so the raw-schema escape hatch must not
-#: duplicate them with a YAML box on every plan and epic gate.
+#: (`coder_prompt`/`coder_model`/`wait`/`capacity`) and by the host's own
+#: epic launch choice (`epic_launch_mode`), so the raw-schema escape hatch
+#: must not duplicate them with a YAML box on every plan and epic gate.
 HOST_COLLECTED_PROPERTIES = frozenset(
-    {"feedback", "coder_prompt", "coder_model", "epic_launch_mode", "wait"}
+    {
+        "feedback",
+        "coder_prompt",
+        "coder_model",
+        "epic_launch_mode",
+        "wait",
+        "capacity",
+    }
 )
 
 

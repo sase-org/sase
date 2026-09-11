@@ -45,6 +45,8 @@ def build_plan_approval_response(
         action=action,
         run_coder=run_coder,
     )
+    if action == "epic" and result.capacity is not None:
+        response_data["capacity"] = result.capacity
     return response_data
 
 

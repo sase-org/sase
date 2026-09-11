@@ -59,6 +59,7 @@ class PlanApprovalDecisionsMixin:
         coder_prompt: str | None = None,
         coder_model: str | None = None,
         wait_spec: str | None = None,
+        capacity: int | None = None,
         option_inputs: Mapping[str, dict[str, Any]] | None = None,
     ) -> PlanApprovalResult:
         return plan_approval_result_for_selection(
@@ -68,6 +69,7 @@ class PlanApprovalDecisionsMixin:
             coder_prompt=coder_prompt,
             coder_model=coder_model,
             wait_spec=wait_spec,
+            capacity=capacity,
             option_inputs=option_inputs,
         )
 
@@ -152,6 +154,7 @@ class PlanApprovalDecisionsMixin:
         coder_prompt: str = "",
         coder_model: str | None = None,
         wait_spec: str | None = None,
+        capacity: int | None = None,
         choice: PlanApprovalChoice | None = None,
     ) -> None:
         """Push the custom approval modal with the given initial state."""
@@ -175,6 +178,7 @@ class PlanApprovalDecisionsMixin:
                         coder_prompt=result.coder_prompt,
                         coder_model=result.coder_model,
                         wait_spec=result.wait_spec,
+                        capacity=result.capacity,
                         choice=result.choice,
                         selected_option_ids=approval_selection_option_ids(
                             result.commit_plan,
@@ -195,6 +199,7 @@ class PlanApprovalDecisionsMixin:
                 coder_prompt=result.coder_prompt,
                 coder_model=result.coder_model,
                 wait_spec=result.wait_spec,
+                capacity=result.capacity if result.choice == "epic" else None,
             )
             self.dismiss(approval_result)  # type: ignore[attr-defined]
 
@@ -205,6 +210,7 @@ class PlanApprovalDecisionsMixin:
                 coder_prompt=coder_prompt,
                 coder_model=coder_model,
                 wait_spec=wait_spec,
+                capacity=capacity,
                 choice=choice,
                 plan_file=self._plan_file,
                 planner_llm_provider=self._llm_provider,

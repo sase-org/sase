@@ -177,6 +177,7 @@ def plan_response_json(
     coder_prompt: str | None,
     coder_model: str | None,
     wait_spec: PromptWaitDirective | None = None,
+    capacity: int | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Map a product-level plan choice to the existing runner protocol."""
     try:
@@ -204,6 +205,7 @@ def plan_response_json(
             )
         if record.allow_wait_option:
             _add_optional_wait_fields(response, wait_spec)
+        _add_optional_capacity_field(response, capacity)
         return response, record.response_message
 
     if choice == "reject":
@@ -233,6 +235,7 @@ def plan_response_json_for_selection(
     coder_model: str | None = None,
     epic_launch_owner: str | None = None,
     wait_spec: PromptWaitDirective | None = None,
+    capacity: int | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Derive the runner protocol solely from a v2 selected option set."""
     selected = tuple(selected_option_ids)
@@ -275,6 +278,7 @@ def plan_response_json_for_selection(
         _add_optional_wait_fields(response, wait_spec)
     elif protocol.action == "epic":
         _add_optional_wait_fields(response, wait_spec)
+    _add_optional_capacity_field(response, capacity)
     if protocol.action == "epic" and epic_launch_owner == "host":
         response["epic_launch_owner"] = "host"
     return response, message
@@ -302,6 +306,15 @@ def _add_optional_wait_fields(
         response["wait_agents"] = list(wait_spec.agents)
     if wait_spec.beads:
         response["wait_beads"] = list(wait_spec.beads)
+
+
+def _add_optional_capacity_field(
+    response: dict[str, Any],
+    capacity: int | None,
+) -> None:
+    if capacity is None or response.get("action") != "epic":
+        return
+    response["capacity"] = capacity
 
 
 def persisted_plan_action(response_json: dict[str, Any]) -> str | None:

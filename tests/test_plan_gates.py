@@ -93,12 +93,14 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     assert epic_approve["label"] == "Epic"
     assert epic_approve["icon"] == "✅"
     assert epic_approve["default_selected"] is True
+    capacity_schema = {"type": "integer", "minimum": 0, "maximum": 4294967295}
     assert epic_approve["input_schema"] == {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
             "epic_launch_mode": {"enum": ["launch", "detached", "skip"]},
             "wait": {"type": "string"},
+            "capacity": capacity_schema,
         },
         "additionalProperties": False,
     }
@@ -115,9 +117,15 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
             "epic_launch_owner": {"const": "host"},
             "wait_agents": wait_names,
             "wait_beads": wait_names,
+            "capacity": capacity_schema,
         },
         "additionalProperties": False,
     }
+    assert "capacity" not in tale_approve["input_schema"]["properties"]
+    assert "capacity" not in tale_approve["result_schema"]["properties"]
+    assert "capacity" not in tale_request["options"][1]["input_schema"]["properties"]
+    assert "capacity" not in tale_request["options"][2]["input_schema"]["properties"]
+    assert "capacity" not in tale_request["options"][3]["input_schema"]["properties"]
     assert tale_request["options"][1]["id"] == "commit"
     assert tale_request["options"][1]["label"] == (
         "Commit plan file to the plans sidecar"

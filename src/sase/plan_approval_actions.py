@@ -78,12 +78,14 @@ def execute_plan_approval_response(
     coder_prompt: str | None = None,
     coder_model: str | None = None,
     wait: str | None = None,
+    capacity: int | None = None,
     epic_launch_mode: EpicLaunchMode = "launch",
     epic_launch_origin: EpicLaunchOrigin = "api",
     option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> PlanApprovalActionResult:
     """Resolve a neutral plan gate, with legacy in-flight fallback."""
     wait_spec = _parse_plan_approval_wait(wait)
+    capacity = _parse_plan_approval_capacity(capacity)
     request_kind = notification.host_action_data.get("request_kind")
     action = "EpicApproval" if request_kind == "epic_plan" else "PlanApproval"
     from sase.notification_gates.paths import resolve_action_bundle
@@ -101,6 +103,7 @@ def execute_plan_approval_response(
             coder_model=coder_model,
             wait=wait,
             wait_spec=wait_spec,
+            capacity=capacity,
             epic_launch_mode=epic_launch_mode,
             epic_launch_origin=epic_launch_origin,
             option_inputs=option_inputs,
@@ -114,6 +117,7 @@ def execute_plan_approval_response(
         coder_prompt=coder_prompt,
         coder_model=coder_model,
         wait_spec=wait_spec,
+        capacity=capacity,
         epic_launch_mode=epic_launch_mode,
         epic_launch_origin=epic_launch_origin,
     )
@@ -129,6 +133,7 @@ def _execute_legacy_plan_approval_response(
     coder_prompt: str | None,
     coder_model: str | None,
     wait_spec: PromptWaitDirective | None,
+    capacity: int | None,
     epic_launch_mode: EpicLaunchMode,
     epic_launch_origin: EpicLaunchOrigin,
 ) -> PlanApprovalActionResult:
@@ -164,11 +169,17 @@ def _execute_legacy_plan_approval_response(
         coder_prompt=coder_prompt,
         coder_model=coder_model,
         wait_spec=wait_spec,
+        capacity=capacity,
     )
     response_path = response_dir / "plan_response.json"
     epic_launch_project: str | None = None
     if choice == "epic":
-        can_claim_epic_launch(notification, mode=epic_launch_mode, wait_spec=wait_spec)
+        can_claim_epic_launch(
+            notification,
+            mode=epic_launch_mode,
+            wait_spec=wait_spec,
+            capacity=capacity,
+        )
         if epic_launch_mode != "skip":
             epic_launch_project = _epic_launch_project(notification)
         # Transitional compatibility: pre-upgrade agents launch the epic
@@ -192,6 +203,7 @@ def _execute_legacy_plan_approval_response(
             resolved_project=epic_launch_project,
             origin=epic_launch_origin,
             wait_spec=wait_spec,
+            capacity=capacity,
         )
         epic_launch_monitor_id, epic_launch_task_id = _epic_launch_submission_ids(
             launch
@@ -219,6 +231,7 @@ def _execute_neutral_plan_approval_response(
     coder_model: str | None,
     wait: str | None,
     wait_spec: PromptWaitDirective | None,
+    capacity: int | None,
     epic_launch_mode: EpicLaunchMode,
     epic_launch_origin: EpicLaunchOrigin,
     option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
@@ -289,6 +302,8 @@ def _execute_neutral_plan_approval_response(
         input_data["wait"] = wait
     if tier == "epic" and selected_option_ids == ("approve",):
         input_data["epic_launch_mode"] = epic_launch_mode
+        if capacity is not None:
+            input_data["capacity"] = capacity
 
     from sase.notification_gates.executor import execute_gate_selection
     from sase.notification_gates.paths import RESPONSE_FILENAME
@@ -371,6 +386,18 @@ def _parse_plan_approval_wait(wait: str | None) -> PromptWaitDirective | None:
         return parse_wait_spec(text)
     except WaitSpecError as exc:
         raise PlanApprovalActionError("invalid_request", "wait", str(exc)) from exc
+
+
+def _parse_plan_approval_capacity(capacity: int | None) -> int | None:
+    """Validate a reviewer capacity threshold before any mutation."""
+    if capacity is None:
+        return None
+    from ._plan_gate_shared import plan_gate_optional_capacity
+
+    try:
+        return plan_gate_optional_capacity(capacity)
+    except ValueError as exc:
+        raise PlanApprovalActionError("invalid_request", "capacity", str(exc)) from exc
 
 
 def _epic_launch_submission_ids(

@@ -442,8 +442,8 @@ def _field_option_values(
     values: dict[str, dict[str, Any]] = {}
     for option in selected:
         for key, entries in raw_values.get(option.id, {}).items():
-            values.setdefault(option.id, {})[key] = _coerce_field_value(
-                _declared_field(option, key), entries, key=key, option_id=option.id
+            values.setdefault(option.id, {})[key] = _coerce_set_value(
+                option, key, entries
             )
     return values
 
@@ -476,6 +476,42 @@ def _declared_field(option: GateOption, key: str) -> GateInputField | None:
         if field.id == key:
             return field
     return None
+
+
+def _coerce_set_value(option: GateOption, key: str, entries: list[str]) -> Any:
+    """Type one ``--set`` value from a declared field or the raw schema."""
+    field = _declared_field(option, key)
+    if field is not None:
+        return _coerce_field_value(field, entries, key=key, option_id=option.id)
+    if len(entries) > 1:
+        raise GateCliError(
+            f"--set {key} (option {option.id}): repeated, but the field is not "
+            "repeatable"
+        )
+    return _coerce_schema_scalar(option, key, entries[0])
+
+
+def _schema_property_type(option: GateOption, key: str) -> str | None:
+    properties = option.input_schema.get("properties")
+    if not isinstance(properties, Mapping):
+        return None
+    spec = properties.get(key)
+    if not isinstance(spec, Mapping):
+        return None
+    schema_type = spec.get("type")
+    return schema_type if isinstance(schema_type, str) else None
+
+
+def _coerce_schema_scalar(option: GateOption, key: str, raw: str) -> Any:
+    """Coerce a raw-schema ``--set`` value so integer properties stay integers."""
+    target = f"--set {key} (option {option.id})"
+    if _schema_property_type(option, key) != "integer":
+        return raw
+    text = raw.strip()
+    body = text[1:] if text.startswith(("+", "-")) else text
+    if not body.isdigit():
+        raise GateCliError(f"{target}: expected an integer, got {raw!r}")
+    return int(text)
 
 
 def _coerce_field_value(

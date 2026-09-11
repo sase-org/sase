@@ -35,4 +35,5 @@ class ApprovePromptContext:
     current_prompt: str
     coder_model: str | None = None
     wait_spec: str | None = None
+    capacity: int | None = None
     choice: PlanApprovalChoice | None = None

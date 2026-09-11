@@ -32,6 +32,7 @@ class PlanApprovalResult:
     coder_prompt: str | None = None
     coder_model: str | None = None
     wait_spec: str | None = None
+    capacity: int | None = None
     choice: PlanApprovalChoice | None = None
     selected_option_ids: tuple[str, ...] = ()
     option_inputs: Mapping[str, dict[str, Any]] = field(default_factory=dict)
@@ -46,6 +47,7 @@ class PendingApproveState:
     coder_prompt: str
     coder_model: str | None = None
     wait_spec: str | None = None
+    capacity: int | None = None
     choice: PlanApprovalChoice | None = None
 
 
@@ -78,6 +80,7 @@ def plan_approval_result_for_choice(
     coder_prompt: str | None = None,
     coder_model: str | None = None,
     wait_spec: str | None = None,
+    capacity: int | None = None,
     commit_plan: bool | None = None,
     run_coder: bool | None = None,
 ) -> PlanApprovalResult:
@@ -98,6 +101,7 @@ def plan_approval_result_for_choice(
         coder_prompt=coder_prompt,
         coder_model=coder_model,
         wait_spec=wait_spec,
+        capacity=capacity if choice == "epic" else None,
         choice=choice,
         selected_option_ids=selected_option_ids,
     )
@@ -111,6 +115,7 @@ def plan_approval_result_for_selection(
     coder_prompt: str | None = None,
     coder_model: str | None = None,
     wait_spec: str | None = None,
+    capacity: int | None = None,
     option_inputs: Mapping[str, dict[str, Any]] | None = None,
 ) -> PlanApprovalResult:
     """Build a modal result for the option ids a reviewer actually submitted."""
@@ -136,6 +141,7 @@ def plan_approval_result_for_selection(
         coder_prompt=coder_prompt,
         coder_model=coder_model,
         wait_spec=wait_spec,
+        capacity=capacity if epic else None,
         choice=(
             "epic"
             if epic

@@ -129,6 +129,7 @@ def translate_plan_gate_response(
                 primary_result.get("epic_launch_owner")
             ),
             wait_spec=_wait_spec_from_approve_result(approve_result),
+            capacity=_capacity_from_approve_result(approve_result),
         )
     except PlanApprovalActionError as exc:
         raise GateError(exc.code, exc.target, str(exc)) from exc
@@ -153,6 +154,10 @@ def translate_plan_gate_response(
     wait_beads = approve_result.get("wait_beads")
     if isinstance(wait_beads, list):
         translated["wait_beads"] = wait_beads
+    if "capacity" in approve_result:
+        capacity = _capacity_from_approve_result(approve_result)
+        if capacity is not None:
+            translated["capacity"] = capacity
     return translated
 
 
@@ -166,6 +171,14 @@ def _wait_spec_from_approve_result(
         result.get("wait_agents"),
         result.get("wait_beads"),
     )
+
+
+def _capacity_from_approve_result(result: Mapping[str, Any]) -> int | None:
+    """Rebuild the optional capacity threshold from the approve command result."""
+    value = result.get("capacity")
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
 
 
 def _original_plan_file_from_envelope(

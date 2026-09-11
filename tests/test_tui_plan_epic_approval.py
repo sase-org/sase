@@ -66,9 +66,11 @@ def test_tui_epic_approval_uses_shared_detached_launch(
         assert response["epic_launch_owner"] == "host"
         assert response["wait_agents"] == ["sase-s7.2"]
         assert response["wait_beads"] == ["sase-64.3"]
+        assert response["capacity"] == 0
         wait_spec: Any = _kwargs["wait_spec"]
         assert wait_spec.agents == ("sase-s7.2",)
         assert wait_spec.beads == ("sase-64.3",)
+        assert _kwargs["capacity"] == 0
         order.append("detached")
         return object()
 
@@ -93,6 +95,7 @@ def test_tui_epic_approval_uses_shared_detached_launch(
             plan_approval_result_for_choice(
                 "epic",
                 wait_spec="sase-s7.2,bead=sase-64.3",
+                capacity=0,
             )
         )
 
@@ -103,6 +106,7 @@ def test_tui_epic_approval_uses_shared_detached_launch(
     assert response["epic_launch_owner"] == "host"
     assert response["wait_agents"] == ["sase-s7.2"]
     assert response["wait_beads"] == ["sase-64.3"]
+    assert response["capacity"] == 0
 
 
 def test_tui_epic_launch_preflight_runs_only_inside_tracked_task(

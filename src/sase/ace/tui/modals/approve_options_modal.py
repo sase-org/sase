@@ -81,6 +81,26 @@ def _canonical_wait_spec(wait_spec: str | None) -> str | None:
     return format_wait_spec(parse_wait_spec(text))
 
 
+def _canonical_capacity(capacity: int | None) -> int | None:
+    """Return a validated capacity threshold, or ``None`` for omission."""
+    if capacity is None:
+        return None
+    from sase.xprompt.queue_directive import validate_queue_capacity
+
+    return validate_queue_capacity(capacity)
+
+
+def _format_capacity_display(capacity: int | None, *, epic: bool) -> str:
+    """Render the compact Capacity row for the custom approval modal."""
+    if not epic:
+        return "n/a (epic only)"
+    if capacity is None:
+        return "Default"
+    if capacity == 0:
+        return "0 (drain)"
+    return str(capacity)
+
+
 def _short_display(value: str | None) -> str:
     """Render an optional one-line value for the compact modal."""
     display = value or "none"
@@ -100,6 +120,7 @@ class ApproveOptionsResult:
     coder_prompt: str | None
     coder_model: str | None = None
     wait_spec: str | None = None
+    capacity: int | None = None
 
     @property
     def commit_plan(self) -> bool:
@@ -118,6 +139,7 @@ class ApproveOptionsEditPrompt:
     coder_prompt: str
     coder_model: str | None = None
     wait_spec: str | None = None
+    capacity: int | None = None
 
     @property
     def commit_plan(self) -> bool:
@@ -196,6 +218,80 @@ class _WaitSpecInputModal(ModalScreen[_WaitSpecInputResult | None]):
         self.dismiss(None)
 
 
+@dataclass(frozen=True)
+class _CapacityInputResult:
+    """Result from the epic capacity editor."""
+
+    capacity: int | None
+
+
+class _CapacityInput(SingleLineVimTextArea):
+    """Single-line vim editor for an optional epic capacity threshold."""
+
+
+class _CapacityInputModal(ModalScreen[_CapacityInputResult | None]):
+    """Modal for entering an optional epic capacity threshold."""
+
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+    ]
+
+    def __init__(self, initial: int | None = None) -> None:
+        super().__init__()
+        self.add_class("approval-capacity-input-modal")
+        self._initial = "" if initial is None else str(initial)
+
+    def compose(self) -> ComposeResult:
+        with Container(id="approve-capacity-container"):
+            yield Static(
+                "[bold cyan]Capacity[/bold cyan]",
+                id="approve-capacity-title",
+            )
+            yield Static(
+                "Maximum already-running weighted load before admission. "
+                "Blank uses default queue behavior; 0 waits for a drain.",
+                id="approve-capacity-hint",
+            )
+            yield _CapacityInput(
+                self._initial,
+                placeholder="Default",
+                id="approve-capacity-input",
+            )
+            yield Static("", id="approve-capacity-error")
+            yield Static(
+                "[green]enter[/green]=Confirm  "
+                "[dim]blank clears[/dim]  "
+                "[dim]esc esc[/dim]=Cancel",
+                id="approve-capacity-footer",
+            )
+
+    def on_mount(self) -> None:
+        input_widget = self.query_one("#approve-capacity-input", _CapacityInput)
+        input_widget.focus()
+        if self._initial:
+            input_widget.cursor_location = input_widget.document.end
+        input_widget._update_vim_mode_display()
+
+    def on_single_line_vim_text_area_submitted(
+        self, event: SingleLineVimTextArea.Submitted
+    ) -> None:
+        event.stop()
+        text = event.value.strip()
+        if not text:
+            self.dismiss(_CapacityInputResult(None))
+            return
+        from sase.xprompt.queue_directive import validate_queue_capacity
+
+        try:
+            self.dismiss(_CapacityInputResult(validate_queue_capacity(text)))
+        except ValueError as exc:
+            self.query_one("#approve-capacity-error", Static).update(str(exc))
+            self.notify(str(exc), severity="error")
+
+    def action_cancel(self) -> None:
+        self.dismiss(None)
+
+
 class ApproveOptionsModal(
     ModalScreen[ApproveOptionsResult | ApproveOptionsEditPrompt | None],
 ):
@@ -210,6 +306,7 @@ class ApproveOptionsModal(
         ("p", "edit_prompt", "Edit prompt"),
         ("m", "select_model", "Model"),
         ("w", "edit_wait", "Wait"),
+        ("c", "edit_capacity", "Capacity"),
         ("q", "cancel", "Quit"),
     ]
 
@@ -220,6 +317,7 @@ class ApproveOptionsModal(
         coder_prompt: str = "",
         coder_model: str | None = None,
         wait_spec: str | None = None,
+        capacity: int | None = None,
         choice: PlanApprovalChoice | None = None,
         *,
         plan_file: str | None = None,
@@ -230,6 +328,7 @@ class ApproveOptionsModal(
         self._coder_prompt = coder_prompt
         self._coder_model = coder_model
         self._wait_spec = _canonical_wait_spec(wait_spec)
+        self._capacity = _canonical_capacity(capacity)
         self._plan_file = plan_file
         self._planner_llm_provider = planner_llm_provider
 
@@ -259,6 +358,15 @@ class ApproveOptionsModal(
                 id="approval-wait-display",
             )
 
+            yield Static(
+                "Capacity:",
+                classes="approve-options-capacity-label",
+            )
+            yield Static(
+                self._capacity_display_label(),
+                id="approval-capacity-display",
+            )
+
             yield Static("Additional prompt:", classes="approve-options-prompt-label")
             yield Static(_short_display(self._coder_prompt), id="coder-prompt-display")
 
@@ -267,7 +375,8 @@ class ApproveOptionsModal(
                 "[green]a/t/e[/green]=Action  "
                 "[magenta]m[/magenta]=Model  "
                 "[magenta]p[/magenta]=Prompt  "
-                "[magenta]w[/magenta]=Wait\n"
+                "[magenta]w[/magenta]=Wait  "
+                "[magenta]c[/magenta]=Capacity\n"
                 "[dim]ctrl+n/p[/dim]=Next/Prev  "
                 "[dim]q/esc[/dim]=Back",
                 id="approve-options-footer",
@@ -275,6 +384,7 @@ class ApproveOptionsModal(
 
     def on_mount(self) -> None:
         self._refresh_choice_rows()
+        self._refresh_capacity_display()
 
     def _choice_row_markup(self, choice: PlanApprovalChoice) -> str:
         """Render one selectable action row."""
@@ -302,6 +412,7 @@ class ApproveOptionsModal(
         # The unset default differs by role, so the displayed default must
         # track the selected action.
         self._update_model_display()
+        self._refresh_capacity_display()
 
     def on_key(self, event: events.Key) -> None:
         """Handle key events within the modal.
@@ -336,6 +447,10 @@ class ApproveOptionsModal(
             event.prevent_default()
             event.stop()
             self.action_edit_wait()
+        elif event.key == "c":
+            event.prevent_default()
+            event.stop()
+            self.action_edit_capacity()
         elif event.key == "q":
             event.prevent_default()
             event.stop()
@@ -439,6 +554,47 @@ class ApproveOptionsModal(
             on_wait_dismiss,
         )
 
+    def _submitted_capacity(self) -> int | None:
+        """Epic-only: never submit a stale threshold after switching to tale."""
+        if self._choice != "epic":
+            return None
+        return self._capacity
+
+    def _capacity_display_label(self) -> str:
+        return _format_capacity_display(
+            self._capacity,
+            epic=self._choice == "epic",
+        )
+
+    def _refresh_capacity_display(self) -> None:
+        display = self.query_one("#approval-capacity-display", Static)
+        display.update(self._capacity_display_label())
+        disabled = self._choice != "epic"
+        display.set_class(disabled, "disabled")
+        self.query_one(".approve-options-capacity-label", Static).set_class(
+            disabled, "disabled"
+        )
+
+    def action_edit_capacity(self) -> None:
+        """Open the epic capacity editor, or explain why it is unavailable."""
+        if self._choice != "epic":
+            self.notify(
+                "Capacity applies only to Epic approval",
+                severity="warning",
+            )
+            return
+
+        def on_capacity_dismiss(result: _CapacityInputResult | None) -> None:
+            if result is None:
+                return
+            self._capacity = result.capacity
+            self._refresh_capacity_display()
+
+        self.app.push_screen(
+            _CapacityInputModal(self._capacity),
+            on_capacity_dismiss,
+        )
+
     def action_edit_prompt(self) -> None:
         """Dismiss with edit-prompt sentinel so the caller can delegate to PromptInputBar."""
         self.dismiss(
@@ -447,6 +603,7 @@ class ApproveOptionsModal(
                 coder_prompt=self._coder_prompt,
                 coder_model=self._coder_model,
                 wait_spec=self._wait_spec,
+                capacity=self._submitted_capacity(),
             )
         )
 
@@ -458,6 +615,7 @@ class ApproveOptionsModal(
                 coder_prompt=coder_prompt,
                 coder_model=self._coder_model,
                 wait_spec=self._wait_spec,
+                capacity=self._submitted_capacity(),
             )
         )
 

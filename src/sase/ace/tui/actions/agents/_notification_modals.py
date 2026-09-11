@@ -224,6 +224,7 @@ def handle_plan_approval(
                 current_prompt=result.coder_prompt or "",
                 coder_model=result.coder_model,
                 wait_spec=result.wait_spec,
+                capacity=result.capacity,
                 choice=result.choice,
             )
             app.mount(  # type: ignore[attr-defined]
@@ -350,6 +351,7 @@ def handle_plan_approval(
                 plan_file=plan_file,
                 response_dir=response_path,
                 wait_spec=_plan_approval_wait_directive(result),
+                capacity=result.capacity if choice == "epic" else None,
             )
 
         if agent is not None:
@@ -432,6 +434,7 @@ def _submit_legacy_epic_launch_task(
     plan_file: str,
     response_dir: Path,
     wait_spec: PromptWaitDirective | None = None,
+    capacity: int | None = None,
 ) -> bool:
     """Run legacy epic launch preflight/submission as tracked TUI work."""
     from ...actions.proc_actions import TrackedProcResult
@@ -450,6 +453,7 @@ def _submit_legacy_epic_launch_task(
                 response_dir=response_dir,
                 origin="ace",
                 wait_spec=wait_spec,
+                capacity=capacity,
             )
         except PlanApprovalActionError as exc:
             return TrackedProcResult(

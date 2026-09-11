@@ -80,6 +80,20 @@ def test_wait_spec_is_emitted_for_coder_and_epic_and_dropped_for_commit() -> Non
     assert "wait_beads" not in empty
 
 
+def test_capacity_is_emitted_for_epic_and_dropped_otherwise() -> None:
+    epic, _ = plan_response_json_for_selection(("approve",), tier="epic", capacity=0)
+    assert epic["capacity"] == 0
+
+    omitted, _ = plan_response_json_for_selection(("approve",), tier="epic")
+    assert "capacity" not in omitted
+
+    tale, _ = plan_response_json_for_selection(("approve",), tier="tale", capacity=3)
+    assert "capacity" not in tale
+
+    reject, _ = plan_response_json_for_selection(("reject",), tier="epic", capacity=3)
+    assert "capacity" not in reject
+
+
 def test_neutral_plan_approval_settles_shell_backed_gate(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,

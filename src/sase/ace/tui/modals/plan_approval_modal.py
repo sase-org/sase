@@ -221,6 +221,7 @@ class PlanApprovalModal(
                 coder_prompt=state.coder_prompt,
                 coder_model=state.coder_model,
                 wait_spec=state.wait_spec,
+                capacity=state.capacity,
                 choice=state.choice,
             )
             return

@@ -178,6 +178,28 @@ async def test_tale_plan_modal_renders_no_raw_editor_for_host_collected_properti
         assert not modal.query("#gate-feedback-input")
 
 
+async def test_epic_plan_modal_renders_no_raw_editor_for_capacity(
+    gate_home: Path,
+) -> None:
+    plan = gate_home / "epic-no-raw.md"
+    plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    create_gate(build_plan_approval_gate_spec(plan, "tui-no-raw-epic"))
+    [notification] = load_notifications()
+
+    async with _PlanModalApp().run_test(size=(100, 34)) as pilot:
+        assert handle_plan_approval(pilot.app, notification) is True
+        await wait_for(pilot, lambda: isinstance(pilot.app.screen, PlanApprovalModal))
+
+        modal = pilot.app.screen
+        assert isinstance(modal, PlanApprovalModal)
+        raw_ids = [
+            widget.id
+            for widget in modal.query("*")
+            if widget.id and "-raw-" in widget.id
+        ]
+        assert raw_ids == []
+
+
 async def test_epic_plan_modal_renders_canonical_singleton_label(
     gate_home: Path,
 ) -> None:
@@ -340,6 +362,41 @@ def test_neutral_plan_submission_forwards_modal_wait_spec(
     )
     assert approve_result["result"]["wait_agents"] == ["sase-s7.2"]
     assert approve_result["result"]["wait_beads"] == ["sase-64.3"]
+
+
+def test_neutral_plan_submission_forwards_modal_capacity(
+    gate_home: Path,
+) -> None:
+    plan = gate_home / "epic-capacity.md"
+    plan.write_text(VALID_EPIC_PLAN, encoding="utf-8")
+    gate = create_gate(build_plan_approval_gate_spec(plan, "tui-epic-capacity"))
+    [notification] = load_notifications()
+    result = PlanApprovalResult(
+        action="epic",
+        commit_plan=True,
+        run_coder=True,
+        choice="epic",
+        selected_option_ids=("approve",),
+        capacity=0,
+    )
+    app = _TrackedPlanApp()
+
+    with patch(
+        "sase.plan_approval_actions.prepare_epic_launch",
+        return_value=SimpleNamespace(monitor_id="mon-tui-capacity"),
+    ) as prepare:
+        submitted = submit_neutral_plan_response(app, notification, None, result)
+
+    assert submitted is True
+    assert getattr(app.completion, "success", False) is True
+    assert prepare.call_count == 1
+    assert prepare.call_args.kwargs["capacity"] == 0
+    response = json.loads(gate.response_path.read_text(encoding="utf-8"))
+    assert response["option_inputs"]["approve"]["capacity"] == 0
+    approve_result = next(
+        item for item in response["option_results"] if item["id"] == "approve"
+    )
+    assert approve_result["result"]["capacity"] == 0
 
 
 def test_copy_actions_never_expose_collected_input_values(

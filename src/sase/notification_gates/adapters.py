@@ -228,6 +228,7 @@ class GateAdapter:
                             result.get("wait_agents"),
                             result.get("wait_beads"),
                         ),
+                        capacity=_capacity_from_launch_result(result),
                     )
                 except PlanApprovalActionError as exc:
                     raise GateError(exc.code, exc.target, str(exc)) from exc
@@ -363,6 +364,14 @@ def _plan_action_for_selection(kind: str, selected_ids: tuple[str, ...]) -> str:
     if selected_ids == ("commit",):
         return "commit"
     return selected_ids[0]
+
+
+def _capacity_from_launch_result(result: Mapping[str, Any]) -> int | None:
+    """Read durable epic capacity from a translated approve result."""
+    value = result.get("capacity")
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
 
 
 _ADAPTERS = (

@@ -31,6 +31,7 @@ def test_choice_bindings_are_available() -> None:
     assert ("t", "choose_tale", "Tale") in ApproveOptionsModal.BINDINGS
     assert ("e", "choose_epic", "Epic") in ApproveOptionsModal.BINDINGS
     assert ("w", "edit_wait", "Wait") in ApproveOptionsModal.BINDINGS
+    assert ("c", "edit_capacity", "Capacity") in ApproveOptionsModal.BINDINGS
 
 
 def test_on_key_calls_approve_on_enter() -> None:
@@ -161,6 +162,23 @@ def test_on_key_calls_edit_wait_on_w() -> None:
     modal.action_edit_wait = fake_edit_wait  # type: ignore[assignment]
 
     key_event = events.Key("w", character="w")
+    modal.on_key(key_event)
+
+    assert called
+
+
+def test_on_key_calls_edit_capacity_on_c() -> None:
+    modal = ApproveOptionsModal.__new__(ApproveOptionsModal)
+
+    called = False
+
+    def fake_edit_capacity() -> None:
+        nonlocal called
+        called = True
+
+    modal.action_edit_capacity = fake_edit_capacity  # type: ignore[assignment]
+
+    key_event = events.Key("c", character="c")
     modal.on_key(key_event)
 
     assert called

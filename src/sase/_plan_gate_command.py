@@ -18,6 +18,7 @@ from ._plan_gate_shared import (
     PLAN_REJECT_OPTION_ID,
     PLAN_RESOURCE_PATH,
     PlanGateTier,
+    plan_gate_optional_capacity,
     plan_gate_optional_text,
 )
 
@@ -67,6 +68,9 @@ def execute_plan_gate_command(option_id: str) -> int:
         )
         wait_text = plan_gate_optional_text(raw_input.get("wait"))
         wait_spec = parse_wait_spec(wait_text) if wait_text is not None else None
+        capacity = None
+        if protocol_choice == "epic" and "capacity" in raw_input:
+            capacity = plan_gate_optional_capacity(raw_input.get("capacity"))
         result, _message = plan_response_json(
             protocol_choice,
             feedback=feedback,
@@ -75,6 +79,7 @@ def execute_plan_gate_command(option_id: str) -> int:
             coder_prompt=plan_gate_optional_text(raw_input.get("coder_prompt")),
             coder_model=plan_gate_optional_text(raw_input.get("coder_model")),
             wait_spec=wait_spec,
+            capacity=capacity,
         )
         if protocol_choice == "epic":
             mode = raw_input.get("epic_launch_mode", "launch")

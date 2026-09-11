@@ -2130,7 +2130,7 @@ ApproveOptionsModal {
 #approve-options-container {
     width: 70;
     height: auto;
-    max-height: 26;
+    max-height: 30;
     border: double $primary;
     background: $surface;
     padding: 1 2;
@@ -2173,7 +2173,13 @@ ApproveOptionsModal {
     margin-top: 1;
 }
 
-.approve-options-model-label.disabled {
+.approve-options-capacity-label {
+    height: auto;
+    margin-top: 1;
+}
+
+.approve-options-model-label.disabled,
+.approve-options-capacity-label.disabled {
     color: $text-disabled;
 }
 
@@ -2189,6 +2195,15 @@ ApproveOptionsModal {
 #approval-wait-display {
     margin-bottom: 1;
     color: $text-muted;
+}
+
+#approval-capacity-display {
+    margin-bottom: 1;
+    color: $text-muted;
+}
+
+#approval-capacity-display.disabled {
+    color: $text-disabled;
 }
 
 #approve-options-footer {
@@ -2237,6 +2252,51 @@ ApproveOptionsModal {
 }
 
 #approve-wait-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    border-top: solid $secondary;
+    padding-top: 1;
+}
+
+
+/* Approval Capacity Input Modal styling */
+.approval-capacity-input-modal {
+    align: center middle;
+}
+
+#approve-capacity-container {
+    width: 62;
+    height: auto;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+#approve-capacity-title {
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#approve-capacity-hint {
+    color: $text-muted;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#approve-capacity-input {
+    margin-bottom: 1;
+}
+
+#approve-capacity-error {
+    color: $error;
+    height: auto;
+    margin-bottom: 1;
+}
+
+#approve-capacity-footer {
     text-align: center;
     color: $text-muted;
     height: auto;
