@@ -443,7 +443,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     ("project:VAL", "Exact project; Tab-completed"),
                     ("name:VAL", "Exact agent name"),
                     ("family:VAL  clan:VAL", "Exact family / clan name"),
-                    ("role:VAL", "code | plan | mon"),
+                    ("role:VAL", "code | plan | monitor"),
                     ("workflow:VAL", "Substring on workflow name"),
                     ("model:VAL", "Substring on model"),
                     ("provider:VAL", "Enum on llm provider"),
@@ -461,6 +461,8 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     ('text:"..."', "Quoted substring (whole hay)"),
                     ('c"FAILED"', "Case-sensitive quoted"),
                     ("AND OR NOT ( )", "Boolean ops; juxtapose = AND"),
+                    ("legacy type:run", "Use kind:agent"),
+                    ("legacy age>2h", "Use until:2h / since:5m"),
                 ]
                 if unified_query
                 else [

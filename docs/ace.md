@@ -389,6 +389,18 @@ For example, `state:dismissed AND revivable:true`,
 `provider:codex AND status:FAILED AND since:7d`, and `linked:true AND relation:read` are
 valid queries.
 
+The top-level Agents tab uses the same Boolean grammar through the live `agents-live`
+profile, but keeps zero idle screen-space cost: when no query is active, no filter row
+is visible; when a query is active, the metadata panel shows the canonical highlighted
+query and match count. Press `f` or `,/` to open the auto-hiding filter bar. Live Agent
+fields include the shared identity and runtime fields (`name`, `family`, `clan`,
+`project`, `kind`, `role`, `workflow`, `model`, `provider`, `status`, `attempt`,
+`hidden`, `attention`, `retry`, `since`, `until`, `after`, `before`, `min`, `max`,
+`text`) plus operational fields (`cl`, `machine`, `tribe`, `pinned`, `unread`, `needs`,
+`source`). Archive-only catalog fields such as `state`, `dismissed`, `revivable`,
+`linked`, `relation`, `artifact`, and `label` are not live-tab filters, and the live tab
+does not accept an Artifacts `limit:` token.
+
 The Agent catalog also derives three archive capabilities that describe what a dismissed
 row's persisted archive can actually support, rather than whether a bundle file merely
 exists:
@@ -2317,41 +2329,65 @@ directives that create it.
 
 ### Agent Search
 
-Press `,/` (leader mode) on the Agents tab to open the query editor. The query language
-is a **structured Boolean expression** — parallel to the Patch query language but with a
-property-key allowlist tailored to agents. Bare words are substring-matched against an
-agent's `cl_name`, `display_name`, `agent_name`, and `status`, plus its **xprompt, live
-reply/response, chat transcript, and prior attempt replies**. When
+Press `f` or `,/` (leader mode) on the Agents tab to open the auto-hiding filter bar.
+Bare `/` stays reserved for forward inline metadata search. The filter bar uses the same
+**structured Boolean Agent dialect** as Artifacts -> Agent and
+[`sase agent search`](configuration.md#sase-agent), evaluated against the live
+`agents-live` profile. Bare words match an agent's `cl_name`, `display_name`,
+`agent_name`, and `status`, plus its **xprompt, live reply/response, chat transcript,
+and prior attempt replies** through the `text` corpus. When
 `ace.current_project.seed_agents_query` is on, ACE seeds this query with the current
-project's `project:` term on first load and marks it `seeded` until you edit it. That
-setting defaults **off** because the same query also drives unread jumps and prospective
-clans.
+project's exact `project:` term on first load and marks it `seeded` until you edit it.
+That setting defaults **off** because the same query also drives unread jumps and
+prospective clans.
+
+The bar previews each valid edit against the loaded snapshot, `Enter` commits and adds
+the previous query to history, `Escape` restores the pre-edit query and result, `Tab`
+accepts completions, and `^` / `_` walk query history while the bar is open. A leading
+`#` saves or deletes an Agents-tab saved-query slot in the `agents-live` namespace:
+`#3 status:FAILED`, `# status:queued`, and `#3` save, allocate, or delete a slot without
+changing the committed query.
 
 Property keys (closed allowlist):
 
-| Key                                                    | Form                                | Matching behavior                                        |
-| ------------------------------------------------------ | ----------------------------------- | -------------------------------------------------------- |
-| `status`, `cl`, `project`, `name`, `model`, `provider` | `key:value`                         | Case-insensitive substring; e.g. `status:queued`.        |
-| `text`                                                 | `text:value`                        | Case-insensitive substring over the full text corpus.    |
-| `tribe`                                                | `tribe:value` or `tribe:`           | Exact, case-insensitive; empty means any assigned tribe. |
-| `type`                                                 | `type:workflow`, `type:run`         | `type:running` is an alias for `type:run`.               |
-| `source`                                               | `source:axe`, `source:manual`       | Axe workflow/step or manually launched agent.            |
-| `needs`                                                | `needs:input`                       | Question/waiting-input or approved/working plan handoff. |
-| `pinned`, `hidden`, `attention`                        | `key:true` / `key:false`            | Boolean properties; `pinned:true` equals `tribe:pinned`. |
-| `age`                                                  | `age<5m`, `age>=2h`, `age:1d`, etc. | `:` is sugar for `>=`. Suffixes: `s`/`m`/`h`/`d`.        |
+| Key                                                | Form                                    | Matching behavior                                                                |
+| -------------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------- |
+| `name`, `family`, `clan`, `project`                | `key:value`                             | Exact, case-insensitive identity fields; completions include observed values.    |
+| `kind`                                             | `kind:agent`, `kind:workflow`, etc.     | Enum for agent/member/family/clan/workflow rows.                                 |
+| `status`, `provider`, `source`, `needs`            | `key:value`                             | Enums; `source` accepts `axe` / `manual`, and `needs` accepts `input`.           |
+| `role`, `workflow`, `model`, `cl`, `text`          | `key:value`                             | Case-insensitive substring fields; `text:` searches the full text corpus.        |
+| `machine`, `tribe`                                 | `key:value`                             | Exact live operational fields; `machine` accepts `here`, aliases, and hostnames. |
+| `pinned`, `unread`, `hidden`, `attention`, `retry` | `key:true` / `key:false`                | Boolean properties.                                                              |
+| `since`, `until`, `after`, `before`                | `key:2h`, `key:today`, `key:YYYY-MM-DD` | Start and finish bounds; `Nh` / `Nd` / `Nw` / `Nm`, `today`, and ISO dates.      |
+| `min`, `max`                                       | `key:5m`, `key:1h`                      | Runtime duration bounds.                                                         |
+| `attempt`                                          | `attempt:2`                             | Retry attempt number.                                                            |
 
-Boolean operators: juxtaposition is implicit `AND`; explicit `AND`, `OR`, and `NOT`
-(with parentheses) are honored. Precedence is `NOT > AND > OR`. The help modal carries
-an **Agent Query Syntax** section listing the same grammar.
+Boolean operators: juxtaposition is implicit `AND`; explicit `AND`, `OR`, and `NOT` (or
+`!`) are honored, and parentheses group expressions. Bare and quoted strings are
+case-insensitive; prefix a quoted string with `c` for case-sensitive matching, as in
+`c"FAILED"`.
 
-Parse failures are non-fatal: the loader falls back to "no filter" for that render and
-surfaces a transient toast; the query-edit modal re-validates on Apply, keeping itself
-open and rendering the error inline (in red) on failure.
+Legacy token migration:
 
-Transcript files are read lazily (only while a query is active) and cached by
-`(path, mtime_ns)` so auto-refresh stays cheap. Per-file reads are capped at 512 KB;
-missing or unreadable files are skipped silently. Parsed ASTs are also cached by raw
-query string so re-renders skip the parse.
+| Legacy (`agent_query`)                                                                                                            | Unified (`agents-live`)                    |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `type:workflow` / `type:run` / `type:running`                                                                                     | `kind:workflow` / `kind:agent`             |
+| `age>2h`, `age>=2h`                                                                                                               | `until:2h` (started at or before 2h ago)   |
+| `age<5m`, `age:5m`                                                                                                                | `since:5m` (started at or after 5m ago)    |
+| `status:foo` (substring)                                                                                                          | `status:FOO` (enum, completion-assisted)   |
+| `project:foo` (substring)                                                                                                         | `project:foo` (exact; completion-assisted) |
+| `tribe:` (bare, "any tribe")                                                                                                      | no direct equivalent; OR explicit tribes   |
+| everything else (`cl:`, `machine:`, `pinned:`, `needs:input`, `source:axe`, `text:`, booleans, `AND`/`OR`/`NOT`, parens, quoting) | unchanged spelling                         |
+
+Parse failures are non-fatal: the filter bar renders the error inline and keeps the last
+good result. When the bad token is a known legacy spelling such as `age>2h` or
+`type:run`, the error appends the unified replacement hint.
+
+Transcript files are read only by the background content-index worker while a query is
+active and are cached by `(path, mtime_ns)` so auto-refresh stays cheap. Per-file reads
+are capped at 512 KB; missing or unreadable files are skipped silently. Keystrokes do
+string-level canonicalization only; row matching runs through the Rust-backed
+`agents-live` query index.
 
 ### Leader Mode (`,` prefix)
 
@@ -2800,7 +2836,7 @@ every tab.
 | Provider documents | `/` (or local `f`) |
 | Files              | `/` (or local `f`) |
 | Artifacts → Agent  | `/` (or local `f`) |
-| Agents tab query   | `,/`               |
+| Agents tab query   | `f` or `,/`        |
 
 The Axe tab has no query editor. Its `?` help modal and the command palette both still
 offer "Edit search query" there, but the action currently does nothing on Axe; use the
@@ -2812,8 +2848,8 @@ To save a query, prefix with `#`:
 - `# "myproject"` -- save to next available slot
 - `#3` (no query) -- delete slot 3
 
-On Patches these commands run inside the inline filter and leave both the active query
-and editor session in place.
+On Patches and the top-level Agents tab, these commands run inside the inline filter and
+leave both the active query and editor session in place.
 
 On first open, when `ace.current_project.seed_filters` is on and the Patches query
 carries no `project:` / `+name` term of any polarity or depth, ACE appends a visible
@@ -2847,9 +2883,9 @@ Beads, and Plans.
 | `_` | Navigate to next query in history     |
 
 Query history is available on every Artifacts sub-tab whose pane contract enables
-`query_history`, including provider-backed document panes. Each pane has its own durable
-previous/next stack, and Help shows the active pane's stack with the configured
-previous/next key labels.
+`query_history`, including provider-backed document panes, and inside the top-level
+Agents tab filter bar. Each pane has its own durable previous/next stack, and Help shows
+the active pane's stack with the configured previous/next key labels.
 
 See [`docs/query_language.md`](query_language.md) for the full query syntax reference,
 including boolean expressions, status shorthands, property filters, and searchable

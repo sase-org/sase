@@ -26,10 +26,14 @@ Normal query surfaces use enabled-project Patch discovery. Disabled projects are
 from CLI search and day-to-day ACE/axe scans. Views that are specifically about agent
 history or old artifacts opt into all project lifecycle states explicitly.
 
-This page documents Patch queries. The top-level Agents tab has its own operational
-query language. Artifacts → Agent and `sase agent search` share a third, historical
-agent-catalog Boolean dialect with identity, lineage, lifecycle, runtime, and
-artifact-link fields; see [ACE: Agent Pane](ace.md#agent-pane).
+This page documents Patch queries. Agent filtering uses the shared Boolean profile
+dialect instead: the top-level Agents tab uses the live `agents-live` profile, while
+Artifacts -> Agent and `sase agent search` use the catalog profile with archive and
+artifact-link fields. The grammar is the same across both Agent profiles; the live tab
+adds operational fields such as `machine`, `pinned`, `unread`, `needs`, and `source` and
+deliberately omits archive-only fields such as `state`, `dismissed`, `relation`, and
+`artifact`. See [ACE: Agent Pane](ace.md#agent-pane) and
+[ACE: Agent Search](ace.md#agent-search).
 
 In the Patches sub-tab, the canonical form of the active query stays visible in a
 persistent filter row. Press `/` (or the local `f`) to edit it. Typing previews each
@@ -42,11 +46,13 @@ saves or deletes a slot without changing the active query; see
 [ACE: Editing Queries](ace.md#editing-queries).
 
 Agent, Stitches, Beads, Plans, Files, and document-provider panes use the same idle
-chrome — the committed query stays visible without opening an editor — but each pane has
-its own query dialect and previews against **that pane's** loaded snapshot, not the
+chrome -- the committed query stays visible without opening an editor -- but each pane
+has its own query profile and previews against **that pane's** loaded snapshot, not the
 Patch snapshot. Shared keys such as `/` and `f` still focus the row; the tokens you can
 type are documented per pane in
-[ACE Artifacts](ace.md#filtering-agent-patches-stitches-beads-and-plans).
+[ACE Artifacts](ace.md#filtering-agent-patches-stitches-beads-and-plans). The top-level
+Agents tab hides its filter bar when idle; press `f` or `,/` to edit the live Agent
+query there.
 
 ## String Matching
 

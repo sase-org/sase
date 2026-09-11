@@ -837,11 +837,11 @@ the same MRU promotion without a launch.
 | ------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `indicator`         | bool | `true`  | Show the `+<project>` chip in the ACE top bar, right of the default-model indicator. Governs the top-bar chip only; the Admin Center [Projects tab](ace.md#projects-tab) always shows the current project regardless of this setting. |
 | `seed_filters`      | bool | `true`  | Seed project filters that have no value yet. Never overrides an explicit choice or an already-open surface.                                                                                                                           |
-| `seed_agents_query` | bool | `false` | Also seed the Agents-tab search query with the current project's `project:` term.                                                                                                                                                     |
+| `seed_agents_query` | bool | `false` | Also seed the Agents-tab `agents-live` query with the current project's exact `project:` term.                                                                                                                                        |
 
 `seed_agents_query` is **off by default** on purpose. The Agents tab is the primary
-at-a-glance view, and its search query is also read by unread-jump candidates and
-prospective-clan selection — not just the visible list. Turning this on silently
+at-a-glance view, and its structured query is also read by unread-jump candidates and
+prospective-clan selection -- not just the visible list. Turning this on silently
 re-scopes those surfaces. The capability is fully built; one line of config enables it.
 
 When `seed_filters` is on, a filter that already has a value — an explicit `project:` /
@@ -1202,8 +1202,13 @@ Remote Agents actions are also app-level fields. They intentionally ship as `unb
 the command palette exposes them contextually, and a configured key becomes active only
 when the Agents tab and selected remote row support that action.
 
+The top-level Agents query editor is available as the app-level `agents_filters`
+binding, default `f`, and through the leader-mode `edit_query` chord, default `,/`. Bare
+`/` remains the Agents inline metadata-search key.
+
 | Field                       | Default   | Action                                                       |
 | --------------------------- | --------- | ------------------------------------------------------------ |
+| `agents_filters`            | `f`       | Open the top-level Agents `agents-live` filter bar.          |
 | `connect_agent_machine`     | `unbound` | Show the selected row's machine alias and connection health. |
 | `setup_agent_machine`       | `unbound` | Show canonical `sase machine init` enrollment guidance.      |
 | `retry_remote_agent`        | `unbound` | Retry the selected row on its owning host.                   |
@@ -1229,13 +1234,13 @@ family, 1-3 for a clan or regular-agent session scope, and 1-4 for a selected wh
 tribe panel. The configured prefix and subkeys are used by dispatch, the command
 palette, footers, and help.
 
-Query editing has two contextual scopes. `ace.keymaps.app.edit_query` controls Patches,
-Stitches, Plans, and Axe and defaults to bare `/`.
-`ace.keymaps.modes.leader_mode.keys.edit_query` independently controls the Agents
-structured-query chord and defaults to `,/`; bare `/` on Agents starts inline metadata
-search. Help is an app-level action controlled by `ace.keymaps.app.show_help` and
-defaults to bare `?`; the retired `leader_mode.keys.show_help` override is dropped at
-load time.
+Query editing has contextual scopes. `ace.keymaps.app.edit_query` controls Patches,
+Stitches, Plans, and Axe and defaults to bare `/`. The top-level Agents filter bar uses
+`ace.keymaps.app.agents_filters` for its direct key, default `f`, and
+`ace.keymaps.modes.leader_mode.keys.edit_query` for the Agents structured-query chord,
+default `,/`; bare `/` on Agents starts inline metadata search. Help is an app-level
+action controlled by `ace.keymaps.app.show_help` and defaults to bare `?`; the retired
+`leader_mode.keys.show_help` override is dropped at load time.
 
 The leader update keys are separate remappable actions. `update_sase` opens the cached
 Update panel, while `update_everything` directly runs the same previewed Everything flow
