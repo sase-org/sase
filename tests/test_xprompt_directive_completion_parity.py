@@ -87,7 +87,7 @@ def test_ace_and_lsp_include_queue_directive(
         lsp_rows = lsp.complete("%")
 
     ace_labels = {row.label for row in ace_rows}
-    assert {"%queue", "%q:...", "%queue(runners=..., priority=...)"} <= ace_labels
+    assert {"%queue", "%q:...", "%queue(capacity=..., priority=...)"} <= ace_labels
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
 
 
@@ -156,8 +156,8 @@ def test_ace_and_lsp_directive_argument_rows_match(
 @pytest.mark.parametrize(
     ("text", "expected_insertions"),
     [
-        ("%queue(", ["p=", "priority=", "runners=", "w=", "weight=", "0", "1"]),
-        ("%q(", ["p=", "priority=", "runners=", "w=", "weight=", "0", "1"]),
+        ("%queue(", ["capacity=", "p=", "priority=", "w=", "weight=", "0", "1"]),
+        ("%q(", ["capacity=", "p=", "priority=", "w=", "weight=", "0", "1"]),
         ("%q:", ["0", "1"]),
     ],
 )
@@ -184,6 +184,7 @@ def test_wait_keywords_exclude_queue_fields(
     insertions = {row.insertion for row in ace_rows}
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
     assert "runners=" not in insertions
+    assert "capacity=" not in insertions
     assert "priority=" not in insertions
     assert "p=" not in insertions
     assert "weight=" not in insertions

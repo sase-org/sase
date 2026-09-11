@@ -15,7 +15,11 @@ from sase.core.agent_launch_facade import (
 from sase.core.agent_launch_wire import AgentUnitWire
 from sase.feature_flags import override_flags
 from sase.xprompt.directives import DirectiveError, extract_prompt_directives
-from sase.xprompt.queue_directive import collect_queue_fields, format_queue_directive
+from sase.xprompt.queue_directive import (
+    collect_queue_fields,
+    format_queue_directive,
+    validate_queue_capacity,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,19 +61,19 @@ def test_queue_adapter_collects_and_formats_through_rust() -> None:
         ]
     )
     assert result["errors"] == []
-    assert result["fields"] == {"runners": 5, "priority": 20, "weight": 0.25}
+    assert result["fields"] == {"capacity": 5, "priority": 20, "weight": 0.25}
     assert (
-        format_queue_directive(runners=5, priority=20, weight=0.25)
-        == "%queue(runners=5, priority=20, weight=0.25)"
+        format_queue_directive(capacity=5, priority=20, weight=0.25)
+        == "%queue(capacity=5, priority=20, weight=0.25)"
     )
     duplicate = collect_queue_fields(
         [
             {
-                "source": "%q(5, runners=5)",
-                "source_span": [0, 16],
+                "source": "%q(5, capacity=5)",
+                "source_span": [0, 17],
                 "args": [
                     {"value": "5"},
-                    {"name": "runners", "value": "5"},
+                    {"name": "capacity", "value": "5"},
                 ],
                 "has_plus_suffix": False,
             }
@@ -77,6 +81,22 @@ def test_queue_adapter_collects_and_formats_through_rust() -> None:
     )
     assert duplicate["fields"] is None
     assert duplicate["errors"][0]["code"] == "duplicate-queue-field"
+    obsolete = collect_queue_fields(
+        [
+            {
+                "source": "%q(3, runners=3)",
+                "source_span": [0, 16],
+                "args": [
+                    {"value": "3"},
+                    {"name": "runners", "value": "3"},
+                ],
+                "has_plus_suffix": False,
+            }
+        ]
+    )
+    assert obsolete["fields"] is None
+    assert obsolete["errors"][0]["code"] == "obsolete-queue-runners"
+    assert "capacity=" in obsolete["errors"][0]["message"]
 
 
 def test_queue_weight_extracts_unconditionally() -> None:
@@ -105,7 +125,7 @@ def test_typed_launch_parses_queue_and_rebuilds_canonical_prompt() -> None:
         assert agent.queue_weight == 2.0
         assert agent.queue_weight_explicit is True
         rebuilt = agent_unit_dispatch_prompt(agent)
-    assert "%queue(runners=1, priority=20, weight=2)" in rebuilt
+    assert "%queue(capacity=1, priority=20, weight=2)" in rebuilt
     assert "%wait(runners=" not in rebuilt
 
 
@@ -133,3 +153,21 @@ def test_typed_launch_rejects_retired_wait_queue_keywords() -> None:
                 "%wait(priority=5)\nDo work",
                 selected_project="sase",
             )
+
+
+def test_validate_queue_capacity_rejects_booleans_and_invalid_numbers() -> None:
+    assert validate_queue_capacity(0) == 0
+    assert validate_queue_capacity("3") == 3
+    assert validate_queue_capacity(4294967295) == 4294967295
+    with pytest.raises(ValueError, match="boolean"):
+        validate_queue_capacity(True)
+    with pytest.raises(ValueError, match="boolean"):
+        validate_queue_capacity(False)
+    with pytest.raises(ValueError, match="non-negative integer"):
+        validate_queue_capacity(1.5)
+    with pytest.raises(ValueError, match="non-negative integer"):
+        validate_queue_capacity(-1)
+    with pytest.raises(ValueError):
+        validate_queue_capacity("4294967296")
+    with pytest.raises(ValueError):
+        validate_queue_capacity("true")

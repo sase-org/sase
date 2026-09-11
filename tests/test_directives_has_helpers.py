@@ -134,7 +134,7 @@ def test_has_deferred_start_directive_detects_tribe_fork() -> None:
 
 @pytest.mark.parametrize(
     "directive",
-    ["%q:5", "%queue(runners=0)", "%q(p=20)", "%queue(priority=20)"],
+    ["%q:5", "%queue(capacity=0)", "%q(p=20)", "%queue(priority=20)"],
 )
 def test_has_deferred_start_directive_detects_queue(
     directive: str,
@@ -181,7 +181,7 @@ def test_has_runner_threshold_directive_detects_legacy_live_directive(
 
 @pytest.mark.parametrize(
     "directive",
-    ["%q:0", "%queue(runners=2)", "%q(3, p=20)"],
+    ["%q:0", "%queue(capacity=2)", "%q(3, p=20)"],
 )
 def test_has_runner_threshold_directive_detects_queue(
     directive: str,

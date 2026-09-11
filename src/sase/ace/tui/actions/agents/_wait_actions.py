@@ -193,7 +193,7 @@ class AgentWaitActionsMixin:
             self._apply_live_runner_wait(artifacts_dir, agent, result)
             return
         if not result.run_now and (
-            result.time_token or result.runners is not None or agent.slot_requested_at
+            result.time_token or result.capacity is not None or agent.slot_requested_at
         ):
             self._apply_wait_relaunch(agent, result)
             return
@@ -407,7 +407,7 @@ class AgentWaitActionsMixin:
                 "agents": list(wait_spec.agents),
                 "beads": list(wait_spec.beads),
                 "priority": wait_spec.priority,
-                "runners": wait_spec.runners,
+                "capacity": wait_spec.capacity,
                 "time_token": wait_spec.time_token,
             }
         submitted = submit_agent_directive(
@@ -420,14 +420,14 @@ class AgentWaitActionsMixin:
                     "update_wait_priority": update_wait_priority,
                     "update_wait_runners": True,
                     "wait_priority": result.priority,
-                    "wait_runners": result.runners,
+                    "wait_runners": result.capacity,
                 },
                 "waiting": {
                     "beads": list(result.beads),
                     "update_wait_priority": update_wait_priority,
                     "update_wait_runners": True,
                     "wait_priority": result.priority,
-                    "wait_runners": result.runners,
+                    "wait_runners": result.capacity,
                 },
             },
             cl_name=agent.cl_name or agent.display_name or "agent",
@@ -440,8 +440,8 @@ class AgentWaitActionsMixin:
         agent.waiting_for_beads = list(result.beads)
         agent.wait_duration = None
         agent.wait_until = None
-        agent.wait_runners = result.runners
-        agent.wait_runners_explicit = result.runners is not None
+        agent.wait_runners = result.capacity
+        agent.wait_runners_explicit = result.capacity is not None
         if update_wait_priority:
             agent.wait_priority = result.priority
             agent.wait_priority_explicit = result.priority is not None
@@ -450,13 +450,13 @@ class AgentWaitActionsMixin:
             slot_queued=True,
         )
         label = (
-            f"runners ≤ {result.runners}"
-            if result.runners is not None
+            f"weighted load ≤ {result.capacity}"
+            if result.capacity is not None
             else "global runner cap"
         )
         if result.priority is not None:
             label = f"{label}, priority {result.priority}"
-        self.notify(f"Runner wait: {label}")  # type: ignore[attr-defined]
+        self.notify(f"Capacity wait: {label}")  # type: ignore[attr-defined]
         self._refresh_agents_display(list_changed=False)  # type: ignore[attr-defined]
 
     def _apply_wait_running(self, agent: Agent, result: WaitModalResult) -> None:

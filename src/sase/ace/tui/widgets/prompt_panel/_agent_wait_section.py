@@ -41,7 +41,7 @@ _WAIT_TAG_STYLES: dict[str, str] = {
     "tribes": "dim #FFD75F",
     "beads": "dim #FFAF00",
     "time": "dim #87D7FF",
-    "runners": f"dim {QUEUED_STATUS_COLOR}",
+    "capacity": f"dim {QUEUED_STATUS_COLOR}",
 }
 type WaitLane = tuple[str, Text]
 
@@ -229,7 +229,7 @@ def build_wait_lanes(
             if value.plain:
                 value.append(" · ", style="dim #AF87FF")
             value.append(
-                f"waiting for ≤{threshold} other agents",
+                f"waiting for weighted load ≤{threshold}",
                 style=_WAITING_VALUE_STYLE,
             )
             if threshold == 0:
@@ -254,7 +254,7 @@ def build_wait_lanes(
             if value.plain:
                 value.append(" · ", style="dim #AF87FF")
             value.append(blocker_label, style="dim #AF87FF")
-        lanes.append(("runners", value))
+        lanes.append(("capacity", value))
 
     return tuple(lanes)
 
@@ -319,7 +319,7 @@ def _runner_capacity_blocker_labels(agent: Agent) -> tuple[str, ...]:
         code = blocker.get("code")
         if code == "insufficient-capacity":
             continue
-        if code == "runner-count-condition":
+        if code == "capacity-condition":
             continue
         if code == "weight-exceeds-limit":
             labels.append("weight exceeds current limit")

@@ -385,7 +385,7 @@ def _append_wait_field(
         wait_bead_statuses=wait_bead_statuses,
     )
     if runners_only:
-        lanes = tuple(lane for lane in lanes if lane[0] == "runners")
+        lanes = tuple(lane for lane in lanes if lane[0] == "capacity")
     if not lanes:
         return None
 

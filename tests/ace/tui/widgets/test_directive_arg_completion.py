@@ -277,15 +277,15 @@ def test_queue_priority_completion_describes_order_and_default() -> None:
     )
 
 
-def test_queue_runner_completion_describes_limit() -> None:
-    text = "%queue(run"
+def test_queue_capacity_completion_describes_limit() -> None:
+    text = "%queue(cap"
     clause = classify_directive_completion(text, len(text))
     assert clause is not None
     candidates, _ = build_directive_clause_candidates(clause)
 
-    assert [candidate.insertion for candidate in candidates] == ["runners="]
+    assert [candidate.insertion for candidate in candidates] == ["capacity="]
     assert directive_arg_metadata(candidates[0]).description == (
-        "Start when at most this many agents are already running"
+        "Start when occupied weighted load is at most this threshold"
     )
 
 

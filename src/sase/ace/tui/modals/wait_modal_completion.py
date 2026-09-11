@@ -71,7 +71,7 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
             current_wait_duration,
             current_wait_until,
         )
-        self._runners_prefill = (
+        self._capacity_prefill = (
             str(current_wait_runners) if current_wait_runners is not None else ""
         )
         self._priority_prefill = (

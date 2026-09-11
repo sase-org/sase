@@ -130,7 +130,13 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                     if "runners" in named_args:
                         raise DirectiveError(
                             "%wait(runners=...) has moved to %queue. "
-                            "Use %queue(runners=N) or %q:N, and keep dependencies "
+                            "Use %queue(capacity=N) or %q:N, and keep dependencies "
+                            "on %wait."
+                        )
+                    if "capacity" in named_args:
+                        raise DirectiveError(
+                            "%wait(capacity=...) belongs on %queue. "
+                            "Use %queue(capacity=N) or %q:N, and keep dependencies "
                             "on %wait."
                         )
                     if "priority" in named_args:

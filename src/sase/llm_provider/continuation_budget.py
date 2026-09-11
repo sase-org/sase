@@ -171,12 +171,12 @@ def _int_setting(
     *,
     default: int | None = None,
 ) -> int | None:
-    raw = env.get(_ENV_TO_CONFIG_KEY[key])
+    raw: object | None = env.get(_ENV_TO_CONFIG_KEY[key])
     if raw is None:
         raw = config.get(key)
-    if raw is None:
+    if raw is None or isinstance(raw, bool):
         return default
-    if isinstance(raw, bool):
+    if not isinstance(raw, (int, str)):
         return default
     try:
         parsed = int(raw)

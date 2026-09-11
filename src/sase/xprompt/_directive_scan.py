@@ -265,7 +265,7 @@ def _has_queue_admission_directive(prompt: str) -> bool:
 def _has_queue_runners_directive(prompt: str) -> bool:
     return _has_protected_pattern_match(
         prompt,
-        r"(?:^|\s)%(?:queue|q)(?::`?[0-9]+`?|\(\s*(?:[0-9]+|runners\s*=)|\([^)]*,\s*runners\s*=)",
+        r"(?:^|\s)%(?:queue|q)(?::`?[0-9]+`?|\(\s*(?:[0-9]+|capacity\s*=)|\([^)]*,\s*capacity\s*=)",
         required_substring="%",
     )
 

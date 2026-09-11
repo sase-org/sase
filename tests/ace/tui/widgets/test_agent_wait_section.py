@@ -94,7 +94,7 @@ def test_gutter_width_tracks_only_present_lanes() -> None:
     assert time_line.index("5m") - len("Wait: ") == 7
 
 
-def test_lane_order_is_agents_tribes_beads_time_runners() -> None:
+def test_lane_order_is_agents_tribes_beads_time_capacity() -> None:
     lanes = _lanes(
         make_agent(
             status="WAITING",
@@ -112,12 +112,12 @@ def test_lane_order_is_agents_tribes_beads_time_runners() -> None:
         "tribes",
         "beads",
         "time",
-        "runners",
+        "capacity",
     )
     assert [
         line[6 : line.index("]") + 1]
         for line in ResponsiveWaitSection(lanes).logical_text.plain.splitlines()
-    ] == ["[agents]", "[tribes]", "[beads]", "[time]", "[runners]"]
+    ] == ["[agents]", "[tribes]", "[beads]", "[time]", "[capacity]"]
 
 
 def test_pending_tribe_wait_uses_tribe_lane_without_unknown_glyph(
@@ -289,7 +289,7 @@ def test_queued_explicit_wait_renders_runner_lane_only(
     header, _ = build_header_text(agent, cheap=True)
 
     assert "Queue: #1 of 2" in header.plain
-    assert "Wait: [runners]" in header.plain
+    assert "Wait: [capacity]" in header.plain
     assert "[agents]" not in header.plain
 
 

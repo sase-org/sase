@@ -88,7 +88,7 @@ def scaffolded_prompt(
     if proposal.wait_runners is not None and not has_runner_threshold_directive(
         proposal.prompt
     ):
-        directive = format_queue_directive(runners=proposal.wait_runners)
+        directive = format_queue_directive(capacity=proposal.wait_runners)
         if directive is not None:
             lines.append(directive)
     lines.append(proposal.prompt.strip())

@@ -23,7 +23,7 @@ class PromptWaitDirective:
 
     agents: tuple[str, ...] = ()
     time_token: str | None = None
-    runners: int | None = None
+    capacity: int | None = None
     priority: int | None = None
     weight: float | None = None
     beads: tuple[str, ...] = ()
@@ -32,7 +32,7 @@ class PromptWaitDirective:
         return bool(
             self.agents
             or self.time_token
-            or self.runners is not None
+            or self.capacity is not None
             or self.priority is not None
             or self.weight is not None
             or self.beads
@@ -76,7 +76,7 @@ def set_prompt_wait_and_queue(
         else _existing_queue_weight(prompt)
     )
     queue_replacement = format_queue_directive(
-        runners=wait_spec.runners if wait_spec else None,
+        capacity=wait_spec.capacity if wait_spec else None,
         priority=wait_spec.priority if wait_spec else None,
         weight=weight,
     )
@@ -96,7 +96,7 @@ def set_prompt_wait_and_queue(
 def set_prompt_queue(
     prompt: str,
     *,
-    runners: int | None,
+    capacity: int | None,
     priority: int | None,
     weight: float | None = None,
 ) -> str:
@@ -106,7 +106,7 @@ def set_prompt_queue(
         prompt,
         {"queue"},
         format_queue_directive(
-            runners=runners,
+            capacity=capacity,
             priority=priority,
             weight=resolved_weight,
         ),

@@ -280,7 +280,7 @@ def _queue_entry_capacity_detail(entry: RunnerQueueEntry) -> str:
             None,
             "queue-order",
             "insufficient-capacity",
-            "runner-count-condition",
+            "capacity-condition",
         }:
             continue
         if code == "weight-exceeds-limit":
@@ -317,6 +317,6 @@ def _queue_entry_free_capacity(entry: RunnerQueueEntry) -> float | None:
 def _has_capacity_blocker(entry: RunnerQueueEntry) -> bool:
     return any(
         blocker.get("code")
-        not in {None, "queue-order", "runner-count-condition", "deference-window"}
+        not in {None, "queue-order", "capacity-condition", "deference-window"}
         for blocker in entry.blockers
     )

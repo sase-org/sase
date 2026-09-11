@@ -65,18 +65,21 @@ def wait_spec_label(result: WaitModalResult) -> str:
             label = f"{label}, then {result.time_token}"
     elif result.time_token:
         label = f"waiting until {result.time_token}"
-    elif result.runners is not None:
-        label = f"waiting for runners ≤ {result.runners}"
+    elif result.capacity is not None:
+        label = f"waiting for weighted load ≤ {result.capacity}"
     elif result.priority is not None:
         label = f"waiting with priority {result.priority}"
     else:
         return "running now"
-    if result.runners is not None and (
+    if result.capacity is not None and (
         result.agents or result.beads or result.time_token
     ):
-        label = f"{label}, with runners ≤ {result.runners}"
+        label = f"{label}, with weighted load ≤ {result.capacity}"
     if result.priority is not None and (
-        result.agents or result.beads or result.time_token or result.runners is not None
+        result.agents
+        or result.beads
+        or result.time_token
+        or result.capacity is not None
     ):
         label = f"{label}, priority {result.priority}"
     return label
@@ -88,7 +91,7 @@ def result_has_wait_spec(result: WaitModalResult) -> bool:
         result.agents
         or result.beads
         or result.time_token
-        or result.runners is not None
+        or result.capacity is not None
         or result.priority is not None
     )
 
@@ -100,7 +103,7 @@ def prompt_wait_spec(result: WaitModalResult) -> PromptWaitDirective | None:
     return PromptWaitDirective(
         agents=tuple(result.agents),
         time_token=result.time_token,
-        runners=result.runners,
+        capacity=result.capacity,
         priority=result.priority,
         beads=tuple(result.beads),
     )

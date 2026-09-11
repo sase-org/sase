@@ -14,7 +14,7 @@ from sase.ace.tui.modals.wait_modal import (
     _prefill_time_token,
     _replace_active_fragment,
     _validate_priority_token,
-    _validate_runners_token,
+    _validate_capacity_token,
     _validate_time_token,
 )
 from tests.ace.tui._wait_modal_helpers import (
@@ -117,17 +117,17 @@ def test_time_prefill_round_trips_duration_and_absolute() -> None:
 
 
 def test_runners_validation_accepts_zero_and_rejects_non_integers() -> None:
-    default = _validate_runners_token("")
+    default = _validate_capacity_token("")
     assert default.valid is True
     assert default.value is None
 
-    barrier = _validate_runners_token("0")
+    barrier = _validate_capacity_token("0")
     assert barrier.valid is True
     assert barrier.value == 0
     assert "drain barrier" in barrier.message
 
-    assert _validate_runners_token("-1").valid is False
-    assert _validate_runners_token("1.5").valid is False
+    assert _validate_capacity_token("-1").valid is False
+    assert _validate_capacity_token("1.5").valid is False
 
 
 def test_priority_validation_accepts_zero_and_rejects_non_integers() -> None:
@@ -239,13 +239,13 @@ async def test_modal_returns_explicit_runner_threshold() -> None:
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
-        runners_input = modal.query_one("#runners-input", Input)
-        assert runners_input.value == "0"
-        runners_input.focus()
+        capacity_input = modal.query_one("#capacity-input", Input)
+        assert capacity_input.value == "0"
+        capacity_input.focus()
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == WaitModalResult(agents=[], time_token=None, runners=0)
+    assert result == WaitModalResult(agents=[], time_token=None, capacity=0)
 
 
 async def test_modal_prefills_and_returns_explicit_priority() -> None:

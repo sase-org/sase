@@ -34,7 +34,7 @@ class WaitModalResult:
 
     agents: list[str]
     time_token: str | None
-    runners: int | None = None
+    capacity: int | None = None
     priority: int | None = None
     update_priority: bool = False
     beads: list[str] = field(default_factory=list)

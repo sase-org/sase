@@ -304,8 +304,9 @@ class AgentState:
     wait_until: str | None = None
 
     # Runner-slot wait metadata projected from waiting.json. ``wait_runners``
-    # is the optional existing-runner threshold; capacity units are projected
-    # separately from the global snapshot below.
+    # keeps the persisted storage spelling of the optional weighted-load
+    # capacity threshold; occupied capacity units are projected separately
+    # from the global snapshot below.
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
     wait_priority: int | None = None

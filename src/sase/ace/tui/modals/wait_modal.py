@@ -12,16 +12,16 @@ from .wait_modal_beads import BeadsValidation, validate_beads_selection
 from .wait_modal_completion import WaitModalCompletionScreen
 from .wait_modal_types import WaitAgentCandidate, WaitModalResult
 from .wait_modal_values import (
+    CapacityValidation,
     PriorityValidation,
-    RunnersValidation,
     TimeValidation,
     active_fragment as _active_fragment,
     parse_agents_value,
     parse_beads_value,
     prefill_time_token as _prefill_time_token,
     replace_active_fragment as _replace_active_fragment,
+    validate_capacity_token as _validate_capacity_token,
     validate_priority_token as _validate_priority_token,
-    validate_runners_token as _validate_runners_token,
     validate_time_token as _validate_time_token,
 )
 from .wait_modal_widgets import (
@@ -52,7 +52,7 @@ class WaitModal(WaitModalCompletionScreen):
         "agents-input",
         "beads-input",
         "time-input",
-        "runners-input",
+        "capacity-input",
         "priority-input",
     )
     _COMPLETION_OWNER_IDS = {
@@ -66,7 +66,7 @@ class WaitModal(WaitModalCompletionScreen):
         with Container(id="wait-modal-body"):
             yield Label("Wait", id="modal-title")
             yield Static(
-                "Wait for agents, beads, a time floor, and/or a runner threshold.",
+                "Wait for agents, beads, a time floor, and/or a weighted-load capacity.",
                 id="wait-modal-summary",
             )
             yield Label("Agents", classes="wait-field-label")
@@ -91,13 +91,13 @@ class WaitModal(WaitModalCompletionScreen):
                 id="time-input",
             )
             yield Static("", id="time-preview")
-            yield Label("Runners", classes="wait-field-label")
+            yield Label("Capacity", classes="wait-field-label")
             yield WaitInput(
-                value=self._runners_prefill,
+                value=self._capacity_prefill,
                 placeholder="global cap",
-                id="runners-input",
+                id="capacity-input",
             )
-            yield Static("", id="runners-preview")
+            yield Static("", id="capacity-preview")
             yield Label("Priority", classes="wait-field-label")
             yield WaitInput(
                 value=self._priority_prefill,
@@ -112,7 +112,7 @@ class WaitModal(WaitModalCompletionScreen):
         self._refresh_completion()
         self._refresh_bead_completion()
         self._update_time_preview()
-        self._update_runners_preview()
+        self._update_capacity_preview()
         self._update_priority_preview()
         self._update_beads_preview()
         self._apply_active_completion_visibility()
@@ -163,8 +163,8 @@ class WaitModal(WaitModalCompletionScreen):
         if event.input.id == "time-input":
             self._update_time_preview()
             return
-        if event.input.id == "runners-input":
-            self._update_runners_preview()
+        if event.input.id == "capacity-input":
+            self._update_capacity_preview()
             return
         if event.input.id == "priority-input":
             self._update_priority_preview()
@@ -296,13 +296,13 @@ class WaitModal(WaitModalCompletionScreen):
         )
         return validation
 
-    def _update_runners_preview(self) -> RunnersValidation:
-        """Update runner-threshold preview and return validation state."""
-        validation = _validate_runners_token(
-            self.query_one("#runners-input", WaitInput).value
+    def _update_capacity_preview(self) -> CapacityValidation:
+        """Update weighted-load capacity preview and return validation state."""
+        validation = _validate_capacity_token(
+            self.query_one("#capacity-input", WaitInput).value
         )
         self._apply_validation_preview(
-            "#runners-preview", validation.message, validation.css_class
+            "#capacity-preview", validation.message, validation.css_class
         )
         return validation
 
@@ -336,9 +336,9 @@ class WaitModal(WaitModalCompletionScreen):
         if not validation.valid:
             self.query_one("#time-input", WaitInput).focus()
             return
-        runners_validation = self._update_runners_preview()
-        if not runners_validation.valid:
-            self.query_one("#runners-input", WaitInput).focus()
+        capacity_validation = self._update_capacity_preview()
+        if not capacity_validation.valid:
+            self.query_one("#capacity-input", WaitInput).focus()
             return
         priority_validation = self._update_priority_preview()
         if not priority_validation.valid:
@@ -358,14 +358,14 @@ class WaitModal(WaitModalCompletionScreen):
             not agents
             and not beads
             and validation.token is None
-            and runners_validation.value is None
+            and capacity_validation.value is None
             and priority_validation.value is None
         )
         self.dismiss(
             WaitModalResult(
                 agents=agents,
                 time_token=validation.token,
-                runners=runners_validation.value,
+                capacity=capacity_validation.value,
                 priority=priority_validation.value,
                 update_priority=(
                     priority_validation.value != self._current_wait_priority

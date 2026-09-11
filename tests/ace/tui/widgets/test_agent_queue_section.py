@@ -201,7 +201,7 @@ def test_explicit_threshold_waiter_gets_the_same_queue_ladder() -> None:
         (_entry("barrier", threshold=0, explicit=True, parked=True),),
     )
 
-    assert "Wait: [runners] waiting for ≤0 other agents (drain barrier)" in (
+    assert "Wait: [capacity] waiting for weighted load ≤0 (drain barrier)" in (
         header.plain
     )
     assert "❖ QUEUE · 1 waiting · 1 parked · 10.0/10.0 capacity" in header.plain
@@ -304,7 +304,7 @@ def test_queue_ladder_renders_weight_badges_and_capacity_explanations() -> None:
     )
 
     assert "Weight: 0.5 capacity units" in header.plain
-    assert "Wait: [runners] needs 0.5 · 0.25 free · queue #2 of 2" in header.plain
+    assert "Wait: [capacity] needs 0.5 · 0.25 free · queue #2 of 2" in header.plain
     assert "❖ QUEUE · 2 waiting · 1 parked · 0.75/1.0 capacity" in header.plain
     assert "light" in header.plain
     assert "w0.25" in header.plain

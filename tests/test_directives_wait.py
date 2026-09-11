@@ -246,6 +246,10 @@ def test_queue_directive_sets_runner_slot_fields() -> None:
             r"%wait\(runners=\.\.\.\) has moved to %queue",
         ),
         (
+            "%wait(capacity=5)\nDo work",
+            r"%wait\(capacity=\.\.\.\) belongs on %queue",
+        ),
+        (
             "%wait(priority=5)\nDo work",
             r"%wait\(priority=\.\.\.\) has moved to %queue",
         ),
@@ -264,8 +268,13 @@ def test_wait_queue_keywords_are_retired(
 
 
 def test_queue_directive_duplicate_errors_come_from_shared_contract() -> None:
-    with pytest.raises(DirectiveError, match="Duplicate %queue runners assignment"):
-        extract_prompt_directives("%q(5, runners=5)\nDo work")
+    with pytest.raises(DirectiveError, match="Duplicate %queue capacity assignment"):
+        extract_prompt_directives("%q(5, capacity=5)\nDo work")
+
+
+def test_queue_directive_rejects_obsolete_runners_keyword() -> None:
+    with pytest.raises(DirectiveError, match="capacity="):
+        extract_prompt_directives("%q(3, runners=3)\nDo work")
 
 
 @pytest.mark.parametrize("directive", ["wait", "w"])
@@ -290,7 +299,7 @@ def test_wait_bead_keyword_sets_bead_only_condition(directive: str) -> None:
 
 def test_wait_bead_keywords_mix_and_deduplicate_in_source_order() -> None:
     prompt = (
-        "%wait(builder, bead=sase-87.2, time=5m) %queue(runners=0, priority=3)\n"
+        "%wait(builder, bead=sase-87.2, time=5m) %queue(capacity=0, priority=3)\n"
         "%w(bead=sase-87.1)\n"
         "%wait(bead=sase-87.2)\n"
         "Do work"

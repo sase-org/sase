@@ -114,9 +114,7 @@ def test_directive_completion_includes_representative_descriptions() -> None:
     assert directive_metadata(wait).description == (
         "Wait for another agent/workflow and/or a time floor"
     )
-    assert directive_metadata(wait).argument_hint == (
-        ":agent or (agent, bead=, time=, runners=, priority=)"
-    )
+    assert directive_metadata(wait).argument_hint == (":agent or (agent, bead=, time=)")
     assert directive_metadata(alt).description == (
         "Split prompt into variants with different text; shorthand %{A | B}"
     )

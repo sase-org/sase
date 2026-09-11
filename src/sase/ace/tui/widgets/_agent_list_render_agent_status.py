@@ -23,6 +23,7 @@ from ..models.agent import (
     wait_display_agent,
     wait_remaining_seconds,
 )
+from ..models.agent_runner_slots import format_capacity_value
 from ..models.agent_status import (
     RUNNING_COLOR,
     STOPPED_COLOR,
@@ -107,12 +108,15 @@ def append_agent_row_status(
             text.append(queue_label, style=QUEUED_STATUS_COLOR)
         wait_agent = wait_display_agent(agent)
         slot_label = ""
-        if (
-            wait_agent.wait_runners_explicit
-            and wait_agent.wait_runners is not None
-            and wait_agent.runner_slots_in_use is not None
-        ):
-            slot_label = f" ▶{wait_agent.runner_slots_in_use}→{wait_agent.wait_runners}"
+        if wait_agent.wait_runners_explicit and wait_agent.wait_runners is not None:
+            occupied = wait_agent.runner_occupied_capacity
+            if occupied is None and wait_agent.runner_slots_in_use is not None:
+                occupied = float(wait_agent.runner_slots_in_use)
+            if occupied is not None:
+                slot_label = (
+                    f" ▶{format_capacity_value(occupied, minimum_decimal=False)}"
+                    f"→{wait_agent.wait_runners}"
+                )
         if wait_agent.wait_priority_explicit and wait_agent.wait_priority is not None:
             slot_label = f"{slot_label} p{wait_agent.wait_priority}"
         if slot_label:

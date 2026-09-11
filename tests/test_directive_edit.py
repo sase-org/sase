@@ -314,7 +314,7 @@ def test_set_prompt_wait_clears_wait_directives() -> None:
 def test_set_prompt_wait_ignores_runner_threshold() -> None:
     rewritten = set_prompt_wait(
         "Do work",
-        PromptWaitDirective(agents=("dep",), time_token="5m", runners=0),
+        PromptWaitDirective(agents=("dep",), time_token="5m", capacity=0),
     )
 
     assert rewritten == "%wait(dep, time=5m)\nDo work"
@@ -323,7 +323,7 @@ def test_set_prompt_wait_ignores_runner_threshold() -> None:
 def test_set_prompt_wait_ignores_queue_priority() -> None:
     rewritten = set_prompt_wait(
         "Do work",
-        PromptWaitDirective(agents=("dep",), runners=0, priority=20),
+        PromptWaitDirective(agents=("dep",), capacity=0, priority=20),
     )
 
     assert rewritten == "%wait(dep)\nDo work"
@@ -351,7 +351,7 @@ def test_set_prompt_wait_formats_mixed_conditions_and_ignores_queue_fields() -> 
         PromptWaitDirective(
             agents=("dep",),
             time_token="5m",
-            runners=0,
+            capacity=0,
             beads=("sase-87.1", "sase-87.2"),
         ),
     )
@@ -383,13 +383,13 @@ def test_set_prompt_wait_and_queue_splits_fields() -> None:
         PromptWaitDirective(
             agents=("dep",),
             time_token="5m",
-            runners=0,
+            capacity=0,
             priority=20,
         ),
     )
     _, directives = extract_prompt_directives(rewritten)
 
-    assert rewritten == "%wait(dep, time=5m)\n%queue(runners=0, priority=20)\nDo work"
+    assert rewritten == "%wait(dep, time=5m)\n%queue(capacity=0, priority=20)\nDo work"
     assert directives.wait == ["dep"]
     assert directives.wait_duration == 300.0
     assert directives.wait_runners == 0
@@ -398,22 +398,22 @@ def test_set_prompt_wait_and_queue_splits_fields() -> None:
 
 def test_set_prompt_wait_preserves_existing_queue() -> None:
     rewritten = set_prompt_wait(
-        "%queue(runners=2, priority=3)\n%wait:old\nDo work",
+        "%queue(capacity=2, priority=3)\n%wait:old\nDo work",
         PromptWaitDirective(agents=("dep",)),
     )
 
-    assert rewritten == "%wait(dep)\n%queue(runners=2, priority=3)\nDo work"
+    assert rewritten == "%wait(dep)\n%queue(capacity=2, priority=3)\nDo work"
 
 
 def test_set_prompt_queue_preserves_existing_wait() -> None:
     rewritten = set_prompt_queue(
         "%wait(dep, time=5m)\n%q:2\nDo work",
-        runners=3,
+        capacity=3,
         priority=1,
     )
     _, directives = extract_prompt_directives(rewritten)
 
-    assert rewritten == "%queue(runners=3, priority=1)\n%wait(dep, time=5m)\nDo work"
+    assert rewritten == "%queue(capacity=3, priority=1)\n%wait(dep, time=5m)\nDo work"
     assert directives.wait == ["dep"]
     assert directives.wait_runners == 3
     assert directives.wait_priority == 1
@@ -446,12 +446,12 @@ def test_set_prompt_wait_and_queue_clear_preserves_weight_only_queue() -> None:
 def test_set_prompt_queue_preserves_existing_weight() -> None:
     rewritten = set_prompt_queue(
         "%wait(dep)\n%q(w=1.0)\nDo work",
-        runners=3,
+        capacity=3,
         priority=1,
     )
     _, directives = extract_prompt_directives(rewritten)
 
-    assert rewritten == "%queue(runners=3, priority=1, weight=1)\n%wait(dep)\nDo work"
+    assert rewritten == "%queue(capacity=3, priority=1, weight=1)\n%wait(dep)\nDo work"
     assert directives.wait == ["dep"]
     assert directives.wait_runners == 3
     assert directives.wait_priority == 1

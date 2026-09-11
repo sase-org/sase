@@ -146,8 +146,9 @@ class PromptDirectives:
         wait_beads: Ordered, deduplicated bead IDs from %wait(bead=...) keywords.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
-        wait_runners: Existing-runner threshold from the
-            %queue(runners=...) keyword.
+        wait_runners: Persisted spelling of the optional weighted-load
+            capacity threshold from ``%queue(capacity=...)``. Historical
+            launch/wait metadata keeps this storage name.
         wait_priority: Runner-slot queue priority from the
             %queue(priority=...) keyword. Lower values start first.
         queue_weight: Runner-slot capacity weight from the %queue(weight=...)

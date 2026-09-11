@@ -135,7 +135,7 @@ def test_wait_lanes_keep_agent_glyphs_and_status_bearing_bead_tokens() -> None:
     assert "[tribes]" in text.plain
     assert "run-bead ◐" in text.plain
     assert "[time]" in text.plain
-    assert "[runners]" in text.plain
+    assert "[capacity]" in text.plain
     assert _styles_covering(text, "✓") == {"bold #5FD75F"}
     assert _styles_covering(text, "◐") == {
         bead_status_presentation("in_progress").rich_style

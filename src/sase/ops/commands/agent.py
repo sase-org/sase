@@ -241,6 +241,17 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
     )
 
 
+def _capacity_from_payload(payload: Mapping[str, Any]) -> int | None:
+    """Read canonical `capacity` or persisted `runners` from a mutator spec."""
+    from sase.xprompt.queue_directive import validate_queue_capacity
+
+    if payload.get("capacity") is not None:
+        return validate_queue_capacity(payload["capacity"])
+    if payload.get("runners") is not None:
+        return validate_queue_capacity(payload["runners"])
+    return None
+
+
 def _prompt_mutator_from_spec(spec: object) -> Any:
     if not isinstance(spec, dict):
         return None
@@ -267,7 +278,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
         directive = PromptWaitDirective(
             agents=tuple(wait.get("agents") or ()),
             time_token=wait.get("time_token"),
-            runners=wait.get("runners"),
+            capacity=_capacity_from_payload(wait),
             priority=wait.get("priority"),
             weight=wait.get("weight"),
             beads=tuple(wait.get("beads") or ()),
@@ -278,7 +289,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
 
         return lambda prompt: set_prompt_queue(
             prompt,
-            runners=spec.get("runners"),
+            capacity=_capacity_from_payload(spec),
             priority=spec.get("priority"),
             weight=spec.get("weight"),
         )

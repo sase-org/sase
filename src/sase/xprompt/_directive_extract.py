@@ -131,9 +131,9 @@ def extract_prompt_directives(
             raise DirectiveError(message)
         fields = queue_payload.get("fields")
         if isinstance(fields, dict):
-            runners = fields.get("runners")
+            capacity = fields.get("capacity")
             priority = fields.get("priority")
-            wait_runners = int(runners) if runners is not None else None
+            wait_runners = int(capacity) if capacity is not None else None
             wait_priority = int(priority) if priority is not None else None
             weight = fields.get("weight")
             queue_weight = float(weight) if weight is not None else None

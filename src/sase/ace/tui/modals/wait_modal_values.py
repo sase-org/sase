@@ -20,7 +20,7 @@ class TimeValidation:
 
 
 @dataclass(frozen=True)
-class RunnersValidation:
+class CapacityValidation:
     valid: bool
     value: int | None
     message: str
@@ -143,28 +143,31 @@ def validate_time_token(token: str) -> TimeValidation:
     )
 
 
-def validate_runners_token(token: str) -> RunnersValidation:
-    """Validate an existing-runner threshold for live preview."""
+def validate_capacity_token(token: str) -> CapacityValidation:
+    """Validate a weighted-load capacity threshold for live preview."""
+    from sase.xprompt.queue_directive import validate_queue_capacity
+
     token = token.strip()
     if not token:
-        return RunnersValidation(
+        return CapacityValidation(
             valid=True,
             value=None,
             message="uses the global max_running_agents cap",
             css_class="wait-time-neutral",
         )
-    if not token.isdigit():
-        return RunnersValidation(
+    try:
+        value = validate_queue_capacity(token)
+    except ValueError as exc:
+        return CapacityValidation(
             valid=False,
             value=None,
-            message="runners must be a non-negative integer",
+            message=str(exc),
             css_class="wait-time-error",
         )
-    value = int(token)
-    message = f"starts when at most {value} other agents are running"
+    message = f"starts when occupied weighted load is at most {value}"
     if value == 0:
-        message = "drain barrier: starts when no other agents are running"
-    return RunnersValidation(
+        message = "drain barrier: starts when occupied weighted load is zero"
+    return CapacityValidation(
         valid=True,
         value=value,
         message=message,

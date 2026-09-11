@@ -69,7 +69,7 @@ class TestExtractDirectivesMetadata:
         result = run_extract(
             tmp_path,
             env_auto_dismiss=True,
-            prompt="%queue(runners=0)\ndo stuff",
+            prompt="%queue(capacity=0)\ndo stuff",
         )
 
         assert result["info"].wait_runners == 0

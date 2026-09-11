@@ -95,7 +95,7 @@ class TestRunnerSlotWaitRendering:
         assert "test_cl (QUEUED #2/2 ▶3→0)" in left.plain
         assert "dim #5F87FF" in _styles_covering(left, "▶3→0")
         assert (
-            "Wait: [runners] waiting for ≤0 other agents (drain barrier)"
+            "Wait: [capacity] waiting for weighted load ≤0 (drain barrier)"
             " · queue #2 of 2"
         ) in header.plain
 
@@ -129,7 +129,7 @@ class TestRunnerSlotWaitRendering:
 
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "Wait: [runners] queue #2 of 3 · priority 20" in header.plain
+        assert "Wait: [capacity] queue #2 of 3 · priority 20" in header.plain
         assert "dim #AF87FF" in _styles_covering(header, "priority 20")
 
     def test_implicit_priority_is_hidden_in_detail_wait_line(self) -> None:
@@ -223,4 +223,6 @@ class TestRunnerSlotWaitRendering:
         header, _ = build_header_text(agent, cheap=True)
 
         assert "test_cl w2 (QUEUED #2/4)" in left.plain
-        assert "Wait: [runners] needs 2.0 · 0.75 free · queue #2 of 4" in (header.plain)
+        assert "Wait: [capacity] needs 2.0 · 0.75 free · queue #2 of 4" in (
+            header.plain
+        )
