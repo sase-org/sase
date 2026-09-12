@@ -432,9 +432,14 @@ def _prompt_input_owns_keys(app: Any) -> bool:
     prompt_active = getattr(app, "_prompt_input_active", None)
     if not callable(prompt_active):
         return False
+    screen_stack = getattr(app, "_screen_stack", None)
+    if screen_stack is not None and not bool(screen_stack):
+        return False
+    from textual.app import ScreenStackError
+
     try:
         return bool(prompt_active())
-    except Exception:
+    except ScreenStackError:
         return False
 
 

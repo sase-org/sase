@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 
 import pytest
+from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent_associated_plan import _AgentPlanEnrichment
@@ -316,6 +317,9 @@ async def test_swarm_clan_panel_png_snapshots(
         await page.press("z", "z")
         assert page.app.panel_fold_level.value == "expanded"
         await wait_for_visual_idle(page)
+        prompt_scroll = page.app.query_one("#agent-prompt-scroll", VerticalScroll)
+        prompt_scroll.show_vertical_scrollbar = False
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_clan_panel_swarm_level_2_120x40",
@@ -324,6 +328,8 @@ async def test_swarm_clan_panel_png_snapshots(
 
         await page.press("z", "z")
         assert page.app.panel_fold_level.value == "fully_expanded"
+        await wait_for_visual_idle(page)
+        prompt_scroll.show_vertical_scrollbar = False
         await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,

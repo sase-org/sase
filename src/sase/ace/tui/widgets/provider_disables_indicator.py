@@ -2,13 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any, cast
+from typing import Any
 
 from rich.text import Text
-from textual.events import Resize
 from textual.widgets import Static
-from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.provider_disable_display import provider_disable_provenance_label
 from sase.llm_provider.load_balancing import MemberAvailability
@@ -21,12 +18,6 @@ from sase.llm_provider.provider_priority import (
 )
 from sase.llm_provider.provider_priority_peek import peek_provider_routing_context
 from sase.llm_provider.registry import provider_routing_facts
-from sase.llm_provider.usage.peek import (
-    cached_usage_indicator_projection,
-    refresh_usage_peek_cache,
-    usage_attention_enabled,
-    usage_peek_change_token,
-)
 
 from ._override_pill import (
     PROVIDER_DISABLE_PALETTE,
@@ -36,41 +27,23 @@ from ._override_pill import (
     format_pill_remaining,
     format_remaining_until,
 )
-from ._provider_usage_indicator import (
-    UsageProviderGroup,
-    build_usage_indicator_segment,
-    usage_indicator_groups,
-    usage_indicator_open_provider,
-    usage_indicator_tooltip_lines,
-)
+from ._text_signature import text_signature
 
 _ACTIVE_STYLE = PROVIDER_DISABLE_PALETTE.base_style
-_USAGE_PEEK_WORKER_GROUP = "provider-usage-peek"
-_TOP_BAR_TAB_MIN_WIDTH = 1
 
 
 class ProviderDisablesIndicator(Static):
     """Shows active machine-wide provider disables in one compact pill."""
 
     def __init__(self, **kwargs: Any) -> None:
-        self._usage_groups: tuple[UsageProviderGroup, ...] = ()
-        self._usage_open_provider: str | None = None
-        self._usage_peek_in_flight = False
-        self._usage_peek_loaded = False
-        self._usage_peek_token: tuple[Any, ...] | None = None
-        self._pending_usage_token: tuple[Any, ...] | None = None
-        self._usage_layout_refresh_scheduled = False
         context = self._active_provider_routing_context()
         priority_state = self._priority_availability(context)
-        self._sync_usage_groups()
         initial_content = self._build_content(
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
-            usage_groups=self._usage_groups,
-            dark=self._current_dark_theme(),
         )
-        self._content_signature = _text_signature(initial_content)
+        self._content_signature = text_signature(initial_content)
         super().__init__(
             initial_content,
             **kwargs,
@@ -79,68 +52,31 @@ class ProviderDisablesIndicator(Static):
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
-            usage_groups=self._usage_groups,
         )
 
-    @property
-    def usage_open_provider(self) -> str | None:
-        """Return the provider a usage click should open, if any."""
-        return self._usage_open_provider
-
     def on_mount(self) -> None:
-        """Poll through the lock-free peek cache on the top-bar cadence."""
-        self.watch(self.app, "theme", self._app_theme_changed, init=False)
+        """Poll routing expiration on the top-bar cadence."""
         self._apply_content()
-        self._schedule_usage_peek_if_needed()
         self.set_interval(30.0, self.refresh)
-
-    def _app_theme_changed(self) -> None:
-        """Repaint bucket colors after an app theme switch."""
-        if self.is_mounted:
-            self._apply_content()
-
-    def on_resize(self, _event: Resize) -> None:
-        """Re-evaluate usage disclosure when top-bar geometry changes."""
-        self._schedule_layout_reflow()
 
     def refresh(self, *args: Any, **kwargs: Any) -> Any:
         """Rebuild content on a bare refresh, preserving Widget.refresh kwargs."""
         if args or kwargs:
             return super().refresh(*args, **kwargs)
-        self._schedule_usage_peek_if_needed()
         self._apply_content()
         return super().refresh()
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        """Repaint after an off-thread usage-store peek finishes."""
-        worker = event.worker
-        if worker.group != _USAGE_PEEK_WORKER_GROUP:
-            return
-        if event.state == WorkerState.SUCCESS:
-            self._usage_peek_in_flight = False
-            self._usage_peek_loaded = True
-            self._usage_peek_token = self._pending_usage_token
-            self._apply_content()
-        elif event.state in {WorkerState.ERROR, WorkerState.CANCELLED}:
-            self._usage_peek_in_flight = False
-
     async def on_click(self) -> None:
-        """Open Usage when attention is present, otherwise Launch settings."""
-        if self._usage_open_provider:
-            await self.app.run_action("open_provider_usage")
-            return
+        """Open Launch settings for the routing pill."""
         await self.app.run_action("open_models_panel")
 
     def _build_initial_content(self, *, now: float | None = None) -> Text:
         """Render the current provider-disable map."""
         context = self._active_provider_routing_context(now=now)
-        self._sync_usage_groups(now=now)
         return self._build_content(
             context.provider_disables,
             priority=context.priority,
             priority_availability=self._priority_availability(context),
-            usage_groups=self._usage_groups,
-            dark=self._current_dark_theme(),
             now=now,
         )
 
@@ -148,100 +84,28 @@ class ProviderDisablesIndicator(Static):
         """Update content and tooltip from one current peek snapshot."""
         context = self._active_provider_routing_context(now=now)
         priority_state = self._priority_availability(context)
-        self._sync_usage_groups(now=now)
-        routing = self._build_routing_content(
+        content = self._build_content(
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
             now=now,
-        )
-        content = self._append_usage_content(
-            routing,
-            self._usage_groups,
-            usage_budget=self._usage_segment_budget(routing),
-            dark=self._current_dark_theme(),
         )
         tooltip = self._build_tooltip(
             context.provider_disables,
             priority=context.priority,
             priority_availability=priority_state,
-            usage_groups=self._usage_groups,
             now=now,
         )
         self._replace_content(content, tooltip)
 
-    def _sync_usage_groups(self, *, now: float | None = None) -> None:
-        """Rebuild usage groups from the memory-only peek snapshot and clock."""
-        projection = cached_usage_indicator_projection(now=now)
-        groups = usage_indicator_groups(
-            projection.entries,
-            dark=self._current_dark_theme(),
-            now=projection.generated_at,
-        )
-        self._usage_groups = groups
-        self._usage_open_provider = usage_indicator_open_provider(groups)
-
-    def _current_dark_theme(self) -> bool:
-        """Return whether the active app theme is dark, defaulting to dark."""
-        try:
-            return bool(self.app.current_theme.dark)
-        except Exception:
-            return True
-
-    def _schedule_layout_reflow(self) -> None:
-        """Coalesce geometry-only usage disclosure updates."""
-        if self._usage_layout_refresh_scheduled or not self.is_mounted:
-            return
-        self._usage_layout_refresh_scheduled = True
-        self.call_after_refresh(self._apply_scheduled_layout_reflow)
-
-    def _apply_scheduled_layout_reflow(self) -> None:
-        self._usage_layout_refresh_scheduled = False
-        self._apply_content()
-
     def _replace_content(self, content: Text, tooltip: str | None) -> None:
         """Update the widget only when the selected rendering actually changed."""
-        signature = _text_signature(content)
+        signature = text_signature(content)
         if signature != self._content_signature:
             self.update(content)
             self._content_signature = signature
         if self.tooltip != tooltip:
             self.tooltip = tooltip
-
-    def _schedule_usage_peek_if_needed(self) -> None:
-        """Load usage snapshots off the UI thread when the change token drifts."""
-        if self._usage_peek_in_flight or not usage_attention_enabled():
-            return
-        token = usage_peek_change_token()
-        if self._usage_peek_loaded and token == self._usage_peek_token:
-            return
-        self._usage_peek_in_flight = True
-        self._pending_usage_token = token
-        self.run_worker(
-            refresh_usage_peek_cache,
-            thread=True,
-            exclusive=True,
-            group=_USAGE_PEEK_WORKER_GROUP,
-        )
-
-    def _usage_segment_budget(self, routing: Text) -> int | None:
-        """Return the local terminal-cell budget for the usage segment."""
-        if not self.is_mounted or self.parent is None:
-            return None
-        parent = cast(Any, self.parent)
-        try:
-            total = int(parent.region.width)
-        except Exception:
-            return None
-        if total <= 0:
-            return None
-        used = routing.cell_len + _TOP_BAR_TAB_MIN_WIDTH
-        for child in getattr(parent, "children", ()):
-            if child is self or child.id == "tab-bar":
-                continue
-            used += _rendered_cell_width(child)
-        remaining = max(0, total - used)
-        return min(remaining, total // 2)
 
     @staticmethod
     def _active_provider_routing_context(
@@ -257,26 +121,14 @@ class ProviderDisablesIndicator(Static):
         *,
         priority: TemporaryProviderPriority | None = None,
         priority_availability: ProviderAvailability | None = None,
-        usage_groups: Sequence[UsageProviderGroup] = (),
-        width: int | None = None,
-        usage_budget: int | None = None,
-        dark: bool = True,
         now: float | None = None,
     ) -> Text:
-        """Build the pill for routing state plus quiet usage attention."""
-        routing = ProviderDisablesIndicator._build_routing_content(
+        """Build the pill for routing state."""
+        return ProviderDisablesIndicator._build_routing_content(
             disables,
             priority=priority,
             priority_availability=priority_availability,
             now=now,
-        )
-        if usage_budget is None and width is not None:
-            usage_budget = max(0, width - routing.cell_len)
-        return ProviderDisablesIndicator._append_usage_content(
-            routing,
-            usage_groups,
-            usage_budget=usage_budget,
-            dark=dark,
         )
 
     @staticmethod
@@ -389,33 +241,11 @@ class ProviderDisablesIndicator(Static):
         )
 
     @staticmethod
-    def _append_usage_content(
-        routing: Text,
-        usage_groups: Sequence[UsageProviderGroup] = (),
-        *,
-        usage_budget: int | None = None,
-        dark: bool = True,
-    ) -> Text:
-        """Append quiet usage attention without replacing a routing pill."""
-        if not usage_groups:
-            return routing
-        usage = build_usage_indicator_segment(
-            usage_groups,
-            budget=usage_budget,
-            dark=dark,
-        )
-        combined = Text()
-        combined.append_text(routing)
-        combined.append_text(usage)
-        return combined
-
-    @staticmethod
     def _build_tooltip(
         disables: dict[str, TemporaryProviderDisable],
         *,
         priority: TemporaryProviderPriority | None = None,
         priority_availability: ProviderAvailability | None = None,
-        usage_groups: Sequence[UsageProviderGroup] = (),
         now: float | None = None,
     ) -> str | None:
         """Build sorted long-form details for provider routing state."""
@@ -455,49 +285,25 @@ class ProviderDisablesIndicator(Static):
             mode = "soft" if disable.is_soft else "hard"
             lines.append(f"{provider.upper()} - {mode} · {provenance}, {remaining}")
             has_disables = True
-        usage_lines = list(usage_indicator_tooltip_lines(usage_groups))
-        if not lines and not usage_lines:
+        if not lines:
             return None
-        parts: list[str] = []
-        if lines:
-            if has_priority and has_disables:
-                heading = "Provider routing state:"
-            elif has_priority:
-                heading = "Provider priority:"
-            else:
-                heading = "Disabled providers:"
-            parts.extend(
-                (
-                    heading,
-                    *lines,
-                    "Hard disables skip the provider on new launches; "
-                    "running processes continue.",
-                    "Pools spare a soft provider while another member can cover; "
-                    "|| fallbacks and explicit %model still use it.",
-                    "Press ,m for Config > Launch.",
-                )
+        if has_priority and has_disables:
+            heading = "Provider routing state:"
+        elif has_priority:
+            heading = "Provider priority:"
+        else:
+            heading = "Disabled providers:"
+        return "\n".join(
+            (
+                heading,
+                *lines,
+                "Hard disables skip the provider on new launches; "
+                "running processes continue.",
+                "Pools spare a soft provider while another member can cover; "
+                "|| fallbacks and explicit %model still use it.",
+                "Press ,m for Config > Launch.",
             )
-        if usage_lines:
-            if parts:
-                parts.append("")
-            parts.extend(
-                (
-                    "Usage windows:",
-                    "Included subscription allowance readings from provider CLIs.",
-                    *usage_lines,
-                    "Notation: compact names omit weekly/all-model defaults; "
-                    "parentheses group multiple visible windows for one provider; "
-                    "pipes separate windows inside that provider; 5h/mo name "
-                    "non-weekly windows; scope? means the provider did not expose "
-                    "exact applicability.",
-                    "Neutral text marks a retained stale/unknown-age reading; ↻ marks "
-                    "a passed reset awaiting a new observation; +N counts hidden "
-                    "windows.",
-                    "Click to open Providers · Usage.",
-                    "The Usage command is also reachable from the command palette.",
-                )
-            )
-        return "\n".join(parts)
+        )
 
     @staticmethod
     def _priority_availability(
@@ -564,32 +370,8 @@ class ProviderDisablesIndicator(Static):
         return PROVIDER_PRIORITY_PALETTE
 
 
-def _rendered_cell_width(widget: Any) -> int:
-    """Measure a top-bar sibling from its in-memory renderable."""
-    try:
-        renderable = widget.render()
-    except Exception:
-        try:
-            return max(0, int(widget.region.width))
-        except Exception:
-            return 0
-    if isinstance(renderable, Text):
-        return renderable.cell_len
-    plain = getattr(renderable, "plain", None)
-    if isinstance(plain, str):
-        return Text(plain).cell_len
-    return Text(str(renderable)).cell_len
-
-
-def _text_signature(
-    text: Text,
-) -> tuple[str, str, tuple[tuple[int, int, str], ...]]:
-    """Return a stable equality key for Rich text content, base style, and spans."""
-    return (
-        text.plain,
-        str(text.style),
-        tuple((span.start, span.end, str(span.style)) for span in text.spans),
-    )
+# Tests and older imports still reach the signature helper through this module.
+_text_signature = text_signature
 
 
 __all__ = ["ProviderDisablesIndicator"]

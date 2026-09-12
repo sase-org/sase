@@ -1362,7 +1362,7 @@ llm_provider:
     warn_percent: 75              # percentage used for local low attention
     critical_percent: 90          # percentage used for local very-low attention
     indicator:
-      enabled: true               # false hides the ACE usage indicator only
+      enabled: true               # false hides the ACE header usage indicator only
       default:
         below_remaining_percent: 20
       weekly_all: always

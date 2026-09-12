@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -80,7 +81,10 @@ def _curated_peer_keys(
 
 
 def missing_companions(
-    rows: list[dict[str, Any]], *, context: ArtifactRefContext
+    rows: list[dict[str, Any]],
+    *,
+    context: ArtifactRefContext,
+    resolve_reference: Callable[..., Any] = resolve_cli_reference,
 ) -> list[str]:
     missing: list[str] = []
     seen: set[str] = set()
@@ -92,7 +96,7 @@ def missing_companions(
                 continue
             seen.add(ref)
             try:
-                result = resolve_cli_reference(ref, context=context)
+                result = resolve_reference(ref, context=context)
             except (RuntimeError, ValueError):
                 continue
             request = {

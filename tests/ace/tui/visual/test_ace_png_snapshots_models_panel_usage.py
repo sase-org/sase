@@ -74,7 +74,7 @@ def _snapshot() -> ProviderUsageViewSnapshot:
                 label="Weekly",
                 used_percent=100.0,
                 remaining_percent=0.0,
-                vendor_state="rejected",
+                vendor_state="unknown",
                 applicability={"kind": "account"},
                 resets_at=FROZEN_NOW + 3_600.0,
             )

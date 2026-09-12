@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from sase.artifact_cli._link_health_constants import RESOLVED_STATUSES
@@ -16,6 +17,7 @@ def dangling_refs(
     store: ArtifactLinkStore,
     *,
     context: ArtifactRefContext,
+    resolve_reference: Callable[..., Any] = resolve_cli_reference,
 ) -> tuple[list[str], list[str]]:
     seen: set[str] = set()
     dangling: list[str] = []
@@ -32,7 +34,7 @@ def dangling_refs(
                     dangling.append(ref)
                 continue
             try:
-                result = resolve_cli_reference(ref, context=context)
+                result = resolve_reference(ref, context=context)
             except (RuntimeError, ValueError):
                 if kind_of_ref(ref) == "agent":
                     unpublished_agents.append(ref)

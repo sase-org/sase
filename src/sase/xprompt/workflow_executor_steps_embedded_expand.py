@@ -314,13 +314,19 @@ class EmbeddedWorkflowExpandMixin:
 
             p.rendered_prompt_part = prompt_part_content
             if prompt_part_content:
-                self._continuation_embedded_segments.append(
-                    embedded_workflow_prompt_segment(
-                        p.name,
-                        prompt_part_content,
-                        source_path=p.workflow.source_path,
-                    )
+                continuation_segments = getattr(
+                    self,
+                    "_continuation_embedded_segments",
+                    None,
                 )
+                if continuation_segments is not None:
+                    continuation_segments.append(
+                        embedded_workflow_prompt_segment(
+                            p.name,
+                            prompt_part_content,
+                            source_path=p.workflow.source_path,
+                        )
+                    )
 
         # ── Phase 4: Text replacement ────────────────────────────────────
         # Sort by match_start descending so right-to-left replacement is position-safe.

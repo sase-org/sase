@@ -322,7 +322,7 @@ class AgentsOptionsMixin(_MixinBase):
                 style=f"bold {self._accent()}",
             )
         reveal = active_pane_link_reveal(
-            self._registry.app,
+            self.app,
             AGENTS_PANE_ID,
             current_canonical=pane_canonical_query(self),
         )

@@ -2126,17 +2126,17 @@ still collect when otherwise eligible because their reset information remains us
 ACE's compact usage-window indicator has separate display policy under
 `llm_provider.usage_metrics.indicator`. Collection controls whether SASE probes and
 records provider usage; indicator policy only chooses which already-observed windows
-appear in the top bar. The default shows every positively classified weekly all-model
-window, Claude's observed weekly `weekly:claude-fable-5` window at any capacity, and any
-other observed window whose remaining capacity is strictly below 20%. Use `always`,
-`never`, or `{below_remaining_percent: N}` policies. Exact provider window keys are
-stable selectors and can be found in `sase usage list --json` at `windows[].key`;
-shortened labels in the top bar are not configuration selectors. Set the exact Fable key
-to `never` to hide it, or to `{below_remaining_percent: 20}` to restore the generic
-fallback threshold. Invalid display overrides are reported and ignored at that override
-while unrelated collection settings and valid provider/window policies keep working.
-Config changes are picked up by the normal ACE usage refresh path even when no provider
-writes a new usage cache file.
+appear in the application header. The default shows every positively classified weekly
+all-model window, Claude's observed weekly `weekly:claude-fable-5` window at any
+capacity, and any other observed window whose remaining capacity is strictly below 20%.
+Use `always`, `never`, or `{below_remaining_percent: N}` policies. Exact provider window
+keys are stable selectors and can be found in `sase usage list --json` at
+`windows[].key`; shortened labels in the header are not configuration selectors. Set the
+exact Fable key to `never` to hide it, or to `{below_remaining_percent: 20}` to restore
+the generic fallback threshold. Invalid display overrides are reported and ignored at
+that override while unrelated collection settings and valid provider/window policies
+keep working. Config changes are picked up by the normal ACE usage refresh path even
+when no provider writes a new usage cache file.
 
 Use `sase usage` or `sase usage list` to inspect the cache without provider I/O:
 

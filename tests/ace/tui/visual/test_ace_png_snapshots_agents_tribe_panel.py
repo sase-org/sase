@@ -8,6 +8,7 @@ import pytest
 from rich.color import Color
 from rich.console import Console
 from rich.text import Text
+from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models._agent_tree import agent_fold_key
@@ -22,6 +23,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -39,6 +41,14 @@ def _assert_title_identity_color(title: Text, *, text: str, color: str) -> None:
         assert style.bold is True
         assert style.color is not None
         assert style.color.triplet == expected
+
+
+async def _settle_tribe_visual(page: AcePage) -> None:
+    await wait_for_visual_idle(page)
+    scroll = page.app.query_one("#agent-prompt-scroll", VerticalScroll)
+    scroll.show_vertical_scrollbar = False
+    scroll._scroll_to(y=0, animate=False, force=True)  # noqa: SLF001
+    await wait_for_visual_idle(page)
 
 
 def _tribe_agents() -> list[Agent]:
@@ -386,7 +396,7 @@ async def test_tribe_panel_four_level_png_snapshots(
                 and page.app._panel_isolation_revert is not None
             )
         )
-        await wait_for_visual_idle(page)
+        await _settle_tribe_visual(page)
         assert_page_svg_contains(page, "↺")
         footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
         assert footer._last_layout_inputs is not None
@@ -408,7 +418,7 @@ async def test_tribe_panel_four_level_png_snapshots(
         )
         await page.press("h")
         await page.wait_for(lambda _screen: "epic" in page.app._collapsed_panel_keys)
-        await wait_for_visual_idle(page)
+        await _settle_tribe_visual(page)
         assert_page_svg_contains(page, "TRIBE")
         assert_page_svg_contains(page, "@epic")
         tribe_summary = page.app._focused_tribe_summary()
@@ -453,7 +463,7 @@ async def test_tribe_panel_four_level_png_snapshots(
             assert page.app._member_jump_pending_digit is None
             assert page.app.current_idx == selected_idx
             assert page.app._resolve_focused_panel() is not None
-            await wait_for_visual_idle(page)
+            await _settle_tribe_visual(page)
             ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
         assert page.app._member_jump_maps[("panel", "epic")].targets
@@ -477,9 +487,11 @@ async def test_tribe_panel_four_level_png_snapshots(
         assert focus is not None
         assert focus.panel_key == "epic"
         assert focus.collapsed is False
-        await wait_for_visual_idle(page)
+        await _settle_tribe_visual(page)
         assert_page_svg_contains(page, "❖")
         assert_page_svg_contains(page, "▲ @epic")
+        await wait_for_svg_contains(page, "NEEDS ATTENTION")
+        await wait_for_svg_contains(page, "TRIBE MEMBERS")
         assert footer._last_layout_inputs is not None
         bindings, _mode_label = footer._last_layout_inputs
         assert ("H", "collapse fold") in bindings

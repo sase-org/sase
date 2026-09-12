@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets import ProviderDisablesIndicator
+from sase.ace.tui.widgets import ProviderUsageIndicator
 from tests._usage_view_helpers import FROZEN_NOW, usage_provider
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -55,11 +55,11 @@ async def _snapshot_top_bar(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         paint_current_project_chip(page)
-        provider_indicator = page.app.query_one(
-            "#provider-disables-indicator",
-            ProviderDisablesIndicator,
+        usage_indicator = page.app.query_one(
+            "#provider-usage-indicator",
+            ProviderUsageIndicator,
         )
-        provider_indicator._apply_content(now=FROZEN_NOW)
+        usage_indicator._apply_content(now=FROZEN_NOW)
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
         await wait_for_visual_idle(page)
@@ -520,6 +520,42 @@ async def test_top_bar_disable_pill_usage_png_snapshot(
         title=title,
         theme=theme,
     )
+
+
+async def test_header_usage_long_title_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A long title keeps priority while usage occupies the remaining header."""
+    patch_startup_loaders(monkeypatch)
+    quiet_top_bar(monkeypatch)
+    patch_projection(
+        monkeypatch,
+        _entries_projection(
+            entry(provider="claude", remaining_percent=62.0),
+            entry(provider="codex", remaining_percent=45.0),
+            entry(provider="grok", remaining_percent=97.0),
+        ),
+    )
+    async with AcePage(query='"visual"', patches=patches(), size=(80, 24)) as page:
+        await wait_for_startup(page)
+        page.app.title = "sase ace (v0.8.0+12.gabcdef0.dirty)"
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        paint_current_project_chip(page)
+        usage_indicator = page.app.query_one(
+            "#provider-usage-indicator",
+            ProviderUsageIndicator,
+        )
+        usage_indicator._apply_content(now=FROZEN_NOW)
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        await wait_for_visual_idle(page)
+        ace_png_visual.assert_page_png(
+            page,
+            "header_usage_long_title_80x24",
+            title="ACE header with a long title and remaining usage budget at 80 columns",
+        )
 
 
 async def test_top_bar_usage_no_observation_png_snapshot(

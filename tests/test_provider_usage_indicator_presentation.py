@@ -1,4 +1,4 @@
-"""Compact provider-usage top-bar text, grouping, and tooltip tests.
+"""Compact provider-usage header text, grouping, and tooltip tests.
 
 Color, style, and contrast coverage lives in
 ``test_provider_usage_indicator_presentation_style.py``. Budget packing,
@@ -103,7 +103,7 @@ def test_compact_window_names(entry: dict[str, object], expected: str) -> None:
     assert segment.plain.strip() == expected
 
 
-def test_grouped_default_first_text_order_icons_gaps_and_parentheses() -> None:
+def test_grouped_default_first_text_order_icons_gaps_and_dots() -> None:
     all_model = _entry(provider="claude", window_key="weekly", remaining_percent=62.0)
     fable = _entry(
         provider="claude",
@@ -137,13 +137,14 @@ def test_grouped_default_first_text_order_icons_gaps_and_parentheses() -> None:
 
     segment = build_usage_indicator_segment(_groups(codex, session, fable, all_model))
 
-    assert segment.plain == (
-        "  🎭 (62% 3d4h | fable 7% 1d8h | 5h 18% 2h9m)  🤖 81% 5d2h  "
-    )
+    assert segment.plain == (" 🎭 62% 3d4h · fable 7% 1d8h · 5h 18% 2h9m  🤖 81% 5d2h ")
     assert segment.plain.count("🎭") == 1
     assert segment.plain.count("🤖") == 1
-    assert segment.plain.count("|") == 2
-    assert ")  🤖" in segment.plain
+    assert segment.plain.count("·") == 2
+    assert "  🤖" in segment.plain
+    assert "(" not in segment.plain
+    assert ")" not in segment.plain
+    assert "|" not in segment.plain
     assert "⚠" not in segment.plain
 
 
@@ -162,6 +163,7 @@ def test_hidden_default_starts_with_named_extra() -> None:
     segment = build_usage_indicator_segment(_groups(fable))
 
     assert segment.plain.strip() == "🎭 fable 7% 1d8h"
+    assert "·" not in segment.plain
     assert "|" not in segment.plain
 
 
@@ -171,7 +173,7 @@ def test_multiple_default_classified_entries_keep_lowest_key_unnamed() -> None:
 
     segment = build_usage_indicator_segment(_groups(later, anchor))
 
-    assert segment.plain == "  🎭 (62% 3d4h | wk/all 55% 3d4h)  "
+    assert segment.plain == " 🎭 62% 3d4h · wk/all 55% 3d4h "
 
 
 def test_colliding_compact_names_receive_stable_key_suffixes() -> None:

@@ -67,6 +67,9 @@ from .artifacts.relation_panel import RelationPanel as RelationPanel
 from .provider_disables_indicator import (
     ProviderDisablesIndicator as ProviderDisablesIndicator,
 )
+from .provider_usage_indicator import (
+    ProviderUsageIndicator as ProviderUsageIndicator,
+)
 from .prompt_input_bar import PromptInputBar as PromptInputBar
 from .patch_detail import SearchQueryPanel as SearchQueryPanel
 from .stashed_prompts_indicator import (
@@ -78,6 +81,7 @@ from .proc_indicator import ProcIndicator as ProcIndicator
 from .tools_panel import ToolDetailLevel as ToolDetailLevel
 from .tools_panel import ToolsVisibilityChanged as ToolsVisibilityChanged
 from .updates_indicator import UpdatesAvailableIndicator as UpdatesAvailableIndicator
+from .usage_header import UsageHeader as UsageHeader
 from .xprompt_arg_assist import XPromptAssistEntry as XPromptAssistEntry
 from .xprompt_arg_assist import XPromptInputHint as XPromptInputHint
 from .xprompt_arg_assist import append_input_hints as append_input_hints

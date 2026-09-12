@@ -161,14 +161,14 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
     def action_open_provider_usage(self, provider: str | None = None) -> None:
         """Open the read-only Providers · Usage view."""
         from ..modals.models_panel_usage_modal import ProviderUsageModal
-        from ..widgets.provider_disables_indicator import ProviderDisablesIndicator
+        from ..widgets.provider_usage_indicator import ProviderUsageIndicator
 
         initial = provider or None
         if not initial:
             try:
                 indicator = self.query_one(  # type: ignore[attr-defined]
-                    "#provider-disables-indicator",
-                    ProviderDisablesIndicator,
+                    "#provider-usage-indicator",
+                    ProviderUsageIndicator,
                 )
             except Exception:
                 indicator = None

@@ -1,4 +1,4 @@
-"""Pure text formatting for the compact top-bar usage indicator."""
+"""Pure text formatting for the compact header usage indicator."""
 
 from __future__ import annotations
 

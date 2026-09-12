@@ -9,6 +9,7 @@ from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
     LLMOverrideIndicator,
     ProviderDisablesIndicator,
+    ProviderUsageIndicator,
 )
 from tests._temporary_llm_override_helpers import full_registry
 
@@ -69,10 +70,12 @@ def test_refresh_launch_indicators_refreshes_all_indicators() -> None:
     default_indicator = MagicMock(spec=LLMOverrideIndicator)
     alias_indicator = MagicMock(spec=AliasOverridesIndicator)
     provider_indicator = MagicMock(spec=ProviderDisablesIndicator)
+    usage_indicator = MagicMock(spec=ProviderUsageIndicator)
     indicators = {
         "#llm-override-indicator": default_indicator,
         "#alias-overrides-indicator": alias_indicator,
         "#provider-disables-indicator": provider_indicator,
+        "#provider-usage-indicator": usage_indicator,
     }
     mixin.query_one.side_effect = lambda selector, _type: indicators[selector]
 
@@ -82,10 +85,12 @@ def test_refresh_launch_indicators_refreshes_all_indicators() -> None:
         call("#llm-override-indicator", LLMOverrideIndicator),
         call("#alias-overrides-indicator", AliasOverridesIndicator),
         call("#provider-disables-indicator", ProviderDisablesIndicator),
+        call("#provider-usage-indicator", ProviderUsageIndicator),
     ]
     default_indicator.refresh.assert_called_once()
     alias_indicator.refresh.assert_called_once()
     provider_indicator.refresh.assert_called_once()
+    usage_indicator.refresh.assert_called_once()
 
 
 def test_open_models_panel_routes_to_config_launch() -> None:
@@ -107,10 +112,12 @@ def test_open_models_panel_invalidates_default_on_provider_routing_change() -> N
     default_indicator = MagicMock(spec=LLMOverrideIndicator)
     alias_indicator = MagicMock(spec=AliasOverridesIndicator)
     provider_indicator = MagicMock(spec=ProviderDisablesIndicator)
+    usage_indicator = MagicMock(spec=ProviderUsageIndicator)
     indicators = {
         "#llm-override-indicator": default_indicator,
         "#alias-overrides-indicator": alias_indicator,
         "#provider-disables-indicator": provider_indicator,
+        "#provider-usage-indicator": usage_indicator,
     }
     mixin.query_one.side_effect = lambda selector, _type: indicators[selector]
 
@@ -123,3 +130,4 @@ def test_open_models_panel_invalidates_default_on_provider_routing_change() -> N
     default_indicator.refresh.assert_not_called()
     alias_indicator.refresh.assert_called_once()
     provider_indicator.refresh.assert_called_once()
+    usage_indicator.refresh.assert_called_once()

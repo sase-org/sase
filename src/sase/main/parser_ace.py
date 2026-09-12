@@ -341,7 +341,7 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     # --- axe restart ---
     axe_restart_parser = axe_subparsers.add_parser(
         "restart",
-        help="Restart the axe orchestrator and verify fresh lumberjack heartbeats "
+        help="Restart the axe orchestrator and verify fresh worker heartbeats "
         "(works even when axe is not running)",
     )
     axe_restart_parser.add_argument(

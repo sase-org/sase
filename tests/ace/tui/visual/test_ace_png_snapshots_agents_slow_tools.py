@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,10 @@ pytestmark = pytest.mark.visual
 
 _NOW = datetime(2026, 7, 28, 12, 10, tzinfo=UTC)
 _SLOW_TOOLS_VISUAL_IDLE_TIMEOUT = 60.0
+_SELECTED_TOOLS_FOOTER_RE = re.compile(
+    r'clip-path="url\(#terminal-\d+-line-35\)">●</text>'
+    r'<text[^>]*clip-path="url\(#terminal-\d+-line-35\)">&#160;tools</text>'
+)
 
 
 class _FixedDateTime(datetime):
@@ -252,6 +257,14 @@ def _slow_tool_section_ready(panel: AgentPromptPanel) -> bool:
     return panel.active_section_identity == "slow-tool-calls"
 
 
+def _rendered_tools_footer_selected(page: AcePage) -> bool:
+    return bool(
+        _SELECTED_TOOLS_FOOTER_RE.search(
+            page.export_svg(title="ACE slow tools footer probe")
+        )
+    )
+
+
 async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -299,6 +312,11 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
             page,
             lambda: _slow_tool_section_ready(panel),
             description="active slow-tool section",
+        )
+        await wait_for_state(
+            page,
+            lambda: _rendered_tools_footer_selected(page),
+            description="selected tools footer",
         )
         await wait_for_visual_idle(page, timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT)
 

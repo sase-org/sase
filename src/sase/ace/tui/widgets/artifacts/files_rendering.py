@@ -135,8 +135,10 @@ def build_files_info(
 def _append_files_reveal_chip(
     text: Text, registry: KeymapRegistry, pane: Any, accent: str
 ) -> None:
+    if pane is None:
+        return
     reveal = active_pane_link_reveal(
-        registry.app, "files", current_canonical=pane_canonical_query(pane)
+        pane.app, "files", current_canonical=pane_canonical_query(pane)
     )
     if reveal is None:
         return

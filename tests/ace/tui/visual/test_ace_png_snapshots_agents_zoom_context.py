@@ -26,6 +26,8 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -66,6 +68,17 @@ async def test_agents_context_zoom_modal_png_snapshot(
             "#zoom-metadata-panel",
             AgentPromptPanel,
         )
+
+        def _metadata_includes_deltas() -> bool:
+            metadata = renderable_to_text(metadata_panel.content) or ""
+            return "src/app.py" in metadata
+
+        await wait_for_state(
+            page,
+            _metadata_includes_deltas,
+            description="resolved context zoom file deltas",
+        )
+        await wait_for_visual_idle(page)
         metadata = renderable_to_text(metadata_panel.content) or ""
         assert metadata.index("▸ PLAN") < metadata.index("▸ ARTIFACTS")
         assert metadata.index("▸ ARTIFACTS") < metadata.index("▸ MEMORY")
@@ -88,9 +101,6 @@ async def test_agents_context_zoom_modal_png_snapshot(
         assert_page_svg_contains(page, "PLAN")
         assert_page_svg_contains(page, "tale")
         assert_page_svg_contains(page, "Unified agent context")
-        assert_page_svg_contains(page, "ARTIFACTS")
-        assert_page_svg_contains(page, "Reads:")
-        assert_page_svg_contains(page, "Deltas:")
         ace_png_visual.assert_page_png(
             page,
             "agents_context_zoom_modal_120x40",
@@ -131,6 +141,11 @@ async def test_agents_metadata_zoom_modal_png_snapshot(
         )
         await wait_for_metadata_zoom_resolved(page)
 
+        scroll = page.app.screen.query_one("#zoom-metadata-scroll", VerticalScroll)
+        scroll.scroll_to(y=0, animate=False, immediate=True)
+        await wait_for_visual_idle(page)
+        await wait_for_svg_contains(page, "SASE CONTEXT")
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_metadata_zoom_modal_120x40",

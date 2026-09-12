@@ -45,6 +45,18 @@
     content-align: right middle;
 }
 
+#ace-header HeaderTitle {
+    content-align: left middle;
+    text-align: left;
+}
+
+#provider-usage-indicator {
+    width: auto;
+    height: 1;
+    padding: 0;
+    content-align: right middle;
+}
+
 #current-project-indicator {
     width: auto;
     content-align: right middle;

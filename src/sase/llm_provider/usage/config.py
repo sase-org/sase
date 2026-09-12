@@ -48,7 +48,7 @@ class UsageMetricsSettings:
 
 @dataclass(frozen=True)
 class UsageIndicatorSettings:
-    """Resolved display preferences for top-bar usage-window indicators."""
+    """Resolved display preferences for header usage-window indicators."""
 
     enabled: bool = True
     raw: object | None = None

@@ -13,6 +13,7 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    assert_page_svg_styled_text_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -241,10 +242,10 @@ async def test_agents_auto_approve_metadata_png_snapshots(
                 lambda idx=idx: page.app.current_idx == idx,
                 description=f"selected auto-approve agent index {idx}",
             )
-            await wait_for_svg_contains(page, token)
+            await wait_for_svg_contains(page, "Auto:")
             await wait_for_visual_idle(page)
             assert_page_svg_contains(page, "Auto:")
-            assert_page_svg_contains(page, token)
+            assert_page_svg_styled_text_contains(page, token)
 
             ace_png_visual.assert_page_png(
                 page,

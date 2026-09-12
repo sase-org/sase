@@ -112,8 +112,7 @@ def quiet_top_bar(
         ),
     )
     monkeypatch.setattr(
-        provider_disables_indicator,
-        "refresh_usage_peek_cache",
+        "sase.ace.tui.widgets.provider_usage_indicator.refresh_usage_peek_cache",
         lambda **_kwargs: ((), frozenset()),
     )
     monkeypatch.setattr(
@@ -131,9 +130,12 @@ def quiet_top_bar(
 def patch_projection(monkeypatch: pytest.MonkeyPatch, projection: object) -> None:
     """Serve one prebuilt indicator projection to the widget under test."""
     monkeypatch.setattr(
-        provider_disables_indicator,
-        "cached_usage_indicator_projection",
+        "sase.ace.tui.widgets.provider_usage_indicator.cached_usage_indicator_projection",
         lambda **_kwargs: projection,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.provider_usage_indicator.usage_attention_enabled",
+        lambda: True,
     )
 
 

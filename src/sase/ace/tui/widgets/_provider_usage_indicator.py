@@ -1,4 +1,4 @@
-"""Compact ACE top-bar presentation for provider usage window indicators."""
+"""Compact ACE header presentation for provider usage window indicators."""
 
 from __future__ import annotations
 
@@ -28,9 +28,9 @@ from ._usage_indicator_palette import (
     usage_zero_value_style,
 )
 
-_OUTER_PADDING = "  "
+_OUTER_PADDING = " "
 _PROVIDER_GAP = "  "
-_WINDOW_SEPARATOR = " | "
+_WINDOW_SEPARATOR = " · "
 _DISCLOSURE_GAP = "  "
 
 _ATTENTION_RANK: Mapping[str, int] = {
@@ -165,7 +165,6 @@ def _fallback_segment(
     candidates = (
         (_OUTER_PADDING, f"usage {total}", _OUTER_PADDING),
         (_OUTER_PADDING, str(total), _OUTER_PADDING),
-        (" ", str(total), " "),
         ("", str(total), ""),
         ("", "…", ""),
     )
@@ -200,15 +199,10 @@ def _render_visible_windows(
         text.append(group.icon, style=base_style)
         text.append(" ", style=base_style)
         divider_style = usage_divider_style(dark=dark)
-        parenthesized = len(fragments) >= 2
-        if parenthesized:
-            text.append("(", style=divider_style)
         for fragment_index, fragment in enumerate(fragments):
             if fragment_index:
                 text.append(_WINDOW_SEPARATOR, style=divider_style)
             text.append_text(fragment.text)
-        if parenthesized:
-            text.append(")", style=divider_style)
 
     if hidden_count:
         text.append(_DISCLOSURE_GAP, style=usage_gap_style(dark=dark))
@@ -245,20 +239,14 @@ def _prefix_cell_widths(
     visible_provider_count = 0
     separator_width = Text(_WINDOW_SEPARATOR).cell_len
     for group in groups:
-        visible_fragment_count = 0
         for fragment_index, fragment in enumerate(group.fragments):
             if fragment_index == 0:
                 if visible_provider_count:
                     body_width += Text(_PROVIDER_GAP).cell_len
                 visible_provider_count += 1
                 body_width += group.icon_width + 1 + fragment.width
-                visible_fragment_count = 1
-            elif visible_fragment_count == 1:
-                body_width += 2 + separator_width + fragment.width
-                visible_fragment_count = 2
             else:
                 body_width += separator_width + fragment.width
-                visible_fragment_count += 1
             widths.append(
                 Text(_OUTER_PADDING).cell_len
                 + body_width

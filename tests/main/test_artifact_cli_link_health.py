@@ -25,6 +25,7 @@ from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
 
 _RESOLVE_CLI_REFERENCE_TARGETS = (
+    "sase.artifact_cli.link_health.resolve_cli_reference",
     "sase.artifact_cli._link_health_refs.resolve_cli_reference",
     "sase.artifact_cli._link_health_tables.resolve_cli_reference",
     "sase.artifact_cli._link_health_coverage.resolve_cli_reference",

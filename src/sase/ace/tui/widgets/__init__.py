@@ -76,6 +76,10 @@ _LAZY_EXPORTS = {
         ".provider_disables_indicator",
         "ProviderDisablesIndicator",
     ),
+    "ProviderUsageIndicator": (
+        ".provider_usage_indicator",
+        "ProviderUsageIndicator",
+    ),
     "PromptInputBar": (".prompt_input_bar", "PromptInputBar"),
     "SearchQueryPanel": (".patch_detail", "SearchQueryPanel"),
     "StashedPromptsIndicator": (
@@ -91,6 +95,7 @@ _LAZY_EXPORTS = {
         ".updates_indicator",
         "UpdatesAvailableIndicator",
     ),
+    "UsageHeader": (".usage_header", "UsageHeader"),
     "XPromptAssistEntry": (".xprompt_arg_assist", "XPromptAssistEntry"),
     "XPromptInputHint": (".xprompt_arg_assist", "XPromptInputHint"),
     "append_input_hints": (".xprompt_arg_assist", "append_input_hints"),
@@ -146,6 +151,7 @@ __all__ = [
     "PatchOnboarding",
     "RelationPanel",
     "ProviderDisablesIndicator",
+    "ProviderUsageIndicator",
     "ChangeSpecDetail",  # legacy compatibility alias
     "ChangeSpecInfoPanel",  # legacy compatibility alias
     "ChangeSpecList",  # legacy compatibility alias
@@ -165,6 +171,7 @@ __all__ = [
     "ProcIndicator",
     "ToolsVisibilityChanged",
     "UpdatesAvailableIndicator",
+    "UsageHeader",
     "XPromptAssistEntry",
     "XPromptInputHint",
     "append_input_hints",

@@ -6,7 +6,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
-from textual.widgets import Header, Static
+from textual.widgets import Static
 
 from .models.agent_live_query_engine import agents_live_query_profile
 from ._patch_list_layout import (
@@ -35,6 +35,7 @@ from .widgets import (
     TabQuickStart,
     ProcIndicator,
     UpdatesAvailableIndicator,
+    UsageHeader,
 )
 
 # Width bounds for dynamic list panel sizing (in terminal cells). The minimum
@@ -64,7 +65,7 @@ class AppLayoutMixin:
         cs_classes = "" if initial_tab == "artifacts" else "hidden"
         agents_classes = "" if initial_tab == "agents" else "hidden"
         axe_classes = "" if initial_tab == "axe" else "hidden"
-        yield Header()
+        yield UsageHeader(id="ace-header")
         with Horizontal(id="top-bar"):
             yield TabBar(id="tab-bar")
             yield ProcIndicator(id="proc-indicator")

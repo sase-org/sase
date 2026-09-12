@@ -21,6 +21,7 @@ from sase.artifact_cli._link_health_signals import (
     publication_health_values,
 )
 from sase.artifact_cli._link_health_tables import missing_companions, stale_tables
+from sase.artifact_cli.references import resolve_cli_reference
 from sase.artifact_read_log import read_artifact_read_events
 from sase.artifact_refs import launch_artifact_ref_context
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
@@ -155,7 +156,10 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         )
     resolution_context = launch_artifact_ref_context(is_home_mode=False)
     dangling, unpublished_agents = dangling_refs(
-        rows, store, context=resolution_context
+        rows,
+        store,
+        context=resolution_context,
+        resolve_reference=resolve_cli_reference,
     )
     orphaned_companions = orphaned_link_indexes(store)
     repaired_renames = 0
@@ -170,7 +174,10 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
                 rows = store_backed_rows(store.load_aggregate().get("rows", []))
                 sidecar_rows = store.durable_sidecar_rows()
                 dangling, unpublished_agents = dangling_refs(
-                    rows, store, context=resolution_context
+                    rows,
+                    store,
+                    context=resolution_context,
+                    resolve_reference=resolve_cli_reference,
                 )
                 orphaned_companions = orphaned_link_indexes(store)
             except Exception as exc:  # noqa: BLE001 - report the failed repair.
@@ -186,7 +193,11 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
         rows = store_backed_rows(expected_rows)
         durable_rows = store.load_durable_rows()
     stale = stale_tables(store, rows)
-    missing = missing_companions(rows, context=resolution_context)
+    missing = missing_companions(
+        rows,
+        context=resolution_context,
+        resolve_reference=resolve_cli_reference,
+    )
     missing_head = missing_head_indexes(store)
     read_events = 0
     recorded_read_events = 0
@@ -250,6 +261,7 @@ def inspect_artifact_link_health(*, fix: bool = False) -> ArtifactLinkHealthRepo
             rows,
             context=resolution_context,
             index_rows=expected_rows,
+            resolve_reference=resolve_cli_reference,
         ),
         rebuilt=fix,
         repaired_renames=repaired_renames,
@@ -271,7 +283,10 @@ def dangling_and_orphaned_artifact_link_refs(
     rows = store_backed_rows(store.load_aggregate().get("rows", []))
     resolution_context = launch_artifact_ref_context(is_home_mode=False)
     dangling, _unpublished_agents = dangling_refs(
-        rows, store, context=resolution_context
+        rows,
+        store,
+        context=resolution_context,
+        resolve_reference=resolve_cli_reference,
     )
     orphaned_companions = orphaned_link_indexes(store)
     return (*dangling, *orphaned_companions)

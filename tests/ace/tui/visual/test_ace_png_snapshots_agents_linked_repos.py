@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pytest
+from textual.containers import VerticalScroll
 
 from sase.ace.patch.models import DeltaEntry
 from sase.ace.testing import AcePage
@@ -223,6 +224,11 @@ async def test_agents_linked_repo_diff_file_panel_png_snapshot(
         assert_page_svg_contains(page, "sase-core")
         assert_page_svg_contains(page, "linked repo")
         assert_page_svg_contains(page, "/workspace/sase-core_14")
+        file_scroll = page.app.query_one("#agent-file-scroll", VerticalScroll)
+        prompt_scroll = page.app.query_one("#agent-prompt-scroll", VerticalScroll)
+        file_scroll.show_vertical_scrollbar = False
+        prompt_scroll.show_vertical_scrollbar = False
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_linked_repo_diff_file_panel_120x40",

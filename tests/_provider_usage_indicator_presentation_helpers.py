@@ -1,4 +1,4 @@
-"""Shared helpers for compact provider-usage top-bar presentation tests."""
+"""Shared helpers for compact provider-usage header presentation tests."""
 
 from __future__ import annotations
 
@@ -65,10 +65,10 @@ def _style_at_offset(text: Text, offset: int) -> Style:
     raise AssertionError(f"no style at offset {offset} in {text.plain!r}")
 
 
-def _pipe_styles(text: Text) -> list[Style]:
+def _dot_styles(text: Text) -> list[Style]:
     styles: list[Style] = []
     for index, character in enumerate(text.plain):
-        if character != "|":
+        if character != "·":
             continue
         for seg_start, seg_end, _rendered, style in _segments_with_offsets(text):
             if seg_start <= index < seg_end:

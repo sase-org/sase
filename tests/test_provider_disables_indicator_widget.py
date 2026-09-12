@@ -2,26 +2,19 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import pytest
 from rich.text import Text
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets._provider_usage_indicator import usage_indicator_groups
 from sase.ace.tui.widgets.provider_disables_indicator import (
     ProviderDisablesIndicator,
     _text_signature,
 )
 from sase.llm_provider.provider_priority import provider_routing_context_from_parts
 from tests._provider_disables_indicator_helpers import (
-    _FROZEN_NOW,
     _MODULE,
     _disable,
-    _mock_usage_projection,
-    _segments_with_offsets,
-    _usage_entry,
 )
 
 
@@ -33,14 +26,6 @@ def test_initial_content_uses_peek_cache(monkeypatch: pytest.MonkeyPatch) -> Non
     )
     peek = MagicMock(return_value=context)
     monkeypatch.setattr(f"{_MODULE}.peek_provider_routing_context", peek)
-    monkeypatch.setattr(
-        f"{_MODULE}.cached_usage_indicator_projection",
-        lambda **_kwargs: SimpleNamespace(
-            entries=(),
-            providers=(),
-            generated_at=100.0,
-        ),
-    )
 
     rendered = ProviderDisablesIndicator()._build_initial_content()
 
@@ -72,33 +57,10 @@ async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None
             "#provider-disables-indicator",
             ProviderDisablesIndicator,
         )
-        indicator._usage_open_provider = None
         await indicator.on_click()
         await page.pause()
 
     assert calls == ["opened"]
-
-
-async def test_click_opens_provider_usage_when_attention_is_present(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[str] = []
-
-    async with AcePage() as page:
-
-        async def _run_action(action: str, *args: object, **kwargs: object) -> None:
-            calls.append(action)
-
-        monkeypatch.setattr(page.app, "run_action", _run_action)
-        indicator = page.query_one_widget(
-            "#provider-disables-indicator",
-            ProviderDisablesIndicator,
-        )
-        indicator._usage_open_provider = "grok"
-        await indicator.on_click()
-        await page.pause()
-
-    assert calls == ["open_provider_usage"]
 
 
 def test_text_signature_changes_when_only_the_base_style_changes() -> None:
@@ -110,54 +72,14 @@ def test_text_signature_changes_when_only_the_base_style_changes() -> None:
     assert _text_signature(dark_text) != _text_signature(light_text)
 
 
-async def test_theme_switch_repaints_usage_gaps_with_identical_plain_text(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _mock_usage_projection(monkeypatch)
-    dark_groups = usage_indicator_groups(
-        [_usage_entry(provider="grok", remaining_percent=7.0)],
-        dark=True,
-        now=_FROZEN_NOW,
-    )
-    dark_reference = ProviderDisablesIndicator._build_content(
-        {}, usage_groups=dark_groups, dark=True, now=100.0
-    )
-    assert "7%" in dark_reference.plain
-
-    updates: list[Text] = []
-    async with AcePage() as page:
-        indicator = page.query_one_widget(
-            "#provider-disables-indicator",
-            ProviderDisablesIndicator,
-        )
-        indicator._apply_content()
-        assert indicator._content_signature == _text_signature(dark_reference)
-
-        original_update = indicator.update
-        monkeypatch.setattr(
-            indicator,
-            "update",
-            lambda renderable: (
-                updates.append(renderable),
-                original_update(renderable),
-            )[1],
-        )
-
-        page.app.theme = "textual-light"
-        page.app.refresh(layout=True)
-        await page.app.wait_for_refresh()
-        await page.pause()
-
-    assert len(updates) == 1
-    repainted = updates[0]
-    assert repainted.plain == dark_reference.plain
-    assert _segments_with_offsets(repainted) != _segments_with_offsets(dark_reference)
-
-
 async def test_unchanged_apply_content_does_not_reissue_static_update(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _mock_usage_projection(monkeypatch)
+    context = provider_routing_context_from_parts({}, None, captured_at=100.0)
+    monkeypatch.setattr(
+        f"{_MODULE}.peek_provider_routing_context",
+        lambda *a, **k: context,
+    )
     async with AcePage() as page:
         indicator = page.query_one_widget(
             "#provider-disables-indicator",

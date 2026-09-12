@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,7 @@ def coverage_report(
     *,
     context: ArtifactRefContext,
     index_rows: list[dict[str, Any]] | None = None,
+    resolve_reference: Callable[..., Any] = resolve_cli_reference,
 ) -> ArtifactLinkCoverageReport:
     # `rows` (the caller's store-backed view) excludes projected rows, but the
     # origin/relation breakdown is diagnostic, not a durable-truth read, so it
@@ -73,7 +75,11 @@ def coverage_report(
             sweepable_artifact_link_documents(store),
             known_bead_ids=frozenset(known_bead_ids(store) or ()),
             agents_sidecar_root=_agents_sidecar_root(store),
-            is_agent_published=lambda name: _is_agent_published(name, context=context),
+            is_agent_published=lambda name: _is_agent_published(
+                name,
+                context=context,
+                resolve_reference=resolve_reference,
+            ),
         )
     except Exception:  # noqa: BLE001 - coverage is a report, not a gate.
         candidates = ()
@@ -151,9 +157,14 @@ def _agents_sidecar_root(store: ArtifactLinkStore) -> Path | None:
     return root if root.is_dir() else None
 
 
-def _is_agent_published(agent_name: str, *, context: ArtifactRefContext) -> bool:
+def _is_agent_published(
+    agent_name: str,
+    *,
+    context: ArtifactRefContext,
+    resolve_reference: Callable[..., Any],
+) -> bool:
     try:
-        result = resolve_cli_reference(f"agent:{agent_name}", context=context)
+        result = resolve_reference(f"agent:{agent_name}", context=context)
     except Exception:  # noqa: BLE001 - unpublished agents are not covered rows.
         return False
     return result.resolution.status in RESOLVED_STATUSES

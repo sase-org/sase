@@ -282,7 +282,7 @@ class BeadsOptionsMixin(_MixinBase):
             accent=self._accent(),
         )
         reveal = active_pane_link_reveal(
-            self._registry.app, "beads", current_canonical=pane_canonical_query(self)
+            self.app, "beads", current_canonical=pane_canonical_query(self)
         )
         if reveal is not None:
             text.append("\n")

@@ -1,4 +1,4 @@
-"""Color, style, and contrast tests for the compact provider-usage top-bar.
+"""Color, style, and contrast tests for the compact provider-usage header.
 
 Text, grouping, and tooltip coverage lives in
 ``test_provider_usage_indicator_presentation.py``. Budget packing,
@@ -29,7 +29,7 @@ from tests._provider_usage_indicator_presentation_helpers import (
     _contrast_ratio,
     _entry,
     _groups,
-    _pipe_styles,
+    _dot_styles,
     _scope,
     _style_at_offset,
     _style_at_token,
@@ -313,9 +313,9 @@ def test_structural_punctuation_is_neutral_on_provider_badge_surface(
     badge_surface = _usage_badge_surface_color(dark=dark)
     neutral = usage_neutral_color(dark=dark)
 
-    assert segment.plain.count("|") == 2
+    assert segment.plain.count("·") == 2
     punctuation_offsets = [
-        index for index, character in enumerate(segment.plain) if character in "()|"
+        index for index, character in enumerate(segment.plain) if character == "·"
     ]
     assert punctuation_offsets
     for offset in punctuation_offsets:
@@ -329,15 +329,15 @@ def test_structural_punctuation_is_neutral_on_provider_badge_surface(
         assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
         assert style == Style.parse(usage_divider_style(dark=dark))
 
-    provider_gap_index = segment.plain.find(")  🤖") + 1
-    gap_style = _style_at_token(
-        segment, " ", occurrence=segment.plain[: provider_gap_index + 1].count(" ")
-    )
-    assert gap_style.bgcolor is not None
-    assert (
-        gap_style.bgcolor.get_truecolor().hex
-        == _usage_gap_surface_color(dark=dark).lower()
-    )
+    provider_gap_at = segment.plain.find("  🤖")
+    assert provider_gap_at >= 0
+    for offset in range(provider_gap_at, provider_gap_at + 2):
+        gap_style = _style_at_offset(segment, offset)
+        assert gap_style.bgcolor is not None
+        assert (
+            gap_style.bgcolor.get_truecolor().hex
+            == _usage_gap_surface_color(dark=dark).lower()
+        )
 
 
 def test_neutral_final_window_colors_dividers_neutral() -> None:
@@ -353,10 +353,10 @@ def test_neutral_final_window_colors_dividers_neutral() -> None:
 
     segment = build_usage_indicator_segment(_groups(default, stale))
 
-    assert len(_pipe_styles(segment)) == 1
-    assert _pipe_styles(segment)[0].color is not None
+    assert len(_dot_styles(segment)) == 1
+    assert _dot_styles(segment)[0].color is not None
     assert (
-        _pipe_styles(segment)[0].color.get_truecolor().hex
+        _dot_styles(segment)[0].color.get_truecolor().hex
         == usage_neutral_color(dark=True).lower()
     )
 

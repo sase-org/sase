@@ -264,7 +264,7 @@ class CommitsPane(
             active_limit=self._active_limit(),
         )
         reveal = active_pane_link_reveal(
-            self._registry.app,
+            self.app,
             STITCHES_PANE_ID,
             current_canonical=pane_canonical_query(self),
         )

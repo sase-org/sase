@@ -342,6 +342,7 @@ class LeaderModeMixin:
             AliasOverridesIndicator,
             LLMOverrideIndicator,
             ProviderDisablesIndicator,
+            ProviderUsageIndicator,
         )
 
         # Refresh both top-bar override pills: the gold ``default`` pill and
@@ -352,6 +353,7 @@ class LeaderModeMixin:
             ("#llm-override-indicator", LLMOverrideIndicator),
             ("#alias-overrides-indicator", AliasOverridesIndicator),
             ("#provider-disables-indicator", ProviderDisablesIndicator),
+            ("#provider-usage-indicator", ProviderUsageIndicator),
         ):
             try:
                 indicator = self.query_one(selector, widget_type)  # type: ignore[attr-defined]

@@ -163,11 +163,14 @@ def patch_startup_loaders(
             app._axe_first_load_done = True
             app._maybe_end_startup_stopwatch()
 
-    async def _fake_axe_status_async(app: AceApp) -> None:
+    async def _fake_axe_status_async(app: AceApp, **_kwargs: Any) -> None:
         if axe_data is not None:
             app._apply_axe_status_data(axe_data)
         else:
             app._axe_first_load_done = True
+
+    async def _fake_refresh_selected_axe_item_async(_app: AceApp) -> None:
+        return None
 
     def _fake_prompt_catalog_rebuild(
         app: AceApp,
@@ -263,6 +266,11 @@ def patch_startup_loaders(
     )
     monkeypatch.setattr(AceApp, "_run_axe_startup_init", _fake_axe_startup)
     monkeypatch.setattr(AceApp, "_load_axe_status_async", _fake_axe_status_async)
+    monkeypatch.setattr(
+        AceApp,
+        "_refresh_selected_axe_item_async",
+        _fake_refresh_selected_axe_item_async,
+    )
     monkeypatch.setattr(
         AceApp,
         "_schedule_prompt_catalog_rebuild",

@@ -160,21 +160,30 @@ async def test_agents_epic_phase_roadmap_png_snapshot(
         await wait_for_svg_contains(page, "3 phases")
         await wait_for_visual_idle(page)
 
+        panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        metadata = renderable_to_text(panel.content) or ""
+        for expected in (
+            "Planner and safety checks",
+            "small",
+            "Responsive phase renderer",
+            "medium",
+            "no dependencies",
+            "after core",
+            "codex/gpt-5.6-sol",
+            "Visual verification",
+            "large",
+            "after core, render",
+        ):
+            assert expected in metadata
+
         assert_page_svg_contains(page, "SASE CONTEXT")
         assert_page_svg_contains(page, "PLAN")
         assert_page_svg_contains(page, "epic")
         assert_page_svg_contains(page, "3 phases")
         assert_page_svg_contains(page, "Title:")
         assert_page_svg_contains(page, "Epic phase roadmap")
-        for title_word in ("Planner", "safety", "checks"):
-            assert_page_svg_contains(page, title_word)
-        assert_page_svg_contains(page, "small")
-        assert_page_svg_contains(page, "medium")
-        assert_page_svg_contains(page, "large")
-        assert_page_svg_contains(page, "no dependencies")
-        assert_page_svg_contains(page, "after core")
-        assert_page_svg_contains(page, "codex/gpt-5.6-sol")
-        assert_page_svg_contains(page, "after core, render")
+        await wait_for_svg_contains(page, "Visual verification")
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_epic_phase_roadmap_120x40",
@@ -348,17 +357,23 @@ async def test_agents_task_bead_notes_png_snapshot(
         assert "Task Title:" in svg_plain
         assert "Description:" in svg_plain
         assert "Notes:" in svg_plain
-        assert "Size:" in svg_plain
-        assert "Task Type:" in svg_plain
-        assert "untyped" in svg_plain
-        assert "Created:" in svg_plain
-        assert "2026-07-03" in svg_plain
         assert "alice" in svg_plain
         assert "bob" in svg_plain
         assert "attribution readable" in svg_plain
+
+        panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        metadata = renderable_to_text(panel.content) or ""
+        assert "Size:" in metadata
+        assert "Task Type:" in metadata
+        assert "untyped" in metadata
+        assert "Created:" in metadata
+        assert "2026-07-03" in metadata
         assert "Epic Plan:" not in svg_plain
         assert "Epic Title:" not in svg_plain
 
+        await wait_for_svg_contains(page, "Size:")
+        await wait_for_svg_contains(page, "Created:")
+        await wait_for_visual_idle(page)
         ace_png_visual.assert_page_png(
             page,
             "agents_task_bead_notes_120x40",

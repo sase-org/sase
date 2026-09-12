@@ -9,10 +9,9 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
     LLMOverrideIndicator,
-    ProviderDisablesIndicator,
+    ProviderUsageIndicator,
     UpdatesAvailableIndicator,
 )
-from sase.ace.tui.widgets._provider_usage_indicator import usage_indicator_groups
 from sase.llm_provider.config import (
     DEFAULT_MODEL_FIELD,
     launch_model_setting_override_key,
@@ -58,25 +57,23 @@ async def test_top_bar_usage_attention_narrow_png_snapshot(
     )
     patch_projection(
         monkeypatch,
-        SimpleNamespace(entries=(), providers=(), generated_at=100.0),
-    )
-
-    usage_groups = usage_indicator_groups(
-        (
-            entry(
-                provider="grok",
-                remaining_percent=4.0,
-                vendor_state="rejected",
-                display_attention="rejected",
+        SimpleNamespace(
+            entries=(
+                entry(
+                    provider="grok",
+                    remaining_percent=4.0,
+                    vendor_state="rejected",
+                    display_attention="rejected",
+                ),
+                entry(
+                    provider="codex",
+                    remaining_percent=12.0,
+                    display_attention="low",
+                ),
             ),
-            entry(
-                provider="codex",
-                remaining_percent=12.0,
-                display_attention="low",
-            ),
+            providers=(),
+            generated_at=100.0,
         ),
-        dark=True,
-        now=100.0,
     )
 
     async with AcePage(
@@ -89,23 +86,14 @@ async def test_top_bar_usage_attention_narrow_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         updates = page.app.query_one("#updates-indicator", UpdatesAvailableIndicator)
         updates.set_available(3, core=True, agent_cli_count=2)
-        provider_indicator = page.app.query_one(
-            "#provider-disables-indicator",
-            ProviderDisablesIndicator,
-        )
-        provider_indicator._usage_groups = usage_groups
-        provider_indicator._usage_open_provider = "grok"
         page.app.query_one("#llm-override-indicator", LLMOverrideIndicator)
         page.app.query_one("#alias-overrides-indicator", AliasOverridesIndicator)
         paint_current_project_chip(page)
-        provider_indicator.update(
-            ProviderDisablesIndicator._build_content(
-                {"claude": disable("claude")},
-                usage_groups=usage_groups,
-                usage_budget=3,
-                now=100.0,
-            )
+        usage_indicator = page.app.query_one(
+            "#provider-usage-indicator",
+            ProviderUsageIndicator,
         )
+        usage_indicator._apply_content(now=100.0)
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
         await wait_for_visual_idle(page)
@@ -113,7 +101,7 @@ async def test_top_bar_usage_attention_narrow_png_snapshot(
         ace_png_visual.assert_page_png(
             page,
             "top_bar_usage_attention_80x24",
-            title="ACE top bar with crowded usage count disclosure at 80 columns",
+            title="ACE header usage cluster beside a crowded control row at 80 columns",
         )
 
 
@@ -186,11 +174,11 @@ async def test_top_bar_compact_usage_badges_wide_png_snapshot(
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         paint_current_project_chip(page)
-        provider_indicator = page.app.query_one(
-            "#provider-disables-indicator",
-            ProviderDisablesIndicator,
+        usage_indicator = page.app.query_one(
+            "#provider-usage-indicator",
+            ProviderUsageIndicator,
         )
-        provider_indicator._apply_content(now=FROZEN_NOW)
+        usage_indicator._apply_content(now=FROZEN_NOW)
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
         await wait_for_visual_idle(page)

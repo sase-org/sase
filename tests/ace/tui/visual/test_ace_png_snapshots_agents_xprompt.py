@@ -118,7 +118,7 @@ async def test_agents_xprompt_panel_highlighting_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_svg_contains(page, "AGENT XPROMPT")
-        await wait_for_svg_contains(page, "/sase_plan")
+        await wait_for_svg_contains(page, "sase_plan")
         await wait_for_svg_contains(page, "Agent Clan")
         await wait_for_svg_contains(page, "sase-core")
         await wait_for_visual_idle(page)
@@ -138,7 +138,7 @@ async def test_agents_xprompt_panel_highlighting_png_snapshot(
             "quoted",
             "payload.md",
             "commit",
-            "/sase_plan",
+            "sase_plan",
             "Agent Clan",
             "sase-core",
         ):

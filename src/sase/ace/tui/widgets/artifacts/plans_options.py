@@ -465,7 +465,7 @@ class PlansOptionsMixin(_MixinBase):
         )
         pane_id = getattr(self, "pane_key", None) or "ref:plan"
         reveal = active_pane_link_reveal(
-            self._registry.app,
+            self.app,
             pane_id,
             current_canonical=pane_canonical_query(self),
         )

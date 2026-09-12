@@ -3407,17 +3407,24 @@ successful probe age when known. This health describes the collector pipeline on
 stale-but-numeric allowance data can still render, passive stream observations do not
 hide a dead probe pipeline, and the indicator never changes launch routing.
 
-The top bar groups independently selected usage windows by provider, for example:
+The application header groups independently selected usage windows by provider on the
+right of the existing title row, for example:
 
 ```text
-🎭 (62% 3d4h | fable 0% 1d8h)  🤖 81% 5d2h
+🎭 62% 3d4h · fable 0% 1d8h  🤖 81% 5d2h
 ```
 
-The rendered segment owns two quiet spaces before the first provider icon and two after
+The title stays left-aligned after the header icon. Usage is a separate right-aligned
+cluster; changing usage text does not move the title's left edge, usage's right edge, or
+the navigation and routing controls on the row below. The complete title has priority:
+ACE never truncates it merely to show more usage, and a clipped title keeps the full
+string in its tooltip.
+
+The rendered segment owns one quiet space before the first provider icon and one after
 the block. Each provider icon appears once, followed by one space, and providers are
-separated by two quiet spaces with no inter-provider pipe. A provider with two or more
-actually visible windows wraps those windows in one pair of parentheses and joins them
-with `|`; a single visible window is unparenthesized even when hidden windows remain.
+separated by two quiet spaces with no inter-provider punctuation. Windows of the same
+provider are joined with a middle dot (`·`). A single visible window has no extra
+separator even when hidden windows remain.
 
 The default weekly all-model window renders as `<remaining-percent> <reset-countdown>`;
 additional selected windows include compact names such as `fable`, `5h`, `mo`, or
@@ -3426,10 +3433,10 @@ model/family distinctions; `scope?` means the provider did not expose exact
 applicability. The name, percentage, and reset countdown share the window's ten-step
 remaining-capacity color, from red (nearly exhausted) to blue (nearly full), except an
 exact `0%` highlights the whole `0% <reset-countdown>` value run with the inverted red
-style. Adjacent names, rejected markers, provider icons, parentheses, pipes, provider
-gaps, and outer padding keep their normal surfaces; structural punctuation is neutral,
-normal weight in both themes. Which windows appear, and at what remaining percentage, is
-fully configurable through
+style. Adjacent names, rejected markers, provider icons, middle dots, provider gaps, and
+outer padding keep their normal surfaces; structural punctuation is neutral, normal
+weight in both themes. Which windows appear, and at what remaining percentage, is fully
+configurable through
 [`llm_provider.usage_metrics.indicator`](configuration.md#llm_providerusage_metrics).
 
 Stale or unknown-age numeric observations render with neutral text and disclose their
@@ -3438,20 +3445,22 @@ nonzero reading on the normal badge surface. `?% 0h0m↻` means the window's res
 passed and ACE is awaiting a new observation, retaining the last known percentage only
 in the tooltip. A bare `?` in the countdown position means the provider never reported a
 reset time. `!` marks a vendor-rejected window. Collector failures no longer add a
-top-bar warning glyph; selected failing windows keep collector-failure prose in the
+header warning glyph; selected failing windows keep collector-failure prose in the
 tooltip, and model picker hints keep their own separate `⚠ usage failing` identity.
 
 Provider groups are ranked by their highest selected attention severity, then provider.
 Within a provider, the default window is first, followed by additional windows by
 attention severity and key. ACE shows the longest prefix of complete windows that fits
-half the top bar's width, allowing the final provider group to be partially visible,
-before adding a `+N` overflow count outside all provider parentheses. If no complete
-window prefix plus disclosure fits, ACE falls back through `usage N`, `N`, and `…`,
-relaxing the text-only padding at one-cell boundaries. Every selected and overflowed
-window's full identity, exact key, precise percentage, scope, effective display policy,
-and reset timestamp are in the tooltip. Clicking rendered usage or overflow opens
-Providers · Usage, including for an always-visible healthy window; the Usage command is
-also reachable from the command palette when there is no display space at all.
+the measured header remainder after the icon and unclipped title, allowing the final
+provider group to be partially visible, before adding a `+N` overflow count. If no
+complete window prefix plus disclosure fits, ACE falls back through `usage N`, `N`, and
+`…`, relaxing the text-only padding at one-cell boundaries. Every selected and
+overflowed window's full identity, exact key, precise percentage, scope, effective
+display policy, and reset timestamp are in the tooltip. Clicking the usage cluster —
+including a window, `+N`, `usage N`, a bare count, or `…` — opens Providers · Usage at
+the current attention-leading provider and does not expand the header. Clicking the
+routing pill still opens Config > Launch. The Usage command is also reachable from
+Launch Control's `u` and the command palette when there is no display space at all.
 
 Press `u` inside the view to submit or join bounded refresh work for eligible providers.
 The modal stays responsive, reattaches to an in-flight refresh when reopened, reloads

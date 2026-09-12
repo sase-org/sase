@@ -5216,7 +5216,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "6871026ae7456d85",
+            "description_digest": "83288d09137e3da4",
             "hidden": false,
             "mutex_groups": [],
             "name": "restart",

@@ -12,7 +12,7 @@ from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.widgets import AgentList, KeybindingFooter
+from sase.ace.tui.widgets import AgentDetail, AgentList, KeybindingFooter
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     pin_agents_visual_now,
@@ -119,10 +119,25 @@ def _lane_agent(
     return Agent(**values)  # type: ignore[arg-type]
 
 
-def _single_lane_neighbor_agents() -> list[Agent]:
+def _single_lane_neighbor_agents(tmp_path: Path) -> list[Agent]:
     """A single sase agent with two hood groups of neighbors."""
+    artifacts_dir = tmp_path / "lane-neighbor-artifacts"
+    artifacts_dir.mkdir()
+    (artifacts_dir / "01_prompt.md").write_text(
+        "Review visual lane neighbor ordering.\n",
+        encoding="utf-8",
+    )
+    (artifacts_dir / "live_reply.md").write_text(
+        "Neighbor prompt acknowledged.\n",
+        encoding="utf-8",
+    )
     rows = [
-        _lane_agent("visual.lane.plan", index=0, status="RUNNING"),
+        _lane_agent(
+            "visual.lane.plan",
+            index=0,
+            status="RUNNING",
+            artifacts_dir=str(artifacts_dir),
+        ),
         _lane_agent("visual.lane.code", index=1, status="DONE"),
         _lane_agent("visual.lane.review", index=2, status="WAITING"),
         _lane_agent("visual.lane.docs", index=3, status="DONE"),
@@ -452,9 +467,10 @@ async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
 async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
 ) -> None:
     pin_agents_visual_now(monkeypatch, _LANE_NOW)
-    patch_startup_loaders(monkeypatch, agents=_single_lane_neighbor_agents())
+    patch_startup_loaders(monkeypatch, agents=_single_lane_neighbor_agents(tmp_path))
 
     async with AcePage(query='"visual"', patches=patches(), size=(160, 50)) as page:
         await wait_for_startup(page)
@@ -479,6 +495,8 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
             agent for agent in page.app._agents if agent.identity == lane_identity
         )
         page.app.current_idx = page.app._agents.index(lane)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        detail.update_display(lane)
         await wait_for_visual_idle(page)
 
         assert page.app._agents[page.app.current_idx].identity == lane_identity
@@ -488,6 +506,9 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
         assert_page_svg_contains(page, "NEIGHBORS")
         assert_page_svg_contains(page, "visual.lane hood")
         assert_page_svg_contains(page, "more neighbors")
+        await wait_for_svg_contains(page, "Review visual lane neighbor ordering.")
+        await wait_for_svg_contains(page, "acknowledged")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -503,6 +524,9 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
         expanded_map = page.app._member_jump_maps[lane.identity]
         assert [target.number for target in expanded_map.targets] == list("01234")
         assert_page_svg_contains(page, ".bench")
+        await wait_for_svg_contains(page, "Review visual lane neighbor ordering.")
+        await wait_for_svg_contains(page, "AGENT REPLY")
+        await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
