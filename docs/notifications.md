@@ -1201,8 +1201,11 @@ The built-in front doors choose statuses and continuation policy for their domai
   replanner, while approval follows the selected tale/epic/commit policy.
 - Agent-side workflow HITL creates `HITL`; accept, edit, feedback, and rerun branches
   may launch a continuation, while rejection or an unconfigured terminal branch stops.
-- Agent-side `sase launch request` creates `LAUNCH`; approval dispatches the stored
-  launch itself, so neither approval nor rejection needs a continuation agent.
+- Agent-side `sase launch request` creates `LAUNCH` and defaults to resuming the
+  requester after approve, reject, timeout, or failure. The successor receives the gate
+  outcome, feedback, typed dispatch result, requester identity, family/workspace
+  context, and checkpoint. A stopped gate remains terminal; an explicit
+  `terminal_handoff` mode suppresses requester continuation on every branch.
 
 For a custom handoff, pass `--shell` to `sase gate create`. `--next` supplies the
 default answered-branch prompt; `--next-fork family|shell|none`, `--next-model`, and

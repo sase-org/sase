@@ -5087,11 +5087,14 @@ cancel. ACE resolves the same hash-verified command bundle used by mobile and re
 callbacks, while retaining legacy launch-request fallback. The CLI equivalents are
 `sase launch approve <selector>` and `sase launch reject <selector>`. From inside an
 agent, `sase launch request` creates a `LAUNCH` gate shell and ends the requesting turn;
-the process does not wait for the response. Approving dispatches the stored launch and
-settles the shell, while rejection, cancellation, timeout, or dispatch failure records
-the terminal outcome without starting a continuation agent. Outside a SASE agent, the
-command registers the gate, prints its creation descriptor, and returns. Automation that
-needs the terminal gate result can then run
+the process does not wait for the response. By default, approval, rejection, timeout, or
+gate/dispatch failure settles the shell and resumes the original requester as one family
+successor. That successor receives the decision, reviewer feedback, typed dispatch
+result, requester/workspace/family identity, and checkpoint; a stopped gate does not
+resume. A request can explicitly choose `terminal_handoff` when every branch should end
+without a requester continuation. Outside a SASE agent, terminal handoff is the default:
+the command registers the gate, prints its creation descriptor, and returns. Automation
+that needs the terminal gate result can then run
 `sase gate wait -i <request-id> -k launch -j`.
 
 ## Linked Chats in Multi-Step Workflows

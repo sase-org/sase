@@ -16,9 +16,10 @@ scheduled wake-up tool.
 ## The agent-family picture
 
 Starting a monitor promotes the calling sase-agent to an agent family, exactly as
-`%id(suffix, family=parent)` would, and adds the monitor as a proc shell member. The
-follow-up agent is **not** launched yet — only after the command settles as `completed`,
-`failed`, or `timeout` (not `stopped` or `lost`), and only when `--next` was set:
+`%id(suffix, family=parent)` would, and adds the monitor as a proc shell member. No
+successor is launched yet. After the command settles, the frozen outcome branch may
+launch one ordinary follow-up, complete through the host, or do nothing. `stopped` and
+`lost` always do nothing:
 
 ```
 sase-agent "acme"    before                     right after `sase monitor start`
@@ -28,7 +29,7 @@ acme                 (one-shell agent, RUNNING) acme            (agent family)
                                                 └─ acme--mon    TESTING    ← monitor proc shell
 ```
 
-After the command finishes with `--next` set:
+After the command finishes on an ordinary `continue` branch:
 
 ```
 acme
@@ -86,9 +87,11 @@ and records the wait output where the follow-up can inspect it.
 - The command is the remainder after `--` (for example `-- just check-full`). That is
   the form `sase monitor start --help` shows. `-c/--command` still works as a hidden
   compatibility alias for a single shell string, but new invocations should use `--`.
-- `-p/--profile verify` supplies the standard verification defaults: `TESTING` /
-  `TESTED` labels and `--next-output auto`. Profile selection alone never authorizes
-  host completion; prepared completion still requires `-f/--completion`.
+- `-p/--profile verify` supplies the standard verification policy: `TESTING` / `TESTED`
+  labels, `--next-output auto`, no continuation after success, and a recovery
+  continuation after failure or timeout. `-n/--next` replaces the built-in recovery
+  instruction. Profile selection alone never authorizes host completion; prepared
+  completion still requires `-f/--completion`.
 - `-s/--start-status` and `-S/--stop-status` are required when no profile supplies them
   — the present-tense label shown while the command runs (e.g. `TESTING`) and the
   past-tense label shown when it finishes (e.g. `TESTED`). Each is capped at 20
@@ -101,24 +104,137 @@ and records the wait output where the follow-up can inspect it.
 - `--idle-timeout` / `-i` is optional. It kills a command that stops producing output
   for the given duration, while still allowing intentionally quiet commands when
   omitted.
-- `--next` / `-n` is the follow-up agent's instruction. Omit it for a fire-and-forget
-  monitor: the command still runs to completion and its output, exit state, and runtime
-  are recorded for later inspection, but no agent launches afterward.
-- `--model` / `-m` selects a model or alias for that follow-up (for example `opus`,
-  `opus@high`, `@small`, or `codex/gpt-5`). It requires `--next`. When omitted, the
-  follow-up inherits the starter's model and reasoning effort.
+- `--next` / `-n` is the shared follow-up instruction. Without a profile, policy, or
+  prepared completion, omitting it makes the monitor fire-and-forget: the command still
+  runs to completion and its output, exit state, and runtime are recorded, but no agent
+  launches afterward.
+- `--model` / `-m` selects a model or alias for an ordinary follow-up (for example
+  `opus`, `opus@high`, `@small`, or `codex/gpt-5`). It may accompany `--next`, a
+  profile, an outcome policy, or a prepared completion that has a recovery branch. When
+  omitted, an ordinary follow-up inherits the starter's model and reasoning effort.
 - `-o/--next-output auto|tail|file|none` controls how much retained command output is
   handed to the follow-up agent. `auto` is the default and selects outcome-aware
   evidence; `tail` embeds a bounded raw tail; `file` points at refs and log locators;
   `none` gives only the outcome summary and `sase monitor show --all-lines` pointer.
+- `-k/--checkpoint FILE` binds an authored YAML/JSON checkpoint by content digest. Use
+  it to preserve the objective, constraints, findings, unresolved decisions, remaining
+  work, source refs, or coverage separately from `--next`.
+- `-P/--policy FILE` loads a per-outcome JSON/YAML policy. It is mutually exclusive with
+  `-p/--profile`; both are validated and frozen before SASE creates the monitor member.
+- `-f/--completion REF` binds a single-use host-completion intent produced by
+  `sase final prepare`. The monitored argv must exactly match the intent's verification
+  command.
 - `--label` / `-L`, `--agent` / `-a` (`--lane` remains accepted as a deprecated alias),
   `--cwd` / `-C`, and `--tail-lines` / `-T` are optional; see
   `sase monitor start --help` for the full list.
 
 Only one monitor may be running per agent at a time. Repeating the same full request
 returns the existing running record; changing the command, cwd, timeout, next action,
-status labels, or output policy is rejected until the active monitor settles. A `lost`
-monitor is never implicitly replayed.
+status labels, checkpoint, policy, completion intent, or output policy is rejected until
+the active monitor settles. A `lost` monitor is never implicitly replayed.
+
+### Checkpoints and outcome policies
+
+An authored checkpoint is a bounded (at most 256 KiB), UTF-8 YAML or JSON object. It
+must provide at least one of `objective`, `constraints`, `findings`,
+`unresolved_decisions`, or `remaining_work`; each accepts a string or a list of strings.
+Optional `source_refs` and `coverage` identify the evidence and scope already handled.
+Do not put `next` or `next_action` in the file: the checkpoint records durable state,
+while `-n/--next` records what the successor should do.
+
+```yaml
+objective: Finish the parser refactor safely.
+constraints:
+  - Preserve the public CLI.
+findings:
+  - The focused tests pass.
+remaining_work:
+  - Run the full verification gate.
+source_refs:
+  - file:explicit:parser-notes
+coverage:
+  - parser
+  - cli
+```
+
+An explicit outcome policy chooses `continue`, `none`, or `complete` independently for
+`completed`, `failed`, and `timeout`. It may also spell out `stopped` and `lost`, but
+those two outcomes never dispatch. A `continue` branch can set `next_action`, `model`,
+and evidence policy; an explicit branch overrides the shared `--next`, `--model`, and
+`--next-output` values. A `complete` branch is rejected unless `--completion` binds a
+prepared intent.
+
+```yaml
+completed:
+  action: none
+failed:
+  action: continue
+  next_action: Repair the failed verification, then finish the task.
+  model: opus@high
+timeout:
+  action: continue
+  next_action: Diagnose the timeout without rerunning the command blindly.
+```
+
+SASE freezes the validated policy, inherited route, prepared-completion ref, and
+checkpoint before changing workspace claims. Editing the source files afterward cannot
+change a running monitor's settlement decision.
+
+### Prepared host completion
+
+`sase final prepare` turns a normal finalizer declaration plus one exact verification
+command into a host-sealed, single-use intent. Preparation publishes the current final
+context and records the relevant repositories' HEAD, index, dirty paths, and protected
+or foreign state. It does **not** accept a final submission, run a finalizer, commit, or
+end the turn.
+
+```json
+{
+  "success_message": "Required checks passed in {duration}.",
+  "verification": { "command": ["just", "check-full"] },
+  "declaration": {
+    "schema_version": 2,
+    "context_digest": "<from sase final context>",
+    "plan_digest": "<from sase final context>",
+    "payloads": [
+      {
+        "instance_id": "commit",
+        "payload": {
+          "repositories": [
+            {
+              "repo_id": "<repository obligation id>",
+              "action": "commit",
+              "message": "docs: refresh user documentation"
+            }
+          ],
+          "deferrals": []
+        }
+      }
+    ]
+  }
+}
+```
+
+Prepare the wrapper, then bind the returned `intent_ref` to the matching command:
+
+```bash
+sase final prepare completion.json -j
+sase monitor start -p verify -f '<intent-ref>' -- just check-full
+```
+
+Binding is atomic. A command mismatch creates no monitor, and a failed monitor startup
+returns the intent to the prepared state; once a live monitor has bound it, the intent
+cannot be reused. If the command completes successfully and the sealed command,
+finalizer plan, repository observations, workspace, and diagnostics remain eligible, the
+host installs the prepared declaration and runs its finalizers without another model
+turn. The monitor reports `Completed by host` and retains a completion receipt.
+
+A failed or timed-out command, stale repository state, or another eligibility failure
+invalidates host completion and launches one ordinary recovery continuation instead.
+That successor receives the reason and must repair or finish normally. Stopped and lost
+monitors never complete or continue automatically. See
+[Commit Finalizer](commit_workflows.md#commit-finalizer) for the declaration side of the
+protocol.
 
 ### Resolving the implicit agent
 
@@ -252,14 +368,18 @@ follow-up action is not launched.
 
 ## The follow-up agent
 
-When `--next` is set and the monitor did not end in `stopped` or `lost`, one follow-up
-agent shell launches under the same agent family once the command finishes and the
-monitor settles. It receives:
+When the frozen outcome branch selects `continue`, one follow-up agent shell launches
+under the same agent family once the command finishes and the monitor settles. A shared
+`--next`, the `verify` profile, or an explicit policy may supply that branch. It
+receives:
 
 - the starter's full prior conversation, via `#fork`; the follow-up joins the family it
   forks and does not wait on or list itself, though it still waits for any other live
   family member;
-- the original `--reason` and the `--next` instruction, verbatim, under its own heading;
+- the original `--reason` and the resolved next instruction, verbatim, under its own
+  heading;
+- the authored checkpoint, when supplied, as protected state distinct from the next
+  action;
 - a command-run breakdown: outcome, exit code, elapsed time vs. the timeout budget, and
   the selected output policy from `--next-output`;
 - the full log path and the exact `sase monitor show <id> --all-lines` invocation to
@@ -269,6 +389,18 @@ By default, the follow-up inherits the starter's model and reasoning effort. Pas
 `--model` / `-m` to replace that routing with a model, provider-qualified model, or
 model alias; an optional `@effort` suffix travels with the selection. `%model` text in
 `--next` remains literal prompt text and does not control routing.
+
+Continuation history is replayed from versioned parent links rather than reconstructed
+from shell names. Each ancestor is hydrated once in order, including local authored
+prompt segments, host instructions, final responses, checkpoints, and monitor-result
+evidence. A missing ancestor is disclosed as a gap; SASE does not guess across uncertain
+legacy history.
+
+Before invoking the provider, SASE measures the fully expanded continuation against its
+context and transport budget. If essential content is too large, the provider is not
+called: the follow-up becomes `not-launchable`, the budget decision and composed prompt
+remain inspectable, and recovery guidance asks for an adequate checkpoint or a route
+with more context. The monitored command is not rerun merely to reconstruct context.
 
 The launch is not coupled to a workspace-claim handoff that can fail: if the monitor's
 own workspace claim can no longer be transferred to the follow-up (for example, a stale
@@ -302,15 +434,16 @@ raw-tail lines.
 
 A monitor is not a way to free runner capacity. The family keeps its one
 [`max_running_agents`](configuration.md#max_running_agents) slot for the monitor's whole
-lifetime and then hands that same slot to the `--next` agent. The starter's runner
+lifetime and then hands that same slot to any ordinary follow-up. The starter's runner
 process exits at handoff, but occupancy stays continuous: the monitor member counts as
 soon as it has a recorded supervisor pid, and the follow-up inherits the family's slot
-instead of waiting at the admission gate. A fire-and-forget monitor (no `--next`) still
-holds the slot until the command settles. In-process successors such as `sase pipe` keep
-the same family's slot as well; they never become a second occupant.
+instead of waiting at the admission gate. A fire-and-forget monitor (an outcome policy
+with no continuation) still holds the slot until the command settles. In-process
+successors such as `sase pipe` keep the same family's slot as well; they never become a
+second occupant.
 
 Holding a slot and waiting for one stay separate. Only a root or a live parallel family
-member parks at the gate. Serial family members — the monitor and its `--next` agent
+member parks at the gate. Serial family members — the monitor and any ordinary follow-up
 included — ride the slot the family already holds. See
 [Agent queued for a runner slot](troubleshooting/runner-slots.md).
 
@@ -324,6 +457,8 @@ sase monitor list --status failed --status timeout
 sase monitor show <id>                     # details plus an output tail
 sase monitor show <id> --follow            # stream new output until it finishes
 sase monitor show <id> --all-lines --output-only
+sase monitor show <id> --diagnostics       # selected failed-stage diagnostics
+sase monitor show <id> --range 0:65536     # retained raw-output byte range
 
 sase monitor stop [<id>]                   # stop a running monitor; omit id to target
                                             # the calling agent's active monitor
@@ -342,6 +477,12 @@ Every subcommand can emit machine-readable output, but not with the same flag: `
 `sase monitor show` has **no** `-j` — use `--format json` there. See
 `sase monitor --help` and each subcommand's `--help` for the complete flag reference, or
 [CLI Reference](cli.md).
+
+`--diagnostics` reads the bounded stage diagnostics selected for a failed monitor;
+`--range START:END` reads a bounded byte interval from retained raw output. Both default
+to at most 65,536 bytes and accept `-b/--max-bytes`. They are snapshot modes, so neither
+can be combined with `--follow`; diagnostics and ranges are mutually exclusive, and a
+range cannot be combined with `--all-lines`.
 
 Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
 ACE Agents tab refresh path, and the axe scheduler look for running monitor shells whose
@@ -424,17 +565,25 @@ cover them:
   supervisor never reported a real exit code (died on arrival, or belongs to a previous
   boot) renders with a red `⚠` badge in place of the exit-code badge — the command's
   outcome is unknown, not merely non-zero.
-- **A dropped or degraded follow-up.** A monitor carrying a `--next` action that did not
-  launch, or launched degraded, renders with an amber `⚑` flag independent of the
-  monitor's own state — a monitor can finish cleanly and still strand its follow-up.
+- **A dropped or degraded follow-up.** A monitor whose outcome selected `continue` but
+  did not launch, or launched degraded, renders with an amber `⚑` flag independent of
+  the monitor's own state — a monitor can finish cleanly and still strand its follow-up.
 
 `sase monitor list` marks the same monitor row with the `⚑` flag next to its `STATE`
 cell (in both the table and `--format markdown` output) so a stalled handoff is visible
 without `--json` plumbing; `sase monitor show <id>` prints a `Follow-up error` line for
 a dropped follow-up and a `Follow-up degraded` line for a degraded one, and both
 commands' JSON envelopes carry `followup_outcome` (`launched` / `launched-degraded` /
-`not-launchable`), `followup_error`, and `followup_degraded_reason`, plus versioned
-`result`, `evidence`, `continuation`, and `context_budget` objects for compact clients.
+`not-launchable` / `host-completed`), `followup_error`, and `followup_degraded_reason`,
+plus versioned `result`, `evidence`, `continuation`, and `context_budget` objects for
+compact clients.
+
+Ordinary continuation delivery is keyed by monitor result and outcome branch. SASE
+reserves the successor identity before spawning it, and the intended receiver
+acknowledges that reservation before its provider is invoked. Concurrent settlement or
+reconciliation therefore discovers the same delivery instead of launching a duplicate
+model turn. A dispatch that cannot be proved safe remains visible as not launchable or
+needing attention with its saved prompt and delivery record.
 
 Monitors themselves are notification-neutral: a monitor is an execution and handoff
 mechanism, not a workflow that files notifications, so neither a completed monitor nor a

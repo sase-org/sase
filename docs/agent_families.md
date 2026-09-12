@@ -687,12 +687,20 @@ sase launch request -f launch_request.json -o json
 The request may contain `%i(suffix, family=parent)` in its prompt, so the approved
 launch joins an existing family with any valid suffix. `launch_preview.md` shows the
 resolved launch plan before approval. Inside an agent, the request creates a pending
-`LAUNCH` gate shell, hands off the family lane, and ends the requesting turn. Approval
-executes the stored dispatch command; rejection, cancellation, timeout, and dispatch
-failure settle the gate without launching a continuation agent. Outside an agent, the
-command instead prints the creation descriptor and returns immediately. A script that
-needs to block can use its `request_id` with
-`sase gate wait -i <request-id> -k launch -j` as a separate step.
+`LAUNCH` gate shell, hands off the family lane, and ends the requesting turn. Its
+default `requester_continuation.mode` is `resume_requester`: after approval, rejection,
+timeout, or gate/dispatch failure, one successor resumes the original assignment with
+the gate decision, feedback, typed launch results, requester identity, workspace/family
+context, and the recorded checkpoint. A stopped gate remains terminal. Set the mode
+explicitly to `terminal_handoff` when the requester truly has no remaining work; no
+settlement branch then resumes it.
+
+The approved helper prompt and requester continuation cannot both target the requester's
+family lane. If the stored prompt uses `family=parent` (or names that same family),
+target a different family or select `terminal_handoff` so the lane has one owner.
+Outside an agent, the request defaults to terminal handoff, prints the creation
+descriptor, and returns immediately. A script that needs to block can use its
+`request_id` with `sase gate wait -i <request-id> -k launch -j` as a separate step.
 
 Approve or reject from ACE, or use:
 

@@ -24,6 +24,7 @@ sections, environment variables, and CLI flags.
   - [llm_provider](#llm_provider)
   - [finalizers](#finalizers)
   - [commit.message](#commitmessage)
+  - [monitor](#monitor)
   - [repos](#repos)
   - [dispatch](#dispatch)
   - [vcs_provider](#vcs_provider)
@@ -2082,6 +2083,14 @@ no payload is required. If a required submission is missing or stale, the host o
 bounded recovery turn that explicitly requests `/sase_final`. The host executes and
 verifies finalizers after the model returns.
 
+`sase final prepare <wrapper.json>` is the conditional alternative for a long
+verification handoff. It seals a completed declaration, exact verification argv, current
+context, and repository observations without submitting or executing them. Bind the
+returned single-use ref with `sase monitor start -f <ref>`; only an eligible successful
+monitor result lets the host install that declaration and run finalizers without another
+model turn. A plain monitor profile carries no completion authority. See
+[Prepared host completion](monitors.md#prepared-host-completion).
+
 The built-in `builtin@commit` provider checks the main workspace, configured linked Git
 worktrees, and repositories opened through `/sase_repo`. Dirty enforced repositories
 become declaration obligations; each repository must receive exactly one `commit`
@@ -2139,6 +2148,36 @@ environment variable; a project that does not use Conventional Commits sets
 Source: `src/sase/finalizers/controller.py`, `src/sase/finalizers/commit.py`,
 `src/sase/commit_instructions.py`, `src/sase/workflows/commit/message_validation.py`,
 `src/sase/core/commit_subject_facade.py`
+
+### monitor
+
+Controls the amount of command evidence projected into a monitor continuation prompt.
+These limits do not change the monitor's bounded rotating log or the output available to
+`sase monitor show`; they bound only automatically selected prompt content.
+
+```yaml
+monitor:
+  evidence_limits:
+    selected_diagnostics_bytes: 8192
+    fallback_tail_bytes: 4096
+    total_raw_excerpt_bytes: 12288
+    raw_tail_lines: 200
+```
+
+| Field                                                | Type | Default | Minimum | Description                                                              |
+| ---------------------------------------------------- | ---- | ------- | ------- | ------------------------------------------------------------------------ |
+| `monitor.evidence_limits.selected_diagnostics_bytes` | int  | `8192`  | `1`     | UTF-8 bytes of selected failed-stage diagnostics eligible for embedding. |
+| `monitor.evidence_limits.fallback_tail_bytes`        | int  | `4096`  | `1`     | UTF-8 bytes of fallback raw tail when diagnostics are unavailable.       |
+| `monitor.evidence_limits.total_raw_excerpt_bytes`    | int  | `12288` | `1`     | Aggregate raw-evidence byte cap for one continuation prompt.             |
+| `monitor.evidence_limits.raw_tail_lines`             | int  | `200`   | `1`     | Retained-output lines considered when selecting raw-tail evidence.       |
+
+`selected_diagnostics_bytes` and `fallback_tail_bytes` must each be no larger than
+`total_raw_excerpt_bytes`. The runtime falls back to all four packaged defaults if that
+relationship is invalid; schema validation rejects non-positive values. Strict
+`--next-output file` and `none` policies still embed no raw command output.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/_settings.py`,
+`src/sase/config/sase.schema.json`, `src/sase/monitor/result_projection.py`
 
 ### repos
 
@@ -4272,41 +4311,56 @@ Source: `src/sase/default_config.yml`, `src/sase/mode_switch/repos.py`
 
 ### LLM Provider
 
-| Variable                                 | Description                                                                         |
-| ---------------------------------------- | ----------------------------------------------------------------------------------- |
-| `SASE_MODEL_TIER_OVERRIDE`               | Force all LLM invocations to a specific tier (`large` or `small`).                  |
-| `SASE_MODEL_SIZE_OVERRIDE`               | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).                    |
-| `SASE_LLM_EXEC_PROVIDER`                 | Execute through this registered provider while preserving requested model metadata. |
-| `SASE_LLM_LARGE_ARGS`                    | Extra CLI args appended for `large` tier invocations (any provider).                |
-| `SASE_LLM_SMALL_ARGS`                    | Extra CLI args appended for `small` tier invocations (any provider).                |
-| `SASE_CLAUDE_LARGE_ARGS`                 | Claude-specific extra args for `large` tier (fallback if generic unset).            |
-| `SASE_CLAUDE_SMALL_ARGS`                 | Claude-specific extra args for `small` tier (fallback if generic unset).            |
-| `SASE_CODEX_PATH`                        | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).            |
-| `SASE_CODEX_LARGE_ARGS`                  | Codex-specific extra args for `large` tier (fallback if generic unset).             |
-| `SASE_CODEX_SMALL_ARGS`                  | Codex-specific extra args for `small` tier (fallback if generic unset).             |
-| `SASE_CODEX_DISABLE_SHADOW_HOME`         | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                         |
-| `SASE_QWEN_PATH`                         | Path to the Qwen Code CLI binary (default: `qwen`).                                 |
-| `SASE_QWEN_LARGE_ARGS`                   | Qwen-specific extra args for `large` tier (fallback if generic unset).              |
-| `SASE_QWEN_SMALL_ARGS`                   | Qwen-specific extra args for `small` tier (fallback if generic unset).              |
-| `SASE_OPENCODE_PATH`                     | Path to the OpenCode CLI binary (default: `opencode`).                              |
-| `SASE_OPENCODE_LARGE_ARGS`               | OpenCode-specific extra args for `large` tier (fallback if generic unset).          |
-| `SASE_OPENCODE_SMALL_ARGS`               | OpenCode-specific extra args for `small` tier (fallback if generic unset).          |
-| `SASE_AGY_PATH`                          | Path to the Antigravity CLI binary (default: `agy`).                                |
-| `SASE_AGY_PRINT_TIMEOUT`                 | Override the `agy --print-timeout` Go duration (default: `24h`).                    |
-| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS` | Override the no-progress continuation cap (default: `2`).                           |
-| `SASE_AGY_LARGE_ARGS`                    | Antigravity-specific extra args for `large` tier (fallback if generic unset).       |
-| `SASE_AGY_SMALL_ARGS`                    | Antigravity-specific extra args for `small` tier (fallback if generic unset).       |
-| `SASE_MUSE_PATH`                         | Path to the Muse Code CLI binary (default: `muse`).                                 |
-| `SASE_MUSE_LARGE_ARGS`                   | Muse-specific extra args for `large` tier (fallback if generic unset).              |
-| `SASE_MUSE_SMALL_ARGS`                   | Muse-specific extra args for `small` tier (fallback if generic unset).              |
-| `SASE_MUSE_SANDBOX`                      | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled`.                |
-| `SASE_GROK_PATH`                         | Path to the Grok Build CLI binary (default: `grok`).                                |
-| `SASE_GROK_LARGE_ARGS`                   | Grok-specific extra args for `large` tier (fallback if generic unset).              |
-| `SASE_GROK_SMALL_ARGS`                   | Grok-specific extra args for `small` tier (fallback if generic unset).              |
+| Variable                                       | Description                                                                         |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `SASE_MODEL_TIER_OVERRIDE`                     | Force all LLM invocations to a specific tier (`large` or `small`).                  |
+| `SASE_MODEL_SIZE_OVERRIDE`                     | Legacy alias for `SASE_MODEL_TIER_OVERRIDE` (`big` or `little`).                    |
+| `SASE_LLM_EXEC_PROVIDER`                       | Execute through this registered provider while preserving requested model metadata. |
+| `SASE_LLM_LARGE_ARGS`                          | Extra CLI args appended for `large` tier invocations (any provider).                |
+| `SASE_LLM_SMALL_ARGS`                          | Extra CLI args appended for `small` tier invocations (any provider).                |
+| `SASE_CLAUDE_LARGE_ARGS`                       | Claude-specific extra args for `large` tier (fallback if generic unset).            |
+| `SASE_CLAUDE_SMALL_ARGS`                       | Claude-specific extra args for `small` tier (fallback if generic unset).            |
+| `SASE_CODEX_PATH`                              | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).            |
+| `SASE_CODEX_LARGE_ARGS`                        | Codex-specific extra args for `large` tier (fallback if generic unset).             |
+| `SASE_CODEX_SMALL_ARGS`                        | Codex-specific extra args for `small` tier (fallback if generic unset).             |
+| `SASE_CODEX_DISABLE_SHADOW_HOME`               | Set to `1` to launch Codex with the inherited `CODEX_HOME`.                         |
+| `SASE_QWEN_PATH`                               | Path to the Qwen Code CLI binary (default: `qwen`).                                 |
+| `SASE_QWEN_LARGE_ARGS`                         | Qwen-specific extra args for `large` tier (fallback if generic unset).              |
+| `SASE_QWEN_SMALL_ARGS`                         | Qwen-specific extra args for `small` tier (fallback if generic unset).              |
+| `SASE_OPENCODE_PATH`                           | Path to the OpenCode CLI binary (default: `opencode`).                              |
+| `SASE_OPENCODE_LARGE_ARGS`                     | OpenCode-specific extra args for `large` tier (fallback if generic unset).          |
+| `SASE_OPENCODE_SMALL_ARGS`                     | OpenCode-specific extra args for `small` tier (fallback if generic unset).          |
+| `SASE_AGY_PATH`                                | Path to the Antigravity CLI binary (default: `agy`).                                |
+| `SASE_AGY_PRINT_TIMEOUT`                       | Override the `agy --print-timeout` Go duration (default: `24h`).                    |
+| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS`       | Override the no-progress continuation cap (default: `2`).                           |
+| `SASE_AGY_LARGE_ARGS`                          | Antigravity-specific extra args for `large` tier (fallback if generic unset).       |
+| `SASE_AGY_SMALL_ARGS`                          | Antigravity-specific extra args for `small` tier (fallback if generic unset).       |
+| `SASE_MUSE_PATH`                               | Path to the Muse Code CLI binary (default: `muse`).                                 |
+| `SASE_MUSE_LARGE_ARGS`                         | Muse-specific extra args for `large` tier (fallback if generic unset).              |
+| `SASE_MUSE_SMALL_ARGS`                         | Muse-specific extra args for `small` tier (fallback if generic unset).              |
+| `SASE_MUSE_SANDBOX`                            | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled`.                |
+| `SASE_GROK_PATH`                               | Path to the Grok Build CLI binary (default: `grok`).                                |
+| `SASE_GROK_LARGE_ARGS`                         | Grok-specific extra args for `large` tier (fallback if generic unset).              |
+| `SASE_GROK_SMALL_ARGS`                         | Grok-specific extra args for `small` tier (fallback if generic unset).              |
+| `SASE_CONTINUATION_BUDGET_ENFORCE`             | Set to `1` to apply continuation-budget preflight outside monitor successors.       |
+| `SASE_CONTINUATION_CONTEXT_LIMIT_BYTES`        | Positive context-limit override for continuation preflight (default: `800000`).     |
+| `SASE_CONTINUATION_TRANSPORT_LIMIT_BYTES`      | Optional positive transport-limit override for continuation preflight.              |
+| `SASE_CONTINUATION_CHECKPOINT_THRESHOLD_BYTES` | Optional positive checkpoint-threshold override.                                    |
+| `SASE_CONTINUATION_INSTRUCTION_RESERVE_BYTES`  | Positive instruction-reserve override (default: `0`).                               |
+| `SASE_CONTINUATION_TOOL_RESERVE_BYTES`         | Positive tool-context reserve override (default: `0`).                              |
+| `SASE_CONTINUATION_OUTPUT_RESERVE_BYTES`       | Positive output reserve override (default: `0`).                                    |
+| `SASE_CONTINUATION_REASONING_RESERVE_BYTES`    | Positive reasoning reserve override (default: `0`).                                 |
 
 For the per-provider args, the generic `SASE_LLM_*_ARGS` variables are checked first. If
 unset, the provider-specific variable is used as a fallback. Values are split on
 whitespace and appended to the CLI command.
+
+Monitor successors always run the continuation-budget preflight; the explicit enforce
+variable is for another invocation path that needs the same guard. The preflight
+measures the final expanded prompt after replay. When essential content exceeds the
+effective budget, SASE records the decision and refuses before calling the provider.
+Invalid, zero, or negative numeric overrides fall back to the corresponding default or
+remain unset.
 
 SASE-launched Codex subprocesses use a disposable shadow `CODEX_HOME` by default. The
 shadow home is created under `~/.cache/sase/codex_home/`, receives a copy of the real

@@ -265,6 +265,12 @@ exists, the report breaks out missing and extra rows by relation, origin, and en
 It exits 1 for unhealthy state; unpublished agent references are informational because a
 queued publication may still resolve them.
 
+An orphaned tombstone can arrive before the event version it removes. The reducer keeps
+that tombstone, suppresses a matching stale legacy row, and continues serving unrelated
+durable links; the warning converges away when the predecessor event arrives. The
+current top-level doctor report still counts an orphaned tombstone as unhealthy and
+exits 1 while it is present.
+
 `sase artifact doctor --fix` rebuilds the aggregate and managed projections from durable
 truth, repairs references whose files can be followed through Git rename history, and
 performs the ordinary artifact-index enrichment pass. It does not infer graph state by
@@ -292,7 +298,7 @@ Artifact-link truth lives in several places with different durability:
 | Sidecar `link-events/v1/<shard>/<digest>.json`              | Content-addressed immutable operation objects; the reducer derives the current graph from their union. | Yes. Each owning document sidecar commits the exact event bytes.   |
 | Sidecar `link-events/STORE.json`                            | Fleet-safety fence and legacy-import progress marker (`fenced` or `imported`).                         | Yes. One canonical marker in every document sidecar.               |
 | Sidecar `links/**/*.json`                                   | Frozen legacy schema-v2 indexes, read only before cutover and ignored after every marker is imported.  | Historical compatibility data only; never a current write target.  |
-| `~/.sase/projects/<key>/link-events/v1/...`                 | Durable root for an event with no document or bead owner.                                              | No. Machine-local SASE state.                                      |
+| `~/.sase/projects/<key>/link-events/v1/...`                 | Immutable local receipt history for an event with no document owner, including bead-only events.       | No. Machine-local SASE state.                                      |
 | `~/.sase/projects/<key>/artifact-links.json`                | Rebuildable aggregate of reduced store rows plus projected relationships, with its lock.               | No. Machine-local SASE state.                                      |
 | `~/.sase/projects/<key>/artifact-link-outbox.jsonl`         | Replay queue of canonical event payloads awaiting all required durability receipts.                    | No. Machine-local; retried by publication and hourly housekeeping. |
 | `~/.sase/projects/<key>/artifact-link-outbox-dropped.jsonl` | Audit trail for stale terminal-agent observations that could not become publishable.                   | No. Machine-local.                                                 |
@@ -302,10 +308,14 @@ tombstone. One canonical event is installed in every document sidecar that owns 
 endpoint, and one command creates at most one
 `chore(artifact-links): persist link events` commit per affected repository. Bead
 ownership is acknowledged through the bead event store. Events with neither a document
-nor bead owner use the machine-local event root. SASE updates the aggregate only after
-the operation has every required durability receipt, so an ephemeral checkout cannot
-report success while holding the only copy. An unchanged put or a removal with no active
-edge writes nothing.
+nor bead owner use the machine-local event root as their durability receipt; bead-only
+events are installed there as immutable history before their bead receipt is accepted.
+SASE updates the aggregate only after the operation has every required durability
+receipt, so an ephemeral checkout cannot report success while holding the only copy. An
+unchanged put or a removal with no active edge writes no new event, but still verifies
+that every document-owner sidecar is durably published. The no-op retry therefore fails
+when a required owner root is unresolved or its event commits have not reached the
+configured remote.
 
 An audited agent `read` updates the local reduced view and appends a replayable event to
 the outbox until the agent's published identity can satisfy document ownership. The

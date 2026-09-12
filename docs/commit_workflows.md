@@ -649,6 +649,58 @@ Final declarations have three distinct boundaries:
    manual stitch made after acceptance remains stale execution-time state; the executor
    fails closed instead of treating it as the host's own work.
 
+Long verification has a separate conditional path. `sase final prepare` accepts a JSON
+wrapper containing a success message, an exact verification argv, and the completed
+declaration that would otherwise go to `sase final submit`. It publishes the current
+context, observes every relevant repository, seals those facts with the selected
+finalizer capabilities, and returns an immutable intent reference. Preparation does not
+write `final_submission.json`, run finalizers, commit, or end the turn.
+
+Bind that reference exactly once with `sase monitor start -f <ref>`. The monitor command
+must match the sealed verification argv. On a clean matching result with unchanged
+context, plan, repositories, and workspace, the host installs the prepared declaration
+and executes the finalizers in no-model mode. It records a durable host-completion
+receipt, so reconciliation does not repeat an already completed commit. A failed or
+timed-out command, stale observation, degraded workspace, or other eligibility failure
+invalidates the shortcut and launches one recovery agent instead. This does not let a
+plain `--profile verify` commit: host completion requires the separately prepared and
+bound intent.
+
+The wrapper shape is:
+
+```json
+{
+  "success_message": "Required checks passed in {duration}.",
+  "verification": { "command": ["just", "check-full"] },
+  "declaration": {
+    "schema_version": 2,
+    "context_digest": "<current context digest>",
+    "plan_digest": "<current plan digest>",
+    "payloads": [
+      {
+        "instance_id": "commit",
+        "payload": {
+          "repositories": [
+            {
+              "repo_id": "<repository obligation id>",
+              "action": "commit",
+              "message": "docs: refresh user documentation"
+            }
+          ],
+          "deferrals": []
+        }
+      }
+    ]
+  }
+}
+```
+
+Start from `sase final context -f json` and fill its `manifest_template` rather than
+guessing digests or obligation IDs. `sase final prepare <file> -j` prints the
+`intent_ref` to bind. See
+[Prepared host completion](monitors.md#prepared-host-completion) for monitor settlement
+and recovery behavior.
+
 **Flow:**
 
 1. Resolve the selected `finalizers` plan. Omitting `%final` selects configured

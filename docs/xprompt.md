@@ -1621,11 +1621,14 @@ according to the surface.
 
 ### Experimental typed launch units
 
-`typed_launch_units` is a beta feature flag and defaults off. With the flag off, any
-top-level `%if` or `%proc` is rejected with an instruction to run
-`sase flag enable typed_launch_units`; neither directive is forwarded to the model.
-Enabling the flag exposes their completion rows and full Bash/Python snippet recipes,
-and lets the directive parser capture the following forms:
+`typed_launch_units` is a beta feature flag and defaults off. With the flag off, a
+syntactically active `%if` or `%proc` form is rejected with an instruction to run
+`sase flag enable typed_launch_units`; the directive is not forwarded to the model.
+Directive names used as prose are left alone: `stop un-admitted %if/%proc units` and
+line-leading text such as `%if is plain text` are literal in either flag state. A token
+becomes directive-like only when the name is followed by `(`, `:`, or `+`; the bare code
+form must be immediately followed by `::`. Enabling the flag exposes the completion rows
+and full Bash/Python snippet recipes, and lets the directive parser capture these forms:
 
 ````text
 %if::
@@ -1740,7 +1743,11 @@ the positional `%id` name: `%id` keywords (`clan=`, `family=`, `tribe=`, `bead=`
 optional `%clan` declaration (`tribe=`, `summary=`, `summary_script=`), and force-reuse
 `!` prefixes all survive planning. Dispatch reconstructs the equivalent `%id` and
 `%clan` directives, then the existing model/effort/auto/final/hide/wait-runner
-directives, and still omits admission-only `%if` and logical dependency waits.
+directives, and still omits admission-only `%if` and logical dependency waits. Each unit
+also retains its own workspace reference and `%dispatch` machine target. An approved or
+coordinator-replayed remote unit is therefore dispatched to that machine from its
+resolved project workspace instead of silently falling back to a local launch; mixed
+local and remote units route independently.
 
 Keyed `{@<id>}` agent-name markers resolve once across the complete expanded typed batch
 before it is split into durable logical units. The concrete tokens are stored on the
