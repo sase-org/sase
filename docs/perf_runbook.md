@@ -35,6 +35,34 @@ Both profile runs reported delayed sampling under remaining host load, so treat 
 flamegraphs as attribution hints rather than precise wall-clock percentages. The
 resource deltas above are the reliable phase-1 baseline.
 
+## Athena phase-8 verification
+
+Bead `sase-zn.8` remeasured the live athena session on 2026-09-12 at 13:15-13:20 EDT,
+while the host was under real agent load: load average `38.93 / 37.40 / 37.07`, many
+`run_agent_runner.py` processes were active, and pytest workers from several SASE
+workspaces were consuming CPU.
+
+| signal         | 2026-09-12 verification                                                                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/tmp` tmpfs   | 22M used of 32G; no `/tmp/*cargo-target*`, `/tmp/*core-target*`, or `/tmp/sase-*-recovery*` matches remained                                                               |
+| `/` filesystem | 847G used, 19G available, 98% full                                                                                                                                         |
+| swap           | 8.3G used of 64G                                                                                                                                                           |
+| ACE process    | PID 54331, up 5h09m; `VmRSS: 1199148 kB`, `VmSwap: 275464 kB`, `Anonymous: 1163148 kB`                                                                                     |
+| ACE CPU        | main thread sampled at 569 ticks over 60s, about 0.095 cores, or roughly 2.3 CPU-hours/day; whole process was about 0.30 cores under load                                  |
+| SASE scratch   | live `SASE_TMPDIR=/home/bryan/.cache/sase/tmp`; managed `cargo-targets/` was present and bounded at 68K                                                                    |
+| old hot frames | 25s `py-spy` raw capture had no `reconcile_agent_artifact_index_dismissed_family_members` samples and only 4/2399 `read_current_notifications_snapshot` samples            |
+| watchdog       | not green: the last 30 minutes contained 17 `tui_hitch` and 5 `tui_pump_hitch` starts, with fresh Agents-tab hitches during the run                                        |
+| key-to-paint   | not re-confirmed green: the live ACE process was not started with `SASE_TUI_PERF=1`; the existing `tui_jk.jsonl` was stale from 2026-09-10 and showed Agents p95 174.06 ms |
+
+The profile is stored outside the repo at
+`~/.sase/perf/athena-verify-sase-zn8-20260912T131736.raw`. `py-spy` reported sampling
+delays and 550 read errors under host load, so use the capture for top-frame attribution
+only. The phase-8 result is therefore mixed: memory pressure, scratch placement,
+main-thread CPU, and the original reconcile/notification hot frames look bounded, but
+the watchdog and key-to-paint evidence do not prove the responsiveness target is green.
+The remaining hitches point at Agents-tab refresh/render work rather than the original
+`sase-zn` hot sites.
+
 ## Idle-host CPU diet
 
 An idle sase host (ace open, lumberjacks running, no agent work) used to burn roughly
