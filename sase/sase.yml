@@ -137,3 +137,6 @@ bead:
         Removal deletes the **Off** branch and makes the **On** branch unconditional.
       triage:
         min_plus_ones: 0
+
+# Temporary notification bead review chain; final editor removes this block.
+max_agent_pipe_chain: 40
