@@ -17,8 +17,14 @@ from ..common import (
     json_string,
     load_json_object,
 )
+from ._refs import (
+    continuation_ref_path,
+    read_json_ref,
+    read_text_ref,
+)
 from ._util import (
     BlockContent,
+    ContinuationSourceError,
     int_or_none,
     iter_string_list,
     number_or_none,
@@ -131,38 +137,305 @@ def _monitor_payload_from_result(
     }
 
 
-def read_captured_agent_node(
+def read_captured_node(
     artifact_dir: Path,
     *,
     label: str,
+    historical_result: bool = False,
 ) -> tuple[ContinuationNodeWire, BlockContent] | None:
+    """Load the primary captured node published in *artifact_dir*."""
+
     meta = load_agent_meta(artifact_dir)
     node = _read_node_from_meta(artifact_dir, meta)
     if node is None:
+        node = _read_monitor_node_from_meta(artifact_dir, meta)
+    if node is None:
         return None
-    if node.get("kind") != "agent_delta":
-        return None
-    delta = _read_json_ref(artifact_dir, str(node.get("content_ref") or ""))
-    if not delta:
-        return None
+    return load_captured_node_content(
+        artifact_dir,
+        cast(ContinuationNodeWire, node),
+        label=label,
+        historical_result=historical_result,
+        meta=meta,
+    )
+
+
+def load_captured_node_content(
+    artifact_dir: Path,
+    node: Mapping[str, Any],
+    *,
+    label: str,
+    historical_result: bool = False,
+    meta: Mapping[str, object] | None = None,
+) -> tuple[ContinuationNodeWire, BlockContent] | None:
+    """Materialize renderable content for an already-loaded continuation node."""
+
+    kind = node.get("kind")
+    if kind == "agent_delta":
+        return _load_agent_delta_node(artifact_dir, node, label=label)
+    if kind == "monitor_result":
+        return _load_monitor_result_node(
+            artifact_dir,
+            node,
+            label=label,
+            historical_result=historical_result,
+            meta=meta if meta is not None else load_agent_meta(artifact_dir),
+        )
+    if kind == "checkpoint":
+        return _load_checkpoint_node(artifact_dir, node, label=label)
+    if kind == "legacy_boundary":
+        return _load_legacy_node(artifact_dir, node, label=label)
+    return None
+
+
+def iter_captured_nodes(
+    artifact_dir: Path,
+) -> list[Mapping[str, Any]]:
+    """Return every continuation node record stored under *artifact_dir*."""
+
+    nodes: dict[str, Mapping[str, Any]] = {}
+    nodes_dir = artifact_dir / "continuation" / "nodes"
+    if nodes_dir.is_dir():
+        for path in sorted(nodes_dir.glob("*.json")):
+            payload = load_json_object(path)
+            node_id = payload.get("node_id") if isinstance(payload, Mapping) else None
+            if isinstance(node_id, str) and node_id:
+                nodes[node_id] = payload
+    meta = load_agent_meta(artifact_dir)
+    primary = _read_node_from_meta(artifact_dir, meta) or _read_monitor_node_from_meta(
+        artifact_dir, meta
+    )
+    if primary is not None:
+        node_id = primary.get("node_id")
+        if isinstance(node_id, str) and node_id:
+            nodes.setdefault(node_id, primary)
+    return list(nodes.values())
+
+
+def delayed_starter_parent_ids(
+    artifact_dir: Path,
+    node: Mapping[str, Any],
+    *,
+    meta: Mapping[str, object] | None = None,
+) -> list[str]:
+    """Return parent IDs, hydrating a settled starter when the node omitted them."""
+
+    existing = unique_strings(node.get("parent_ids") or [])
+    if existing:
+        return existing
+    loaded_meta = meta if meta is not None else load_agent_meta(artifact_dir)
+    starter_dir = json_string(loaded_meta, "monitor_starter_artifacts_dir")
+    if not starter_dir:
+        return []
+    starter_path = Path(starter_dir).expanduser()
+    starter_meta = load_agent_meta(starter_path)
+    starter_node = _read_node_from_meta(starter_path, starter_meta)
+    starter_id = json_string(starter_node, "node_id") if starter_node else None
+    if not starter_id:
+        starter_id = json_string(starter_meta, "continuation_node_id")
+    return [starter_id] if starter_id else []
+
+
+def _load_agent_delta_node(
+    artifact_dir: Path,
+    node: Mapping[str, Any],
+    *,
+    label: str,
+) -> tuple[ContinuationNodeWire, BlockContent] | None:
+    content_ref = str(node.get("content_ref") or "")
     expected_sha = node.get("content_sha256")
-    if (
-        isinstance(expected_sha, str)
-        and expected_sha
-        and sha_json(delta) != expected_sha
-    ):
-        raise ValueError(f"continuation content digest mismatch for {node['node_id']}")
+    expected = expected_sha if isinstance(expected_sha, str) and expected_sha else None
+    try:
+        delta = read_json_ref(
+            artifact_dir,
+            content_ref,
+            expected_sha256=expected,
+        )
+    except ContinuationSourceError as exc:
+        delta = _read_json_ref(artifact_dir, content_ref)
+        if not delta:
+            raise
+        if expected and sha_json(delta) != expected:
+            raise ContinuationSourceError(
+                "digest_mismatch",
+                f"continuation content digest mismatch for {node.get('node_id')}",
+            ) from exc
     payload: dict[str, Any] = dict(delta)
+    payload["artifact_dir"] = str(artifact_dir)
     final_response_ref = json_string(delta, "final_response_ref")
     if final_response_ref:
         payload["final_response_text"] = _read_text_ref(
             artifact_dir, final_response_ref
         )
-    return cast(ContinuationNodeWire, node), BlockContent(
+    payload["materialized_segments"] = _materialized_segments(artifact_dir, delta)
+    checkpoint_ref = json_string(node, "checkpoint_ref") or json_string(
+        delta, "handoff_checkpoint_ref"
+    )
+    if checkpoint_ref:
+        payload["checkpoint_body"] = _read_json_ref(artifact_dir, checkpoint_ref)
+        payload["checkpoint_ref"] = checkpoint_ref
+    return cast(ContinuationNodeWire, dict(node)), BlockContent(
         kind="agent_delta",
         label=label,
         payload=payload,
     )
+
+
+def _load_monitor_result_node(
+    artifact_dir: Path,
+    node: Mapping[str, Any],
+    *,
+    label: str,
+    historical_result: bool,
+    meta: Mapping[str, object],
+) -> tuple[ContinuationNodeWire, BlockContent] | None:
+    content_ref = str(node.get("content_ref") or "")
+    expected_sha = node.get("content_sha256")
+    expected = expected_sha if isinstance(expected_sha, str) and expected_sha else None
+    result = _read_json_ref(artifact_dir, content_ref)
+    if not result:
+        return None
+    if expected and sha_json(result) != expected:
+        raise ContinuationSourceError(
+            "digest_mismatch",
+            f"monitor result digest mismatch for {node.get('node_id') or content_ref}",
+        )
+    hydrated = dict(node)
+    delayed_parents = delayed_starter_parent_ids(artifact_dir, hydrated, meta=meta)
+    if delayed_parents:
+        hydrated["parent_ids"] = delayed_parents
+    checkpoint_ref = json_string(hydrated, "checkpoint_ref") or json_string(
+        meta, "continuation_checkpoint_ref"
+    )
+    payload = _monitor_payload_from_result(
+        {
+            "kind": "proc",
+            "name": json_string(meta, "name") or label or artifact_dir.name,
+            "artifact_dir": str(artifact_dir),
+        },
+        {
+            "proc_id": json_string(meta, "monitor_id") or artifact_dir.name,
+            "is_monitor": True,
+            "log_tail": None,
+            "log_path": None,
+            "command": json_string(meta, "monitor_command"),
+            "monitor_next_output": json_string(meta, "monitor_next_output"),
+        },
+        artifact_dir,
+        meta,
+        result,
+        historical_result=historical_result,
+    )
+    payload = dict(payload)
+    payload["artifact_dir"] = str(artifact_dir)
+    if checkpoint_ref:
+        payload["checkpoint_body"] = _read_json_ref(artifact_dir, checkpoint_ref)
+        payload["checkpoint_ref"] = checkpoint_ref
+    return cast(ContinuationNodeWire, hydrated), BlockContent(
+        kind="monitor_result",
+        label=label,
+        payload=payload,
+    )
+
+
+def _load_checkpoint_node(
+    artifact_dir: Path,
+    node: Mapping[str, Any],
+    *,
+    label: str,
+) -> tuple[ContinuationNodeWire, BlockContent] | None:
+    content_ref = str(node.get("content_ref") or "")
+    expected_sha = node.get("content_sha256")
+    expected = expected_sha if isinstance(expected_sha, str) and expected_sha else None
+    body = _read_json_ref(artifact_dir, content_ref)
+    if not body:
+        return None
+    if expected and sha_json(body) != expected:
+        raise ContinuationSourceError(
+            "digest_mismatch",
+            f"checkpoint digest mismatch for {node.get('node_id')}",
+        )
+    payload = {
+        "artifact_dir": str(artifact_dir),
+        "checkpoint_body": body,
+        "checkpoint_ref": content_ref,
+        "label": label,
+    }
+    return cast(ContinuationNodeWire, dict(node)), BlockContent(
+        kind="checkpoint",
+        label=label,
+        payload=payload,
+    )
+
+
+def _load_legacy_node(
+    artifact_dir: Path,
+    node: Mapping[str, Any],
+    *,
+    label: str,
+) -> tuple[ContinuationNodeWire, BlockContent] | None:
+    content_ref = str(node.get("content_ref") or "")
+    payload = dict(_read_json_ref(artifact_dir, content_ref) or {})
+    payload.setdefault("label", label)
+    payload["artifact_dir"] = str(artifact_dir)
+    return cast(ContinuationNodeWire, dict(node)), BlockContent(
+        kind="legacy_boundary",
+        label=label,
+        payload=payload,
+    )
+
+
+def _materialized_segments(
+    artifact_dir: Path,
+    delta: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    raw_segments = delta.get("materialized_local_prompt_segments")
+    if not isinstance(raw_segments, list):
+        return []
+    segments: list[dict[str, Any]] = []
+    for raw in raw_segments:
+        if not isinstance(raw, Mapping):
+            continue
+        text_ref = raw.get("text_ref")
+        provenance = raw.get("provenance")
+        if not isinstance(text_ref, str) or not isinstance(provenance, str):
+            continue
+        expected = raw.get("text_sha256")
+        try:
+            text: str | None = read_text_ref(
+                artifact_dir,
+                text_ref,
+                expected_sha256=expected if isinstance(expected, str) else None,
+            )
+        except ContinuationSourceError:
+            text = _read_text_ref(artifact_dir, text_ref)
+        if text is None:
+            continue
+        segment = {
+            "segment_id": raw.get("segment_id"),
+            "provenance": provenance,
+            "source_ref": raw.get("source_ref"),
+            "text": text,
+            "utf8_bytes": raw.get("utf8_bytes") or len(text.encode("utf-8")),
+        }
+        segments.append(segment)
+    return segments
+
+
+def _read_monitor_node_from_meta(
+    artifact_dir: Path,
+    meta: Mapping[str, object],
+) -> Mapping[str, Any] | None:
+    node_ref = json_string(meta, "continuation_monitor_result_node_ref")
+    if node_ref:
+        node = _read_json_ref(artifact_dir, node_ref)
+        if node:
+            return node
+    manifest = _read_monitor_result_manifest(artifact_dir, meta)
+    node_ref = json_string(manifest, "node_ref")
+    if node_ref:
+        return _read_json_ref(artifact_dir, node_ref)
+    return None
 
 
 def _read_node_from_meta(
@@ -195,31 +468,19 @@ def _read_continuation_manifest(
 
 
 def _read_json_ref(artifact_dir: Path, ref: str) -> Mapping[str, Any]:
-    path = _local_continuation_ref_path(artifact_dir, ref)
+    if not ref:
+        return {}
+    path = continuation_ref_path(artifact_dir, ref)
     return load_json_object(path) if path is not None else {}
 
 
 def _read_text_ref(artifact_dir: Path, ref: str) -> str | None:
-    path = _local_continuation_ref_path(artifact_dir, ref)
-    if path is None:
+    if not ref:
         return None
     try:
-        return path.read_text(encoding="utf-8")
-    except OSError:
+        return read_text_ref(artifact_dir, ref)
+    except ContinuationSourceError:
         return None
-
-
-def _local_continuation_ref_path(artifact_dir: Path, ref: str) -> Path | None:
-    prefix = "local:continuation/"
-    if not ref.startswith(prefix):
-        return None
-    root = (artifact_dir / "continuation").resolve(strict=False)
-    path = (root / ref.removeprefix(prefix)).resolve(strict=False)
-    try:
-        path.relative_to(root)
-    except ValueError:
-        return None
-    return path
 
 
 def monitor_payload(

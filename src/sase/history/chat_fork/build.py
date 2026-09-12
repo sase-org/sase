@@ -18,7 +18,7 @@ from .common import (
     fork_source_string,
     require_proc_info,
 )
-from .continuation import render_versioned_continuation_history
+from .continuation import replay_versioned_continuation_history
 from .failure import (
     FAILED_PARENT_GUIDANCE,
     format_failed_agent_body,
@@ -33,15 +33,18 @@ def build_fork_injected_history(
     *,
     load_resume_history: LoadChatForResume = load_chat_for_resume,
     resolve_resume_to_chat_path: ResolveResumeReference = resolve_resume_to_chat_path,
+    automatic: bool = False,
 ) -> str:
     """Build the context block injected by the ``#fork`` workflow."""
     rendered: str
     if not sources:
         raise ValueError("Fork history requires at least one source")
 
-    versioned_history = render_versioned_continuation_history(sources)
-    if versioned_history:
-        rendered = _wrap_fork_history("# Previous Continuation", versioned_history)
+    versioned = replay_versioned_continuation_history(sources)
+    if versioned is not None:
+        if automatic:
+            versioned.raise_for_automatic_launch()
+        rendered = _wrap_fork_history("# Previous Continuation", versioned.rendered)
         _record_fork_shadow_measurement(sources, rendered)
         return rendered
 

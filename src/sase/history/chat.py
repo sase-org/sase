@@ -163,10 +163,15 @@ def load_chat_for_resume(
     )
 
 
-def build_fork_injected_history(sources: Sequence[Mapping[str, object]]) -> str:
+def build_fork_injected_history(
+    sources: Sequence[Mapping[str, object]],
+    *,
+    automatic: bool = False,
+) -> str:
     """Build the context block injected by the ``#fork`` workflow."""
     return _build_fork_injected_history(
         sources,
         load_resume_history=load_chat_for_resume,
         resolve_resume_to_chat_path=_resolve_resume_to_chat_path,
+        automatic=automatic,
     )

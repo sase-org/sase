@@ -10,7 +10,45 @@ from typing import Any, Literal
 
 from sase.core.continuation_wire import ContinuationExecutionIdentityWire
 
-_BlockKind = Literal["agent_delta", "monitor_result", "legacy_boundary"]
+_BlockKind = Literal[
+    "agent_delta",
+    "monitor_result",
+    "legacy_boundary",
+    "checkpoint",
+]
+
+# Match the Rust continuation text bound so opaque protected blobs stay
+# representable as a single validated field or else refuse automatic launch.
+MAX_PROTECTED_LEGACY_BYTES = 256 * 1024
+MAX_HYDRATION_NODES = 10_000
+STRICT_EVIDENCE_POLICIES = frozenset({"none", "file"})
+AUTOMATIC_REFUSAL_OMISSIONS = frozenset(
+    {
+        "missing_parent",
+        "missing_root",
+        "missing_source",
+        "digest_mismatch",
+        "legacy_evidence_policy_conflict",
+        "protected_content_over_budget",
+        "failed_starter_without_checkpoint",
+    }
+)
+
+
+class ContinuationSourceError(ValueError):
+    """A local or portable continuation ref could not be resolved safely."""
+
+    def __init__(self, kind: str, message: str) -> None:
+        super().__init__(message)
+        self.kind = kind
+
+
+class ContinuationReplayRefusal(ValueError):
+    """Automatic continuation launch cannot proceed with this replay."""
+
+    def __init__(self, kind: str, message: str) -> None:
+        super().__init__(message)
+        self.kind = kind
 
 
 @dataclass(frozen=True)

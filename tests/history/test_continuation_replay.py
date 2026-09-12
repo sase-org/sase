@@ -397,5 +397,7 @@ def test_versioned_replay_keeps_uncertain_legacy_as_opaque_boundary(
     rendered = build_fork_injected_history([source])
 
     assert "Opaque Legacy Boundary" in rendered
-    assert "OLD_REPLY" not in rendered
+    assert "Protected Legacy Content" in rendered
+    assert "OLD_REPLY" in rendered
     assert "CURRENT_REPLY" in rendered
+    assert "### Assistant" in rendered

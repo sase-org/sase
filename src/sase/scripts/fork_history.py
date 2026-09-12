@@ -8,5 +8,5 @@ from sase.history.chat import build_fork_injected_history
 
 def main(sources: Sequence[Mapping[str, object]]) -> None:
     """Print the injected fork history as workflow-step JSON output."""
-    injected_history = build_fork_injected_history(sources)
+    injected_history = build_fork_injected_history(sources, automatic=True)
     print(json.dumps({"injected_history": injected_history}))
