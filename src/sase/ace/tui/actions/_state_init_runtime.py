@@ -117,6 +117,8 @@ def init_runtime_state(
         _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS
     )
     self._automatic_update_check_timer = None
+    self._heap_sampler_timer = None
+    self._heap_sampler_async_tasks = set()
     # Deferred live-workspace pencil-hint scan coalescing. The expensive
     # per-agent live VCS diff is computed in a background worker after the
     # first agents load applies (never on the startup-critical loader

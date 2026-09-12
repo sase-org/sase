@@ -296,6 +296,23 @@ Point-in-time records emitted by `trace_event(...)` contain `event` instead of
 `span`/`duration_ms`. They are used for selection and highlight watcher transitions
 where there is no timed block to measure.
 
+## Heap sampler
+
+`SASE_TUI_HEAP=1` enables an opt-in `tracemalloc` sampler for long-lived ACE sessions.
+Tracing starts when `AceApp` initializes, while each snapshot is scheduled from the TUI
+timer into a pump-free task and written from a worker thread. Samples append one compact
+JSONL record to:
+
+```text
+~/.sase/perf/tui_heap.jsonl
+```
+
+Override the destination with `SASE_TUI_HEAP_PATH=/tmp/tui_heap.jsonl`. The default
+interval is 300 seconds; override it with `SASE_TUI_HEAP_INTERVAL_SECONDS`. Each record
+includes `current_bytes`, `peak_bytes`, and the top allocation sites grouped by source
+line. The sampler keeps no previous snapshots in memory, so use adjacent JSONL records
+to compare growth over time.
+
 Timed spans currently wired (by file):
 
 - `actions/patch/_display.py` — `patch.refresh_display`, `patch.refresh_debounced`,
@@ -498,7 +515,7 @@ Override the key-to-paint path with `SASE_TUI_PERF_PATH=/tmp/tui_jk.jsonl`.
 
 Agents that launch the TUI via `sase ace --tmux` get `SASE_TUI_TRACE=1` and
 `SASE_TUI_PERF=1` injected automatically; export the variable to `0` before invoking to
-opt out.
+opt out. `SASE_TUI_HEAP` is never auto-enabled; set it explicitly for heap attribution.
 
 ### Offline Fleet fault j/k benchmark
 
@@ -943,13 +960,18 @@ The dashboard only names these flags; it never parses what they produce.
 - `SASE_TUI_TRACE=1` records hot-path spans in `~/.sase/perf/tui_trace.jsonl` by
   default. Override the path with `SASE_TUI_TRACE_PATH`; see
   [Trace recorder](#trace-recorder).
+- `SASE_TUI_HEAP=1` records periodic top heap allocation sites in
+  `~/.sase/perf/tui_heap.jsonl` by default. Override the path with `SASE_TUI_HEAP_PATH`;
+  see [Heap sampler](#heap-sampler).
 
 Each probe records only when its variable is exactly `1`. The **Probes** line in **Data
 & instrumentation** is looser: it prints `on` whenever the variable is _set_ in the
 environment that started the TUI, so a deliberate `SASE_TUI_PERF=0` still displays as
-`on` while nothing is being recorded. Read that line as "set / unset", and check the
-value yourself when an expected probe file stays empty.
+`on` while nothing is being recorded. The same applies to `SASE_TUI_TRACE` and
+`SASE_TUI_HEAP`. Read that line as "set / unset", and check the value yourself when an
+expected probe file stays empty.
 
-`sase ace --tmux` turns both probes on unless the caller has already set the variable,
-so `SASE_TUI_TRACE=0 sase ace --tmux …` (or the `SASE_TUI_PERF=0` equivalent) opts out.
-Use `just view-hints-perf-check` for the automated hint-mode regression floor.
+`sase ace --tmux` turns the perf and trace probes on unless the caller has already set
+the variable, so `SASE_TUI_TRACE=0 sase ace --tmux …` (or the `SASE_TUI_PERF=0`
+equivalent) opts out. `SASE_TUI_HEAP` stays explicit because snapshots add overhead. Use
+`just view-hints-perf-check` for the automated hint-mode regression floor.

@@ -25,6 +25,7 @@ from sase.stats.ranges import StatsRange
 _PERF_PROBES: tuple[tuple[str, str], ...] = (
     ("SASE_TUI_PERF", "Set SASE_TUI_PERF=1 to record per-keystroke j/k timings."),
     ("SASE_TUI_TRACE", "Set SASE_TUI_TRACE=1 to record hot-path span traces."),
+    ("SASE_TUI_HEAP", "Set SASE_TUI_HEAP=1 to record top heap allocation sites."),
 )
 
 

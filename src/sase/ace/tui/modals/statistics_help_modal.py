@@ -378,8 +378,9 @@ class StatisticsHelpModal(ModalScreen[None]):
             (
                 "Probes",
                 "SASE_TUI_PERF records per-keystroke j/k timings and "
-                "SASE_TUI_TRACE records hot-path spans. The view reports those "
-                "env vars as on or off and does not parse the probe files.",
+                "SASE_TUI_TRACE records hot-path spans. SASE_TUI_HEAP records "
+                "top tracemalloc allocation sites. The view reports those env "
+                "vars as on or off and does not parse the probe files.",
             ),
         )
         text = Text()

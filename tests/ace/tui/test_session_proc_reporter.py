@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 import sys
 import threading
+import gc
+import tracemalloc
 
 import pytest
 
@@ -337,3 +339,46 @@ def test_stream_subprocess_retain_full_ignores_byte_cap() -> None:
 
     assert result.returncode == 0
     assert result.stdout == blob
+
+
+@pytest.mark.slow
+def test_session_reporter_repeated_large_stream_retains_bounded_heap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cap = 32 * 1024
+    monkeypatch.setattr(
+        "sase.ace.tui.session_proc_reporter.SESSION_PROC_MAX_OUTPUT_BYTES",
+        cap,
+    )
+    command = [
+        sys.executable,
+        "-c",
+        "import sys\n"
+        "chunk = 'x' * 4096 + '\\n'\n"
+        "for _ in range(64):\n"
+        "    sys.stdout.write(chunk)\n"
+        "sys.stdout.flush()\n",
+    ]
+    was_tracing = tracemalloc.is_tracing()
+    if not was_tracing:
+        tracemalloc.start(10)
+    try:
+        reporter = session_reporter()
+        warmup = reporter.run(command, log_lines=False)
+        del warmup
+        gc.collect()
+        baseline = tracemalloc.get_traced_memory()[0]
+
+        retained_stdout: list[str] = []
+        for _ in range(6):
+            result = reporter.run(command, log_lines=False)
+            retained_stdout.append(result.stdout)
+        gc.collect()
+        current = tracemalloc.get_traced_memory()[0]
+
+        retained_bytes = sum(len(stdout.encode("utf-8")) for stdout in retained_stdout)
+        assert retained_bytes <= 6 * (cap + 256)
+        assert current - baseline < 800 * 1024
+    finally:
+        if not was_tracing and tracemalloc.is_tracing():
+            tracemalloc.stop()

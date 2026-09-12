@@ -161,6 +161,7 @@ def test_help_explains_perf_methodology() -> None:
         "All time means as far back as the retained data goes",
         "SASE_TUI_PERF",
         "SASE_TUI_TRACE",
+        "SASE_TUI_HEAP",
         "does not parse the probe files",
         "Launch p95",
         "Startup and stall medians",

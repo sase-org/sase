@@ -35,8 +35,10 @@ class LifecycleMixin:
 
     def on_unmount(self) -> None:
         """Clean up resources when Textual tears the app down."""
+        from ..util.heap import stop_tui_heap_sampler
         from ..util.pump_tasks import cancel_pump_free_tasks
 
+        stop_tui_heap_sampler(self)
         cancel_agent_hint_render = getattr(
             self, "_cancel_agent_hint_render_tasks", None
         )

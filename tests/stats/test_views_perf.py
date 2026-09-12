@@ -311,12 +311,14 @@ def test_workflow_group_uses_agent_and_workflow_metrics() -> None:
 def test_probe_env_vars_are_reported(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setenv("SASE_TUI_PERF", "1")
     monkeypatch.delenv("SASE_TUI_TRACE", raising=False)
+    monkeypatch.delenv("SASE_TUI_HEAP", raising=False)
 
     view = build_perf_view({}, {"enabled": False}, selected_range=_range())
 
     by_name = {probe.name: probe.enabled for probe in view.coverage.probes}
     assert by_name["SASE_TUI_PERF"] is True
     assert by_name["SASE_TUI_TRACE"] is False
+    assert by_name["SASE_TUI_HEAP"] is False
     assert all("Set SASE_TUI_" in probe.hint for probe in view.coverage.probes)
 
 

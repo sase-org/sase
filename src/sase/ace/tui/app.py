@@ -99,6 +99,7 @@ from .bindings import DEFAULT_BINDINGS
 from .exit_action import AceExitAction
 from .models.fold_state import FoldLevel
 from .tab_order import TabInput, TabName, normalize_tab_name
+from .util.heap import TUIHeapSampler
 from .util.perf import JKPerfTimer, is_enabled as _perf_enabled
 
 log = logging.getLogger(__name__)
@@ -205,6 +206,7 @@ class AceApp(
     _current_idx: int
     _current_attempt_number: int | None
     _jk_perf: JKPerfTimer | None
+    _heap_sampler: TUIHeapSampler | None
     _commits_default_filter: "CommitLogFilterValues"
     _commits_default_query_diagnostic: str | None
     _current_project_settings: "CurrentProjectSettings"
@@ -304,6 +306,9 @@ class AceApp(
         current_toast_session()
         register_ace_session(self.title)
         self._jk_perf = JKPerfTimer() if _perf_enabled() else None
+        self._heap_sampler = TUIHeapSampler.from_env()
+        if self._heap_sampler is not None:
+            self._heap_sampler.start_tracing()
         self._init_app_state(
             query=query,
             model_tier_override=model_tier_override,

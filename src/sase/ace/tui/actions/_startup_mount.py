@@ -125,6 +125,9 @@ class StartupMountMixin:
                 subscribe_watchdog_to_suspend_signals(self, self._stall_watchdog)
             )
             self._last_input_mono = time.monotonic()
+            from ..util.heap import start_tui_heap_sampler
+
+            start_tui_heap_sampler(self)
 
             if self.refresh_interval > 0:
                 self._countdown_remaining = self.refresh_interval

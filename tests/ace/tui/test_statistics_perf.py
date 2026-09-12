@@ -173,6 +173,7 @@ def test_populated_perf_renderable_covers_every_panel() -> None:
     assert "Bounded log read truncated older records for: launch_timing" in rendered
     assert "SASE_TUI_PERF off" in rendered
     assert "SASE_TUI_TRACE off" in rendered
+    assert "SASE_TUI_HEAP off" in rendered
     assert "Set SASE_TUI_PERF=1" in rendered
 
     assert "Startup" in tiles
@@ -400,12 +401,15 @@ def test_all_time_retention_note_appears_in_the_coverage_strip() -> None:
 def test_probes_report_enabled_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SASE_TUI_PERF", "1")
     monkeypatch.delenv("SASE_TUI_TRACE", raising=False)
+    monkeypatch.delenv("SASE_TUI_HEAP", raising=False)
     result = _perf_result(logs={}, telemetry={"enabled": False})
     rendered = _render_plain(StatisticsPane(auto_load=False)._perf_renderable(result))
 
     assert "SASE_TUI_PERF on" in rendered
     assert "SASE_TUI_TRACE off" in rendered
+    assert "SASE_TUI_HEAP off" in rendered
     assert "Set SASE_TUI_TRACE=1" in rendered
+    assert "Set SASE_TUI_HEAP=1" in rendered
 
 
 async def test_perf_tiles_are_plain_and_do_not_navigate(
