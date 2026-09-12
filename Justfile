@@ -4,11 +4,15 @@ venv_dir := ".venv"
 venv_bin := venv_dir / "bin"
 venv_dir_abs := if venv_dir =~ "^/" { venv_dir } else { justfile_directory() / venv_dir }
 venv_bin_abs := venv_dir_abs / "bin"
+format_venv_dir := env_var_or_default("SASE_FORMAT_VENV_DIR", ".venv-format")
+format_venv_bin := format_venv_dir / "bin"
+format_venv_dir_abs := if format_venv_dir =~ "^/" { format_venv_dir } else { justfile_directory() / format_venv_dir }
+format_venv_bin_abs := format_venv_dir_abs / "bin"
 demo_venv_dir := ".venv-demos"
 demo_venv_bin := demo_venv_dir / "bin"
 demo_venv_dir_abs := justfile_directory() / demo_venv_dir
 keep_sorted_version := "v0.8.0"
-keep_sorted_bin := venv_bin / "keep-sorted"
+keep_sorted_bin := format_venv_bin / "keep-sorted"
 prettier_bin := "node_modules/.bin/prettier"
 
 # Linked Rust core repo. CI can override this with SASE_CORE_DIR after
@@ -59,6 +63,18 @@ default:
 # Bootstrap .venv if it doesn't exist.
 _venv:
     @[ -x {{ venv_bin }}/python ] || uv venv {{ venv_dir }}
+
+# Bootstrap the narrow formatter venv used by `just fix`, formatting checks,
+# generated Markdown rendering, and keep-sorted. This intentionally does not
+# install sase, plugins, or the Rust extension.
+_format-venv:
+    @[ -x {{ format_venv_bin }}/python ] || uv venv {{ format_venv_dir }}
+
+_setup-format-tools: _format-venv
+    @if [ ! -x "{{ format_venv_bin }}/ruff" ] || ! "{{ format_venv_bin }}/python" -c "import yaml" >/dev/null 2>&1; then \
+        printf "[setup-format] Installing formatter tools into {{ format_venv_dir }}.\n"; \
+        uv pip install --python "{{ format_venv_bin }}/python" --project "{{ justfile_directory_abs }}" --group format-tools; \
+    fi
 
 # Print the `--overrides <file>` argument that lifts the published
 # sase-core-rs version window for dev installs. Prints nothing when no
@@ -121,16 +137,16 @@ _setup: _venv
     fi
     @just --set venv_dir "{{ venv_dir }}" _setup-required-plugins
 
-# Bootstrap keep-sorted into the project venv so lint/fix do not depend on a
-# user-global Go bin directory being present on PATH.
-_setup-keep-sorted: _venv
+# Bootstrap keep-sorted into the formatter venv so lint/fix do not depend on a
+# user-global Go bin directory or the application venv being present.
+_setup-keep-sorted: _format-venv
     @if [ ! -x "{{ keep_sorted_bin }}" ]; then \
         if command -v keep-sorted > /dev/null 2>&1; then \
             printf "[setup] Linking keep-sorted from PATH into {{ keep_sorted_bin }}.\n"; \
             ln -sf "$(command -v keep-sorted)" "{{ keep_sorted_bin }}"; \
         elif command -v go > /dev/null 2>&1; then \
-            printf "[setup] Installing keep-sorted {{ keep_sorted_version }} into {{ venv_bin }}.\n"; \
-            GOBIN="{{ venv_bin_abs }}" CGO_ENABLED=0 go install github.com/google/keep-sorted@{{ keep_sorted_version }}; \
+            printf "[setup] Installing keep-sorted {{ keep_sorted_version }} into {{ format_venv_bin }}.\n"; \
+            GOBIN="{{ format_venv_bin_abs }}" CGO_ENABLED=0 go install github.com/google/keep-sorted@{{ keep_sorted_version }}; \
         else \
             printf "error: keep-sorted is required. Install it or install Go so this recipe can bootstrap github.com/google/keep-sorted@{{ keep_sorted_version }}.\n" >&2; \
             exit 127; \
@@ -288,8 +304,8 @@ lint: _setup (_header "lint") lint-keep-sorted
     @just _lint-toobig
 
 # Run ruff linter on Python files (private, extracted for per-stage wrapping)
-_lint-ruff: _setup
-    {{ venv_bin }}/ruff check src/ tests/
+_lint-ruff: _setup-format-tools
+    {{ format_venv_bin }}/ruff check src/ tests/
 
 # Run mypy type checker (private, extracted for per-stage wrapping)
 _lint-mypy: _setup
@@ -349,11 +365,11 @@ fix: (_header "fix") fmt-py fmt-docs fmt-md fix-keep-sorted
 fmt: (_header "fmt") fmt-py fmt-docs fmt-md
 
 # Auto-format Python code
-fmt-py: _setup
+fmt-py: _setup-format-tools
     @printf "\n---------- Formatting Python with ruff... ----------\n"
-    {{ venv_bin }}/ruff format src/ tests/
+    {{ format_venv_bin }}/ruff format src/ tests/
     @printf "\n---------- Fixing Python with ruff... ----------\n"
-    {{ venv_bin }}/ruff check --fix src/ tests/
+    {{ format_venv_bin }}/ruff check --fix src/ tests/
 
 # Auto-format Markdown files
 fmt-md: _setup-prettier
@@ -361,9 +377,9 @@ fmt-md: _setup-prettier
     {{ prettier_bin }} --write "**/*.md"
 
 # Render generated Markdown blocks
-fmt-docs: _setup
+fmt-docs: _setup-format-tools
     @printf "\n---------- Rendering generated docs... ----------\n"
-    {{ venv_bin }}/python tools/render_model_alias_docs
+    {{ format_venv_bin }}/python tools/render_model_alias_docs
 
 # Auto-fix keep-sorted blocks in YAML files
 fix-keep-sorted: _setup-keep-sorted
@@ -379,9 +395,9 @@ lint-keep-sorted: _setup-keep-sorted
 fmt-check: (_header "fmt-check") fmt-py-check fmt-md-check
 
 # Check Python formatting (CI mode)
-fmt-py-check: _setup
+fmt-py-check: _setup-format-tools
     @printf "\n---------- Checking Python formatting with ruff... ----------\n"
-    {{ venv_bin }}/ruff format --check src/ tests/
+    {{ format_venv_bin }}/ruff format --check src/ tests/
 
 # Check Markdown formatting (CI mode)
 fmt-md-check: _setup-prettier

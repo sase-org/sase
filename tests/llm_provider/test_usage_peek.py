@@ -164,7 +164,17 @@ def test_cached_projection_uses_memory_snapshot_and_indicator_settings(
                 "schema_version": 1,
                 "generated_at": 100.0,
                 "collection_health": "ok",
-                "providers": [{"provider": "claude", "windows": []}],
+                "providers": [
+                    {
+                        "provider": "claude",
+                        "windows": [],
+                        "attention": {
+                            "kind": "none",
+                            "provider": "claude",
+                            "window_key": None,
+                        },
+                    }
+                ],
                 "attention": None,
             },
             "indicator": {"weekly_all": "always"},

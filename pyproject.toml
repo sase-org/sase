@@ -125,6 +125,12 @@ docs-pdf = [
     "pypdf>=5,<7",
 ]
 
+[dependency-groups]
+format-tools = [
+    "pyyaml",
+    "ruff",
+]
+
 [project.scripts]
 agent_chat_from_name = "sase.scripts:agent_chat_from_name"
 fakey = "sase.fakey.cli:main"

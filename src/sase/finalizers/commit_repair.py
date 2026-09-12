@@ -17,7 +17,11 @@ from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
     FinalizerOutcomeEvidenceWire,
 )
-from sase.finalizers.artifacts import instance_artifact_dir, write_text_artifact
+from sase.finalizers.artifacts import (
+    instance_artifact_dir,
+    write_json_atomic,
+    write_text_artifact,
+)
 from sase.finalizers.bounded_subprocess import (
     HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
     run_bounded_subprocess,
@@ -41,6 +45,10 @@ from sase.llm_provider.commit_finalizer_prompting import append_response, merge_
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 from sase.workflows.commit.workflow_types import EXIT_CODE_CONFLICT
+from sase.workflows.commit.command_hooks import (
+    hook_output_tail_from_metadata,
+    load_latest_commit_hook_metadata,
+)
 
 _CONFLICT_PROMPT_STEM = "conflict_repair_prompt"
 _CONFLICT_RESPONSE_STEM = "conflict_repair_response"
@@ -151,7 +159,13 @@ def resolve_commit_conflict(
     )
     if resumed.timed_out or resumed.stdout_truncated or resumed.stderr_truncated:
         code = "stitch_timeout" if resumed.timed_out else "stitch_output_cap"
-        message_text = f"sase stitch create --resume {code} for {repo.name}"
+        message_text = stitch_bounds_failure_message(
+            repo,
+            resumed,
+            code,
+            artifacts=artifact_root(context.artifacts_dir),
+            resume=True,
+        )
         raise BuiltinCommitFinalizerError(
             message_text,
             result=failed_result(
@@ -363,6 +377,19 @@ def record_stitch_artifacts(
             result.stderr,
             exclusive=True,
         )
+        write_json_atomic(
+            artifact_dir / f"{prefix}.outcome.json",
+            {
+                "returncode": result.returncode,
+                "duration_seconds": result.duration_seconds,
+                "timed_out": result.timed_out,
+                "stdout_truncated": result.stdout_truncated,
+                "stderr_truncated": result.stderr_truncated,
+                "argv": list(result.argv),
+                "message_file": result.message_file,
+            },
+            exclusive=True,
+        )
         if inputs is not None:
             payload = {
                 **inputs,
@@ -404,6 +431,78 @@ def stitch_failure_message(repo: DirtyRepo, result: StitchCommandResult) -> str:
             f"sase stitch create failed for {repo.name} with exit {result.returncode}"
         )
     return f"sase stitch create failed for {repo.name}: " + " | ".join(parts)
+
+
+def stitch_bounds_failure_message(
+    repo: DirtyRepo,
+    result: StitchCommandResult,
+    code: str,
+    *,
+    artifacts: Path | None,
+    resume: bool = False,
+) -> str:
+    command = "sase stitch create --resume" if resume else "sase stitch create"
+    parts = [f"{command} {code} for {repo.name}"]
+    if result.duration_seconds > 0:
+        parts.append(
+            "elapsed "
+            f"{result.duration_seconds:.1f}s of "
+            f"{HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS:.0f}s allowed"
+        )
+    elif result.timed_out:
+        parts.append(f"allowed time was {HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS:.0f}s")
+
+    hook = load_latest_commit_hook_metadata(artifacts, repo.path)
+    if hook is not None:
+        parts.append(_hook_context_summary(hook))
+        hook_tail = hook_output_tail_from_metadata(hook)
+        if hook_tail:
+            parts.append("hook output tail: " + _bound_stream(hook_tail))
+    else:
+        parts.append("last stage unknown; no matching commit-hook record was found")
+        tail = _commit_hook_tail_from_result(result)
+        if tail:
+            parts.append("stitch output tail: " + _bound_stream(tail))
+    return "; ".join(parts)
+
+
+def _hook_context_summary(hook: Mapping[str, Any]) -> str:
+    phase = str(hook.get("phase") or "unknown")
+    command = str(hook.get("command") or "")
+    status = str(hook.get("status") or "unknown")
+    summary = f"last hook {phase}"
+    if command:
+        summary += f" `{command}`"
+    summary += f" status={status}"
+    duration = hook.get("duration_seconds")
+    if isinstance(duration, (int, float)) and duration >= 0:
+        summary += f" duration={float(duration):.1f}s"
+    metadata_path = hook.get("metadata_path")
+    if isinstance(metadata_path, str) and metadata_path:
+        summary += f" evidence={metadata_path}"
+    paths = hook.get("paths")
+    if isinstance(paths, Mapping):
+        log_paths = [
+            str(value)
+            for key, value in paths.items()
+            if key in {"stdout", "stderr", "stdout_tail", "stderr_tail"}
+            and isinstance(value, str)
+            and value
+        ]
+        if log_paths:
+            summary += " logs=" + ", ".join(log_paths)
+    return summary
+
+
+def _commit_hook_tail_from_result(result: StitchCommandResult) -> str:
+    lines: list[str] = []
+    if result.stdout:
+        lines.append("[stdout]")
+        lines.extend(result.stdout.rstrip().splitlines()[-25:])
+    if result.stderr:
+        lines.append("[stderr]")
+        lines.extend(result.stderr.rstrip().splitlines()[-25:])
+    return "\n".join(lines)
 
 
 def _bound_stream(text: str) -> str:
@@ -449,6 +548,7 @@ class _PriorStitchAttempt:
     inputs: Mapping[str, Any]
     stdout: str
     stderr: str
+    outcome: Mapping[str, Any] | None = None
 
 
 def load_latest_stitch_attempt(
@@ -491,6 +591,7 @@ def load_latest_stitch_attempt(
         inputs=inputs,
         stdout=_read_optional_artifact(artifact_dir / f"{prefix}.stdout"),
         stderr=_read_optional_artifact(artifact_dir / f"{prefix}.stderr"),
+        outcome=_read_optional_json_artifact(artifact_dir / f"{prefix}.outcome.json"),
     )
 
 
@@ -499,6 +600,14 @@ def _read_optional_artifact(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except OSError:
         return ""
+
+
+def _read_optional_json_artifact(path: Path) -> Mapping[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _run_stitch_argv(
@@ -666,5 +775,6 @@ __all__ = [
     "run_stitch_resume",
     "stitch_attempt_fingerprint",
     "stitch_attempt_input_fields",
+    "stitch_bounds_failure_message",
     "stitch_failure_message",
 ]

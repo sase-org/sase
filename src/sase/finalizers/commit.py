@@ -41,6 +41,7 @@ from sase.finalizers.commit_repair import (
     record_stitch_artifacts as _record_stitch_artifacts,
     run_stitch_create,
     run_stitch_resume,
+    stitch_bounds_failure_message as _stitch_bounds_failure_message,
     stitch_failure_message as _stitch_failure_message,
 )
 from sase.finalizers.commit_types import (
@@ -178,7 +179,13 @@ def _resume_unpushed_already_clean_repos(
         )
         if resumed.timed_out or resumed.stdout_truncated or resumed.stderr_truncated:
             code = "stitch_timeout" if resumed.timed_out else "stitch_output_cap"
-            message_text = f"sase stitch create --resume {code} for {repo.name}"
+            message_text = _stitch_bounds_failure_message(
+                repo,
+                resumed,
+                code,
+                artifacts=artifacts,
+                resume=True,
+            )
             attempts[0] = FinalizerAttemptWire(
                 attempt=attempt_id,
                 status="failed",

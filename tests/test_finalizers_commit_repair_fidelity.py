@@ -160,6 +160,9 @@ def test_record_and_load_latest_stitch_attempt_round_trip(tmp_path: Path) -> Non
     assert prior.attempt == 1
     assert prior.inputs["fingerprint"] == fingerprint
     assert prior.stderr == "hook failed\n"
+    assert prior.outcome is not None
+    assert prior.outcome["returncode"] == 1
+    assert prior.outcome["timed_out"] is False
 
 
 def test_load_latest_stitch_attempt_picks_the_highest_attempt(tmp_path: Path) -> None:

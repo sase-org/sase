@@ -150,6 +150,9 @@ def _provider_overrides(raw: object) -> dict[str, bool]:
     for name, value in raw.items():
         if not isinstance(name, str) or not name:
             continue
+        if isinstance(value, bool):
+            overrides[name] = value
+            continue
         if not isinstance(value, dict):
             continue
         if "enabled" not in value:

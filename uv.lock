@@ -2024,6 +2024,12 @@ visual = [
     { name = "tree-sitter-yaml" },
 ]
 
+[package.dev-dependencies]
+format-tools = [
+    { name = "pyyaml" },
+    { name = "ruff" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "build", marker = "extra == 'dev'" },
@@ -2091,6 +2097,12 @@ requires-dist = [
     { name = "wcmatch" },
 ]
 provides-extras = ["dev", "visual", "terminal-smoke", "docs", "docs-pdf"]
+
+[package.metadata.requires-dev]
+format-tools = [
+    { name = "pyyaml" },
+    { name = "ruff" },
+]
 
 [[package]]
 name = "sase-core-rs"

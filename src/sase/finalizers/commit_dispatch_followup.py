@@ -28,6 +28,7 @@ from sase.finalizers.commit_repair import (
     record_stitch_artifacts,
     stitch_attempt_fingerprint,
     stitch_attempt_input_fields,
+    stitch_bounds_failure_message,
     stitch_failure_message,
 )
 from sase.finalizers.commit_types import (
@@ -269,7 +270,12 @@ def rescue_landed_commit_after_bounds_failure(
     markers = new_commit_markers(before_markers, load_commit_results(artifacts))
     repo_markers = [marker for marker in markers if marker_matches_repo(marker, repo)]
     if not repo_markers:
-        message_text = f"sase stitch create {code} for {repo.name}"
+        message_text = stitch_bounds_failure_message(
+            repo,
+            stitch,
+            code,
+            artifacts=artifacts,
+        )
         attempts[0] = FinalizerAttemptWire(
             attempt=attempt_id,
             status="failed",
@@ -291,8 +297,13 @@ def rescue_landed_commit_after_bounds_failure(
             code=f"{code}_after_commit",
             severity="warning",
             message=(
-                f"sase stitch create {code} for {repo.name}, but the commit "
-                "already landed before the process was killed"
+                stitch_bounds_failure_message(
+                    repo,
+                    stitch,
+                    code,
+                    artifacts=artifacts,
+                )
+                + ", but the commit already landed before the process was killed"
             ),
             instance_id=instance_id,
             attempt=attempt_id,

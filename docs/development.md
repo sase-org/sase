@@ -588,11 +588,20 @@ the same from the repository root or a subdirectory:
 just test tests/main/test_parser.py::test_example
 ```
 
+`just fix`, `just fmt`, Ruff formatting/checks, generated model-alias docs, and
+keep-sorted use a narrow formatter environment at `.venv-format/` by default. That
+environment installs only the `format-tools` dependency group plus the repo-local
+Prettier and keep-sorted bootstraps, so local formatting does not rebuild the Rust
+extension, install plugins, or depend on the application `.venv/`. Override the
+formatter environment with `SASE_FORMAT_VENV_DIR` or Just's `format_venv_dir` variable.
+
 `just lint` and `just fix-keep-sorted` bootstrap a project-local `keep-sorted`
-executable into `.venv/bin/` from `PATH`, or by running
+executable into the formatter environment from `PATH`, or by running
 `go install github.com/google/keep-sorted@v0.8.0` when Go is available. If neither
 `keep-sorted` nor Go is installed, those recipes fail with a setup error before linting
-YAML keep-sorted blocks.
+YAML keep-sorted blocks. Runtime, test, install, and mypy recipes still use `.venv/` and
+the full `_setup` path because they need the installed application environment and Rust
+binding validation.
 
 Default test runs select `not slow and not visual`, so the ACE PNG snapshot regression
 tests do not run in `just test`, `just test-cov`, or `just test-scoped`.

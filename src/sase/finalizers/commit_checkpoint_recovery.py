@@ -17,6 +17,7 @@ from sase.core.pending_commit_checkpoint import (
 from sase.finalizers.commit_repair import (
     marker_evidence,
     record_stitch_artifacts,
+    stitch_bounds_failure_message,
 )
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
@@ -148,7 +149,13 @@ def resume_owned_pending_checkpoint(
     )
     if resumed.timed_out or resumed.stdout_truncated or resumed.stderr_truncated:
         code = "stitch_timeout" if resumed.timed_out else "stitch_output_cap"
-        message_text = f"sase stitch create --resume {code} for {matching.name}"
+        message_text = stitch_bounds_failure_message(
+            matching,
+            resumed,
+            code,
+            artifacts=artifacts,
+            resume=True,
+        )
         attempts[0] = FinalizerAttemptWire(
             attempt=attempt_id,
             status="failed",

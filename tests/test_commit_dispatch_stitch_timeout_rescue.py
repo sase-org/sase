@@ -73,6 +73,45 @@ def _append_marker(
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
+def _write_hook_metadata(
+    artifacts: Path,
+    repo: DirtyRepo,
+    *,
+    command: str = "just fix",
+    output: str = "formatter is still running\n",
+) -> Path:
+    root = artifacts / "commit_hooks"
+    root.mkdir(parents=True, exist_ok=True)
+    stem = "20260912T100806.before.main"
+    stdout_tail = root / f"{stem}.stdout.tail"
+    stderr_tail = root / f"{stem}.stderr.tail"
+    metadata_path = root / f"{stem}.json"
+    stdout_tail.write_text(output, encoding="utf-8")
+    stderr_tail.write_text("", encoding="utf-8")
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "status": "running",
+                "command": command,
+                "phase": "before",
+                "repo_root": str(Path(repo.path).resolve()),
+                "repo_digest": "test",
+                "start_time_epoch": 1.0,
+                "paths": {
+                    "metadata": str(metadata_path),
+                    "stdout": str(root / f"{stem}.stdout.log"),
+                    "stderr": str(root / f"{stem}.stderr.log"),
+                    "stdout_tail": str(stdout_tail),
+                    "stderr_tail": str(stderr_tail),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    return metadata_path
+
+
 def _accepted_envelope(repo: DirtyRepo, message: str) -> dict[str, Any]:
     return {
         "payloads": [
@@ -205,7 +244,45 @@ def test_timed_out_stitch_without_marker_still_fails(tmp_path: Path) -> None:
         )
 
     assert exc_info.value.code == "stitch_timeout"
-    assert str(exc_info.value) == "sase stitch create stitch_timeout for main"
+    assert "sase stitch create stitch_timeout for main" in str(exc_info.value)
+    assert "last stage unknown" in str(exc_info.value)
+
+
+def test_timed_out_stitch_without_marker_reports_hook_context(
+    tmp_path: Path,
+) -> None:
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    dirty = _repo(repo_path, changed_files=("src/app.py",))
+    metadata_path = _write_hook_metadata(artifacts, dirty)
+
+    def stitch_runner(
+        _repo_arg: DirtyRepo,
+        _message: str,
+        _excludes: Sequence[str],
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        return StitchCommandResult(
+            returncode=-9,
+            timed_out=True,
+            duration_seconds=12.5,
+        )
+
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        _dispatch(
+            repo=dirty,
+            artifacts=artifacts,
+            changed_files=["src/app.py"],
+            stitch_runner=stitch_runner,
+        )
+
+    message = str(exc_info.value)
+    assert "elapsed 12.5s of 1800s allowed" in message
+    assert "last hook before `just fix` status=running" in message
+    assert str(metadata_path) in message
+    assert "formatter is still running" in message
 
 
 def test_output_cap_stitch_with_landed_commit_does_not_raise(tmp_path: Path) -> None:

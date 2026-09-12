@@ -53,6 +53,12 @@ def _install_spy_python(root: Path) -> None:
     python.chmod(0o755)
 
 
+def _install_executable(path: Path, body: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("#!/bin/sh\n" + body, encoding="utf-8")
+    path.chmod(0o755)
+
+
 def test_lint_includes_toobig_stage() -> None:
     output = _dry_run("lint")
 
@@ -97,6 +103,86 @@ def test_lint_does_not_run_sase_validation() -> None:
 
     assert "Running SASE validation" not in output
     assert "just validate" not in output
+
+
+def test_fix_uses_formatter_venv_without_application_setup(tmp_path: Path) -> None:
+    _copy_justfile(tmp_path)
+    calls = tmp_path / "calls.log"
+    (tmp_path / "src").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tools").mkdir()
+    (tmp_path / "sample.yml").write_text("key: value\n", encoding="utf-8")
+    subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "add", "sample.yml"], cwd=tmp_path, check=True, capture_output=True
+    )
+    subprocess.run(
+        ["uv", "venv", ".venv-format"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    site_packages = subprocess.run(
+        [
+            str(tmp_path / ".venv-format/bin/python"),
+            "-c",
+            "import site; print(site.getsitepackages()[0])",
+        ],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    (Path(site_packages) / "yaml.py").write_text("", encoding="utf-8")
+    (tmp_path / "tools/render_model_alias_docs").write_text(
+        "from pathlib import Path\n"
+        "import os\n"
+        "with Path(os.environ['JUST_SPY_FILE']).open('a', encoding='utf-8') as f:\n"
+        "    f.write('format-python tools/render_model_alias_docs\\n')\n",
+        encoding="utf-8",
+    )
+
+    _install_executable(
+        tmp_path / ".venv/bin/python",
+        'echo forbidden-app-python >> "$JUST_SPY_FILE"\nexit 91\n',
+    )
+    _install_executable(
+        tmp_path / ".venv-format/bin/ruff",
+        'echo ruff "$@" >> "$JUST_SPY_FILE"\nexit 0\n',
+    )
+    _install_executable(
+        tmp_path / ".venv-format/bin/keep-sorted",
+        'echo keep-sorted "$@" >> "$JUST_SPY_FILE"\nexit 0\n',
+    )
+    _install_executable(
+        tmp_path / "node_modules/.bin/prettier",
+        'echo prettier "$@" >> "$JUST_SPY_FILE"\nexit 0\n',
+    )
+
+    subprocess.run(
+        ["just", "--justfile", str(tmp_path / "Justfile"), "fix"],
+        cwd=tmp_path,
+        env=_clean_sase_core_env() | {"JUST_SPY_FILE": str(calls)},
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    recorded = calls.read_text(encoding="utf-8")
+    assert "ruff format src/ tests/" in recorded
+    assert "ruff check --fix src/ tests/" in recorded
+    assert "format-python tools/render_model_alias_docs" in recorded
+    assert "prettier --write **/*.md" in recorded
+    assert "keep-sorted sample.yml" in recorded
+    assert "forbidden-app-python" not in recorded
+
+
+def test_formatter_recipes_honor_custom_format_venv_dir() -> None:
+    output = _dry_run("--set", "format_venv_dir", "custom-format", "fmt-py")
+
+    assert "custom-format/bin/ruff format src/ tests/" in output
+    assert ".venv/bin/ruff format" not in output
 
 
 def test_check_retains_sase_validation_stage() -> None:

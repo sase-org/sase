@@ -100,7 +100,7 @@ def provider_usage_project_indicator(
         binding(
             {
                 "schema_version": PROVIDER_USAGE_INDICATOR_SCHEMA_VERSION,
-                "snapshot": dict(snapshot),
+                "snapshot": _indicator_snapshot_wire(snapshot),
                 "indicator": indicator,
                 "eligible_providers": eligible,
                 "now": float(current),
@@ -110,6 +110,34 @@ def provider_usage_project_indicator(
             }
         )
     )
+
+
+def _indicator_snapshot_wire(snapshot: Mapping[str, object]) -> dict[str, object]:
+    wire = dict(snapshot)
+    raw_providers = wire.get("providers")
+    if not isinstance(raw_providers, list):
+        return wire
+    providers: list[object] = []
+    changed = False
+    for provider in raw_providers:
+        if not isinstance(provider, Mapping):
+            providers.append(provider)
+            continue
+        if isinstance(provider.get("attention"), Mapping):
+            providers.append(provider)
+            continue
+        provider_wire = dict(provider)
+        provider_name = provider_wire.get("provider")
+        provider_wire["attention"] = {
+            "kind": "none",
+            "provider": provider_name if isinstance(provider_name, str) else "",
+            "window_key": None,
+        }
+        providers.append(provider_wire)
+        changed = True
+    if changed:
+        wire["providers"] = providers
+    return wire
 
 
 def provider_usage_remaining_percent(used_percent: float) -> float:

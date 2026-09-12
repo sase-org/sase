@@ -7,16 +7,12 @@ import sys
 from html import escape
 from pathlib import Path
 
-from sase.llm_provider.model_alias_policy import (
-    DEFAULT_MODEL_ALIAS_NAME,
-    implicit_alias_targets,
-    role_alias_descriptions,
-    role_alias_fallbacks,
-)
+import yaml  # type: ignore[import-untyped]
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_PATH = REPO_ROOT / "docs" / "llms.md"
+DEFAULTS_PATH = REPO_ROOT / "src" / "sase" / "llm_provider" / "model_alias_defaults.yml"
 BEGIN_MARKER = "<!-- BEGIN GENERATED: model-alias-defaults -->"
 END_MARKER = "<!-- END GENERATED: model-alias-defaults -->"
 
@@ -36,26 +32,48 @@ def _format_row(cells: tuple[str, str, str], widths: tuple[int, int, int]) -> st
     ) + " |"
 
 
+def _declared_aliases(path: Path = DEFAULTS_PATH) -> dict[str, dict[str, str]]:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a YAML mapping")
+    aliases = data.get("aliases")
+    if not isinstance(aliases, dict):
+        raise ValueError(f"{path} must contain an aliases mapping")
+
+    declared: dict[str, dict[str, str]] = {}
+    for alias, entry in aliases.items():
+        if not isinstance(alias, str) or not isinstance(entry, dict):
+            raise ValueError(f"{path} aliases must be string-keyed mappings")
+        description = entry.get("description")
+        if not isinstance(description, str) or not description.strip():
+            raise ValueError(f"{path} alias {alias!r} is missing a description")
+        target = entry.get("target")
+        fallback = entry.get("fallback")
+        if target is not None and not isinstance(target, str):
+            raise ValueError(f"{path} alias {alias!r} has a non-string target")
+        if fallback is not None and not isinstance(fallback, str):
+            raise ValueError(f"{path} alias {alias!r} has a non-string fallback")
+        declared[alias] = {
+            "description": description,
+            **({"target": target} if isinstance(target, str) else {}),
+            **({"fallback": fallback} if isinstance(fallback, str) else {}),
+        }
+    return declared
+
+
 def _render_table() -> str:
-    targets = implicit_alias_targets()
-    fallbacks = role_alias_fallbacks()
-    descriptions = role_alias_descriptions()
+    aliases = _declared_aliases()
 
     rows: list[tuple[str, str, str]] = []
-    for alias, description in descriptions.items():
-        if alias in targets:
-            shipped_default = f"`{targets[alias]}`"
-        elif alias in fallbacks:
-            shipped_default = f"`{fallbacks[alias]}`"
-        elif alias == DEFAULT_MODEL_ALIAS_NAME:
-            shipped_default = (
-                "Configured `model_aliases.builtin.default`, else the "
-                "provider's requested-tier default."
-            )
+    for alias, entry in aliases.items():
+        if "target" in entry:
+            shipped_default = f"`{entry['target']}`"
+        elif "fallback" in entry:
+            shipped_default = f"`{entry['fallback']}`"
         else:
             shipped_default = "None."
 
-        rows.append((f"`@{alias}`", _cell(description), _cell(shipped_default)))
+        rows.append((f"`@{alias}`", _cell(entry["description"]), _cell(shipped_default)))
 
     headers = ("Alias", "Description", "Shipped default")
     all_rows = (headers, *rows)
