@@ -15,6 +15,11 @@ from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.v2_io import apply_payload_atomic
 from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.core.retryability_wire import (
+    RETRYABILITY_VERDICT_TRANSIENT,
+    RETRYABILITY_WIRE_SCHEMA_VERSION,
+    RetryabilityVerdictWire,
+)
 from sase.git_lock_retry import STALE_GIT_INDEX_LOCK_MIN_AGE_SECONDS
 
 from tests.agents_sync.git_sync_fixtures import (
@@ -328,3 +333,45 @@ def test_network_git_environment_is_noninteractive() -> None:
     assert env["GIT_TERMINAL_PROMPT"] == "0"
     assert "BatchMode=yes" in env["GIT_SSH_COMMAND"]
     assert original["GIT_TERMINAL_PROMPT"] == "1"
+
+
+def test_network_git_retries_transient_classifier_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+
+    def fake_run_sdd_git(
+        args: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        if len(calls) == 1:
+            return subprocess.CompletedProcess(
+                ["git", *args],
+                128,
+                stdout="",
+                stderr="fatal: unable to access remote: HTTP 502",
+            )
+        return subprocess.CompletedProcess(["git", *args], 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr("sase.sdd._git.run_sdd_git", fake_run_sdd_git)
+    monkeypatch.setattr("sase.sdd._git.time.sleep", sleeps.append)
+    monkeypatch.setattr(
+        "sase.sdd._git.classify_failure_retryability",
+        lambda *_args, **_kwargs: RetryabilityVerdictWire(
+            schema_version=RETRYABILITY_WIRE_SCHEMA_VERSION,
+            verdict=RETRYABILITY_VERDICT_TRANSIENT,
+            reason="test transient",
+            retryable=True,
+            retry_after_seconds=None,
+        ),
+    )
+
+    result = run_git(tmp_path, ["fetch", "origin"], network=True)
+
+    assert result.returncode == 0
+    assert result.stdout == "ok"
+    assert calls == [["fetch", "origin"], ["fetch", "origin"]]
+    assert sleeps == [0.25]

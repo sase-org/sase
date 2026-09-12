@@ -164,10 +164,11 @@ def default_git_runner(
     op: str,
     network: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    from sase.sdd._git_contention import run_sdd_git_write
+    from sase.sdd._git_contention import run_sdd_git_write, run_sdd_git_write_network
 
     try:
-        return run_sdd_git_write(
+        runner = run_sdd_git_write_network if network else run_sdd_git_write
+        return runner(
             args,
             cwd=repo_root,
             op=op,

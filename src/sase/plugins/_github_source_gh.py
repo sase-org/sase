@@ -10,6 +10,8 @@ from __future__ import annotations
 import subprocess
 from collections.abc import Callable
 
+from sase.github_cli import GhCommandError as SharedGhCommandError
+from sase.github_cli import run_gh
 from sase.plugins._github_source_errors import GH_INSTALL_HINT, GhCommandError
 
 #: Topic search that defines the canonical registry. No org filter, so both
@@ -54,19 +56,17 @@ def gh_api(
     refused the request because it reaches past the 1000-result search cap.
     """
     try:
-        result = run_fn(
-            ["gh", "api", "-X", "GET", endpoint],
-            capture_output=True,
-            text=True,
+        result = run_gh(
+            ["api", "-X", "GET", endpoint],
             timeout=timeout,
+            run_fn=run_fn,
+            max_attempts=1,
+            op="plugins.github_source.gh_api",
         )
-    except subprocess.TimeoutExpired as exc:
+    except SharedGhCommandError as exc:
         raise GhCommandError(
-            f"`gh api` timed out after {timeout:g}s while fetching the plugin catalog."
-        ) from exc
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise GhCommandError(
-            f"`gh api` could not be run: {type(exc).__name__}: {exc}"
+            "`gh api` failed while fetching the plugin catalog"
+            f": {exc}. {GH_INSTALL_HINT}"
         ) from exc
 
     if result.returncode != 0:

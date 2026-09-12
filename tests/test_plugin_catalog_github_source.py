@@ -208,7 +208,7 @@ def test_fetch_uses_double_dash_topic_query() -> None:
     assert result.warnings == ()
     assert SASE_PLUGIN_TOPIC == "sase--plugin"
     assert GH_SEARCH_QUERY == "topic:sase--plugin"
-    assert calls == [
+    assert [list(call) for call in calls] == [
         [
             "gh",
             "api",

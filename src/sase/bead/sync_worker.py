@@ -338,7 +338,7 @@ def _git_runner_for_deadline(
         return _git
 
     from sase.sdd._git import network_git_timeout
-    from sase.sdd._git_contention import run_sdd_git_write
+    from sase.sdd._git_contention import run_sdd_git_write, run_sdd_git_write_network
 
     def _run(
         repo_root: Path,
@@ -347,14 +347,27 @@ def _git_runner_for_deadline(
         op: str,
         network: bool = False,
     ) -> subprocess.CompletedProcess[str]:
+        timeout = _deadline_timeout(
+            deadline,
+            network_git_timeout() if network else None,
+        )
+        if network:
+            return run_sdd_git_write_network(
+                args,
+                cwd=repo_root,
+                op=op,
+                timeout=timeout,
+                deadline=deadline,
+                check=False,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+            )
         return run_sdd_git_write(
             args,
             cwd=repo_root,
             op=op,
-            timeout=_deadline_timeout(
-                deadline,
-                network_git_timeout() if network else None,
-            ),
+            timeout=timeout,
             check=False,
             capture_output=True,
             text=True,

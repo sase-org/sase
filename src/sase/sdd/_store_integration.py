@@ -259,7 +259,7 @@ def _git_runner_for_deadline(
         return None
 
     from sase.sdd._git import network_git_timeout
-    from sase.sdd._git_contention import run_sdd_git_write
+    from sase.sdd._git_contention import run_sdd_git_write, run_sdd_git_write_network
 
     def _run(
         repo_root: Path,
@@ -278,6 +278,18 @@ def _git_runner_for_deadline(
                 returncode=124,
                 stdout="",
                 stderr="deadline expired before git operation",
+            )
+        if network:
+            return run_sdd_git_write_network(
+                args,
+                cwd=repo_root,
+                op=op,
+                timeout=timeout,
+                deadline=deadline,
+                check=False,
+                capture_output=True,
+                text=True,
+                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
             )
         return run_sdd_git_write(
             args,

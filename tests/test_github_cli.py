@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import subprocess
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -252,3 +254,29 @@ def test_gh_api_json_parses_object() -> None:
     payload = gh_api_json("repos/sase-org/sase", run_fn=run_fn)
 
     assert payload == {"ok": True}
+
+
+def test_direct_gh_argv_calls_stay_inside_shared_runner() -> None:
+    source_root = Path(__file__).resolve().parents[1] / "src" / "sase"
+    offenders: list[str] = []
+    for path in source_root.rglob("*.py"):
+        if path.name == "github_cli.py":
+            continue
+        source = path.read_text(encoding="utf-8")
+        if '"gh"' not in source and "'gh'" not in source:
+            continue
+        tree = ast.parse(source, filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not node.args:
+                continue
+            if _argv_literal_starts_with_gh(node.args[0]):
+                offenders.append(f"{path.relative_to(source_root)}:{node.lineno}")
+
+    assert offenders == []
+
+
+def _argv_literal_starts_with_gh(node: ast.AST) -> bool:
+    if not isinstance(node, ast.List | ast.Tuple) or not node.elts:
+        return False
+    first = node.elts[0]
+    return isinstance(first, ast.Constant) and first.value == "gh"

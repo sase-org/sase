@@ -19,7 +19,7 @@ from sase.git_lock_retry import (
     git_lock_retry_delays,
     run_with_git_lock_retry,
 )
-from sase.sdd._git import run_sdd_git
+from sase.sdd._git import run_sdd_git, run_sdd_network_git_with_retries
 
 ENV_GIT_LOCK_RETRY_DELAYS = "SASE_SDD_GIT_LOCK_RETRY_DELAYS"
 DEFAULT_GIT_LOCK_RETRY_DELAYS = SHARED_GIT_LOCK_RETRY_DELAYS
@@ -96,6 +96,34 @@ def run_sdd_git_write(
 
     result, _ = run_with_git_lock_retry(attempt, cwd=cwd, delays=delays)
     return _checked_result(result, check=check)
+
+
+def run_sdd_git_write_network(
+    args: list[str],
+    *,
+    cwd: Path,
+    op: str,
+    timeout: float | None = None,
+    deadline: float | None = None,
+    check: bool,
+    capture_output: bool,
+    text: bool = False,
+    env: Mapping[str, str] | None = None,
+) -> subprocess.CompletedProcess[Any]:
+    """Run a network git write with lock-contention and transport retries."""
+
+    return run_sdd_network_git_with_retries(
+        run_sdd_git_write,
+        args,
+        cwd=cwd,
+        op=op,
+        timeout=timeout,
+        deadline=deadline,
+        check=check,
+        capture_output=capture_output,
+        text=text,
+        env=env,
+    )
 
 
 @contextmanager

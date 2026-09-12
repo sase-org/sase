@@ -36,7 +36,7 @@ DEFAULT_BACKOFF_DELAYS_SECONDS = (1.0, 2.0)
 DEFAULT_MAX_RETRY_SLEEP_SECONDS = 60.0
 
 
-class GhSubprocessRunner(Protocol):
+class _GhSubprocessRunner(Protocol):
     """Injectable subprocess-compatible ``gh`` runner for deterministic tests."""
 
     def __call__(
@@ -53,7 +53,7 @@ class GhSubprocessRunner(Protocol):
 
 
 @dataclass(frozen=True)
-class GhCommandResult:
+class _GhCommandResult:
     """Structured result for one bounded ``gh`` command execution."""
 
     args: tuple[str, ...]
@@ -82,7 +82,7 @@ class GhCommandError(RuntimeError):
         self,
         message: str,
         *,
-        result: GhCommandResult | None = None,
+        result: _GhCommandResult | None = None,
     ) -> None:
         super().__init__(message)
         self.result = result
@@ -97,12 +97,12 @@ def run_gh(
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     backoff_delays: Sequence[float] = DEFAULT_BACKOFF_DELAYS_SECONDS,
     max_retry_sleep: float | None = None,
-    run_fn: GhSubprocessRunner | None = None,
+    run_fn: _GhSubprocessRunner | None = None,
     sleep_fn: Any = time.sleep,
     time_fn: Any = time.time,
     monotonic_fn: Any = time.perf_counter,
     op: str = "gh",
-) -> GhCommandResult:
+) -> _GhCommandResult:
     """Run ``gh`` with bounded retries classified by the Rust core."""
     if max_attempts < 1:
         raise ValueError("max_attempts must be at least 1")
@@ -113,7 +113,7 @@ def run_gh(
     runner = subprocess.run if run_fn is None else run_fn
     argv = ("gh", *tuple(args))
     env = _noninteractive_gh_env()
-    last_result: GhCommandResult | None = None
+    last_result: _GhCommandResult | None = None
     start_all = monotonic_fn()
 
     for attempt in range(1, max_attempts + 1):
@@ -134,7 +134,11 @@ def run_gh(
             stderr = _stream_text(exc.stderr) or (
                 f"`gh {' '.join(args)}` timed out after {timeout_seconds:g}s"
             )
-            timeout_verdict = _classify_timeout(stdout=stdout, stderr=stderr)
+            timeout_verdict = (
+                _classify_timeout(stdout=stdout, stderr=stderr)
+                if attempt < max_attempts
+                else None
+            )
             _log_gh_operation(
                 op=op,
                 cmd=list(argv),
@@ -149,7 +153,11 @@ def run_gh(
                 attempts=max_attempts,
                 verdict=timeout_verdict,
             )
-            if attempt < max_attempts and timeout_verdict.retryable:
+            if (
+                attempt < max_attempts
+                and timeout_verdict is not None
+                and timeout_verdict.retryable
+            ):
                 _sleep_before_retry(
                     attempt=attempt,
                     backoff_delays=backoff_delays,
@@ -178,7 +186,7 @@ def run_gh(
         stdout = _stream_text(completed.stdout)
         stderr = _stream_text(completed.stderr)
         verdict: RetryabilityVerdictWire | None = None
-        if completed.returncode != 0:
+        if completed.returncode != 0 and attempt < max_attempts:
             verdict = classify_failure_retryability(
                 RETRY_OPERATION_GH,
                 exit_status=completed.returncode,
@@ -186,7 +194,7 @@ def run_gh(
                 stderr=stderr,
             )
         duration_ms = (monotonic_fn() - attempt_start) * 1000.0
-        result = GhCommandResult(
+        result = _GhCommandResult(
             args=tuple(str(part) for part in completed.args),
             returncode=int(completed.returncode),
             stdout=stdout,
@@ -260,7 +268,7 @@ def gh_api_json(
     cwd: str | Path | None = None,
     timeout: float | None = None,
     expect_object: bool = True,
-    run_fn: GhSubprocessRunner | None = None,
+    run_fn: _GhSubprocessRunner | None = None,
     sleep_fn: Any = time.sleep,
     op: str = "gh.api",
 ) -> Mapping[str, Any] | Any:
@@ -511,8 +519,6 @@ def _float_env(name: str, default: float) -> float:
 __all__ = [
     "DEFAULT_GH_TIMEOUT_SECONDS",
     "GhCommandError",
-    "GhCommandResult",
-    "GhSubprocessRunner",
     "gh_api_json",
     "run_gh",
 ]

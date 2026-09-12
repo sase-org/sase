@@ -13,6 +13,8 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
+from sase.github_cli import GhCommandError as SharedGhCommandError
+from sase.github_cli import run_gh
 from sase.plugins.inventory import (
     PluginInventory,
     collect_plugin_inventory,
@@ -247,13 +249,14 @@ def _check_plugins_github(
         )
 
     try:
-        result = run_fn(
-            ["gh", "auth", "status"],
-            capture_output=True,
-            text=True,
+        result = run_gh(
+            ["auth", "status"],
             timeout=5,
+            run_fn=run_fn,
+            max_attempts=1,
+            op="doctor.plugins.github_auth",
         )
-    except (OSError, subprocess.SubprocessError) as exc:
+    except SharedGhCommandError as exc:
         return (
             DiagnosticCheck(
                 id="plugins.github",
@@ -261,7 +264,7 @@ def _check_plugins_github(
                 status="WARN",
                 title="GitHub plugin prerequisites",
                 summary="gh CLI is installed, but gh auth status could not be checked",
-                details=(f"{type(exc).__name__}: {exc}",),
+                details=(str(exc),),
                 next_steps=(
                     "Run `gh auth status` manually before relying on GitHub plugin operations.",
                 ),

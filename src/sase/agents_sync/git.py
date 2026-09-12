@@ -8,7 +8,7 @@ from pathlib import Path
 import subprocess
 from typing import Protocol
 
-from sase.sdd._git import network_git_timeout, run_sdd_git
+from sase.sdd._git import network_git_timeout, run_sdd_git, run_sdd_network_git
 
 
 class GitRunner(Protocol):
@@ -47,7 +47,8 @@ def run_git(
 ) -> subprocess.CompletedProcess[str]:
     """Run one bounded git command with network prompt hardening."""
 
-    result = run_sdd_git(
+    git_fn = run_sdd_network_git if network else run_sdd_git
+    result = git_fn(
         args,
         cwd=cwd,
         op=op,
