@@ -24,6 +24,19 @@ from sase.sdd.artifact_link_store import ARTIFACT_LINK_ROW_SCHEMA_VERSION
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 from tests._conftest_environment import redirect_sase_home
 
+_RESOLVE_CLI_REFERENCE_TARGETS = (
+    "sase.artifact_cli._link_health_refs.resolve_cli_reference",
+    "sase.artifact_cli._link_health_tables.resolve_cli_reference",
+    "sase.artifact_cli._link_health_coverage.resolve_cli_reference",
+)
+
+
+def _stub_resolve_cli_reference(
+    monkeypatch: pytest.MonkeyPatch, resolve: object
+) -> None:
+    for target in _RESOLVE_CLI_REFERENCE_TARGETS:
+        monkeypatch.setattr(target, resolve)
+
 
 def test_inspect_reports_store_resolution_errors(
     monkeypatch: pytest.MonkeyPatch,
@@ -67,8 +80,8 @@ def test_inspect_treats_existing_bead_refs_as_live(
         "sase.artifact_cli.link_health.resolve_artifact_link_store",
         lambda: store,
     )
-    monkeypatch.setattr(
-        "sase.artifact_cli.link_health.resolve_cli_reference",
+    _stub_resolve_cli_reference(
+        monkeypatch,
         lambda _ref, **_kwargs: (_ for _ in ()).throw(
             RuntimeError("no generated page")
         ),
@@ -203,7 +216,7 @@ def test_inspect_fix_repairs_historical_research_rename(
             resolution=SimpleNamespace(status=status, resolved_path=None)
         )
 
-    monkeypatch.setattr("sase.artifact_cli.link_health.resolve_cli_reference", resolve)
+    _stub_resolve_cli_reference(monkeypatch, resolve)
 
     report = inspect_artifact_link_health(fix=True)
 
@@ -291,7 +304,7 @@ def test_inspect_fix_does_not_reintroduce_renamed_rows_from_sibling_clone(
             resolution=SimpleNamespace(status=status, resolved_path=None)
         )
 
-    monkeypatch.setattr("sase.artifact_cli.link_health.resolve_cli_reference", resolve)
+    _stub_resolve_cli_reference(monkeypatch, resolve)
 
     report = inspect_artifact_link_health(fix=True)
 
@@ -337,7 +350,7 @@ def test_unpublished_agent_refs_are_informational(
             resolution=SimpleNamespace(status=status, resolved_path=None)
         )
 
-    monkeypatch.setattr("sase.artifact_cli.link_health.resolve_cli_reference", resolve)
+    _stub_resolve_cli_reference(monkeypatch, resolve)
 
     report = inspect_artifact_link_health()
 
@@ -394,8 +407,8 @@ def test_inspect_reports_row_level_aggregate_drift(
         "sase.artifact_cli.link_health.resolve_artifact_link_store",
         lambda: store,
     )
-    monkeypatch.setattr(
-        "sase.artifact_cli.link_health.resolve_cli_reference",
+    _stub_resolve_cli_reference(
+        monkeypatch,
         lambda _ref, **_kwargs: SimpleNamespace(
             resolution=SimpleNamespace(status="exact", resolved_path=None)
         ),
@@ -548,8 +561,8 @@ def test_derived_row_rendered_in_links_table_is_not_stale(
         "sase.artifact_cli.link_health.resolve_artifact_link_store",
         lambda: store,
     )
-    monkeypatch.setattr(
-        "sase.artifact_cli.link_health.resolve_cli_reference",
+    _stub_resolve_cli_reference(
+        monkeypatch,
         lambda _ref, **_kwargs: (_ for _ in ()).throw(
             RuntimeError("no generated page")
         ),
@@ -610,8 +623,8 @@ def test_missing_derived_row_projection_is_reported_stale(
         "sase.artifact_cli.link_health.resolve_artifact_link_store",
         lambda: store,
     )
-    monkeypatch.setattr(
-        "sase.artifact_cli.link_health.resolve_cli_reference",
+    _stub_resolve_cli_reference(
+        monkeypatch,
         lambda _ref, **_kwargs: (_ for _ in ()).throw(
             RuntimeError("no generated page")
         ),
@@ -659,8 +672,8 @@ def test_fix_does_not_rewrite_when_marker_text_is_unmanaged_prose(
         "sase.artifact_cli.link_health.resolve_artifact_link_store",
         lambda: store,
     )
-    monkeypatch.setattr(
-        "sase.artifact_cli.link_health.resolve_cli_reference",
+    _stub_resolve_cli_reference(
+        monkeypatch,
         lambda _ref, **_kwargs: SimpleNamespace(
             resolution=SimpleNamespace(status="exact", resolved_path=None)
         ),

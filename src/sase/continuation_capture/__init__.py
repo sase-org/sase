@@ -17,6 +17,7 @@ from ._constants import (
 )
 from ._storage import record_capture_error
 from .agent_delta import (
+    persist_agent_delta as _persist_agent_delta,
     persist_agent_delta,
     persist_agent_delta_best_effort,
     read_latest_manifest_projection,
@@ -39,6 +40,7 @@ from .monitor import (
 )
 from .prompt import (
     read_prepared_prompt_capture_ref,
+    record_prepared_prompt_capture as _record_prepared_prompt_capture,
     record_prepared_prompt_capture,
     record_prepared_prompt_capture_best_effort,
 )
@@ -55,6 +57,8 @@ __all__ = [
     "ContinuationSegmentCapture",
     "MonitorResultPublishResult",
     "PreparedPromptCaptureResult",
+    "_persist_agent_delta",
+    "_record_prepared_prompt_capture",
     "embedded_workflow_prompt_segment",
     "local_authored_prompt_segment",
     "local_materialized_prompt_segment",

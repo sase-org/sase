@@ -10,7 +10,6 @@ from sase.ace.tui.commands._tabs import (
     AGENTS_ONLY,
     ALL_TABS,
     CL_AGENTS,
-    CL_AXE,
     CL_ONLY,
 )
 from sase.ace.tui.commands.types import AppCommandMeta
@@ -40,15 +39,8 @@ DISPLAY_COMMAND_META: tuple[AppCommandMeta, ...] = (
         "edit_query",
         "Edit query or filter",
         "Queries",
-        CL_AXE,
+        ALL_TABS,
         ("filter", "query", "/"),
-    ),
-    (
-        "search_forward",
-        "Search metadata forward",
-        "Queries",
-        AGENTS_ONLY,
-        ("find", "forward", "/"),
     ),
     (
         "search_reverse",

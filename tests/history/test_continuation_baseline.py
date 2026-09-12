@@ -8,7 +8,7 @@ from pathlib import Path
 from sase.continuation_baseline import (
     MEASUREMENT_LOG_NAME,
     measure_fork_render,
-    node_counts_for_sources,
+    _node_counts_for_sources,
 )
 from sase.history.chat import build_fork_injected_history
 
@@ -125,7 +125,7 @@ def test_node_counts_surface_duplicate_known_family_members(tmp_path: Path) -> N
         }
     ]
 
-    counts = node_counts_for_sources(sources)
+    counts = _node_counts_for_sources(sources)
 
     assert counts.known_node_count == 2
     assert counts.unique_node_count == 1

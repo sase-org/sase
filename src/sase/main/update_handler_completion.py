@@ -21,7 +21,7 @@ from sase.uv_tool.detect import UvToolInstall
 COMPLETION_REFRESH_TIMEOUT_SECONDS = 60.0
 
 
-def _completion_refresh_after_update(
+def completion_refresh_after_update(
     install: UvToolInstall,
     refresh_fn: Callable[[], CompletionRefreshReport] | None,
 ) -> CompletionRefreshReport:
@@ -143,7 +143,7 @@ def _child_refresh_error_detail(
     return detail
 
 
-def _render_completion_refresh(
+def render_completion_refresh(
     report: CompletionRefreshReport,
     *,
     console: Console,

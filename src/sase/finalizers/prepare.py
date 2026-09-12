@@ -62,7 +62,7 @@ _MAX_PREPARE_BYTES = 256 * 1024
 
 
 @dataclass(frozen=True)
-class PreparedCompletion:
+class _PreparedCompletion:
     """One persisted, host-sealed conditional completion intent."""
 
     intent: dict[str, Any]
@@ -75,7 +75,7 @@ def prepare_conditional_completion(
     wrapper: Mapping[str, Any],
     *,
     artifacts_dir: str | None = None,
-) -> PreparedCompletion:
+) -> _PreparedCompletion:
     """Validate, seal, and persist a conditional completion intent.
 
     Publishes the current host-issued finalizer context and observes opened
@@ -130,7 +130,7 @@ def prepare_conditional_completion(
         ) from exc
     stored = persist_prepared_completion(intent, artifacts_dir=root)
     preview = preview_conditional_completion(stored.intent)
-    return PreparedCompletion(
+    return _PreparedCompletion(
         intent=stored.intent,
         preview=preview,
         intent_ref=stored.intent_ref,
@@ -142,7 +142,7 @@ def persist_prepared_completion(
     intent: Mapping[str, Any],
     *,
     artifacts_dir: str | Path,
-) -> PreparedCompletion:
+) -> _PreparedCompletion:
     """Write a sealed intent under the agent's continuation store."""
 
     root = Path(artifacts_dir)
@@ -159,7 +159,7 @@ def persist_prepared_completion(
         _index_put(directory, intent_id, path.name, refs)
     intent_ref = refs[0]
     preview = preview_conditional_completion(dict(intent))
-    return PreparedCompletion(
+    return _PreparedCompletion(
         intent=dict(intent),
         preview=preview,
         intent_ref=intent_ref,
@@ -284,7 +284,7 @@ def observe_completion_repositories(root: Path) -> list[dict[str, Any]]:
 
 
 def format_prepare_preview(
-    prepared: PreparedCompletion,
+    prepared: _PreparedCompletion,
     *,
     json_output: bool,
 ) -> str:
@@ -654,7 +654,6 @@ def _safe_filename(value: str) -> str:
 
 __all__ = [
     "COMPLETION_INTENTS_DIRNAME",
-    "PreparedCompletion",
     "bind_prepared_completion",
     "format_prepare_preview",
     "load_prepared_completion",

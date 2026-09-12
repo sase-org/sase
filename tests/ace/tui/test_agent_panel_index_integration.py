@@ -295,7 +295,7 @@ class _RecordingInfoPanel:
     def update_countdown(self, _countdown: int, _interval: int) -> None:
         return
 
-    def update_search_query(self, _query: str, *, seeded: bool = False) -> None:
+    def update_search_query(self, _query: str, **_kwargs: object) -> None:
         return
 
     def update_grouping_mode(self, _label: str) -> None:

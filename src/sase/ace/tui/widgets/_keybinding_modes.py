@@ -369,7 +369,7 @@ class KeybindingModesMixin:
         bindings: list[tuple[str, str]] = []
         bindings.append((k("repeat_last"), "repeat"))
         if current_tab == "agents":
-            bindings.append((k("edit_query"), "edit query"))
+            bindings.append((k("search_forward"), "metadata search"))
         if current_tab == "artifacts":
             if has_comments:
                 bindings.append((k("clear_comments"), "clear comments"))

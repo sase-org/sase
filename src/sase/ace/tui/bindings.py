@@ -58,7 +58,6 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Note: "!" binding removed - use "A" then "@" to mark ready to mail
     Binding("y", "refresh", "Refresh", show=False),
     Binding("Y", "sync", "Sync", show=False),
-    Binding("slash", "search_forward", "Search Forward", show=False),
     Binding("slash", "edit_query", "Edit Query", show=False),
     Binding("ctrl+r", "search_reverse", "Reverse Search Order", show=False),
     Binding("e", "edit_spec", "Edit Spec", show=False),

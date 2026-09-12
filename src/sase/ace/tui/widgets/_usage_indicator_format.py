@@ -57,13 +57,6 @@ def _two_unit_countdown(seconds: float) -> str:
     return f"{hours}h{minutes}m"
 
 
-def format_usage_specifier(entry: Mapping[str, Any]) -> str | None:
-    """Return the short window specifier, or ``None`` for a weekly/all-model window."""
-    if entry.get("weekly_all") is True:
-        return None
-    return _usage_specifier(entry, compact=False)
-
-
 def format_usage_compact_name(entry: Mapping[str, Any]) -> str:
     """Return the grouped-indicator name for a non-default usage window.
 
@@ -209,5 +202,4 @@ __all__ = [
     "format_usage_compact_name",
     "format_usage_countdown",
     "format_usage_percent_text",
-    "format_usage_specifier",
 ]

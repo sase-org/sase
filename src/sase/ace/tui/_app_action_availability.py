@@ -151,7 +151,7 @@ def check_app_action(
 
         if isinstance(app.focused, VimTextArea):
             return False
-    if action in {"search_forward", "search_reverse"}:
+    if action == "search_reverse":
         from textual.screen import ModalScreen
 
         if (
@@ -163,10 +163,9 @@ def check_app_action(
             or (bool(getattr(app, "_screen_stack", ())) and app._prompt_input_active())
         ):
             return False
-        if action == "search_reverse":
-            metadata_search = getattr(app, "_agent_metadata_search", None)
-            if not bool(getattr(metadata_search, "is_active", False)):
-                return False
+        metadata_search = getattr(app, "_agent_metadata_search", None)
+        if not bool(getattr(metadata_search, "is_active", False)):
+            return False
     # ``Ctrl+Space`` replays the last launched VCS xprompt by remounting the
     # prompt bar, which tears down whatever the user is currently typing
     # (``_show_prompt_input_bar_for_home`` unmounts first). The printable
@@ -177,8 +176,6 @@ def check_app_action(
     if action == "start_agent_from_patch" and (
         bool(getattr(app, "_screen_stack", ())) and app._prompt_input_active()
     ):
-        return False
-    if action == "edit_query" and app.current_tab == "agents":
         return False
     if action == "add_axe_item":
         return app.current_tab == "axe"

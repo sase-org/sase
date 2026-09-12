@@ -190,7 +190,7 @@ def test_facade_is_cached_and_reused_across_renders(
 
 
 def test_edit_agent_search_query_opens_filter_bar_on_flag() -> None:
-    """On-flag, ``,/`` opens the FilterBar (sase-zf.4) instead of the modal.
+    """On-flag, ``/`` opens the FilterBar (sase-zf.4) instead of the modal.
 
     The interim on-flag modal (this file's original coverage) was replaced
     once the filter-bar-ui phase landed; the legacy modal path remains the

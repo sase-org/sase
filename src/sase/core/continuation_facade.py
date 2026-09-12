@@ -12,7 +12,6 @@ from sase.core.continuation_wire import (
     ConditionalCompletionConsumeRequestWire,
     ConditionalCompletionEvaluateRequestWire,
     ConditionalCompletionIntentWire,
-    ConditionalCompletionMessageRequestWire,
     ConditionalCompletionPrepareRequestWire,
     ConditionalCompletionRollbackRequestWire,
     ContinuationBudgetRequestWire,
@@ -276,18 +275,6 @@ def invalidate_conditional_completion(
     )
 
 
-def render_conditional_completion_message(
-    request: ConditionalCompletionMessageRequestWire | JsonMapping,
-) -> JsonObject:
-    """Render a prepared success message with documented host-fact substitutions."""
-
-    binding = require_rust_binding("continuation_render_conditional_completion_message")
-    return _json_object(
-        binding(continuation_wire_to_json_dict(request)),
-        "continuation_render_conditional_completion_message",
-    )
-
-
 def _json_object(value: Any, operation: str) -> JsonObject:
     if not isinstance(value, Mapping):
         raise TypeError(f"{operation} returned a non-mapping payload")
@@ -304,7 +291,6 @@ __all__ = [
     "plan_continuation_budget",
     "plan_continuation_replay",
     "preview_conditional_completion",
-    "render_conditional_completion_message",
     "resolve_continuation_policy",
     "rollback_conditional_completion_binding",
     "seal_conditional_completion",

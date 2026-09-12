@@ -122,7 +122,7 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
                 "modes": {
                     "leader_mode": {
                         "prefix": "g",
-                        "keys": {"edit_query": "f5", "show_help": "f9"},
+                        "keys": {"search_forward": "f5", "show_help": "f9"},
                     }
                 },
             }
@@ -133,9 +133,9 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
     card = _section_plain(sections, "#agent-quickstart-card")
     hero = _section_plain(sections, "#agent-quickstart-hero")
 
-    for key in ("f2", "f3", "f4", "f5", "f6", "f7"):
+    for key in ("f2", "f3", "f4", "f6", "f7", "f8"):
         assert key in card
-    assert "f8" not in card
+    assert "f5" not in card
     assert "f9" not in card
     assert " ] " in card
     assert "Launch your first agent" in card

@@ -449,21 +449,6 @@ def query_agent_artifact_index_bounded(
     return agent_scan_wire_from_dict(payload)
 
 
-def load_agent_artifact_records(
-    index_path: Path | str,
-    artifact_dirs: Sequence[Path | str],
-) -> list[AgentArtifactRecordWire]:
-    """Return full index-backed records for exact artifact directories."""
-    index = Path(index_path).expanduser()
-    dirs = [str(Path(path).expanduser()) for path in artifact_dirs]
-    if not dirs:
-        return []
-    with agent_artifact_index_operation_lock():
-        rust_load = require_rust_binding("load_agent_artifact_records")
-        payload: list[dict[str, Any]] = rust_load(str(index), dirs)
-    return agent_artifact_records_from_dicts(payload)
-
-
 def load_agent_artifact_records_bounded(
     index_path: Path | str,
     artifact_dirs: Sequence[Path | str],
@@ -481,21 +466,6 @@ def load_agent_artifact_records_bounded(
         rust_load = require_rust_binding("load_agent_artifact_records")
         payload: list[dict[str, Any]] = rust_load(str(index), dirs)
     return agent_artifact_records_from_dicts(payload)
-
-
-def query_related_agent_artifact_dirs(
-    index_path: Path | str,
-    artifact_dir: Path | str,
-    seed_timestamps: Sequence[str],
-) -> list[Path]:
-    """Return index-backed artifact dirs for one related agent lineage."""
-    index = Path(index_path).expanduser()
-    artifact = Path(artifact_dir).expanduser()
-    seeds = [str(value) for value in seed_timestamps if value]
-    with agent_artifact_index_operation_lock():
-        rust_query = require_rust_binding("query_related_agent_artifact_dirs")
-        payload: list[str] = rust_query(str(index), str(artifact), seeds)
-    return [Path(path) for path in payload]
 
 
 def query_related_agent_artifact_dirs_bounded(
@@ -628,7 +598,6 @@ __all__ = [
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
-    "load_agent_artifact_records",
     "load_agent_artifact_records_bounded",
     "parse_output_variable_selector",
     "prune_hidden_terminal_agent_artifact_index_rows",
@@ -637,7 +606,6 @@ __all__ = [
     "query_agent_artifact_index_bounded",
     "query_agent_output_variable_history",
     "query_agent_output_variable_selectors",
-    "query_related_agent_artifact_dirs",
     "query_related_agent_artifact_dirs_bounded",
     "read_agent_artifact_index_meta",
     "rebuild_agent_artifact_index",

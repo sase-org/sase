@@ -8,9 +8,9 @@ import pytest
 from sase.core.agent_scan_facade import (
     agent_artifact_index_status,
     delete_agent_artifact_index_row_bounded,
-    load_agent_artifact_records,
+    load_agent_artifact_records_bounded,
     prune_hidden_terminal_agent_artifact_index_rows,
-    query_related_agent_artifact_dirs,
+    query_related_agent_artifact_dirs_bounded,
     read_agent_artifact_index_meta,
     scan_agent_artifact_dirs,
     scan_agent_artifacts,
@@ -338,7 +338,7 @@ def test_related_agent_artifact_dirs_calls_rust_binding(
 
     index_path = tmp_path / "agent_artifact_index.sqlite"
     artifact_dir = tmp_path / "artifacts" / "20260504120000"
-    related = query_related_agent_artifact_dirs(
+    related = query_related_agent_artifact_dirs_bounded(
         index_path,
         artifact_dir,
         ["20260504120000", ""],
@@ -368,7 +368,7 @@ def test_load_agent_artifact_records_calls_rust_binding(
 
     index_path = tmp_path / "agent_artifact_index.sqlite"
     artifact_dir = tmp_path / "projects/proj/artifacts/ace-run/20260504120000"
-    records = load_agent_artifact_records(index_path, [artifact_dir])
+    records = load_agent_artifact_records_bounded(index_path, [artifact_dir])
 
     assert calls == [(str(index_path), [str(artifact_dir)])]
     assert len(records) == 1

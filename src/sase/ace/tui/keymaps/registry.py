@@ -88,11 +88,9 @@ _LEGACY_FOLD_KEY_ALIASES: dict[str, str] = {
 
 
 # These app actions intentionally share a key because their tab applicability
-# is disjoint: metadata search is Agents-only, while query editing excludes
-# Agents. Preserve duplicate validation for every other app-action pairing.
+# is disjoint. Preserve duplicate validation for every other app-action pairing.
 _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
     {
-        frozenset({"edit_query", "search_forward"}),
         frozenset({"add_axe_item", "open_artifact_files"}),
         frozenset({"show_diff", "toggle_axe_description"}),
         # Pane-disjoint by construction: Beads vs Files open-externally actions.
@@ -135,6 +133,23 @@ _RETIRED_LEADER_KEYS: frozenset[str] = frozenset(
         "toggle_selected_agent_panels",
     }
 )
+
+
+# Stale slots from the Agents `/` vs `,/` shortcut swap. Drop them with a
+# targeted warning so they cannot reappear as runnable commands, and do not
+# translate either override into a second live shortcut.
+_RELOCATED_APP_KEYS: dict[str, str] = {
+    "search_forward": (
+        "Ignoring stale app keymap action 'search_forward'; "
+        "metadata search is now ace.keymaps.modes.leader_mode.keys.search_forward"
+    ),
+}
+_RELOCATED_LEADER_KEYS: dict[str, str] = {
+    "edit_query": (
+        "Ignoring stale leader_mode.keys.edit_query; "
+        "Agents query editing is now ace.keymaps.app.edit_query"
+    ),
+}
 
 
 def _deep_merge_keys(
@@ -316,6 +331,10 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         for retired_name in sorted(_RETIRED_APP_KEYS & app_overrides.keys()):
             app_overrides.pop(retired_name)
             log.debug("Ignoring retired app keymap action: %s", retired_name)
+        for relocated_name, message in _RELOCATED_APP_KEYS.items():
+            if relocated_name in app_overrides:
+                app_overrides.pop(relocated_name)
+                log.warning("%s", message)
 
     extra = sorted(set(app_overrides.keys()) - app_field_names)
     if extra:
@@ -431,6 +450,14 @@ def load_keymap_registry(ace_cfg: dict) -> KeymapRegistry:
         merged_keys = _deep_merge_keys(mode_defaults.keys, keys_overrides)
         merged_keys = _canonicalize_mode_keys(merged_keys)
         if mode_name == "leader_mode":
+            for relocated_name, message in _RELOCATED_LEADER_KEYS.items():
+                if relocated_name in merged_keys:
+                    # Only warn when the user actually overrode the retired
+                    # slot. Defaults no longer include it, so presence after
+                    # merge means a stale config key survived deep-merge.
+                    if relocated_name in keys_overrides:
+                        log.warning("%s", message)
+                    merged_keys.pop(relocated_name)
             merged_keys = {
                 name: value
                 for name, value in merged_keys.items()

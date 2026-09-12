@@ -34,7 +34,7 @@ _EVIDENCE_HEADING_RE = re.compile(
 
 
 @dataclass(frozen=True)
-class PromptComponentSizes:
+class _PromptComponentSizes:
     """Byte measurements for one rendered prompt projection."""
 
     local_bytes: int
@@ -44,7 +44,7 @@ class PromptComponentSizes:
 
 
 @dataclass(frozen=True)
-class NodeCounts:
+class _NodeCounts:
     """Best-known source identity counts for a rendered fork graph."""
 
     known_node_count: int
@@ -54,7 +54,7 @@ class NodeCounts:
 
 
 @dataclass(frozen=True)
-class BudgetEstimate:
+class _BudgetEstimate:
     """Conservative shadow budget estimate for a provider prompt."""
 
     estimated_tokens: int
@@ -65,7 +65,7 @@ class BudgetEstimate:
 
 
 @dataclass(frozen=True)
-class FallbackRouting:
+class _FallbackRouting:
     """Whether retry/fallback routing appears active for this prompt."""
 
     active: bool
@@ -74,15 +74,15 @@ class FallbackRouting:
 
 
 @dataclass(frozen=True)
-class ContinuationPromptMeasurement:
+class _ContinuationPromptMeasurement:
     """One shadow diagnostic record for continuation prompt cost fixtures."""
 
     schema_version: int
     component: ComponentName
-    prompt_sizes: PromptComponentSizes
-    node_counts: NodeCounts
-    budget: BudgetEstimate
-    fallback_routing: FallbackRouting
+    prompt_sizes: _PromptComponentSizes
+    node_counts: _NodeCounts
+    budget: _BudgetEstimate
+    fallback_routing: _FallbackRouting
     recorded_at_epoch: float
 
     def to_json_data(self) -> dict[str, object]:
@@ -94,16 +94,16 @@ def measure_fork_render(
     rendered_history: str,
     *,
     capacity_tokens: int | None = None,
-) -> ContinuationPromptMeasurement:
+) -> _ContinuationPromptMeasurement:
     """Measure the rendered ``#fork`` history block without changing it."""
 
-    sizes = measure_prompt_components(rendered_history)
+    sizes = _measure_prompt_components(rendered_history)
     return _measurement(
         "fork_render",
         sizes=sizes,
-        node_counts=node_counts_for_sources(sources),
+        node_counts=_node_counts_for_sources(sources),
         capacity_tokens=capacity_tokens,
-        fallback_routing=FallbackRouting(active=False, model=None),
+        fallback_routing=_FallbackRouting(active=False, model=None),
     )
 
 
@@ -115,22 +115,22 @@ def measure_provider_preprocess(
     model_override: str | None = None,
     provider_name: str | None = None,
     fallback_model: str | None = None,
-) -> ContinuationPromptMeasurement:
+) -> _ContinuationPromptMeasurement:
     """Measure the final prompt immediately before provider invocation."""
 
     fallback = fallback_model or os.environ.get("SASE_MODEL_OVERRIDE") or None
-    sizes = measure_prompt_components(prompt)
+    sizes = _measure_prompt_components(prompt)
     return _measurement(
         "provider_preprocess",
         sizes=sizes,
-        node_counts=NodeCounts(
+        node_counts=_NodeCounts(
             known_node_count=0,
             unique_node_count=0,
             duplicate_node_count=0,
             source_kind_counts={},
         ),
         capacity_tokens=capacity_tokens,
-        fallback_routing=FallbackRouting(
+        fallback_routing=_FallbackRouting(
             active=fallback is not None,
             model=fallback or model_override or model_tier,
             provider=provider_name,
@@ -138,7 +138,7 @@ def measure_provider_preprocess(
     )
 
 
-def measure_prompt_components(prompt: str) -> PromptComponentSizes:
+def _measure_prompt_components(prompt: str) -> _PromptComponentSizes:
     """Classify local/history/evidence byte costs in a rendered prompt.
 
     ``history_bytes`` covers the legacy injected ``#fork`` prefix when present.
@@ -154,7 +154,7 @@ def measure_prompt_components(prompt: str) -> PromptComponentSizes:
     else:
         history = ""
         local = prompt
-    return PromptComponentSizes(
+    return _PromptComponentSizes(
         local_bytes=_utf8_len(local),
         history_bytes=_utf8_len(history),
         evidence_bytes=_evidence_bytes(prompt),
@@ -162,9 +162,9 @@ def measure_prompt_components(prompt: str) -> PromptComponentSizes:
     )
 
 
-def node_counts_for_sources(
+def _node_counts_for_sources(
     sources: Sequence[Mapping[str, object]],
-) -> NodeCounts:
+) -> _NodeCounts:
     """Return best-known source identity counts from today's fork source dicts."""
 
     identities: list[str] = []
@@ -175,7 +175,7 @@ def node_counts_for_sources(
         identities.extend(_source_node_identities(source))
 
     unique = set(identities)
-    return NodeCounts(
+    return _NodeCounts(
         known_node_count=len(identities),
         unique_node_count=len(unique),
         duplicate_node_count=len(identities) - len(unique),
@@ -185,7 +185,7 @@ def node_counts_for_sources(
 
 def record_shadow_measurement(
     artifacts_dir: str | Path | None,
-    measurement: ContinuationPromptMeasurement,
+    measurement: _ContinuationPromptMeasurement,
 ) -> None:
     """Append one shadow measurement to an artifacts-side JSONL file.
 
@@ -207,12 +207,12 @@ def record_shadow_measurement(
 def _measurement(
     component: ComponentName,
     *,
-    sizes: PromptComponentSizes,
-    node_counts: NodeCounts,
+    sizes: _PromptComponentSizes,
+    node_counts: _NodeCounts,
     capacity_tokens: int | None,
-    fallback_routing: FallbackRouting,
-) -> ContinuationPromptMeasurement:
-    return ContinuationPromptMeasurement(
+    fallback_routing: _FallbackRouting,
+) -> _ContinuationPromptMeasurement:
+    return _ContinuationPromptMeasurement(
         schema_version=SCHEMA_VERSION,
         component=component,
         prompt_sizes=sizes,
@@ -226,10 +226,10 @@ def _measurement(
     )
 
 
-def _budget_estimate(total_bytes: int, *, capacity_tokens: int) -> BudgetEstimate:
+def _budget_estimate(total_bytes: int, *, capacity_tokens: int) -> _BudgetEstimate:
     estimated_tokens = _estimate_tokens(total_bytes)
     headroom = capacity_tokens - estimated_tokens
-    return BudgetEstimate(
+    return _BudgetEstimate(
         estimated_tokens=estimated_tokens,
         capacity_tokens=capacity_tokens,
         headroom_tokens=headroom,
@@ -323,14 +323,7 @@ def _utf8_len(text: str) -> int:
 __all__ = [
     "DEFAULT_CONTEXT_BUDGET_TOKENS",
     "MEASUREMENT_LOG_NAME",
-    "BudgetEstimate",
-    "ContinuationPromptMeasurement",
-    "FallbackRouting",
-    "NodeCounts",
-    "PromptComponentSizes",
     "measure_fork_render",
-    "measure_prompt_components",
     "measure_provider_preprocess",
-    "node_counts_for_sources",
     "record_shadow_measurement",
 ]

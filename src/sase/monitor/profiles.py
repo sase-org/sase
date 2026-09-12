@@ -11,7 +11,7 @@ MONITOR_PROFILE_CHOICES = (VERIFY_MONITOR_PROFILE_NAME,)
 
 
 @dataclass(frozen=True)
-class MonitorProfile:
+class _MonitorProfile:
     """Resolved defaults supplied by one named monitor profile."""
 
     name: str
@@ -20,7 +20,7 @@ class MonitorProfile:
     next_output: str
 
 
-VERIFY_MONITOR_PROFILE = MonitorProfile(
+VERIFY_MONITOR_PROFILE = _MonitorProfile(
     name=VERIFY_MONITOR_PROFILE_NAME,
     start_status="TESTING",
     stop_status="TESTED",
@@ -28,7 +28,7 @@ VERIFY_MONITOR_PROFILE = MonitorProfile(
 )
 
 
-def resolve_monitor_profile(name: str | None) -> MonitorProfile | None:
+def resolve_monitor_profile(name: str | None) -> _MonitorProfile | None:
     """Return the named monitor profile, or ``None`` when omitted/unknown."""
     if not name:
         return None
@@ -39,7 +39,6 @@ def resolve_monitor_profile(name: str | None) -> MonitorProfile | None:
 
 __all__ = [
     "MONITOR_PROFILE_CHOICES",
-    "MonitorProfile",
     "VERIFY_MONITOR_PROFILE",
     "VERIFY_MONITOR_PROFILE_NAME",
     "resolve_monitor_profile",

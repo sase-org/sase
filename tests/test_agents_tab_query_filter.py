@@ -50,6 +50,10 @@ class _FilterActionApp(AgentFilterActionsMixin):
     def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
         self.async_refresh_calls.append(source)
 
+    def _record_explicit_agents_query_commit(self, source: str) -> None:
+        self._agent_search_query = "" if not source.strip() else source
+        self._agent_search_query_seeded = False
+
     def push_screen(self, _modal: Any, callback: Any) -> None:
         self.pushed_callback = callback
 

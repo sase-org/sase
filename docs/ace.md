@@ -393,7 +393,7 @@ valid queries.
 The top-level Agents tab uses the same Boolean grammar through the live `agents-live`
 profile, but keeps zero idle screen-space cost: when no query is active, no filter row
 is visible; when a query is active, the metadata panel shows the canonical highlighted
-query and match count. Press `f` or `,/` to open the auto-hiding filter bar. Live Agent
+query and match count. Press `/` or `f` to open the auto-hiding filter bar. Live Agent
 fields include the shared identity and runtime fields (`name`, `family`, `clan`,
 `project`, `kind`, `role`, `workflow`, `model`, `provider`, `status`, `attempt`,
 `hidden`, `attention`, `retry`, `since`, `until`, `after`, `before`, `min`, `max`,
@@ -2344,9 +2344,9 @@ directives that create it.
 
 ### Agent Search
 
-Press `f` or `,/` (leader mode) on the Agents tab to open the auto-hiding filter bar.
-Bare `/` stays reserved for forward inline metadata search. The filter bar uses the same
-**structured Boolean Agent dialect** as Artifacts -> Agent and
+Press `/` or `f` on the Agents tab to open the auto-hiding filter bar. `,/` (leader
+mode) starts forward inline metadata search over the selected agent's metadata. The
+filter bar uses the same **structured Boolean Agent dialect** as Artifacts -> Agent and
 [`sase agent search`](configuration.md#sase-agent), evaluated against the live
 `agents-live` profile. Bare words match an agent's `cl_name`, `display_name`,
 `agent_name`, and `status`, plus its **xprompt, live reply/response, chat transcript,
@@ -2427,7 +2427,7 @@ modal.
 | Key        | Action                                                                                            |
 | ---------- | ------------------------------------------------------------------------------------------------- |
 | `,,`       | Repeat the last leader command                                                                    |
-| `,/`       | Edit the Agents query                                                                             |
+| `,/`       | Search the selected agent's metadata                                                              |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                           |
 | `,g`       | Toggle between tribe-split panels and one merged agent panel                                      |
 | `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read |
@@ -2848,11 +2848,10 @@ cancels, with configured target keys taking precedence.
 
 ### Editing Queries
 
-`/` is the app-level query key on every Artifacts pane. Every pane with a filter session
-keeps a persistent idle filter row; `/` (or the local `f`) focuses it for editing.
-Agents reserves bare `/` for forward inline metadata search, so its structured query
-editor uses the independent `,/` leader chord instead. Help is the app-level `?` on
-every tab.
+`/` is the app-level query key on every Artifacts pane and on the top-level Agents tab.
+Every pane with a filter session keeps a persistent idle filter row; `/` (or the local
+`f`) focuses it for editing. On Agents, `/` (or `f`) opens the auto-hiding filter bar,
+and `,/` starts forward inline metadata search. Help is the app-level `?` on every tab.
 
 | Context            | Default query key  |
 | ------------------ | ------------------ |
@@ -2862,7 +2861,7 @@ every tab.
 | Provider documents | `/` (or local `f`) |
 | Files              | `/` (or local `f`) |
 | Artifacts → Agent  | `/` (or local `f`) |
-| Agents tab query   | `f` or `,/`        |
+| Agents tab query   | `/` or `f`         |
 
 The Axe tab has no query editor. Its `?` help modal and the command palette both still
 offer "Edit search query" there, but the action currently does nothing on Axe; use the
@@ -5150,14 +5149,16 @@ ace:
     app:
       next_patch: "n" # Remap j -> n
       prev_patch: "p" # Remap k -> p
-      edit_query: "f5" # Every Artifacts query pane
+      edit_query: "f5" # Structured query on Artifacts and Agents
       show_notifications: "N" # Remap i → N
 ```
 
-The Agents structured-query shortcut is independent: remap
-`ace.keymaps.modes.leader_mode.keys.edit_query` to change the subkey after the
-configured leader prefix. Bare Agents metadata search remains under
-`ace.keymaps.app.search_forward`.
+Agents metadata search is independent: remap
+`ace.keymaps.modes.leader_mode.keys.search_forward` to change the subkey after the
+configured leader prefix. Structured query editing on every query-capable surface,
+including Agents, is `ace.keymaps.app.edit_query`. Stale `app.search_forward` and
+`leader_mode.keys.edit_query` overrides are ignored with a warning pointing at those
+replacements.
 
 ### Remapping Statistics Pane Keys
 
@@ -5326,8 +5327,8 @@ The keymap loader validates all configuration:
 - **Invalid keys** are reverted to their defaults with a warning
 - **Duplicate keys within one binding scope** are detected and the conflicting override
   is reverted
-- The contextual Agents `search_forward` and non-Agents `edit_query` actions may
-  intentionally share a key
+- Stale `app.search_forward` and `leader_mode.keys.edit_query` overrides are ignored
+  with a warning; they are not translated into a second live shortcut
 - **Prefix conflicts** between custom mode prefixes and existing app bindings are warned
 
 See [`docs/configuration.md`](configuration.md) for the full `ace.keymaps` configuration

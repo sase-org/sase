@@ -7,12 +7,6 @@ from typing import Any
 from sase.core.rust import require_rust_binding
 
 
-def repository_resolution_wire_schema_version() -> int:
-    """Return the repository-resolution wire schema version."""
-    binding = require_rust_binding("repository_resolution_wire_schema_version")
-    return int(binding())
-
-
 def canonical_repository_identity(value: str) -> dict[str, Any] | None:
     """Canonicalize a supported repository identity via ``sase_core_rs``."""
     binding = require_rust_binding("canonical_repository_identity")
@@ -29,6 +23,5 @@ def resolve_repository_reference(request: dict[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "canonical_repository_identity",
-    "repository_resolution_wire_schema_version",
     "resolve_repository_reference",
 ]

@@ -91,7 +91,7 @@ class ContinuationExecutionIdentityWire(TypedDict):
     workspace_id: NotRequired[str | None]
 
 
-class ContinuationAttributionWire(TypedDict):
+class _ContinuationAttributionWire(TypedDict):
     actor_kind: str
     actor_id: str
     decision_ref: NotRequired[str | None]
@@ -108,7 +108,7 @@ class ContinuationNodeWire(TypedDict):
     checkpoint_ref: NotRequired[str | None]
     intent_ref: NotRequired[str | None]
     workspace_ref: NotRequired[str | None]
-    attribution: NotRequired[ContinuationAttributionWire | None]
+    attribution: NotRequired[_ContinuationAttributionWire | None]
 
 
 class ContinuationPromptSegmentWire(TypedDict):
@@ -148,7 +148,7 @@ class ContinuationIntentWire(TypedDict):
     conditional_completion_ref: NotRequired[str | None]
 
 
-class ContinuationByteRangeWire(TypedDict):
+class _ContinuationByteRangeWire(TypedDict):
     start: int
     end: int
 
@@ -157,26 +157,26 @@ class RetainedLogMetadataWire(TypedDict):
     log_ref: NotRequired[str | None]
     local_locator: NotRequired[str | None]
     total_observed_bytes: NotRequired[int | None]
-    retained_ranges: NotRequired[list[ContinuationByteRangeWire]]
+    retained_ranges: NotRequired[list[_ContinuationByteRangeWire]]
     complete: NotRequired[bool]
     drain_confirmed: NotRequired[bool]
 
 
-class DiagnosticStageWire(TypedDict):
+class _DiagnosticStageWire(TypedDict):
     stage_id: str
     name: str
     status: DiagnosticStageStatus
     exit_code: NotRequired[int | None]
     diagnostic_refs: NotRequired[list[str]]
     counts: NotRequired[dict[str, int]]
-    retained_ranges: NotRequired[list[ContinuationByteRangeWire]]
+    retained_ranges: NotRequired[list[_ContinuationByteRangeWire]]
     capture_errors: NotRequired[list[str]]
 
 
 class DiagnosticManifestWire(TypedDict):
     schema_version: int
     producer: str
-    stages: NotRequired[list[DiagnosticStageWire]]
+    stages: NotRequired[list[_DiagnosticStageWire]]
     complete: NotRequired[bool]
     manifest_ref: NotRequired[str | None]
 
@@ -221,33 +221,6 @@ class ContinuationReplayPlanRequestWire(TypedDict):
     max_depth: NotRequired[int | None]
 
 
-class ContinuationReplayBlockWire(TypedDict):
-    block_id: str
-    node_id: str
-    kind: ContinuationNodeKind
-    content_ref: str
-    content_sha256: str
-    parent_ids: NotRequired[list[str]]
-    checkpoint_ref: NotRequired[str | None]
-    intent_ref: NotRequired[str | None]
-    workspace_ref: NotRequired[str | None]
-
-
-class ContinuationReplayManifestWire(TypedDict):
-    schema_version: int
-    projection_version: int
-    ordered_node_ids: NotRequired[list[str]]
-    parent_edges: NotRequired[list[JsonObject]]
-    branch_attribution: NotRequired[list[JsonObject]]
-    selected_evidence_refs: NotRequired[list[str]]
-    checkpoint_coverage: NotRequired[list[JsonObject]]
-    omissions: NotRequired[list[JsonObject]]
-    stable_blocks: NotRequired[list[ContinuationReplayBlockWire]]
-    rendered_component_sizes: JsonObject
-    budget: NotRequired[JsonObject | None]
-    prefix_reset_reason: NotRequired[str | None]
-
-
 class ContinuationPolicyResolutionRequestWire(TypedDict):
     schema_version: int
     outcome: MonitorOutcome
@@ -280,19 +253,19 @@ class LaunchRequesterContinuationWire(TypedDict):
     terminal_branches: NotRequired[list[str]]
 
 
-class VerificationContractWire(TypedDict):
+class _VerificationContractWire(TypedDict):
     command: list[str]
     level: VerificationLevel
     required_stages: NotRequired[list[str]]
 
 
-class RepositoryDecisionWire(TypedDict):
+class _RepositoryDecisionWire(TypedDict):
     repo_id: str
     action: str
     message: str
 
 
-class ObservedPathWire(TypedDict):
+class _ObservedPathWire(TypedDict):
     path: str
     kind: ObservedPathKind
     xy: NotRequired[str | None]
@@ -302,7 +275,7 @@ class ObservedPathWire(TypedDict):
     foreign: NotRequired[bool]
 
 
-class RepositoryObservationWire(TypedDict):
+class _RepositoryObservationWire(TypedDict):
     repo_id: str
     kind: str
     name: str
@@ -310,10 +283,10 @@ class RepositoryObservationWire(TypedDict):
     head_tree: str
     index_tree: str
     complete: bool
-    paths: NotRequired[list[ObservedPathWire]]
+    paths: NotRequired[list[_ObservedPathWire]]
 
 
-class ExecutorCapabilityWire(TypedDict):
+class _ExecutorCapabilityWire(TypedDict):
     instance_id: str
     provider_ref: str
     headless: NotRequired[bool]
@@ -321,7 +294,7 @@ class ExecutorCapabilityWire(TypedDict):
     requires_model: NotRequired[bool]
 
 
-class ConditionalCompletionContextWire(TypedDict):
+class _ConditionalCompletionContextWire(TypedDict):
     run_id: str
     agent_id: str
     turn_nonce: str
@@ -330,13 +303,13 @@ class ConditionalCompletionContextWire(TypedDict):
     obligation_ids: NotRequired[list[str]]
 
 
-class ConditionalCompletionBindingWire(TypedDict):
+class _ConditionalCompletionBindingWire(TypedDict):
     monitor_id: NotRequired[str | None]
     request_fingerprint: NotRequired[str | None]
     bound_command: NotRequired[list[str] | None]
 
 
-class ConditionalCompletionSealWire(TypedDict):
+class _ConditionalCompletionSealWire(TypedDict):
     digest: str
     creator: ContinuationExecutionIdentityWire
     plan_digest: str
@@ -350,24 +323,24 @@ class ConditionalCompletionIntentWire(TypedDict):
     intent_id: str
     kind: str
     status: ConditionalCompletionStatus
-    verification: VerificationContractWire
+    verification: _VerificationContractWire
     success_message: str
     declaration: JsonObject
-    observations: list[RepositoryObservationWire]
-    seal: ConditionalCompletionSealWire
-    repository_decisions: NotRequired[list[RepositoryDecisionWire]]
-    binding: NotRequired[ConditionalCompletionBindingWire]
+    observations: list[_RepositoryObservationWire]
+    seal: _ConditionalCompletionSealWire
+    repository_decisions: NotRequired[list[_RepositoryDecisionWire]]
+    binding: NotRequired[_ConditionalCompletionBindingWire]
 
 
 class ConditionalCompletionPrepareRequestWire(TypedDict):
     schema_version: int
     creator: ContinuationExecutionIdentityWire
-    context: ConditionalCompletionContextWire
+    context: _ConditionalCompletionContextWire
     success_message: str
     verification_command: list[str]
     declaration: JsonObject
-    observations: list[RepositoryObservationWire]
-    executors: NotRequired[list[ExecutorCapabilityWire]]
+    observations: list[_RepositoryObservationWire]
+    executors: NotRequired[list[_ExecutorCapabilityWire]]
 
 
 class ConditionalCompletionBindRequestWire(TypedDict):
@@ -384,52 +357,26 @@ class ConditionalCompletionRollbackRequestWire(TypedDict):
     monitor_id: str
 
 
-class ConditionalCompletionPreviewWire(TypedDict):
-    schema_version: int
-    success_action: str
-    repository_decisions: list[RepositoryDecisionWire]
-    required_checks: VerificationContractWire
-    prepared_message: str
-    failure_timeout_routing: str
-    eligible: bool
-    reasons: NotRequired[list[str]]
-
-
 class ConditionalCompletionEvaluateRequestWire(TypedDict):
     schema_version: int
     intent: ConditionalCompletionIntentWire
     outcome: MonitorOutcome
     command: list[str]
-    observations: list[RepositoryObservationWire]
+    observations: list[_RepositoryObservationWire]
     workspace_identity: str
     original_workspace_identity: str
     current_plan_digest: str
     exit_code: NotRequired[int | None]
-    stages: NotRequired[list[DiagnosticStageWire]]
-    executors: NotRequired[list[ExecutorCapabilityWire]]
+    stages: NotRequired[list[_DiagnosticStageWire]]
+    executors: NotRequired[list[_ExecutorCapabilityWire]]
     degraded_workspace: NotRequired[bool]
     current_obligation_ids: NotRequired[list[str]]
     substitutions: NotRequired[dict[str, str]]
 
 
-class ConditionalCompletionDecisionWire(TypedDict):
-    schema_version: int
-    eligible: bool
-    action: str
-    reason: NotRequired[str | None]
-    reasons: NotRequired[list[str]]
-    rendered_message: NotRequired[str | None]
-
-
 class ConditionalCompletionConsumeRequestWire(TypedDict):
     schema_version: int
     intent: ConditionalCompletionIntentWire
-
-
-class ConditionalCompletionMessageRequestWire(TypedDict):
-    schema_version: int
-    success_message: str
-    substitutions: NotRequired[dict[str, str]]
 
 
 def continuation_wire_to_json_dict(value: Any) -> Any:
@@ -450,24 +397,16 @@ __all__ = [
     "AgentDeltaStatus",
     "AgentDeltaWire",
     "ConditionalCompletionBindRequestWire",
-    "ConditionalCompletionBindingWire",
     "ConditionalCompletionConsumeRequestWire",
-    "ConditionalCompletionContextWire",
-    "ConditionalCompletionDecisionWire",
     "ConditionalCompletionEvaluateRequestWire",
     "ConditionalCompletionIntentWire",
-    "ConditionalCompletionMessageRequestWire",
     "ConditionalCompletionPrepareRequestWire",
-    "ConditionalCompletionPreviewWire",
     "ConditionalCompletionRollbackRequestWire",
-    "ConditionalCompletionSealWire",
     "ConditionalCompletionStatus",
     "ContinuationAction",
-    "ContinuationAttributionWire",
     "ContinuationBudgetDecisionKind",
     "ContinuationBudgetReductionKind",
     "ContinuationBudgetRequestWire",
-    "ContinuationByteRangeWire",
     "ContinuationDeliveryDisposition",
     "ContinuationEvidenceContextKind",
     "ContinuationEvidencePolicy",
@@ -480,13 +419,9 @@ __all__ = [
     "ContinuationPolicyResolutionRequestWire",
     "ContinuationPromptSegmentProvenance",
     "ContinuationPromptSegmentWire",
-    "ContinuationReplayBlockWire",
-    "ContinuationReplayManifestWire",
     "ContinuationReplayPlanRequestWire",
     "DiagnosticManifestWire",
     "DiagnosticStageStatus",
-    "DiagnosticStageWire",
-    "ExecutorCapabilityWire",
     "JsonMapping",
     "JsonObject",
     "LaunchRequesterContinuationMode",
@@ -495,11 +430,7 @@ __all__ = [
     "MonitorResultWire",
     "MonitorTimeoutKind",
     "ObservedPathKind",
-    "ObservedPathWire",
-    "RepositoryDecisionWire",
-    "RepositoryObservationWire",
     "RetainedLogMetadataWire",
-    "VerificationContractWire",
     "VerificationLevel",
     "continuation_wire_to_json_dict",
 ]

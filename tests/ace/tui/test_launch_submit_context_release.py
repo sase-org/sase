@@ -55,7 +55,7 @@ def test_real_submit_path_releases_context_and_reopens_gates() -> None:
         check_app_action(app, "start_agent_from_patch", (), lambda *_args: True)
         is not False
     )
-    assert check_app_action(app, "search_forward", (), lambda *_args: True) is not False
+    assert check_app_action(app, "edit_query", (), lambda *_args: True) is not False
 
     app._on_auto_refresh()
     assert app.refresh_calls == ["spawn"]

@@ -28,11 +28,12 @@ def test_empty_config_uses_builtin_defaults() -> None:
     assert reg.app.prev_agent_metadata_section == "ctrl+k"
     assert reg.app.artifacts_load_more == "ctrl+j"
     assert reg.app.artifacts_unload == "ctrl+k"
-    assert reg.app.search_forward == "slash"
+    assert not hasattr(reg.app, "search_forward")
     assert reg.app.edit_query == "slash"
     assert reg.app.search_reverse == "ctrl+r"
     assert reg.app.show_help == "question_mark"
-    assert reg.leader_mode.keys["edit_query"] == "slash"
+    assert reg.leader_mode.keys["search_forward"] == "slash"
+    assert "edit_query" not in reg.leader_mode.keys
     assert "show_help" not in reg.leader_mode.keys
     assert isinstance(reg.fold_mode, FoldModeKeymaps)
     assert isinstance(reg.copy_mode, CopyModeKeymaps)

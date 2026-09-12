@@ -357,7 +357,7 @@ def test_discover_related_tool_artifact_dirs_uses_index_without_fallback_scan(
             return_value=index_path,
         ),
         patch(
-            "sase.core.agent_scan_facade.query_related_agent_artifact_dirs",
+            "sase.core.agent_scan_facade.query_related_agent_artifact_dirs_bounded",
             return_value=[root_dir, retry_dir],
         ) as query_index,
         patch.object(

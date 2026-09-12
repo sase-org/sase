@@ -21,6 +21,24 @@ def test_retired_selected_panel_toggle_leader_override_is_filtered() -> None:
     assert "toggle_selected_agent_panels" not in reg.leader_mode.keys
 
 
+def test_stale_leader_edit_query_override_is_ignored(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {
+                "keymaps": {
+                    "modes": {"leader_mode": {"keys": {"edit_query": "f6"}}},
+                }
+            }
+        )
+
+    assert "edit_query" not in reg.leader_mode.keys
+    assert reg.leader_mode.keys["search_forward"] == "slash"
+    assert "stale leader_mode.keys.edit_query" in caplog.text
+    assert "ace.keymaps.app.edit_query" in caplog.text
+
+
 def test_app_query_and_help_overrides_are_honored_while_leader_help_is_retired(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

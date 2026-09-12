@@ -97,7 +97,14 @@ class EventHandlersBase:
         query = getattr(self, "query", None)
         if query is None:
             return False
+        if not getattr(self, "_screen_stack", ()):
+            return False
+
+        from textual.app import ScreenStackError
 
         from ..widgets.prompt_input_bar import PromptInputBar
 
-        return bool(query(PromptInputBar))
+        try:
+            return bool(query(PromptInputBar))
+        except ScreenStackError:
+            return False

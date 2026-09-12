@@ -83,11 +83,6 @@ def _usage_gap_surface_color(*, dark: bool) -> str:
     return GAP_SURFACE_DARK_COLOR if dark else GAP_SURFACE_LIGHT_COLOR
 
 
-def usage_secondary_style(*, dark: bool) -> str:
-    """Return the normal-weight style for provider-icon-fallback/specifier text."""
-    return usage_neutral_color(dark=dark)
-
-
 def usage_badge_base_style(*, dark: bool) -> str:
     """Return one badge's complete base style: neutral text on its own surface.
 
@@ -148,7 +143,6 @@ __all__ = [
     "usage_neutral_color",
     "usage_percent_color",
     "usage_rejected_style",
-    "usage_secondary_style",
     "usage_value_style",
     "usage_zero_value_style",
 ]

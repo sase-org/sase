@@ -158,7 +158,7 @@ class LeaderModeKeymaps(ModeKeymaps):
     keys: dict[str, str | dict[str, str]] = field(
         default_factory=lambda: {
             "repeat_last": "comma",
-            "edit_query": "slash",
+            "search_forward": "slash",
             "run_cmd": "exclamation_mark",
             "runners": "R",
             "revert_agent": "r",

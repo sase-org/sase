@@ -164,6 +164,35 @@ async def test_filter_commit_persists_and_restores_in_fresh_session(
     assert "status:FAILED" in provider_queries
 
 
+async def test_slash_opens_the_bar_and_commits_like_f(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=_fixture_agents())
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        bar = page.app.query_one(AgentsFilterBar)
+        assert bar.display is False
+
+        await page.press("slash")
+        await page.pause()
+        assert bar.display is True
+        assert page.app._agents_filter_session_open is True
+
+        await _type(page, "status:FAILED")
+        await page.pause()
+        assert page.app._agents_live_preview_query == "status:FAILED"
+        assert page.app._agent_search_query == ""
+
+        await page.press("enter")
+        await page.pause()
+
+        assert page.app._agents_filter_session_open is False
+        assert bar.display is False
+        assert page.app._agent_search_query == "status:FAILED"
+        assert [a.cl_name for a in page.app._agents] == ["failed-one"]
+
+
 async def test_explicit_empty_filter_commit_restores_unfiltered_view(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -359,3 +388,23 @@ async def test_flag_off_f_does_not_open_the_bar(
             bar = page.app.query_one(AgentsFilterBar)
             assert bar.display is False
             assert page.app._agents_filter_session_open is False
+
+
+async def test_flag_off_slash_opens_the_legacy_query_modal_and_commits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.feature_flags import override_flags
+
+    patch_startup_loaders(monkeypatch, agents=_fixture_agents())
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        with override_flags(agents_unified_query=False):
+            await page.press("slash")
+            await page.pause()
+            await page.expect_modal("QueryEditModal")
+            await _type(page, "status:FAILED")
+            await page.press("enter")
+            await page.pause()
+            await page.expect_no_modal()
+            assert page.app._agent_search_query == "status:FAILED"

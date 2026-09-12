@@ -9,7 +9,7 @@ import shlex
 import subprocess
 import sys
 
-from sase.continuation_baseline import measure_fork_render, measure_prompt_components
+from sase.continuation_baseline import measure_fork_render, _measure_prompt_components
 from sase.history.chat import build_fork_injected_history
 from sase.monitor.followup_prompt import compose_followup_prompt
 
@@ -90,7 +90,7 @@ def test_interrupted_starter_fixture_has_no_parent_history_prefix() -> None:
         exit_code=0,
         **_COMMON,
     )
-    sizes = measure_prompt_components(prompt)
+    sizes = _measure_prompt_components(prompt)
 
     assert "#fork:" not in prompt
     assert sizes.history_bytes == 0

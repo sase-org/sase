@@ -148,7 +148,11 @@ def test_metadata_search_palette_entries_follow_transient_search_state() -> None
     catalog = _catalog_by_id()
     ctx = CommandContext(tab="agents")
 
-    assert is_command_available(catalog["app.search_forward"], ctx)
+    assert is_command_available(catalog["leader.search_forward"], ctx)
+    assert not is_command_available(
+        catalog["leader.search_forward"],
+        CommandContext(tab="axe"),
+    )
     assert not is_command_available(catalog["app.search_reverse"], ctx)
     assert is_command_available(
         catalog["app.search_reverse"],

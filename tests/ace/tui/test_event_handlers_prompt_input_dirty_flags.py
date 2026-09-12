@@ -39,7 +39,7 @@ def test_stale_prompt_contexts_do_not_latch_action_or_refresh_gates(
         check_app_action(app, "start_agent_from_patch", (), lambda *_args: True)
         is not False
     )
-    assert check_app_action(app, "search_forward", (), lambda *_args: True) is not False
+    assert check_app_action(app, "edit_query", (), lambda *_args: True) is not False
 
 
 def test_auto_refresh_treats_mounted_prompt_bar_as_prompt_input() -> None:

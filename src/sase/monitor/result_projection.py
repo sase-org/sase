@@ -37,6 +37,7 @@ SELECTED_DIAGNOSTICS_MAX_BYTES = 8 * 1024
 FALLBACK_TAIL_MAX_BYTES = 4 * 1024
 TOTAL_RAW_EXCERPT_MAX_BYTES = 12 * 1024
 RAW_TAIL_LINES = 200
+WIRE_COMMAND_PART_MAX_BYTES = 1024
 
 _EVIDENCE_LIMITS = {
     "selected_diagnostics_bytes": SELECTED_DIAGNOSTICS_MAX_BYTES,
@@ -46,7 +47,7 @@ _EVIDENCE_LIMITS = {
 }
 
 
-def normalize_next_output(
+def _normalize_next_output(
     value: object,
     *,
     missing: ContinuationEvidencePolicy = DEFAULT_NEXT_OUTPUT,
@@ -58,7 +59,7 @@ def normalize_next_output(
     return missing
 
 
-def monitor_outcome(
+def _monitor_outcome(
     monitor_state: object,
     *,
     exit_code: int | None = None,
@@ -104,7 +105,7 @@ def build_monitor_result_wire(
     """Build a Rust-valid monitor-result wire record from local facts."""
 
     safe_monitor_id = _safe_identifier(monitor_id or "monitor")
-    outcome = monitor_outcome(monitor_state, exit_code=exit_code)
+    outcome = _monitor_outcome(monitor_state, exit_code=exit_code)
     command_argv = _command_argv(command)
     normalized_exit_code = _exit_code_for_outcome(outcome, exit_code)
     elapsed_ms = _elapsed_ms(elapsed_seconds)
@@ -168,7 +169,7 @@ def select_monitor_result_evidence(
     request: dict[str, Any] = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "result": dict(result),
-        "policy": normalize_next_output(next_output),
+        "policy": _normalize_next_output(next_output),
         "historical_result": bool(historical_result),
         "limits": dict(_EVIDENCE_LIMITS),
     }
@@ -348,14 +349,26 @@ def _format_output_summary(total_bytes: int, truncated: bool) -> str:
 def _command_argv(command: object) -> list[str]:
     if isinstance(command, str):
         text = command.strip()
-        return ["/bin/sh", "-c", text] if text else ["unknown"]
+        return _wire_command_parts(["/bin/sh", "-c", text]) if text else ["unknown"]
     if isinstance(command, Sequence) and not isinstance(
         command,
         bytes | bytearray | str,
     ):
         parts = [str(part) for part in command if str(part)]
-        return parts or ["unknown"]
+        return _wire_command_parts(parts) or ["unknown"]
     return ["unknown"]
+
+
+def _wire_command_parts(parts: Sequence[str]) -> list[str]:
+    return [_wire_command_part(part) for part in parts]
+
+
+def _wire_command_part(part: str) -> str:
+    if len(part.encode("utf-8")) <= WIRE_COMMAND_PART_MAX_BYTES:
+        return part
+    digest = _sha_text(part)[:16]
+    prefix = part.encode("utf-8")[:64].decode("utf-8", errors="ignore").rstrip()
+    return f"{prefix}... [command part omitted; sha256:{digest}]"
 
 
 def _retained_log_wire(
@@ -555,8 +568,6 @@ __all__ = [
     "SELECTED_DIAGNOSTICS_MAX_BYTES",
     "TOTAL_RAW_EXCERPT_MAX_BYTES",
     "build_monitor_result_wire",
-    "monitor_outcome",
-    "normalize_next_output",
     "output_cell_for_selection",
     "render_monitor_evidence_section",
     "render_monitor_result_block",

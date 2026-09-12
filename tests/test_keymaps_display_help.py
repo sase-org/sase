@@ -3,6 +3,7 @@
 from sase.ace.tui.keymaps import (
     footer_key_display,
     key_display_name,
+    leader_key_display,
     load_keymap_registry,
     memory_help_bindings,
 )
@@ -33,7 +34,7 @@ def test_contextual_query_and_help_overrides_update_help_displays() -> None:
                 "modes": {
                     "leader_mode": {
                         "prefix": "g",
-                        "keys": {"edit_query": "f", "show_help": "h"},
+                        "keys": {"search_forward": "f", "show_help": "h"},
                     }
                 },
             }
@@ -54,10 +55,9 @@ def test_contextual_query_and_help_overrides_update_help_displays() -> None:
         for _section, bindings in agents_bindings(reg)
         for key, label in bindings
     }
-    # The unified-dialect FilterBar (sase-zf.4, on by default) adds the
-    # direct `agents_filters` binding alongside the remapped leader chord.
     filters_key = key_display_name(reg.app.agents_filters)
-    assert (f"gf / {filters_key}", "Filter agents by query") in agent_pairs
+    assert (f"f5 / {filters_key}", "Filter agents by query") in agent_pairs
+    assert ("gf", "Start metadata search forward") in agent_pairs
     assert ("f6", "Show this help") in agent_pairs
     assert ("gh", "Show this help") not in agent_pairs
 
@@ -556,9 +556,16 @@ def test_agents_help_documents_two_domain_wait_badges() -> None:
 def test_agents_help_documents_inline_metadata_search() -> None:
     reg = load_keymap_registry({})
     sections = dict(agents_bindings(reg))
+    filters_key = key_display_name(reg.app.agents_filters)
 
+    assert sections["Agent Query"] == [
+        (
+            f"{key_display_name(reg.app.edit_query)} / {filters_key}",
+            "Filter agents by query",
+        ),
+    ]
     assert sections["Metadata Search"] == [
-        ("/", "Start metadata search forward"),
+        (leader_key_display(reg, "search_forward"), "Start metadata search forward"),
         ("Ctrl+R", "Reverse active search order"),
         ("n / N", "Next / previous match"),
         ("Enter / Esc / Ctrl+C", "Accept / cancel search query"),

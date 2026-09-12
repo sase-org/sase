@@ -77,7 +77,7 @@ def test_footer_surfaces_configured_prompt_stash_key_on_all_tabs() -> None:
         assert ("P", "prompt stash") in captured[-1][0]
 
 
-def test_footer_surfaces_leader_query_only_on_agents_and_retired_help_on_no_tabs() -> (
+def test_footer_surfaces_leader_metadata_search_only_on_agents_and_retired_help_on_no_tabs() -> (
     None
 ):
     footer = KeybindingFooter()
@@ -86,9 +86,9 @@ def test_footer_surfaces_leader_query_only_on_agents_and_retired_help_on_no_tabs
     for tab in ("patches", "agents", "axe"):
         footer.update_leader_bindings(current_tab=tab)
         if tab == "agents":
-            assert ("/", "edit query") in captured[-1][0]
+            assert ("/", "metadata search") in captured[-1][0]
         else:
-            assert ("/", "edit query") not in captured[-1][0]
+            assert ("/", "metadata search") not in captured[-1][0]
         assert ("?", "help") not in captured[-1][0]
 
 

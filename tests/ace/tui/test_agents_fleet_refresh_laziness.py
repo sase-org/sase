@@ -17,6 +17,8 @@ from sase.ace.tui.util.nav_gate import NavigationGate
 from tests.ace.tui.fleet_fixture import (
     OfflineFleetFacade,
     fleet_counts,
+    fleet_catalog_cursor,
+    fleet_catalog_snapshot_id,
     fleet_config,
     fleet_host_response,
     fleet_summary,
@@ -220,7 +222,8 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
 
     summary = fleet_summary(agent_id="agent-a")
     page_one = fleet_host_response(summaries=(summary,))
-    page_one["hosts"][0]["payload"]["page"]["next_cursor"] = "off:100"
+    next_cursor = fleet_catalog_cursor(fleet_catalog_snapshot_id("apollo"), 100)
+    page_one["hosts"][0]["payload"]["page"]["next_cursor"] = next_cursor
     page_one["hosts"][0]["payload"]["page"]["has_more"] = True
     page_one["hosts"][0]["payload"]["page"]["total_matching_rows"] = 2
     page_one["hosts"][0]["payload"]["counts"] = fleet_counts(
@@ -263,7 +266,7 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
                     "timeout_seconds": timeout_seconds,
                 }
             )
-            if query.get("cursor") == "off:100":
+            if query.get("cursor") == next_cursor:
                 return serialized(page_two)
             return serialized(page_one)
 
@@ -285,7 +288,7 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
                 }
             )
             query = request[0]["query"] if request else {}
-            if query.get("cursor") == "off:100":
+            if query.get("cursor") == next_cursor:
                 return serialized(page_two)
             return serialized(page_one)
 
@@ -322,7 +325,7 @@ async def test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys(
                     "schema_version": 1,
                     "limit": 100,
                     "include_terminal": True,
-                    "cursor": "off:100",
+                    "cursor": next_cursor,
                 },
             }
         ]

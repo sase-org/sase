@@ -40,11 +40,12 @@ def test_leader_question_mark_is_retired_on_all_tabs() -> None:
         assert app.refresh_count == 1
 
 
-def test_leader_slash_edits_query_only_on_agents() -> None:
+def test_leader_slash_starts_metadata_search_only_on_agents() -> None:
     app = _FakeApp(current_tab="agents")
 
     assert app._handle_leader_key("slash") is True
-    assert app.edit_query_count == 1
+    assert app.search_forward_count == 1
+    assert app.edit_query_count == 0
     assert app._last_leader_key == "slash"
     assert app.refresh_count == 1
 
@@ -52,18 +53,20 @@ def test_leader_slash_edits_query_only_on_agents() -> None:
         app = _FakeApp(current_tab=tab)
 
         assert app._handle_leader_key("slash") is True
+        assert app.search_forward_count == 0
         assert app.edit_query_count == 0
         assert app._last_leader_key is None
         assert app.refresh_count == 1
 
 
-def test_leader_query_repeat_rechecks_agents_context() -> None:
+def test_leader_search_repeat_rechecks_agents_context() -> None:
     app = _FakeApp(current_tab="agents")
     app._handle_leader_key("slash")
     app.current_tab = "patches"  # type: ignore[assignment]
 
     assert app._handle_leader_key("comma") is True
-    assert app.edit_query_count == 1
+    assert app.search_forward_count == 1
+    assert app.edit_query_count == 0
     assert app._last_leader_key == "slash"
     assert app.refresh_count == 2
 

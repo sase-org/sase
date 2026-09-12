@@ -18,7 +18,7 @@ from sase.uv_tool.render import render_uv_tool_error
 from sase.version.inventory import VersionPackageRecord
 
 
-def _fail(error: UvToolError, *, as_json: bool, err: Console) -> int:
+def fail_update(error: UvToolError, *, as_json: bool, err: Console) -> int:
     if as_json:
         print(
             json.dumps(
@@ -35,7 +35,7 @@ def _fail(error: UvToolError, *, as_json: bool, err: Console) -> int:
     return 1
 
 
-def _tool_python(install: UvToolInstall) -> str:
+def tool_python(install: UvToolInstall) -> str:
     executable = "python.exe" if os.name == "nt" else "python"
     scripts_dir = "Scripts" if os.name == "nt" else "bin"
     return str(install.sase_dir / scripts_dir / executable)
@@ -57,7 +57,7 @@ def _callable_accepts_keyword(fn: Any, name: str) -> bool:
     return False
 
 
-def _call_plan_dev_update(
+def call_plan_dev_update(
     fn: PlanDevFn,
     records: tuple[VersionPackageRecord, ...] | list[VersionPackageRecord],
     *,

@@ -19,7 +19,7 @@ DELIVERY_LOCK_FILENAME = "delivery.lock"
 HOST_COMPLETION_RECEIPT_FILENAME = "host_completion_receipt.json"
 
 
-def delivery_dir(artifacts_dir: str | Path) -> Path:
+def _delivery_dir(artifacts_dir: str | Path) -> Path:
     """Return the continuation delivery directory for *artifacts_dir*."""
 
     return Path(artifacts_dir) / "continuation" / DELIVERY_DIRNAME
@@ -62,7 +62,7 @@ def persist_delivery_record(
     """Validate and atomically persist one delivery record."""
 
     validated = validate_continuation_delivery_record(dict(record))
-    root = delivery_dir(artifacts_dir)
+    root = _delivery_dir(artifacts_dir)
     root.mkdir(parents=True, exist_ok=True)
     path = _record_path(artifacts_dir, validated["key"])
     with locked_file(root / DELIVERY_LOCK_FILENAME, fcntl.LOCK_EX):
@@ -157,7 +157,7 @@ def _record_path(artifacts_dir: str | Path, key: Mapping[str, Any]) -> Path:
         f"{_safe(key['monitor_id'])}__{_safe(key['result_id'])}__"
         f"{_safe(key['branch'])}.json"
     )
-    return delivery_dir(artifacts_dir) / name
+    return _delivery_dir(artifacts_dir) / name
 
 
 def _safe(value: object) -> str:
@@ -173,7 +173,6 @@ def _now_iso() -> str:
 __all__ = [
     "DELIVERY_DIRNAME",
     "HOST_COMPLETION_RECEIPT_FILENAME",
-    "delivery_dir",
     "delivery_key",
     "load_delivery_record",
     "load_host_completion_receipt",

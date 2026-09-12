@@ -46,11 +46,11 @@ def test_app_edit_query_is_available_on_artifact_filters_and_axe() -> None:
         CommandContext(tab="changespecs", artifacts_subtab="beads"),  # legacy tab id
     )
     assert is_command_available(spec, CommandContext(tab="axe"))
-    assert not is_command_available(spec, CommandContext(tab="agents"))
+    assert is_command_available(spec, CommandContext(tab="agents"))
 
 
-def test_leader_edit_query_is_agents_only() -> None:
-    spec = _catalog_by_id()["leader.edit_query"]
+def test_leader_search_forward_is_agents_only() -> None:
+    spec = _catalog_by_id()["leader.search_forward"]
 
     assert is_command_available(spec, CommandContext(tab="agents"))
     assert not is_command_available(
@@ -58,6 +58,8 @@ def test_leader_edit_query_is_agents_only() -> None:
         CommandContext(tab="changespecs", artifacts_subtab="patches"),  # legacy tab id
     )
     assert not is_command_available(spec, CommandContext(tab="axe"))
+    assert "leader.edit_query" not in _catalog_by_id()
+    assert "app.search_forward" not in _catalog_by_id()
 
 
 def test_plans_filter_command_is_available_only_on_plans() -> None:

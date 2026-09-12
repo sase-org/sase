@@ -69,12 +69,15 @@ async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
 
         async with AcePage(initial_tab="axe") as page:
             edits: list[bool] = []
+            searches: list[bool] = []
             page.app.action_edit_query = lambda: edits.append(True)  # type: ignore[method-assign]
+            page.app.action_search_forward = lambda: searches.append(True)  # type: ignore[method-assign]
 
             await page.press("slash")
             assert edits == [True]
             await page.press("comma", "slash")
             assert edits == [True]
+            assert searches == []
 
         async with AcePage(initial_tab="agents") as page:
             searches: list[bool] = []
@@ -83,43 +86,49 @@ async def test_default_query_shortcuts_follow_the_context_matrix() -> None:
             page.app.action_edit_query = lambda: edits.append(True)  # type: ignore[method-assign]
 
             await page.press("slash")
-            assert searches == [True]
-            assert edits == []
+            assert edits == [True]
+            assert searches == []
 
             await page.press("comma", "slash")
+            assert searches == [True]
             assert edits == [True]
 
 
 async def test_custom_app_and_leader_query_remaps_stay_independent() -> None:
     keymap_cfg = {
         "app": {"edit_query": "f5"},
-        "modes": {"leader_mode": {"keys": {"edit_query": "f6"}}},
+        "modes": {"leader_mode": {"prefix": "f9", "keys": {"search_forward": "f6"}}},
     }
 
     with _patch_config(keymap_cfg):
         async with AcePage(initial_tab="changespecs") as page:  # legacy wire key
             edits: list[bool] = []
+            searches: list[bool] = []
             page.app.action_edit_query = lambda: edits.append(True)  # type: ignore[method-assign]
+            page.app.action_search_forward = lambda: searches.append(True)  # type: ignore[method-assign]
 
             await page.press("slash")
             assert edits == []
             await page.press("f5")
             assert edits == [True]
-            await page.press("comma", "f6")
+            await page.press("f9", "f6")
             assert edits == [True]
+            assert searches == []
 
             await page.press("shift+tab")
             await page.expect_state("tab", "agents")
-            searches: list[bool] = []
-            edits: list[bool] = []
+            searches = []
+            edits = []
             page.app.action_search_forward = lambda: searches.append(True)  # type: ignore[method-assign]
             page.app.action_edit_query = lambda: edits.append(True)  # type: ignore[method-assign]
 
             await page.press("slash")
-            assert searches == [True]
-            await page.press("f5")
             assert edits == []
-            await page.press("comma", "f6")
+            await page.press("f5")
+            assert edits == [True]
+            assert searches == []
+            await page.press("f9", "f6")
+            assert searches == [True]
             assert edits == [True]
 
 

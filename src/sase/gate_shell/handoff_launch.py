@@ -87,7 +87,7 @@ def launch_or_record_followup(
         return
     if not decision.get("launch_allowed"):
         if not already_settled and decision.get("recovery") != "wait":
-            release_failed_attempt_claim(meta, project_name, artifacts_dir)
+            _release_failed_attempt_claim(meta, project_name, artifacts_dir)
         return
     fingerprint = str(meta.get("gate_request_fingerprint") or "")
     persist_attempt(
@@ -139,7 +139,7 @@ def launch_or_record_followup(
             error=exc,
             error_stage="launching",
         )
-        release_failed_attempt_claim(meta, project_name, artifacts_dir)
+        _release_failed_attempt_claim(meta, project_name, artifacts_dir)
         notify_handoff_failure(meta, error=exc, stage="launching")
         return
     disk = _read_meta(artifacts_dir)
@@ -250,7 +250,7 @@ def suppress_live_creator_followup(
         meta["gate_followup_prompt_path"] = prompt_path
 
 
-def release_failed_attempt_claim(
+def _release_failed_attempt_claim(
     meta: dict[str, Any],
     project_name: str | None,
     artifacts_dir: str,
@@ -298,7 +298,6 @@ def _write_meta(artifacts_dir: str, meta: dict[str, Any]) -> None:
 __all__ = [
     "launch_or_record_followup",
     "record_selected_options",
-    "release_failed_attempt_claim",
     "settle_already_terminal_handoff",
     "suppress_live_creator_followup",
 ]

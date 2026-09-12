@@ -30,10 +30,10 @@ from sase.dev_update.models import DevCommandRunner
 from sase.config import load_merged_config
 from sase.completion.install import CompletionRefreshReport
 from sase.dev_update import run_dev_update_command
-from sase.main.update_handler_dry_run import _handle_dry_run
-from sase.main.update_handler_live import _handle_live_update
-from sase.main.update_handler_mode_switch import _handle_mode_switch
-from sase.main.update_handler_support import _fail
+from sase.main.update_handler_dry_run import handle_dry_run
+from sase.main.update_handler_live import handle_live_update
+from sase.main.update_handler_mode_switch import handle_mode_switch
+from sase.main.update_handler_support import fail_update
 from sase.main.update_routing import installed_version
 from sase.main.update_types import (
     UPDATE_JSON_SCHEMA_VERSION,
@@ -82,11 +82,11 @@ def handle_update_command(
 
     install = probe_fn()
     if isinstance(install, NotUvToolInstall):
-        return _fail(NotAUvToolInstallError(install), as_json=as_json, err=err)
+        return fail_update(NotAUvToolInstallError(install), as_json=as_json, err=err)
 
     target_mode = getattr(args, "to", None)
     if target_mode is not None:
-        return _handle_mode_switch(
+        return handle_mode_switch(
             install,
             target_mode=target_mode,
             yes=bool(getattr(args, "yes", False)),
@@ -105,7 +105,7 @@ def handle_update_command(
         )
 
     if dry_run:
-        return _handle_dry_run(
+        return handle_dry_run(
             install,
             as_json=as_json,
             out=out,
@@ -115,7 +115,7 @@ def handle_update_command(
             plan_dev_update_fn=plan_dev_update_fn,
         )
 
-    return _handle_live_update(
+    return handle_live_update(
         install,
         as_json=as_json,
         quiet=quiet,

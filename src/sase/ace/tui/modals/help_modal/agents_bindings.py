@@ -34,9 +34,9 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
     link_follow_row = _link_follow_row(d(a.follow_artifact_link))
     unified_query = agents_unified_query_enabled()
     filter_query_keys = (
-        f"{leader_key_display(km, 'edit_query')} / {d(a.agents_filters)}"
+        f"{d(a.edit_query)} / {d(a.agents_filters)}"
         if unified_query
-        else leader_key_display(km, "edit_query")
+        else d(a.edit_query)
     )
 
     sections: Sections = [
@@ -159,9 +159,18 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
+            "Agent Query",
+            [
+                (filter_query_keys, "Filter agents by query"),
+            ],
+        ),
+        (
             "Metadata Search",
             [
-                (d(a.search_forward), "Start metadata search forward"),
+                (
+                    leader_key_display(km, "search_forward"),
+                    "Start metadata search forward",
+                ),
                 (d(a.search_reverse), "Reverse active search order"),
                 ("n / N", "Next / previous match"),
                 ("Enter / Esc / Ctrl+C", "Accept / cancel search query"),
@@ -281,7 +290,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'repeat_last'))}",
                     "Repeat last leader command",
                 ),
-                (filter_query_keys, "Filter agents by query"),
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "agent_home")),
                     "Run agent (home)",

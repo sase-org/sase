@@ -10,7 +10,7 @@ from typing import Any
 from rich.console import Console
 
 from sase.dev_update.models import DevCommandRunner
-from sase.main.update_handler_support import _fail
+from sase.main.update_handler_support import fail_update
 from sase.main.update_restart import render_restart_info, restart_after_update
 from sase.main.update_types import (
     AxeRunningFn,
@@ -33,7 +33,7 @@ from sase.uv_tool.detect import UvToolInstall
 from sase.uv_tool.errors import UvToolError
 
 
-def _handle_mode_switch(
+def handle_mode_switch(
     install: UvToolInstall,
     *,
     target_mode: TargetMode,
@@ -59,7 +59,7 @@ def _handle_mode_switch(
             inventory_fn=inventory_fn,
         )
     except UvToolError as exc:
-        return _fail(exc, as_json=as_json, err=err)
+        return fail_update(exc, as_json=as_json, err=err)
 
     if not plan.changed:
         if as_json:
@@ -79,7 +79,7 @@ def _handle_mode_switch(
         return 0
 
     if not yes and not _confirm_mode_switch(plan, out=out, err=err):
-        return _fail(
+        return fail_update(
             UvToolError("mode switch cancelled. Re-run with --yes."),
             as_json=as_json,
             err=err,
@@ -93,7 +93,7 @@ def _handle_mode_switch(
             run_command_fn=run_dev_update_fn,
         )
     except UvToolError as exc:
-        return _fail(exc, as_json=as_json, err=err)
+        return fail_update(exc, as_json=as_json, err=err)
     elapsed = max(0.0, clock() - start)
     restart = restart_after_update(
         changed=result.changed,

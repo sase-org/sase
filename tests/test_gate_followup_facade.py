@@ -4,12 +4,12 @@ from sase.core.gate_followup_facade import (
     GATE_FOLLOWUP_WIRE_SCHEMA_VERSION,
     decide_gate_followup,
     gate_followup_attempt_id,
-    gate_followup_wire_schema_version,
+    _gate_followup_wire_schema_version,
 )
 
 
 def test_binding_schema_version_matches_python_constant() -> None:
-    assert gate_followup_wire_schema_version() == GATE_FOLLOWUP_WIRE_SCHEMA_VERSION
+    assert _gate_followup_wire_schema_version() == GATE_FOLLOWUP_WIRE_SCHEMA_VERSION
 
 
 def test_incident_legacy_gate_is_interrupted_and_resume_eligible() -> None:

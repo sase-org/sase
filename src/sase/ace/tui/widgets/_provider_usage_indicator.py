@@ -43,7 +43,7 @@ _ATTENTION_RANK: Mapping[str, int] = {
 
 
 @dataclass(frozen=True, slots=True)
-class UsageWindowFragment:
+class _UsageWindowFragment:
     """One complete selected usage-window value within a provider group."""
 
     provider: str
@@ -64,7 +64,7 @@ class UsageProviderGroup:
 
     provider: str
     icon: str
-    fragments: tuple[UsageWindowFragment, ...]
+    fragments: tuple[_UsageWindowFragment, ...]
 
     @property
     def icon_width(self) -> int:
@@ -224,9 +224,9 @@ def _window_count(groups: Sequence[UsageProviderGroup]) -> int:
 def _visible_groups(
     groups: Sequence[UsageProviderGroup],
     visible_count: int,
-) -> tuple[tuple[UsageProviderGroup, tuple[UsageWindowFragment, ...]], ...]:
+) -> tuple[tuple[UsageProviderGroup, tuple[_UsageWindowFragment, ...]], ...]:
     remaining = visible_count
-    visible: list[tuple[UsageProviderGroup, tuple[UsageWindowFragment, ...]]] = []
+    visible: list[tuple[UsageProviderGroup, tuple[_UsageWindowFragment, ...]]] = []
     for group in groups:
         if remaining <= 0:
             break
@@ -315,7 +315,7 @@ def _entry_fragment(
     name: str | None,
     dark: bool,
     now: float,
-) -> UsageWindowFragment:
+) -> _UsageWindowFragment:
     provider = str(entry.get("provider") or "")
     remaining = _optional_float(entry.get("remaining_percent")) or 0.0
     freshness = _optional_text(entry.get("freshness")) or "unknown"
@@ -367,7 +367,7 @@ def _entry_fragment(
         passed=passed,
         freshness=freshness,
     )
-    return UsageWindowFragment(
+    return _UsageWindowFragment(
         provider=provider,
         window_key=_optional_text(entry.get("window_key")) or "",
         attention_rank=_entry_attention_rank(entry),
@@ -481,7 +481,6 @@ def _optional_float(value: object) -> float | None:
 
 __all__ = [
     "UsageProviderGroup",
-    "UsageWindowFragment",
     "build_usage_indicator_segment",
     "usage_indicator_groups",
     "usage_indicator_open_provider",

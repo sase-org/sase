@@ -34,7 +34,7 @@ def test_store_round_trips_nonempty_query_from_sase_home() -> None:
 
     result = store.load_agent_query_snapshot(active_dialect=store.DIALECT_UNIFIED)
     assert result.snapshot == snapshot
-    assert store.agent_query_state_path().name == store.FILENAME
+    assert store._agent_query_state_path().name == store.FILENAME
 
 
 def test_store_accepts_explicit_empty_across_dialects() -> None:
@@ -55,18 +55,18 @@ def test_store_rejects_nonempty_record_from_other_dialect_without_rewriting() ->
         dialect=store.DIALECT_LEGACY,
     )
     store.save_agent_query_snapshot(snapshot)
-    before = store.agent_query_state_path().read_bytes()
+    before = store._agent_query_state_path().read_bytes()
 
     result = store.load_agent_query_snapshot(active_dialect=store.DIALECT_UNIFIED)
 
     assert result.snapshot is None
     assert result.warning is not None
     assert "legacy dialect" in result.warning
-    assert store.agent_query_state_path().read_bytes() == before
+    assert store._agent_query_state_path().read_bytes() == before
 
 
 def test_store_rejects_oversized_and_invalid_files_without_rewriting() -> None:
-    path = store.agent_query_state_path()
+    path = store._agent_query_state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"{" + b"x" * store.MAX_FILE_BYTES)
 
@@ -110,7 +110,7 @@ def test_atomic_write_failure_preserves_existing_complete_record(
     result = store.load_agent_query_snapshot(active_dialect=store.DIALECT_UNIFIED)
     assert result.snapshot == old
     assert (
-        list(store.agent_query_state_path().parent.glob(f".{store.FILENAME}.*.tmp"))
+        list(store._agent_query_state_path().parent.glob(f".{store.FILENAME}.*.tmp"))
         == []
     )
 
@@ -213,7 +213,7 @@ async def test_idle_restored_app_does_not_replace_newer_external_write() -> None
     store.save_agent_query_snapshot(second)
     await app._flush_agents_query_state()
 
-    current = json.loads(store.agent_query_state_path().read_text())
+    current = json.loads(store._agent_query_state_path().read_text())
     assert current["record"]["source"] == "status:FAILED"
 
 

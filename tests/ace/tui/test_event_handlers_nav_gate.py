@@ -34,6 +34,8 @@ class _FakeApp(EventHandlersMixin):
         self.current_tab = "agents"
         self._prompt_editor_suspended = False
         self._mounted_prompt_bar = False
+        self._screen_stack: list[object] = [object()]
+        self.screen = object()
         self.deferred_calls: list[tuple[float, Callable[[], Any]]] = []
         self.refresh_calls: list[str] = []
         self.countdown_calls: list[str] = []

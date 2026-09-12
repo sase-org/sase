@@ -26,7 +26,7 @@ MAX_RANGE_MAX_BYTES = 1024 * 1024
 
 
 @dataclass(frozen=True)
-class MonitorTextRead:
+class _MonitorTextRead:
     """Bounded text plus metadata for a monitor evidence read."""
 
     text: str
@@ -38,7 +38,7 @@ def diagnostics_dir(artifacts_dir: str | Path) -> Path:
     return Path(artifacts_dir) / DIAGNOSTICS_DIRNAME
 
 
-def stages_dir(artifacts_dir: str | Path) -> Path:
+def _stages_dir(artifacts_dir: str | Path) -> Path:
     """Return the directory of isolated first-party stage reports."""
     return diagnostics_dir(artifacts_dir) / STAGES_DIRNAME
 
@@ -53,7 +53,7 @@ def retained_log_metadata_path(artifacts_dir: str | Path) -> Path:
     return diagnostics_dir(artifacts_dir) / RETAINED_LOG_METADATA_FILENAME
 
 
-def retained_logs_dir(artifacts_dir: str | Path) -> Path:
+def _retained_logs_dir(artifacts_dir: str | Path) -> Path:
     """Return the directory containing immutable retained-log snapshots."""
     return diagnostics_dir(artifacts_dir) / RETAINED_LOGS_DIRNAME
 
@@ -66,7 +66,7 @@ def assemble_diagnostic_manifest(
 ) -> dict[str, Any]:
     """Assemble and persist one continuation diagnostic manifest."""
     manifest_path = diagnostic_manifest_path(artifacts_dir)
-    stages = _load_stage_reports(stages_dir(artifacts_dir))
+    stages = _load_stage_reports(_stages_dir(artifacts_dir))
     manifest: dict[str, Any] = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "producer": _identifier(f"monitor-{monitor_id}"),
@@ -87,7 +87,7 @@ def freeze_retained_log_metadata(
     retention: BoundedLogRetention | None,
 ) -> dict[str, Any]:
     """Snapshot retained log files and persist continuation metadata."""
-    target_dir = retained_logs_dir(artifacts_dir)
+    target_dir = _retained_logs_dir(artifacts_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
     segments: list[dict[str, Any]] = []
     ranges = list(retention.retained_ranges if retention is not None else ())
@@ -141,12 +141,12 @@ def read_diagnostics_text(
     artifacts_dir: str | Path,
     *,
     max_bytes: int = DEFAULT_DIAGNOSTICS_MAX_BYTES,
-) -> MonitorTextRead:
+) -> _MonitorTextRead:
     """Return bounded failed-stage diagnostics text for ``monitor show``."""
     budget = _clamped_max_bytes(max_bytes, default=DEFAULT_DIAGNOSTICS_MAX_BYTES)
     manifest = _read_json(diagnostic_manifest_path(artifacts_dir))
     if not manifest:
-        return MonitorTextRead(
+        return _MonitorTextRead(
             "(no diagnostic manifest captured)\n",
             {"mode": "diagnostics", "available": False},
         )
@@ -188,7 +188,7 @@ def read_diagnostics_text(
         )
     if not chunks:
         chunks.append("(no failed-stage diagnostics captured)\n")
-    return MonitorTextRead(
+    return _MonitorTextRead(
         "".join(chunks),
         {
             "mode": "diagnostics",
@@ -206,14 +206,14 @@ def read_retained_log_range(
     start: int,
     end: int,
     max_bytes: int = DEFAULT_RANGE_MAX_BYTES,
-) -> MonitorTextRead:
+) -> _MonitorTextRead:
     """Return a bounded raw-log byte range with explicit gap notices."""
     if start < 0 or end < start:
         raise ValueError("range must satisfy 0 <= START <= END")
     budget = _clamped_max_bytes(max_bytes, default=DEFAULT_RANGE_MAX_BYTES)
     metadata = _read_json(retained_log_metadata_path(artifacts_dir))
     if not metadata:
-        return MonitorTextRead(
+        return _MonitorTextRead(
             "(no retained-log metadata captured)\n",
             {"mode": "range", "available": False},
         )
@@ -256,7 +256,7 @@ def read_retained_log_range(
     if cursor < end and remaining > 0:
         missing.append({"start": cursor, "end": end})
         chunks.append(_gap_notice(cursor, end))
-    return MonitorTextRead(
+    return _MonitorTextRead(
         "".join(chunks),
         {
             "mode": "range",
@@ -413,7 +413,6 @@ __all__ = [
     "DEFAULT_RANGE_MAX_BYTES",
     "MAX_DIAGNOSTICS_MAX_BYTES",
     "MAX_RANGE_MAX_BYTES",
-    "MonitorTextRead",
     "assemble_diagnostic_manifest",
     "diagnostic_manifest",
     "diagnostic_manifest_path",
@@ -423,5 +422,4 @@ __all__ = [
     "read_retained_log_range",
     "retained_log_metadata",
     "retained_log_metadata_path",
-    "stages_dir",
 ]

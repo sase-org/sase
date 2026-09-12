@@ -625,8 +625,8 @@ ace:
       # shares E. Bang-mode !o still owns mark_pr_origin.
       cycle_grouping_mode: "o"
       cycle_grouping_mode_reverse: "O"
-      # Queries
-      search_forward: "slash"
+      # Queries. Bare `/` edits the structured query on Agents and Artifacts.
+      # Agents metadata search is leader_mode.keys.search_forward (`,/` by default).
       edit_query: "slash"
       search_reverse: "ctrl+r"
       open_saved_query_picker: "asterisk"
@@ -783,7 +783,7 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma"
-          edit_query: "slash"
+          search_forward: "slash" # Agents metadata search; defaults render as `,/`
           run_cmd: "exclamation_mark"
           runners: "R"
           revert_agent: "r"

@@ -213,17 +213,6 @@ def create_gate_shell(
         )
 
 
-def restore_creation_claim(creation: GateShellCreation) -> None:
-    """Restore the creator claim captured by ``creation`` when present."""
-    if creation.project_file is None or creation.claim_move is None:
-        return
-    restore_gate_shell_claim(
-        creation.project_file,
-        move=creation.claim_move,
-        cl_name=creation.cl_name,
-    )
-
-
 def _spec_from_request(request: Mapping[str, Any] | GateSpec) -> GateSpec:
     if isinstance(request, GateSpec):
         if request.request_id:
@@ -402,5 +391,4 @@ def _gate_lane_lock_path(project_name: str, lane: str) -> Path:
 __all__ = [
     "GateShellCreation",
     "create_gate_shell",
-    "restore_creation_claim",
 ]

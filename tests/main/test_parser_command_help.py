@@ -66,6 +66,7 @@ def test_axe_ensure_help_documents_healing_and_watchdog() -> None:
         "ensure",
         "lumberjack",
         "maintenance",
+        "restart",
         "status",
         "start",
         "stop",
@@ -75,7 +76,7 @@ def test_axe_ensure_help_documents_healing_and_watchdog() -> None:
 
     assert help_commands == sorted(expected_commands)
     assert (
-        "{chop,ensure,lumberjack,maintenance,start,status,stop}"
+        "{chop,ensure,lumberjack,maintenance,restart,start,status,stop}"
         in axe_parser.format_help()
     )
     assert "Bare `sase axe ensure` starts a missing orchestrator" in ensure_help

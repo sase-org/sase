@@ -71,12 +71,13 @@ class LeaderModeMixin:
         """Dispatch a non-repeat leader subkey."""
         leader_keys = self._keymap_registry.leader_mode.keys
 
-        if key == leader_keys["edit_query"]:
+        search_forward_key = leader_keys.get("search_forward")
+        if isinstance(search_forward_key, str) and key == search_forward_key:
             if self.current_tab != "agents":
                 self._refresh_current_tab()  # type: ignore[attr-defined]
                 return True
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            self.action_edit_query()  # type: ignore[attr-defined]
+            self.action_search_forward()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 

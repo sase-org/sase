@@ -48,7 +48,7 @@ RECONCILE_BATCH_SIZE = 32
 FOLLOWUP_LOCK_TIMEOUT_SECONDS = 5.0
 
 
-def gate_followup_lock_path(artifacts_dir: str) -> Path:
+def _gate_followup_lock_path(artifacts_dir: str) -> Path:
     """Return the per-gate lock used by settlement and resume."""
     return Path(artifacts_dir) / FOLLOWUP_LOCK_NAME
 
@@ -56,7 +56,7 @@ def gate_followup_lock_path(artifacts_dir: str) -> Path:
 def with_gate_followup_lock(artifacts_dir: str) -> Any:
     """Return the exclusive lock context for one gate's handoff."""
     return file_lock(
-        gate_followup_lock_path(artifacts_dir),
+        _gate_followup_lock_path(artifacts_dir),
         timeout=FOLLOWUP_LOCK_TIMEOUT_SECONDS,
     )
 
@@ -88,13 +88,13 @@ def classify_gate_handoff(
         "followup_error": _str(meta.get("gate_followup_error")),
         "followup_degraded_reason": _str(meta.get("gate_followup_degraded_reason")),
         "followup_prompt_path": _str(meta.get("gate_followup_prompt_path")),
-        "attempt": attempt_snapshot(meta, fingerprint),
+        "attempt": _attempt_snapshot(meta, fingerprint),
         "successor_evidence": dict(successor_evidence or {}),
     }
     return decide_gate_followup(request)
 
 
-def attempt_snapshot(
+def _attempt_snapshot(
     meta: Mapping[str, Any], fingerprint: str
 ) -> dict[str, Any] | None:
     """Return the persisted attempt wire, marking dead owners as not live."""
@@ -394,10 +394,8 @@ __all__ = [
     "FOLLOWUP_LOCK_NAME",
     "RECONCILE_BATCH_SIZE",
     "apply_decision",
-    "attempt_snapshot",
     "classify_gate_handoff",
     "collect_successor_evidence",
-    "gate_followup_lock_path",
     "load_reconcile_cursor",
     "merge_followup_fields",
     "notify_handoff_failure",

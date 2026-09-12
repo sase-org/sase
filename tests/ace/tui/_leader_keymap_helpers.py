@@ -66,6 +66,7 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
         self.jump_to_last_error_count = 0
         self.open_prompt_stash_count = 0
         self.edit_query_count = 0
+        self.search_forward_count = 0
         self.show_help_count = 0
         self.scheduled_callbacks: list[Any] = []
 
@@ -157,6 +158,9 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
 
     def action_edit_query(self) -> None:
         self.edit_query_count += 1
+
+    def action_search_forward(self) -> None:
+        self.search_forward_count += 1
 
     def action_show_help(self) -> None:
         self.show_help_count += 1

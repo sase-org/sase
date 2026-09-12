@@ -211,6 +211,23 @@ def test_compose_followup_prompt_command_and_cwd_are_fenced_not_inline_code() ->
     assert "%model:haiku" in cleaned
 
 
+def test_compose_followup_prompt_accepts_long_shell_command() -> None:
+    common = dict(_COMMON)
+    common["command"] = "printf start && " + ("printf chunk && " * 90) + "printf done"
+
+    prompt = compose_followup_prompt(
+        starter_name=None,
+        monitor_state="failed",
+        exit_code=143,
+        elapsed_seconds=698.0,
+        timeout_seconds=2700.0,
+        **common,
+    )
+
+    assert common["command"] in prompt
+    assert "FAILED — exit 143" in prompt
+
+
 def test_compose_followup_prompt_next_output_none_omits_the_tail_section() -> None:
     prompt = compose_followup_prompt(
         starter_name="acme--0",

@@ -42,7 +42,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("artifacts_copy_reference", "Copy Reference", False),
     ("artifacts_link_marked", "Link Marked Artifact", False),
     ("sync", "Sync", False),
-    ("search_forward", "Search Forward", False),
     ("edit_query", "Edit Query", False),
     ("search_reverse", "Reverse Search Order", False),
     ("open_saved_query_picker", "Saved Queries", False),

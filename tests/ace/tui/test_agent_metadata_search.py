@@ -11,6 +11,7 @@ from textual.widgets import Static
 from sase.ace.testing import AcePage, set_agent_prompt_document
 from sase.ace.tui.app import AceApp
 from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.widgets.agents_filter_bar import AgentsFilterBar
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui._agents_zoom_panel_helpers import _make_agent
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -55,7 +56,7 @@ async def test_inline_metadata_search_commit_repeat_q_and_passthrough(
             + "\n".join(f"filler line {index}" for index in range(80)),
         )
 
-        await page.press("slash", "n", "e", "e", "d", "l", "e")
+        await page.press("comma", "slash", "n", "e", "e", "d", "l", "e")
         await page.pause()
 
         command = page.app.query_one("#agent-search-command", Static)
@@ -120,14 +121,14 @@ async def test_inline_metadata_search_commit_repeat_q_and_passthrough(
         await page.press("escape")
         await page.expect_no_modal()
 
-        await page.press("slash", "n", "e", "e", "d", "l", "e", "enter")
+        await page.press("comma", "slash", "n", "e", "e", "d", "l", "e", "enter")
         await page.press("question_mark")
         await page.expect_modal("HelpModal")
         assert page.app._agent_metadata_search.mode == "off"
         await page.press("escape")
         await page.expect_no_modal()
 
-        await page.press("slash", "n", "e", "e", "d", "l", "e", "enter")
+        await page.press("comma", "slash", "n", "e", "e", "d", "l", "e", "enter")
         selected_before = page.app._get_selected_agent()
         await page.press("j")
         await page.pause()
@@ -154,7 +155,7 @@ async def test_inline_metadata_search_yank_and_frozen_refresh(
             page,
             "Alpha needle result\nSecond needle result\n",
         )
-        await page.press("slash", "n", "e", "e", "d", "l", "e", "enter")
+        await page.press("comma", "slash", "n", "e", "e", "d", "l", "e", "enter")
         await page.pause()
 
         frozen = page.app._agent_metadata_search.corpus
@@ -228,7 +229,7 @@ async def test_inline_metadata_search_exits_when_identity_changes(
     ) as page:
         await wait_for_startup(page)
         await set_agent_prompt_document(page, "Alpha needle result\n")
-        await page.press("slash", "n")
+        await page.press("comma", "slash", "n")
         assert page.app._agent_metadata_search.is_active
 
         detail = page.app.query_one("#agent-detail-panel")
@@ -239,20 +240,13 @@ async def test_inline_metadata_search_exits_when_identity_changes(
         assert page.app.query_one("#agent-search-scroll").has_class("hidden")
 
 
-def test_metadata_search_actions_are_agents_only() -> None:
+def test_metadata_search_start_is_a_leader_action() -> None:
     agents = AceApp(auto_start_axe=False, initial_tab="agents")
-    patches = AceApp(auto_start_axe=False, initial_tab="patches")
-    axe = AceApp(auto_start_axe=False, initial_tab="axe")
 
-    assert agents.check_action("search_forward", ()) is not False
-    assert agents.check_action("search_reverse", ()) is False
-    agents._agent_metadata_search.mode = "typing"
-    assert agents.check_action("search_reverse", ()) is not False
-    agents._agent_metadata_search.mode = "off"
-
-    for action in ("search_forward", "search_reverse"):
-        assert patches.check_action(action, ()) is False
-        assert axe.check_action(action, ()) is False
+    assert not hasattr(agents._keymap_registry.app, "search_forward")
+    assert "edit_query" not in agents._keymap_registry.leader_mode.keys
+    assert agents._keymap_registry.leader_mode.keys["search_forward"] == "slash"
+    assert agents._keymap_registry.app.search_reverse == "ctrl+r"
 
 
 async def test_inline_metadata_search_reverse_key_override(
@@ -274,7 +268,7 @@ async def test_inline_metadata_search_reverse_key_override(
                 "Alpha needle result\nSecond needle result\n",
             )
 
-            await page.press("slash", "n", "e", "e", "d", "l", "e")
+            await page.press("comma", "slash", "n", "e", "e", "d", "l", "e")
             await page.pause()
             assert page.app._agent_metadata_search.direction == "forward"
             assert page.app._agent_metadata_search.current_selection is not None
@@ -292,3 +286,45 @@ async def test_inline_metadata_search_reverse_key_override(
             assert page.app._agent_metadata_search.current_selection is not None
             assert page.app._agent_metadata_search.current_selection.index == 1
             assert "f5" in command.border_subtitle
+
+
+async def test_bare_slash_opens_agents_query_editor_not_metadata_search(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=_search_agents())
+
+    async with AcePage(
+        query='"search-fixture"',
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("slash")
+        await page.pause()
+
+        bar = page.app.query_one(AgentsFilterBar)
+        assert bar.display is True
+        assert page.app._agents_filter_session_open is True
+        assert not page.app._agent_metadata_search.is_active
+
+
+async def test_leader_metadata_search_does_not_modify_committed_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=_search_agents())
+
+    async with AcePage(
+        query='"search-fixture"',
+        initial_tab="agents",
+    ) as page:
+        await wait_for_startup(page)
+        page.app._agent_search_query = "cl:search-fixture-first"
+        page.app._refilter_agents()
+        await page.pause()
+        committed = page.app._agent_search_query
+
+        await set_agent_prompt_document(page, "Alpha needle result\n")
+        await page.press("comma", "slash", "n")
+        await page.pause()
+
+        assert page.app._agent_metadata_search.is_active
+        assert page.app._agent_search_query == committed

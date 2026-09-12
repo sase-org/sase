@@ -14,7 +14,6 @@ from textual.widgets import Static
 from ..keymaps import (
     KeymapRegistry,
     key_display_name,
-    leader_key_display,
     load_keymap_registry,
 )
 
@@ -212,11 +211,7 @@ class TabQuickStart(VerticalScroll):
     @classmethod
     def _build_card(cls, registry: KeymapRegistry, *, tab: TabQuickStartTab) -> Text:
         app = registry.app
-        query_key = (
-            leader_key_display(registry, "edit_query")
-            if tab == "agents"
-            else key_display_name(app.edit_query)
-        )
+        query_key = key_display_name(app.edit_query)
         rows: list[tuple[tuple[str, ...], str]] = [
             (
                 (key_display_name(app.start_agent_home),),

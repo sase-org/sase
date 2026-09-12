@@ -741,7 +741,7 @@ ace:
     app:
       next_patch: "j"
       prev_patch: "k"
-      edit_query: "slash" # defaults render as `/` outside Agents
+      edit_query: "slash" # structured query on Artifacts and Agents; defaults render as `/`
       show_help: "question_mark" # app-level Help; defaults render as bare `?`
       # ... all app-level keybindings are configurable
     modes:
@@ -750,7 +750,7 @@ ace:
         prefix: "comma"
         keys:
           repeat_last: "comma" # press the leader prefix, then this key; defaults render as `,,`
-          edit_query: "slash" # Agents structured query; defaults render as `,/`
+          search_forward: "slash" # Agents metadata search; defaults render as `,/`
           models_panel: "m"
           update_sase: "U"
           update_everything: "E"
@@ -1225,9 +1225,9 @@ Remote Agents actions are also app-level fields. They intentionally ship as `unb
 the command palette exposes them contextually, and a configured key becomes active only
 when the Agents tab and selected remote row support that action.
 
-The top-level Agents query editor is available as the app-level `agents_filters`
-binding, default `f`, and through the leader-mode `edit_query` chord, default `,/`. Bare
-`/` remains the Agents inline metadata-search key.
+The top-level Agents query editor is available as the app-level `edit_query` binding,
+default `/`, and the direct `agents_filters` binding, default `f`. The leader-mode
+`search_forward` chord, default `,/`, starts inline metadata search on Agents only.
 
 | Field                       | Default   | Action                                                      |
 | --------------------------- | --------- | ----------------------------------------------------------- |
@@ -1257,12 +1257,15 @@ family, 1-3 for a clan or regular-agent session scope, and 1-4 for a selected wh
 tribe panel. The configured prefix and subkeys are used by dispatch, the command
 palette, footers, and help.
 
-Query editing has contextual scopes. `ace.keymaps.app.edit_query` controls Patches,
-Stitches, Plans, and Axe and defaults to bare `/`. The top-level Agents filter bar uses
-`ace.keymaps.app.agents_filters` for its direct key, default `f`, and
-`ace.keymaps.modes.leader_mode.keys.edit_query` for the Agents structured-query chord,
-default `,/`; bare `/` on Agents starts inline metadata search. Help is an app-level
-action controlled by `ace.keymaps.app.show_help` and defaults to bare `?`; the retired
+Query editing is one app-level action. `ace.keymaps.app.edit_query` controls Patches,
+Stitches, Plans, Files, Axe, and the top-level Agents query editor, and defaults to bare
+`/`. The top-level Agents filter bar also has `ace.keymaps.app.agents_filters` as a
+direct alias, default `f`. Agents metadata search is
+`ace.keymaps.modes.leader_mode.keys.search_forward`, default `,/`. Stale
+`ace.keymaps.app.search_forward` and `ace.keymaps.modes.leader_mode.keys.edit_query`
+overrides are ignored with a warning naming those replacements; they are not merged back
+as runnable commands. Help is an app-level action controlled by
+`ace.keymaps.app.show_help` and defaults to bare `?`; the retired
 `leader_mode.keys.show_help` override is dropped at load time.
 
 The leader update keys are separate remappable actions. `update_sase` opens the cached
@@ -1275,7 +1278,6 @@ rejects every other duplicate app binding:
 
 | Shared key (default) | Spelled in YAML as | Pair                                                   | Disjoint because                                       |
 | -------------------- | ------------------ | ------------------------------------------------------ | ------------------------------------------------------ |
-| `/`                  | `slash`            | `edit_query` / `search_forward`                        | query editing excludes Agents; search is Agents-only   |
 | `a`                  | `a`                | `add_axe_item` / `open_artifact_files`                 | Axe vs Artifacts                                       |
 | `d`                  | `d`                | `show_diff` / `toggle_axe_description`                 | Patches vs Axe                                         |
 | `E`                  | `E`                | `beads_open_bug` / `files_open_external`               | Beads vs Files panes (the shared open-externally verb) |

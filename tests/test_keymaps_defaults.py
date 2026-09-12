@@ -192,10 +192,12 @@ def test_contextual_query_and_help_defaults_are_split_by_scope() -> None:
     reg = load_keymap_registry({})
     assert "tab_guide" not in LeaderModeKeymaps().keys
     assert "tab_guide" not in reg.leader_mode.keys
-    assert reg.leader_mode.keys["edit_query"] == "slash"
+    assert reg.leader_mode.keys["search_forward"] == "slash"
+    assert "edit_query" not in LeaderModeKeymaps().keys
+    assert "edit_query" not in reg.leader_mode.keys
     assert "show_help" not in LeaderModeKeymaps().keys
     assert "show_help" not in reg.leader_mode.keys
-    assert reg.app.search_forward == "slash"
+    assert not hasattr(reg.app, "search_forward")
     assert reg.app.edit_query == "slash"
     assert reg.app.search_reverse == "ctrl+r"
     assert reg.app.show_help == "question_mark"

@@ -9,8 +9,8 @@ from unittest.mock import patch
 from sase.axe.run_agent_exec import LoopState
 from sase.continuation_capture import (
     ContinuationSegmentCapture,
-    persist_agent_delta,
-    record_prepared_prompt_capture,
+    _persist_agent_delta,
+    _record_prepared_prompt_capture,
 )
 from sase.llm_provider.preprocessing import preprocess_prompt_early
 from sase.xprompt.models import XPrompt
@@ -45,7 +45,7 @@ def test_prepared_prompt_capture_publishes_blobs_without_delimiter_recovery(
     artifacts.mkdir()
     materialized = _HOSTILE_PROMPT + "\nMaterialized tail."
 
-    result = record_prepared_prompt_capture(
+    result = _record_prepared_prompt_capture(
         artifacts,
         authored_local_request=_HOSTILE_PROMPT,
         materialized_prompt=materialized,
@@ -89,7 +89,7 @@ def test_agent_delta_capture_uses_wire_validators_and_exact_authored_text(
         sdd_spec_path=None,
         original_prompt=_HOSTILE_PROMPT,
     )
-    record_prepared_prompt_capture(
+    _record_prepared_prompt_capture(
         ctx.artifacts_dir,
         authored_local_request=_HOSTILE_PROMPT,
         materialized_prompt=_HOSTILE_PROMPT + "\nmaterialized",
@@ -101,7 +101,7 @@ def test_agent_delta_capture_uses_wire_validators_and_exact_authored_text(
             "sase.core.continuation_facade.validate_continuation_node"
         ) as validate_node,
     ):
-        result = persist_agent_delta(
+        result = _persist_agent_delta(
             ctx,
             state,
             status="completed",

@@ -15,7 +15,7 @@ SIDECAR_PUBLICATION_ACTION_STOP = "stop"
 
 
 @dataclass(frozen=True)
-class SidecarPublicationDecision:
+class _SidecarPublicationDecision:
     schema_version: int
     action: str
     classification: str
@@ -31,7 +31,7 @@ def decide_sidecar_publication_after_push(
     stdout: str,
     stderr: str,
     attempt: int,
-) -> SidecarPublicationDecision:
+) -> _SidecarPublicationDecision:
     """Classify one ``git push`` result through ``sase_core_rs``."""
     if attempt < 1:
         raise ValueError("attempt must be at least 1")
@@ -40,11 +40,11 @@ def decide_sidecar_publication_after_push(
     return _decision_from_dict(raw)
 
 
-def _decision_from_dict(raw: Any) -> SidecarPublicationDecision:
+def _decision_from_dict(raw: Any) -> _SidecarPublicationDecision:
     if not isinstance(raw, dict):
         raise RuntimeError("sase_core_rs returned a non-dict sidecar decision")
     try:
-        decision = SidecarPublicationDecision(
+        decision = _SidecarPublicationDecision(
             schema_version=_require_int(raw, "schema_version"),
             action=_require_str(raw, "action"),
             classification=_require_str(raw, "classification"),
@@ -98,6 +98,5 @@ __all__ = [
     "SIDECAR_PUBLICATION_ACTION_STOP",
     "SIDECAR_PUBLICATION_ACTION_SUCCESS",
     "SIDECAR_PUBLICATION_WIRE_SCHEMA_VERSION",
-    "SidecarPublicationDecision",
     "decide_sidecar_publication_after_push",
 ]

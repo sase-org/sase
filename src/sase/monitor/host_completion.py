@@ -66,7 +66,7 @@ NEEDS_ATTENTION_STATUS = "needs_attention"
 
 
 @dataclass(frozen=True, slots=True)
-class HostCompletionSettlement:
+class _HostCompletionSettlement:
     """Settlement produced by attempting no-model host completion."""
 
     error: str | None = None
@@ -90,7 +90,7 @@ def settle_host_completion(
     project_name: str | None,
     launch_recovery: Callable[..., FollowupLaunchResult],
     release_claim: Callable[[dict[str, Any], str | None], str | None],
-) -> HostCompletionSettlement | None:
+) -> _HostCompletionSettlement | None:
     """Attempt host completion when a prepared intent is bound.
 
     Returns ``None`` when the resolved policy is not ``complete`` so the
@@ -138,12 +138,12 @@ def _run_host_completion(
     completion_ref: str,
     launch_recovery: Callable[..., FollowupLaunchResult],
     release_claim: Callable[[dict[str, Any], str | None], str | None],
-) -> HostCompletionSettlement:
+) -> _HostCompletionSettlement:
     receipt = load_host_completion_receipt(artifacts_dir)
     if receipt is not None and receipt.get("status") == "completed":
         _record_status(artifacts_dir, meta, COMPLETED_BY_HOST_STATUS)
         release_error = release_claim(meta, project_name)
-        return HostCompletionSettlement(
+        return _HostCompletionSettlement(
             error=release_error,
             launch_result=FollowupLaunchResult(
                 launched=False,
@@ -159,7 +159,7 @@ def _run_host_completion(
             {**(receipt or {}), "status": NEEDS_ATTENTION_STATUS, "reason": reason},
         )
         release_error = release_claim(meta, project_name)
-        return HostCompletionSettlement(
+        return _HostCompletionSettlement(
             error=release_error or reason,
             launch_result=FollowupLaunchResult(launched=False, error=reason),
         )
@@ -306,7 +306,7 @@ def _run_host_completion(
                 reason=str(exc),
             )
             release_error = release_claim(meta, project_name)
-            return HostCompletionSettlement(
+            return _HostCompletionSettlement(
                 error=release_error or str(exc),
                 launch_result=FollowupLaunchResult(launched=False, error=str(exc)),
             )
@@ -348,7 +348,7 @@ def _finish_successful_completion(
     release_claim: Callable[[dict[str, Any], str | None], str | None],
     project_name: str | None,
     rerun_finalizers: bool,
-) -> HostCompletionSettlement:
+) -> _HostCompletionSettlement:
     del rerun_finalizers
     consumed = consume_conditional_completion(
         {
@@ -380,7 +380,7 @@ def _finish_successful_completion(
     update_meta_field(artifacts_dir, "monitor_followup_outcome", HOST_COMPLETED_OUTCOME)
     _record_status(artifacts_dir, meta, COMPLETED_BY_HOST_STATUS)
     release_error = release_claim(meta, project_name)
-    return HostCompletionSettlement(
+    return _HostCompletionSettlement(
         error=release_error,
         launch_result=FollowupLaunchResult(
             launched=False,
@@ -401,7 +401,7 @@ def _recover(
     release_claim: Callable[[dict[str, Any], str | None], str | None],
     project_name: str | None,
     record: Mapping[str, Any],
-) -> HostCompletionSettlement:
+) -> _HostCompletionSettlement:
     try:
         intent = load_prepared_completion(completion_ref, artifacts_dir=intent_root)
         invalidated = invalidate_conditional_completion(
@@ -435,11 +435,11 @@ def _recover(
     launch_result = launch_recovery(artifacts_dir, meta)
     if not launch_result.launched:
         release_error = release_claim(meta, project_name)
-        return HostCompletionSettlement(
+        return _HostCompletionSettlement(
             error=release_error or launch_result.error or reason,
             launch_result=launch_result,
         )
-    return HostCompletionSettlement(launch_result=launch_result)
+    return _HostCompletionSettlement(launch_result=launch_result)
 
 
 def _install_prepared_declaration(
@@ -597,7 +597,6 @@ __all__ = [
     "FINALIZING_STATUS",
     "HOST_COMPLETED_OUTCOME",
     "HOST_COMPLETION_IDENTITY",
-    "HostCompletionSettlement",
     "NEEDS_ATTENTION_STATUS",
     "RECOVERY_STATUS",
     "settle_host_completion",

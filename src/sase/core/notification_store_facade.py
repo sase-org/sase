@@ -38,7 +38,7 @@ _SNAPSHOT_CACHE_GENERATION = 0
 
 
 @dataclass(frozen=True)
-class NotificationStoreCompactionOutcome:
+class _NotificationStoreCompactionOutcome:
     """Result of one housekeeping compaction pass over the live JSONL store."""
 
     live_exists: bool
@@ -57,7 +57,7 @@ def invalidate_notification_snapshot_cache() -> None:
         _SNAPSHOT_CACHE_GENERATION += 1
 
 
-def notification_archive_path(path: Path | str) -> Path:
+def _notification_archive_path(path: Path | str) -> Path:
     """Return the sibling archive path for a live notifications JSONL file."""
     live = _normalize_store_path(path)
     if live.suffix:
@@ -93,7 +93,7 @@ def read_current_notifications_snapshot(
 
 def compact_notification_store(
     path: Path | str,
-) -> NotificationStoreCompactionOutcome:
+) -> _NotificationStoreCompactionOutcome:
     """Archive eligible dismissed rows out of the live store.
 
     Bypasses the snapshot cache and calls the Rust reader with
@@ -102,7 +102,7 @@ def compact_notification_store(
     owns the pass.
     """
     live = _normalize_store_path(path)
-    archive = notification_archive_path(live)
+    archive = _notification_archive_path(live)
     live_exists = live.is_file()
     live_bytes_before = live.stat().st_size if live_exists else 0
     archived_before = _jsonl_row_count(archive)
@@ -112,7 +112,7 @@ def compact_notification_store(
     archived_after = _jsonl_row_count(archive)
     archived_count = max(0, archived_after - archived_before)
     invalidate_notification_snapshot_cache()
-    return NotificationStoreCompactionOutcome(
+    return _NotificationStoreCompactionOutcome(
         live_exists=live_exists,
         live_bytes_before=live_bytes_before,
         live_bytes_after=live_bytes_after,
@@ -347,7 +347,6 @@ def _jsonl_row_count(path: Path) -> int:
 
 __all__ = [
     "NotificationStateUpdateWire",
-    "NotificationStoreCompactionOutcome",
     "NotificationStoreSnapshotWire",
     "NotificationTabClassificationWire",
     "NotificationUpdateOutcomeWire",
@@ -359,7 +358,6 @@ __all__ = [
     "classify_notification_tabs",
     "compact_notification_store",
     "invalidate_notification_snapshot_cache",
-    "notification_archive_path",
     "read_current_notifications_snapshot",
     "read_notifications_snapshot",
     "rewrite_notifications",

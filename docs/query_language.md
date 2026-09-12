@@ -51,8 +51,8 @@ has its own query profile and previews against **that pane's** loaded snapshot, 
 Patch snapshot. Shared keys such as `/` and `f` still focus the row; the tokens you can
 type are documented per pane in
 [ACE Artifacts](ace.md#filtering-agent-patches-stitches-beads-and-plans). The top-level
-Agents tab hides its filter bar when idle; press `f` or `,/` to edit the live Agent
-query there.
+Agents tab hides its filter bar when idle; press `/` or `f` to edit the live Agent query
+there. `,/` searches the selected agent's metadata and does not edit the query.
 
 ## String Matching
 

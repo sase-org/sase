@@ -57,7 +57,10 @@ def help_subcommand_rows(help_text: str, expected_commands: set[str]) -> list[st
         stripped = line.strip()
         if not stripped:
             continue
-        match = re.match(r"^(?P<command>\S+)(?: \((?P<aliases>[^)]+)\))?", stripped)
+        match = re.match(
+            r"^(?P<command>\S+)(?: \((?P<aliases>[^)]+)\))?(?:\s{2,}|\s*$)",
+            stripped,
+        )
         if match is None:
             continue
         command = match.group("command")

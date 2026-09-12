@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sase.continuation_capture import persist_monitor_result
+from sase.continuation_capture_monitor import _persist_monitor_result
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 from sase.history.chat import build_fork_injected_history
 
@@ -159,7 +159,7 @@ def _write_monitor_result_node(
         "monitor_diagnostic_manifest_ref": "file:explicit:diagnostics",
         "monitor_retained_log_ref": "file:explicit:monitor-log",
     }
-    persist_monitor_result(
+    _persist_monitor_result(
         artifacts_dir=artifacts_dir,
         meta=meta,
         monitor_state=status,

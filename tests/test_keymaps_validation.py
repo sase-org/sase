@@ -119,21 +119,26 @@ def test_duplicate_app_keys_logs_warning(caplog: pytest.LogCaptureFixture) -> No
     assert any("Duplicate key" in r.message for r in caplog.records)
 
 
-def test_contextual_query_actions_may_share_a_custom_key() -> None:
-    """Agents search and non-Agents query editing have disjoint scopes."""
-    reg = load_keymap_registry(
-        {
-            "keymaps": {
-                "app": {
-                    "search_forward": "f12",
-                    "edit_query": "f12",
+def test_stale_app_search_forward_override_is_ignored(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The former app-level metadata-search slot is not a live shortcut."""
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {
+                "keymaps": {
+                    "app": {
+                        "search_forward": "f12",
+                        "edit_query": "f11",
+                    }
                 }
             }
-        }
-    )
+        )
 
-    assert reg.app.search_forward == "f12"
-    assert reg.app.edit_query == "f12"
+    assert not hasattr(reg.app, "search_forward")
+    assert reg.app.edit_query == "f11"
+    assert "stale app keymap action 'search_forward'" in caplog.text
+    assert "leader_mode.keys.search_forward" in caplog.text
 
 
 def test_contextual_open_external_actions_may_share_a_custom_key() -> None:

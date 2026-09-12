@@ -50,7 +50,7 @@ _AGENT_FOLD_LABELS: dict[str, str] = {
 
 _LEADER_LABELS: dict[str, str] = {
     "repeat_last": "Repeat last leader command",
-    "edit_query": "Edit query",
+    "search_forward": "Search metadata forward",
     "run_cmd": "Run background command",
     "runners": "Show runners",
     "revert_agent": "Revert agent + opened repos",
@@ -98,9 +98,13 @@ _BEAD_ISSUE_LABELS: dict[str, str] = {
     "create": "Beads: create issue for bead",
 }
 
+_LEADER_ALIASES: dict[str, tuple[str, ...]] = {
+    "search_forward": ("find", "forward", "/", "metadata", "search"),
+}
+
 # Per-mode fallback tab scoping (refined per-command for copy_mode).
 _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
-    "edit_query": AGENTS_ONLY,
+    "search_forward": AGENTS_ONLY,
     "run_cmd": CL_ONLY,
     "kill_mentors": CL_ONLY,
     "review_mentors": CL_ONLY,
@@ -223,7 +227,7 @@ def _iter_leader_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
             category="Leader",
             tabs=tabs,
             executor=CommandExecutor(kind="leader_mode_key", subkey=subkey),
-            aliases=("leader", command_id),
+            aliases=("leader", command_id, *_LEADER_ALIASES.get(command_id, ())),
         )
 
 

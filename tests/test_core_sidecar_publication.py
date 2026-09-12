@@ -7,7 +7,7 @@ import pytest
 from sase.core.sidecar_publication_facade import (
     SIDECAR_PUBLICATION_ACTION_INTEGRATE_AND_RETRY,
     SIDECAR_PUBLICATION_ACTION_STOP,
-    SidecarPublicationDecision,
+    _SidecarPublicationDecision,
     decide_sidecar_publication_after_push,
 )
 
@@ -47,7 +47,7 @@ def test_sidecar_publication_facade_calls_rust_binding(
         attempt=1,
     )
 
-    assert decision == SidecarPublicationDecision(
+    assert decision == _SidecarPublicationDecision(
         schema_version=1,
         action=SIDECAR_PUBLICATION_ACTION_INTEGRATE_AND_RETRY,
         classification="rejected_fetch_first",

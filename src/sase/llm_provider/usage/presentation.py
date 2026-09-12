@@ -428,15 +428,6 @@ def _collector_health_label(
     return " · ".join(parts)
 
 
-def collector_health_label(
-    health: Mapping[str, Any] | None,
-    *,
-    reason: Any = None,
-) -> str | None:
-    """Return the public compact label for a collector-health block."""
-    return _collector_health_label(health, reason=reason)
-
-
 def _collector_health_style(health: Mapping[str, Any] | None) -> str:
     """Return the Rich style associated with a collector-health block."""
     if health is None:
@@ -657,7 +648,6 @@ def _string_list(value: Any) -> tuple[str, ...]:
 __all__ = [
     "age_label",
     "applicability_label",
-    "collector_health_label",
     "collector_health_style",
     "diagnostic_line",
     "duration_label",

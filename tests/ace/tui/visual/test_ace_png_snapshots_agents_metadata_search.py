@@ -45,7 +45,7 @@ async def test_agents_metadata_search_typing_and_committed_png_snapshots(
             ),
         )
 
-        await page.press("slash", "z", "o", "o", "m")
+        await page.press("comma", "slash", "z", "o", "o", "m")
         await page.wait_for(
             lambda _state: (
                 page.app._agent_metadata_search.mode == "typing"

@@ -12,13 +12,13 @@ from sase.dev_update.journal import append_dev_update_journal
 from sase.dev_update.models import DevCommandRunner
 from sase.completion.install import CompletionRefreshReport
 from sase.main.update_handler_completion import (
-    _completion_refresh_after_update,
-    _render_completion_refresh,
+    completion_refresh_after_update,
+    render_completion_refresh,
 )
 from sase.main.update_handler_support import (
-    _call_plan_dev_update,
-    _fail,
-    _tool_python,
+    call_plan_dev_update,
+    fail_update,
+    tool_python,
 )
 from sase.main.update_json import combined_result_json
 from sase.main.update_render import render_dev_update_result
@@ -59,7 +59,7 @@ from sase.uv_tool.render import (
 )
 
 
-def _handle_live_update(
+def handle_live_update(
     install: UvToolInstall,
     *,
     as_json: bool,
@@ -80,7 +80,7 @@ def _handle_live_update(
     receipt = try_load_receipt(install)
     route = dev_route(receipt, inventory_fn)
     if isinstance(route, UvToolError):
-        return _fail(route, as_json=as_json, err=err)
+        return fail_update(route, as_json=as_json, err=err)
 
     has_dev = route is not None and bool(route.records)
     has_managed = should_run_managed_update(receipt, route)
@@ -88,7 +88,7 @@ def _handle_live_update(
         if (
             error := missing_local_requirements_error(receipt.reconstruct())
         ) is not None:
-            return _fail(error, as_json=as_json, err=err)
+            return fail_update(error, as_json=as_json, err=err)
     mode = update_mode(has_dev=has_dev, has_managed=has_managed)
     argv = managed_update_argv(receipt, route, color="never") if has_managed else []
     managed_packages = (
@@ -103,16 +103,16 @@ def _handle_live_update(
 
     if route is not None and route.records:
         try:
-            dev_plan = _call_plan_dev_update(
+            dev_plan = call_plan_dev_update(
                 plan_dev_update_fn,
                 route.records,
                 host_record=route.host_record,
                 receipt=receipt,
-                tool_python=_tool_python(install),
+                tool_python=tool_python(install),
                 stale_core_record=route.stale_core_record,
             )
         except Exception as exc:  # noqa: BLE001 - surface planning failures cleanly.
-            return _fail(
+            return fail_update(
                 UvToolError(f"could not plan editable checkout update: {exc}"),
                 as_json=as_json,
                 err=err,
@@ -177,7 +177,7 @@ def _handle_live_update(
                         reason="managed update failed before axe restart",
                     ),
                 )
-            return _fail(exc, as_json=as_json, err=err)
+            return fail_update(exc, as_json=as_json, err=err)
         if route is not None:
             managed_summary = summarize_planned_update(change_set, managed_packages)
         else:
@@ -202,7 +202,7 @@ def _handle_live_update(
             restart=restart,
         )
 
-    refresh = _completion_refresh_after_update(install, refresh_completions_fn)
+    refresh = completion_refresh_after_update(install, refresh_completions_fn)
 
     if as_json:
         payload = combined_result_json(
@@ -227,5 +227,5 @@ def _handle_live_update(
         render_update_result(managed_summary, elapsed=elapsed, quiet=quiet, console=out)
     if changed:
         render_restart_info(restart, console=out, quiet=quiet)
-    _render_completion_refresh(refresh, console=out, quiet=quiet)
+    render_completion_refresh(refresh, console=out, quiet=quiet)
     return 0

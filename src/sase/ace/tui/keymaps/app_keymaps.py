@@ -159,8 +159,7 @@ class AppKeymaps:
     # Tools panel
     toggle_thinking: str
     toggle_thinking_reverse: str
-    # Queries
-    search_forward: str
+    # Queries. Metadata-search start lives on leader_mode.keys.search_forward.
     edit_query: str
     search_reverse: str
     open_saved_query_picker: str

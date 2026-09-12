@@ -51,11 +51,11 @@ def test_build_app_bindings_uses_config_keys() -> None:
     assert by_action["quit"].key == "Q"
 
 
-def test_search_and_contextual_app_query_share_slash() -> None:
+def test_app_query_owns_slash_and_metadata_search_is_not_an_app_binding() -> None:
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {binding.action: binding for binding in bindings}
 
-    assert by_action["search_forward"].key == "slash"
+    assert "search_forward" not in by_action
     assert by_action["edit_query"].key == "slash"
     assert by_action["search_reverse"].key == "ctrl+r"
     assert by_action["show_help"].key == "question_mark"
