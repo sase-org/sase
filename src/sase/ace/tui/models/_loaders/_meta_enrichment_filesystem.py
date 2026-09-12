@@ -488,6 +488,7 @@ def enrich_agent_from_meta(
         monitor_retained_log_ref=data.get("monitor_retained_log_ref"),
         continuation_monitor_result_id=data.get("continuation_monitor_result_id"),
         continuation_monitor_result_ref=data.get("continuation_monitor_result_ref"),
+        continuation_checkpoint_ref=data.get("continuation_checkpoint_ref"),
         continuation_node_ref=data.get("continuation_node_ref"),
         continuation_manifest_ref=data.get("continuation_manifest_ref"),
         monitor_budget_decision_path=(

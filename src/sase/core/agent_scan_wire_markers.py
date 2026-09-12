@@ -111,6 +111,7 @@ class DoneMarkerWire:
     monitor_retained_log_ref: str | None = None
     continuation_monitor_result_id: str | None = None
     continuation_monitor_result_ref: str | None = None
+    continuation_checkpoint_ref: str | None = None
     continuation_node_ref: str | None = None
     continuation_manifest_ref: str | None = None
     continuation_budget_decision_path: str | None = None
@@ -220,6 +221,7 @@ class AgentMetaWire:
     monitor_retained_log_ref: str | None = None
     continuation_monitor_result_id: str | None = None
     continuation_monitor_result_ref: str | None = None
+    continuation_checkpoint_ref: str | None = None
     continuation_node_ref: str | None = None
     continuation_manifest_ref: str | None = None
     continuation_budget_decision_path: str | None = None

@@ -364,6 +364,7 @@ def enrich_agent_from_meta_wire(
         monitor_retained_log_ref=meta.monitor_retained_log_ref,
         continuation_monitor_result_id=meta.continuation_monitor_result_id,
         continuation_monitor_result_ref=meta.continuation_monitor_result_ref,
+        continuation_checkpoint_ref=meta.continuation_checkpoint_ref,
         continuation_node_ref=meta.continuation_node_ref,
         continuation_manifest_ref=meta.continuation_manifest_ref,
         monitor_budget_decision_path=(

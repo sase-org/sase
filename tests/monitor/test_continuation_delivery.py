@@ -28,6 +28,7 @@ from sase.monitor.continuation_delivery import (
     _InjectedDeliveryCrash,
     adopt_ordinary_continuation_delivery,
     claim_ordinary_continuation_dispatch,
+    queue_launch_prefix,
 )
 from sase.monitor.delivery import delivery_key, load_delivery_record
 from sase.monitor.output import OutputCapture
@@ -177,6 +178,19 @@ def test_followup_reserves_identity_before_spawn(
     journal = _continuation_admission_dir(monitor_dir) / "journal.jsonl"
     assert journal.is_file()
     assert "acme--1" in journal.read_text(encoding="utf-8")
+
+
+def test_queue_launch_prefix_preserves_explicit_zero_directives() -> None:
+    prefix = queue_launch_prefix(
+        {
+            "wait_priority": 0,
+            "wait_runners": 0,
+            "queue_priority": 7,
+            "queue_capacity": 3,
+        }
+    )
+
+    assert prefix == "%queue(capacity=0, priority=0)\n"
 
 
 @pytest.mark.parametrize(

@@ -145,3 +145,35 @@ def test_json_envelope_includes_status_label_accent_and_schema_v3() -> None:
     assert done["status_label"] == "TESTED"
     assert done["status_accent"] == _TESTING_ACCENT
     assert done["monitor_state"] == "failed"
+
+
+def test_json_and_detail_include_checkpoint_and_recovery_refs() -> None:
+    record = _record(
+        monitor_state="failed",
+        settled=True,
+        continuation_checkpoint_ref="local:continuation/checkpoints/manual.yml",
+        continuation_node_ref="artifact:node",
+        continuation_manifest_ref="artifact:manifest",
+        budget_decision_path="/tmp/budget.json",
+        followup_prompt_path="/tmp/followup.md",
+    )
+
+    payload = monitor_list_json([record], scope={})["monitors"][0]
+    assert payload["continuation_checkpoint_ref"] == (
+        "local:continuation/checkpoints/manual.yml"
+    )
+    assert payload["continuation"]["checkpoint_ref"] == (
+        "local:continuation/checkpoints/manual.yml"
+    )
+    assert payload["evidence"]["checkpoint_ref"] == (
+        "local:continuation/checkpoints/manual.yml"
+    )
+    assert payload["context_budget"]["budget_decision_path"] == "/tmp/budget.json"
+
+    buf = StringIO()
+    Console(file=buf, force_terminal=False, color_system=None, width=100).print(
+        monitor_detail(record)
+    )
+    out = buf.getvalue()
+    assert "Checkpoint" in out
+    assert "local:continuation/checkpoints/manual.yml" in out

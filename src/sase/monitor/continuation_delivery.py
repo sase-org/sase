@@ -182,8 +182,8 @@ def queue_launch_prefix(meta: Mapping[str, Any]) -> str:
     """Return a live ``%queue`` prefix carrying parent weight/priority/capacity."""
 
     weight = _optional_float(meta.get("queue_weight"))
-    priority = _optional_int(meta.get("wait_priority") or meta.get("queue_priority"))
-    capacity = _optional_int(meta.get("wait_runners") or meta.get("queue_capacity"))
+    priority = _optional_int(_first_present(meta, "wait_priority", "queue_priority"))
+    capacity = _optional_int(_first_present(meta, "wait_runners", "queue_capacity"))
     if weight is None and priority is None and capacity is None:
         return ""
     formatted = format_queue_directive(
@@ -222,6 +222,13 @@ def maybe_crash(point: str) -> None:
 def _optional_text(value: object) -> str | None:
     if isinstance(value, str) and value.strip():
         return value.strip()
+    return None
+
+
+def _first_present(meta: Mapping[str, Any], *keys: str) -> object:
+    for key in keys:
+        if key in meta:
+            return meta[key]
     return None
 
 

@@ -266,6 +266,40 @@ def test_monitor_section_shows_compact_completion_evidence_rows() -> None:
     assert "cci:test" in text
 
 
+def test_monitor_section_shows_recovery_and_evidence_refs() -> None:
+    rendered = _render(
+        _monitor_agent(
+            status="TESTED",
+            monitor_state="failed",
+            exit_code=1,
+            monitor_next_output="auto",
+            monitor_diagnostic_manifest_ref="artifact:diag",
+            monitor_retained_log_ref="artifact:log",
+            continuation_monitor_result_ref="artifact:result",
+            continuation_checkpoint_ref="local:continuation/checkpoints/manual.yml",
+            continuation_node_ref="artifact:node",
+            continuation_manifest_ref="artifact:manifest",
+            monitor_budget_decision_path="/tmp/budget.json",
+            monitor_followup_prompt_path="/tmp/followup.md",
+        )
+    )
+    text = "\n".join(_console_lines(rendered))
+
+    assert "auto - diagnostics, result ref, checkpoint, retained log" in text
+    assert "Diagnostics:" in text
+    assert "artifact:diag" in text
+    assert "Retained log:" in text
+    assert "artifact:log" in text
+    assert "Checkpoint:" in text
+    assert "local:continuation/checkpoints/manual.yml" in text
+    assert "Manifest:" in text
+    assert "artifact:manifest" in text
+    assert "Budget:" in text
+    assert "/tmp/budget.json" in text
+    assert "Saved prompt:" in text
+    assert "/tmp/followup.md" in text
+
+
 def test_monitor_section_marks_dropped_followup_needs_attention() -> None:
     rendered = _render(
         _monitor_agent(

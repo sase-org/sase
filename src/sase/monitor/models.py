@@ -129,6 +129,7 @@ class MonitorRecord:
     retained_log_ref: str | None = None
     monitor_result_id: str | None = None
     monitor_result_ref: str | None = None
+    continuation_checkpoint_ref: str | None = None
     continuation_node_ref: str | None = None
     continuation_manifest_ref: str | None = None
     budget_decision_path: str | None = None
@@ -228,6 +229,9 @@ class MonitorRecord:
         retained_log_ref = _done_first(done, meta, "monitor_retained_log_ref")
         monitor_result_id = _done_first(done, meta, "continuation_monitor_result_id")
         monitor_result_ref = _done_first(done, meta, "continuation_monitor_result_ref")
+        continuation_checkpoint_ref = _done_first(
+            done, meta, "continuation_checkpoint_ref"
+        )
         continuation_node_ref = _done_first(done, meta, "continuation_node_ref")
         continuation_manifest_ref = _done_first(done, meta, "continuation_manifest_ref")
         budget_decision_path = _done_first(
@@ -283,6 +287,7 @@ class MonitorRecord:
             retained_log_ref=retained_log_ref,
             monitor_result_id=monitor_result_id,
             monitor_result_ref=monitor_result_ref,
+            continuation_checkpoint_ref=continuation_checkpoint_ref,
             continuation_node_ref=continuation_node_ref,
             continuation_manifest_ref=continuation_manifest_ref,
             budget_decision_path=budget_decision_path,

@@ -459,6 +459,7 @@ sase monitor show <id> --follow            # stream new output until it finishes
 sase monitor show <id> --all-lines --output-only
 sase monitor show <id> --diagnostics       # selected failed-stage diagnostics
 sase monitor show <id> --range 0:65536     # retained raw-output byte range
+sase monitor resume <id> [-k checkpoint.yml] [-m codex/gpt-5]
 
 sase monitor stop [<id>]                   # stop a running monitor; omit id to target
                                             # the calling agent's active monitor
@@ -483,6 +484,13 @@ Every subcommand can emit machine-readable output, but not with the same flag: `
 to at most 65,536 bytes and accept `-b/--max-bytes`. They are snapshot modes, so neither
 can be combined with `--follow`; diagnostics and ranges are mutually exclusive, and a
 range cannot be combined with `--all-lines`.
+
+`sase monitor resume <id>` reconciles a terminal monitor's frozen result and launches an
+eligible requested follow-up without rerunning the monitored command. Repeating a
+successful resume returns the same acknowledged successor. Supplying `-k/--checkpoint`
+or `-m/--model` creates an immutable manual-recovery branch only when the original
+delivery was not already acknowledged; ineligible monitors print the precise eligible
+resume command when one exists.
 
 Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
 ACE Agents tab refresh path, and the axe scheduler look for running monitor shells whose

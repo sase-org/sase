@@ -120,6 +120,14 @@ sase monitor start \
   routing.
 - `--tail-lines N` controls how many output lines are included when `--next-output tail`
   is used for the follow-up prompt, and caps raw output selected by `auto`.
+- `-k, --checkpoint FILE` binds an authored YAML/JSON checkpoint by content digest. Use
+  it for objective, constraints, findings, unresolved decisions, remaining work, source
+  refs, or coverage; keep the next action in `--next`.
+- `-P, --policy FILE` freezes a per-outcome policy before the monitor is created. It is
+  mutually exclusive with `--profile`.
+- `-f, --completion REF` binds a prepared host-completion intent from
+  `sase final prepare`. The `verify` profile only supplies labels and evidence defaults;
+  the completion ref is what authorizes successful host completion.
 - `--idle-timeout DURATION` kills a command that produces no bytes for that duration.
   Omit it for valid quiet commands such as `sleep`.
 - `-o, --next-output auto|tail|file|none` controls output handed to the follow-up.
@@ -135,6 +143,13 @@ sase monitor start \
 - `sase monitor show <id>` shows details and the output tail; add `--follow` to stream
   until the monitor reaches a terminal state. A dropped follow-up prints a
   `Follow-up error` line; a degraded one prints a `Follow-up degraded` line.
+- `sase monitor show <id> --diagnostics` prints selected failed-stage diagnostics;
+  `--range START:END` prints a bounded retained raw-output byte range. Use
+  `--format json` for machine-readable show output.
+- `sase monitor resume <id> [-k FILE] [-m MODEL]` resumes an eligible terminal monitor's
+  requested follow-up from the frozen result without rerunning the command. A checkpoint
+  or model creates a manual-recovery branch only if delivery has not already been
+  acknowledged.
 - `sase monitor stop <id>` stops a running monitor. Stopped monitors do not launch their
   recorded follow-up agent.
 

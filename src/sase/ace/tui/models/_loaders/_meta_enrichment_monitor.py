@@ -36,6 +36,7 @@ def apply_monitor_meta(
     monitor_retained_log_ref: object = None,
     continuation_monitor_result_id: object = None,
     continuation_monitor_result_ref: object = None,
+    continuation_checkpoint_ref: object = None,
     continuation_node_ref: object = None,
     continuation_manifest_ref: object = None,
     monitor_budget_decision_path: object = None,
@@ -108,6 +109,7 @@ def apply_monitor_meta(
     agent.continuation_monitor_result_ref = _string_or_none(
         continuation_monitor_result_ref
     )
+    agent.continuation_checkpoint_ref = _string_or_none(continuation_checkpoint_ref)
     agent.continuation_node_ref = _string_or_none(continuation_node_ref)
     agent.continuation_manifest_ref = _string_or_none(continuation_manifest_ref)
     agent.monitor_budget_decision_path = _string_or_none(monitor_budget_decision_path)
@@ -159,6 +161,7 @@ def apply_monitor_done(
     monitor_retained_log_ref: object = None,
     continuation_monitor_result_id: object = None,
     continuation_monitor_result_ref: object = None,
+    continuation_checkpoint_ref: object = None,
     continuation_node_ref: object = None,
     continuation_manifest_ref: object = None,
     monitor_budget_decision_path: object = None,
@@ -212,6 +215,9 @@ def apply_monitor_done(
     )
     _set_optional_string(
         agent, "continuation_monitor_result_ref", continuation_monitor_result_ref
+    )
+    _set_optional_string(
+        agent, "continuation_checkpoint_ref", continuation_checkpoint_ref
     )
     _set_optional_string(agent, "continuation_node_ref", continuation_node_ref)
     _set_optional_string(agent, "continuation_manifest_ref", continuation_manifest_ref)

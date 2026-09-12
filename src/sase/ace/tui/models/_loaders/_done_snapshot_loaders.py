@@ -217,6 +217,7 @@ def build_done_agent_from_record(
             monitor_retained_log_ref=done.monitor_retained_log_ref,
             continuation_monitor_result_id=done.continuation_monitor_result_id,
             continuation_monitor_result_ref=done.continuation_monitor_result_ref,
+            continuation_checkpoint_ref=done.continuation_checkpoint_ref,
             continuation_node_ref=done.continuation_node_ref,
             continuation_manifest_ref=done.continuation_manifest_ref,
             monitor_budget_decision_path=(

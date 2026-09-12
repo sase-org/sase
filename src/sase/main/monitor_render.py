@@ -221,6 +221,7 @@ def _monitor_json(record: MonitorRecord) -> dict[str, Any]:
         "retained_log_ref": record.retained_log_ref,
         "monitor_result_id": record.monitor_result_id,
         "monitor_result_ref": record.monitor_result_ref,
+        "continuation_checkpoint_ref": record.continuation_checkpoint_ref,
         "continuation_node_ref": record.continuation_node_ref,
         "continuation_manifest_ref": record.continuation_manifest_ref,
         "host_completion_status": record.host_completion_status,
@@ -443,6 +444,8 @@ def monitor_detail(record: MonitorRecord) -> Panel:
         rows.append(("Retained log", Text(record.retained_log_ref)))
     if record.monitor_result_ref:
         rows.append(("Result ref", Text(record.monitor_result_ref)))
+    if record.continuation_checkpoint_ref:
+        rows.append(("Checkpoint", Text(record.continuation_checkpoint_ref)))
     if record.continuation_node_ref:
         rows.append(("Continuation node", Text(record.continuation_node_ref)))
     if record.continuation_manifest_ref:
@@ -532,6 +535,7 @@ def _continuation_object(record: MonitorRecord) -> dict[str, Any]:
         host_completion_status=record.host_completion_status,
         host_completion_message=record.host_completion_message,
         host_completion_reason=record.host_completion_reason,
+        checkpoint_ref=record.continuation_checkpoint_ref,
         continuation_node_ref=record.continuation_node_ref,
         continuation_manifest_ref=record.continuation_manifest_ref,
     )
@@ -548,6 +552,7 @@ def _evidence_object(
         retained_log_ref=record.retained_log_ref,
         monitor_result_id=record.monitor_result_id,
         monitor_result_ref=record.monitor_result_ref,
+        checkpoint_ref=record.continuation_checkpoint_ref,
         requested_output=requested_output,
     )
 

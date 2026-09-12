@@ -245,6 +245,7 @@ def load_done_agent_for_dir(
                 continuation_monitor_result_ref=data.get(
                     "continuation_monitor_result_ref"
                 ),
+                continuation_checkpoint_ref=data.get("continuation_checkpoint_ref"),
                 continuation_node_ref=data.get("continuation_node_ref"),
                 continuation_manifest_ref=data.get("continuation_manifest_ref"),
                 monitor_budget_decision_path=(

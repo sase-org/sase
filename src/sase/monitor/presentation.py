@@ -84,6 +84,7 @@ def monitor_evidence_summary(
     diagnostic_manifest_ref: str | None = None,
     retained_log_ref: str | None = None,
     monitor_result_ref: str | None = None,
+    checkpoint_ref: str | None = None,
 ) -> str:
     """Return a compact human summary of retained evidence."""
     mode = next_output or "auto"
@@ -92,6 +93,8 @@ def monitor_evidence_summary(
         details.append("diagnostics")
     if monitor_result_ref:
         details.append("result ref")
+    if checkpoint_ref:
+        details.append("checkpoint")
     if retained_log_ref:
         details.append("retained log")
     if output_truncated:
@@ -143,6 +146,7 @@ def monitor_continuation_object(
     host_completion_reason: str | None = None,
     continuation_node_ref: str | None = None,
     continuation_manifest_ref: str | None = None,
+    checkpoint_ref: str | None = None,
 ) -> dict[str, Any]:
     """Return the JSON object for the monitor continuation view model."""
     return {
@@ -158,6 +162,7 @@ def monitor_continuation_object(
         "host_completion_status": host_completion_status,
         "host_completion_message": host_completion_message,
         "host_completion_reason": host_completion_reason,
+        "checkpoint_ref": checkpoint_ref,
         "continuation_node_ref": continuation_node_ref,
         "continuation_manifest_ref": continuation_manifest_ref,
         "summary": monitor_next_summary(
@@ -183,6 +188,7 @@ def monitor_evidence_object(
     retained_log_ref: str | None = None,
     monitor_result_id: str | None = None,
     monitor_result_ref: str | None = None,
+    checkpoint_ref: str | None = None,
     requested_output: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the JSON object for the monitor evidence view model."""
@@ -192,6 +198,7 @@ def monitor_evidence_object(
         "retained_log_ref": retained_log_ref,
         "monitor_result_id": monitor_result_id,
         "monitor_result_ref": monitor_result_ref,
+        "checkpoint_ref": checkpoint_ref,
         "output_truncated": output_truncated,
         "requested_output": requested_output,
         "summary": monitor_evidence_summary(
@@ -200,6 +207,7 @@ def monitor_evidence_object(
             diagnostic_manifest_ref=diagnostic_manifest_ref,
             retained_log_ref=retained_log_ref,
             monitor_result_ref=monitor_result_ref,
+            checkpoint_ref=checkpoint_ref,
         ),
     }
 

@@ -118,6 +118,7 @@ def _append_compact_rows(text: Text, agent: Agent) -> None:
         diagnostic_manifest_ref=agent.monitor_diagnostic_manifest_ref,
         retained_log_ref=agent.monitor_retained_log_ref,
         monitor_result_ref=agent.continuation_monitor_result_ref,
+        checkpoint_ref=agent.continuation_checkpoint_ref,
     )
     for label, value in (
         ("Result:", result),
@@ -218,12 +219,27 @@ def _monitor_field_parts(
     if agent.monitor_diagnostic_manifest_ref:
         text.append(_field_label("Diagnostics:"), style=COLOR_SUMMARY)
         text.append(f"{agent.monitor_diagnostic_manifest_ref}\n", style=COLOR_REASON)
+    if agent.monitor_retained_log_ref:
+        text.append(_field_label("Retained log:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_retained_log_ref}\n", style=COLOR_REASON)
     if agent.continuation_monitor_result_ref:
         text.append(_field_label("Result ref:"), style=COLOR_SUMMARY)
         text.append(f"{agent.continuation_monitor_result_ref}\n", style=COLOR_REASON)
+    if agent.continuation_checkpoint_ref:
+        text.append(_field_label("Checkpoint:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.continuation_checkpoint_ref}\n", style=COLOR_REASON)
     if agent.continuation_node_ref:
         text.append(_field_label("Node ref:"), style=COLOR_SUMMARY)
         text.append(f"{agent.continuation_node_ref}\n", style=COLOR_REASON)
+    if agent.continuation_manifest_ref:
+        text.append(_field_label("Manifest:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.continuation_manifest_ref}\n", style=COLOR_REASON)
+    if agent.monitor_budget_decision_path:
+        text.append(_field_label("Budget:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_budget_decision_path}\n", style=COLOR_REASON)
+    if agent.monitor_followup_prompt_path:
+        text.append(_field_label("Saved prompt:"), style=COLOR_SUMMARY)
+        text.append(f"{agent.monitor_followup_prompt_path}\n", style=COLOR_REASON)
 
     parts.append(text)
     return parts
