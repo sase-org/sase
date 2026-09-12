@@ -126,6 +126,11 @@ def _render_monitor_result(payload: Mapping[str, Any]) -> list[str]:
                 if isinstance(payload.get("output_log_path"), str)
                 else None
             ),
+            selected_diagnostics_text=(
+                payload.get("selected_diagnostics_text")
+                if isinstance(payload.get("selected_diagnostics_text"), str)
+                else None
+            ),
             command_text=(
                 payload.get("command_text")
                 if isinstance(payload.get("command_text"), str)

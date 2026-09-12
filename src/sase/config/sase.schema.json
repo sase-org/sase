@@ -4265,6 +4265,44 @@
         ]
       }
     },
+    "monitor": {
+      "type": "object",
+      "description": "Detached monitor and continuation settings.",
+      "additionalProperties": false,
+      "properties": {
+        "evidence_limits": {
+          "type": "object",
+          "description": "Resource limits for evidence projected into monitor continuation prompts. Strict file/none policies still embed no raw output.",
+          "additionalProperties": false,
+          "properties": {
+            "selected_diagnostics_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum UTF-8 bytes of Rust-selected stage diagnostics embedded for failed automatic continuations.",
+              "default": 8192
+            },
+            "fallback_tail_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum UTF-8 bytes of fallback raw tail embedded when structured diagnostics are unavailable or insufficient.",
+              "default": 4096
+            },
+            "total_raw_excerpt_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum UTF-8 bytes of raw evidence embedded into one continuation prompt.",
+              "default": 12288
+            },
+            "raw_tail_lines": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum retained-output lines considered for raw-tail evidence projections.",
+              "default": 200
+            }
+          }
+        }
+      }
+    },
     "telemetry": {
       "type": "object",
       "description": "Local telemetry settings",

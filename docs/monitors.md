@@ -284,15 +284,19 @@ replayed by hand instead of surviving only as an error string. See
 
 The follow-up prompt's body is enclosed in an xprompt-disabled region, so directives,
 `#xprompt` references, and `$(...)` command substitution inside `--reason`, `--next`,
-table fields, and embedded output are delivered as literal text. Only the routing prefix
-(`#fork:`, `%model:`, `%effort:`) remains live. When `--next-output tail` is used,
-retained output is also fenced and labeled as untrusted program output. The command and
-cwd fields are fenced too, so directive-shaped strings inside a shell command or path
-remain literal even if the disabled region is ever removed. `--next-output auto`
-defaults completed runs to facts and refs, failed runs to diagnostics when available,
-and timeouts to a bounded raw tail. Use `--next-output file` for large or hostile logs
-when the follow-up should inspect the log explicitly, or `--next-output none` when the
-outcome summary and `sase monitor show --all-lines` pointer are enough.
+table fields, diagnostics, and embedded output are delivered as literal text. Only the
+routing prefix (`#fork:`, `%model:`, `%effort:`) remains live. When `--next-output tail`
+is used, retained output is also fenced and labeled as untrusted program output. The
+command and cwd fields are fenced too, so directive-shaped strings inside a shell
+command or path remain literal even if the disabled region is ever removed.
+`--next-output auto` defaults completed runs to facts and refs, failed runs to bounded
+selected diagnostics when available, and timeouts to a bounded raw tail. Use
+`--next-output file` for large or hostile logs when the follow-up should inspect the log
+explicitly, or `--next-output none` when the outcome summary and
+`sase monitor show --all-lines` pointer are enough. The continuation evidence limits
+live under `monitor.evidence_limits` in `sase.yml`; the shipped defaults are 8 KiB
+selected diagnostics, 4 KiB fallback tail, 12 KiB total raw excerpt budget, and 200
+raw-tail lines.
 
 ## Runner slots
 

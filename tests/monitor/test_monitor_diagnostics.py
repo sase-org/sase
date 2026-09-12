@@ -12,6 +12,7 @@ from pathlib import Path
 from sase.monitor.diagnostics import (
     read_diagnostics_text,
     read_retained_log_range,
+    read_selected_diagnostics_text,
     retained_log_metadata,
 )
 from sase.monitor.supervise import run_supervisor
@@ -134,3 +135,60 @@ def test_supervisor_freezes_stage_manifest_and_retained_log_metadata(
         end=int(first_range["end"]),
     )
     assert ranged.metadata["available"] is True
+
+
+def test_selected_diagnostics_reads_only_rust_selected_stage_locators(
+    tmp_path: Path,
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    selected_path = artifacts_dir / "diagnostics" / "stage_output" / "pytest.log"
+    other_path = artifacts_dir / "diagnostics" / "stage_output" / "ruff.log"
+    selected_path.parent.mkdir(parents=True)
+    selected_path.write_text("pytest boom\nUNICODE SENTINEL: \u03b1\u03b2\u03b3\n")
+    other_path.write_text("ruff should stay out\n")
+    manifest = {
+        "schema_version": 1,
+        "producer": "test",
+        "complete": False,
+        "stages": [
+            {
+                "stage_id": "ruff",
+                "name": "ruff",
+                "status": "failed",
+                "exit_code": 1,
+                "diagnostic_locators": ["diagnostics/stage_output/ruff.log"],
+            },
+            {
+                "stage_id": "pytest",
+                "name": "pytest",
+                "status": "failed",
+                "exit_code": 7,
+                "diagnostic_locators": ["diagnostics/stage_output/pytest.log"],
+                "counts": {"failures": 2, "output_bytes": 40},
+            },
+        ],
+    }
+
+    selected = read_selected_diagnostics_text(
+        artifacts_dir,
+        selection={
+            "diagnostic_stage_ids": ["pytest"],
+            "max_embedded_bytes": 256,
+        },
+        manifest=manifest,
+    )
+    limited = read_selected_diagnostics_text(
+        artifacts_dir,
+        selection={
+            "diagnostic_stage_ids": ["pytest"],
+            "max_embedded_bytes": len(b"== pytest (failed exit 7) ==\n") + 1,
+        },
+        manifest=manifest,
+    )
+
+    assert "pytest boom" in selected.text
+    assert "UNICODE SENTINEL" in selected.text
+    assert "failures=2" in selected.text
+    assert "ruff should stay out" not in selected.text
+    assert selected.metadata["selected_stages"][0]["stage_id"] == "pytest"
+    limited.text.encode("utf-8")

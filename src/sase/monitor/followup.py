@@ -32,9 +32,14 @@ from sase.shells.followup import (
 )
 
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, compose_followup_prompt
-from .diagnostics import diagnostic_manifest, retained_log_metadata
+from .diagnostics import (
+    diagnostic_manifest,
+    read_selected_diagnostics_text,
+    retained_log_metadata,
+)
 from .logs import monitor_log_path
 from .output import OutputCapture
+from .result_projection import build_monitor_result_wire, select_monitor_result_evidence
 
 _SAVED_FOLLOWUP_PROMPT_NAME = "monitor_followup_prompt.md"
 
@@ -80,6 +85,38 @@ def launch_followup_agent(
         timeout_seconds=settle_timeout_seconds,
     )
 
+    manifest = diagnostic_manifest(artifacts_dir)
+    retained_log = retained_log_metadata(artifacts_dir)
+    next_output = str(meta.get("monitor_next_output") or DEFAULT_NEXT_OUTPUT)
+    monitor_result = build_monitor_result_wire(
+        monitor_id=str(meta.get("monitor_id") or ""),
+        monitor_state=monitor_state,
+        exit_code=exit_code,
+        command=str(meta.get("monitor_command") or ""),
+        cwd=str(meta.get("monitor_cwd") or ""),
+        started_at=meta.get("run_started_at"),
+        stopped_at=meta.get("stopped_at"),
+        elapsed_seconds=elapsed_seconds,
+        timeout_seconds=float(meta.get("monitor_timeout_seconds") or 0.0),
+        timeout_kind=timeout_kind or meta.get("monitor_timeout_kind"),
+        starter_execution_id=_clean_str(meta.get("monitor_starter_agent"))
+        or _clean_str(meta.get("parent_timestamp")),
+        workspace_identity=_clean_str(meta.get("continuation_workspace_ref"))
+        or _clean_str(meta.get("workspace_dir")),
+        diagnostic_manifest_ref=manifest.get("manifest_ref"),
+        retained_log=retained_log,
+    )
+    evidence_selection = select_monitor_result_evidence(
+        monitor_result,
+        next_output=next_output,
+        diagnostic_manifest=manifest,
+    )
+    selected_diagnostics = read_selected_diagnostics_text(
+        artifacts_dir,
+        selection=evidence_selection,
+        manifest=manifest,
+    )
+
     prompt_kwargs: dict[str, Any] = {
         "starter_name": starter_name if settled else None,
         "family_name": lane,
@@ -100,13 +137,15 @@ def launch_followup_agent(
         "total_bytes": capture.total_bytes,
         "output_truncated": capture.truncated,
         "next_action": next_action,
-        "next_output": str(meta.get("monitor_next_output") or DEFAULT_NEXT_OUTPUT),
+        "next_output": next_output,
         "output_log_path": str(monitor_log_path(artifacts_dir)),
         "model": _clean_str(meta.get("model")),
         "reasoning_effort": _clean_str(meta.get("reasoning_effort")),
         "next_model": _clean_str(meta.get("monitor_next_model")),
-        "diagnostic_manifest": diagnostic_manifest(artifacts_dir),
-        "retained_log_metadata": retained_log_metadata(artifacts_dir),
+        "diagnostic_manifest": manifest,
+        "retained_log_metadata": retained_log,
+        "evidence_selection": evidence_selection,
+        "selected_diagnostics_text": selected_diagnostics.text,
         "starter_execution_id": _clean_str(meta.get("monitor_starter_agent"))
         or _clean_str(meta.get("parent_timestamp")),
         "workspace_identity": _clean_str(meta.get("continuation_workspace_ref"))

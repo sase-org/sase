@@ -96,6 +96,7 @@ def _monitor_payload_from_result(
         LEGACY_NEXT_OUTPUT,
         select_monitor_result_evidence,
     )
+    from sase.monitor.diagnostics import read_selected_diagnostics_text
 
     diagnostic_manifest = _diagnostic_manifest_payload(artifact_dir, meta)
     selection = select_monitor_result_evidence(
@@ -108,6 +109,11 @@ def _monitor_payload_from_result(
         diagnostic_manifest=diagnostic_manifest,
         historical_result=historical_result,
     )
+    selected_diagnostics = read_selected_diagnostics_text(
+        artifact_dir,
+        selection=selection,
+        manifest=dict(diagnostic_manifest),
+    )
     return {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "kind": "monitor_result",
@@ -115,6 +121,7 @@ def _monitor_payload_from_result(
         "artifact_dir_name": artifact_dir.name,
         "result": result,
         "selection": selection,
+        "selected_diagnostics_text": selected_diagnostics.text,
         "output_text": fork_source_optional_string(proc, "log_tail"),
         "output_log_path": fork_source_optional_string(proc, "log_path"),
         "command_text": fork_source_optional_string(proc, "command"),
@@ -228,6 +235,7 @@ def monitor_payload(
         build_monitor_result_wire,
         select_monitor_result_evidence,
     )
+    from sase.monitor.diagnostics import read_selected_diagnostics_text
 
     log_tail = fork_source_optional_string(proc, "log_tail")
     result = build_monitor_result_wire(
@@ -277,6 +285,11 @@ def monitor_payload(
         diagnostic_manifest=diagnostic_manifest,
         historical_result=historical_result,
     )
+    selected_diagnostics = read_selected_diagnostics_text(
+        artifact_dir,
+        selection=selection,
+        manifest=dict(diagnostic_manifest),
+    )
     return {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "kind": "monitor_result_compat",
@@ -284,6 +297,7 @@ def monitor_payload(
         "artifact_dir_name": artifact_dir.name,
         "result": result,
         "selection": selection,
+        "selected_diagnostics_text": selected_diagnostics.text,
         "output_text": log_tail,
         "output_log_path": fork_source_optional_string(proc, "log_path"),
         "command_text": fork_source_optional_string(proc, "command"),

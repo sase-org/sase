@@ -828,6 +828,13 @@ ace:
           attach: "a"
           create: "c"
 
+monitor:
+  evidence_limits:
+    selected_diagnostics_bytes: 8192
+    fallback_tail_bytes: 4096
+    total_raw_excerpt_bytes: 12288
+    raw_tail_lines: 200
+
 axe:
   max_hook_runners: 3
   max_agent_runners: 3

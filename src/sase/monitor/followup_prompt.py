@@ -116,6 +116,8 @@ def compose_followup_prompt(
     workspace_degraded_reason: str | None = None,
     diagnostic_manifest: dict[str, object] | None = None,
     retained_log_metadata: dict[str, object] | None = None,
+    evidence_selection: dict[str, object] | None = None,
+    selected_diagnostics_text: str | None = None,
     starter_execution_id: str | None = None,
     workspace_identity: str | None = None,
 ) -> str:
@@ -164,7 +166,7 @@ def compose_followup_prompt(
         diagnostic_manifest_ref=diagnostic_ref,
         retained_log=retained_log,
     )
-    selection = select_monitor_result_evidence(
+    selection = evidence_selection or select_monitor_result_evidence(
         result,
         next_output=next_output,
         diagnostic_manifest=diagnostic_manifest,
@@ -210,6 +212,18 @@ def compose_followup_prompt(
         "",
     ]
     raw_limits = selected_raw_limits(selection, requested_tail_lines=tail_lines)
+    if selected_diagnostics_text and selection.get("diagnostic_stage_ids"):
+        sections.extend(
+            [
+                "## Selected diagnostics",
+                "",
+                *_fenced_block(
+                    "Diagnostics (untrusted program output)",
+                    selected_diagnostics_text,
+                ),
+                "",
+            ]
+        )
     if raw_limits is not None:
         selected_tail_lines, max_chars = raw_limits
         sections.extend(_tail_section(output_text, selected_tail_lines, max_chars))

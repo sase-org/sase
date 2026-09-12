@@ -7,6 +7,13 @@ import hashlib
 import json
 from typing import Any, cast
 
+from sase.config.core import (
+    DEFAULT_MONITOR_FALLBACK_TAIL_BYTES,
+    DEFAULT_MONITOR_RAW_TAIL_LINES,
+    DEFAULT_MONITOR_SELECTED_DIAGNOSTICS_BYTES,
+    DEFAULT_MONITOR_TOTAL_RAW_EXCERPT_BYTES,
+    get_monitor_evidence_limits,
+)
 from sase.core.continuation_facade import select_continuation_evidence
 from sase.core.continuation_wire import (
     CONTINUATION_WIRE_SCHEMA_VERSION,
@@ -33,18 +40,10 @@ NEXT_OUTPUT_CHOICES: tuple[ContinuationEvidencePolicy, ...] = (
 DEFAULT_NEXT_OUTPUT: ContinuationEvidencePolicy = "auto"
 LEGACY_NEXT_OUTPUT: ContinuationEvidencePolicy = "tail"
 
-SELECTED_DIAGNOSTICS_MAX_BYTES = 8 * 1024
-FALLBACK_TAIL_MAX_BYTES = 4 * 1024
-TOTAL_RAW_EXCERPT_MAX_BYTES = 12 * 1024
-RAW_TAIL_LINES = 200
-WIRE_COMMAND_PART_MAX_BYTES = 1024
-
-_EVIDENCE_LIMITS = {
-    "selected_diagnostics_bytes": SELECTED_DIAGNOSTICS_MAX_BYTES,
-    "fallback_tail_bytes": FALLBACK_TAIL_MAX_BYTES,
-    "total_raw_excerpt_bytes": TOTAL_RAW_EXCERPT_MAX_BYTES,
-    "raw_tail_lines": RAW_TAIL_LINES,
-}
+SELECTED_DIAGNOSTICS_MAX_BYTES = DEFAULT_MONITOR_SELECTED_DIAGNOSTICS_BYTES
+FALLBACK_TAIL_MAX_BYTES = DEFAULT_MONITOR_FALLBACK_TAIL_BYTES
+TOTAL_RAW_EXCERPT_MAX_BYTES = DEFAULT_MONITOR_TOTAL_RAW_EXCERPT_BYTES
+RAW_TAIL_LINES = DEFAULT_MONITOR_RAW_TAIL_LINES
 
 
 def _normalize_next_output(
@@ -171,7 +170,7 @@ def select_monitor_result_evidence(
         "result": dict(result),
         "policy": _normalize_next_output(next_output),
         "historical_result": bool(historical_result),
-        "limits": dict(_EVIDENCE_LIMITS),
+        "limits": _monitor_evidence_limits(),
     }
     if diagnostic_manifest:
         request["diagnostic_manifest"] = _diagnostic_manifest_wire(diagnostic_manifest)
@@ -184,6 +183,7 @@ def render_monitor_result_block(
     *,
     output_text: str | None = None,
     output_log_path: str | None = None,
+    selected_diagnostics_text: str | None = None,
     command_text: str | None = None,
     heading_level: int = 3,
 ) -> list[str]:
@@ -205,6 +205,7 @@ def render_monitor_result_block(
                 selection,
                 output_text=output_text,
                 output_log_path=output_log_path,
+                selected_diagnostics_text=selected_diagnostics_text,
                 heading_level=heading_level + 1,
             ),
         ]
@@ -218,6 +219,7 @@ def render_monitor_evidence_section(
     *,
     output_text: str | None = None,
     output_log_path: str | None = None,
+    selected_diagnostics_text: str | None = None,
     heading_level: int = 3,
 ) -> list[str]:
     """Render the Rust-selected monitor evidence and optional raw excerpt."""
@@ -245,6 +247,22 @@ def render_monitor_evidence_section(
     omissions = _string_list(selection.get("omissions"))
     if omissions:
         lines.append(f"- **Omissions:** {'; '.join(omissions)}")
+
+    if _string_list(selection.get("diagnostic_stage_ids")):
+        if selected_diagnostics_text:
+            lines.extend(
+                [
+                    "",
+                    f"{heading} Selected diagnostics",
+                    "",
+                    *fenced_block(
+                        "Diagnostics (untrusted program output)",
+                        selected_diagnostics_text,
+                    ),
+                ]
+            )
+        else:
+            lines.extend(["", "_Selected diagnostic text was unavailable._"])
 
     if bool(selection.get("include_raw_excerpt")):
         tail_lines = _positive_int(selection.get("max_tail_lines"), RAW_TAIL_LINES)
@@ -364,11 +382,21 @@ def _wire_command_parts(parts: Sequence[str]) -> list[str]:
 
 
 def _wire_command_part(part: str) -> str:
-    if len(part.encode("utf-8")) <= WIRE_COMMAND_PART_MAX_BYTES:
-        return part
-    digest = _sha_text(part)[:16]
-    prefix = part.encode("utf-8")[:64].decode("utf-8", errors="ignore").rstrip()
-    return f"{prefix}... [command part omitted; sha256:{digest}]"
+    return part
+
+
+def _monitor_evidence_limits() -> dict[str, int]:
+    """Return monitor evidence limits for Rust selection, with safe defaults."""
+
+    try:
+        return get_monitor_evidence_limits()
+    except Exception:  # noqa: BLE001 - projection should preserve legacy defaults.
+        return {
+            "selected_diagnostics_bytes": SELECTED_DIAGNOSTICS_MAX_BYTES,
+            "fallback_tail_bytes": FALLBACK_TAIL_MAX_BYTES,
+            "total_raw_excerpt_bytes": TOTAL_RAW_EXCERPT_MAX_BYTES,
+            "raw_tail_lines": RAW_TAIL_LINES,
+        }
 
 
 def _retained_log_wire(

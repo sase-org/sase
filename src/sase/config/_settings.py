@@ -34,6 +34,10 @@ DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS = 90
 DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS = 14
 DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS = 3600
 DEFAULT_PAGER_SYNTAX = "auto"
+DEFAULT_MONITOR_SELECTED_DIAGNOSTICS_BYTES = 8 * 1024
+DEFAULT_MONITOR_FALLBACK_TAIL_BYTES = 4 * 1024
+DEFAULT_MONITOR_TOTAL_RAW_EXCERPT_BYTES = 12 * 1024
+DEFAULT_MONITOR_RAW_TAIL_LINES = 200
 
 
 def _merged_config() -> dict[str, Any]:
@@ -163,6 +167,62 @@ def get_pager_syntax() -> str:
     if value in {"auto", "never"}:
         return str(value)
     return DEFAULT_PAGER_SYNTAX
+
+
+def get_monitor_evidence_limits() -> dict[str, int]:
+    """Return validated monitor evidence projection byte and line limits."""
+    try:
+        monitor = _merged_config().get("monitor", {})
+    except Exception:  # noqa: BLE001 - evidence projection should fail open.
+        return _default_monitor_evidence_limits()
+    evidence = monitor.get("evidence_limits", {}) if isinstance(monitor, dict) else {}
+    config = evidence if isinstance(evidence, dict) else {}
+    limits = {
+        "selected_diagnostics_bytes": _positive_int_config(
+            config,
+            "selected_diagnostics_bytes",
+            DEFAULT_MONITOR_SELECTED_DIAGNOSTICS_BYTES,
+        ),
+        "fallback_tail_bytes": _positive_int_config(
+            config,
+            "fallback_tail_bytes",
+            DEFAULT_MONITOR_FALLBACK_TAIL_BYTES,
+        ),
+        "total_raw_excerpt_bytes": _positive_int_config(
+            config,
+            "total_raw_excerpt_bytes",
+            DEFAULT_MONITOR_TOTAL_RAW_EXCERPT_BYTES,
+        ),
+        "raw_tail_lines": _positive_int_config(
+            config,
+            "raw_tail_lines",
+            DEFAULT_MONITOR_RAW_TAIL_LINES,
+        ),
+    }
+    if (
+        limits["selected_diagnostics_bytes"] > limits["total_raw_excerpt_bytes"]
+        or limits["fallback_tail_bytes"] > limits["total_raw_excerpt_bytes"]
+    ):
+        return _default_monitor_evidence_limits()
+    return limits
+
+
+def _default_monitor_evidence_limits() -> dict[str, int]:
+    return {
+        "selected_diagnostics_bytes": DEFAULT_MONITOR_SELECTED_DIAGNOSTICS_BYTES,
+        "fallback_tail_bytes": DEFAULT_MONITOR_FALLBACK_TAIL_BYTES,
+        "total_raw_excerpt_bytes": DEFAULT_MONITOR_TOTAL_RAW_EXCERPT_BYTES,
+        "raw_tail_lines": DEFAULT_MONITOR_RAW_TAIL_LINES,
+    }
+
+
+def _positive_int_config(
+    config: dict[str, Any],
+    key: str,
+    default: int,
+) -> int:
+    value = config.get(key, default)
+    return value if type(value) is int and value >= 1 else default
 
 
 def get_markdown_print_width() -> int:

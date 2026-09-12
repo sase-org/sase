@@ -200,6 +200,106 @@ def read_diagnostics_text(
     )
 
 
+def read_selected_diagnostics_text(
+    artifacts_dir: str | Path,
+    *,
+    selection: dict[str, Any],
+    manifest: dict[str, Any] | None = None,
+    max_bytes: int | None = None,
+) -> _MonitorTextRead:
+    """Materialize exactly the diagnostic stages selected for continuation."""
+
+    selected_stage_ids = _string_values(selection.get("diagnostic_stage_ids"))
+    configured_budget = _optional_positive_int(selection.get("max_embedded_bytes"))
+    budget = _clamped_max_bytes(
+        max_bytes or configured_budget or DEFAULT_DIAGNOSTICS_MAX_BYTES,
+        default=DEFAULT_DIAGNOSTICS_MAX_BYTES,
+    )
+    if not selected_stage_ids:
+        return _MonitorTextRead(
+            "",
+            {
+                "mode": "selected_diagnostics",
+                "available": False,
+                "selected_stage_ids": [],
+                "max_bytes": budget,
+            },
+        )
+
+    manifest_payload = manifest if isinstance(manifest, dict) else None
+    if manifest_payload is None:
+        manifest_payload = _read_json(diagnostic_manifest_path(artifacts_dir))
+    stage_by_id = {
+        str(stage.get("stage_id")): stage
+        for stage in manifest_payload.get("stages") or []
+        if isinstance(stage, dict) and stage.get("stage_id")
+    }
+
+    chunks: list[str] = []
+    selected: list[dict[str, Any]] = []
+    missing_stage_ids: list[str] = []
+    remaining = budget
+    for stage_id in selected_stage_ids:
+        if remaining <= 0:
+            break
+        stage = stage_by_id.get(stage_id)
+        if stage is None:
+            missing_stage_ids.append(stage_id)
+            continue
+        header = _stage_header(stage)
+        chunks.append(_take_text(header.encode(), remaining))
+        remaining = max(0, budget - _text_bytes(chunks))
+        counts = stage.get("counts")
+        if isinstance(counts, dict) and remaining > 0:
+            summary = _stage_counts_summary(counts)
+            if summary:
+                chunks.append(_take_text(summary.encode(), remaining))
+                remaining = max(0, budget - _text_bytes(chunks))
+
+        locators = _string_values(stage.get("diagnostic_locators"))
+        capture_errors = _string_values(stage.get("capture_errors"))
+        if not locators and capture_errors and remaining > 0:
+            detail = "\n".join(
+                f"[diagnostic capture: {item}]" for item in capture_errors
+            )
+            chunks.append(_take_text(f"{detail}\n".encode(), remaining))
+            remaining = max(0, budget - _text_bytes(chunks))
+        for locator in locators:
+            if remaining <= 0:
+                break
+            try:
+                data = _locator_path(artifacts_dir, locator).read_bytes()
+            except OSError as exc:
+                data = f"[could not read diagnostic: {exc}]\n".encode()
+            part = _take_text(data, remaining)
+            chunks.append(part if part.endswith("\n") else f"{part}\n")
+            remaining = max(0, budget - _text_bytes(chunks))
+        selected.append(
+            {
+                "stage_id": stage_id,
+                "status": stage.get("status"),
+                "diagnostic_locators": locators,
+            }
+        )
+
+    complete = (
+        bool(manifest_payload.get("complete"))
+        and not missing_stage_ids
+        and remaining > 0
+    )
+    return _MonitorTextRead(
+        "".join(chunks),
+        {
+            "mode": "selected_diagnostics",
+            "available": bool(chunks),
+            "complete": complete,
+            "selected_stages": selected,
+            "missing_stage_ids": missing_stage_ids,
+            "max_bytes": budget,
+        },
+    )
+
+
 def read_retained_log_range(
     artifacts_dir: str | Path,
     *,
@@ -388,6 +488,37 @@ def _read_json(path: Path) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _stage_header(stage: dict[str, Any]) -> str:
+    name = stage.get("name") or stage.get("stage_id") or "stage"
+    status = stage.get("status") or "unknown"
+    exit_code = stage.get("exit_code")
+    suffix = f" exit {exit_code}" if isinstance(exit_code, int) else ""
+    return f"== {name} ({status}{suffix}) ==\n"
+
+
+def _stage_counts_summary(counts: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for key in sorted(counts):
+        value = counts[key]
+        if isinstance(value, int) and not isinstance(value, bool):
+            parts.append(f"{key}={value}")
+    return f"[counts: {', '.join(parts)}]\n" if parts else ""
+
+
+def _string_values(value: object) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item]
+
+
+def _optional_positive_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value >= 1:
+        return value
+    return None
+
+
 def _clamped_max_bytes(value: int, *, default: int) -> int:
     if value <= 0:
         return default
@@ -397,7 +528,10 @@ def _clamped_max_bytes(value: int, *, default: int) -> int:
 def _take_text(data: bytes, budget: int) -> str:
     if budget <= 0:
         return ""
-    return data[:budget].decode("utf-8", errors="replace")
+    text = data.decode("utf-8", errors="replace")
+    if len(text.encode("utf-8")) <= budget:
+        return text
+    return text.encode("utf-8")[:budget].decode("utf-8", errors="ignore")
 
 
 def _gap_notice(start: int, end: int) -> str:
@@ -419,6 +553,7 @@ __all__ = [
     "diagnostics_dir",
     "freeze_retained_log_metadata",
     "read_diagnostics_text",
+    "read_selected_diagnostics_text",
     "read_retained_log_range",
     "retained_log_metadata",
     "retained_log_metadata_path",
