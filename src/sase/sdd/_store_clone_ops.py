@@ -9,6 +9,7 @@ import shutil
 import time
 
 from sase._git_remote import is_http_git_remote
+from sase.core.retryability_facade import is_retryable_git_clone_failure
 from sase.sdd._store_git import (
     git_remote_url as _git_remote_url,
     paths_same_file as _paths_same_file,
@@ -21,20 +22,6 @@ _logger = logging.getLogger(__name__)
 _REMOTE_CLONE_RETRY_DELAYS = (0.25, 1.0, 2.0)
 _REMOTE_CLONE_TIMEOUT_GROWTH = 0.5
 _MAX_RETRIES_WITHOUT_REFERENCE = 1
-_TRANSIENT_REMOTE_CLONE_ERRORS = (
-    "broken pipe",
-    "closed by remote host",
-    "connection refused",
-    "connection reset",
-    "connection timed out",
-    "could not resolve hostname",
-    "early eof",
-    "invalid index-pack output",
-    "network is unreachable",
-    "no route to host",
-    "remote end hung up unexpectedly",
-    "unexpected disconnect",
-)
 
 
 def clone_sdd_store(
@@ -240,8 +227,7 @@ def _matching_clone_reference(
 
 
 def _is_transient_remote_clone_failure(detail: str) -> bool:
-    normalized = detail.casefold()
-    return any(marker in normalized for marker in _TRANSIENT_REMOTE_CLONE_ERRORS)
+    return is_retryable_git_clone_failure(detail)
 
 
 def _remove_partial_sdd_clone(workspace_sdd: Path) -> None:

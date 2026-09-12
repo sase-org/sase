@@ -12,6 +12,7 @@ This package also hosts the Rust-bindable facade layer (see
 - :mod:`sase.core.graph_index_facade` — :func:`build_patch_graph_index`.
 - :mod:`sase.core.status_facade` — status transitions + pure status helpers.
 - :mod:`sase.core.git_query_facade` — Git query parsers.
+- :mod:`sase.core.retryability_facade` — GitHub transport retryability classifier.
 - :mod:`sase.core.glossary_facade` — glossary validation and matching.
 
 The Rust extension is a hard runtime dependency. Ported facades call
