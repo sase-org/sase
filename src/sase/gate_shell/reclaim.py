@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import os
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from sase.config import get_gate_shell_reclaim_grace_seconds
+from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.gate_shell.handoff import (
     RECONCILE_BATCH_SIZE,
     apply_decision,
@@ -19,7 +22,12 @@ from sase.gate_shell.handoff import (
 )
 from sase.gate_shell.models import GateShellRecord
 from sase.gate_shell.settlement import settle_gate_shell
-from sase.gate_shell.store import list_gate_shells, read_gate_shell_marker
+from sase.gate_shell.store import (
+    GateShellSnapshot,
+    list_gate_shells,
+    load_gate_shell_snapshot,
+    read_gate_shell_marker,
+)
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.executor import cancel_gate
 from sase.notification_gates.hashing import load_and_verify_bundle
@@ -27,6 +35,12 @@ from sase.notification_gates.paths import CANCELLATION_FILENAME, RESPONSE_FILENA
 
 
 _MAX_ERROR_DETAILS = 5
+#: Handoff reconciliation stops taking new gates after this long, well inside
+#: the chop's two-minute timeout, so a slow pass still reports and resumes.
+_RECONCILE_TIME_BUDGET_SECONDS = 60.0
+#: Filesystem mtimes can trail ``time.time()`` by a clock tick, so metadata
+#: changed within this margin of a snapshot counts as changed after it.
+_SNAPSHOT_MTIME_SLACK_SECONDS = 1.0
 
 
 @dataclass(frozen=True)
@@ -168,6 +182,7 @@ class GateHandoffReconcileSummary:
     adopted: int = 0
     skipped: int = 0
     errors: int = 0
+    deferred: int = 0
     error_details: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, int]:
@@ -177,6 +192,7 @@ class GateHandoffReconcileSummary:
             "handoff_adopted": self.adopted,
             "handoff_skipped": self.skipped,
             "handoff_errors": self.errors,
+            "handoff_deferred": self.deferred,
         }
 
 
@@ -184,28 +200,39 @@ def reconcile_incomplete_gate_handoffs(
     *,
     project: str | None = None,
     batch_size: int = RECONCILE_BATCH_SIZE,
+    time_budget_seconds: float = _RECONCILE_TIME_BUDGET_SECONDS,
+    clock: Callable[[], float] = time.monotonic,
 ) -> GateHandoffReconcileSummary:
-    """Diagnose terminal gates whose requested successor never recorded."""
+    """Diagnose terminal gates whose requested successor never recorded.
+
+    The pass reads the artifact index once and shares it across every gate,
+    saves each project's cursor after every gate, and defers the rest of its
+    batches once ``time_budget_seconds`` have elapsed.
+    """
+    deadline = clock() + time_budget_seconds
     counts = {
         "scanned": 0,
         "incomplete": 0,
         "adopted": 0,
         "skipped": 0,
         "errors": 0,
+        "deferred": 0,
     }
     error_details: list[str] = []
-    records = [
-        record for record in list_gate_shells(project=project) if record.is_terminal
-    ]
+    snapshot = load_gate_shell_snapshot(project=project)
+    records = [record for record in snapshot.gate_shells if record.is_terminal]
     records.sort(key=lambda record: (record.timestamp, record.artifacts_dir))
-    grouped: dict[str, list[Any]] = {}
+    grouped: dict[str, list[GateShellRecord]] = {}
     for record in records:
         grouped.setdefault(record.project_name, []).append(record)
     for project_name, project_records in grouped.items():
-        _reconcile_project(
+        counts["deferred"] += _reconcile_project(
             project_name,
             project_records,
+            snapshot=snapshot,
             batch_size=batch_size,
+            deadline=deadline,
+            clock=clock,
             counts=counts,
             error_details=error_details,
         )
@@ -214,31 +241,30 @@ def reconcile_incomplete_gate_handoffs(
 
 def _reconcile_project(
     project_name: str,
-    records: list[Any],
+    records: list[GateShellRecord],
     *,
+    snapshot: GateShellSnapshot,
     batch_size: int,
+    deadline: float,
+    clock: Callable[[], float],
     counts: dict[str, int],
     error_details: list[str],
-) -> None:
+) -> int:
+    """Diagnose one project's next batch; return how many gates were deferred."""
     cursor = load_reconcile_cursor(project_name)
     last_ts = str(cursor.get("timestamp") or "")
     last_dir = str(cursor.get("artifacts_dir") or "")
-    remaining = batch_size
-    last_seen: dict[str, str] | None = None
-    for record in records:
-        key = (record.timestamp, record.artifacts_dir)
-        if last_ts and key <= (last_ts, last_dir):
-            continue
-        if remaining <= 0:
-            break
-        remaining -= 1
+    batch = [
+        record
+        for record in records
+        if not last_ts or (record.timestamp, record.artifacts_dir) > (last_ts, last_dir)
+    ][:batch_size]
+    for index, record in enumerate(batch):
+        if clock() >= deadline:
+            return len(batch) - index
         counts["scanned"] += 1
-        last_seen = {
-            "timestamp": record.timestamp,
-            "artifacts_dir": record.artifacts_dir,
-        }
         try:
-            outcome = _diagnose_one(record)
+            outcome = _diagnose_one(record, snapshot)
         except Exception as error:
             counts["errors"] += 1
             if len(error_details) < _MAX_ERROR_DETAILS:
@@ -246,18 +272,21 @@ def _reconcile_project(
                     f"{record.member_agent_name or record.gate_id}: "
                     f"{type(error).__name__}: {error}"
                 )
-            continue
-        if outcome == "incomplete":
-            counts["incomplete"] += 1
-        elif outcome == "adopted":
-            counts["adopted"] += 1
         else:
-            counts["skipped"] += 1
-    if last_seen is not None:
-        store_reconcile_cursor(project_name, last_seen)
+            if outcome == "incomplete":
+                counts["incomplete"] += 1
+            elif outcome == "adopted":
+                counts["adopted"] += 1
+            else:
+                counts["skipped"] += 1
+        store_reconcile_cursor(
+            project_name,
+            {"timestamp": record.timestamp, "artifacts_dir": record.artifacts_dir},
+        )
+    return 0
 
 
-def _diagnose_one(record: Any) -> str:
+def _diagnose_one(record: GateShellRecord, snapshot: GateShellSnapshot) -> str:
     with with_gate_followup_lock(record.artifacts_dir):
         live = read_gate_shell_marker(record.project_name, record.artifacts_dir)
         if live is None:
@@ -284,6 +313,7 @@ def _diagnose_one(record: Any) -> str:
             family=live.lane,
             expected_suffix=live.next_suffix,
             recorded_agent=live.followup_agent,
+            family_records=_snapshot_family_records(snapshot, live),
         )
         decision = classify_gate_handoff(
             meta,
@@ -299,6 +329,24 @@ def _diagnose_one(record: Any) -> str:
         if decision.get("needs_attention"):
             return "incomplete"
         return "skipped"
+
+
+def _snapshot_family_records(
+    snapshot: GateShellSnapshot, live: GateShellRecord
+) -> Sequence[AgentArtifactRecordWire] | None:
+    """Return the snapshot's family members, or None if the gate changed since.
+
+    Launching or recording a successor rewrites the gate's metadata, so a gate
+    touched after the snapshot re-queries its evidence instead of trusting it.
+    """
+    meta_path = os.path.join(live.artifacts_dir, "agent_meta.json")
+    try:
+        changed_at = os.stat(meta_path).st_mtime
+    except OSError:
+        return None
+    if changed_at + _SNAPSHOT_MTIME_SLACK_SECONDS >= snapshot.taken_at:
+        return None
+    return snapshot.family_records(live.project_name, live.lane)
 
 
 __all__ = [

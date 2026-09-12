@@ -364,6 +364,7 @@ _COUNTERS_ZERO = {
     "answered": 0,
     "errors": 0,
     "handoff_adopted": 0,
+    "handoff_deferred": 0,
     "handoff_errors": 0,
     "handoff_incomplete": 0,
     "handoff_scanned": 0,
@@ -407,6 +408,36 @@ def test_gate_shell_reclaim_emits_noop_summary(
     assert result["counters"] == _COUNTERS_ZERO
 
 
+def test_gate_shell_reclaim_reports_budget_exhausted_when_every_gate_was_deferred(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_gate_shell_reclaim")
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        script,
+        "reclaim_pending_gate_shells",
+        lambda: GateShellReclaimSummary(),
+    )
+    monkeypatch.setattr(
+        script,
+        "reconcile_incomplete_gate_handoffs",
+        lambda: GateHandoffReconcileSummary(deferred=4),
+    )
+
+    run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
+
+    captured = capsys.readouterr()
+    assert "reason=budget_exhausted" in captured.out
+    assert "deferred 4 gate(s) past its time budget" in captured.out + captured.err
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "no_op"
+    assert result["reason"] == "budget_exhausted"
+    assert result["counters"] == {**_COUNTERS_ZERO, "handoff_deferred": 4}
+
+
 def test_gate_shell_reclaim_emits_action_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -440,6 +471,7 @@ def test_gate_shell_reclaim_emits_action_summary(
         "answered": 1,
         "errors": 0,
         "handoff_adopted": 0,
+        "handoff_deferred": 0,
         "handoff_errors": 0,
         "handoff_incomplete": 0,
         "handoff_scanned": 0,
@@ -488,6 +520,7 @@ def test_gate_shell_reclaim_reports_check_error_on_reclaim_errors(
         "answered": 0,
         "errors": 1,
         "handoff_adopted": 0,
+        "handoff_deferred": 0,
         "handoff_errors": 0,
         "handoff_incomplete": 0,
         "handoff_scanned": 0,

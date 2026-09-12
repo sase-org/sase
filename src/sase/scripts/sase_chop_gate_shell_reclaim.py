@@ -17,7 +17,7 @@ def _reason_for(
     if summary.errors or handoff.errors:
         return "reclaim_errors"
     if not summary.scanned and not handoff.scanned:
-        return "no_pending_gate_shells"
+        return "budget_exhausted" if handoff.deferred else "no_pending_gate_shells"
     return None
 
 
@@ -29,6 +29,11 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         runtime.log.error(f"gate shell reclaim failed: {detail}")
     for detail in handoff.error_details:
         runtime.log.error(f"gate handoff reconcile failed: {detail}")
+    if handoff.deferred:
+        runtime.log.warning(
+            f"gate handoff reconcile deferred {handoff.deferred} gate(s) past its "
+            "time budget; the next tick resumes from the saved cursor"
+        )
     payload = {**summary.to_dict(), **handoff.to_dict()}
     result = runtime.emit_summary(payload, reason=_reason_for(summary, handoff))
     if summary.errors or handoff.errors:

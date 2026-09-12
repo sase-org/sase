@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import time
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
@@ -26,7 +26,7 @@ from sase.core.gate_followup_facade import (
     gate_followup_attempt_id,
 )
 from sase.core.paths import sase_projects_dir
-from sase.notification_gates.durability import file_lock
+from sase.notification_gates.durability import atomic_write_json, file_lock
 from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
 
 logger = logging.getLogger(__name__)
@@ -167,11 +167,18 @@ def collect_successor_evidence(
     family: str,
     expected_suffix: str | None,
     recorded_agent: str | None,
+    family_records: Sequence[AgentArtifactRecordWire] | None = None,
 ) -> dict[str, Any]:
-    """Inspect family attachment/launch evidence without starting a provider."""
+    """Inspect family attachment/launch evidence without starting a provider.
+
+    A caller that already read the artifact index passes ``family_records``;
+    otherwise the family's members are queried from the index.
+    """
     suffix = expected_suffix or PLAN_CHAIN_CODER_SUFFIX
+    if family_records is None:
+        family_records = _family_records(project_name, family)
     matches: list[tuple[str, bool, bool]] = []
-    for record in _family_records(project_name, family):
+    for record in family_records:
         name = _record_name(record)
         if not name or not name.endswith(suffix):
             continue
@@ -374,12 +381,8 @@ def load_reconcile_cursor(project_name: str) -> dict[str, Any]:
 
 
 def store_reconcile_cursor(project_name: str, cursor: Mapping[str, Any]) -> None:
-    """Persist bounded-reconciliation progress for one project."""
-    path = _cursor_path(project_name)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(dict(cursor), indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    """Atomically persist bounded-reconciliation progress for one project."""
+    atomic_write_json(_cursor_path(project_name), dict(cursor))
 
 
 def _cursor_path(project_name: str) -> Path:

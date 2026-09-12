@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Sequence
+import time
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -67,18 +69,43 @@ def read_gate_shell_marker(
 
 def list_gate_shells(*, project: str | None = None) -> list[GateShellRecord]:
     """Return every gate-shell record, newest first."""
-    records = [
-        converted
-        for converted in (
-            _gate_record_from_wire(record) for record in _gate_records(project)
-        )
-        if converted is not None
-    ]
-    records.sort(
-        key=lambda record: (record.timestamp, record.artifacts_dir),
-        reverse=True,
+    return _gate_shells_from_records(_project_records(project))
+
+
+@dataclass(frozen=True)
+class GateShellSnapshot:
+    """One artifact-index read shared by every lookup in a gate-shell sweep.
+
+    A full index read costs seconds on a long-lived host, so a sweep that needs
+    both the gate shells and each gate's family members reads the index once.
+    """
+
+    taken_at: float
+    gate_shells: tuple[GateShellRecord, ...]
+    family_members: Mapping[tuple[str, str], tuple[AgentArtifactRecordWire, ...]]
+
+    def family_records(
+        self, project_name: str, family: str
+    ) -> tuple[AgentArtifactRecordWire, ...]:
+        """Return ``family``'s members in ``project_name`` as of :attr:`taken_at`."""
+        return self.family_members.get((project_name, family), ())
+
+
+def load_gate_shell_snapshot(*, project: str | None = None) -> GateShellSnapshot:
+    """Read the artifact index once for gate-shell and family-member lookups."""
+    taken_at = time.time()
+    records = _project_records(project)
+    members: dict[tuple[str, str], list[AgentArtifactRecordWire]] = {}
+    for record in records:
+        meta = record.agent_meta
+        if meta is not None and meta.agent_family:
+            key = (record.project_name, meta.agent_family)
+            members.setdefault(key, []).append(record)
+    return GateShellSnapshot(
+        taken_at=taken_at,
+        gate_shells=tuple(_gate_shells_from_records(records)),
+        family_members={key: tuple(value) for key, value in members.items()},
     )
-    return records
 
 
 def has_any_gate_shell(project_name: str, lane: str) -> bool:
@@ -167,6 +194,25 @@ def _gate_record_from_wire(record: AgentArtifactRecordWire) -> GateShellRecord |
         return None
 
 
+def _gate_shells_from_records(
+    records: Iterable[AgentArtifactRecordWire],
+) -> list[GateShellRecord]:
+    shells = [
+        converted
+        for converted in (
+            _gate_record_from_wire(record)
+            for record in records
+            if is_gate_shell_member_record(record)
+        )
+        if converted is not None
+    ]
+    shells.sort(
+        key=lambda record: (record.timestamp, record.artifacts_dir),
+        reverse=True,
+    )
+    return shells
+
+
 def _gate_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
     return [
         record
@@ -206,10 +252,12 @@ def _project_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
 
 
 __all__ = [
+    "GateShellSnapshot",
     "MIN_GATE_SHELL_REF_LENGTH",
     "find_gate_shell_by_gate_id",
     "has_any_gate_shell",
     "list_gate_shells",
+    "load_gate_shell_snapshot",
     "read_gate_shell_marker",
     "resolve_gate_shell_ref",
 ]
