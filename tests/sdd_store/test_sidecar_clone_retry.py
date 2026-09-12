@@ -135,8 +135,109 @@ def test_sidecar_clone_timeout_retries_without_reference_and_cleans_partial(
     ]
 
 
+def test_sidecar_clone_timeout_retries_with_no_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = "git@example.test:private/plans.git"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    calls: list[list[str]] = []
+    sleeps: list[float] = []
+    from sase.sdd._commit import SddGitCommandTimeout
+
+    def timeout_then_success(args: list[str], **_kwargs):
+        calls.append(list(args))
+        if len(calls) == 1:
+            clone_dir.mkdir(parents=True)
+            (clone_dir / "partial").write_text("incomplete", encoding="utf-8")
+            raise SddGitCommandTimeout("injected timeout")
+        assert not (clone_dir / "partial").exists()
+        (clone_dir / ".git").mkdir(parents=True)
+        return subprocess.CompletedProcess(
+            args=["git", "clone"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", timeout_then_success)
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", sleeps.append)
+
+    assert clone_sdd_store(remote, clone_dir, strict=True) is True
+
+    assert calls == [
+        ["clone", remote, str(clone_dir)],
+        ["clone", remote, str(clone_dir)],
+    ]
+    assert sleeps == [0.25]
+
+
+def test_sidecar_clone_timeout_budget_escalates_across_retries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = "git@example.test:private/plans.git"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    timeouts: list[float] = []
+    from sase.sdd._commit import SddGitCommandTimeout
+
+    def timeout_twice_then_success(*_args, timeout: float, **_kwargs):
+        timeouts.append(timeout)
+        if len(timeouts) < 3:
+            clone_dir.mkdir(parents=True, exist_ok=True)
+            (clone_dir / "partial").write_text("incomplete", encoding="utf-8")
+            raise SddGitCommandTimeout("injected timeout")
+        (clone_dir / ".git").mkdir(parents=True, exist_ok=True)
+        return subprocess.CompletedProcess(
+            args=["git", "clone"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr("sase.sdd._commit.network_git_timeout", lambda: 120.0)
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", timeout_twice_then_success)
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", lambda _delay: None)
+
+    assert clone_sdd_store(remote, clone_dir, strict=True) is True
+
+    assert timeouts == [120.0, 180.0, 240.0]
+
+
+def test_sidecar_clone_timeout_retry_honors_deadline_exhaustion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = "git@example.test:private/plans.git"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    now = [100.0]
+    calls = 0
+    from sase.sdd._commit import SddGitCommandTimeout
+
+    def timeout_clone(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        clone_dir.mkdir(parents=True, exist_ok=True)
+        (clone_dir / "partial").write_text("incomplete", encoding="utf-8")
+        now[0] = 105.0
+        raise SddGitCommandTimeout("injected timeout")
+
+    monkeypatch.setattr("sase.sdd._commit.network_git_timeout", lambda: 120.0)
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", timeout_clone)
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.monotonic", lambda: now[0])
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", lambda _delay: None)
+
+    with pytest.raises(
+        SddMaterializationError,
+        match="deadline expired before retrying SDD clone",
+    ):
+        clone_sdd_store(
+            remote,
+            clone_dir,
+            strict=True,
+            deadline=105.0,
+        )
+
+    assert calls == 1
+    assert not clone_dir.exists()
+
+
 @pytest.mark.parametrize("strict", [False, True])
-def test_sidecar_clone_timeout_retries_only_once_without_reference(
+def test_sidecar_clone_timeout_reference_fallback_then_retry_schedule_is_bounded(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     strict: bool,
@@ -158,6 +259,7 @@ def test_sidecar_clone_timeout_retries_only_once_without_reference(
         lambda _reference_repo, _remote_url: reference,
     )
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", timeout_clone)
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", lambda _delay: None)
 
     if strict:
         with pytest.raises(
@@ -190,6 +292,8 @@ def test_sidecar_clone_timeout_retries_only_once_without_reference(
             remote,
             str(clone_dir),
         ],
+        ["clone", remote, str(clone_dir)],
+        ["clone", remote, str(clone_dir)],
         ["clone", remote, str(clone_dir)],
     ]
     assert not clone_dir.exists()

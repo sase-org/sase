@@ -19,6 +19,7 @@ from sase.sdd._store_types import SddMaterializationError
 _logger = logging.getLogger(__name__)
 
 _REMOTE_CLONE_RETRY_DELAYS = (0.25, 1.0, 2.0)
+_REMOTE_CLONE_TIMEOUT_GROWTH = 0.5
 _MAX_RETRIES_WITHOUT_REFERENCE = 1
 _TRANSIENT_REMOTE_CLONE_ERRORS = (
     "broken pipe",
@@ -65,8 +66,10 @@ def clone_sdd_store(
     clone_args = _remote_clone_args(remote_url, workspace_sdd, reference=reference)
     retries_without_reference = 0
 
-    for attempt in range(len(_REMOTE_CLONE_RETRY_DELAYS) + 1):
-        timeout = _deadline_timeout(network_git_timeout(), deadline)
+    max_attempts = len(_REMOTE_CLONE_RETRY_DELAYS) + 1
+    base_timeout = network_git_timeout()
+    for attempt in range(max_attempts):
+        timeout = _clone_attempt_timeout(base_timeout, attempt, deadline)
         if timeout <= 0.0:
             return handle_failed_sdd_clone(
                 workspace_sdd,
@@ -107,12 +110,34 @@ def clone_sdd_store(
                     remote_url, workspace_sdd, reference=reference
                 )
                 continue
-            return handle_failed_sdd_clone(
+            if attempt >= len(_REMOTE_CLONE_RETRY_DELAYS):
+                return handle_failed_sdd_clone(
+                    workspace_sdd,
+                    f"timed out cloning SDD store {remote_url} into {workspace_sdd}",
+                    strict=strict,
+                    cause=exc,
+                )
+
+            _remove_partial_sdd_clone(workspace_sdd)
+            delay = _REMOTE_CLONE_RETRY_DELAYS[attempt]
+            _logger.warning(
+                "Timed out cloning SDD store %s into %s after %.1fs; retrying "
+                "in %.2fs (attempt %d/%d)",
+                remote_url,
                 workspace_sdd,
-                f"timed out cloning SDD store {remote_url} into {workspace_sdd}",
-                strict=strict,
-                cause=exc,
+                timeout,
+                delay,
+                attempt + 2,
+                max_attempts,
             )
+            if not _sleep_before_retry(delay, deadline):
+                return handle_failed_sdd_clone(
+                    workspace_sdd,
+                    f"deadline expired before retrying SDD clone {remote_url} into "
+                    f"{workspace_sdd}",
+                    strict=strict,
+                )
+            continue
         except Exception as exc:
             return handle_failed_sdd_clone(
                 workspace_sdd,
@@ -166,7 +191,7 @@ def clone_sdd_store(
             workspace_sdd,
             delay,
             attempt + 2,
-            len(_REMOTE_CLONE_RETRY_DELAYS) + 1,
+            max_attempts,
             detail,
         )
         if not _sleep_before_retry(delay, deadline):
@@ -366,6 +391,13 @@ def _deadline_timeout(default: float, deadline: float | None) -> float:
     if deadline is None:
         return max(0.0, default)
     return min(max(0.0, default), max(0.0, deadline - time.monotonic()))
+
+
+def _clone_attempt_timeout(
+    base_timeout: float, attempt: int, deadline: float | None
+) -> float:
+    timeout = max(0.0, base_timeout) * (1.0 + attempt * _REMOTE_CLONE_TIMEOUT_GROWTH)
+    return _deadline_timeout(timeout, deadline)
 
 
 def _sleep_before_retry(delay: float, deadline: float | None) -> bool:
