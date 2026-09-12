@@ -20,13 +20,19 @@ from typing import Any
 
 from sase.xprompt.directives import PromptDirectives
 
-from .load_balancing import MemberAvailability
+from .load_balancing import ModelAliasSelector, ModelAliasSelectorError
 from .model_alias_resolution_types import (
-    resolved_target_availability,
+    provider_for_resolved_target,
     resolved_target_is_available,
+    resolved_target_routing,
 )
 from .provider_disable import TemporaryProviderDisable, get_active_provider_disables
-from .provider_priority import ProviderRoutingContext, resolve_provider_routing_context
+from .provider_priority import (
+    ProviderAvailability,
+    ProviderRoutingContext,
+    pool_reservation_eligible,
+    resolve_provider_routing_context,
+)
 from .types import ModelTier
 
 logger = logging.getLogger(__name__)
@@ -132,16 +138,25 @@ def launch_selection_from_reservation(
     ):
         return None
 
-    available = resolved_target_is_available(
-        target,
+    pool = _primary_pool_routing(
+        alias,
+        model_alias_overrides=directives.model_alias_overrides,
         routing_context=context,
     )
-    state = resolved_target_availability(
-        target,
-        routing_context=context,
-        available=available,
+    if pool is None:
+        return None
+    member_targets, records = pool
+    reserved_index = next(
+        (
+            index
+            for index, member_target in enumerate(member_targets)
+            if _normalized_pool_target(member_target) == target
+        ),
+        None,
     )
-    if state == MemberAvailability.UNAVAILABLE:
+    if reserved_index is None:
+        return None
+    if not pool_reservation_eligible(records, reserved_index):
         return None
 
     return LaunchSelection(
@@ -153,6 +168,97 @@ def launch_selection_from_reservation(
         alias_origin=alias_origin,
         cursor_alias=alias,
     )
+
+
+def _normalized_pool_target(target: str) -> str | None:
+    provider = provider_for_resolved_target(target)
+    if provider is None:
+        return None
+    model = target.split("/", 1)[1] if "/" in target else target
+    if not model:
+        return None
+    return f"{provider}/{model}"
+
+
+def _round_robin_selector_for_alias(
+    alias: str,
+    model_alias_overrides: Mapping[str, str] | None,
+) -> ModelAliasSelector | None:
+    from . import config
+    from .launch_alias_overrides import active_launch_alias_overrides
+    from .load_balancing import parse_model_alias_selector
+    from .model_launch_settings import (
+        BIG_EPIC_LANDER_MODEL_FIELD,
+        DEFAULT_MODEL_FIELD,
+        EPIC_LANDER_MODEL_FIELD,
+        launch_model_setting_expression,
+        launch_model_setting_override_key,
+    )
+
+    overrides = active_launch_alias_overrides(model_alias_overrides)
+    if overrides.get(alias):
+        return None
+    value = config._get_model_aliases().get(alias)
+    if value is None:
+        value = config.implicit_model_alias_value(alias)
+    if value is None:
+        field_by_key = {
+            launch_model_setting_override_key(field): field
+            for field in (
+                DEFAULT_MODEL_FIELD,
+                EPIC_LANDER_MODEL_FIELD,
+                BIG_EPIC_LANDER_MODEL_FIELD,
+            )
+        }
+        field = field_by_key.get(alias)
+        if field is None:
+            return None
+        value = launch_model_setting_expression(field, overrides)
+    try:
+        selector = parse_model_alias_selector(value)
+    except ModelAliasSelectorError:
+        return None
+    if selector is None or selector.mode != "round_robin":
+        return None
+    return selector
+
+
+def _primary_pool_routing(
+    alias: str,
+    *,
+    model_alias_overrides: Mapping[str, str] | None,
+    routing_context: ProviderRoutingContext,
+) -> tuple[list[str], list[ProviderAvailability]] | None:
+    from .model_alias_resolution_resolve import resolve_model_alias_with_effort
+
+    selector = _round_robin_selector_for_alias(alias, model_alias_overrides)
+    if selector is None:
+        return None
+    member_results = [
+        resolve_model_alias_with_effort(
+            member,
+            model_alias_overrides,
+            consume=False,
+            routing_context=routing_context,
+            initial_seen={alias},
+            active_selector=alias,
+        )
+        for member in selector.members
+    ]
+    if any(not result.valid for result in member_results):
+        return None
+    records = [
+        resolved_target_routing(
+            result.target,
+            routing_context=routing_context,
+            available=resolved_target_is_available(
+                result.target,
+                routing_context=routing_context,
+            ),
+        )
+        for result in member_results
+    ]
+    return [result.target for result in member_results], records
 
 
 def resolve_launch_selection(

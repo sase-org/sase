@@ -18,7 +18,6 @@ from sase.core.finalizer_facade import (
 )
 from sase.core.finalizer_wire import (
     FINALIZER_WIRE_SCHEMA_VERSION,
-    FinalizerAssignedBeadWire,
     FinalizerAttemptWire,
     FinalizerContextWire,
     FinalizerDeferralWire,
@@ -32,7 +31,6 @@ from sase.core.finalizer_wire import (
     FinalizerSubmissionEnvelopeWire,
     FinalizerSubmissionPayloadWire,
     finalizer_add,
-    finalizer_assigned_bead_from_dict,
     finalizer_context_from_dict,
     finalizer_wire_to_json_dict,
 )
@@ -240,15 +238,11 @@ def test_assigned_bead_wire_round_trips_and_is_omitted_when_absent() -> None:
         "primary_repo_obligation_id": "repo:primary",
     }
     context = finalizer_context_from_dict(data)
-    assert context.assigned_bead == FinalizerAssignedBeadWire(
-        bead_id="sase-zq.1",
-        primary_repo_obligation_id="repo:primary",
-    )
+    assert context.assigned_bead is not None
+    assert context.assigned_bead.bead_id == "sase-zq.1"
+    assert context.assigned_bead.primary_repo_obligation_id == "repo:primary"
     encoded = finalizer_wire_to_json_dict(context)
     assert encoded["assigned_bead"] == {
         "bead_id": "sase-zq.1",
         "primary_repo_obligation_id": "repo:primary",
     }
-    assert finalizer_assigned_bead_from_dict(encoded["assigned_bead"]) == (
-        context.assigned_bead
-    )

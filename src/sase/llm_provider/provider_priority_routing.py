@@ -204,6 +204,22 @@ class ProviderAvailability:
             eligible_for_priority=eligible_for_priority,
         )
 
+    def to_wire(self) -> dict[str, object]:
+        """Return the exact stable Rust availability wire shape."""
+        return {
+            "version": self.version,
+            "provider": self.provider,
+            "availability": self.availability.value,
+            "provenance": list(self.provenance),
+            "actual_disable": (
+                None
+                if self.actual_disable is None
+                else _provider_disable_to_wire(self.actual_disable)
+            ),
+            "priority": None if self.priority is None else self.priority.to_wire(),
+            "eligible_for_priority": self.eligible_for_priority,
+        }
+
 
 def capture_provider_routing_context(
     now: float | None = None,
@@ -336,6 +352,31 @@ def classify_provider_availability_many(
             "provider-availability batch result is not a list"
         )
     return tuple(ProviderAvailability.from_wire(item) for item in payload)
+
+
+def pool_eligibility_mask(records: Sequence[ProviderAvailability]) -> list[bool]:
+    """Return the Rust primary-pool admission mask for classified members."""
+    binding = require_rust_binding("provider_pool_eligibility_mask")
+    payload: Any = binding([record.to_wire() for record in records])
+    if not isinstance(payload, list) or not all(type(item) is bool for item in payload):
+        raise ProviderPriorityStateError("pool eligibility mask is not a list of bools")
+    if len(payload) != len(records):
+        raise ProviderPriorityStateError("pool eligibility mask length mismatch")
+    return list(payload)
+
+
+def pool_reservation_eligible(
+    records: Sequence[ProviderAvailability],
+    reserved_index: int,
+) -> bool:
+    """Return whether the reserved primary member remains eligible."""
+    binding = require_rust_binding("provider_pool_reservation_eligible")
+    payload: Any = binding([record.to_wire() for record in records], reserved_index)
+    if type(payload) is not bool:
+        raise ProviderPriorityStateError(
+            "pool reservation eligibility is not a boolean"
+        )
+    return payload
 
 
 def provider_routing_context_route_key(

@@ -35,9 +35,12 @@ import os
 from pathlib import Path
 import re
 import tempfile
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.core.paths import sase_home
+
+if TYPE_CHECKING:
+    from .provider_priority_routing import ProviderAvailability
 
 _STATE_FILENAME = "llm_lb.json"
 _LOCK_FILENAME = "llm_lb.lock"
@@ -543,7 +546,7 @@ def select_model_alias_fallback_member(availability: Sequence[bool]) -> int:
 def select_model_alias_selector_index(
     alias: str,
     selector: ModelAliasSelector,
-    states: Sequence[MemberAvailability],
+    states: Sequence[ProviderAvailability],
     *,
     consume: bool = False,
 ) -> int:
@@ -552,13 +555,18 @@ def select_model_alias_selector_index(
     Pool members are chosen with today's round-robin cursor when any pool
     member is selectable (including an all-soft pool).  The last-resort tail
     is used only when every pool member is unavailable.  Diverting to the
-    tail never reads or advances the pool cursor.
+    tail never reads or advances the pool cursor.  Pool admission uses the
+    classified primary members only; tail records never participate in that
+    mask.
     """
     members = concatenated_selector_members(selector)
     if len(states) != len(members):
         raise ValueError("availability states do not match selector members")
+    availabilities = tuple(record.availability for record in states)
     if selector.mode == "fallback":
-        return select_model_alias_fallback_member(fallback_availability_mask(states))
+        return select_model_alias_fallback_member(
+            fallback_availability_mask(availabilities)
+        )
     pool_count = len(selector.members)
     pool_mask = pool_availability_mask(states[:pool_count])
     if any(pool_mask) or not selector.fallback_members:
@@ -566,7 +574,7 @@ def select_model_alias_selector_index(
             alias, selector, pool_mask, consume=consume
         )
     tail_index = select_model_alias_fallback_member(
-        fallback_availability_mask(states[pool_count:])
+        fallback_availability_mask(availabilities[pool_count:])
     )
     return pool_count + tail_index
 
@@ -579,24 +587,17 @@ class MemberAvailability(StrEnum):
     UNAVAILABLE = "unavailable"
 
 
-def pool_availability_mask(states: Sequence[MemberAvailability]) -> list[bool]:
-    """Spare sparing members while any preferred member can cover.
+def pool_availability_mask(states: Sequence[ProviderAvailability]) -> list[bool]:
+    """Return the Rust primary-pool admission mask for classified members.
 
-    A ``|`` load-balanced pool prefers hard-available members: when at least
-    one member is :attr:`MemberAvailability.PREFERRED`, every
-    :attr:`MemberAvailability.SPARING` member maps to ``False`` so the pool
-    only rotates among preferred members. When no member is preferred (every
-    member is sparing or unavailable), sparing members map to ``True`` so an
-    everyone-soft pool still rotates normally.
-    :attr:`MemberAvailability.UNAVAILABLE` always maps to ``False``.
+    Usable members without an actual soft disable outrank actually
+    soft-disabled members. Priority then applies only within that preferred
+    subset. Actually soft-disabled members rotate only when the pool has no
+    usable non-soft member. Callers must pass primary-pool records only.
     """
-    any_preferred = any(state == MemberAvailability.PREFERRED for state in states)
-    return [
-        state == MemberAvailability.PREFERRED
-        if any_preferred
-        else state != MemberAvailability.UNAVAILABLE
-        for state in states
-    ]
+    from .provider_priority_routing import pool_eligibility_mask
+
+    return pool_eligibility_mask(states)
 
 
 def fallback_availability_mask(states: Sequence[MemberAvailability]) -> list[bool]:

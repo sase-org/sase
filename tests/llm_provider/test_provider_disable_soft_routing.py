@@ -16,11 +16,17 @@ import pytest
 
 from sase.llm_provider import config as llm_config
 from sase.llm_provider.alias_view import build_alias_views
+from sase.llm_provider.model_alias_resolution import model_alias_selector_details
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_HARD,
     PROVIDER_DISABLE_MODE_SOFT,
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
+)
+from sase.llm_provider.provider_priority import (
+    PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+    TemporaryProviderPriority,
+    provider_routing_context_from_parts,
 )
 from sase.llm_provider.registry import (
     ProviderTemporarilyDisabledError,
@@ -342,3 +348,60 @@ def test_alias_override_stays_applied_for_soft_but_suspends_for_hard(
     )
     assert hard_view.is_override_paused
     assert (hard_view.provider, hard_view.model) == ("codex", "gpt-5.6-sol")
+
+
+def _priority(provider: str) -> TemporaryProviderPriority:
+    return TemporaryProviderPriority(
+        version=PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+        provider=provider,
+        created_at=100.0,
+        expires_at=None,
+        source="test",
+    )
+
+
+def test_soft_member_loses_to_non_soft_backup_when_priority_is_in_the_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_cli_available(monkeypatch)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.registered_provider_names",
+        lambda: ["claude", "codex", "grok"],
+    )
+    monkeypatch.setattr(
+        "sase.llm_provider.registry._provider_names",
+        lambda: ["claude", "codex", "grok"],
+    )
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    "pool": {
+                        "model": "(claude/opus | codex/gpt-5.5) || grok/grok-4.6",
+                        "description": "Test pool.",
+                    }
+                }
+            },
+        },
+    )
+    context = provider_routing_context_from_parts(
+        {"claude": _disable("claude", mode=PROVIDER_DISABLE_MODE_SOFT)},
+        _priority("grok"),
+        captured_at=200.0,
+    )
+
+    assert resolve_model_provider_with_effort("@pool", routing_context=context) == (
+        "codex",
+        "gpt-5.5",
+        None,
+    )
+    details = model_alias_selector_details("pool", routing_context=context)
+    assert details is not None
+    selected = next(member for member in details.members if member.selected)
+    assert selected.provider == "codex"
+    assert selected.actual_soft_disabled is False
+    claude = next(member for member in details.members if member.provider == "claude")
+    assert claude.actual_soft_disabled
+    assert not claude.selected

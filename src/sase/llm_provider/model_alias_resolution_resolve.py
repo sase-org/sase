@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 from sase.xprompt.effort import split_model_effort
 
 from .load_balancing import (
-    MemberAvailability,
     ModelAliasSelector,
     ModelAliasSelectorError,
     concatenated_selector_members,
@@ -23,15 +22,15 @@ from .model_alias_resolution_types import (
     ResolvedModelAlias,
     _ALIAS_RESOLUTION_DEPTH_LIMIT,
     capture_provider_routing_context,
-    resolved_target_availability,
     resolved_target_is_available,
+    resolved_target_routing,
     target_is_available,
 )
 from .types import ModelTier
 
 if TYPE_CHECKING:
     from .provider_disable import TemporaryProviderDisable
-    from .provider_priority import ProviderRoutingContext
+    from .provider_priority import ProviderAvailability, ProviderRoutingContext
 
 
 def _with_suspended_override(
@@ -49,7 +48,7 @@ def _with_suspended_override(
 def _selector_member_states(
     member_results: Sequence[ResolvedModelAlias],
     routing_context: ProviderRoutingContext,
-) -> list[MemberAvailability]:
+) -> list[ProviderAvailability]:
     from . import config
 
     availability_check = config.__dict__.get(
@@ -57,7 +56,7 @@ def _selector_member_states(
         resolved_target_is_available,
     )
     return [
-        resolved_target_availability(
+        resolved_target_routing(
             result.target,
             routing_context=routing_context,
             available=target_is_available(

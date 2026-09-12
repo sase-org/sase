@@ -1219,21 +1219,29 @@ round-robin cursor, including during a real launch. `(A | B) || C` is a last-res
 expression: the parenthesized `|` pool is primary, and the `||` tail is used only when
 every pool member is **unavailable** (CLI missing, unregistered, or **hard**-disabled).
 An all-**soft** pool still rotates among itself and does not divert. Selecting a
-last-resort candidate does not consume the pool cursor. Unparenthesized `A | B || C` is
-still rejected. Fallback and last-resort selection are based on the cached
-CLI-installation probe (including `SASE_<PROVIDER>_PATH`) plus a captured active-disable
-snapshot, not a later model or runtime failure; SASE does not relaunch with the next
-candidate after such a failure. If every provider is unavailable, both modes preserve a
-candidate for the ordinary provider lookup to report: fallback (and a last-resort tail)
-preserves its first member, while a pool with no tail preserves its current rotation
-choice.
+last-resort candidate does not consume the pool cursor. A real soft disable is not the
+same thing as a priority backup: usable primary members without an actual soft disable
+outrank actually soft-disabled members even when the priority provider is only in the
+tail, absent, or unavailable. A queued pool reservation can be invalidated before
+invocation — redemption re-checks the reserved primary member, spends it when an actual
+soft disable now has a usable non-soft primary alternative, and then performs one fresh
+consuming resolution. Priority-only backups stay redeemable, and a healthy tail alone
+does not invalidate a soft primary reservation. Unparenthesized `A | B || C` is still
+rejected. Fallback and last-resort selection are based on the cached CLI-installation
+probe (including `SASE_<PROVIDER>_PATH`) plus a captured active-disable snapshot, not a
+later model or runtime failure; SASE does not relaunch with the next candidate after
+such a failure. If every provider is unavailable, both modes preserve a candidate for
+the ordinary provider lookup to report: fallback (and a last-resort tail) preserves its
+first member, while a pool with no tail preserves its current rotation choice.
 
 A temporary provider priority is a preference layer for `|` pools. When the priority
 provider is an available member, that member is preferred and other usable providers
 remain labeled backups; the selector expression, weights, and cursor are not rewritten.
 Priority does not reorder `||` fallback chains and does not displace direct
 `%model:provider/model` intent. Hard disables and missing CLIs still make a provider
-unavailable, even if it has active priority intent.
+unavailable, even if it has active priority intent. Priority backups are not actual soft
+disables, so a usable non-soft primary member still outranks an actually soft-disabled
+member when the two would otherwise share the same `sparing` label.
 
 Both selectors accept two or more members using the same single-target grammar,
 including candidate-specific trailing reasoning effort. A load-balanced pool member may
@@ -1843,13 +1851,13 @@ deprioritizing "spare this provider" disable). Hard disables are an availability
 
 A **soft** disable never fails a launch; it only deprioritizes the provider:
 
-| Request                  | Soft-disabled provider present? | Result                                                                                                    |
-| ------------------------ | ------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| round-robin alias        | one member                      | that member is spared while another member is preferred; it rotates in normally once every member is soft |
-| ordered fallback         | first candidate                 | first candidate still wins; a soft disable never diverts an ordered fallback chain                        |
-| direct provider/model    | target provider                 | launch proceeds on that provider; no failure, no rerouting                                                |
-| temporary alias override | override target                 | override stays applied; it is not paused                                                                  |
-| autodetect               | preferred candidate             | preferred candidates win first; a soft candidate is only picked when no preferred candidate qualifies     |
+| Request                  | Soft-disabled provider present? | Result                                                                                                                                                                                                                                                                           |
+| ------------------------ | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| round-robin alias        | one member                      | that member is spared while another _non-soft_ member can cover, including when the other member is only a priority backup; it rotates in normally once every usable primary member is actually soft. A healthy last-resort tail does not spare or replace a soft primary member |
+| ordered fallback         | first candidate                 | first candidate still wins; a soft disable never diverts an ordered fallback chain                                                                                                                                                                                               |
+| direct provider/model    | target provider                 | launch proceeds on that provider; no failure, no rerouting                                                                                                                                                                                                                       |
+| temporary alias override | override target                 | override stays applied; it is not paused                                                                                                                                                                                                                                         |
+| autodetect               | preferred candidate             | preferred candidates win first; a soft candidate is only picked when no preferred candidate qualifies                                                                                                                                                                            |
 
 `source` and `mode` are independent axes: a manual Launch Control disable may be set to
 either mode, but usage-limit auto-disable (`source: "usage_limit"`) always writes a
@@ -2044,13 +2052,14 @@ the exact priority and disable details.
 
 Priority is a preference layer, not a disable:
 
-| Request                  | Priority provider present? | Result                                                                 |
-| ------------------------ | -------------------------- | ---------------------------------------------------------------------- |
-| round-robin alias        | available pool member      | priority provider wins; other usable members stay backups              |
-| ordered fallback         | any candidate              | fallback order is unchanged                                            |
-| direct provider/model    | target provider            | explicit target still runs directly                                    |
-| temporary alias override | override target            | override still bypasses selector routing                               |
-| missing or hard-disabled | priority provider          | priority intent remains; routing uses backups until the provider works |
+| Request                  | Priority provider present?               | Result                                                                               |
+| ------------------------ | ---------------------------------------- | ------------------------------------------------------------------------------------ |
+| round-robin alias        | available pool member                    | priority provider wins; other usable members stay backups                            |
+| round-robin alias        | only in the tail, absent, or unavailable | usable non-soft primary members still outrank actually soft-disabled primary members |
+| ordered fallback         | any candidate                            | fallback order is unchanged                                                          |
+| direct provider/model    | target provider                          | explicit target still runs directly                                                  |
+| temporary alias override | override target                          | override still bypasses selector routing                                             |
+| missing or hard-disabled | priority provider                        | priority intent remains; routing uses backups until the provider works               |
 
 Writes are optimistic. Launch Control sends the provider facts and the priority record
 seen in its current snapshot. If another process changed priority first, the write

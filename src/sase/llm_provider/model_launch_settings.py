@@ -104,6 +104,15 @@ def launch_model_setting_override_keys() -> frozenset[str]:
     return frozenset(_SETTING_OVERRIDE_KEYS.values())
 
 
+def launch_model_setting_expression(
+    field: LaunchModelField,
+    launch_overrides: Mapping[str, str] | None = None,
+) -> str:
+    """Return the effective raw launch expression for *field*."""
+    value, _provenance = _launch_model_field_value(field, launch_overrides)
+    return value
+
+
 def launch_model_setting_alias(
     field: LaunchModelField,
     model_alias_overrides: Mapping[str, str] | None = None,
@@ -230,15 +239,14 @@ def build_launch_model_setting_snapshot(
                     resolved_members, availability, strict=True
                 )
             ]
-            states = [routing.availability for routing in member_routing]
             selected_index = select_model_alias_selector_index(
                 override_key,
                 raw_selector,
-                states,
+                member_routing,
                 consume=consume,
             )
             if raw_selector.mode == "round_robin":
-                pool_mask = pool_availability_mask(states[:pool_count])
+                pool_mask = pool_availability_mask(member_routing[:pool_count])
                 if any(pool_mask) and selected_index < pool_count:
                     cursor_alias = override_key
             selected = resolved_members[selected_index]
@@ -447,6 +455,7 @@ __all__ = [
     "get_default_model",
     "get_epic_lander_model",
     "launch_model_setting_alias",
+    "launch_model_setting_expression",
     "launch_model_setting_override_key",
     "launch_model_setting_override_keys",
     "resolve_default_launch_provider_model",

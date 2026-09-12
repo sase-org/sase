@@ -115,7 +115,7 @@ def model_alias_selector_details(
     selected_index = select_model_alias_selector_index(
         alias,
         selector,
-        [item[4].availability for item in resolved],
+        [item[4] for item in resolved],
         consume=False,
     )
 

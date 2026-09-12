@@ -5,10 +5,12 @@ from __future__ import annotations
 import pytest
 
 from sase.llm_provider.launch_selection import (
+    ALIAS_ORIGIN_DEFAULT_MODEL,
     ALIAS_ORIGIN_DIRECTIVE,
     LaunchSelection,
     launch_selection_from_reservation,
     reservation_from_launch_selection,
+    resolve_launch_selection,
 )
 from sase.llm_provider.load_balancing import MemberAvailability
 from sase.llm_provider.model_alias_resolution import model_alias_selector_details
@@ -263,6 +265,242 @@ def test_priority_backup_reservation_remains_redeemable(
             routing_context=_context(priority="codex"),
         )
         == reserved
+    )
+
+
+@pytest.mark.parametrize(
+    ("priority", "extra_disable"),
+    (
+        ("grok", None),
+        ("muse", None),
+        ("grok", "grok"),
+    ),
+)
+def test_actual_soft_loses_to_priority_backup_when_priority_is_outside_pool(
+    monkeypatch: pytest.MonkeyPatch,
+    priority: str,
+    extra_disable: str | None,
+) -> None:
+    _pin_providers(monkeypatch)
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    "pool": {
+                        "model": "(claude/opus | codex/gpt-5.5) || grok/grok-4.6",
+                        "description": "Test pool.",
+                    }
+                }
+            },
+        },
+    )
+    disables = {"claude": _disable("claude", mode=PROVIDER_DISABLE_MODE_SOFT)}
+    if extra_disable is not None:
+        disables[extra_disable] = _disable(
+            extra_disable, mode=PROVIDER_DISABLE_MODE_HARD
+        )
+    context = _context(priority=priority, disables=disables)
+
+    assert resolve_model_provider_with_effort("@pool", routing_context=context) == (
+        "codex",
+        "gpt-5.5",
+        None,
+    )
+    details = model_alias_selector_details("pool", routing_context=context)
+    assert details is not None
+    selected = next(member for member in details.members if member.selected)
+    assert selected.provider == "codex"
+    assert not selected.last_resort
+
+
+def test_actual_soft_reservation_is_rejected_when_non_soft_primary_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_providers(monkeypatch)
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    "pool": {
+                        "model": "claude/opus | codex/gpt-5.6-sol",
+                        "description": "Test pool.",
+                    }
+                }
+            },
+        },
+    )
+    directives = PromptDirectives(model="@pool", model_alias="pool")
+    reserved = LaunchSelection(
+        provider="claude",
+        model="opus",
+        reasoning_effort=None,
+        effort_explicit=False,
+        alias_trail=("pool",),
+        alias_origin=ALIAS_ORIGIN_DIRECTIVE,
+        cursor_alias="pool",
+    )
+    reservation = reservation_from_launch_selection(reserved, alias="pool")
+    context = _context(
+        priority="grok",
+        disables={"claude": _disable("claude", mode=PROVIDER_DISABLE_MODE_SOFT)},
+    )
+
+    assert (
+        launch_selection_from_reservation(
+            reservation,
+            directives=directives,
+            routing_context=context,
+        )
+        is None
+    )
+
+
+def test_soft_primary_reservation_survives_healthy_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_providers(monkeypatch)
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "model_aliases": {
+                "custom": {
+                    "pool": {
+                        "model": "(claude/opus | codex/gpt-5.5) || grok/grok-4.6",
+                        "description": "Test pool.",
+                    }
+                }
+            },
+        },
+    )
+    directives = PromptDirectives(model="@pool", model_alias="pool")
+    reserved = LaunchSelection(
+        provider="claude",
+        model="opus",
+        reasoning_effort="xhigh",
+        effort_explicit=False,
+        alias_trail=("pool",),
+        alias_origin=ALIAS_ORIGIN_DIRECTIVE,
+        cursor_alias="pool",
+    )
+    reservation = reservation_from_launch_selection(reserved, alias="pool")
+    context = _context(
+        disables={
+            "claude": _disable("claude", mode=PROVIDER_DISABLE_MODE_SOFT),
+            "codex": _disable("codex", mode=PROVIDER_DISABLE_MODE_SOFT),
+        }
+    )
+
+    assert (
+        launch_selection_from_reservation(
+            reservation,
+            directives=directives,
+            routing_context=context,
+        )
+        == reserved
+    )
+
+
+def test_shipped_large_and_xlarge_prefer_codex_when_claude_is_actually_soft(
+    monkeypatch: pytest.MonkeyPatch,
+    real_model_alias_defaults: None,
+) -> None:
+    _pin_providers(monkeypatch)
+    mock_provider_config(monkeypatch, {"provider": "claude", "model_aliases": {}})
+    context = _context(
+        priority="grok",
+        disables={"claude": _disable("claude", mode=PROVIDER_DISABLE_MODE_SOFT)},
+    )
+
+    assert resolve_model_provider_with_effort("@large", routing_context=context) == (
+        "codex",
+        "gpt-5.6-sol",
+        "xhigh",
+    )
+    assert resolve_model_provider_with_effort("@xlarge", routing_context=context) == (
+        "codex",
+        "gpt-6-astra",
+        "xhigh",
+    )
+    default = resolve_launch_selection(
+        PromptDirectives(), consume=False, routing_context=context
+    )
+    assert default is not None
+    assert (default.provider, default.model) == ("codex", "gpt-5.6-sol")
+    directed = resolve_launch_selection(
+        PromptDirectives(model="@large", model_alias="large"),
+        consume=False,
+        routing_context=context,
+    )
+    assert directed is not None
+    assert (directed.provider, directed.model) == ("codex", "gpt-5.6-sol")
+
+
+def test_delegated_and_raw_selector_pools_use_the_same_eligibility(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _pin_providers(monkeypatch)
+    mock_provider_config(
+        monkeypatch,
+        {
+            "provider": "claude",
+            "default_model": "(claude/opus | codex/gpt-5.5) || grok/grok-4.6",
+            "model_aliases": {
+                "custom": {
+                    "fast": {
+                        "model": "@pool",
+                        "description": "Delegates to pool.",
+                    },
+                    "pool": {
+                        "model": "(claude/opus | codex/gpt-5.5) || grok/grok-4.6",
+                        "description": "Test pool.",
+                    },
+                }
+            },
+        },
+    )
+    context = _context(
+        priority="grok",
+        disables={"claude": _disable("claude", mode=PROVIDER_DISABLE_MODE_SOFT)},
+    )
+
+    assert resolve_model_provider_with_effort("@fast", routing_context=context) == (
+        "codex",
+        "gpt-5.5",
+        None,
+    )
+    default = resolve_launch_selection(
+        PromptDirectives(), consume=False, routing_context=context
+    )
+    assert default is not None
+    assert (default.provider, default.model, default.cursor_alias) == (
+        "codex",
+        "gpt-5.5",
+        "setting:default_model",
+    )
+    reserved = LaunchSelection(
+        provider="claude",
+        model="opus",
+        reasoning_effort=None,
+        effort_explicit=False,
+        alias_trail=(),
+        alias_origin=ALIAS_ORIGIN_DEFAULT_MODEL,
+        cursor_alias="setting:default_model",
+    )
+    reservation = reservation_from_launch_selection(
+        reserved, alias="setting:default_model"
+    )
+    assert (
+        launch_selection_from_reservation(
+            reservation,
+            directives=PromptDirectives(),
+            routing_context=context,
+        )
+        is None
     )
 
 
