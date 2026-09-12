@@ -1613,16 +1613,18 @@ artifacts:
   retention:
     enabled: false
     keep_per_label: 3
+    keep_recent_run_months: 2
     max_age_days: 90
     trash_grace_days: 14
 ```
 
-| Field                                  | Type | Default | Minimum | Description                                                                                                |
-| -------------------------------------- | ---- | ------- | ------- | ---------------------------------------------------------------------------------------------------------- |
-| `artifacts.retention.enabled`          | bool | `false` | -       | Run the retention pass after agent finalization. While `false`, retention removes nothing at all.          |
-| `artifacts.retention.keep_per_label`   | int  | `3`     | `0`     | Newest automatic captures kept per label; older generations are trashed first. `0` disables the predicate. |
-| `artifacts.retention.max_age_days`     | int  | `90`    | `0`     | Trash automatic captures created more than this many days ago. `0` disables the predicate.                 |
-| `artifacts.retention.trash_grace_days` | int  | `14`    | `0`     | Days a trashed artifact stays restorable before a purge removes it.                                        |
+| Field                                        | Type | Default | Minimum | Description                                                                                                |
+| -------------------------------------------- | ---- | ------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `artifacts.retention.enabled`                | bool | `false` | -       | Run the artifact-file retention pass after agent finalization. While `false`, retention removes nothing.   |
+| `artifacts.retention.keep_per_label`         | int  | `3`     | `0`     | Newest automatic captures kept per label; older generations are trashed first. `0` disables the predicate. |
+| `artifacts.retention.keep_recent_run_months` | int  | `2`     | `1`     | Calendar months of `ace-run` directories kept whole by `sase artifact prune-runs`.                         |
+| `artifacts.retention.max_age_days`           | int  | `90`    | `0`     | Trash automatic captures created more than this many days ago. `0` disables the predicate.                 |
+| `artifacts.retention.trash_grace_days`       | int  | `14`    | `0`     | Days a trashed artifact stays restorable before a purge removes it.                                        |
 
 These fields are read fail-open the same way the capture fields are. The pass is bounded
 and defensive: it never fails a run, and it removes nothing that retention's protection
@@ -1641,8 +1643,16 @@ reports last, and `trash_grace_days` is the cutoff `sase artifact trash purge` h
 without `-a/--all` and the one `trash list` marks entries against. Setting both
 predicates to `0` leaves a policy that selects nothing.
 
+`keep_recent_run_months` drives `sase artifact prune-runs`, which previews and, with
+`--apply`, removes old terminal `artifacts/ace-run/` directories plus empty month/day
+shards outside ACE's startup watch window. It protects recent months, incomplete runs,
+referenced agent names or paths, artifact-file producers, and runs tied to non-closed
+beads.
+
 Source: `src/sase/config/core.py`, `src/sase/core/artifact_capture_policy.py`,
-`src/sase/core/artifact_file_retention.py`, `src/sase/axe/run_agent_exec_finalize.py`
+`src/sase/core/artifact_file_retention.py`,
+`src/sase/core/agent_artifact_run_retention.py`,
+`src/sase/axe/run_agent_exec_finalize.py`
 
 ### artifact_refs
 
@@ -2845,11 +2855,11 @@ axe:
             polling throttle; pending_checks_poll later consumes each background result.
     housekeeping:
       description: |-
-        Run hourly error digests, managed-temp cleanup, and stale task-bead sweep
+        Run hourly error digests, artifact previews, and cleanup
 
-        Runs once an hour because notification batching, bounded scratch reclamation, and stale-backlog
-        cleanup are useful but not latency-sensitive. Put durable maintenance that may scan substantial
-        local state here, not lifecycle, dependency, or remote polling work.
+        Runs once an hour because notification batching, bounded scratch reclamation, artifact/run-retention
+        previews, and stale-backlog cleanup are useful but not latency-sensitive. Put durable maintenance that
+        may scan substantial local state here, not lifecycle, dependency, or remote polling work.
       interval: 3600
       chops:
         - name: error_digest
@@ -2883,6 +2893,16 @@ axe:
             carries at most 50 beads, oldest first; a larger backlog is reported in omitted_count and
             offered on later ticks. An unchanged roster leaves the pending gate alone. The gate is
             canceled when the backlog drops below the bar.
+        - name: artifact_run_prune
+          script: sase_chop_artifact_run_prune
+          timeout: "5m"
+          description: |-
+            Preview old ace-run directories and empty shard cleanup
+
+            Plans whole-run ace-run retention without deleting anything. The preview keeps the newest
+            artifacts.retention.keep_recent_run_months calendar months whole, protects runs referenced by
+            artifact files, text refs, agent names, and non-closed beads, and reports empty month/day shards
+            outside ACE's startup watch window so an authorized apply can clean them up.
 ```
 
 **Top-level fields:**

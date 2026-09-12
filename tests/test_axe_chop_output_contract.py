@@ -166,6 +166,51 @@ def test_managed_tmp_reap_emits_noop_summary(
     }
 
 
+def test_artifact_run_prune_emits_noop_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    plan = SimpleNamespace(
+        counts=SimpleNamespace(
+            candidates=0,
+            selected=0,
+            empty_out_of_range_shards=0,
+            protected=0,
+        ),
+        reclaimable_bytes=0,
+        sources_unavailable=(),
+    )
+    monkeypatch.setattr(
+        script,
+        "collect_ace_run_retention_protections",
+        lambda **_kwargs: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
+    )
+
+    run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
+
+    out = capsys.readouterr().out
+    assert "artifact_run_prune:" in out
+    assert "reason=nothing_reclaimable" in out
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "no_op"
+    assert result["reason"] == "nothing_reclaimable"
+    assert result["counters"] == {
+        "bytes": 0,
+        "candidates": 0,
+        "empty_shards": 0,
+        "protected": 0,
+        "selected": 0,
+        "unavailable": 0,
+    }
+
+
 def test_epic_launch_flush_emits_noop_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

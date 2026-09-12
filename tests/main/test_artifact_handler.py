@@ -249,6 +249,15 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "--min-size",
         "--project",
     ]
+    assert _long_options(subcommands.choices["prune-runs"]) == [
+        "--apply",
+        "--index-path",
+        "--json",
+        "--keep-recent-months",
+        "--limit",
+        "--project",
+        "--projects-root",
+    ]
     assert _long_options(subcommands.choices["reclaim"]) == [
         "--apply",
         "--max-history-scan",
@@ -268,6 +277,7 @@ def test_public_long_options_are_alphabetical_and_have_short_aliases() -> None:
         "pane",
         "path",
         "prune",
+        "prune-runs",
         "read",
         "reclaim",
         "show",

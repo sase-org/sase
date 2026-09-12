@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from sase.ace.tui.util.fs_watcher import (
+from sase.core.agent_artifact_shards import (
     iter_future_ace_run_month_dirs,
     iter_startup_ace_run_shard_watch_paths,
     live_ace_run_shard_names,

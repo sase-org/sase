@@ -30,6 +30,7 @@ DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
 DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES = 1024 * 1024 * 1024
 DEFAULT_ARTIFACT_RETENTION_ENABLED = False
 DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL = 3
+DEFAULT_ARTIFACT_RETENTION_KEEP_RECENT_RUN_MONTHS = 2
 DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS = 90
 DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS = 14
 DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS = 3600
@@ -324,6 +325,17 @@ def get_artifact_retention_keep_per_label() -> int:
     if type(value) is int and value >= 0:
         return value
     return DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL
+
+
+def get_artifact_retention_keep_recent_run_months() -> int:
+    """Return the validated full-month ACE-run retention horizon."""
+    value = _artifact_retention_config().get(
+        "keep_recent_run_months",
+        DEFAULT_ARTIFACT_RETENTION_KEEP_RECENT_RUN_MONTHS,
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_ARTIFACT_RETENTION_KEEP_RECENT_RUN_MONTHS
 
 
 def get_artifact_retention_max_age_days() -> int:

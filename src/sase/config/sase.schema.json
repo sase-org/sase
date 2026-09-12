@@ -4313,6 +4313,12 @@
               "default": 3,
               "description": "Number of newest automatic captures kept per label. Set to 0 to disable generation-based retention."
             },
+            "keep_recent_run_months": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2,
+              "description": "Number of newest calendar months of ace-run directories kept whole before whole-run reclamation may select terminal, unreferenced runs."
+            },
             "max_age_days": {
               "type": "integer",
               "minimum": 0,

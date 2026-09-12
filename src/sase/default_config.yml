@@ -119,6 +119,9 @@ artifacts:
     # Automatic captures kept per label; older generations are trashed first.
     # 0 disables the generation predicate.
     keep_per_label: 3
+    # Full calendar months of ace-run directories kept before whole-run
+    # reclamation may select terminal, unreferenced runs.
+    keep_recent_run_months: 2
     # Trash automatic captures created more than this many days ago.
     # 0 disables the age predicate.
     max_age_days: 90
@@ -1162,11 +1165,12 @@ axe:
             polling throttle; pending_checks_poll later consumes each background result.
     housekeeping:
       description: |-
-        Run hourly error digests, notification compaction, managed-temp cleanup, and stale task-bead sweep
+        Run hourly error digests, notification compaction, artifact previews, and cleanup
 
-        Runs once an hour because notification batching, live-inbox bounding, bounded scratch reclamation, and
-        stale-backlog cleanup are useful but not latency-sensitive. Put durable maintenance that may scan substantial
-        local state here, not lifecycle, dependency, or remote polling work.
+        Runs once an hour because notification batching, live-inbox bounding, bounded scratch reclamation,
+        artifact/run-retention previews, and stale-backlog cleanup are useful but not latency-sensitive. Put
+        durable maintenance that may scan substantial local state here, not lifecycle, dependency, or remote polling
+        work.
       interval: 3600
       chops:
         - name: error_digest
@@ -1232,6 +1236,16 @@ axe:
             repair pass driven by git rename history. The derivation sweep is resumable via a per-project
             checkpoint of already-swept refs, so a large backlog converges over several ticks instead of
             rescanning every document every hour; it logs how many documents remain for the next tick.
+        - name: artifact_run_prune
+          script: sase_chop_artifact_run_prune
+          timeout: "5m"
+          description: |-
+            Preview old ace-run directories and empty shard cleanup
+
+            Plans whole-run ace-run retention without deleting anything. The preview keeps the newest
+            artifacts.retention.keep_recent_run_months calendar months whole, protects runs referenced by
+            artifact files, text refs, agent names, and non-closed beads, and reports empty month/day shards
+            outside ACE's startup watch window so an authorized apply can clean them up.
 
 
 llm_provider:

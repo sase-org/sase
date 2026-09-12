@@ -87,6 +87,18 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             ),
         ),
     ),
+    "src/sase/core/agent_artifact_run_retention.py:_remove_run_dir": DirOpReview(
+        batched_by=(
+            BatchedCoverage(
+                caller_context=(
+                    "src/sase/core/agent_artifact_run_retention.py:"
+                    "apply_ace_run_retention"
+                ),
+                helper_call="_remove_run_dir",
+                lifecycle_call=_DELETE_INDEX,
+            ),
+        ),
+    ),
     "src/sase/llm_provider/_plan_utils.py:move_plan_to_sase": DirOpReview(
         exemption=(
             "Moves a submitted scratch plan file into the machine-local "

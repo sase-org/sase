@@ -46,4 +46,4 @@ def test_load_tiering_oracle_reports_under_selecting_candidate_filter_on_index_p
     bounded_diff = result.diff_for("index_bounded")
     assert bounded_diff.missing
     full_history_diff = result.diff_for("index_full_history")
-    assert full_history_diff.missing
+    assert full_history_diff.missing == bounded_diff.missing

@@ -43,6 +43,7 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase artifact link list plan:a.md\n"
             '  sase artifact read plan:a.md "Need the design of record"\n'
             "  sase artifact prune --keep-generations 3\n"
+            "  sase artifact prune-runs --keep-recent-months 2\n"
             "  sase artifact reclaim\n"
             "  sase artifact pane show stitches\n"
             "  sase artifact pane show ref:plan --json\n"
@@ -330,6 +331,66 @@ def register_artifact_parser(subparsers: argparse._SubParsersAction) -> None:
         "--project",
         default=None,
         help="Only prune a project by display name, alias, or canonical key",
+    )
+
+    prune_runs_parser = artifact_subparsers.add_parser(
+        "prune-runs",
+        help="Plan retention and optionally remove old ace-run directories",
+        description=(
+            "Plan removal of old per-run ace-run artifact directories and "
+            "empty out-of-range month/day shards. This command is a dry run "
+            "unless --apply is passed; recent months, referenced agents, "
+            "incomplete runs, and runs tied to non-closed beads are protected."
+        ),
+    )
+    prune_runs_parser.add_argument(
+        "-a",
+        "--apply",
+        action="store_true",
+        help="Remove selected run directories and empty out-of-range shards",
+    )
+    prune_runs_parser.add_argument(
+        "-i",
+        "--index-path",
+        default=None,
+        help="Agent artifact SQLite index to de-index after deletion",
+    )
+    prune_runs_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit one machine-readable plan and execution envelope",
+    )
+    prune_runs_parser.add_argument(
+        "-m",
+        "--keep-recent-months",
+        type=_positive_int,
+        default=None,
+        metavar="N",
+        help=(
+            "Keep the newest N calendar months whole "
+            "(default: artifacts.retention.keep_recent_run_months)"
+        ),
+    )
+    prune_runs_parser.add_argument(
+        "-l",
+        "--limit",
+        type=nonnegative_int,
+        default=None,
+        metavar="N",
+        help="Maximum run directories to select (0 means unlimited)",
+    )
+    prune_runs_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Only prune a project by display name, alias, or canonical key",
+    )
+    prune_runs_parser.add_argument(
+        "-r",
+        "--projects-root",
+        default=None,
+        help="SASE projects root to scan (default: ~/.sase/projects)",
     )
 
     read_parser = artifact_subparsers.add_parser(

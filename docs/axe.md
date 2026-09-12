@@ -458,6 +458,7 @@ Periodic maintenance:
 | `managed_tmp_reap`           | Prune stale scratch under the managed SASE temp root                            |
 | `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
 | `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair renamed refs       |
+| `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                         |
 
 The `error_digest` chop summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
@@ -522,6 +523,14 @@ from Git rename history. A large derivation backlog converges over several hourl
 instead of rescanning the full corpus each time. Run
 `sase axe chop run artifact_link_backfill` for an immediate pass. The link model and
 doctor counters are documented in [Artifact Links](artifact_links.md).
+
+The `artifact_run_prune` chop is a read-only preview for old `artifacts/ace-run/`
+directories. It keeps the newest `artifacts.retention.keep_recent_run_months` calendar
+months whole and protects runs referenced by artifact-file rows, text refs, agent names,
+and non-closed beads. The summary reports selected run directories, reclaimable bytes,
+protection-source gaps, and empty month/day shards outside ACE's startup watch window.
+Actual deletion still requires an explicit `sase artifact prune-runs --apply` or a
+follow-up gate.
 
 ## Configuration
 

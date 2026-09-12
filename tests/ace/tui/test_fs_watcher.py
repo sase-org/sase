@@ -376,7 +376,7 @@ def test_watcher_startup_watches_live_shards_not_future_junk(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     now = datetime(2026, 8, 28, 12, 0, 0)
-    monkeypatch.setattr("sase.ace.tui.util.fs_watcher.local_now", lambda: now)
+    monkeypatch.setattr("sase.core.agent_artifact_shards.local_now", lambda: now)
     artifacts = tmp_path / "proj" / "artifacts"
     workflow = artifacts / "ace-run"
     live_month = _ace_run_tree(workflow, "202608")

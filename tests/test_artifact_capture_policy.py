@@ -351,15 +351,16 @@ def test_capture_config_accessors_validate_values(
 
 
 @pytest.mark.parametrize(
-    ("config", "enabled", "keep", "age", "grace"),
+    ("config", "enabled", "keep", "months", "age", "grace"),
     [
-        ({}, False, 3, 90, 14),
+        ({}, False, 3, 2, 90, 14),
         (
             {
                 "artifacts": {
                     "retention": {
                         "enabled": True,
                         "keep_per_label": 7,
+                        "keep_recent_run_months": 4,
                         "max_age_days": 30,
                         "trash_grace_days": 3,
                     }
@@ -367,6 +368,7 @@ def test_capture_config_accessors_validate_values(
             },
             True,
             7,
+            4,
             30,
             3,
         ),
@@ -376,6 +378,7 @@ def test_capture_config_accessors_validate_values(
                     "retention": {
                         "enabled": "yes",
                         "keep_per_label": -1,
+                        "keep_recent_run_months": 0,
                         "max_age_days": True,
                         "trash_grace_days": "14",
                     }
@@ -383,6 +386,7 @@ def test_capture_config_accessors_validate_values(
             },
             False,
             3,
+            2,
             90,
             14,
         ),
@@ -391,6 +395,7 @@ def test_capture_config_accessors_validate_values(
                 "artifacts": {
                     "retention": {
                         "keep_per_label": 0,
+                        "keep_recent_run_months": 1,
                         "max_age_days": 0,
                         "trash_grace_days": 0,
                     }
@@ -398,10 +403,11 @@ def test_capture_config_accessors_validate_values(
             },
             False,
             0,
+            1,
             0,
             0,
         ),
-        ({"artifacts": {"retention": "invalid"}}, False, 3, 90, 14),
+        ({"artifacts": {"retention": "invalid"}}, False, 3, 2, 90, 14),
     ],
 )
 def test_retention_config_accessors_validate_values(
@@ -409,6 +415,7 @@ def test_retention_config_accessors_validate_values(
     config: dict[str, Any],
     enabled: bool,
     keep: int,
+    months: int,
     age: int,
     grace: int,
 ) -> None:
@@ -416,6 +423,7 @@ def test_retention_config_accessors_validate_values(
 
     assert config_core.get_artifact_retention_enabled() is enabled
     assert config_core.get_artifact_retention_keep_per_label() == keep
+    assert config_core.get_artifact_retention_keep_recent_run_months() == months
     assert config_core.get_artifact_retention_max_age_days() == age
     assert config_core.get_artifact_retention_trash_grace_days() == grace
 
@@ -456,6 +464,7 @@ def test_capture_config_default_and_schema() -> None:
     assert defaults["artifacts"]["retention"] == {
         "enabled": False,
         "keep_per_label": 3,
+        "keep_recent_run_months": 2,
         "max_age_days": 90,
         "trash_grace_days": 14,
     }
@@ -464,6 +473,8 @@ def test_capture_config_default_and_schema() -> None:
     assert retention["properties"]["enabled"]["default"] is False
     assert retention["properties"]["keep_per_label"]["minimum"] == 0
     assert retention["properties"]["keep_per_label"]["default"] == 3
+    assert retention["properties"]["keep_recent_run_months"]["minimum"] == 1
+    assert retention["properties"]["keep_recent_run_months"]["default"] == 2
     assert retention["properties"]["max_age_days"]["minimum"] == 0
     assert retention["properties"]["max_age_days"]["default"] == 90
     assert retention["properties"]["trash_grace_days"]["minimum"] == 0
