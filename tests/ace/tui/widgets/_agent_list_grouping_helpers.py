@@ -18,6 +18,8 @@ def make_agent(
     agent_name: str | None = None,
     status: str = "RUNNING",
     start_time: datetime | None = datetime(2026, 4, 25, 12, 0, 0),
+    run_start_time: datetime | None = None,
+    stop_time: datetime | None = None,
     wait_until: str | None = None,
     retried_as_timestamp: str | None = None,
 ) -> Agent:
@@ -27,6 +29,8 @@ def make_agent(
         project_file=project_file,
         status=status,
         start_time=start_time,
+        run_start_time=run_start_time,
+        stop_time=stop_time,
         agent_name=agent_name,
         tribe=tribe,
         wait_until=wait_until,

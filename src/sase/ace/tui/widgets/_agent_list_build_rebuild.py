@@ -24,7 +24,11 @@ from ..models.agent_nodes import is_agents_tab_agent_node
 from ..models.agent_wait_beads import cached_wait_bead_status_snapshot
 from ..models.group_fold import GroupFoldView
 from ..models.tribe_display import named_tribe_identity_colors
-from ._agent_list_build_analysis import compute_tier_styles, compute_visible_parents
+from ._agent_list_build_analysis import (
+    compute_tier_styles,
+    compute_visible_parents,
+    visible_agent_indices,
+)
 from ._agent_list_helpers import compute_fold_annotation
 from ._agent_list_rendering import (
     BannerMarkState,
@@ -154,16 +158,21 @@ def build_list(
     agent_tier_styles, banner_tier_styles = compute_tier_styles(
         tree, panel_uses_cs=panel_uses_cs, mode=grouping_mode
     )
+    visible = visible_agent_indices(tree)
     wait_status_maps = _agent_wait_status_maps_for_build(widget, agents)
     status_buckets = wait_status_maps.buckets
 
-    # Pre-format agent rows so we know their widths before emitting banner
-    # rules (banners are stretched to the widest row, and the runtime
-    # suffix is right-aligned to the same column).
+    # Measure what you emit: format only the agent rows the tree will
+    # actually paint. Collapsed-group members are skipped so they don't
+    # stretch max_left / max_suffix or populate per-row render state.
+    # Banners pad to the widest *emitted* row; the runtime suffix is
+    # right-aligned to that same column.
     agent_parts: dict[int, tuple[Any, Any, str]] = {}
     max_left = 0
     max_suffix = 0
     for i, agent in enumerate(agents):
+        if i not in visible:
+            continue
         fold_key = agent_fold_key(agent)
         is_expanded = bool(
             fold_key is not None and fold_key in parents_with_visible_children
@@ -253,7 +262,7 @@ def build_list(
         i: assemble_padded_option(left, suffix, width=target_width, option_id=option_id)
         for i, (left, suffix, option_id) in agent_parts.items()
     }
-    max_width = target_width
+    max_emitted_width = target_width
 
     # Walk the grouping tree and collect Options in display order. Installing
     # them as one batch avoids Textual rebuilding its line cache per row.
@@ -299,6 +308,9 @@ def build_list(
                 hint_char=banner_hint,
                 mark_state=mark_state,
             )
+            prompt = option.prompt
+            if isinstance(prompt, Text):
+                max_emitted_width = max(max_emitted_width, prompt.cell_len)
             banner_seq += 1
             row_index = len(widget._row_entries)
             emitted_options.append(option)
@@ -317,7 +329,9 @@ def build_list(
         if entry.agent_idx is None:
             continue
         i = entry.agent_idx
-        option = agent_options[i]
+        option = agent_options.get(i)
+        if option is None:
+            continue
         emitted_options.append(option)
         is_selected_agent = current_group_key is None and i == current_idx
         row_index = len(widget._row_entries)
@@ -329,9 +343,11 @@ def build_list(
 
     widget.add_options(emitted_options)
 
-    # Add padding for border, scrollbar, visual comfort (~8 cells)
+    # Widest emitted row (visible agent column or banner) plus padding.
+    # Banners are measured from the Option already built so this cannot
+    # drift from the formatter.
     _PADDING = 8
-    optimal_width = max(max_width, banner_width) + _PADDING
+    optimal_width = max_emitted_width + _PADDING
     widget._content_requested_width = optimal_width
     widget._refresh_requested_width()
 

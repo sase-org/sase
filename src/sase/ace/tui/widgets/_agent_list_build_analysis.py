@@ -17,6 +17,19 @@ from ._agent_list_styling import (
 )
 
 
+def visible_agent_indices(tree: list[TreeEntry]) -> set[int]:
+    """Return the agent indices *tree* actually emits as rows.
+
+    Agents inside a collapsed group are absent: the tree walk skips them,
+    so they must not influence row measurement or per-row render state.
+    """
+    return {
+        entry.agent_idx
+        for entry in tree
+        if entry.kind != "group" and entry.agent_idx is not None
+    }
+
+
 def compute_visible_parents(
     agents: list[Agent],
 ) -> tuple[set[str], set[str]]:
@@ -137,4 +150,5 @@ __all__ = [
     "compute_tier_styles",
     "compute_visible_parents",
     "resolve_row",
+    "visible_agent_indices",
 ]

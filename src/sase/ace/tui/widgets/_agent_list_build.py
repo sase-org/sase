@@ -11,6 +11,7 @@ from ._agent_list_build_analysis import (
     compute_tier_styles,
     compute_visible_parents,
     resolve_row,
+    visible_agent_indices,
 )
 from ._agent_list_build_patching import patch_row, try_remove_rows
 from ._agent_list_build_rebuild import build_list
@@ -22,4 +23,5 @@ __all__ = [
     "patch_row",
     "resolve_row",
     "try_remove_rows",
+    "visible_agent_indices",
 ]
