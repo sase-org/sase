@@ -21,6 +21,8 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "scanned": result.scanned,
             "removed": result.removed,
             "subdirs": len(result.removed_by_subdir),
+            "pressure_removed": result.pressure_removed,
+            "pressure_reclaimed_bytes": result.pressure_reclaimed_bytes,
             "deindexed": result.deindexed,
             "capped": int(result.capped),
         },

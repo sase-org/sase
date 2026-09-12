@@ -478,15 +478,23 @@ cadence that previously re-parsed the whole store every tick.
 The `managed_tmp_reap` chop bounds the managed SASE temp root (`$SASE_TMPDIR`, else
 `~/.sase/tmp`) that `get_sase_managed_tmpdir()` hands out. Horizons are per
 subdirectory: command scratch (`editors/`, `wrappers/`, `viewers/`, `commit-messages/`,
-…) goes after 12 hours, handoff files (`handoff/`, `gh-diffs/`) after 3 days, and
-artifacts the ACE Agents tab reads back (`launch-prompts/`, `workflow-artifacts/`) after
-14 days. Each run removes at most 2,000 entries so a long-neglected root converges over
-several passes instead of stalling one; the chop summary reports `scanned`, `removed`,
-`deindexed`, and `capped=1` when it hit that budget. Reaped directories are dropped from
-the agent artifact index too, since a workflow launched without an explicit
-`artifacts_dir` gets one under `workflow-artifacts/`. It lives on `housekeeping` rather
-than an interactive path because the first pass over a neglected root walks tens of
-thousands of entries.
+`agent-tmp/`, …) goes after 12 hours, handoff files (`handoff/`, `gh-diffs/`) after 3
+days, build targets (`cargo-targets/`) after 3 days, and artifacts the ACE Agents tab
+reads back (`launch-prompts/`, `workflow-artifacts/`) after 14 days. Launched agents
+default `TMPDIR`/`TMP`/`TEMP` and `CARGO_TARGET_DIR` to per-launch directories under
+those managed buckets, so shell scratch and Cargo targets no longer fall back to
+host-global `/tmp`.
+
+Each run removes at most 2,000 entries so a long-neglected root converges over several
+passes instead of stalling one. If the managed root grows beyond 16 GiB, aged entries of
+at least 1 GiB in build-scratch buckets, plus stray top-level residue, are removed
+largest-first until the root is estimated below 8 GiB or the removal budget is reached.
+The chop summary reports `scanned`, `removed`, `pressure_removed`,
+`pressure_reclaimed_bytes`, `deindexed`, and `capped=1` when it hit that budget. Reaped
+directories are dropped from the agent artifact index too, since a workflow launched
+without an explicit `artifacts_dir` gets one under `workflow-artifacts/`. It lives on
+`housekeeping` rather than an interactive path because the first pass over a neglected
+root walks tens of thousands of entries.
 
 The `bead_stale_cleanup` chop is the other half of the task-bead `+1` bar. Ready task
 beads that never clear their [effective `+1` bar](beads.md#per-type-triage-bar) stay

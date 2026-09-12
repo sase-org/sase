@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from sase.core.managed_tmp_reaper import (
+    BUILD_SCRATCH_HORIZON_SECONDS,
     COMMAND_SCRATCH_HORIZON_SECONDS,
     DEFAULT_HORIZON_SECONDS,
     RUN_ARTIFACT_HORIZON_SECONDS,
@@ -34,12 +35,22 @@ def _aged_file(root: Path, relative: str, *, age_seconds: float) -> Path:
     return path
 
 
-def _aged_dir(root: Path, relative: str, *, age_seconds: float) -> Path:
+def _aged_dir(
+    root: Path,
+    relative: str,
+    *,
+    age_seconds: float,
+    size_bytes: int = 0,
+) -> Path:
     path = root / relative
     path.mkdir(parents=True, exist_ok=True)
     (path / "state.json").write_text("{}", encoding="utf-8")
+    if size_bytes:
+        with (path / "payload.bin").open("wb") as handle:
+            handle.truncate(size_bytes)
     stamp = NOW - age_seconds
-    os.utime(path / "state.json", (stamp, stamp))
+    for child in path.iterdir():
+        os.utime(child, (stamp, stamp))
     os.utime(path, (stamp, stamp))
     return path
 
@@ -53,6 +64,20 @@ def test_horizons_are_chosen_per_subdirectory(tmp_path: Path) -> None:
     fresh_agent_cli = _aged_dir(
         tmp_path, "agent-clis/command-live", age_seconds=11 * HOUR
     )
+    stale_agent_tmp = _aged_dir(tmp_path, "agent-tmp/launch-old", age_seconds=13 * HOUR)
+    fresh_agent_tmp = _aged_dir(
+        tmp_path, "agent-tmp/launch-live", age_seconds=11 * HOUR
+    )
+    stale_cargo_target = _aged_dir(
+        tmp_path,
+        "cargo-targets/launch-old",
+        age_seconds=BUILD_SCRATCH_HORIZON_SECONDS + HOUR,
+    )
+    fresh_cargo_target = _aged_dir(
+        tmp_path,
+        "cargo-targets/launch-live",
+        age_seconds=BUILD_SCRATCH_HORIZON_SECONDS - HOUR,
+    )
     # Well past the command-scratch horizon, but the Agents tab still reads it.
     young_prompt = _aged_file(tmp_path, "launch-prompts/a.md", age_seconds=13 * HOUR)
     old_prompt = _aged_file(tmp_path, "launch-prompts/b.md", age_seconds=15 * DAY)
@@ -63,15 +88,21 @@ def test_horizons_are_chosen_per_subdirectory(tmp_path: Path) -> None:
     assert fresh_editor.exists()
     assert not stale_agent_cli.exists()
     assert fresh_agent_cli.exists()
+    assert not stale_agent_tmp.exists()
+    assert fresh_agent_tmp.exists()
+    assert not stale_cargo_target.exists()
+    assert fresh_cargo_target.exists()
     assert young_prompt.exists()
     assert not old_prompt.exists()
-    assert result.removed == 3
+    assert result.removed == 5
     assert result.removed_by_subdir == {
         "agent-clis": 1,
+        "agent-tmp": 1,
+        "cargo-targets": 1,
         "editors": 1,
         "launch-prompts": 1,
     }
-    assert result.scanned == 6
+    assert result.scanned == 10
     assert not result.capped
 
 
@@ -167,6 +198,69 @@ def test_unknown_top_level_entries_use_the_default_horizon(tmp_path: Path) -> No
     assert recent.exists()
     assert not unknown_subdir.exists()
     assert result.removed_by_subdir == {"<root>": 2}
+
+
+def test_pressure_reaping_prunes_large_build_scratch_before_horizon(
+    tmp_path: Path,
+) -> None:
+    old_large = _aged_dir(
+        tmp_path,
+        "cargo-targets/run-old",
+        age_seconds=DAY,
+        size_bytes=8 * 1024,
+    )
+    old_small = _aged_dir(
+        tmp_path,
+        "cargo-targets/run-small",
+        age_seconds=DAY,
+        size_bytes=512,
+    )
+    fresh_large = _aged_dir(
+        tmp_path,
+        "cargo-targets/run-live",
+        age_seconds=HOUR,
+        size_bytes=8 * 1024,
+    )
+
+    result = reap_managed_tmpdir(
+        tmp_path,
+        now=NOW,
+        pressure_max_bytes=4 * 1024,
+        pressure_target_bytes=1024,
+        pressure_min_age_seconds=12 * HOUR,
+        pressure_min_entry_bytes=2 * 1024,
+    )
+
+    assert not old_large.exists()
+    assert old_small.exists()
+    assert fresh_large.exists()
+    assert result.pressure_removed == 1
+    assert result.pressure_reclaimed_bytes >= 8 * 1024
+    assert result.removed_by_subdir == {"cargo-targets": 1}
+
+
+def test_pressure_reaping_catches_large_top_level_target_residue(
+    tmp_path: Path,
+) -> None:
+    old_target = _aged_dir(
+        tmp_path,
+        "sase-yh4-cargo-target",
+        age_seconds=DAY,
+        size_bytes=8 * 1024,
+    )
+
+    result = reap_managed_tmpdir(
+        tmp_path,
+        now=NOW,
+        pressure_max_bytes=4 * 1024,
+        pressure_target_bytes=1024,
+        pressure_min_age_seconds=12 * HOUR,
+        pressure_min_entry_bytes=2 * 1024,
+    )
+
+    assert not old_target.exists()
+    assert result.pressure_removed == 1
+    assert result.removed_by_subdir == {"<root>": 1}
 
 
 def test_a_concurrent_command_s_fresh_scratch_survives(tmp_path: Path) -> None:

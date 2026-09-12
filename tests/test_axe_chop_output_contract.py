@@ -158,6 +158,8 @@ def test_managed_tmp_reap_emits_noop_summary(
     assert result["counters"] == {
         "capped": 0,
         "deindexed": 0,
+        "pressure_reclaimed_bytes": 0,
+        "pressure_removed": 0,
         "removed": 0,
         "scanned": 0,
         "subdirs": 0,
@@ -350,6 +352,8 @@ def test_managed_tmp_reap_emits_action_summary(
     assert result["counters"] == {
         "capped": 0,
         "deindexed": 0,
+        "pressure_reclaimed_bytes": 0,
+        "pressure_removed": 0,
         "removed": 1,
         "scanned": 1,
         "subdirs": 1,

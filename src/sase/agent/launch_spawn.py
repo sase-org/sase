@@ -104,6 +104,34 @@ def _overwrite_project_dir_env(env: dict[str, str], workspace_dir: str) -> None:
     env.pop("CODEX_PROJECT_DIR", None)
 
 
+def _managed_agent_scratch_env(
+    *,
+    safe_name: str,
+    workspace_num: int,
+    timestamp: str,
+) -> dict[str, str]:
+    """Return per-launch scratch env rooted in the managed temp tree."""
+    from sase.core.paths import get_sase_managed_tmpdir
+
+    label_parts = (safe_name or "agent", f"ws{workspace_num}", timestamp or "launch")
+    scratch_key = "-".join(
+        "".join(
+            character if character.isalnum() or character in "-_" else "_"
+            for character in part
+        )
+        for part in label_parts
+        if part
+    )
+    tmpdir = get_sase_managed_tmpdir("agent-tmp", scratch_key)
+    cargo_target_dir = get_sase_managed_tmpdir("cargo-targets", scratch_key)
+    return {
+        "TMPDIR": tmpdir,
+        "TMP": tmpdir,
+        "TEMP": tmpdir,
+        "CARGO_TARGET_DIR": cargo_target_dir,
+    }
+
+
 @lru_cache(maxsize=1)
 def _get_runner_script() -> str:
     import importlib.util
@@ -291,6 +319,13 @@ def spawn_agent_subprocess(
         _remove_inherited_swarm_xprompts_env(subprocess_env)
         _remove_inherited_model_alias_overrides(subprocess_env, extra_env)
         _remove_inherited_linked_repo_env(subprocess_env)
+        subprocess_env.update(
+            _managed_agent_scratch_env(
+                safe_name=prepared.safe_name,
+                workspace_num=workspace_num,
+                timestamp=timestamp,
+            )
+        )
         subprocess_env.update(prepared.env_delta)
         if chop_launch_env is not None:
             # Continuations do not repeat the original proposal's extra_env, so

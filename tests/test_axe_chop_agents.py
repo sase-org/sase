@@ -226,6 +226,69 @@ def test_spawn_agent_subprocess_extra_env_codex_home_wins(
 
 @patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
 @patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_routes_default_build_scratch_to_managed_tmp(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Launched agents do not inherit host-global ``/tmp`` build scratch."""
+    monkeypatch.setenv("TMPDIR", "/tmp/inherited")
+    monkeypatch.setenv("TMP", "/tmp/inherited")
+    monkeypatch.setenv("TEMP", "/tmp/inherited")
+    monkeypatch.setenv("CARGO_TARGET_DIR", "/tmp/inherited-cargo-target")
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+    )
+
+    env = mock_spawn.call_args.kwargs["env"]
+    scratch_key = "proj-ws3-260101_120000"
+    assert env["TMPDIR"] == str(tmp_path / "tmp" / "agent-tmp" / scratch_key)
+    assert env["TMP"] == env["TMPDIR"]
+    assert env["TEMP"] == env["TMPDIR"]
+    assert env["CARGO_TARGET_DIR"] == str(
+        tmp_path / "tmp" / "cargo-targets" / scratch_key
+    )
+    assert Path(env["TMPDIR"]).is_dir()
+    assert Path(env["CARGO_TARGET_DIR"]).is_dir()
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_preserves_explicit_build_scratch_env(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Caller-provided launch env still wins over managed defaults."""
+    explicit_tmp = tmp_path / "explicit-tmp"
+    explicit_cargo = tmp_path / "explicit-cargo"
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+        extra_env={
+            "TMPDIR": str(explicit_tmp),
+            "TMP": str(explicit_tmp),
+            "TEMP": str(explicit_tmp),
+            "CARGO_TARGET_DIR": str(explicit_cargo),
+        },
+    )
+
+    env = mock_spawn.call_args.kwargs["env"]
+    assert env["TMPDIR"] == str(explicit_tmp)
+    assert env["TMP"] == str(explicit_tmp)
+    assert env["TEMP"] == str(explicit_tmp)
+    assert env["CARGO_TARGET_DIR"] == str(explicit_cargo)
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
 def test_spawn_agent_subprocess_replaces_ambient_agent_identity_with_launch_env(
     mock_spawn: MagicMock,
     mock_claim: MagicMock,
