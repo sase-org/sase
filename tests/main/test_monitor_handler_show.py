@@ -241,7 +241,7 @@ def test_show_follow_streams_new_output_until_terminal(
     output_path.write_text("first line\n", encoding="utf-8")
     patch_project_records(monkeypatch, [artifacts_dir])
 
-    from sase.main import monitor_handler as handler_module
+    from sase.main.monitor import show as show_module
     from sase.monitor.store import read_monitor_marker as real_read_monitor_marker
 
     calls = {"count": 0}
@@ -256,7 +256,7 @@ def test_show_follow_streams_new_output_until_terminal(
             _set_monitor_state(artifacts_dir, "completed")
         return real_read_monitor_marker(project_name, dir_)
 
-    monkeypatch.setattr(handler_module, "read_monitor_marker", fake_read_monitor_marker)
+    monkeypatch.setattr(show_module, "read_monitor_marker", fake_read_monitor_marker)
     monkeypatch.setattr("time.sleep", lambda _seconds: None)
 
     assert dispatch(["monitor", "show", "aaabbbcccddd", "--follow"]) == 0
@@ -267,7 +267,7 @@ def test_show_follow_streams_new_output_until_terminal(
 
 
 def test_read_new_text_resets_after_active_log_rotation(tmp_path: Path) -> None:
-    from sase.main.monitor_handler import _read_new_text
+    from sase.main.monitor.show import _read_new_text
 
     path = tmp_path / "live_reply.md"
     path.write_text("old current with more bytes\n", encoding="utf-8")

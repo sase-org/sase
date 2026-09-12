@@ -111,7 +111,7 @@ def test_stop_omitted_id_targets_the_calling_agents_active_monitor(
         monkeypatch.setattr("os.kill", fake_kill)
         monkeypatch.setenv("SASE_AGENT_NAME", "acme")
         monkeypatch.setattr(
-            "sase.main.monitor_handler._infer_project_name", lambda _cwd: "proj"
+            "sase.main.monitor.common.infer_project_name", lambda _cwd: "proj"
         )
 
         assert dispatch(["monitor", "stop"]) == 0
@@ -140,7 +140,7 @@ def test_stop_omitted_id_with_no_active_monitor_names_the_agent(
     patch_project_records(monkeypatch, [caller_dir])
     monkeypatch.setenv("SASE_AGENT_NAME", "acme")
     monkeypatch.setattr(
-        "sase.main.monitor_handler._infer_project_name", lambda _cwd: "proj"
+        "sase.main.monitor.common.infer_project_name", lambda _cwd: "proj"
     )
 
     assert dispatch(["monitor", "stop"]) == 2
@@ -186,7 +186,7 @@ def test_stop_omitted_id_resolves_the_callers_own_family_not_a_sibling(
         monkeypatch.setattr("os.kill", fake_kill)
         monkeypatch.setenv("SASE_AGENT_NAME", "sase-m6.6.1.5")
         monkeypatch.setattr(
-            "sase.main.monitor_handler._infer_project_name", lambda _cwd: "proj"
+            "sase.main.monitor.common.infer_project_name", lambda _cwd: "proj"
         )
 
         assert dispatch(["monitor", "stop"]) == 0

@@ -296,7 +296,7 @@ def build_list(
                 if banner_selectable
                 else "none"
             )
-            option = cached_format_banner_option(
+            banner_option = cached_format_banner_option(
                 widget._agent_render_cache,
                 entry.group,
                 widget._agents,
@@ -308,12 +308,12 @@ def build_list(
                 hint_char=banner_hint,
                 mark_state=mark_state,
             )
-            prompt = option.prompt
+            prompt = banner_option.prompt
             if isinstance(prompt, Text):
                 max_emitted_width = max(max_emitted_width, prompt.cell_len)
             banner_seq += 1
             row_index = len(widget._row_entries)
-            emitted_options.append(option)
+            emitted_options.append(banner_option)
             widget._row_entries.append((_BANNER_ROW, None))
             if banner_selectable:
                 widget._banner_at_row[row_index] = entry.group

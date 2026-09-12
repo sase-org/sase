@@ -31,7 +31,10 @@ def monitor_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
 def pin_project(monkeypatch: pytest.MonkeyPatch, project: str = "proj") -> None:
     """Force the handler to treat the cwd as belonging to ``project``."""
     monkeypatch.setattr(
-        "sase.main.monitor_handler._infer_project_name", lambda _cwd: project
+        "sase.main.monitor.common.infer_project_name", lambda _cwd: project
+    )
+    monkeypatch.setattr(
+        "sase.main.monitor.start.infer_project_name", lambda _cwd: project
     )
 
 

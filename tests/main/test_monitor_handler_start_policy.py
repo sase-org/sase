@@ -100,7 +100,7 @@ def test_start_rejects_incomplete_policy_before_start_monitor(
 ) -> None:
     calls: list[object] = []
     monkeypatch.setattr(
-        "sase.main.monitor_handler.start_monitor",
+        "sase.main.monitor.start.start_monitor",
         lambda request: calls.append(request),
     )
     policy = tmp_path / "policy.yaml"
@@ -141,19 +141,19 @@ def test_start_loads_yaml_policy_before_calling_start_monitor(
         artifacts_dir = str(tmp_path)
 
     monkeypatch.setattr(
-        "sase.main.monitor_handler.start_monitor",
+        "sase.main.monitor.start.start_monitor",
         lambda request: captured.append(request) or _Record(),
     )
     monkeypatch.setattr(
-        "sase.main.monitor_handler.will_handoff_monitor_to_agent_runner",
+        "sase.main.monitor.start.will_handoff_monitor_to_agent_runner",
         lambda: False,
     )
     monkeypatch.setattr(
-        "sase.main.monitor_handler.maybe_handoff_monitor_from_agent",
+        "sase.main.monitor.start.maybe_handoff_monitor_from_agent",
         lambda _record: None,
     )
     monkeypatch.setattr(
-        "sase.main.monitor_handler._infer_project_name",
+        "sase.main.monitor.start.infer_project_name",
         lambda _cwd: "proj",
     )
     policy = tmp_path / "policy.yaml"
