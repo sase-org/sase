@@ -52,6 +52,7 @@ def claim_ordinary_continuation_dispatch(
     extra: Mapping[str, Any] | None = None,
     workspace_identity: str | None = None,
     workspace_degraded: bool = False,
+    retryable_pre_dispatch_failure: bool = False,
 ) -> _ContinuationDispatchClaim:
     """Reserve *reserved_identity* and claim the spawn slot for one delivery.
 
@@ -70,6 +71,7 @@ def claim_ordinary_continuation_dispatch(
         reserved_identity=reserved_identity,
         workspace_identity=workspace_identity,
         workspace_degraded=workspace_degraded,
+        retryable_pre_dispatch_failure=retryable_pre_dispatch_failure,
         after_reserve=lambda: maybe_crash("after_reserve"),
     )
     identity = str(record.get("reserved_identity") or reserved_identity or "") or None

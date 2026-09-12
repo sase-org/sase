@@ -19,6 +19,12 @@ from .naming import (
     new_monitor_id,
     short_monitor_id,
 )
+from .resume import (
+    MonitorResumeError,
+    MonitorResumeResult,
+    reconcile_terminal_delivery,
+    resume_monitor,
+)
 from .start import (
     MONITOR_GO_MARKER,
     MONITOR_PENDING_MARKER,
@@ -41,6 +47,7 @@ from .store import (
     monitor_blocking_start_for_lane,
     read_monitor_marker,
     reconcile_dead_supervisors,
+    reconcile_terminal_deliveries,
     resolve_caller_agent,
     resolve_exact_agent,
     resolve_lane,
@@ -59,6 +66,8 @@ __all__ = [
     "MonitorLaneError",
     "MonitorRecord",
     "MonitorRefError",
+    "MonitorResumeError",
+    "MonitorResumeResult",
     "MonitorState",
     "MONITOR_GO_MARKER",
     "MONITOR_PENDING_MARKER",
@@ -79,6 +88,8 @@ __all__ = [
     "new_monitor_id",
     "read_monitor_marker",
     "reconcile_dead_supervisors",
+    "reconcile_terminal_delivery",
+    "reconcile_terminal_deliveries",
     "resolve_caller_agent",
     "resolve_exact_agent",
     "resolve_lane",
@@ -86,6 +97,7 @@ __all__ = [
     "short_monitor_id",
     "start_monitor",
     "stop_monitor",
+    "resume_monitor",
     "will_handoff_monitor_to_agent_runner",
     "write_monitor_pending_marker",
 ]

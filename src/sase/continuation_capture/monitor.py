@@ -68,6 +68,7 @@ def persist_monitor_start_intent_best_effort(
     checkpoint_document: Mapping[str, Any] | None = None,
     starter_artifacts_dir: str | None = None,
     meta: dict[str, Any] | None = None,
+    intent_revision: str | None = None,
 ) -> str | None:
     """Persist a passive continuation intent for a started monitor member."""
 
@@ -90,6 +91,7 @@ def persist_monitor_start_intent_best_effort(
             checkpoint_ref=checkpoint_ref,
             checkpoint_document=checkpoint_document,
             starter_artifacts_dir=starter_artifacts_dir,
+            intent_revision=intent_revision,
             allow_missing_validation=True,
         )
     except Exception as exc:
@@ -120,6 +122,7 @@ def persist_monitor_start_intent(
     checkpoint_ref: str | None = None,
     checkpoint_document: Mapping[str, Any] | None = None,
     starter_artifacts_dir: str | None = None,
+    intent_revision: str | None = None,
     allow_missing_validation: bool = False,
 ) -> str:
     """Persist and validate a continuation intent for a monitor's next action."""
@@ -173,7 +176,10 @@ def persist_monitor_start_intent(
         },
     )
     checkpoint_ref = authored_ref or host_checkpoint_ref
-    seed = f"{monitor_id}\0{next_action}\0{next_model or ''}\0{next_output}"
+    seed = (
+        f"{monitor_id}\0{next_action}\0{next_model or ''}\0{next_output}"
+        f"\0{intent_revision or ''}"
+    )
     intent_id = f"intent:{safe_identifier(monitor_id)}:{sha_text(seed)[:16]}"
     route: dict[str, Any] = {"inherit_effort": True}
     if next_model:

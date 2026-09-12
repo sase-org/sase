@@ -10,11 +10,13 @@ acknowledgment while holding either lock):
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import contextmanager
 from datetime import UTC, datetime
 import fcntl
 import json
 from pathlib import Path
 from typing import Any
+from collections.abc import Iterator
 
 from sase.core.continuation_facade import (
     new_continuation_delivery_record,
@@ -66,6 +68,40 @@ def load_delivery_record(
     if not isinstance(payload, dict):
         raise ValueError(f"delivery record at {path} is not an object")
     return validate_continuation_delivery_record(payload)
+
+
+def load_delivery_records(
+    artifacts_dir: str | Path,
+    *,
+    monitor_id: str | None = None,
+    result_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Load delivery records, optionally filtered by key fields."""
+
+    root = _delivery_dir(artifacts_dir)
+    if not root.is_dir():
+        return []
+    records: list[dict[str, Any]] = []
+    for path in sorted(root.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        try:
+            record = validate_continuation_delivery_record(payload)
+        except Exception:
+            continue
+        key = record.get("key")
+        if not isinstance(key, Mapping):
+            continue
+        if monitor_id is not None and key.get("monitor_id") != monitor_id:
+            continue
+        if result_id is not None and key.get("result_id") != result_id:
+            continue
+        records.append(record)
+    return records
 
 
 def persist_delivery_record(
@@ -139,6 +175,7 @@ def claim_dispatch_slot(
     workspace_identity: str | None = None,
     workspace_degraded: bool = False,
     after_reserve: Any | None = None,
+    retryable_pre_dispatch_failure: bool = False,
 ) -> tuple[dict[str, Any], bool]:
     """Reserve *reserved_identity* and claim the spawn slot under one lock.
 
@@ -156,12 +193,26 @@ def claim_dispatch_slot(
             reserved_identity=reserved_identity,
         )
         previous = str(record.get("disposition") or "")
-        if previous in _DISCOVERABLE_DISPOSITIONS or previous in {
+        if (
+            previous in _DISCOVERABLE_DISPOSITIONS
+            and not (previous == "dispatching" and retryable_pre_dispatch_failure)
+        ) or previous in {
             "cancelled",
             "nonlaunchable",
             "needs_attention",
         }:
             return record, False
+        if previous == "dispatching" and retryable_pre_dispatch_failure:
+            record = transition_delivery(
+                record,
+                "reserved",
+                reason="retryable pre-dispatch recovery",
+                reserved_identity=reserved_identity,
+                workspace_identity=workspace_identity,
+                workspace_degraded=workspace_degraded,
+                retryable_pre_dispatch_failure=True,
+            )
+            write_json_atomic(_record_path(artifacts_dir, record["key"]), record)
         if previous == "pending":
             record = transition_delivery(
                 record,
@@ -221,6 +272,16 @@ def apply_delivery_transition(
         )
         write_json_atomic(_record_path(artifacts_dir, updated["key"]), updated)
         return updated
+
+
+@contextmanager
+def delivery_store_lock(artifacts_dir: str | Path) -> Iterator[None]:
+    """Hold the delivery store lock for small recovery-side transactions."""
+
+    root = _delivery_dir(artifacts_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    with _delivery_lock(root):
+        yield
 
 
 def update_delivery_workspace(
@@ -303,7 +364,9 @@ __all__ = [
     "apply_delivery_transition",
     "claim_dispatch_slot",
     "delivery_key",
+    "delivery_store_lock",
     "load_delivery_record",
+    "load_delivery_records",
     "load_host_completion_receipt",
     "new_delivery_record",
     "persist_delivery_record",

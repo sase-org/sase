@@ -10,8 +10,11 @@ family, and role when it starts -- exactly as it would for an interactive
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
+import json
 import os
+from pathlib import Path
 from typing import Any
 
 from sase.agent._family_attach_resolution import resolve_family_attach_plan
@@ -19,6 +22,7 @@ from sase.agent._family_attach_types import FamilyAttachDirective, FamilyAttachE
 from sase.agent.detached_child import spawn_family_successor
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
+from sase.continuation_capture._storage import sha_json
 from sase.shells.followup import (
     DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
     STARTER_SETTLE_POLL_SECONDS as _STARTER_SETTLE_POLL_SECONDS,
@@ -81,6 +85,10 @@ def launch_followup_agent(
     timeout_kind: str | None = None,
     settle_timeout_seconds: float = DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
     transfer_from_pid: int | None = None,
+    branch_override: str | None = None,
+    next_model_override: str | None = None,
+    checkpoint_ref_override: str | None = None,
+    retryable_pre_dispatch_failure: bool = False,
 ) -> FollowupLaunchResult:
     """Launch the agent named by ``monitor_next_action`` into the same lane.
 
@@ -104,24 +112,29 @@ def launch_followup_agent(
     manifest = diagnostic_manifest(artifacts_dir)
     retained_log = retained_log_metadata(artifacts_dir)
     next_output = str(meta.get("monitor_next_output") or LEGACY_NEXT_OUTPUT)
-    monitor_result = build_monitor_result_wire(
-        monitor_id=str(meta.get("monitor_id") or ""),
-        monitor_state=monitor_state,
-        exit_code=exit_code,
-        command=str(meta.get("monitor_command") or ""),
-        cwd=str(meta.get("monitor_cwd") or ""),
-        started_at=meta.get("run_started_at"),
-        stopped_at=meta.get("stopped_at"),
-        elapsed_seconds=elapsed_seconds,
-        timeout_seconds=float(meta.get("monitor_timeout_seconds") or 0.0),
-        timeout_kind=timeout_kind or meta.get("monitor_timeout_kind"),
-        starter_execution_id=_clean_str(meta.get("monitor_starter_agent"))
-        or _clean_str(meta.get("parent_timestamp")),
-        workspace_identity=_clean_str(meta.get("continuation_workspace_ref"))
-        or _clean_str(meta.get("workspace_dir")),
-        diagnostic_manifest_ref=manifest.get("manifest_ref"),
-        retained_log=retained_log,
-    )
+    loaded_monitor_result = load_frozen_monitor_result(artifacts_dir, meta)
+    monitor_result: Mapping[str, Any]
+    if loaded_monitor_result is None:
+        monitor_result = build_monitor_result_wire(
+            monitor_id=str(meta.get("monitor_id") or ""),
+            monitor_state=monitor_state,
+            exit_code=exit_code,
+            command=str(meta.get("monitor_command") or ""),
+            cwd=str(meta.get("monitor_cwd") or ""),
+            started_at=meta.get("run_started_at"),
+            stopped_at=meta.get("stopped_at"),
+            elapsed_seconds=elapsed_seconds,
+            timeout_seconds=float(meta.get("monitor_timeout_seconds") or 0.0),
+            timeout_kind=timeout_kind or meta.get("monitor_timeout_kind"),
+            starter_execution_id=_clean_str(meta.get("monitor_starter_agent"))
+            or _clean_str(meta.get("parent_timestamp")),
+            workspace_identity=_clean_str(meta.get("continuation_workspace_ref"))
+            or _clean_str(meta.get("workspace_dir")),
+            diagnostic_manifest_ref=manifest.get("manifest_ref"),
+            retained_log=retained_log,
+        )
+    else:
+        monitor_result = loaded_monitor_result
     evidence_selection = select_monitor_result_evidence(
         monitor_result,
         next_output=next_output,
@@ -133,10 +146,20 @@ def launch_followup_agent(
         manifest=manifest,
     )
     result_id = str(monitor_result.get("result_id") or "")
-    branch = str(monitor_result.get("outcome") or "failed")
+    branch = branch_override or str(monitor_result.get("outcome") or "failed")
     if result_id:
         meta["continuation_monitor_result_id"] = result_id
         update_meta_field(artifacts_dir, "continuation_monitor_result_id", result_id)
+    if checkpoint_ref_override:
+        meta["continuation_checkpoint_ref"] = checkpoint_ref_override
+        update_meta_field(
+            artifacts_dir,
+            "continuation_checkpoint_ref",
+            checkpoint_ref_override,
+        )
+    selected_next_model = next_model_override or _clean_str(
+        meta.get("monitor_next_model")
+    )
 
     prompt_kwargs: dict[str, Any] = {
         "starter_name": starter_name if settled else None,
@@ -162,7 +185,7 @@ def launch_followup_agent(
         "output_log_path": str(monitor_log_path(artifacts_dir)),
         "model": _clean_str(meta.get("model")),
         "reasoning_effort": _clean_str(meta.get("reasoning_effort")),
-        "next_model": _clean_str(meta.get("monitor_next_model")),
+        "next_model": selected_next_model,
         "diagnostic_manifest": manifest,
         "retained_log_metadata": retained_log,
         "evidence_selection": evidence_selection,
@@ -197,6 +220,7 @@ def launch_followup_agent(
         selected_action="continue",
         reserved_identity=reserved_name,
         extra=launch_wire_extra(meta),
+        retryable_pre_dispatch_failure=retryable_pre_dispatch_failure,
     )
     if not claim.spawn:
         if claim.error:
@@ -306,6 +330,33 @@ def launch_followup_agent(
         record_launched=_record_launched_result,
         record_not_launchable=_record_not_launchable_result,
     )
+
+
+def load_frozen_monitor_result(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Return the persisted frozen monitor result, verifying its digest."""
+
+    raw_path = _clean_str(meta.get("continuation_monitor_result_path"))
+    if not raw_path:
+        return None
+    path = Path(raw_path)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    if not isinstance(payload, dict):
+        raise ValueError(f"frozen monitor result at {path} is not an object")
+    expected = _clean_str(meta.get("continuation_monitor_result_sha256"))
+    if expected and sha_json(payload) != expected:
+        raise ValueError(
+            f"frozen monitor result digest mismatch for {path}: "
+            f"expected {expected}, got {sha_json(payload)}"
+        )
+    if not payload.get("result_id"):
+        raise ValueError(f"frozen monitor result at {path} has no result_id")
+    return payload
 
 
 def _record_launched(
@@ -434,5 +485,6 @@ def _wait_for_starter(
 __all__ = [
     "DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS",
     "FollowupLaunchResult",
+    "load_frozen_monitor_result",
     "launch_followup_agent",
 ]

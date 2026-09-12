@@ -39,7 +39,7 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
     monitor_sub = monitor_parser.add_subparsers(
         dest="monitor_subcommand",
         help="Monitor subcommands",
-        metavar="{list,show,start,stop}",
+        metavar="{list,show,resume,start,stop}",
     )
 
     list_parser = monitor_sub.add_parser(
@@ -404,6 +404,52 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs=argparse.REMAINDER,
         metavar="-- COMMAND",
         help="The command to run and monitor, introduced by --",
+    )
+
+    resume_parser = monitor_sub.add_parser(
+        "resume",
+        help="Resume a terminal monitor's requested follow-up without rerunning it",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Resume the ordinary follow-up requested by a terminal monitor. "
+            "This reconciles existing continuation delivery state first, "
+            "then launches only from the frozen monitor result; it never "
+            "reruns the monitored command."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase monitor resume a1b2c3\n"
+            "  sase monitor resume a1b2c3 -k checkpoint.yml\n"
+            "  sase monitor resume a1b2c3 -m codex/gpt-5 --json"
+        ),
+    )
+    resume_parser.add_argument(
+        "monitor_id",
+        metavar="ID",
+        help="Monitor id (or unique prefix), member agent name, or owning agent name",
+    )
+    resume_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON result",
+    )
+    resume_parser.add_argument(
+        "-k",
+        "--checkpoint",
+        default=None,
+        metavar="FILE",
+        help=(
+            "Optional authored checkpoint YAML/JSON for a manual recovery "
+            "branch. Bound by content digest, not path"
+        ),
+    )
+    resume_parser.add_argument(
+        "-m",
+        "--model",
+        default=None,
+        metavar="MODEL",
+        help="Model or alias for the resumed follow-up branch",
     )
 
     stop_parser = monitor_sub.add_parser(

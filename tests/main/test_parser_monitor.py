@@ -17,10 +17,10 @@ def test_monitor_group_help_lists_sorted_visible_subcommands() -> None:
     """``sase monitor --help`` advertises its public commands, hiding ``_supervise``."""
     monitor_parser = parser_for(("sase", "monitor"))
     help_text = monitor_parser.format_help()
-    expected = {"list", "show", "start", "stop"}
+    expected = {"list", "resume", "show", "start", "stop"}
 
     assert help_subcommand_rows(help_text, expected) == sorted(expected)
-    assert "{list,show,start,stop}" in help_text
+    assert "{list,show,resume,start,stop}" in help_text
     usage_line = next(
         line for line in help_text.splitlines() if line.startswith("usage:")
     )

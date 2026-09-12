@@ -15242,6 +15242,79 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "bdc89f2356ea8ef3",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "resume",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "checkpoint",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-k",
+                  "--checkpoint"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "model",
+                "hidden": false,
+                "kind": "model",
+                "repeatable": false,
+                "strings": [
+                  "-m",
+                  "--model"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "monitor",
+              "resume"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "monitor_id",
+                "is_remainder": false,
+                "kind": "monitor",
+                "metavar": "ID",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "078651451eb31714",
             "hidden": false,
             "mutex_groups": [],

@@ -397,15 +397,38 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
     reconcile_proc_shells()
     snapshot = read_proc_snapshot()
     reconcile_dead_supervisors(project=project, snapshot=snapshot)
+    wire_records = list(_monitor_records(project))
+    if reconcile_terminal_deliveries(project=project, records=wire_records):
+        wire_records = list(_monitor_records(project))
     records = [
         _with_proc_projection(converted, snapshot=snapshot)
-        for converted in (
-            _monitor_record_from_wire(record) for record in _monitor_records(project)
-        )
+        for converted in (_monitor_record_from_wire(record) for record in wire_records)
         if converted is not None
     ]
     records.sort(key=lambda record: record.timestamp, reverse=True)
     return records
+
+
+def reconcile_terminal_deliveries(
+    *,
+    project: str | None = None,
+    records: Sequence[AgentArtifactRecordWire] | None = None,
+) -> list[MonitorRecord]:
+    """Recover terminal monitors that already own pending delivery records."""
+
+    from .resume import reconcile_terminal_delivery
+
+    reconciled: list[MonitorRecord] = []
+    source_records = records if records is not None else _monitor_records(project)
+    for record in (_monitor_record_from_wire(item) for item in source_records):
+        if record is None or not record.is_terminal:
+            continue
+        result = reconcile_terminal_delivery(record)
+        if result is None:
+            continue
+        current = read_monitor_marker(record.project_name, record.artifacts_dir)
+        reconciled.append(current if current is not None else record)
+    return reconciled
 
 
 def reconcile_dead_supervisors(
@@ -684,6 +707,7 @@ __all__ = [
     "monitor_blocking_start_for_lane",
     "read_monitor_marker",
     "reconcile_dead_supervisors",
+    "reconcile_terminal_deliveries",
     "resolve_caller_agent",
     "resolve_exact_agent",
     "resolve_lane",
