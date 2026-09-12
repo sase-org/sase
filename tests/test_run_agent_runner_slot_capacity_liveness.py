@@ -88,7 +88,7 @@ def test_recycled_thread_pid_does_not_hold_runner_slot(
         json.dumps(
             {
                 "slot_requested_at": "2026-08-27T12:01:01+00:00",
-                "wait_runners": max_running_agents - 1,
+                "wait_runners": max_running_agents,
             }
         ),
         encoding="utf-8",
@@ -110,7 +110,7 @@ def test_recycled_thread_pid_does_not_hold_runner_slot(
     assert [entry.artifact_dir for entry in queue] == [str(waiter)]
     assert may_start(
         running_count,
-        max_running_agents - 1,
+        max_running_agents,
         queue,
         str(waiter),
     )
@@ -147,7 +147,9 @@ def test_implicit_gate_fails_closed_when_effective_limit_is_unavailable(
         marker = json.loads((waiter / "waiting.json").read_text())
         assert first is None
         assert parked is True
-        assert marker["wait_runners_explicit"] is False
+        assert marker["queue_capacity_explicit"] is False
+        assert "wait_runners" not in marker
+        assert "wait_runners_explicit" not in marker
         assert marker["wait_priority_explicit"] is False
         assert marker["runner_limit_unavailable"] == "override lock busy"
         scan.assert_not_called()
@@ -267,8 +269,10 @@ def test_answered_root_reacquires_after_yield_without_oversubscribing(
         assert parked
         assert (paused / "pending_question.json").exists()
         queued = json.loads((paused / "waiting.json").read_text())
-        assert queued["wait_runners"] == 0
-        assert queued["wait_runners_explicit"] is False
+        assert queued["queue_capacity"] == 0
+        assert queued["queue_capacity_explicit"] is False
+        assert "wait_runners" not in queued
+        assert "wait_runners_explicit" not in queued
 
         newcomer_started = False
 

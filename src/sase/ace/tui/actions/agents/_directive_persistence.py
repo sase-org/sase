@@ -164,9 +164,17 @@ def wait_meta_patch_for_token(
             if wait_until is not None:
                 set_values["wait_until"] = wait_until
     if update_wait_runners:
-        remove_keys.append("wait_runners")
+        remove_keys.extend(
+            (
+                "wait_runners",
+                "wait_runners_explicit",
+                "queue_capacity",
+                "queue_capacity_explicit",
+            )
+        )
         if wait_runners is not None:
-            set_values["wait_runners"] = wait_runners
+            set_values["queue_capacity"] = wait_runners
+            set_values["queue_capacity_explicit"] = True
     if update_wait_priority:
         remove_keys.append("wait_priority")
         if wait_priority is not None:
@@ -310,10 +318,13 @@ def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> N
         if patch.wait_until is not None:
             existing["wait_until"] = patch.wait_until
         if patch.update_wait_runners:
+            existing.pop("queue_capacity", None)
+            existing.pop("queue_capacity_explicit", None)
             existing.pop("wait_runners", None)
-            existing["wait_runners_explicit"] = patch.wait_runners is not None
+            existing.pop("wait_runners_explicit", None)
+            existing["queue_capacity_explicit"] = patch.wait_runners is not None
             if patch.wait_runners is not None:
-                existing["wait_runners"] = patch.wait_runners
+                existing["queue_capacity"] = patch.wait_runners
         if patch.update_wait_priority:
             existing.pop("wait_priority", None)
             existing["wait_priority_explicit"] = patch.wait_priority is not None

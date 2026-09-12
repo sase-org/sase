@@ -354,8 +354,6 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-zs.6(GhCommandResult)' \
         --epic-symbol 'sase-zs.6(GhSubprocessRunner)' \
         --epic-symbol 'sase-zs.6(run_gh)' \
-        --epic-symbol 'sase-zs.6(classify_failure_retryability)' \
-        --epic-symbol 'sase-zs.6(is_retryable_failure)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

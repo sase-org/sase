@@ -207,7 +207,10 @@ def test_waiting_marker_edit_preserves_priority_unless_explicitly_updated(
 
     waiting = json.loads((artifacts / "waiting.json").read_text())
     assert waiting["waiting_for"] == ["new"]
-    assert waiting["wait_runners"] == 0
+    assert waiting["queue_capacity"] == 0
+    assert waiting["queue_capacity_explicit"] is True
+    assert "wait_runners" not in waiting
+    assert "wait_runners_explicit" not in waiting
     assert waiting["wait_priority"] == 20
     assert waiting["wait_priority_explicit"] is True
     assert waiting["queue_weight"] == 0.25

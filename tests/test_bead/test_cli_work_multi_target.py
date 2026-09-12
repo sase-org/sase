@@ -53,10 +53,10 @@ def test_bead_work_parser_assigns_capacity_and_cl_name_short_aliases() -> None:
     parser = create_parser()
 
     args = parser.parse_args(
-        ["bead", "work", "./epic_plan.md", "-c", "0", "-C", "demo"]
+        ["bead", "work", "./epic_plan.md", "-c", "1", "-C", "demo"]
     )
 
-    assert args.capacity == 0
+    assert args.capacity == 1
     assert args.cl_name == "demo"
 
     with pytest.raises(SystemExit) as exc_info:
@@ -164,14 +164,14 @@ def test_multi_target_dispatch_reuses_options_and_one_lock(
             json=True,
             yes=True,
             parent="top-level",
-            capacity="0",
+            capacity="1",
         ),
         timer_factory=_timer_factory,
     )
 
     assert [call[:-1] for call in calls] == [
-        ("./epic.md", True, "top-level", 0, True, 1, 2),
-        ("sase-task", True, "top-level", 0, True, 2, 2),
+        ("./epic.md", True, "top-level", 1, True, 1, 2),
+        ("sase-task", True, "top-level", 1, True, 2, 2),
     ]
     assert calls[0][7] == calls[1][7]
     assert lock.enter_count == 1

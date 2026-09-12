@@ -59,7 +59,7 @@ def _command_result(
     return code, captured.out, captured.err
 
 
-def test_execute_plan_gate_command_accepts_explicit_zero_capacity(
+def test_execute_plan_gate_command_accepts_explicit_run_alone_capacity(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -76,13 +76,13 @@ def test_execute_plan_gate_command_accepts_explicit_zero_capacity(
         capsys,
         gate.bundle_path,
         "approve",
-        {"capacity": 0, "epic_launch_mode": "launch"},
+        {"capacity": 1, "epic_launch_mode": "launch"},
     )
 
     assert code == 0
     assert stderr == ""
     result = json.loads(stdout)
-    assert result["capacity"] == 0
+    assert result["capacity"] == 1
     assert result["action"] == "epic"
 
 
@@ -233,7 +233,7 @@ def test_epic_adapter_forwards_capacity_onto_the_launch_argv(gate_home: Path) ->
     gate = create_gate(build_plan_approval_gate_spec(plan, "epic-capacity-adapter"))
     response = {
         "selected_option_ids": ["approve"],
-        "input": {"epic_launch_mode": "launch", "capacity": 0},
+        "input": {"epic_launch_mode": "launch", "capacity": 1},
         "option_results": [
             {
                 "id": "approve",
@@ -242,7 +242,7 @@ def test_epic_adapter_forwards_capacity_onto_the_launch_argv(gate_home: Path) ->
                     "commit_plan": True,
                     "run_coder": True,
                     "epic_launch_owner": "host",
-                    "capacity": 0,
+                    "capacity": 1,
                 },
             }
         ],
@@ -262,9 +262,9 @@ def test_epic_adapter_forwards_capacity_onto_the_launch_argv(gate_home: Path) ->
         )
 
     assert prepare.call_count == 1
-    assert prepare.call_args.kwargs["capacity"] == 0
-    argv = build_epic_launch_argv(str(plan), capacity=0)
-    assert argv[argv.index("--capacity") + 1] == "0"
+    assert prepare.call_args.kwargs["capacity"] == 1
+    argv = build_epic_launch_argv(str(plan), capacity=1)
+    assert argv[argv.index("--capacity") + 1] == "1"
     assert response["epic_launch_monitor_id"] == "mon-capacity"
 
 
@@ -338,12 +338,12 @@ def test_neutral_approval_puts_capacity_in_shared_input(gate_home: Path) -> None
         result = execute_plan_approval_response(
             plan_context_from_envelope(gate.bundle_path, envelope),
             "epic",
-            capacity=0,
+            capacity=1,
         )
 
-    assert result.response_json["input"]["capacity"] == 0
+    assert result.response_json["input"]["capacity"] == 1
     translated = translate_plan_gate_response(gate.bundle_path, result.response_json)
-    assert translated["capacity"] == 0
+    assert translated["capacity"] == 1
 
 
 def test_invalid_capacity_is_rejected_before_the_gate_is_consumed(

@@ -23,6 +23,8 @@ class AgentWaitInfo:
     wait_duration_seconds: float | None = None
     wait_until: str | None = None
     remaining_seconds: int | None = None
+    queue_capacity: int | None = None
+    queue_capacity_explicit: bool = False
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
     wait_priority: int | None = None
@@ -39,6 +41,7 @@ class AgentWaitInfo:
     runner_slot_queue_size: int | None = None
     runner_occupied_capacity: float | None = None
     runner_effective_limit: float | None = None
+    runner_admission_limit: float | None = None
     runner_capacity_blockers: tuple[dict[str, object], ...] = ()
     runner_slot_holders: tuple[str, ...] = ()
 

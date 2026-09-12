@@ -144,7 +144,7 @@ def validate_time_token(token: str) -> TimeValidation:
 
 
 def validate_capacity_token(token: str) -> CapacityValidation:
-    """Validate a weighted-load capacity threshold for live preview."""
+    """Validate a weighted-load capacity budget for live preview."""
     from sase.xprompt.queue_directive import validate_queue_capacity
 
     token = token.strip()
@@ -152,7 +152,7 @@ def validate_capacity_token(token: str) -> CapacityValidation:
         return CapacityValidation(
             valid=True,
             value=None,
-            message="uses the global max_running_agents cap",
+            message="uses the global max_running_agents budget",
             css_class="wait-time-neutral",
         )
     try:
@@ -164,9 +164,9 @@ def validate_capacity_token(token: str) -> CapacityValidation:
             message=str(exc),
             css_class="wait-time-error",
         )
-    message = f"starts when occupied weighted load is at most {value}"
-    if value == 0:
-        message = "drain barrier: starts when occupied weighted load is zero"
+    message = f"uses a per-launch weighted-load budget of {value}"
+    if value == 1:
+        message = "run alone: starts when one capacity unit is available"
     return CapacityValidation(
         valid=True,
         value=value,

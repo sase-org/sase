@@ -115,17 +115,17 @@ def test_queue_weight_alias_duplicate_errors() -> None:
 def test_typed_launch_parses_queue_and_rebuilds_canonical_prompt() -> None:
     with override_flags(typed_launch_units=True):
         plan = plan_typed_launch_units(
-            "%w(builder, time=5m) %q(1, p=20, w=2)\nDo work",
+            "%w(builder, time=5m) %q(3, p=20, w=2)\nDo work",
             selected_project="sase",
         )
         agent = plan.units[0].payload
         assert isinstance(agent, AgentUnitWire)
-        assert agent.wait_runners == 1
+        assert agent.wait_runners == 3
         assert agent.wait_priority == 20
         assert agent.queue_weight == 2.0
         assert agent.queue_weight_explicit is True
         rebuilt = agent_unit_dispatch_prompt(agent)
-    assert "%queue(capacity=1, priority=20, weight=2)" in rebuilt
+    assert "%queue(capacity=3, priority=20, weight=2)" in rebuilt
     assert "%wait(runners=" not in rebuilt
 
 
@@ -156,16 +156,19 @@ def test_typed_launch_rejects_retired_wait_queue_keywords() -> None:
 
 
 def test_validate_queue_capacity_rejects_booleans_and_invalid_numbers() -> None:
-    assert validate_queue_capacity(0) == 0
     assert validate_queue_capacity("3") == 3
     assert validate_queue_capacity(4294967295) == 4294967295
+    with pytest.raises(ValueError, match="at least 1|positive"):
+        validate_queue_capacity(0)
+    with override_flags(queue_capacity_budget=False):
+        assert validate_queue_capacity(0) == 0
     with pytest.raises(ValueError, match="boolean"):
         validate_queue_capacity(True)
     with pytest.raises(ValueError, match="boolean"):
         validate_queue_capacity(False)
-    with pytest.raises(ValueError, match="non-negative integer"):
+    with pytest.raises(ValueError, match="positive integer"):
         validate_queue_capacity(1.5)
-    with pytest.raises(ValueError, match="non-negative integer"):
+    with pytest.raises(ValueError, match="positive integer"):
         validate_queue_capacity(-1)
     with pytest.raises(ValueError):
         validate_queue_capacity("4294967296")

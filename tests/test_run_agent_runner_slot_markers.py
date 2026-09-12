@@ -80,8 +80,10 @@ def test_repeated_slot_polls_preserve_foreign_waiting_marker_fields(
                 assert marker[key] == value
             assert marker["cl_name"] == "fresh-cl"
             assert marker["timestamp"] == waiter.name
-            assert marker["wait_runners"] == 0
-            assert marker["wait_runners_explicit"] is False
+            assert marker["queue_capacity"] == 0
+            assert marker["queue_capacity_explicit"] is False
+            assert "wait_runners" not in marker
+            assert "wait_runners_explicit" not in marker
             assert marker["wait_priority"] == 4
             assert marker["wait_priority_explicit"] is True
             assert marker["slot_requested_at"] == requested_at
@@ -98,7 +100,7 @@ def test_parked_marker_edit_overrides_original_directive(tmp_path: Path) -> None
                 "waiting_for": [],
                 "cl_name": "cl",
                 "timestamp": waiter.name,
-                "wait_runners": 2,
+                "wait_runners": 3,
                 "wait_runners_explicit": True,
                 "slot_requested_at": "2026-07-12T12:00:02+00:00",
             }

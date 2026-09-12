@@ -376,6 +376,35 @@ def _wait_info(
         queue_weight_explicit = waiting.queue_weight_explicit
         queue_weight_invalid = waiting.queue_weight_invalid
         queue_weight_error = waiting.queue_weight_error
+    queue_capacity = (
+        waiting.queue_capacity
+        if waiting is not None and waiting.queue_capacity is not None
+        else meta.queue_capacity
+        if meta is not None
+        else None
+    )
+    queue_capacity_explicit = (
+        waiting.queue_capacity_explicit
+        if waiting is not None
+        else meta.queue_capacity_explicit
+        if meta is not None
+        else False
+    )
+    if queue_capacity is None:
+        queue_capacity = (
+            waiting.wait_runners
+            if waiting is not None
+            else meta.wait_runners
+            if meta is not None
+            else None
+        )
+        queue_capacity_explicit = (
+            waiting.wait_runners_explicit
+            if waiting is not None
+            else meta.wait_runners_explicit
+            if meta is not None
+            else False
+        )
     return AgentWaitInfo(
         wait_for=wait_for,
         wait_for_beads=wait_for_beads,
@@ -384,20 +413,10 @@ def _wait_info(
         remaining_seconds=_remaining_wait_seconds(
             agent, wait_duration, wait_until, now
         ),
-        wait_runners=(
-            waiting.wait_runners
-            if waiting is not None
-            else meta.wait_runners
-            if meta is not None
-            else None
-        ),
-        wait_runners_explicit=(
-            waiting.wait_runners_explicit
-            if waiting is not None
-            else meta.wait_runners_explicit
-            if meta is not None
-            else False
-        ),
+        queue_capacity=queue_capacity,
+        queue_capacity_explicit=queue_capacity_explicit,
+        wait_runners=queue_capacity,
+        wait_runners_explicit=queue_capacity_explicit,
         wait_priority=(
             waiting.wait_priority
             if waiting is not None

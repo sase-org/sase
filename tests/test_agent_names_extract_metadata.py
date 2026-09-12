@@ -69,11 +69,12 @@ class TestExtractDirectivesMetadata:
         result = run_extract(
             tmp_path,
             env_auto_dismiss=True,
-            prompt="%queue(capacity=0)\ndo stuff",
+            prompt="%queue(capacity=1)\ndo stuff",
         )
 
-        assert result["info"].wait_runners == 0
-        assert result["meta"]["wait_runners"] == 0
+        assert result["info"].wait_runners == 1
+        assert result["meta"]["queue_capacity"] == 1
+        assert result["meta"]["queue_capacity_explicit"] is True
 
     def test_persists_explicit_wait_priority_metadata(self, tmp_path: Path) -> None:
         result = run_extract(

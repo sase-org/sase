@@ -260,10 +260,10 @@ def test_prepare_epic_launch_forwards_capacity_to_the_monitor(
             plan,
             mode="launch",
             response_dir=tmp_path,
-            capacity=0,
+            capacity=1,
         )
 
-    assert start_launch.call_args.kwargs["capacity"] == 0
+    assert start_launch.call_args.kwargs["capacity"] == 1
 
 
 def test_prepare_epic_launch_keeps_the_wait_in_the_monitor_failure_resume_hint(
@@ -323,10 +323,10 @@ def test_prepare_epic_launch_keeps_capacity_in_monitor_failure_resume_hint(
             plan,
             mode="launch",
             response_dir=tmp_path,
-            capacity=0,
+            capacity=1,
         )
 
-    assert "--capacity 0" in str(exc_info.value)
+    assert "--capacity 1" in str(exc_info.value)
 
 
 def test_prepare_epic_launch_keeps_the_wait_in_the_unusable_store_resume_hint(

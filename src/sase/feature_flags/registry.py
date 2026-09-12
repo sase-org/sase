@@ -25,6 +25,7 @@ class FeatureFlag(StrEnum):
     admin_center_flags = "admin_center_flags"
     agents_unified_query = "agents_unified_query"
     provider_drain = "provider_drain"
+    queue_capacity_budget = "queue_capacity_budget"
     ref_sync_gesture = "ref_sync_gesture"
     typed_launch_units = "typed_launch_units"
 
@@ -68,6 +69,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "disable in Launch Control offers the same relaunch."
         ),
         bead="sase-sx",
+    ),
+    FeatureFlag.queue_capacity_budget: FeatureFlagDefinition(
+        key=FeatureFlag.queue_capacity_budget,
+        kind="sunset",
+        description=(
+            "A %queue capacity value is this launch's runner-capacity "
+            "budget and replaces max_running_agents for its own "
+            "admission decision."
+        ),
+        bead="sase-zv",
     ),
     FeatureFlag.ref_sync_gesture: FeatureFlagDefinition(
         key=FeatureFlag.ref_sync_gesture,

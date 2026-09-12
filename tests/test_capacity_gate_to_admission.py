@@ -128,14 +128,14 @@ def test_epic_gate_capacity_reaches_weighted_admission(
     gate_home: Path, tmp_path: Path
 ) -> None:
     translated_capacity, argv, launch_capacity = _gate_capacity(
-        gate_home, {"capacity": 1, "epic_launch_mode": "launch"}, "epic-capacity-path"
+        gate_home, {"capacity": 3, "epic_launch_mode": "launch"}, "epic-capacity-path"
     )
-    assert translated_capacity == 1
-    assert launch_capacity == 1
+    assert translated_capacity == 3
+    assert launch_capacity == 3
     assert "--capacity" in argv
-    assert argv[argv.index("--capacity") + 1] == "1"
+    assert argv[argv.index("--capacity") + 1] == "3"
     capacity = _capacity_from_argv(argv)
-    assert capacity == 1
+    assert capacity == 3
 
     rendered = render_multi_prompt(
         _epic_work_plan(),
@@ -147,8 +147,8 @@ def test_epic_gate_capacity_reaches_weighted_admission(
     assert len(segments) == 2
     phase, land = (_expanded_directives(segment) for segment in segments)
 
-    assert phase.wait_runners == 1
-    assert land.wait_runners == 1
+    assert phase.wait_runners == 3
+    assert land.wait_runners == 3
     assert land.queue_weight == 2.0
     assert land.queue_weight_explicit is True
     assert phase.queue_weight_explicit is False

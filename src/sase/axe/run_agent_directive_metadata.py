@@ -220,7 +220,8 @@ def build_agent_meta(
     if directives.wait_until is not None:
         agent_meta["wait_until"] = directives.wait_until
     if directives.wait_runners is not None:
-        agent_meta["wait_runners"] = directives.wait_runners
+        agent_meta["queue_capacity"] = directives.wait_runners
+        agent_meta["queue_capacity_explicit"] = True
     if directives.wait_priority is not None:
         agent_meta["wait_priority"] = directives.wait_priority
     authored_queue_weight = (

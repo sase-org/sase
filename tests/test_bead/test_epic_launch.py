@@ -34,11 +34,11 @@ def test_build_epic_launch_argv_carries_approval_linking_options() -> None:
     ]
 
 
-def test_build_epic_launch_argv_preserves_explicit_zero_capacity() -> None:
+def test_build_epic_launch_argv_preserves_explicit_run_alone_capacity() -> None:
     argv = build_epic_launch_argv(
         "/tmp/epic plan.md",
         artifacts_dir="/tmp/artifacts",
-        capacity=0,
+        capacity=1,
         cl_name="demo",
     )
 
@@ -51,7 +51,7 @@ def test_build_epic_launch_argv_preserves_explicit_zero_capacity() -> None:
         "--artifacts-dir",
         "/tmp/artifacts",
         "--capacity",
-        "0",
+        "1",
         "--cl-name",
         "demo",
         "--expect-prompt-snapshot",

@@ -389,7 +389,7 @@ def _parse_plan_approval_wait(wait: str | None) -> PromptWaitDirective | None:
 
 
 def _parse_plan_approval_capacity(capacity: int | None) -> int | None:
-    """Validate a reviewer capacity threshold before any mutation."""
+    """Validate a reviewer capacity budget before any mutation."""
     if capacity is None:
         return None
     from ._plan_gate_shared import plan_gate_optional_capacity

@@ -76,17 +76,18 @@ def runner_slot_queue_display_key(
     *,
     running_count: int,
     threshold: int | None,
+    requested_weight: float = DEFAULT_QUEUE_WEIGHT,
     priority: object,
     slot_requested_at: str | None,
     timestamp: str | None,
     artifact_dir: str | None,
 ) -> tuple[int, int, int, int, datetime, str, str]:
     """Return the capacity-aware presentation key for one slot waiter."""
-    effective_threshold = threshold if threshold is not None else 0
-    parked = running_count > effective_threshold
+    admission_limit = float(threshold if threshold is not None else 0)
+    parked = float(running_count) + float(requested_weight) > admission_limit
     return (
         1 if parked else 0,
-        -effective_threshold if parked else 0,
+        -int(admission_limit) if parked else 0,
         *runner_slot_waiter_sort_key(
             priority=priority,
             slot_requested_at=slot_requested_at,
@@ -147,6 +148,9 @@ class RunnerSlotWaiter:
     slot_requested_at: str
     timestamp: str
     threshold: int = 0
+    queue_capacity: int | None = None
+    queue_capacity_explicit: bool = False
+    admission_limit: float | None = None
     priority: int = DEFAULT_WAIT_PRIORITY
     requested_weight: float = DEFAULT_QUEUE_WEIGHT
     eligible: bool = False
@@ -219,8 +223,14 @@ def _record_wait_priority(record: AgentArtifactRecordWire) -> int | None:
     return meta.wait_priority
 
 
-def _record_wait_runners(record: AgentArtifactRecordWire) -> int | None:
+def _record_queue_capacity(record: AgentArtifactRecordWire) -> int | None:
     waiting = record.waiting
+    if (
+        waiting is not None
+        and type(waiting.queue_capacity) is int
+        and waiting.queue_capacity >= 0
+    ):
+        return waiting.queue_capacity
     if (
         waiting is not None
         and type(waiting.wait_runners) is int
@@ -277,9 +287,11 @@ def _capacity_record_from_scan(
         "queue_weight_explicit": queue_weight_explicit,
         "queue_weight_invalid": queue_weight_invalid,
         "slot_requested_at": None if waiting is None else waiting.slot_requested_at,
-        "wait_runners": _record_wait_runners(record),
-        "wait_runners_explicit": (
-            False if waiting is None else waiting.wait_runners_explicit
+        "queue_capacity": _record_queue_capacity(record),
+        "queue_capacity_explicit": (
+            False
+            if waiting is None
+            else waiting.queue_capacity_explicit or waiting.wait_runners_explicit
         ),
         "wait_priority": _record_wait_priority(record),
         "eligible_since": None if waiting is None else waiting.eligible_since,
@@ -307,8 +319,8 @@ def _synthetic_capacity_record(
     artifacts_dir: str,
     timestamp: str,
     slot_requested_at: str,
-    wait_runners: int | None,
-    wait_runners_explicit: bool,
+    queue_capacity: int | None,
+    queue_capacity_explicit: bool,
     wait_priority: int,
     queue_weight: float,
     queue_weight_explicit: bool,
@@ -338,8 +350,8 @@ def _synthetic_capacity_record(
         "queue_weight_explicit": queue_weight_explicit,
         "queue_weight_invalid": False,
         "slot_requested_at": slot_requested_at,
-        "wait_runners": wait_runners,
-        "wait_runners_explicit": wait_runners_explicit,
+        "queue_capacity": queue_capacity,
+        "queue_capacity_explicit": queue_capacity_explicit,
         "wait_priority": wait_priority,
         "eligible_since": eligible_since,
     }
@@ -395,6 +407,9 @@ def runner_capacity_snapshot_from_capacity_records(
         "deference_seconds_per_step": int(deference_seconds_per_step),
         "deference_max_seconds": int(deference_max_seconds),
     }
+    from sase.xprompt.queue_directive import launch_feature_flag_keys
+
+    request["feature_flags"] = launch_feature_flag_keys()
     return _core_runner_capacity_snapshot(request)
 
 
@@ -403,20 +418,25 @@ def runner_slot_candidate_record(
     artifacts_dir: str,
     timestamp: str,
     slot_requested_at: str,
-    wait_runners: int | None,
-    wait_runners_explicit: bool,
+    queue_capacity: int | None = None,
+    queue_capacity_explicit: bool = False,
+    wait_runners: int | None = None,
+    wait_runners_explicit: bool = False,
     wait_priority: int,
     queue_weight: float,
     queue_weight_explicit: bool,
     eligible_since: str | None,
 ) -> dict[str, Any]:
     """Build the synthetic candidate sent as the Rust request's own field."""
+    if queue_capacity is None and wait_runners is not None:
+        queue_capacity = wait_runners
+        queue_capacity_explicit = wait_runners_explicit
     return _synthetic_capacity_record(
         artifacts_dir=artifacts_dir,
         timestamp=timestamp,
         slot_requested_at=slot_requested_at,
-        wait_runners=wait_runners,
-        wait_runners_explicit=wait_runners_explicit,
+        queue_capacity=queue_capacity,
+        queue_capacity_explicit=queue_capacity_explicit,
         wait_priority=wait_priority,
         queue_weight=queue_weight,
         queue_weight_explicit=queue_weight_explicit,
@@ -606,12 +626,19 @@ def live_runner_slot_waiters(
             artifact_dir=str(waiter.get("artifact_dir") or ""),
             slot_requested_at=str(waiter.get("slot_requested_at") or ""),
             timestamp=str(waiter.get("timestamp") or ""),
-            threshold=_nonnegative_int_field(
+            threshold=(
+                _nonnegative_int_field(waiter, "queue_capacity", "wait_runners") or 0
+            ),
+            queue_capacity=_nonnegative_int_field(
                 waiter,
-                "wait_runners",
                 "queue_capacity",
-            )
-            or 0,
+                "wait_runners",
+            ),
+            queue_capacity_explicit=(
+                waiter.get("queue_capacity") is not None
+                or waiter.get("wait_runners") is not None
+            ),
+            admission_limit=_finite_positive_float(waiter.get("admission_limit")),
             priority=normalize_wait_priority(waiter.get("priority")),
             requested_weight=float(waiter.get("requested_weight") or 1.0),
             eligible=waiter.get("eligible") is True,
@@ -634,15 +661,23 @@ def may_start(
     me: str,
 ) -> bool:
     """Return whether *me* is the first currently eligible slot waiter."""
-    if running_count > threshold:
+    occupied_capacity = float(running_count)
+    admission_limit = float(threshold)
+    if occupied_capacity + DEFAULT_QUEUE_WEIGHT > admission_limit:
         return False
 
     first_eligible = next(
         (
             waiter
             for waiter in queue
-            if running_count
-            <= (threshold if waiter.artifact_dir == me else waiter.threshold)
+            if occupied_capacity + waiter.requested_weight
+            <= (
+                admission_limit
+                if waiter.artifact_dir == me
+                else waiter.admission_limit
+                if waiter.admission_limit is not None
+                else float(waiter.threshold)
+            )
         ),
         None,
     )

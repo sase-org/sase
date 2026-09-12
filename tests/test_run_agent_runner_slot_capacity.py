@@ -55,8 +55,8 @@ def test_live_config_raise_releases_queued_agent(tmp_path: Path) -> None:
         assert first is None
         assert parked
         marker = json.loads((waiter / "waiting.json").read_text())
-        assert marker["wait_runners"] == 0
-        assert marker["wait_runners_explicit"] is False
+        assert marker["queue_capacity"] == 0
+        assert marker["queue_capacity_explicit"] is False
         assert marker["wait_priority"] == 7
         assert marker["wait_priority_explicit"] is True
         assert marker["queue_weight"] == 0.25
@@ -137,7 +137,7 @@ def test_fractional_agents_fill_capacity_exactly_and_block_next(
     assert len(started) == 4
     marker = json.loads((agents[4] / "waiting.json").read_text())
     assert marker["queue_weight"] == 0.25
-    assert marker["wait_runners_explicit"] is False
+    assert marker["queue_capacity_explicit"] is False
 
 
 def test_heavy_weight_cannot_start_with_only_one_unit_free(tmp_path: Path) -> None:
@@ -178,10 +178,10 @@ def test_heavy_weight_cannot_start_with_only_one_unit_free(tmp_path: Path) -> No
     assert parked
     marker = json.loads((heavy / "waiting.json").read_text())
     assert marker["queue_weight"] == 2.0
-    assert marker["wait_runners_explicit"] is False
+    assert marker["queue_capacity_explicit"] is False
 
 
-def test_high_explicit_runner_condition_cannot_bypass_capacity(
+def test_high_explicit_queue_capacity_can_bypass_global_limit(
     tmp_path: Path,
 ) -> None:
     running = artifact(tmp_path, "20260910122000", 100)
@@ -208,15 +208,12 @@ def test_high_explicit_runner_condition_cannot_bypass_capacity(
             directive_threshold=99,
             directive_queue_weight=0.25,
             directive_queue_weight_explicit=True,
-            claim=lambda: "unexpected",
+            claim=lambda: "started",
         )
 
-    assert result is None
-    assert parked
-    marker = json.loads((waiter / "waiting.json").read_text())
-    assert marker["wait_runners"] == 99
-    assert marker["wait_runners_explicit"] is True
-    assert marker["queue_weight"] == 0.25
+    assert result == "started"
+    assert not parked
+    assert not (waiter / "waiting.json").exists()
 
 
 def test_lighter_waiter_can_pass_non_fitting_heavy_waiter(

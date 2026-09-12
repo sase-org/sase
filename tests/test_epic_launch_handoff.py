@@ -141,7 +141,7 @@ def test_runner_defers_epic_completion_with_recorded_resume_argv() -> None:
         str(plan),
         "--yes-to-all",
         "--capacity",
-        "0",
+        "1",
     ]
     (artifacts / "plan_path.json").write_text(
         json.dumps({"plan_path": str(plan)}),
@@ -325,7 +325,7 @@ def test_sweep_unknown_outcome_uses_recorded_capacity_resume_argv() -> None:
         str(plan),
         "--yes-to-all",
         "--capacity",
-        "0",
+        "1",
     ]
     (artifacts / "plan_path.json").write_text(
         json.dumps({"plan_path": str(plan)}),
@@ -349,7 +349,7 @@ def test_sweep_unknown_outcome_uses_recorded_capacity_resume_argv() -> None:
 
     assert result.flushed == 1
     notes = notify.call_args.kwargs["notes"]
-    assert any("Resume with:" in note and "--capacity 0" in note for note in notes)
+    assert any("Resume with:" in note and "--capacity 1" in note for note in notes)
 
 
 def test_sweep_leaves_young_pending_and_reaps_stale_settle() -> None:

@@ -76,9 +76,23 @@ def record(
         waiting=(
             WaitingMarkerWire(
                 waiting_for=list(waiting_data.get("waiting_for") or []),
-                wait_runners=waiting_data.get("wait_runners"),
+                queue_capacity=waiting_data.get(
+                    "queue_capacity", waiting_data.get("wait_runners")
+                ),
+                queue_capacity_explicit=bool(
+                    waiting_data.get(
+                        "queue_capacity_explicit",
+                        waiting_data.get("wait_runners_explicit", False),
+                    )
+                ),
+                wait_runners=waiting_data.get(
+                    "queue_capacity", waiting_data.get("wait_runners")
+                ),
                 wait_runners_explicit=bool(
-                    waiting_data.get("wait_runners_explicit", False)
+                    waiting_data.get(
+                        "queue_capacity_explicit",
+                        waiting_data.get("wait_runners_explicit", False),
+                    )
                 ),
                 wait_priority=waiting_data.get("wait_priority"),
                 wait_priority_explicit=bool(

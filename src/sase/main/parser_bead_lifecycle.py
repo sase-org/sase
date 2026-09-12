@@ -398,9 +398,9 @@ def register_bead_work_parser(
         metavar="N",
         type=_queue_capacity_arg,
         help=(
-            "Epic targets only: maximum already-running weighted load allowed "
-            "before admission. Omit for default queue behavior; 0 waits for "
-            "a full drain. N must be 0..4294967295."
+            "Epic targets only: per-launch weighted-load capacity budget. "
+            "Omit for default queue behavior; use 1 to run alone. "
+            "N must be at least 1."
         ),
     )
     parser.add_argument(

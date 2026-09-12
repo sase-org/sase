@@ -46,14 +46,14 @@ def test_fakey_agents_respect_cap_and_release_in_fifo_order(
     assert harness.max_active_roots == 2
 
 
-def test_fakey_drain_barrier_blocks_later_launch_until_capacity_is_free(
+def test_fakey_run_alone_budget_blocks_later_launch_until_capacity_is_free(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
     running = harness.create_agent(0, name="running")
-    barrier = harness.create_agent(1, name="barrier", wait_runners=0)
-    later = harness.create_agent(2, name="later", wait_runners=25)
+    barrier = harness.create_agent(1, name="barrier", wait_runners=1)
+    later = harness.create_agent(2, name="later", wait_runners=1)
 
     harness.start(running)
     harness.wait_started(running)
@@ -185,7 +185,7 @@ def test_fractional_fakey_agents_fill_capacity_exactly_and_live_reload_allows_he
     )
 
 
-def test_explicit_zero_runner_priority_and_weight_survive_real_parking(
+def test_explicit_runner_priority_and_weight_survive_real_parking(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -193,8 +193,8 @@ def test_explicit_zero_runner_priority_and_weight_survive_real_parking(
     running = harness.create_agent(0, name="running")
     barrier = harness.create_agent(
         1,
-        name="zero-directives",
-        wait_runners=0,
+        name="explicit-directives",
+        wait_runners=1,
         wait_priority=0,
         queue_weight=0.25,
         queue_weight_explicit=True,
@@ -206,8 +206,10 @@ def test_explicit_zero_runner_priority_and_weight_survive_real_parking(
     harness.wait_parked(barrier)
 
     marker = harness.waiting_marker(barrier)
-    assert marker["wait_runners"] == 0
-    assert marker["wait_runners_explicit"] is True
+    assert marker["queue_capacity"] == 1
+    assert marker["queue_capacity_explicit"] is True
+    assert "wait_runners" not in marker
+    assert "wait_runners_explicit" not in marker
     assert marker["wait_priority"] == 0
     assert marker["wait_priority_explicit"] is True
     assert marker["queue_weight"] == pytest.approx(0.25)
@@ -218,7 +220,8 @@ def test_explicit_zero_runner_priority_and_weight_survive_real_parking(
     harness.wait_started(barrier)
 
     meta = harness.agent_meta(barrier)
-    assert meta["wait_runners"] == 0
+    assert meta["queue_capacity"] == 1
+    assert meta["queue_capacity_explicit"] is True
     assert meta["wait_priority"] == 0
     assert meta["queue_weight"] == pytest.approx(0.25)
     assert meta["queue_weight_explicit"] is True

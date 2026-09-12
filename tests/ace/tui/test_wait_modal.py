@@ -116,15 +116,19 @@ def test_time_prefill_round_trips_duration_and_absolute() -> None:
     assert _prefill_time_token(None, "2030-04-15T09:00:00") == "300415/0900"
 
 
-def test_runners_validation_accepts_zero_and_rejects_non_integers() -> None:
+def test_runners_validation_accepts_positive_budget_and_rejects_zero() -> None:
     default = _validate_capacity_token("")
     assert default.valid is True
     assert default.value is None
 
-    barrier = _validate_capacity_token("0")
-    assert barrier.valid is True
-    assert barrier.value == 0
-    assert "drain barrier" in barrier.message
+    zero = _validate_capacity_token("0")
+    assert zero.valid is False
+    assert "must be at least 1" in zero.message
+
+    run_alone = _validate_capacity_token("1")
+    assert run_alone.valid is True
+    assert run_alone.value == 1
+    assert "run alone" in run_alone.message
 
     assert _validate_capacity_token("-1").valid is False
     assert _validate_capacity_token("1.5").valid is False
@@ -235,17 +239,17 @@ async def test_modal_returns_explicit_runner_threshold() -> None:
             nonlocal result
             result = value
 
-        modal = WaitModal(current_wait_runners=0)
+        modal = WaitModal(current_wait_runners=1)
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
         capacity_input = modal.query_one("#capacity-input", Input)
-        assert capacity_input.value == "0"
+        assert capacity_input.value == "1"
         capacity_input.focus()
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == WaitModalResult(agents=[], time_token=None, capacity=0)
+    assert result == WaitModalResult(agents=[], time_token=None, capacity=1)
 
 
 async def test_modal_prefills_and_returns_explicit_priority() -> None:

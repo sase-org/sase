@@ -122,7 +122,8 @@ class _RunnerSlotFakeyHarness:
             "queue_weight_explicit": queue_weight_explicit,
         }
         if wait_runners is not None:
-            meta["wait_runners"] = wait_runners
+            meta["queue_capacity"] = wait_runners
+            meta["queue_capacity_explicit"] = True
         if wait_priority is not None:
             meta["wait_priority"] = wait_priority
         if parent_timestamp is not None:

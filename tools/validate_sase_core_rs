@@ -1571,8 +1571,8 @@ def _runner_capacity_probe_record(**overrides: Any) -> dict[str, Any]:
         "queue_weight_explicit": False,
         "queue_weight_invalid": False,
         "slot_requested_at": None,
-        "wait_runners": None,
-        "wait_runners_explicit": False,
+        "queue_capacity": None,
+        "queue_capacity_explicit": False,
         "wait_priority": 0,
         "eligible_since": None,
     }
@@ -1596,10 +1596,10 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
     except Exception as exc:
         _error(f"runner_capacity_policy_schema_version() probe failed: {exc}")
         return False
-    if policy_schema_version < 2:
+    if policy_schema_version < 4:
         _error(
             "runner_capacity_policy_schema_version() returned stale schema: "
-            f"got {policy_schema_version}, expected >= 2"
+            f"got {policy_schema_version}, expected >= 4"
         )
         return False
 
@@ -1629,6 +1629,7 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
         "now": "2026-01-01T00:06:00Z",
         "deference_seconds_per_step": 0,
         "deference_max_seconds": 0,
+        "feature_flags": ["queue_capacity_budget"],
     }
     try:
         snapshot = module.runner_capacity_snapshot(request)
@@ -1673,6 +1674,52 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
             f"got {decision.get('effective_weight')!r}, expected 2.0"
         )
         return False
+    high_capacity_waiter = _runner_capacity_probe_record(
+        artifact_dir="/core-floor-probe/proj/agent/2026-01-01T00-10-00",
+        timestamp="2026-01-01T00:10:00Z",
+        slot_requested_at="2026-01-01T00:10:00Z",
+        queue_capacity=100,
+        queue_capacity_explicit=True,
+    )
+    high_capacity_request = {
+        "effective_limit": 1.0,
+        "records": [parallel_member],
+        "candidate": high_capacity_waiter,
+        "now": "2026-01-01T00:11:00Z",
+        "deference_seconds_per_step": 0,
+        "deference_max_seconds": 0,
+        "feature_flags": ["queue_capacity_budget"],
+    }
+    try:
+        budget_snapshot = module.runner_capacity_snapshot(high_capacity_request)
+    except Exception as exc:
+        _error(
+            "queue_capacity budget request is unsupported by runner_capacity_snapshot: "
+            f"{exc}"
+        )
+        return False
+    if not isinstance(budget_snapshot, dict):
+        _error("queue_capacity budget probe returned a non-dict payload")
+        return False
+    budget_decision = budget_snapshot.get("candidate_decision")
+    if not isinstance(budget_decision, dict):
+        _error("queue_capacity budget probe did not return candidate_decision")
+        return False
+    if budget_decision.get("decision") != "acquire_capacity":
+        _error(
+            "queue_capacity budget did not replace the effective runner limit: "
+            f"got {budget_decision!r}"
+        )
+        return False
+    budget_waiters = budget_snapshot.get("waiters")
+    if isinstance(budget_waiters, list) and budget_waiters:
+        waiter = budget_waiters[0]
+        if isinstance(waiter, dict) and waiter.get("admission_limit") != 100.0:
+            _error(
+                "queue_capacity budget waiter reported the wrong admission_limit: "
+                f"got {waiter.get('admission_limit')!r}, expected 100.0"
+            )
+            return False
     return True
 
 

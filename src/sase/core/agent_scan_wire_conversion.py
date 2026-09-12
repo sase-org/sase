@@ -267,7 +267,9 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
 
 
 def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
-    payload = canonicalize_agent_tribe_metadata(_dual_patch_name_payload(data))
+    payload = canonicalize_agent_tribe_metadata(
+        _queue_capacity_alias_payload(_dual_patch_name_payload(data))
+    )
     if bool(payload.get("agent_family_parallel", False)):
         if not payload.get("agent_clan"):
             payload["agent_clan"] = payload.get("agent_family")
@@ -297,8 +299,24 @@ def _running_marker_from_dict(data: dict[str, Any]) -> RunningMarkerWire:
 
 def _waiting_marker_from_dict(data: dict[str, Any]) -> WaitingMarkerWire:
     return WaitingMarkerWire(
-        **known_field_kwargs(WaitingMarkerWire, _dual_patch_name_payload(data))
+        **known_field_kwargs(
+            WaitingMarkerWire,
+            _queue_capacity_alias_payload(_dual_patch_name_payload(data)),
+        )
     )
+
+
+def _queue_capacity_alias_payload(data: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(data)
+    if "queue_capacity" not in payload and "wait_runners" in payload:
+        payload["queue_capacity"] = payload.get("wait_runners")
+    if "queue_capacity_explicit" not in payload and "wait_runners_explicit" in payload:
+        payload["queue_capacity_explicit"] = payload.get("wait_runners_explicit")
+    if "wait_runners" not in payload and "queue_capacity" in payload:
+        payload["wait_runners"] = payload.get("queue_capacity")
+    if "wait_runners_explicit" not in payload and "queue_capacity_explicit" in payload:
+        payload["wait_runners_explicit"] = payload.get("queue_capacity_explicit")
+    return payload
 
 
 def _workflow_state_from_dict(data: dict[str, Any]) -> WorkflowStateWire:

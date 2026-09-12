@@ -4569,6 +4569,12 @@
           "description": "Hard-disabling an LLM provider drains it: a usage-limit disable submits a durable 'sase agent drain' proc that relaunches the agents that provider stranded and sends one enriched usage-limit notification naming what moved and what did not, and a manual disable in Launch Control offers the same relaunch.",
           "default": false
         },
+        "queue_capacity_budget": {
+          "type": "boolean",
+          "description": "A %queue capacity value is this launch's runner-capacity budget and replaces max_running_agents for its own admission decision.",
+          "default": true,
+          "deprecated": true
+        },
         "ref_sync_gesture": {
           "type": "boolean",
           "description": "A second ':' typed immediately after '@<kind>:' with an empty payload is consumed and refreshes that kind's backing sidecar (clone-if-missing or force-pull past the freshness TTL, else a catalog rescan), then reopens the '@' payload menu with newly-arrived rows badged.",

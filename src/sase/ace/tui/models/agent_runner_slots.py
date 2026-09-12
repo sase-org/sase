@@ -377,8 +377,8 @@ def _capacity_record_from_agent(
         "slot_requested_at": agent.slot_requested_at
         if _is_live_slot_waiter(agent)
         else None,
-        "wait_runners": _nonnegative_int(agent.wait_runners),
-        "wait_runners_explicit": agent.wait_runners_explicit,
+        "queue_capacity": _nonnegative_int(agent.wait_runners),
+        "queue_capacity_explicit": agent.wait_runners_explicit,
         "wait_priority": _nonnegative_int(agent.wait_priority),
         "eligible_since": None,
     }
@@ -517,7 +517,7 @@ def _nonnegative_int(value: object) -> int | None:
 
 
 def _waiter_threshold(waiter: dict[str, Any]) -> int | None:
-    for key in ("wait_runners", "queue_capacity"):
+    for key in ("queue_capacity", "wait_runners"):
         threshold = _nonnegative_int(waiter.get(key))
         if threshold is not None:
             return threshold

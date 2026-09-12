@@ -82,7 +82,7 @@ def _canonical_wait_spec(wait_spec: str | None) -> str | None:
 
 
 def _canonical_capacity(capacity: int | None) -> int | None:
-    """Return a validated capacity threshold, or ``None`` for omission."""
+    """Return a validated capacity budget, or ``None`` for omission."""
     if capacity is None:
         return None
     from sase.xprompt.queue_directive import validate_queue_capacity
@@ -96,8 +96,8 @@ def _format_capacity_display(capacity: int | None, *, epic: bool) -> str:
         return "n/a (epic only)"
     if capacity is None:
         return "Default"
-    if capacity == 0:
-        return "0 (drain)"
+    if capacity == 1:
+        return "1 (run alone)"
     return str(capacity)
 
 
@@ -230,7 +230,7 @@ class _CapacityInput(SingleLineVimTextArea):
 
 
 class _CapacityInputModal(ModalScreen[_CapacityInputResult | None]):
-    """Modal for entering an optional epic capacity threshold."""
+    """Modal for entering an optional epic capacity budget."""
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
@@ -248,8 +248,8 @@ class _CapacityInputModal(ModalScreen[_CapacityInputResult | None]):
                 id="approve-capacity-title",
             )
             yield Static(
-                "Maximum already-running weighted load before admission. "
-                "Blank uses default queue behavior; 0 waits for a drain.",
+                "Per-launch weighted-load budget. "
+                "Blank uses default queue behavior; 1 runs alone.",
                 id="approve-capacity-hint",
             )
             yield _CapacityInput(

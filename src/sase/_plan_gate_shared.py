@@ -37,11 +37,7 @@ def plan_gate_optional_text(value: object) -> str | None:
 
 
 def plan_gate_optional_capacity(value: object) -> int | None:
-    """Return a validated capacity threshold, or ``None`` when omitted.
-
-    JSON ``0`` is an explicit drain threshold. Booleans and other invalid
-    numeric input are rejected without coercion.
-    """
+    """Return a validated capacity budget, or ``None`` when omitted."""
     if value is None:
         return None
     from sase.xprompt.queue_directive import validate_queue_capacity

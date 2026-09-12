@@ -34,15 +34,15 @@ def test_prepare_and_preview_inject_queue() -> None:
         _proposal_result(
             {"prompt": "Audit.", "workspace": "git:sase"},
         ),
-        lumberjack_wait_runners=0,
+        lumberjack_wait_runners=1,
     )
     prompt = str(proposal_previews(prepared)[0]["prompt"])
     _, directives = extract_prompt_directives(prompt)
 
-    assert prepared[0].wait_runners == 0
-    assert "%queue(capacity=0)" in prompt
+    assert prepared[0].wait_runners == 1
+    assert "%queue(capacity=1)" in prompt
     assert "%wait(runners" not in prompt
-    assert directives.wait_runners == 0
+    assert directives.wait_runners == 1
     assert has_deferred_start_directive(prompt) is True
 
 
@@ -69,12 +69,12 @@ def test_queue_runner_threshold_overrides_lumberjack_default() -> None:
                 "workspace": "git:sase",
             },
         ),
-        lumberjack_wait_runners=0,
+        lumberjack_wait_runners=1,
     )
     prompt = str(proposal_previews(prepared)[0]["prompt"])
     _, directives = extract_prompt_directives(prompt)
 
-    assert "%queue(capacity=0)" not in prompt
+    assert "%queue(capacity=1)" not in prompt
     assert "%q:2" in prompt
     assert directives.wait_runners == 2
 
@@ -88,14 +88,14 @@ def test_queue_priority_only_keeps_lumberjack_threshold() -> None:
                 "workspace": "git:sase",
             },
         ),
-        lumberjack_wait_runners=0,
+        lumberjack_wait_runners=1,
     )
     prompt = str(proposal_previews(prepared)[0]["prompt"])
     _, directives = extract_prompt_directives(prompt)
 
-    assert "%queue(capacity=0)" in prompt
+    assert "%queue(capacity=1)" in prompt
     assert "%q(p=20)" in prompt
-    assert directives.wait_runners == 0
+    assert directives.wait_runners == 1
     assert directives.wait_priority == 20
 
 
@@ -108,13 +108,13 @@ def test_fenced_wait_runners_does_not_override_lumberjack_default() -> None:
                 "workspace": "git:sase",
             },
         ),
-        lumberjack_wait_runners=0,
+        lumberjack_wait_runners=1,
     )
 
     prompt = str(proposal_previews(prepared)[0]["prompt"])
 
     assert prompt.count("runners=") == 1
-    assert "%queue(capacity=0)" in prompt
+    assert "%queue(capacity=1)" in prompt
 
 
 def test_wait_dependency_and_runner_threshold_merge() -> None:
@@ -164,7 +164,7 @@ def test_clan_batch_injects_threshold_into_every_segment(
                 "clan": "audit-@",
             },
         ),
-        lumberjack_wait_runners=0,
+        lumberjack_wait_runners=1,
     )
     captured: list[str] = []
 
@@ -191,7 +191,7 @@ def test_clan_batch_injects_threshold_into_every_segment(
 
     segments = captured[0].split("\n---\n")
     assert len(segments) == 2
-    assert all(segment.count("%queue(capacity=0)") == 1 for segment in segments)
+    assert all(segment.count("%queue(capacity=1)") == 1 for segment in segments)
 
 
 def test_runner_threads_lumberjack_threshold_into_dry_run_preview(
@@ -218,9 +218,9 @@ def test_runner_threads_lumberjack_threshold_into_dry_run_preview(
             lumberjack_name="audits",
             chop=ChopConfig(name="audit", description=""),
             axe_config=AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")]),
-            wait_runners_default=0,
+            wait_runners_default=1,
             dry_run=True,
         )
 
     assert outcome.status == "success"
-    assert "%queue(capacity=0)" in str(outcome.proposals[0]["prompt"])
+    assert "%queue(capacity=1)" in str(outcome.proposals[0]["prompt"])

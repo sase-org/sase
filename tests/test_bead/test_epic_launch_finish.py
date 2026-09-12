@@ -101,11 +101,11 @@ def test_work_command_failure_notification_preserves_capacity_resume_hint(
             artifacts_dir=tmp_path / "artifacts",
             cl_name="demo",
             error=RuntimeError("launch failed"),
-            capacity=0,
+            capacity=1,
         )
 
     notes = notify.call_args.args[3]
-    assert "--capacity 0" in notes[1]
+    assert "--capacity 1" in notes[1]
 
 
 def test_work_command_failure_notification_keeps_the_wait_in_the_resume_hint(

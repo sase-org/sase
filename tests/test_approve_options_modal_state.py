@@ -279,7 +279,7 @@ async def test_capacity_defaults_to_na_for_tale_and_default_for_epic() -> None:
         assert not display.has_class("disabled")
 
 
-async def test_capacity_zero_displays_drain_and_is_submitted_for_epic() -> None:
+async def test_capacity_one_displays_run_alone_and_is_submitted_for_epic() -> None:
     result: ApproveOptionsResult | ApproveOptionsEditPrompt | None = None
 
     async with ApproveOptionsApp().run_test() as pilot:
@@ -290,19 +290,19 @@ async def test_capacity_zero_displays_drain_and_is_submitted_for_epic() -> None:
             nonlocal result
             result = r
 
-        modal = ApproveOptionsModal(choice="epic", capacity=0)
+        modal = ApproveOptionsModal(choice="epic", capacity=1)
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
 
         display = modal.query_one("#approval-capacity-display", Static)
-        assert "0 (drain)" in str(display.render())
+        assert "1 (run alone)" in str(display.render())
 
         await pilot.press("enter")
         await pilot.pause()
 
         assert isinstance(result, ApproveOptionsResult)
         assert result.choice == "epic"
-        assert result.capacity == 0
+        assert result.capacity == 1
 
 
 async def test_c_key_sets_capacity_on_epic() -> None:
@@ -453,7 +453,7 @@ async def test_p_key_preserves_capacity_in_edit_prompt() -> None:
             choice="epic",
             coder_prompt="existing prompt",
             wait_spec="sase-a.1",
-            capacity=0,
+            capacity=1,
         )
         pilot.app.push_screen(modal, callback=on_dismiss)
         await pilot.pause()
@@ -463,5 +463,5 @@ async def test_p_key_preserves_capacity_in_edit_prompt() -> None:
 
         assert isinstance(result, ApproveOptionsEditPrompt)
         assert result.choice == "epic"
-        assert result.capacity == 0
+        assert result.capacity == 1
         assert result.wait_spec == "sase-a.1"

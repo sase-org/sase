@@ -127,6 +127,7 @@ def _attach_runner_slot_context(
         positions,
         queue_size,
         blockers,
+        admission_limits,
     ) = _runner_slot_context(
         entries,
         runner_slots_in_use=runner_slots_in_use,
@@ -153,6 +154,7 @@ def _attach_runner_slot_context(
                 runner_slot_queue_size=queue_size,
                 runner_occupied_capacity=occupied_capacity,
                 runner_effective_limit=effective_limit,
+                runner_admission_limit=admission_limits.get(id(entry)),
                 runner_capacity_blockers=blockers.get(id(entry), ()),
                 runner_slot_holders=runner_slot_holders,
             )
@@ -201,6 +203,7 @@ def _runner_slot_context(
     dict[int, int],
     int,
     dict[int, tuple[dict[str, object], ...]],
+    dict[int, float | None],
 ]:
     if runner_capacity is None:
         fallback_waiters = sorted(
@@ -217,6 +220,7 @@ def _runner_slot_context(
             {id(entry): index for index, entry in enumerate(fallback_waiters, 1)},
             len(fallback_waiters),
             {},
+            {},
         )
 
     by_artifact_dir = {
@@ -224,6 +228,7 @@ def _runner_slot_context(
     }
     positions: dict[int, int] = {}
     blockers: dict[int, tuple[dict[str, object], ...]] = {}
+    admission_limits: dict[int, float | None] = {}
     snapshot_waiters = _ordered_snapshot_waiters(runner_capacity.get("waiters"))
     for index, waiter in enumerate(snapshot_waiters, 1):
         artifact_dir = waiter.get("artifact_dir")
@@ -234,6 +239,7 @@ def _runner_slot_context(
             continue
         positions[id(entry)] = _positive_int(waiter.get("queue_position")) or index
         blockers[id(entry)] = _blocker_tuple(waiter.get("blockers"))
+        admission_limits[id(entry)] = _finite_float(waiter.get("admission_limit"))
     occupied_lanes = runner_capacity.get("occupied_lanes")
     return (
         occupied_lanes if type(occupied_lanes) is int else runner_slots_in_use,
@@ -242,6 +248,7 @@ def _runner_slot_context(
         positions,
         len(snapshot_waiters),
         blockers,
+        admission_limits,
     )
 
 
@@ -260,7 +267,8 @@ def _runner_slot_waiter_sort_key(
 ) -> tuple[int, int, int, int, datetime, str, str]:
     return runner_slot_queue_display_key(
         running_count=running_count,
-        threshold=entry.wait.wait_runners,
+        threshold=entry.wait.queue_capacity,
+        requested_weight=entry.wait.queue_weight or 1.0,
         priority=entry.wait.wait_priority,
         slot_requested_at=entry.wait.slot_requested_at,
         timestamp=entry.timestamp,

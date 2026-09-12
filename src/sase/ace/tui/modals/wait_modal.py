@@ -94,7 +94,7 @@ class WaitModal(WaitModalCompletionScreen):
             yield Label("Capacity", classes="wait-field-label")
             yield WaitInput(
                 value=self._capacity_prefill,
-                placeholder="global cap",
+                placeholder="capacity budget",
                 id="capacity-input",
             )
             yield Static("", id="capacity-preview")

@@ -143,7 +143,7 @@ def test_start_epic_launch_monitor_forwards_capacity_and_records_resume_argv(
             project="sase",
             host_action_data={"agent_name": "planner"},
             artifacts_dir=artifacts,
-            capacity=0,
+            capacity=1,
             cl_name="demo",
         )
 
@@ -151,7 +151,7 @@ def test_start_epic_launch_monitor_forwards_capacity_and_records_resume_argv(
     logical = build_epic_launch_argv(
         plan,
         artifacts_dir=artifacts,
-        capacity=0,
+        capacity=1,
         cl_name="demo",
     )
     assert request.command == shlex.join(logical)

@@ -345,11 +345,15 @@ def enrich_agent_from_meta(
                 raw_until = waiting_data.get("wait_until")
                 if isinstance(raw_until, str) and raw_until:
                     agent.wait_until = raw_until
-                raw_runners = waiting_data.get("wait_runners")
+                raw_runners = waiting_data.get(
+                    "queue_capacity",
+                    waiting_data.get("wait_runners"),
+                )
                 if type(raw_runners) is int and raw_runners >= 0:
                     agent.wait_runners = raw_runners
                 agent.wait_runners_explicit = (
-                    waiting_data.get("wait_runners_explicit") is True
+                    waiting_data.get("queue_capacity_explicit") is True
+                    or waiting_data.get("wait_runners_explicit") is True
                 )
                 raw_priority = waiting_data.get("wait_priority")
                 if type(raw_priority) is int and raw_priority >= 0:
@@ -389,10 +393,15 @@ def enrich_agent_from_meta(
     # Fallback: an authored runner-slot priority remains useful after the
     # live waiting marker has been removed or before it has been published.
     if agent.wait_runners is None:
-        raw_runners = data.get("wait_runners")
+        raw_runners = data.get("queue_capacity", data.get("wait_runners"))
         if type(raw_runners) is int and raw_runners >= 0:
             agent.wait_runners = raw_runners
-            agent.wait_runners_explicit = True
+            agent.wait_runners_explicit = (
+                data.get("queue_capacity_explicit") is True
+                or data.get("wait_runners_explicit") is True
+                or "queue_capacity" in data
+                or "wait_runners" in data
+            )
     if agent.wait_priority is None:
         raw_priority = data.get("wait_priority")
         if type(raw_priority) is int and raw_priority >= 0:

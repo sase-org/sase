@@ -99,7 +99,7 @@ def test_work_rejects_capacity_on_standalone_task_json(
     task_id = seed_task(project_dir)
 
     with pytest.raises(SystemExit) as excinfo:
-        bead_cli.handle_bead_work(make_args(task_id, json_output=True, capacity=0))
+        bead_cli.handle_bead_work(make_args(task_id, json_output=True, capacity=1))
 
     assert excinfo.value.code == 1
     captured = capsys.readouterr()

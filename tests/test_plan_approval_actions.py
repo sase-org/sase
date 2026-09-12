@@ -81,8 +81,8 @@ def test_wait_spec_is_emitted_for_coder_and_epic_and_dropped_for_commit() -> Non
 
 
 def test_capacity_is_emitted_for_epic_and_dropped_otherwise() -> None:
-    epic, _ = plan_response_json_for_selection(("approve",), tier="epic", capacity=0)
-    assert epic["capacity"] == 0
+    epic, _ = plan_response_json_for_selection(("approve",), tier="epic", capacity=1)
+    assert epic["capacity"] == 1
 
     omitted, _ = plan_response_json_for_selection(("approve",), tier="epic")
     assert "capacity" not in omitted

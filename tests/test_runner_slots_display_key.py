@@ -35,7 +35,7 @@ def test_display_key_places_parked_waiter_after_admissible_waiter() -> None:
         key=lambda name: _display_key(
             name,
             running_count=1,
-            threshold=0 if name == "drain" else 9,
+            threshold=1 if name == "drain" else 9,
             priority=1 if name == "drain" else 20,
         ),
     )
@@ -86,7 +86,7 @@ def test_display_key_treats_missing_threshold_as_zero() -> None:
 def test_display_key_degrades_to_admission_key_at_zero_running_count() -> None:
     display = runner_slot_queue_display_key(
         running_count=0,
-        threshold=0,
+        threshold=1,
         priority=1,
         slot_requested_at="2026-07-12T12:00:00+00:00",
         timestamp="1",

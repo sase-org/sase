@@ -105,13 +105,24 @@ def test_validate_sase_core_rs_requires_runner_capacity_candidate_decision() -> 
     validator = load_validate_sase_core_rs()
 
     def module(
-        *, policy_schema_version: int = 2, snapshot: Any = None
+        *, policy_schema_version: int = 4, snapshot: Any = None
     ) -> SimpleNamespace:
-        def _snapshot(_request: dict[str, Any]) -> Any:
+        def _snapshot(request: dict[str, Any]) -> Any:
             if isinstance(snapshot, Exception):
                 raise snapshot
             return (
-                snapshot if snapshot is not None else _reuse_existing_claim_snapshot()
+                snapshot
+                if snapshot is not None
+                else _reuse_existing_claim_snapshot()
+                if request.get("candidate", {}).get("queue_capacity") != 100
+                else {
+                    "occupied_capacity": 2.0,
+                    "candidate_decision": {
+                        "decision": "acquire_capacity",
+                        "effective_weight": 1.0,
+                    },
+                    "waiters": [{"admission_limit": 100.0}],
+                }
             )
 
         return SimpleNamespace(

@@ -12,16 +12,25 @@ def collect_queue_fields(
     occurrences: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
     """Validate and merge queue occurrences through the Rust contract."""
-    payload = _collect_queue_fields_raw(occurrences)
+    flags = launch_feature_flag_keys()
+    payload = _collect_queue_fields_raw(occurrences, flags)
     if _has_legacy_capacity_keyword_error(payload):
-        payload = _collect_queue_fields_raw(_legacy_capacity_occurrences(occurrences))
+        payload = _collect_queue_fields_raw(
+            _legacy_capacity_occurrences(occurrences),
+            flags,
+        )
     return _normalize_queue_payload(payload)
 
 
 def _collect_queue_fields_raw(
     occurrences: Sequence[Mapping[str, Any]],
+    enabled_feature_flags: Sequence[str],
 ) -> dict[str, Any]:
-    payload = require_rust_binding("collect_queue_fields")(list(occurrences))
+    binding = require_rust_binding("collect_queue_fields")
+    try:
+        payload = binding(list(occurrences), list(enabled_feature_flags))
+    except TypeError:
+        payload = binding(list(occurrences))
     if not isinstance(payload, dict):
         return {"fields": None, "errors": []}
     return dict(payload)
@@ -65,11 +74,10 @@ def _normalize_queue_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     fields = normalized.get("fields")
     if isinstance(fields, Mapping):
         field_items = dict(fields)
-        if "capacity" not in field_items:
-            if "queue_capacity" in field_items:
-                field_items["capacity"] = field_items.pop("queue_capacity")
-            elif "runners" in field_items:
-                field_items["capacity"] = field_items.pop("runners")
+        if "capacity" not in field_items and "queue_capacity" in field_items:
+            field_items["capacity"] = field_items.pop("queue_capacity")
+        if "capacity" not in field_items and "runners" in field_items:
+            field_items["capacity"] = field_items.pop("runners")
         normalized["fields"] = field_items
     errors = normalized.get("errors")
     if isinstance(errors, list):
@@ -121,28 +129,28 @@ def format_queue_directive(
 
 
 def validate_queue_capacity(value: object) -> int:
-    """Validate a capacity threshold through the Rust queue contract.
+    """Validate a capacity budget through the Rust queue contract.
 
     Rejects booleans and invalid numeric input without coercing them to a
-    valid threshold. Callers treat omission separately; ``None`` is not a
+    valid budget. Callers treat omission separately; ``None`` is not a
     capacity value.
     """
     if isinstance(value, bool) or value is None:
         raise ValueError(
-            "%queue(capacity=...) requires a non-negative integer; "
+            "%queue(capacity=...) requires a positive integer; "
             "boolean values are rejected."
         )
     if isinstance(value, int):
         if value < 0:
-            raise ValueError("%queue(capacity=...) requires a non-negative integer.")
+            raise ValueError("%queue(capacity=...) requires a positive integer.")
         raw = str(value)
     elif isinstance(value, str):
         raw = value.strip()
         if not raw:
-            raise ValueError("%queue(capacity=...) requires a non-negative integer.")
+            raise ValueError("%queue(capacity=...) requires a positive integer.")
     else:
         raise ValueError(
-            "%queue(capacity=...) requires a non-negative integer; "
+            "%queue(capacity=...) requires a positive integer; "
             "fractional, boolean, and nonnumeric values are rejected."
         )
     source = f"%q:{raw}"
@@ -172,16 +180,20 @@ def validate_queue_capacity(value: object) -> int:
         fields.get("queue_capacity", fields.get("runners")),
     )
     if capacity is None:
-        raise ValueError("%queue(capacity=...) requires a non-negative integer.")
+        raise ValueError("%queue(capacity=...) requires a positive integer.")
     return int(capacity)
 
 
 def launch_feature_flag_keys() -> list[str]:
     """Return currently enabled launch/editor flags for Rust entry points."""
     from sase.feature_flags.registry import FeatureFlag
+    from sase.feature_flags.snapshot import current_flags
     from sase.xprompt.code_value import typed_launch_units_enabled
 
     flags: list[str] = []
+    snapshot = current_flags()
+    if snapshot.enabled(FeatureFlag.queue_capacity_budget):
+        flags.append(str(FeatureFlag.queue_capacity_budget))
     if typed_launch_units_enabled():
         flags.append(str(FeatureFlag.typed_launch_units))
     return flags

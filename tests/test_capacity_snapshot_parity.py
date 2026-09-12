@@ -228,7 +228,7 @@ def test_weighted_capacity_snapshot_matches_across_runtime_cli_and_tui() -> None
     assert [
         waiter["artifact_dir"]
         for waiter in sorted(ground_truth["waiters"], key=lambda w: w["queue_position"])
-    ] == [_artifact_dir(_LIGHTER), _artifact_dir(_UNKNOWN), _artifact_dir(_HEAVY)]
+    ] == [_artifact_dir(_LIGHTER), _artifact_dir(_HEAVY), _artifact_dir(_UNKNOWN)]
 
     cli_entries = _by_name(_cli_entries(_LOCAL_SPECS))
     tui_agents = [_tui_agent(spec) for spec in _LOCAL_SPECS]
@@ -240,8 +240,8 @@ def test_weighted_capacity_snapshot_matches_across_runtime_cli_and_tui() -> None
     assert tui_snapshot.queued_count == len(ground_truth["waiters"])
     assert [entry.identity[1] for entry in tui_snapshot.queue] == [
         "lighter",
-        "unknown",
         "heavy",
+        "unknown",
     ]
     assert [
         name
@@ -250,7 +250,7 @@ def test_weighted_capacity_snapshot_matches_across_runtime_cli_and_tui() -> None
             key=lambda item: item[1].wait.runner_slot_queue_position or 0,
         )
         if entry.wait.runner_slot_queue_position is not None
-    ] == ["lighter", "unknown", "heavy"]
+    ] == ["lighter", "heavy", "unknown"]
 
     for spec in (_LIGHTER, _UNKNOWN, _HEAVY):
         truth = truth_waiters[_artifact_dir(spec)]
@@ -275,7 +275,7 @@ def test_weighted_capacity_snapshot_matches_across_runtime_cli_and_tui() -> None
     heavy_json = _agent_to_json(cli_entries["heavy"])
     heavy_blockers = cast(list[dict[str, Any]], heavy_json["runner_capacity_blockers"])
     assert heavy_json["queue_weight"] == 2.0
-    assert heavy_blockers[0]["code"] == "weight-exceeds-limit"
+    assert heavy_blockers[0]["code"] == "insufficient-capacity"
 
 
 def test_capacity_header_renders_shared_snapshot_numbers() -> None:
@@ -306,9 +306,7 @@ def test_queue_detail_and_badges_match_blockers_from_shared_snapshot() -> None:
     entries = {entry.identity[1]: entry for entry in snapshot.queue}
 
     assert "invalid weight" in _queue_entry_capacity_detail(entries["unknown"])
-    assert "weight exceeds current limit" in _queue_entry_capacity_detail(
-        entries["heavy"]
-    )
+    assert "needs 2.0" in _queue_entry_capacity_detail(entries["heavy"])
     assert "needs 0.25" in _queue_entry_capacity_detail(entries["lighter"])
 
     assert format_queue_weight_badge_value(entries["heavy"].requested_weight) == "2"

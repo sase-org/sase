@@ -326,12 +326,12 @@ class TestCapacityDirective:
             land_waits_on=("sase-42.1", "sase-42.2"),
         )
 
-        rendered = _render(plan, capacity=0)
+        rendered = _render(plan, capacity=1)
         segments = rendered.split("\n---\n")
 
         assert "%queue(" not in _render(plan)
         assert len(segments) == 3
-        assert all(segment.count("%queue(capacity=0)") == 1 for segment in segments)
+        assert all(segment.count("%queue(capacity=1)") == 1 for segment in segments)
 
         subset = render_multi_prompt(
             plan,
@@ -351,10 +351,10 @@ class TestCapacityDirective:
             work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
             land_epic_xprompt=Workflow(name="bd/land_epic"),
             launch_names=frozenset({"sase-42.land"}),
-            capacity=0,
+            capacity=1,
         )
         assert "\n---\n" not in land_only
-        assert land_only.count("%queue(capacity=0)") == 1
+        assert land_only.count("%queue(capacity=1)") == 1
 
     def test_capacity_composes_with_weight_only_land_queue(self) -> None:
         plan = EpicWorkPlan(

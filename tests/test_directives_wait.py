@@ -299,7 +299,7 @@ def test_wait_bead_keyword_sets_bead_only_condition(directive: str) -> None:
 
 def test_wait_bead_keywords_mix_and_deduplicate_in_source_order() -> None:
     prompt = (
-        "%wait(builder, bead=sase-87.2, time=5m) %queue(capacity=0, priority=3)\n"
+        "%wait(builder, bead=sase-87.2, time=5m) %queue(capacity=1, priority=3)\n"
         "%w(bead=sase-87.1)\n"
         "%wait(bead=sase-87.2)\n"
         "Do work"
@@ -311,7 +311,7 @@ def test_wait_bead_keywords_mix_and_deduplicate_in_source_order() -> None:
     assert directives.wait == ["builder"]
     assert directives.wait_beads == ["sase-87.2", "sase-87.1"]
     assert directives.wait_duration == 300.0
-    assert directives.wait_runners == 0
+    assert directives.wait_runners == 1
     assert directives.wait_priority == 3
 
 

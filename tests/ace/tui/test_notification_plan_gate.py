@@ -377,7 +377,7 @@ def test_neutral_plan_submission_forwards_modal_capacity(
         run_coder=True,
         choice="epic",
         selected_option_ids=("approve",),
-        capacity=0,
+        capacity=1,
     )
     app = _TrackedPlanApp()
 
@@ -390,13 +390,13 @@ def test_neutral_plan_submission_forwards_modal_capacity(
     assert submitted is True
     assert getattr(app.completion, "success", False) is True
     assert prepare.call_count == 1
-    assert prepare.call_args.kwargs["capacity"] == 0
+    assert prepare.call_args.kwargs["capacity"] == 1
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
-    assert response["option_inputs"]["approve"]["capacity"] == 0
+    assert response["option_inputs"]["approve"]["capacity"] == 1
     approve_result = next(
         item for item in response["option_results"] if item["id"] == "approve"
     )
-    assert approve_result["result"]["capacity"] == 0
+    assert approve_result["result"]["capacity"] == 1
 
 
 def test_copy_actions_never_expose_collected_input_values(

@@ -170,22 +170,24 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
         app._apply_wait(
             str(tmp_path),
             agent,
-            WaitModalResult(agents=[], time_token=None, capacity=0),
+            WaitModalResult(agents=[], time_token=None, capacity=1),
         )
 
     waiting = json.loads((tmp_path / "waiting.json").read_text(encoding="utf-8"))
-    assert waiting["wait_runners"] == 0
-    assert waiting["wait_runners_explicit"] is True
+    assert waiting["queue_capacity"] == 1
+    assert waiting["queue_capacity_explicit"] is True
+    assert "wait_runners" not in waiting
+    assert "wait_runners_explicit" not in waiting
     assert waiting["wait_priority"] == 20
     assert waiting["wait_priority_explicit"] is True
     assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
     assert (tmp_path / "raw_xprompt.md").read_text(encoding="utf-8") == (
-        "%queue(capacity=0, priority=20)\nDo work"
+        "%queue(capacity=1, priority=20)\nDo work"
     )
     assert json.loads((tmp_path / "agent_meta.json").read_text()) == (
-        {"wait_runners": 0, "wait_priority": 20}
+        {"queue_capacity": 1, "queue_capacity_explicit": True, "wait_priority": 20}
     )
-    assert agent.wait_runners == 0
+    assert agent.wait_runners == 1
     assert agent.wait_runners_explicit is True
     assert agent.wait_priority == 20
     assert agent.wait_priority_explicit is True
@@ -195,10 +197,17 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
 
 def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
     (tmp_path / "raw_xprompt.md").write_text(
-        "%queue(capacity=0, priority=3)\nDo work", encoding="utf-8"
+        "%queue(capacity=1, priority=3)\nDo work", encoding="utf-8"
     )
     (tmp_path / "agent_meta.json").write_text(
-        json.dumps({"pid": 100, "wait_runners": 0, "wait_priority": 3}),
+        json.dumps(
+            {
+                "pid": 100,
+                "queue_capacity": 1,
+                "queue_capacity_explicit": True,
+                "wait_priority": 3,
+            }
+        ),
         encoding="utf-8",
     )
     (tmp_path / "waiting.json").write_text(
@@ -207,8 +216,8 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
                 "waiting_for": [],
                 "cl_name": "test_cl",
                 "timestamp": "20240101120000",
-                "wait_runners": 0,
-                "wait_runners_explicit": True,
+                "queue_capacity": 1,
+                "queue_capacity_explicit": True,
                 "wait_priority": 3,
                 "wait_priority_explicit": True,
                 "slot_requested_at": "2026-07-12T12:00:00Z",
@@ -221,7 +230,7 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
         waiting_for=[],
         wait_duration=None,
         wait_until=None,
-        wait_runners=0,
+        wait_runners=1,
         wait_runners_explicit=True,
         wait_priority=3,
         wait_priority_explicit=True,
@@ -256,9 +265,9 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
                 timestamp="20240101120000",
                 agent_meta=AgentMetaWire(pid=100),
                 waiting=WaitingMarkerWire(
-                    wait_runners=waiting_data.get("wait_runners"),
-                    wait_runners_explicit=bool(
-                        waiting_data.get("wait_runners_explicit", False)
+                    queue_capacity=waiting_data.get("queue_capacity"),
+                    queue_capacity_explicit=bool(
+                        waiting_data.get("queue_capacity_explicit", False)
                     ),
                     wait_priority=waiting_data.get("wait_priority"),
                     slot_requested_at=waiting_data.get("slot_requested_at"),
@@ -288,8 +297,10 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
         )
 
         waiting = json.loads((tmp_path / "waiting.json").read_text())
+        assert "queue_capacity" not in waiting
+        assert waiting["queue_capacity_explicit"] is False
         assert "wait_runners" not in waiting
-        assert waiting["wait_runners_explicit"] is False
+        assert "wait_runners_explicit" not in waiting
         assert "wait_priority" not in waiting
         assert waiting["wait_priority_explicit"] is False
         assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
@@ -352,19 +363,25 @@ def test_prompt_wait_spec_builds_canonical_forms() -> None:
 
 def test_apply_wait_updates_parked_priority_in_place(tmp_path: Path) -> None:
     (tmp_path / "raw_xprompt.md").write_text(
-        "%queue(capacity=0, priority=20)\nDo work",
+        "%queue(capacity=1, priority=20)\nDo work",
         encoding="utf-8",
     )
     (tmp_path / "agent_meta.json").write_text(
-        json.dumps({"wait_runners": 0, "wait_priority": 20}),
+        json.dumps(
+            {
+                "queue_capacity": 1,
+                "queue_capacity_explicit": True,
+                "wait_priority": 20,
+            }
+        ),
         encoding="utf-8",
     )
     (tmp_path / "waiting.json").write_text(
         json.dumps(
             {
                 "waiting_for": [],
-                "wait_runners": 0,
-                "wait_runners_explicit": True,
+                "queue_capacity": 1,
+                "queue_capacity_explicit": True,
                 "wait_priority": 20,
                 "wait_priority_explicit": True,
                 "slot_requested_at": "2026-07-12T12:00:00Z",
@@ -377,7 +394,7 @@ def test_apply_wait_updates_parked_priority_in_place(tmp_path: Path) -> None:
         waiting_for=[],
         wait_duration=None,
         wait_until=None,
-        wait_runners=0,
+        wait_runners=1,
         wait_runners_explicit=True,
         wait_priority=20,
         wait_priority_explicit=True,
@@ -395,16 +412,17 @@ def test_apply_wait_updates_parked_priority_in_place(tmp_path: Path) -> None:
             WaitModalResult(
                 agents=[],
                 time_token=None,
-                capacity=0,
+                capacity=1,
                 priority=2,
             ),
         )
 
     assert (tmp_path / "raw_xprompt.md").read_text() == (
-        "%queue(capacity=0, priority=2)\nDo work"
+        "%queue(capacity=1, priority=2)\nDo work"
     )
     assert json.loads((tmp_path / "agent_meta.json").read_text()) == {
-        "wait_runners": 0,
+        "queue_capacity": 1,
+        "queue_capacity_explicit": True,
         "wait_priority": 2,
     }
     waiting = json.loads((tmp_path / "waiting.json").read_text())

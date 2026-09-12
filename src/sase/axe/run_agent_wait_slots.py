@@ -128,8 +128,14 @@ def _marker_runner_condition_state(
     directive_threshold: int | None,
 ) -> tuple[int | None, bool]:
     if waiting_data is not None and "slot_requested_at" in waiting_data:
-        explicit = waiting_data.get("wait_runners_explicit") is True
-        marker_value = waiting_data.get("wait_runners")
+        explicit = (
+            waiting_data.get("queue_capacity_explicit") is True
+            or waiting_data.get("wait_runners_explicit") is True
+        )
+        marker_value = waiting_data.get(
+            "queue_capacity",
+            waiting_data.get("wait_runners"),
+        )
         if explicit and type(marker_value) is int and marker_value >= 0:
             return marker_value, True
     if directive_threshold is not None:
@@ -233,8 +239,8 @@ def _park_for_unavailable_limit(
     priority_explicit: bool,
     queue_weight: float,
     queue_weight_explicit: bool,
-    wait_runners: int | None,
-    wait_runners_explicit: bool,
+    queue_capacity: int | None,
+    queue_capacity_explicit: bool,
     error: Exception,
 ) -> tuple[None, bool]:
     """Republish the queue marker when the runner limit cannot be read."""
@@ -244,14 +250,16 @@ def _park_for_unavailable_limit(
     if not isinstance(requested_at, str) or not requested_at:
         requested_at = datetime.now(UTC).isoformat()
     marker = dict(waiting_data or {})
-    marker_wait_runners = wait_runners if wait_runners is not None else 0
+    marker_queue_capacity = queue_capacity if queue_capacity is not None else 0
+    marker.pop("wait_runners", None)
+    marker.pop("wait_runners_explicit", None)
     marker.update(
         {
             "patch_name": cl_name,
             "cl_name": cl_name,
             "timestamp": timestamp,
-            "wait_runners": marker_wait_runners,
-            "wait_runners_explicit": wait_runners_explicit,
+            "queue_capacity": marker_queue_capacity,
+            "queue_capacity_explicit": queue_capacity_explicit,
             "wait_priority": priority,
             "wait_priority_explicit": priority_explicit,
             "queue_weight": queue_weight,
@@ -460,11 +468,11 @@ def _try_claim_runner_slot(
                 directive_queue_weight,
                 directive_queue_weight_explicit,
             )
-            wait_runners: int | None = None
-            wait_runners_explicit = False
+            queue_capacity: int | None = None
+            queue_capacity_explicit = False
             try:
-                wait_runners, wait_runners_explicit = _marker_runner_condition_state(
-                    waiting_data, directive_threshold
+                queue_capacity, queue_capacity_explicit = (
+                    _marker_runner_condition_state(waiting_data, directive_threshold)
                 )
                 effective_limit = float(get_max_running_agents())
             except Exception as error:  # noqa: BLE001 - admission fails closed.
@@ -477,8 +485,8 @@ def _try_claim_runner_slot(
                     priority_explicit=priority_explicit,
                     queue_weight=queue_weight,
                     queue_weight_explicit=queue_weight_explicit,
-                    wait_runners=wait_runners,
-                    wait_runners_explicit=wait_runners_explicit,
+                    queue_capacity=queue_capacity,
+                    queue_capacity_explicit=queue_capacity_explicit,
                     error=error,
                 )
             requested_at = (
@@ -495,8 +503,8 @@ def _try_claim_runner_slot(
                 artifacts_dir=artifacts_dir,
                 timestamp=timestamp,
                 slot_requested_at=requested_at,
-                wait_runners=wait_runners,
-                wait_runners_explicit=wait_runners_explicit,
+                queue_capacity=queue_capacity,
+                queue_capacity_explicit=queue_capacity_explicit,
                 wait_priority=priority,
                 queue_weight=queue_weight,
                 queue_weight_explicit=queue_weight_explicit,
@@ -564,6 +572,8 @@ def _try_claim_runner_slot(
                 )
             marker = dict(waiting_data or {})
             marker.pop("runner_limit_unavailable", None)
+            marker.pop("wait_runners", None)
+            marker.pop("wait_runners_explicit", None)
             if eligible_since is None:
                 marker.pop("eligible_since", None)
             else:
@@ -573,8 +583,10 @@ def _try_claim_runner_slot(
                     "patch_name": cl_name,
                     "cl_name": cl_name,
                     "timestamp": timestamp,
-                    "wait_runners": wait_runners if wait_runners is not None else 0,
-                    "wait_runners_explicit": wait_runners_explicit,
+                    "queue_capacity": (
+                        queue_capacity if queue_capacity is not None else 0
+                    ),
+                    "queue_capacity_explicit": queue_capacity_explicit,
                     "wait_priority": priority,
                     "wait_priority_explicit": priority_explicit,
                     "queue_weight": queue_weight,
