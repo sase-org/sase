@@ -34,7 +34,7 @@ def test_resume_reaches_close_bead_step(
 
     save_resume_checkpoint(
         cwd=str(tmp_path),
-        payload={"message": "fix: bug", "bead_id": "B-123"},
+        payload={"message": "fix: bug", "bead_id": "B-123", "bead_action": "close"},
     )
 
     snapshots: list[list[str]] = []
@@ -56,7 +56,7 @@ def test_resume_reaches_close_bead_step(
         assert CommitWorkflow.resume() == RunResult.OK
 
     close_bead.assert_called_once()
-    assert close_bead.call_args.kwargs == {"method": "create_commit"}
+    assert close_bead.call_args.kwargs == {"method": "create_commit", "strict": True}
     assert "close_bead" in snapshots[-1]
     assert not (artifacts_dir / "commit_state.json").exists()
 
@@ -70,7 +70,7 @@ def test_resume_skips_completed_close_bead_step(
 
     save_resume_checkpoint(
         cwd=str(tmp_path),
-        payload={"message": "fix: bug", "bead_id": "B-123"},
+        payload={"message": "fix: bug", "bead_id": "B-123", "bead_action": "close"},
         completed_steps=[
             "dispatch",
             "after_hook",

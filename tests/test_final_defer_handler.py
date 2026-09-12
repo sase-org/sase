@@ -65,6 +65,31 @@ def test_defer_defaults_to_every_dirty_path(
     assert deferral["paths"] == ["src/app.py"]
 
 
+def test_defer_sets_keep_for_assigned_bead(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepare_dirty_declaration(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_BEAD_ID", "sase-zq.2")
+    from sase.finalizers.declaration import publish_final_context, submit_final_manifest
+
+    repo_id = publish_final_context().context.obligations[0].obligation_id
+    submitted: dict[str, object] = {}
+    original = submit_final_manifest
+
+    def _capture(manifest: dict[str, object], **kwargs: object) -> object:
+        submitted["manifest"] = manifest
+        return original(manifest, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr("sase.main.final_handler.submit_final_manifest", _capture)
+
+    _handle_defer(_defer_args(repo_id, "unsafe_content"))
+
+    manifest = submitted["manifest"]
+    repository = manifest["payloads"][0]["payload"]["repositories"][0]  # type: ignore[index]
+    assert repository["bead_action"] == "keep"
+
+
 def test_defer_unknown_repo_id_errors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

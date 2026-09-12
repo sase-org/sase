@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+import inspect
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
@@ -134,6 +135,7 @@ def _unpushed_resume_failure_message(
 def _resume_unpushed_already_clean_repos(
     repos: Sequence[DirtyRepo],
     *,
+    decisions: Mapping[str, Mapping[str, Any]],
     artifacts: Path | None,
     context: FinalizerExecutionContext,
     instance_id: str,
@@ -155,6 +157,9 @@ def _resume_unpushed_already_clean_repos(
     evidence: list[FinalizerOutcomeEvidenceWire] = []
 
     for repo, marker in work:
+        bead_action = _decision_bead_action(
+            decisions.get(_repository_decision_id(repo), {})
+        )
         evidence.append(
             FinalizerOutcomeEvidenceWire(
                 kind="unpushed_commit_resume",
@@ -163,7 +168,12 @@ def _resume_unpushed_already_clean_repos(
         )
         evidence.extend(_marker_evidence(marker))
         before_markers = _load_commit_results(artifacts)
-        resumed = resume_runner(repo, context)
+        resumed = _call_resume_runner(
+            resume_runner,
+            repo,
+            context,
+            bead_action=bead_action,
+        )
         _record_stitch_artifacts(
             context,
             instance_id,
@@ -247,6 +257,40 @@ def _latest_marker_for_repo(
         if _marker_matches_repo(marker, repo):
             return marker
     return None
+
+
+def _decision_bead_action(decision: Mapping[str, Any]) -> str | None:
+    value = decision.get("bead_action")
+    return value if value in {"close", "keep"} else None
+
+
+def _call_resume_runner(
+    resume_runner: ResumeRunner,
+    repo: DirtyRepo,
+    context: FinalizerExecutionContext,
+    *,
+    bead_action: str | None,
+) -> StitchCommandResult:
+    if _callable_accepts_keyword(resume_runner, "bead_action"):
+        runner = cast(Callable[..., StitchCommandResult], resume_runner)
+        return runner(repo, context, bead_action=bead_action)
+    return resume_runner(repo, context)
+
+
+def _callable_accepts_keyword(fn: Callable[..., Any], name: str) -> bool:
+    try:
+        signature = inspect.signature(fn)
+    except (TypeError, ValueError):
+        return False
+    for param in signature.parameters.values():
+        if param.kind is inspect.Parameter.VAR_KEYWORD:
+            return True
+        if param.name == name and param.kind in {
+            inspect.Parameter.KEYWORD_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        }:
+            return True
+    return False
 
 
 def execute_commit_finalizer(
@@ -459,6 +503,7 @@ def execute_commit_finalizer(
             resume_evidence,
         ) = _resume_unpushed_already_clean_repos(
             already_clean,
+            decisions=decisions,
             artifacts=artifacts,
             context=context,
             instance_id=instance.instance_id,

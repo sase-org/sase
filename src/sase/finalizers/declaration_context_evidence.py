@@ -53,7 +53,7 @@ def build_commit_declaration_context(
     records_by_id = {record.obligation_id: record for record in host_records}
     baseline = load_dirty_baseline(root)
     written_paths = written_paths_from_tool_calls(root)
-    return {
+    payload: dict[str, Any] = {
         "rule": COMMIT_DECLARATION_RULE,
         "default_action": "commit",
         "deferral": {
@@ -76,6 +76,19 @@ def build_commit_declaration_context(
             if obligation.kind == "repository"
         ],
     }
+    if context.assigned_bead is not None:
+        payload["assigned_bead"] = {
+            "bead_id": context.assigned_bead.bead_id,
+            "primary_repo_id": context.assigned_bead.primary_repo_obligation_id,
+            "required_repository_decision_field": "bead_action",
+            "allowed_actions": ["keep", "close"],
+            "close_policy": (
+                "Use close only for the primary repository decision after the "
+                "assigned bead is fully complete and verified; use keep for "
+                "intermediate commits and deferrals."
+            ),
+        }
+    return payload
 
 
 def _repository_evidence(

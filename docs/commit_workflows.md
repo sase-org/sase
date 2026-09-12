@@ -87,9 +87,9 @@ environment and `-t/--type` are set, they must resolve to the same method unless
 
 If `SASE_BEAD_ID` is set, the finalizer first asks the agent to decide whether the
 uncommitted changes were made in the current session. For changes the agent did make, it
-instructs the agent to close and verify the bead before invoking the commit skill. This
-keeps bead lifecycle state ahead of the commit/proposal/PR dispatch while avoiding
-accidental closure for unrelated dirty work.
+requires the commit skill invocation to declare `-B keep` or `-B close`. This keeps bead
+lifecycle state tied to the durable commit/proposal/PR dispatch while avoiding
+accidental closure for unrelated or intermediate dirty work.
 
 The finalizer uses the shared instruction helpers in `sase.commit_instructions`, so the
 bead and method wording stays consistent between main-workspace and linked-repository
@@ -104,19 +104,19 @@ mutating attempt on a guaranteed-identical failure.
 
 ### CLI Arguments
 
-| Short | Long                  | Description                                                                                                                                                                                                                                                           |
-| ----- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-m`  | `--message`           | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                  |
-| `-M`  | `--message-file`      | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                            |
-| `-x`  | `--exclude`           | Repo-relative file or directory to leave out of the commit (repeatable; everything else, including untracked files, is staged)                                                                                                                                        |
-| `-n`  | `--name`              | Branch/PR name (required for `create_pull_request`)                                                                                                                                                                                                                   |
-| `-b`  | `--bug-id`            | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                        |
-| `-B`  | `--do-not-close-bead` | Do not auto-close the assigned in-progress task bead after commit                                                                                                                                                                                                     |
-| `-c`  | `--checkout-target`   | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                               |
-| `-p`  | `--parent`            | Parent Patch **name** (overrides auto-detection from current branch). Must be an existing Patch in the current ProjectSpec or its archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
-| `-r`  | `--resume`            | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-x` and other commit args are ignored (the payload is loaded from the checkpoint). See [Resume after Conflict](#resume-after-conflict) below.                      |
-| `-s`  | `--status`            | Patch status for PRs (`wip`, `draft`, `ready`). Overrides `$SASE_PR_STATUS`; default is `draft`.                                                                                                                                                                      |
-| `-t`  | `--type`              | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                 |
+| Short | Long                | Description                                                                                                                                                                                                                                                           |
+| ----- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-m`  | `--message`         | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                  |
+| `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                            |
+| `-x`  | `--exclude`         | Repo-relative file or directory to leave out of the commit (repeatable; everything else, including untracked files, is staged)                                                                                                                                        |
+| `-n`  | `--name`            | Branch/PR name (required for `create_pull_request`)                                                                                                                                                                                                                   |
+| `-b`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                        |
+| `-B`  | `--bead-action`     | Explicit assigned-bead action: `keep` for intermediate commits, `close` after completing and verifying the assigned bead                                                                                                                                              |
+| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                               |
+| `-p`  | `--parent`          | Parent Patch **name** (overrides auto-detection from current branch). Must be an existing Patch in the current ProjectSpec or its archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
+| `-r`  | `--resume`          | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-x` and other commit args are ignored (the payload is loaded from the checkpoint). See [Resume after Conflict](#resume-after-conflict) below.                      |
+| `-s`  | `--status`          | Patch status for PRs (`wip`, `draft`, `ready`). Overrides `$SASE_PR_STATUS`; default is `draft`.                                                                                                                                                                      |
+| `-t`  | `--type`            | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                 |
 
 #### Type Aliases
 
@@ -141,7 +141,7 @@ Subject gate       (reject a non-Conventional-Commit subject before any side eff
     |
 Bead association   (append linked SASE_BEAD= footer when SASE_BEAD_ID is set)
     |
-Bead sync          (sync beads; warn if the assigned bead will not auto-close) [skip for proposals]
+Bead sync          (sync beads after explicit bead-action preflight) [skip for proposals]
     |
 Plan handling      (store/copy plan, append storage-relative SASE_PLAN=,  [skip for proposals]
                     mark plan done)
@@ -181,7 +181,7 @@ Final marker       (rewrite with the new stitch ID)           [commit/propose, i
     |
 DELTAS refresh     (recompute the tracked diff summary)       [commit/propose, if Patch found]
     |
-Task bead autoclose (close the eligible in-progress task bead)      [commit/PR only, last]
+Explicit bead close (honor `-B close` for the assigned bead)        [commit/PR only, last]
 ```
 
 The marker is deliberately written before publication and STITCHES tracking so a
@@ -205,30 +205,32 @@ For PRs, the subject is validated exactly as the agent authored it.
 title _after_ validation, so the final title on the pull request can differ from the
 validated subject.
 
-#### Task Bead Autoclose
+#### Explicit Bead Action
 
-As the last stage of `CommitWorkflow`, `create_commit` and `create_pull_request` (never
-`create_proposal`) auto-close the bead assigned to the commit, provided all of the
-following hold:
+When a payload has an assigned `bead_id`, `CommitWorkflow` requires an explicit
+`bead_action` before any commit side effect starts. Use `-B keep` for intermediate work,
+proposals, linked/sidecar repository commits, and any commit that does not finish the
+assigned bead. Use `-B close` only after the assigned bead's full scope is complete and
+verified.
 
-- The bead's `issue_type` is `task` — phase, epic, and plan beads are skipped.
-- The bead's `status` is `in_progress`.
-- The commit's repository root is the project's primary repo — commits made in a
-  configured linked repository or an SDD sidecar are skipped, since those never carry
-  the project's own task lifecycle.
+As the last stage of `CommitWorkflow`, `create_commit` and `create_pull_request` honor
+`-B close` by closing the assigned bead, provided all of the following hold:
 
-When all conditions hold, SASE runs the equivalent of
-`sase bead close <id> --resolution done --note "<note>"`, where the note reads:
+- The bead's `status` is `in_progress` or already `closed` (idempotent resume).
+- The commit's repository root is the project's primary repo. Commits made in a
+  configured linked repository or an SDD sidecar cannot close the primary task
+  lifecycle.
+- The method is a landed commit or PR. `create_proposal` must use `-B keep`.
 
-> Auto-closed by `sase stitch create` after `<method>` landed `<short-sha>`
-> ("`<subject>`"). No verification is implied by this note. Reopen with
-> `sase bead open <id>`, or pass `-B`/`--do-not-close-bead` on mid-flight commits.
+When the close is allowed, SASE runs the equivalent of
+`sase bead close <id> --resolution done --note "<note>"`, where the note begins:
 
-and the CLI prints
-`Auto-closed task bead <id>. Reopen with sase bead open <id> if more work remains.` Pass
-`-B/--do-not-close-bead` (see [CLI Arguments](#cli-arguments) above) on any commit that
-is not the task's final commit, since an intermediate commit would otherwise close the
-bead before the work is done. See
+> Closed by explicit `sase stitch create -B close` after `<method>` landed `<short-sha>`
+> ("`<subject>`").
+
+If the close fails after the commit has landed, the workflow exits non-zero and leaves
+the checkpoint for `sase stitch create --resume`, so the bead lifecycle failure must be
+fixed instead of silently reporting success. See
 [Standalone Task Workflow](beads.md#standalone-task-workflow) for how this fits into the
 broader task-bead lifecycle.
 
@@ -268,11 +270,11 @@ The internal payload has this shape:
 ```
 
 The CLI maps `-m` / `-M` to `message`, repeated `-x` flags to `exclude`, `-n` to `name`,
-`-b` to `bug_id`, `-B` to `do_not_close_bead`, `-c` to `checkout_target`, `-p` to
-`parent`, and `-s` to `status`. Omitted `-x` means "stage everything" and is represented
-as an empty `exclude` list. The internal allowlist key, `files`, is not reachable from
-the agent-facing CLI — it exists only for the internal `--only-file` flag used by SASE's
-own SDD plan-commit caller.
+`-b` to `bug_id`, `-B` to `bead_action`, `-c` to `checkout_target`, `-p` to `parent`,
+and `-s` to `status`. Omitted `-x` means "stage everything" and is represented as an
+empty `exclude` list. The internal allowlist key, `files`, is not reachable from the
+agent-facing CLI — it exists only for the internal `--only-file` flag used by SASE's own
+SDD plan-commit caller.
 
 Bead association is not a user-supplied CLI flag. For new commit attempts,
 `sase stitch create` reads `SASE_BEAD_ID`; when it is set, the CLI adds that bead to the

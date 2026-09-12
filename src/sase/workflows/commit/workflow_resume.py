@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 def resume_commit_workflow(
     workflow_type: type[CommitWorkflow],
     *,
+    bead_action: str | None = None,
     checkpoint_load: Callable[[], CommitCheckpoint | None],
     checkpoint_save: Callable[[CommitCheckpoint], str | None],
     checkpoint_delete: Callable[[], None],
@@ -36,6 +37,8 @@ def resume_commit_workflow(
     cp = checkpoint_load()
     if cp is None:
         print_status("No commit checkpoint found — nothing to resume", "error")
+        return RunResult.FAILED
+    if not _normalize_checkpoint_bead_action(cp, bead_action, checkpoint_save):
         return RunResult.FAILED
 
     wf = workflow_type(payload=cp.payload, method=cp.method)
@@ -172,6 +175,59 @@ def resume_commit_workflow(
         status="ok",
     ).inc()
     return RunResult.OK
+
+
+def _normalize_checkpoint_bead_action(
+    cp: CommitCheckpoint,
+    bead_action: str | None,
+    checkpoint_save: Callable[[CommitCheckpoint], str | None],
+) -> bool:
+    payload = cp.payload if isinstance(cp.payload, dict) else {}
+    bead_id = str(payload.get("bead_id") or "").strip()
+    saved = payload.get("bead_action")
+    if saved is not None and saved not in {"close", "keep"}:
+        print_status(
+            "Commit checkpoint contains an invalid bead_action. Re-run "
+            "`sase stitch create --resume -B close` or `-B keep` after "
+            "repairing the checkpoint.",
+            "error",
+        )
+        return False
+    if bead_action is not None and bead_action not in {"close", "keep"}:
+        print_status("bead_action must be either close or keep", "error")
+        return False
+    if saved is not None:
+        if bead_action is not None and bead_action != saved:
+            print_status(
+                "Commit checkpoint already saved bead_action "
+                f"{saved!r}; refusing conflicting resume action {bead_action!r}.",
+                "error",
+            )
+            return False
+        payload.pop("do_not_close_bead", None)
+        return True
+    if not bead_id:
+        if bead_action == "close":
+            print_status("there is no assigned bead to close", "error")
+            return False
+        if bead_action == "keep":
+            payload["bead_action"] = "keep"
+            checkpoint_save(cp)
+        payload.pop("do_not_close_bead", None)
+        return True
+    if bead_action is None:
+        print_status(
+            "This legacy commit checkpoint is associated with bead "
+            f"{bead_id} but has no saved bead_action. Re-run "
+            "`sase stitch create --resume -B keep` for intermediate work or "
+            "`sase stitch create --resume -B close` after the bead is complete.",
+            "error",
+        )
+        return False
+    payload["bead_action"] = bead_action
+    payload.pop("do_not_close_bead", None)
+    checkpoint_save(cp)
+    return True
 
 
 def _finish_no_commit_resume(

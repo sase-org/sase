@@ -339,7 +339,7 @@ def test_resume_reuses_checkpointed_bead_tag_without_reapplying_it(
     mock_get.return_value = provider
     save_resume_checkpoint(
         cwd=str(tmp_path),
-        payload={"message": message, "bead_id": "sase-ai.2"},
+        payload={"message": message, "bead_id": "sase-ai.2", "bead_action": "keep"},
     )
 
     with (

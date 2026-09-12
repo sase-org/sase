@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path
 import re
 import sys
 import time
-from typing import Any
+from typing import Any, cast
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
@@ -69,6 +70,8 @@ def run_stitch_create(
     message: str,
     excludes: Sequence[str],
     context: FinalizerExecutionContext,
+    *,
+    bead_action: str | None = None,
 ) -> StitchCommandResult:
     """Run ``sase stitch create`` for one repository."""
 
@@ -82,6 +85,8 @@ def run_stitch_create(
         "-M",
         str(message_file),
     ]
+    if bead_action is not None:
+        argv.extend(["-B", bead_action])
     for path in excludes:
         argv.extend(["-x", path])
     result = _run_stitch_argv(argv, repo, context)
@@ -91,10 +96,14 @@ def run_stitch_create(
 def run_stitch_resume(
     repo: DirtyRepo,
     context: FinalizerExecutionContext,
+    *,
+    bead_action: str | None = None,
 ) -> StitchCommandResult:
     """Resume the checkpointed stitch for one repository."""
 
     argv = [sys.executable, "-m", "sase", "stitch", "create", "--resume"]
+    if bead_action is not None:
+        argv.extend(["-B", bead_action])
     result = _run_stitch_argv(argv, repo, context)
     return replace(result, argv=tuple(argv))
 
@@ -114,6 +123,7 @@ def resolve_commit_conflict(
     evidence: list[FinalizerOutcomeEvidenceWire],
     before_markers: Sequence[Mapping[str, Any]],
     attempt_id: int,
+    bead_action: str | None = None,
 ) -> _ConflictRepairResult:
     """Run the one-shot conflict-repair turn and resume the same stitch."""
 
@@ -153,7 +163,12 @@ def resolve_commit_conflict(
         )
         evidence.extend(marker_evidence(repaired_markers[-1]))
         return _ConflictRepairResult(invoke_result=current_result)
-    resumed = resume_runner(repo, context)
+    resumed = _call_resume_runner(
+        resume_runner,
+        repo,
+        context,
+        bead_action=bead_action,
+    )
     record_stitch_artifacts(
         context, "commit", attempt_id, resumed, label=f"{repo.name}-conflict-repair"
     )
@@ -352,6 +367,35 @@ def _repo_is_settled_after_repair(
     return not git_changed_files(repo.path)
 
 
+def _call_resume_runner(
+    resume_runner: ResumeRunner,
+    repo: DirtyRepo,
+    context: FinalizerExecutionContext,
+    *,
+    bead_action: str | None,
+) -> StitchCommandResult:
+    if _callable_accepts_keyword(resume_runner, "bead_action"):
+        runner = cast(Callable[..., StitchCommandResult], resume_runner)
+        return runner(repo, context, bead_action=bead_action)
+    return resume_runner(repo, context)
+
+
+def _callable_accepts_keyword(fn: Callable[..., Any], name: str) -> bool:
+    try:
+        signature = inspect.signature(fn)
+    except (TypeError, ValueError):
+        return False
+    for param in signature.parameters.values():
+        if param.kind is inspect.Parameter.VAR_KEYWORD:
+            return True
+        if param.name == name and param.kind in {
+            inspect.Parameter.KEYWORD_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        }:
+            return True
+    return False
+
+
 def record_stitch_artifacts(
     context: FinalizerExecutionContext,
     instance_id: str,
@@ -516,6 +560,8 @@ def stitch_attempt_input_fields(
     repo: DirtyRepo,
     message: str,
     excludes: Sequence[str],
+    *,
+    bead_action: str | None = None,
 ) -> dict[str, Any]:
     """Capture everything that determines whether a stitch attempt can succeed.
 
@@ -530,6 +576,7 @@ def stitch_attempt_input_fields(
         "dirty_fingerprints": sorted(dirty_path_fingerprints(repo.path).items()),
         "excludes": sorted(excludes),
         "message_digest": hashlib.sha256(message.encode("utf-8")).hexdigest(),
+        "bead_action": bead_action,
     }
 
 

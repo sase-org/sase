@@ -75,6 +75,41 @@ def test_context_publishes_opaque_dirty_repository_obligation(
     assert (tmp_path / FINAL_CONTEXT_FILENAME).is_file()
 
 
+def test_context_publishes_assigned_bead_and_template_action_placeholder(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepare_dirty_declaration(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_BEAD_ID", "sase-zq.2")
+
+    publication = publish_final_context()
+
+    repo_id = publication.context.obligations[0].obligation_id
+    assert publication.context.assigned_bead is not None
+    assert publication.context.assigned_bead.bead_id == "sase-zq.2"
+    assert publication.context.assigned_bead.primary_repo_obligation_id == repo_id
+    assert publication.payload["context"]["assigned_bead"] == {
+        "bead_id": "sase-zq.2",
+        "primary_repo_obligation_id": repo_id,
+    }
+    repository = publication.payload["manifest_template"]["payloads"][0]["payload"][
+        "repositories"
+    ][0]
+    assert repository["repo_id"] == repo_id
+    assert repository["bead_action"] is None
+    assert publication.payload["commit_declaration"]["assigned_bead"] == {
+        "bead_id": "sase-zq.2",
+        "primary_repo_id": repo_id,
+        "required_repository_decision_field": "bead_action",
+        "allowed_actions": ["keep", "close"],
+        "close_policy": (
+            "Use close only for the primary repository decision after the "
+            "assigned bead is fully complete and verified; use keep for "
+            "intermediate commits and deferrals."
+        ),
+    }
+
+
 def test_context_publishes_bounded_repository_commit_provenance(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

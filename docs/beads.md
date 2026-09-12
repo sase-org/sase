@@ -465,10 +465,9 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    but preserves the `in_progress` assignment for recovery. The worker receives the task
    ID, description, and notes through the `work_task_bead` xprompt and is instructed to
    close the task with verification evidence. A successful `sase stitch create` commit
-   or PR from the task worker's primary-repo workspace also auto-closes the assigned
-   `in_progress` task bead on its own, unless `-B/--do-not-close-bead` was passed — see
-   [Task Bead Autoclose](commit_workflows.md#task-bead-autoclose). Pass an intermediate
-   commit with `-B` so it does not close the bead before the task is actually done.
+   or PR from the task worker's primary-repo workspace can close the assigned bead only
+   when invoked with `-B close`; intermediate commits use `-B keep` — see
+   [Explicit Bead Action](commit_workflows.md#explicit-bead-action).
 
 5. Route the worker model. A task's explicit `model` wins. Otherwise a stored size
    selects the corresponding `@xsmall`, `@small`, `@medium`, `@large`, or `@xlarge`

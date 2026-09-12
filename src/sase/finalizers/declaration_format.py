@@ -63,6 +63,13 @@ def format_context_pretty(payload: Mapping[str, Any]) -> str:
         lines.extend(["", "Commit declaration:"])
         if isinstance(rule, str) and rule:
             lines.append(f"  {rule}")
+        assigned = commit_declaration.get("assigned_bead")
+        if isinstance(assigned, Mapping):
+            bead_id = assigned.get("bead_id")
+            primary = assigned.get("primary_repo_id")
+            if isinstance(bead_id, str) and bead_id:
+                suffix = f"; primary repo: {primary}" if primary else ""
+                lines.append(f"  Assigned bead: {bead_id}{suffix}")
         deferral = commit_declaration.get("deferral")
         if isinstance(deferral, Mapping):
             reasons = deferral.get("reasons")

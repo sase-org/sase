@@ -78,6 +78,13 @@ ref is what authorizes a successful monitor result to hand completion back to th
    `repository_evidence` lists model-visible provenance for the dirty paths: paths
    written by this run, paths already dirty at run start, and protected paths.
 
+   If the context has `assigned_bead` or the manifest template includes `bead_action`,
+   every commit repository decision must replace the placeholder with `"keep"` or
+   `"close"`. Use `"keep"` for intermediate commits, proposals, deferrals,
+   linked/sidecar repositories, or any case where the assigned bead is not fully
+   complete. Use `"close"` only for the primary repository decision after the whole
+   assigned bead scope is complete and verified.
+
    Only add a typed `deferrals` entry when the repository tree itself must not be
    committed. Legal reasons are `protected_paths`, `foreign_work`, `unsafe_content`, and
    `belongs_to_another_turn`. Each deferral is an object in `payload.deferrals`

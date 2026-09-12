@@ -145,6 +145,24 @@ def test_validate_sase_core_rs_requires_artifact_link_bindings() -> None:
     )
 
 
+def test_validate_sase_core_rs_requires_bead_action_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "bead_action_wire_schema_version",
+        "parse_bead_action_field",
+        "decide_bead_action",
+        "validate_finalizer_bead_decision",
+        "validate_finalizer_assigned_bead_binding",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    assert validator._validate_bindings(module_with_required_bindings(validator))
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_probes_artifact_link_event_contract() -> None:
     validator = load_validate_sase_core_rs()
     digest = "a" * 64

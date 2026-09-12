@@ -1,4 +1,4 @@
-"""Commit-time bead tagging, synchronization, and autoclose handling."""
+"""Commit-time bead tagging, synchronization, and explicit close handling."""
 
 from __future__ import annotations
 
@@ -9,13 +9,18 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sase.bead.project import BEADS_DIRNAME
+from sase.core.bead_action_facade import (
+    bead_action_wire_schema_version,
+    decide_bead_action,
+    parse_bead_action_field,
+)
+from sase.env_contracts import WORKSPACE_PIN_ENV_VARS
 from sase.output import print_status
 from sase.workflows.commit.hook_utils import get_repo_root
 
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
 
-_AUTOCLOSE_METHODS = frozenset({"create_commit", "create_pull_request"})
 _SDD_REPO_ENV_VARS = (
     "SASE_SDD_DIR",
     "SASE_SDD_PLANS_DIR",
@@ -25,15 +30,15 @@ _SDD_REPO_ENV_VARS = (
 
 
 @dataclass(frozen=True)
-class _AutocloseDecision:
-    """Decision for commit-time assigned bead autoclose."""
+class _RepositoryPolicyFacts:
+    """Repository facts passed into the core bead-action policy."""
 
-    bead_id: str | None
-    should_close: bool
-    reason: str
-    status: str | None = None
-    issue_type: str | None = None
-    warn: bool = False
+    scope: str
+    primary_identified: bool
+
+
+class BeadActionPolicyError(RuntimeError):
+    """Raised when explicit bead-action policy refuses the workflow."""
 
 
 def apply_bead_commit_tag(
@@ -69,13 +74,8 @@ def apply_bead_commit_tag(
 
 
 def handle_beads(payload: dict, cwd: str, *, method: str = "create_commit") -> None:
-    """Sync beads best-effort and report assigned beads that will not auto-close.
-
-    Only an ``in_progress`` bead assigned to a landed commit in this workspace's
-    primary repo is eligible for post-dispatch autoclose. Linked-repo and SDD-sidecar
-    commits stay warning-only so a mid-flight sidecar commit cannot close the workspace
-    lifecycle object.
-    """
+    """Sync beads best-effort after the workflow-level bead-action preflight."""
+    del method
     bead_id = payload.get("bead_id")
     has_bead_dir = (
         os.path.isdir(os.path.join(cwd, BEADS_DIRNAME))
@@ -83,20 +83,150 @@ def handle_beads(payload: dict, cwd: str, *, method: str = "create_commit") -> N
         or os.path.isdir(os.path.join(cwd, "sase", "repos", "beads"))
     )
 
-    if bead_id:
-        decision = _resolve_assigned_bead_autoclose(payload, cwd, method=method)
-        if not decision.should_close:
-            _report_unclosed_bead(decision)
-
     if bead_id or has_bead_dir:
-        # Sync beads (best effort)
         _run_bead_command(["sase", "bead", "sync"], cwd)
+
+
+def validate_bead_action_before_commit(
+    payload: dict,
+    cwd: str,
+    *,
+    method: str = "create_commit",
+) -> bool:
+    """Return whether bead-action policy allows this workflow to start."""
+
+    try:
+        decision = _bead_action_decision(payload, cwd, method=method)
+    except (TypeError, ValueError, BeadActionPolicyError) as exc:
+        print_status(str(exc), "error")
+        return False
+
+    disposition = str(decision.get("disposition") or "")
+    bead_id = decision.get("bead_id")
+    if disposition == "keep" and isinstance(bead_id, str) and bead_id:
+        print_status(
+            f"Bead {bead_id} will be left unchanged by explicit -B keep.",
+            "info",
+        )
+    elif disposition == "close" and isinstance(bead_id, str) and bead_id:
+        print_status(
+            f"Bead {bead_id} will be closed after the commit because -B close "
+            "was requested.",
+            "info",
+        )
+    elif disposition == "close_idempotent" and isinstance(bead_id, str) and bead_id:
+        print_status(
+            f"Bead {bead_id} is already closed; explicit -B close is idempotent.",
+            "info",
+        )
+    return True
+
+
+def close_assigned_bead_after_commit(
+    payload: dict,
+    cwd: str,
+    *,
+    method: str,
+    strict: bool = False,
+) -> bool:
+    """Close the assigned bead only for an explicit allowed ``-B close``."""
+
+    try:
+        decision = _bead_action_decision(payload, cwd, method=method)
+    except (TypeError, ValueError, BeadActionPolicyError) as exc:
+        message = f"Bead close refused: {exc}"
+        if strict:
+            raise BeadActionPolicyError(message) from exc
+        print_status(message, "warning")
+        return False
+
+    bead_id = decision.get("bead_id")
+    if decision.get("disposition") == "close_idempotent" and isinstance(bead_id, str):
+        print_status(
+            f"Explicit bead close for {bead_id} is already satisfied.",
+            "info",
+        )
+        return True
+    if not decision.get("close_bead") or not isinstance(bead_id, str) or not bead_id:
+        return False
+
+    note = _explicit_close_note(bead_id, payload, cwd, method=method)
+    result = _run_bead_command(
+        [
+            "sase",
+            "bead",
+            "close",
+            bead_id,
+            "--resolution",
+            "done",
+            "--note",
+            note,
+        ],
+        cwd,
+    )
+    if result is not None and result.returncode == 0:
+        print_status(
+            f"Closed assigned bead {bead_id} after explicit -B close.",
+            "success",
+        )
+        return True
+
+    message = _close_failed_message(bead_id, result)
+    print_status(message, "warning")
+    if strict:
+        raise BeadActionPolicyError(message)
+    return False
+
+
+def _bead_action_decision(
+    payload: dict,
+    cwd: str,
+    *,
+    method: str,
+) -> dict[str, object]:
+    """Collect Python facts and delegate bead-action policy to Rust."""
+
+    raw_bead_id = payload.get("bead_id")
+    bead_id = str(raw_bead_id).strip() if raw_bead_id else ""
+    facts = _repository_policy_facts(cwd)
+    request: dict[str, object] = {
+        "schema_version": bead_action_wire_schema_version(),
+        "commit_method": method,
+        "repository_scope": facts.scope,
+        "primary_repository_identified": facts.primary_identified,
+        "legacy_do_not_close_bead": "do_not_close_bead" in payload,
+    }
+    if bead_id:
+        request["assigned_bead_id"] = bead_id
+    bead_action = parse_bead_action_field(payload)
+    if "bead_action" in payload:
+        request["bead_action"] = bead_action
+    if bead_action == "close":
+        request["bead_status"] = _bead_status_fact(bead_id, cwd)
+    return decide_bead_action(request)
+
+
+def _bead_status_fact(bead_id: str, cwd: str) -> str:
+    if not bead_id:
+        return "unchecked"
+    issue = _resolve_bead_issue(bead_id, cwd)
+    if issue is None:
+        return "unreadable"
+    status = _issue_text(issue, "status")
+    if status == "in_progress":
+        return "in_progress"
+    if status == "closed":
+        return "closed"
+    if status:
+        return "other"
+    return "unreadable"
 
 
 def _run_bead_command(
     args: list[str], cwd: str
 ) -> subprocess.CompletedProcess[bytes] | None:
     """Run a bead command best-effort, tolerating missing sase binary."""
+
     try:
         return subprocess.run(
             args,
@@ -109,156 +239,9 @@ def _run_bead_command(
         return None
 
 
-def _resolve_assigned_bead_autoclose(
-    payload: dict,
-    cwd: str,
-    *,
-    method: str = "create_commit",
-) -> _AutocloseDecision:
-    """Return whether the assigned bead should auto-close after commit."""
-    raw_bead_id = payload.get("bead_id")
-    bead_id = str(raw_bead_id).strip() if raw_bead_id else ""
-    if not bead_id:
-        return _AutocloseDecision(None, False, "no bead is assigned")
-    if method not in _AUTOCLOSE_METHODS:
-        return _AutocloseDecision(
-            bead_id,
-            False,
-            f"{method} does not create a landed commit",
-        )
-
-    issue = _resolve_bead_issue(bead_id, cwd)
-    if issue is None:
-        return _AutocloseDecision(
-            bead_id,
-            False,
-            "the bead status could not be read",
-            warn=True,
-        )
-
-    status = _issue_text(issue, "status")
-    issue_type = _issue_text(issue, "issue_type")
-    if status is None:
-        return _AutocloseDecision(
-            bead_id,
-            False,
-            "the bead status could not be read",
-            issue_type=issue_type,
-            warn=True,
-        )
-
-    warn = status != "closed"
-    if payload.get("do_not_close_bead"):
-        return _AutocloseDecision(
-            bead_id,
-            False,
-            "the do-not-close opt-out was used",
-            status=status,
-            issue_type=issue_type,
-            warn=warn,
-        )
-    if status != "in_progress":
-        return _AutocloseDecision(
-            bead_id,
-            False,
-            f"it is {status}",
-            status=status,
-            issue_type=issue_type,
-            warn=warn,
-        )
-
-    repo_skip_reason = _repo_autoclose_skip_reason(cwd)
-    if repo_skip_reason is not None:
-        return _AutocloseDecision(
-            bead_id,
-            False,
-            repo_skip_reason,
-            status=status,
-            issue_type=issue_type,
-            warn=warn,
-        )
-
-    return _AutocloseDecision(
-        bead_id,
-        True,
-        "eligible in-progress assigned bead in the primary repo",
-        status=status,
-        issue_type=issue_type,
-    )
-
-
-def close_assigned_bead_after_commit(payload: dict, cwd: str, *, method: str) -> bool:
-    """Best-effort close for an eligible assigned bead after a commit lands."""
-    decision = _resolve_assigned_bead_autoclose(payload, cwd, method=method)
-    if not decision.should_close or not decision.bead_id:
-        return False
-
-    note = _autoclose_note(decision.bead_id, payload, cwd, method=method)
-    result = _run_bead_command(
-        [
-            "sase",
-            "bead",
-            "close",
-            decision.bead_id,
-            "--resolution",
-            "done",
-            "--note",
-            note,
-        ],
-        cwd,
-    )
-    if result is not None and result.returncode == 0:
-        print_status(
-            f"Auto-closed assigned bead {decision.bead_id}. Reopen with "
-            f"`sase bead open {decision.bead_id}` if more work remains.",
-            "success",
-        )
-        return True
-
-    _report_autoclose_failed(decision, result)
-    return False
-
-
-def _report_unclosed_bead(decision: _AutocloseDecision) -> None:
-    """Warn when an assigned bead remains open after autoclose was skipped."""
-    if not decision.warn or not decision.bead_id:
-        return
-    status = f" is still {decision.status}" if decision.status else " status is unknown"
-    print_status(
-        f"Bead {decision.bead_id}{status}; this commit will not auto-close it "
-        f"because {decision.reason}. Run "
-        f'`sase bead close {decision.bead_id} --note "<what you verified>"` '
-        "once the work is actually done.",
-        "warning",
-    )
-
-
-def _report_autoclose_failed(
-    decision: _AutocloseDecision,
-    result: subprocess.CompletedProcess[bytes] | None,
-) -> None:
-    detail = (
-        "the `sase` CLI was not found"
-        if result is None
-        else (f"`sase bead close` exited {result.returncode}")
-    )
-    output = ""
-    if result is not None:
-        output = _decoded_command_output(result.stderr) or _decoded_command_output(
-            result.stdout
-        )
-        if output:
-            output = f": {_truncate_for_status(output)}"
-    print_status(
-        f"Auto-close failed for bead {decision.bead_id}: {detail}{output}. "
-        f'Run `sase bead close {decision.bead_id} --note "<what you verified>"` '
-        "once the work is actually done.",
-        "warning",
-    )
-
-
 def _resolve_bead_issue(bead_id: str, cwd: str) -> dict[str, object] | None:
     """Return *bead_id*'s issue dict, or ``None`` when it cannot be determined."""
+
     result = _run_bead_command(
         ["sase", "bead", "show", bead_id, "--format", "json"], cwd
     )
@@ -282,22 +265,33 @@ def _issue_text(issue: dict[str, object], key: str) -> str | None:
     return text or None
 
 
-def _repo_autoclose_skip_reason(cwd: str) -> str | None:
+def _repository_policy_facts(cwd: str) -> _RepositoryPolicyFacts:
     try:
         repo_root = get_repo_root(cwd)
         if not repo_root:
-            return "the repository root could not be resolved"
+            return _RepositoryPolicyFacts("unknown", False)
         repo_real = os.path.realpath(repo_root)
-        for denied in _autoclose_denylist_paths():
-            if os.path.realpath(denied) == repo_real:
-                return "the commit is in a linked repository or SDD sidecar"
+        for path, scope in _non_primary_scope_paths():
+            if os.path.realpath(path) == repo_real:
+                return _RepositoryPolicyFacts(scope, False)
+        for path in _primary_workspace_paths():
+            if os.path.realpath(path) == repo_real:
+                return _RepositoryPolicyFacts("primary", True)
     except Exception:
-        return "the repository root could not be resolved"
-    return None
+        return _RepositoryPolicyFacts("unknown", False)
+    return _RepositoryPolicyFacts("unknown", False)
 
 
-def _autoclose_denylist_paths() -> list[str]:
-    paths: list[str] = []
+def _primary_workspace_paths() -> list[str]:
+    return [
+        value.strip()
+        for key in WORKSPACE_PIN_ENV_VARS
+        if (value := os.environ.get(key, "")).strip()
+    ]
+
+
+def _non_primary_scope_paths() -> list[tuple[str, str]]:
+    paths: list[tuple[str, str]] = []
     from sase._linked_repo_env import (
         LINKED_REPO_ENV_PREFIX,
         LINKED_REPO_ENV_SUFFIXES,
@@ -307,10 +301,11 @@ def _autoclose_denylist_paths() -> list[str]:
     )
 
     for item in linked_repo_metadata_from_env():
+        scope = "sdd" if item.get("kind") == "sidecar" else "linked"
         for key in ("workspace_dir", "primary_dir"):
             value = item.get(key)
             if isinstance(value, str) and value.strip():
-                paths.append(value.strip())
+                paths.append((value.strip(), scope))
     for key, value in os.environ.items():
         if (
             (
@@ -322,16 +317,16 @@ def _autoclose_denylist_paths() -> list[str]:
                 and key.endswith(SIBLING_REPO_ENV_SUFFIXES)
             )
         ) and value.strip():
-            paths.append(value.strip())
+            paths.append((value.strip(), "linked"))
 
     for key in _SDD_REPO_ENV_VARS:
         value = os.environ.get(key, "").strip()
         if value:
-            paths.append(value)
+            paths.append((value, "sdd"))
     return paths
 
 
-def _autoclose_note(
+def _explicit_close_note(
     bead_id: str,
     payload: dict,
     cwd: str,
@@ -346,9 +341,32 @@ def _autoclose_note(
     if subject:
         landed = f'{landed} ("{subject}")'
     return (
-        f"Auto-closed by `sase stitch create` after {landed}. No verification is implied "
-        f"by this note. Reopen with `sase bead open {bead_id}`, or pass "
-        "`-B|--do-not-close-bead` on mid-flight commits."
+        f"Closed by explicit `sase stitch create -B close` after {landed}. "
+        "The commit author requested bead completion after verifying the bead scope. "
+        f"Reopen with `sase bead open {bead_id}` if more work remains."
+    )
+
+
+def _close_failed_message(
+    bead_id: str,
+    result: subprocess.CompletedProcess[bytes] | None,
+) -> str:
+    detail = (
+        "the `sase` CLI was not found"
+        if result is None
+        else (f"`sase bead close` exited {result.returncode}")
+    )
+    output = ""
+    if result is not None:
+        output = _decoded_command_output(result.stderr) or _decoded_command_output(
+            result.stdout
+        )
+        if output:
+            output = f": {_truncate_for_status(output)}"
+    return (
+        f"Explicit close failed for bead {bead_id}: {detail}{output}. The commit "
+        "may already exist; fix the bead close failure, then run "
+        "`sase stitch create --resume`."
     )
 
 

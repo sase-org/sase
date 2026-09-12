@@ -23166,7 +23166,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "0ca5493099850810",
+            "description_digest": "19c1f390ba9d32b6",
             "hidden": false,
             "mutex_groups": [
               [
@@ -23272,13 +23272,27 @@
                 "takes_value": true
               },
               {
-                "choices": null,
-                "dest": "do_not_close_bead",
+                "choices": [
+                  "close",
+                  "keep"
+                ],
+                "dest": "bead_action",
                 "hidden": false,
                 "kind": null,
                 "repeatable": false,
                 "strings": [
                   "-B",
+                  "--bead-action"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "removed_do_not_close_bead",
+                "hidden": true,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
                   "--do-not-close-bead"
                 ],
                 "takes_value": false

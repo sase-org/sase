@@ -129,6 +129,11 @@ def manifest_template(context: FinalizerContextWire) -> dict[str, Any]:
                         "repo_id": repo_id,
                         "action": "commit",
                         "message": "feat(scope): describe the completed work",
+                        **(
+                            {"bead_action": None}
+                            if _context_assigned_bead(context) is not None
+                            else {}
+                        ),
                     }
                     for repo_id in repo_ids
                 ],
@@ -478,8 +483,6 @@ def _validate_commit_decision(
     bead_decision.setdefault("commit_method", "create_commit")
     try:
         validate_finalizer_bead_decision(context, bead_decision)
-    except AttributeError:
-        return
     except ValueError as exc:
         raise FinalizerDeclarationError(
             str(exc),

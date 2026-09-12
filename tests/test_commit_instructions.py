@@ -64,31 +64,31 @@ def test_commit_instruction_describes_stage_everything_default() -> None:
     assert "Do not preemptively stash, pull, fast-forward, or hand-sync" in message
 
 
-def test_commit_instruction_includes_bead_close_when_bead_id_is_set() -> None:
-    """SASE_BEAD_ID should close the bead before invoking the commit skill."""
+def test_commit_instruction_requires_bead_action_when_bead_id_is_set() -> None:
+    """SASE_BEAD_ID should require an explicit commit-coupled bead action."""
     message = build_commit_instruction_message(
         "/sase_git_commit", "create_commit", "  sase-2d.4  "
     )
     assert "If you DID make these changes" in message
-    assert message.index("sase bead close sase-2d.4") < message.index(
+    assert message.index("Pass `-B keep`") < message.index(
         "using your /sase_git_commit skill"
     )
     assert "using your /sase_git_commit skill" in message
-    assert "sase bead close sase-2d.4" in message
-    assert '--note "<what you verified>"' in message
-    assert "before invoking the commit skill" in message
+    assert "bead `sase-2d.4` open" in message
+    assert "pass `-B close` only when" in message
+    assert "complete the entire assigned bead scope" in message
+    assert "verified that scope" in message
+    assert "sase bead close" not in message
 
 
-def test_commit_instruction_points_bead_verification_at_published_state() -> None:
-    """The close command, not a local re-read, is the close verification."""
+def test_commit_instruction_points_bead_close_at_commit_workflow() -> None:
+    """The commit workflow owns the close publication check."""
     message = build_commit_instruction_message(
         "/sase_git_commit", "create_commit", "sase-2d.4"
     )
-    assert "That command is itself the verification" in message
-    assert "was committed locally but NOT published" in message
-    assert "Do NOT confirm the close by re-reading bead `sase-2d.4`" in message
-    assert "reads the same local store the close just wrote" in message
-    assert "remediation command in that diagnostic" in message
+    assert "`-B close` closes the bead after the commit/PR lands" in message
+    assert "exits non-zero if that close cannot be published" in message
+    assert "fix that failure instead of reporting the bead closed" in message
 
 
 def test_commit_instruction_gates_bead_close_on_agent_ownership() -> None:
@@ -97,7 +97,7 @@ def test_commit_instruction_gates_bead_close_on_agent_ownership() -> None:
         "/sase_git_commit", "create_commit", "sase-2d.4"
     )
     ownership_gate = "If you DID make these changes"
-    bead_close = "sase bead close sase-2d.4"
+    bead_action = "Pass `-B keep`"
     assert (
         "First decide whether the listed uncommitted changes were made by you"
         in message
@@ -106,7 +106,17 @@ def test_commit_instruction_gates_bead_close_on_agent_ownership() -> None:
         "If you did NOT make these changes, ignore this warning for the session"
         in message
     )
-    assert message.index(ownership_gate) < message.index(bead_close)
+    assert message.index(ownership_gate) < message.index(bead_action)
+
+
+def test_commit_instruction_proposal_requires_keep_for_assigned_bead() -> None:
+    """Proposal commits cannot close the assigned bead."""
+    message = build_commit_instruction_message(
+        "/sase_git_commit", "create_proposal", "sase-2d.4"
+    )
+    assert "Because the method is `create_proposal`" in message
+    assert "proposals cannot close bead `sase-2d.4`; pass `-B keep`" in message
+    assert "`-B close` closes the bead" not in message
 
 
 def test_commit_instruction_omits_bead_close_when_bead_id_is_unset() -> None:

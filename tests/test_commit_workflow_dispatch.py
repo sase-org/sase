@@ -57,10 +57,14 @@ class TestCommitWorkflowDispatch:
         mock_provider.create_commit.side_effect = lambda *_args: (
             events.append("dispatch") or (True, "abc123")
         )
-        payload = {"message": "fix: bug", "bead_id": "B-123"}
+        payload = {"message": "fix: bug", "bead_id": "B-123", "bead_action": "close"}
         wf = CommitWorkflow(payload, "create_commit")
 
         with (
+            patch(
+                "sase.workflows.commit.workflow.validate_bead_action_before_commit",
+                return_value=True,
+            ),
             patch(
                 "sase.workflows.commit.workflow.write_result_marker",
                 side_effect=lambda *_args, **_kwargs: events.append("marker"),
@@ -98,7 +102,10 @@ class TestCommitWorkflowDispatch:
         ]
         close_bead.assert_called_once()
         assert close_bead.call_args.args[0] is payload
-        assert close_bead.call_args.kwargs == {"method": "create_commit"}
+        assert close_bead.call_args.kwargs == {
+            "method": "create_commit",
+            "strict": True,
+        }
         assert "close_bead" in snapshots[-1]
 
     @patch(_PROJECT_NAME_TARGET, return_value=None)
@@ -114,10 +121,15 @@ class TestCommitWorkflowDispatch:
             "name": "feat-branch",
             "message": "feat: add feature",
             "bead_id": "B-123",
+            "bead_action": "close",
         }
         wf = CommitWorkflow(payload, "create_pull_request")
 
         with (
+            patch(
+                "sase.workflows.commit.workflow.validate_bead_action_before_commit",
+                return_value=True,
+            ),
             patch(
                 "sase.workflows.commit.workflow.create_patch",
                 return_value="proj_feat_1",
@@ -132,14 +144,21 @@ class TestCommitWorkflowDispatch:
 
         close_bead.assert_called_once()
         assert close_bead.call_args.args[0] is payload
-        assert close_bead.call_args.kwargs == {"method": "create_pull_request"}
+        assert close_bead.call_args.kwargs == {
+            "method": "create_pull_request",
+            "strict": True,
+        }
 
     @patch(_PROVIDER_TARGET)
     def test_create_commit_dispatch_message_contains_bead_tag(
         self, mock_get: MagicMock, mock_provider: MagicMock
     ) -> None:
         mock_get.return_value = mock_provider
-        payload = {"message": "fix: bug", "bead_id": "sase-1.2"}
+        payload = {
+            "message": "fix: bug",
+            "bead_id": "sase-1.2",
+            "bead_action": "keep",
+        }
         wf = CommitWorkflow(payload, "create_commit")
 
         assert wf.run() == RunResult.OK
@@ -153,7 +172,11 @@ class TestCommitWorkflowDispatch:
         self, mock_get: MagicMock, mock_provider: MagicMock
     ) -> None:
         mock_get.return_value = mock_provider
-        payload = {"message": "fix: bug for sase-1.2", "bead_id": "sase-1.2"}
+        payload = {
+            "message": "fix: bug for sase-1.2",
+            "bead_id": "sase-1.2",
+            "bead_action": "keep",
+        }
         wf = CommitWorkflow(payload, "create_commit")
 
         assert wf.run() == RunResult.OK
@@ -205,6 +228,7 @@ class TestCommitWorkflowDispatch:
             "name": "feat-branch",
             "message": "feat: add feature",
             "bead_id": "sase-1.2",
+            "bead_action": "keep",
         }
         wf = CommitWorkflow(payload, "create_pull_request")
 
@@ -256,7 +280,8 @@ class TestCommitWorkflowDispatch:
         mock_provider.get_conflicted_files.return_value = ["a.py"]
         mock_get.return_value = mock_provider
         wf = CommitWorkflow(
-            {"message": "fix: bug", "bead_id": "B-123"}, "create_commit"
+            {"message": "fix: bug", "bead_id": "B-123", "bead_action": "keep"},
+            "create_commit",
         )
 
         with patch(
@@ -307,7 +332,11 @@ class TestProposalSkipsBeadsAndPlan:
         self, mock_get: MagicMock, mock_provider: MagicMock
     ) -> None:
         mock_get.return_value = mock_provider
-        payload = {"message": "chore: propose change", "bead_id": "b123"}
+        payload = {
+            "message": "chore: propose change",
+            "bead_id": "b123",
+            "bead_action": "keep",
+        }
         wf = CommitWorkflow(payload, "create_proposal")
 
         with (
@@ -333,7 +362,11 @@ class TestProposalSkipsBeadsAndPlan:
     ) -> None:
         mock_get.return_value = mock_provider
         mock_provider.create_proposal.return_value = (True, "proposal.diff")
-        payload = {"message": "chore: propose change", "bead_id": "b123"}
+        payload = {
+            "message": "chore: propose change",
+            "bead_id": "b123",
+            "bead_action": "keep",
+        }
         wf = CommitWorkflow(payload, "create_proposal")
 
         with (

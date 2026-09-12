@@ -40,7 +40,7 @@ class TestResumeFlag:
             handle_stitch_command(args)
 
         assert exc_info.value.code == 0
-        mock_resume.assert_called_once_with()
+        mock_resume.assert_called_once_with(bead_action=None)
 
     def test_resume_flag_maps_conflict_to_exit_2(self) -> None:
         args = _parse_stitch_create_args(["--resume"])

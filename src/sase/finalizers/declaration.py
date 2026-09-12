@@ -32,7 +32,9 @@ from sase.core.finalizer_facade import (
 )
 from sase.core.finalizer_wire import (
     FINALIZER_WIRE_SCHEMA_VERSION,
+    FinalizerAssignedBeadWire,
     FinalizerContextWire,
+    FinalizerObligationWire,
     FinalizerPlanWire,
     finalizer_wire_to_json_dict,
 )
@@ -380,6 +382,7 @@ def _build_live_context(
     dirty_state = _collect_dirty_state(root)
     requirements, obligations = _build_context_requirements(plan, dirty_state)
     host_records = _host_repository_records(dirty_state)
+    assigned_bead = _assigned_bead_context(dirty_state, obligations)
 
     context = FinalizerContextWire(
         schema_version=FINALIZER_WIRE_SCHEMA_VERSION,
@@ -389,6 +392,7 @@ def _build_live_context(
         plan_digest=plan.plan_digest,
         requirements=requirements,
         obligations=obligations,
+        assigned_bead=assigned_bead,
     )
     context_digest = validate_finalizer_context(plan, context)
     context = replace(context, context_digest=context_digest)
@@ -401,6 +405,36 @@ def _build_live_context(
         ),
         context=context,
         host_records=host_records,
+    )
+
+
+def _assigned_bead_context(
+    dirty_state: DirtyState,
+    obligations: list[FinalizerObligationWire],
+) -> FinalizerAssignedBeadWire | None:
+    bead_id = (os.environ.get("SASE_BEAD_ID") or "").strip()
+    if not bead_id:
+        return None
+
+    primary_repo_id: str | None = None
+    obligation_by_repo = {
+        repository_obligation_id(repo): obligation
+        for repo in dirty_state.repos
+        for obligation in obligations
+        if obligation.kind == "repository"
+        and obligation.obligation_id == repository_obligation_id(repo)
+    }
+    for repo in dirty_state.repos:
+        if repo.kind != "main":
+            continue
+        obligation = obligation_by_repo.get(repository_obligation_id(repo))
+        if obligation is not None:
+            primary_repo_id = obligation.obligation_id
+            break
+
+    return FinalizerAssignedBeadWire(
+        bead_id=bead_id,
+        primary_repo_obligation_id=primary_repo_id,
     )
 
 

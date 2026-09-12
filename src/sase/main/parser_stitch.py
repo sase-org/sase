@@ -22,6 +22,10 @@ _REMOVED_FILE_FLAG_MESSAGE = (
     "the repository, including untracked files. Use `-x/--exclude PATH` (repeatable)\n"
     "to leave a path out of the commit."
 )
+_REMOVED_BEAD_FLAG_MESSAGE = (
+    "error: `--do-not-close-bead` was removed. Use `-B keep` for an "
+    "intermediate commit or `-B close` when the assigned bead is complete."
+)
 
 
 class _RemovedFileFlagAction(argparse.Action):
@@ -51,6 +55,45 @@ class _RemovedFileFlagAction(argparse.Action):
         del parser, namespace, values, option_string
         print(_REMOVED_FILE_FLAG_MESSAGE, file=sys.stderr)
         sys.exit(1)
+
+
+class _RemovedDoNotCloseBeadAction(argparse.Action):
+    """Reject the old negatively worded bead opt-out flag."""
+
+    def __init__(
+        self,
+        option_strings: Sequence[str],
+        dest: str,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(option_strings, dest, nargs=0, **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Any,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, namespace, values, option_string
+        print(_REMOVED_BEAD_FLAG_MESSAGE, file=sys.stderr)
+        sys.exit(2)
+
+
+class _BeadActionOption(argparse.Action):
+    """Store one explicit bead action and reject repeated choices."""
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: Any,
+        option_string: str | None = None,
+    ) -> None:
+        del option_string
+        if getattr(namespace, self.dest, None) is not None:
+            parser.error("-B/--bead-action may be provided only once")
+        setattr(namespace, self.dest, values)
 
 
 def _add_stitch_create_options(parser: argparse.ArgumentParser) -> None:
@@ -102,10 +145,21 @@ def _add_stitch_create_options(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "-B",
+        "--bead-action",
+        action=_BeadActionOption,
+        choices=["close", "keep"],
+        dest="bead_action",
+        metavar="{close,keep}",
+        help=(
+            "Explicit assigned-bead decision from agent context: 'keep' for "
+            "intermediate work, 'close' after completing and verifying the bead"
+        ),
+    )
+    parser.add_argument(
         "--do-not-close-bead",
-        action="store_true",
-        dest="do_not_close_bead",
-        help="Do not auto-close the assigned in-progress task bead after commit",
+        action=_RemovedDoNotCloseBeadAction,
+        dest="removed_do_not_close_bead",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "-c",

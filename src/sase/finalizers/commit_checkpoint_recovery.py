@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import inspect
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
@@ -22,6 +23,7 @@ from sase.finalizers.commit_repair import (
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
     ResumeRunner,
+    StitchCommandResult,
     failed_result,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
@@ -133,7 +135,12 @@ def resume_owned_pending_checkpoint(
             for item in diagnostics
         ],
     ]
-    resumed = resume_runner(matching, context)
+    resumed = _call_resume_runner(
+        resume_runner,
+        matching,
+        context,
+        bead_action=_decision_bead_action(decision_payload),
+    )
     record_stitch_artifacts(
         context,
         instance_id,
@@ -249,6 +256,40 @@ def _load_checkpoint(
     return (None, True, False)
 
 
+def _decision_bead_action(decision: Mapping[str, Any]) -> str | None:
+    value = decision.get("bead_action")
+    return value if value in {"close", "keep"} else None
+
+
+def _call_resume_runner(
+    resume_runner: ResumeRunner,
+    repo: DirtyRepo,
+    context: FinalizerExecutionContext,
+    *,
+    bead_action: str | None,
+) -> StitchCommandResult:
+    if _callable_accepts_keyword(resume_runner, "bead_action"):
+        runner = cast(Callable[..., StitchCommandResult], resume_runner)
+        return runner(repo, context, bead_action=bead_action)
+    return resume_runner(repo, context)
+
+
+def _callable_accepts_keyword(fn: Callable[..., Any], name: str) -> bool:
+    try:
+        signature = inspect.signature(fn)
+    except (TypeError, ValueError):
+        return False
+    for param in signature.parameters.values():
+        if param.kind is inspect.Parameter.VAR_KEYWORD:
+            return True
+        if param.name == name and param.kind in {
+            inspect.Parameter.KEYWORD_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        }:
+            return True
+    return False
+
+
 def _matching_repo(
     checkpoint: Any,
     accepted_repos: Sequence[DirtyRepo],
@@ -289,7 +330,7 @@ def _recovery_request(
     accepted_action = decision.get("action")
     subject_matches = bool(expected_subject) and expected_subject == accepted_subject
     steps = list(checkpoint.completed_steps or [])
-    pending_tracking = _pending_tracking(method, steps)
+    pending_tracking = _pending_tracking(method, steps, payload)
     return {
         "checkpoint_present": True,
         "malformed": malformed,
@@ -318,11 +359,24 @@ def _recovery_request(
     }
 
 
-def _pending_tracking(method: str, steps: Sequence[str]) -> bool:
+def _pending_tracking(
+    method: str,
+    steps: Sequence[str],
+    payload: Mapping[str, Any],
+) -> bool:
+    close_pending = (
+        method in {"create_commit", "create_pull_request"}
+        and payload.get("bead_action") == "close"
+        and "close_bead" not in steps
+    )
     if method in {"create_commit", "create_proposal"}:
-        return "write_result_marker" not in steps or "append_commits_entry" not in steps
+        return (
+            "write_result_marker" not in steps
+            or "append_commits_entry" not in steps
+            or close_pending
+        )
     if method == "create_pull_request":
-        return "create_patch" not in steps
+        return "create_patch" not in steps or close_pending
     return False
 
 

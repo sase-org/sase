@@ -549,6 +549,7 @@ class TestInheritParentPrTags:
             "name": "feat-x",
             "message": "feat: child PR",
             "bead_id": "sase-ai.2",
+            "bead_action": "keep",
         }
 
         with patch(

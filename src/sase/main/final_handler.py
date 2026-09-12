@@ -106,6 +106,8 @@ def _handle_defer(args: argparse.Namespace) -> int:
         return 1
     display = obligation.display_name or obligation.obligation_id
     repositories[0]["message"] = f"chore: defer {display} pending review"
+    if "bead_action" in repositories[0]:
+        repositories[0]["bead_action"] = "keep"
     payload["deferrals"].append(
         {
             "repo_id": args.repo_id,

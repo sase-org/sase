@@ -29,9 +29,11 @@ from sase.workflows.commit.commit_tracking import (
     write_result_marker,
 )
 from sase.workflows.commit.bead_hooks import (
+    BeadActionPolicyError,
     apply_bead_commit_tag,
     close_assigned_bead_after_commit,
     handle_beads,
+    validate_bead_action_before_commit,
 )
 from sase.workflows.commit.command_hooks import (
     run_after_commit_hook,
@@ -175,6 +177,14 @@ class CommitWorkflow(BaseWorkflow):
             return RunResult.FAILED
 
         cwd = os.getcwd()
+        if not validate_bead_action_before_commit(
+            self._payload,
+            cwd,
+            method=self._method,
+        ):
+            _log_commit_failed(self._method, "other")
+            return RunResult.FAILED
+
         provider = None
         provider_lookup_error: Exception | None = None
         try:
@@ -387,12 +397,11 @@ class CommitWorkflow(BaseWorkflow):
         if not self._run_after_hook(cp):
             return RunResult.FAILED
 
-        print_status(f"{self._method} completed successfully!", "success")
-
         tracking_result = self._run_tracking_steps(cp, result)
         if tracking_result != RunResult.OK:
             return tracking_result
 
+        print_status(f"{self._method} completed successfully!", "success")
         checkpoint_delete()
         return RunResult.OK
 
@@ -616,14 +625,21 @@ class CommitWorkflow(BaseWorkflow):
         if (
             self._method in ("create_commit", "create_pull_request")
             and "close_bead" not in cp.completed_steps
-            and close_assigned_bead_after_commit(
-                cp.payload,
-                cp.cwd,
-                method=self._method,
-            )
         ):
-            cp.completed_steps.append("close_bead")
-            checkpoint_save(cp)
+            try:
+                close_completed = close_assigned_bead_after_commit(
+                    cp.payload,
+                    cp.cwd,
+                    method=self._method,
+                    strict=True,
+                )
+            except BeadActionPolicyError as exc:
+                _log_commit_failed(self._method, "other")
+                print_status(str(exc), "error")
+                return RunResult.FAILED
+            if close_completed:
+                cp.completed_steps.append("close_bead")
+                checkpoint_save(cp)
 
         return RunResult.OK
 
@@ -638,10 +654,11 @@ class CommitWorkflow(BaseWorkflow):
         return RunResult.OK if published else RunResult.FAILED
 
     @classmethod
-    def resume(cls) -> RunResult:
+    def resume(cls, *, bead_action: str | None = None) -> RunResult:
         """Resume a checkpointed commit workflow after manual conflict resolution."""
         return resume_commit_workflow(
             cls,
+            bead_action=bead_action,
             checkpoint_load=checkpoint_load,
             checkpoint_save=checkpoint_save,
             checkpoint_delete=checkpoint_delete,

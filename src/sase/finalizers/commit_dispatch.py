@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+import inspect
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
@@ -220,7 +221,13 @@ def dispatch_commit_decisions(
             continue
 
         message = str(decision.get("message", "")).strip()
-        attempt_fields = stitch_attempt_input_fields(repo, message, protected)
+        bead_action = _decision_bead_action(decision)
+        attempt_fields = stitch_attempt_input_fields(
+            repo,
+            message,
+            protected,
+            bead_action=bead_action,
+        )
         attempt_fingerprint = stitch_attempt_fingerprint(attempt_fields)
         prior_attempt = load_latest_stitch_attempt(context, instance_id, repo.name)
         if (
@@ -266,7 +273,14 @@ def dispatch_commit_decisions(
         consumed_attempt = attempt_id
 
         before_markers = load_commit_results(artifacts)
-        stitch = stitch_runner(repo, message, protected, context)
+        stitch = _call_stitch_runner(
+            stitch_runner,
+            repo,
+            message,
+            protected,
+            context,
+            bead_action=bead_action,
+        )
         record_stitch_artifacts(
             context,
             instance_id,
@@ -310,6 +324,7 @@ def dispatch_commit_decisions(
                     evidence=evidence,
                     before_markers=before_markers,
                     attempt_id=consumed_attempt,
+                    bead_action=bead_action,
                 )
                 current_result = repair_result.invoke_result
                 repaired_conflict = True
@@ -381,6 +396,7 @@ def dispatch_commit_decisions(
                 project_dir=project_dir,
                 current_result=current_result,
                 declaration_loader=load_accepted_commit_declaration,
+                bead_action=bead_action,
             )
             remaining = follow_up.remaining
             if not remaining:
@@ -433,6 +449,48 @@ def dispatch_commit_decisions(
         deferred=tuple(deferred),
         diagnostics=tuple(diagnostics),
     )
+
+
+def _decision_bead_action(decision: Mapping[str, Any]) -> str | None:
+    value = decision.get("bead_action")
+    return value if value in {"close", "keep"} else None
+
+
+def _call_stitch_runner(
+    stitch_runner: StitchRunner,
+    repo: DirtyRepo,
+    message: str,
+    protected: Sequence[str],
+    context: FinalizerExecutionContext,
+    *,
+    bead_action: str | None,
+) -> StitchCommandResult:
+    if _callable_accepts_keyword(stitch_runner, "bead_action"):
+        runner = cast(Callable[..., StitchCommandResult], stitch_runner)
+        return runner(
+            repo,
+            message,
+            protected,
+            context,
+            bead_action=bead_action,
+        )
+    return stitch_runner(repo, message, protected, context)
+
+
+def _callable_accepts_keyword(fn: Callable[..., Any], name: str) -> bool:
+    try:
+        signature = inspect.signature(fn)
+    except (TypeError, ValueError):
+        return False
+    for param in signature.parameters.values():
+        if param.kind is inspect.Parameter.VAR_KEYWORD:
+            return True
+        if param.name == name and param.kind in {
+            inspect.Parameter.KEYWORD_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        }:
+            return True
+    return False
 
 
 __all__ = [

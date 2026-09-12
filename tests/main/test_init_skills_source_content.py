@@ -158,10 +158,15 @@ def test_git_commit_skill_invokes_observable_wrapper() -> None:
     assert "sase_git_commit --resume" in body
     assert "git-ignored" in body
     assert "delegates to `sase stitch create`" in body
-    assert "Do not auto-close your assigned in-progress bead" in body
-    assert "auto-closes the assigned `in_progress` bead in this repo" in body
+    assert "-B {keep,close}` / `--bead-action {keep,close}" in body
+    assert "Required when `$SASE_BEAD_ID`" in body
+    assert "is set. `keep` leaves the assigned bead unchanged" in body
+    assert "proposals must use `-B keep`" in body
     assert "phase and plan beads are never auto-closed" not in flat
-    assert "failed lifecycle validation must be resolved explicitly" in flat
+    assert (
+        "failed lifecycle validation or close publication must be resolved explicitly"
+        in flat
+    )
     assert "explicit host instruction naming `/sase_git_commit`" in flat
     assert "the provider-neutral `/sase_final` flow is not such an instruction" in flat
     assert "A `commit` action in a `/sase_final` manifest is declarative" in flat

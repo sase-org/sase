@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+import inspect
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
@@ -67,6 +68,7 @@ def attempt_post_repair_follow_up(
     project_dir: str,
     current_result: InvokeResult,
     declaration_loader: _DeclarationLoader | None = None,
+    bead_action: str | None = None,
 ) -> PostRepairFollowUpResult:
     message, failure_reason = post_repair_declared_message(
         repo,
@@ -85,9 +87,21 @@ def attempt_post_repair_follow_up(
         Path(context.artifacts_dir) if context.artifacts_dir is not None else None
     )
     before_markers = load_commit_results(artifacts)
-    attempt_fields = stitch_attempt_input_fields(repo, message, protected)
+    attempt_fields = stitch_attempt_input_fields(
+        repo,
+        message,
+        protected,
+        bead_action=bead_action,
+    )
     attempt_fingerprint = stitch_attempt_fingerprint(attempt_fields)
-    stitch = stitch_runner(repo, message, protected, context)
+    stitch = _call_stitch_runner(
+        stitch_runner,
+        repo,
+        message,
+        protected,
+        context,
+        bead_action=bead_action,
+    )
     follow_up_label = f"{repo.name}.post-repair"
     record_stitch_artifacts(
         context,
@@ -184,6 +198,43 @@ def attempt_post_repair_follow_up(
             failure_reason=_FOLLOW_UP_STILL_DIRTY,
         )
     return PostRepairFollowUpResult(remaining=[])
+
+
+def _call_stitch_runner(
+    stitch_runner: StitchRunner,
+    repo: DirtyRepo,
+    message: str,
+    protected: Sequence[str],
+    context: FinalizerExecutionContext,
+    *,
+    bead_action: str | None,
+) -> StitchCommandResult:
+    if _callable_accepts_keyword(stitch_runner, "bead_action"):
+        runner = cast(Callable[..., StitchCommandResult], stitch_runner)
+        return runner(
+            repo,
+            message,
+            protected,
+            context,
+            bead_action=bead_action,
+        )
+    return stitch_runner(repo, message, protected, context)
+
+
+def _callable_accepts_keyword(fn: Callable[..., Any], name: str) -> bool:
+    try:
+        signature = inspect.signature(fn)
+    except (TypeError, ValueError):
+        return False
+    for param in signature.parameters.values():
+        if param.kind is inspect.Parameter.VAR_KEYWORD:
+            return True
+        if param.name == name and param.kind in {
+            inspect.Parameter.KEYWORD_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        }:
+            return True
+    return False
 
 
 def post_repair_declared_message(

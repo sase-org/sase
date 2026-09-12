@@ -195,28 +195,41 @@ class TestStitchCreateCLI:
         msg_file = _write_msg(tmp_path, "msg")
         payload, _ = _run_handler(["-M", msg_file])
         assert "bug_id" not in payload
-        assert "do_not_close_bead" not in payload
+        assert "bead_action" not in payload
 
-    def test_do_not_close_bead_flag(self, tmp_path: Path) -> None:
+    @pytest.mark.parametrize("action", ["keep", "close"])
+    def test_bead_action_flag(self, tmp_path: Path, action: str) -> None:
         msg_file = _write_msg(tmp_path, "msg")
-        payload, _ = _run_handler(["-M", msg_file, "-B"])
-        assert payload["do_not_close_bead"] is True
+        payload, _ = _run_handler(["-M", msg_file, "-B", action])
+        assert payload["bead_action"] == action
 
-    def test_do_not_close_bead_long_flag(self, tmp_path: Path) -> None:
+    def test_bead_action_long_flag(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
-        payload, _ = _run_handler(["-M", msg_file, "--do-not-close-bead"])
-        assert payload["do_not_close_bead"] is True
+        payload, _ = _run_handler(["-M", msg_file, "--bead-action", "keep"])
+        assert payload["bead_action"] == "keep"
 
-    def test_do_not_close_bead_help_mentions_assigned_in_progress_bead(
+    def test_removed_do_not_close_bead_flag_exits_2(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        with pytest.raises(SystemExit) as exc_info:
+            _parse_stitch_create_args(["-M", msg_file, "--do-not-close-bead"])
+        assert exc_info.value.code == 2
+
+    def test_bead_action_help_mentions_explicit_assigned_bead_decision(
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         with pytest.raises(SystemExit) as exc_info:
             _parse_stitch_create_args(["-h"])
 
         assert exc_info.value.code == 0
-        assert "assigned in-progress task bead" in capsys.readouterr().out
+        assert "Explicit assigned-bead decision" in capsys.readouterr().out
 
-    def test_stale_uppercase_bug_id_flag_is_rejected(self, tmp_path: Path) -> None:
+    def test_bare_bead_action_flag_is_rejected(self, tmp_path: Path) -> None:
+        msg_file = _write_msg(tmp_path, "msg")
+        with pytest.raises(SystemExit) as exc_info:
+            _parse_stitch_create_args(["-M", msg_file, "-B"])
+        assert exc_info.value.code == 2
+
+    def test_invalid_bead_action_is_rejected(self, tmp_path: Path) -> None:
         msg_file = _write_msg(tmp_path, "msg")
         with pytest.raises(SystemExit) as exc_info:
             _parse_stitch_create_args(["-M", msg_file, "-B", "12345"])

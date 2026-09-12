@@ -115,25 +115,26 @@ def build_commit_instruction_message(
     ]
     if resolved_bead_id:
         parts.append(
-            f"If you DID make these changes, run `sase bead close {resolved_bead_id} "
-            f'--note "<what you verified>"` before invoking the commit skill.'
+            "If you DID make these changes, choose the explicit assigned-bead "
+            "commit action before invoking the commit skill."
         )
-        parts.append(
-            "That command is itself the verification: it publishes the close and "
-            "exits non-zero with an `ERROR: ... was committed locally but NOT "
-            "published` diagnostic when the close reached only this checkout."
-        )
-        parts.append(
-            f"Do NOT confirm the close by re-reading bead `{resolved_bead_id}`; "
-            "`sase bead show` reads the same local store the close just wrote, so "
-            "it cannot tell a published close from one that dies with this "
-            "workspace."
-        )
-        parts.append(
-            "If the close does report an unpublished state, run the remediation "
-            "command in that diagnostic and get it published instead of reporting "
-            "the bead closed."
-        )
+        if method == "create_proposal":
+            parts.append(
+                f"Because the method is `{method}`, proposals cannot close bead "
+                f"`{resolved_bead_id}`; pass `-B keep`."
+            )
+        else:
+            parts.append(
+                f"Pass `-B keep` for an intermediate commit that leaves bead "
+                f"`{resolved_bead_id}` open, or pass `-B close` only when these "
+                "changes complete the entire assigned bead scope and you have "
+                "verified that scope."
+            )
+            parts.append(
+                "`-B close` closes the bead after the commit/PR lands and exits "
+                "non-zero if that close cannot be published; fix that failure "
+                "instead of reporting the bead closed."
+            )
         parts.append(
             f"Then commit the changes using your {skill} skill before continuing."
         )

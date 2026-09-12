@@ -303,7 +303,7 @@ class TestStitchCreateParser:
         assert ns.only_files == []
         assert ns.name is None
         assert ns.bug_id == 0
-        assert ns.do_not_close_bead is False
+        assert ns.bead_action is None
         assert ns.checkout_target == "HEAD~1"
         assert ns.parent is None
         assert ns.status is None

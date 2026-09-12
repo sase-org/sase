@@ -67,7 +67,7 @@ def handle_stitch_create_command(args: argparse.Namespace) -> NoReturn:
     if args.resume:
         from sase.workflows.commit.workflow import EXIT_CODE_CONFLICT, RunResult
 
-        result = CommitWorkflow.resume()
+        result = CommitWorkflow.resume(bead_action=args.bead_action)
         if result == RunResult.OK:
             try:
                 from sase.logs.run_log import log_event
@@ -141,8 +141,8 @@ def handle_stitch_create_command(args: argparse.Namespace) -> NoReturn:
         payload["bead_id"] = bead_id
     if args.bug_id:
         payload["bug_id"] = str(args.bug_id)
-    if args.do_not_close_bead:
-        payload["do_not_close_bead"] = True
+    if args.bead_action:
+        payload["bead_action"] = args.bead_action
     if args.checkout_target != "HEAD~1":
         payload["checkout_target"] = args.checkout_target
     if args.parent:
