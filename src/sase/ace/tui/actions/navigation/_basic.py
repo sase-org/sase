@@ -70,6 +70,17 @@ class BasicNavigationMixin(NavigationMixinBase):
 
     # --- Navigation Actions ---
 
+    def _release_agent_metadata_bottom_pin(self) -> None:
+        """Release metadata bottom-follow state if the prompt panel is mounted."""
+        from ...widgets.prompt_panel import AgentPromptPanel
+
+        try:
+            scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)  # type: ignore[attr-defined]
+            panel = scroll.query_one("#agent-prompt-panel", AgentPromptPanel)
+        except Exception:
+            return
+        panel.release_bottom_pin()
+
     def _navigate_agents_panel(self, direction: int) -> None:
         """Navigate within the agents panel.
 
@@ -246,6 +257,8 @@ class BasicNavigationMixin(NavigationMixinBase):
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
+            if scroll_id == "#agent-prompt-scroll":
+                self._release_agent_metadata_bottom_pin()
 
         else:  # axe
             self._axe_pinned_to_bottom = False
@@ -263,6 +276,8 @@ class BasicNavigationMixin(NavigationMixinBase):
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
+            if scroll_id == "#agent-prompt-scroll":
+                self._release_agent_metadata_bottom_pin()
         else:  # axe
             self._axe_pinned_to_bottom = False
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
@@ -276,6 +291,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             return
         if self.current_tab == "agents":
             scroll_container = self.query_one("#agent-prompt-scroll", VerticalScroll)  # type: ignore[attr-defined]
+            self._release_agent_metadata_bottom_pin()
             height = scroll_container.scrollable_content_region.height
             scroll_container.scroll_relative(y=height // 2, animate=False)
         elif self.current_tab == "axe":
@@ -291,6 +307,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             return
         if self.current_tab == "agents":
             scroll_container = self.query_one("#agent-prompt-scroll", VerticalScroll)  # type: ignore[attr-defined]
+            self._release_agent_metadata_bottom_pin()
             height = scroll_container.scrollable_content_region.height
             scroll_container.scroll_relative(y=-(height // 2), animate=False)
         elif self.current_tab == "axe":
@@ -330,6 +347,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         except Exception:
             return
 
+        panel.release_bottom_pin()
         if panel.enable_section_layout_reserve():
             panel.queue_section_retry(direction)
             if not getattr(self, "_agent_metadata_section_retry_scheduled", False):
@@ -411,6 +429,8 @@ class BasicNavigationMixin(NavigationMixinBase):
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
+            if scroll_id == "#agent-prompt-scroll":
+                self._release_agent_metadata_bottom_pin()
             scroll_container.scroll_home(animate=False)
         elif self.current_tab == "artifacts":
             scroll_container = self.query_one("#detail-scroll", VerticalScroll)  # type: ignore[attr-defined]
@@ -440,11 +460,7 @@ class BasicNavigationMixin(NavigationMixinBase):
                 panel = scroll_container.query_one(
                     "#agent-prompt-panel", AgentPromptPanel
                 )
-                target = max(
-                    0,
-                    int(scroll_container.max_scroll_y) - panel.section_layout_reserve,
-                )
-                scroll_container.scroll_to(y=target, animate=False, immediate=True)
+                panel.pin_to_bottom()
             else:
                 scroll_container.scroll_end(animate=False)
         elif self.current_tab == "artifacts":

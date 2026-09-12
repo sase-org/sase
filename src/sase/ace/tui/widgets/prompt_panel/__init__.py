@@ -2,6 +2,8 @@
 
 from typing import Any
 
+from textual import events
+from textual.containers import ScrollableContainer
 from textual.geometry import Size
 from textual.timer import Timer
 from textual.widgets import Static
@@ -52,6 +54,9 @@ class AgentPromptPanel(
     _section_content_digest: str | None = None
     _preserve_missing_section_next_update: bool = False
     _preserve_missing_section_generation: int = -1
+    _pinned_to_bottom: bool = False
+    _bottom_pin_reapply_scheduled: bool = False
+    _bottom_pin_last_y: int = -1
 
     def prepare_section_document(self, identity: object) -> None:
         """Set the logical metadata-document identity for cursor reconciliation."""
@@ -60,6 +65,7 @@ class AgentPromptPanel(
             self._active_section_identity = None
             self._pending_section_direction = None
             self._section_layout_reserve_enabled = False
+            self.release_bottom_pin()
         self._section_document_identity = identity
 
     def prepare_section_document_for_agent(self, agent: Agent) -> None:
@@ -108,6 +114,73 @@ class AgentPromptPanel(
         self._section_anchor_width = -1
         self._section_anchors = ()
         super().update(content, layout=layout)
+        self._schedule_bottom_pin_reapply()
+
+    @property
+    def is_pinned_to_bottom(self) -> bool:
+        """Whether this metadata panel is following the real document bottom."""
+        return getattr(self, "_pinned_to_bottom", False)
+
+    def pin_to_bottom(self) -> None:
+        """Keep the metadata viewport pinned to the real document bottom."""
+        if getattr(self, "id", None) != "agent-prompt-panel":
+            return
+        scroll = self._bottom_pin_container()
+        self._pinned_to_bottom = True
+        self._bottom_pin_last_y = int(scroll.scroll_y) if scroll is not None else -1
+        self._schedule_bottom_pin_reapply()
+
+    def release_bottom_pin(self) -> None:
+        """Stop following the metadata document bottom."""
+        self._pinned_to_bottom = False
+        self._bottom_pin_last_y = -1
+
+    def bottom_scroll_target(self, scroll: ScrollableContainer) -> int:
+        """Return the real document bottom, excluding section-navigation reserve."""
+        return max(0, int(scroll.max_scroll_y) - self.section_layout_reserve)
+
+    def _bottom_pin_container(self) -> ScrollableContainer | None:
+        parent = self.parent
+        return parent if isinstance(parent, ScrollableContainer) else None
+
+    def _schedule_bottom_pin_reapply(self) -> None:
+        if not self.is_pinned_to_bottom or getattr(
+            self, "_bottom_pin_reapply_scheduled", False
+        ):
+            return
+        self._bottom_pin_reapply_scheduled = True
+        try:
+            self.call_after_refresh(self._reapply_bottom_pin)
+        except Exception:
+            self._bottom_pin_reapply_scheduled = False
+
+    def _reapply_bottom_pin(self) -> None:
+        self._bottom_pin_reapply_scheduled = False
+        if not self.is_pinned_to_bottom:
+            return
+        scroll = self._bottom_pin_container()
+        if scroll is None:
+            return
+
+        last_y = getattr(self, "_bottom_pin_last_y", -1)
+        if (
+            last_y >= 0
+            and int(scroll.scroll_y) != last_y
+            and int(scroll.max_scroll_y) >= last_y
+        ):
+            self.release_bottom_pin()
+            return
+
+        target = self.bottom_scroll_target(scroll)
+        scroll.scroll_to(y=target, animate=False, immediate=True)
+        self._bottom_pin_last_y = target
+
+    def on_resize(self, event: events.Resize) -> None:
+        """Re-apply the bottom pin when layout geometry changes."""
+        handler = getattr(super(), "on_resize", None)
+        if callable(handler):
+            handler(event)
+        self._schedule_bottom_pin_reapply()
 
     def render(self) -> SectionTrackingVisual:
         """Render original content through the lightweight section tracker."""

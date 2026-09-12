@@ -4,43 +4,14 @@ from __future__ import annotations
 
 from rich.console import Group
 from rich.text import Text
-from textual.app import App, ComposeResult
-from textual.binding import Binding
 from textual.containers import VerticalScroll
 
 from sase.ace.testing.wait import wait_for
-from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
-from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
-from tests.ace.tui.widgets._prompt_panel_section_navigation_helpers import section
-
-
-class _MetadataNavigationApp(BasicNavigationMixin, App[None]):
-    current_tab = "agents"
-    BINDINGS = [
-        Binding("ctrl+j", "next_agent_metadata_section", "Next section"),
-        Binding("ctrl+k", "prev_agent_metadata_section", "Previous section"),
-        Binding("G", "scroll_to_bottom", "Bottom"),
-    ]
-    CSS = """
-    Screen, #agent-detail-panel, #agent-detail-layout {
-        height: 100%;
-    }
-    #agent-prompt-scroll {
-        height: 100%;
-        padding: 1 2;
-        overflow-y: auto;
-    }
-    #agent-file-scroll, #agent-tools-scroll {
-        display: none;
-    }
-    #agent-prompt-panel {
-        height: auto;
-    }
-    """
-
-    def compose(self) -> ComposeResult:
-        yield AgentDetail(id="agent-detail-panel")
+from tests.ace.tui.widgets._prompt_panel_section_navigation_helpers import (
+    _MetadataNavigationApp,
+    section,
+)
 
 
 async def test_mounted_actions_cycle_through_top_and_align_every_title() -> None:
@@ -99,10 +70,7 @@ async def test_mounted_actions_cycle_through_top_and_align_every_title() -> None
         )
         await pilot.press("G")
         await pilot.pause()
-        assert int(scroll.scroll_y) == max(
-            0,
-            int(scroll.max_scroll_y) - panel.section_layout_reserve,
-        )
+        assert int(scroll.scroll_y) == panel.bottom_scroll_target(scroll)
 
 
 async def test_zero_sections_noop_and_reflow_preserves_active_identity() -> None:

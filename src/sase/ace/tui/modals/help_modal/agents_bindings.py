@@ -72,7 +72,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(a.scroll_to_top)} / {d(a.scroll_to_bottom)}",
-                    "Scroll file panel to top / bottom",
+                    "Scroll detail top / bottom; metadata follows",
                 ),
                 (
                     f"{d(a.scroll_detail_down)} / {d(a.scroll_detail_up)}",
