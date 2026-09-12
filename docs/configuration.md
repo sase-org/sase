@@ -2875,11 +2875,13 @@ axe:
           description: |-
             Prune stale scratch under the managed SASE temp root
 
-            Removes old children from known managed-temp buckets using workload-specific age limits, without following
+            Removes old children from managed-temp buckets using workload-specific age limits, without following
             symlinks or deleting the stable bucket directories. Launched agents default TMPDIR/TMP/TEMP and
-            CARGO_TARGET_DIR into managed buckets, and aged large build scratch can be reaped early when the managed
-            root exceeds its size target. Each pass removes at most 2,000 entries and de-indexes deleted
-            agent-artifact directories, so a neglected root converges without blocking interactive commands.
+            CARGO_TARGET_DIR into managed buckets. The reaper can also prune aged large build output early
+            when the managed root exceeds its size target or the filesystem falls below the free-space floor, while
+            preserving generic agent scratch, handoff data, unknown buckets, and build trees with fresh descendants.
+            Each pass removes at most 2,000 entries and de-indexes deleted agent-artifact directories, so a neglected
+            root converges without blocking interactive commands.
         - name: bead_stale_cleanup
           script: sase_chop_bead_stale_cleanup
           timeout: "2m"

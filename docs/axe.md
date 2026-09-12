@@ -487,15 +487,21 @@ those managed buckets, so shell scratch and Cargo targets no longer fall back to
 host-global `/tmp`.
 
 Each run removes at most 2,000 entries so a long-neglected root converges over several
-passes instead of stalling one. If the managed root grows beyond 16 GiB, aged entries of
-at least 1 GiB in build-scratch buckets, plus stray top-level residue, are removed
-largest-first until the root is estimated below 8 GiB or the removal budget is reached.
-The chop summary reports `scanned`, `removed`, `pressure_removed`,
-`pressure_reclaimed_bytes`, `deindexed`, and `capped=1` when it hit that budget. Reaped
-directories are dropped from the agent artifact index too, since a workflow launched
-without an explicit `artifacts_dir` gets one under `workflow-artifacts/`. It lives on
-`housekeeping` rather than an interactive path because the first pass over a neglected
-root walks tens of thousands of entries.
+passes instead of stalling one. The reaper also runs a pressure pass when the managed
+root grows beyond 16 GiB or the filesystem holding it falls below 32 GiB free. Under
+pressure, aged entries of at least 1 GiB in regenerable build-output buckets
+(`cargo-targets/`, plus the legacy `build-targets/`), and cargo/core target-shaped
+top-level residue, are removed largest-first until the root is estimated below 8 GiB,
+available space is estimated back to 48 GiB, or the removal budget is reached. Generic
+agent scratch, handoff buckets, artifact buckets, unknown buckets, symlinks, and build
+trees with fresh descendants are not early pressure candidates. The chop summary reports
+`scanned`, `removed`, `pressure_removed`, `pressure_reclaimed_bytes`,
+`pressure_trigger`, `pressure_available_bytes`, `pressure_recovery_available_bytes`,
+`deindexed`, and `capped=1` when it hit that budget. Reaped directories are dropped from
+the agent artifact index too, since a workflow launched without an explicit
+`artifacts_dir` gets one under `workflow-artifacts/`. It lives on `housekeeping` rather
+than an interactive path because the first pass over a neglected root walks tens of
+thousands of entries.
 
 The `bead_stale_cleanup` chop is the other half of the task-bead `+1` bar. Ready task
 beads that never clear their [effective `+1` bar](beads.md#per-type-triage-bar) stay

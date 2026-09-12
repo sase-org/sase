@@ -6,8 +6,8 @@ only moved the pile.  This module bounds it.
 
 Two rules keep the reaper safe next to live commands:
 
-* Only the *children* of a known managed subdirectory are pruned; the
-  subdirectory itself is a stable, concurrently-created mount point.
+* Only the *children* of a managed subdirectory are pruned; the subdirectory
+  itself is a stable, concurrently-created mount point.
 * Staleness is decided from ``st_mtime`` alone, without following symlinks, and
   every :class:`OSError` is swallowed — losing a race with a running command is
   a no-op, not a failure.
@@ -51,7 +51,8 @@ DEFAULT_HORIZON_SECONDS = HANDOFF_HORIZON_SECONDS
 
 Nothing writes directly into the bare root any more, so anything found there is
 either pre-``sase-96`` residue or a subdirectory added after this table.  Both
-are safe to bound at the handoff horizon.
+are safe to bound at the handoff horizon, but stable top-level directories are
+still pruned by child so a fresh handoff file cannot be lost with its parent.
 """
 
 MANAGED_TMPDIR_HORIZONS: Mapping[str, float] = {
@@ -98,14 +99,20 @@ DEFAULT_PRESSURE_MAX_BYTES = 16 * _GIB
 DEFAULT_PRESSURE_TARGET_BYTES = 8 * _GIB
 """Managed-root size the pressure pass tries to return to."""
 
+DEFAULT_PRESSURE_MIN_AVAILABLE_BYTES = 32 * _GIB
+"""Filesystem free-space floor that also triggers pressure pruning."""
+
+DEFAULT_PRESSURE_RECOVERY_AVAILABLE_BYTES = 48 * _GIB
+"""Filesystem free-space target used after crossing the low-space floor."""
+
 DEFAULT_PRESSURE_MIN_AGE_SECONDS = COMMAND_SCRATCH_HORIZON_SECONDS
 """Minimum age before pressure can prune a large scratch entry."""
 
 DEFAULT_PRESSURE_MIN_ENTRY_BYTES = _GIB
 """Small entries do not participate in pressure pruning."""
 
-PRESSURE_REAP_BUCKETS = frozenset({"agent-tmp", "build-targets", "cargo-targets"})
-"""Known managed buckets whose aged large children may be pruned under pressure."""
+PRESSURE_REAP_BUCKETS = frozenset({"build-targets", "cargo-targets"})
+"""Build-output buckets whose aged large children may be pruned under pressure."""
 
 
 @dataclass(frozen=True)
@@ -120,6 +127,10 @@ class _ManagedTmpReapResult:
     capped: bool
     pressure_removed: int
     pressure_reclaimed_bytes: int
+    pressure_trigger: str | None
+    pressure_root_size_bytes: int
+    pressure_available_bytes: int | None
+    pressure_recovery_available_bytes: int
 
     def describe(self) -> str:
         """Return a one-line human summary of the largest buckets pruned."""
@@ -132,9 +143,10 @@ class _ManagedTmpReapResult:
         if self.deindexed:
             detail += f"; {self.deindexed} artifact-index rows dropped"
         if self.pressure_removed:
+            trigger = f" via {self.pressure_trigger}" if self.pressure_trigger else ""
             detail += (
                 f"; pressure={self.pressure_removed}"
-                f" ({_format_bytes(self.pressure_reclaimed_bytes)})"
+                f" ({_format_bytes(self.pressure_reclaimed_bytes)}{trigger})"
             )
         suffix = " (removal budget reached)" if self.capped else ""
         return f"reclaimed {self.removed} entries under {self.root}: {detail}{suffix}"
@@ -166,21 +178,25 @@ def reap_managed_tmpdir(
     max_removals: int = DEFAULT_MAX_REMOVALS,
     pressure_max_bytes: int | None = DEFAULT_PRESSURE_MAX_BYTES,
     pressure_target_bytes: int = DEFAULT_PRESSURE_TARGET_BYTES,
+    pressure_min_available_bytes: int | None = DEFAULT_PRESSURE_MIN_AVAILABLE_BYTES,
+    pressure_recovery_available_bytes: int = DEFAULT_PRESSURE_RECOVERY_AVAILABLE_BYTES,
     pressure_min_age_seconds: float = DEFAULT_PRESSURE_MIN_AGE_SECONDS,
     pressure_min_entry_bytes: int = DEFAULT_PRESSURE_MIN_ENTRY_BYTES,
+    filesystem_available_bytes: int | None = None,
 ) -> _ManagedTmpReapResult:
     """Prune stale entries under the managed SASE temp *root*.
 
-    Known subdirectories are descended into and pruned against their own
-    horizon; the subdirectory itself always survives.  Anything else at the top
-    level is pruned against *default_horizon_seconds*.  Stops once
+    Known and future subdirectories are descended into and pruned against their
+    horizon; the subdirectory itself always survives. Anything else at the top
+    level is pruned against *default_horizon_seconds*. Stops once
     *max_removals* entries have been removed, so a long-neglected root
     converges across invocations instead of stalling one of them.
 
-    After the age pass, an over-large managed root gets one pressure pass over
-    aged, large entries in build-scratch buckets plus stray top-level residue.
-    The pressure pass honors the same removal budget and symlink rules, but can
-    reclaim multi-gigabyte build directories before their full age horizon.
+    After the age pass, the pressure pass can reclaim aged, large build-output
+    entries before their full age horizon when the managed root is too large or
+    the filesystem is low on free space. The optional
+    *filesystem_available_bytes* argument is a test hook; production calls read
+    available bytes from the filesystem.
     """
     reap_root = _validated_reap_root(managed_tmpdir_root() if root is None else root)
     clock = time.time() if now is None else now
@@ -192,6 +208,10 @@ def reap_managed_tmpdir(
     capped = False
     pressure_removed = 0
     pressure_reclaimed_bytes = 0
+    pressure_trigger: str | None = None
+    pressure_root_size_bytes = 0
+    pressure_available_bytes = filesystem_available_bytes
+    pressure_recovery_available_bytes_result = pressure_recovery_available_bytes
 
     for entry in _iter_children(reap_root):
         if budget <= 0:
@@ -218,21 +238,28 @@ def reap_managed_tmpdir(
             removed_by_subdir[bucket] = removed_by_subdir.get(bucket, 0) + 1
             budget -= 1
 
-    if budget > 0 and pressure_max_bytes is not None:
+    if budget > 0 and (
+        pressure_max_bytes is not None or pressure_min_available_bytes is not None
+    ):
         pressure_result = _reap_pressure_candidates(
             reap_root,
             clock=clock,
             current_budget=budget,
             pressure_max_bytes=pressure_max_bytes,
             pressure_target_bytes=pressure_target_bytes,
+            pressure_min_available_bytes=pressure_min_available_bytes,
+            pressure_recovery_available_bytes=pressure_recovery_available_bytes,
             pressure_min_age_seconds=pressure_min_age_seconds,
             pressure_min_entry_bytes=pressure_min_entry_bytes,
-            horizons=horizons,
-            default_horizon_seconds=default_horizon_seconds,
+            filesystem_available_bytes=filesystem_available_bytes,
         )
         scanned += pressure_result.scanned
         pressure_removed = pressure_result.removed
         pressure_reclaimed_bytes = pressure_result.reclaimed_bytes
+        pressure_trigger = pressure_result.trigger
+        pressure_root_size_bytes = pressure_result.root_size_bytes
+        pressure_available_bytes = pressure_result.available_bytes
+        pressure_recovery_available_bytes_result = pressure_result.recovery_bytes
         budget -= pressure_result.removed
         capped = capped or pressure_result.capped
         removed_directories.extend(pressure_result.removed_directories)
@@ -241,10 +268,8 @@ def reap_managed_tmpdir(
 
     deindexed = 0
     if removed_directories:
-        # A reaped directory may have been an agent's artifacts_dir — workflows
-        # launched without an explicit one land in ``workflow-artifacts/`` — so
-        # drop its index rows rather than leave the Agents tab pointing at a
-        # directory that no longer exists.
+        # A reaped directory may have been an agent's artifacts_dir: workflows
+        # launched without an explicit one land in ``workflow-artifacts/``.
         from sase.core.agent_artifact_index_lifecycle_mutations import (
             delete_agent_artifact_index_artifacts,
         )
@@ -260,6 +285,10 @@ def reap_managed_tmpdir(
         capped=capped,
         pressure_removed=pressure_removed,
         pressure_reclaimed_bytes=pressure_reclaimed_bytes,
+        pressure_trigger=pressure_trigger,
+        pressure_root_size_bytes=pressure_root_size_bytes,
+        pressure_available_bytes=pressure_available_bytes,
+        pressure_recovery_available_bytes=pressure_recovery_available_bytes_result,
     )
 
 
@@ -271,6 +300,10 @@ class _PressureReapResult:
     removed_directories: tuple[Path, ...]
     reclaimed_bytes: int
     capped: bool
+    trigger: str | None
+    root_size_bytes: int
+    available_bytes: int | None
+    recovery_bytes: int
 
 
 def _reap_pressure_candidates(
@@ -278,28 +311,54 @@ def _reap_pressure_candidates(
     *,
     clock: float,
     current_budget: int,
-    pressure_max_bytes: int,
+    pressure_max_bytes: int | None,
     pressure_target_bytes: int,
+    pressure_min_available_bytes: int | None,
+    pressure_recovery_available_bytes: int,
     pressure_min_age_seconds: float,
     pressure_min_entry_bytes: int,
-    horizons: Mapping[str, float],
-    default_horizon_seconds: float,
+    filesystem_available_bytes: int | None,
 ) -> _PressureReapResult:
-    if current_budget <= 0:
-        return _PressureReapResult(0, 0, {}, (), 0, True)
-
     root_size = _tree_size(root)
-    if root_size <= pressure_max_bytes:
-        return _PressureReapResult(0, 0, {}, (), 0, False)
+    available_bytes = _available_bytes(root, filesystem_available_bytes)
+    trigger = _pressure_trigger(
+        root_size=root_size,
+        pressure_max_bytes=pressure_max_bytes,
+        available_bytes=available_bytes,
+        pressure_min_available_bytes=pressure_min_available_bytes,
+    )
+    if trigger is None:
+        return _PressureReapResult(
+            0,
+            0,
+            {},
+            (),
+            0,
+            False,
+            None,
+            root_size,
+            available_bytes,
+            pressure_recovery_available_bytes,
+        )
+    if current_budget <= 0:
+        return _PressureReapResult(
+            0,
+            0,
+            {},
+            (),
+            0,
+            True,
+            trigger,
+            root_size,
+            available_bytes,
+            pressure_recovery_available_bytes,
+        )
 
-    target_size = min(pressure_target_bytes, pressure_max_bytes)
     candidates, scanned = _pressure_candidates(
         root,
         clock=clock,
         min_age_seconds=pressure_min_age_seconds,
         min_entry_bytes=pressure_min_entry_bytes,
-        horizons=horizons,
-        default_horizon_seconds=default_horizon_seconds,
     )
     candidates.sort(key=lambda candidate: (-candidate.size_bytes, candidate.mtime))
 
@@ -310,9 +369,21 @@ def _reap_pressure_candidates(
     removed_directories: list[Path] = []
     capped = False
     estimated_size = root_size
+    estimated_available = available_bytes
+    target_size = (
+        min(pressure_target_bytes, pressure_max_bytes)
+        if pressure_max_bytes is not None
+        else pressure_target_bytes
+    )
 
     for candidate in candidates:
-        if estimated_size <= target_size:
+        if _pressure_goal_reached(
+            trigger=trigger,
+            estimated_size=estimated_size,
+            target_size=target_size,
+            estimated_available=estimated_available,
+            recovery_available=pressure_recovery_available_bytes,
+        ):
             break
         if budget <= 0:
             capped = True
@@ -328,6 +399,8 @@ def _reap_pressure_candidates(
             removed_by_subdir.get(candidate.bucket, 0) + 1
         )
         estimated_size = max(0, estimated_size - candidate.size_bytes)
+        if estimated_available is not None:
+            estimated_available += candidate.size_bytes
         budget -= 1
 
     return _PressureReapResult(
@@ -337,6 +410,10 @@ def _reap_pressure_candidates(
         tuple(removed_directories),
         reclaimed_bytes,
         capped,
+        trigger,
+        root_size,
+        available_bytes,
+        pressure_recovery_available_bytes,
     )
 
 
@@ -351,28 +428,68 @@ def _validated_reap_root(root: Path) -> Path:
     return resolved
 
 
+def _available_bytes(root: Path, override: int | None) -> int | None:
+    if override is not None:
+        return override
+    try:
+        return shutil.disk_usage(root).free
+    except OSError:
+        return None
+
+
+def _pressure_trigger(
+    *,
+    root_size: int,
+    pressure_max_bytes: int | None,
+    available_bytes: int | None,
+    pressure_min_available_bytes: int | None,
+) -> str | None:
+    if pressure_max_bytes is not None and root_size > pressure_max_bytes:
+        return "size"
+    if (
+        pressure_min_available_bytes is not None
+        and available_bytes is not None
+        and available_bytes < pressure_min_available_bytes
+    ):
+        return "free_space"
+    return None
+
+
+def _pressure_goal_reached(
+    *,
+    trigger: str,
+    estimated_size: int,
+    target_size: int,
+    estimated_available: int | None,
+    recovery_available: int,
+) -> bool:
+    if trigger == "free_space":
+        return (
+            estimated_available is not None
+            and estimated_available >= recovery_available
+        )
+    return estimated_size <= target_size
+
+
 def _pressure_candidates(
     root: Path,
     *,
     clock: float,
     min_age_seconds: float,
     min_entry_bytes: int,
-    horizons: Mapping[str, float],
-    default_horizon_seconds: float,
 ) -> tuple[list[_PressureCandidate], int]:
     candidates: list[_PressureCandidate] = []
     scanned = 0
     cutoff = clock - min_age_seconds
 
     for entry in _iter_children(root):
-        horizon = horizons.get(entry.name)
         if (
             entry.name in PRESSURE_REAP_BUCKETS
             and entry.is_dir()
             and not entry.is_symlink()
         ):
             entries = [(child, entry.name) for child in _iter_children(entry)]
-        elif horizon is None or not (entry.is_dir() and not entry.is_symlink()):
+        elif _is_top_level_pressure_residue(entry):
             entries = [(entry, _TOP_LEVEL_BUCKET)]
         else:
             continue
@@ -389,6 +506,15 @@ def _pressure_candidates(
                 candidates.append(pressure_candidate)
 
     return candidates, scanned
+
+
+def _is_top_level_pressure_residue(path: Path) -> bool:
+    name = path.name
+    return (
+        name in {"target", "cargo-target", "build-target"}
+        or name.endswith("-cargo-target")
+        or name.endswith("-build-target")
+    )
 
 
 def _pressure_candidate(
@@ -408,10 +534,27 @@ def _pressure_candidate(
         return None
     if not (stat.S_ISDIR(entry_stat.st_mode) or stat.S_ISREG(entry_stat.st_mode)):
         return None
+    if stat.S_ISDIR(entry_stat.st_mode) and _has_fresh_descendant(path, cutoff):
+        return None
     size_bytes = _tree_size(path, initial_stat=entry_stat)
     if size_bytes < min_entry_bytes:
         return None
     return _PressureCandidate(path, bucket, size_bytes, entry_stat.st_mtime)
+
+
+def _has_fresh_descendant(path: Path, cutoff: float) -> bool:
+    for child in _iter_children(path):
+        try:
+            child_stat = child.stat(follow_symlinks=False)
+        except OSError:
+            continue
+        if stat.S_ISLNK(child_stat.st_mode):
+            return True
+        if child_stat.st_mtime >= cutoff:
+            return True
+        if stat.S_ISDIR(child_stat.st_mode) and _has_fresh_descendant(child, cutoff):
+            return True
+    return False
 
 
 def _iter_children(directory: Path) -> list[Path]:
@@ -447,7 +590,7 @@ def _remove_if_stale(path: Path, cutoff: float) -> str | None:
     """Remove *path* when it is a plain file or directory older than *cutoff*.
 
     Returns ``"directory"``, ``"file"``, or ``None`` when nothing was removed,
-    so the caller can de-index the directories it reaped.  Symlinks are never
+    so the caller can de-index the directories it reaped. Symlinks are never
     followed and never removed: the reaper owns the scratch it can identify,
     not whatever a link happens to point at.
     """
@@ -462,6 +605,8 @@ def _remove_if_stale(path: Path, cutoff: float) -> str | None:
 
     try:
         if stat.S_ISDIR(entry_stat.st_mode):
+            if _has_fresh_descendant(path, cutoff):
+                return None
             shutil.rmtree(path)
             return "directory"
         if stat.S_ISREG(entry_stat.st_mode):
@@ -491,7 +636,9 @@ __all__ = [
     "DEFAULT_MAX_REMOVALS",
     "DEFAULT_PRESSURE_MAX_BYTES",
     "DEFAULT_PRESSURE_MIN_AGE_SECONDS",
+    "DEFAULT_PRESSURE_MIN_AVAILABLE_BYTES",
     "DEFAULT_PRESSURE_MIN_ENTRY_BYTES",
+    "DEFAULT_PRESSURE_RECOVERY_AVAILABLE_BYTES",
     "DEFAULT_PRESSURE_TARGET_BYTES",
     "HANDOFF_HORIZON_SECONDS",
     "MANAGED_TMPDIR_HORIZONS",

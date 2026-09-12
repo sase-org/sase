@@ -14,6 +14,12 @@ from sase.core.managed_tmp_reaper import reap_managed_tmpdir
 @builtin_chop("managed_tmp_reap")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     result = reap_managed_tmpdir()
+    pressure_available_bytes = (
+        result.pressure_available_bytes if result.pressure_trigger else None
+    )
+    pressure_recovery_available_bytes = (
+        result.pressure_recovery_available_bytes if result.pressure_trigger else None
+    )
     if result.removed:
         runtime.log(result.describe(), "cyan")
     return runtime.emit_summary(
@@ -23,6 +29,9 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "subdirs": len(result.removed_by_subdir),
             "pressure_removed": result.pressure_removed,
             "pressure_reclaimed_bytes": result.pressure_reclaimed_bytes,
+            "pressure_trigger": result.pressure_trigger,
+            "pressure_available_bytes": pressure_available_bytes,
+            "pressure_recovery_available_bytes": pressure_recovery_available_bytes,
             "deindexed": result.deindexed,
             "capped": int(result.capped),
         },
