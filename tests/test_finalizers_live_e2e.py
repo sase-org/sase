@@ -7,6 +7,7 @@ runner rather than the full CommitWorkflow so the suite stays hermetic.
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 import json
 from pathlib import Path
@@ -20,6 +21,12 @@ from sase.agent.pending_handoff import (
     QUESTIONS_PENDING_MARKER,
 )
 from sase.finalizers.declaration import FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME
+from sase.finalizers.declaration import (
+    FinalizerDeclarationError,
+    publish_final_context,
+    submit_final_manifest,
+)
+from sase.finalizers.commit import StitchCommandResult
 from sase.finalizers.plan import resolve_and_persist_finalizer_plan
 from sase.finalizers.commit_validation import protected_baseline_paths
 from sase.llm_provider._invoke import invoke_agent
@@ -28,6 +35,7 @@ from sase.llm_provider.commit_finalizer_baseline import (
     capture_opened_repo_dirty_baseline,
 )
 from sase.llm_provider.commit_finalizer_git import git_changed_files
+from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
 from sase.sdd.store import SDD_STORAGE_SIDECAR_REPOS, SddStore
 from sase.xprompt.directives import PromptDirectives, extract_prompt_directives
@@ -40,6 +48,7 @@ from .finalizers_live_e2e_test_helpers import (
     isolate_host_config,
     load_result,
     prepare_live_env,
+    real_git_stitch,
     run_controller,
     run_git,
     submit_deferral_from_context,
@@ -91,6 +100,71 @@ def test_live_clean_completion_has_no_recovery_or_commit(
     assert not (artifacts / FINAL_DECLARATION_RECOVERY_PROMPT_FILENAME).exists()
     assert not (artifacts / "commit_results.json").exists()
     assert run_git(repo, "rev-list", "--count", "HEAD").stdout.strip() == "1"
+
+
+def test_live_assigned_bead_keep_is_authored_and_threaded_to_stitch_runner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    isolate_host_config(monkeypatch, tmp_path)
+    repo = init_live_repo(tmp_path / "repo")
+    attach_bare_remote(repo, tmp_path / "remote.git")
+    artifacts = tmp_path / "artifacts"
+    prepare_live_env(monkeypatch, artifacts, repo)
+    monkeypatch.setenv("SASE_BEAD_ID", "sase-zq.3")
+    (repo / "agent.py").write_text("print('agent')\n", encoding="utf-8")
+    seen_actions: list[str | None] = []
+
+    def stitch(
+        repo_arg: DirtyRepo,
+        message: str,
+        excludes: tuple[str, ...],
+        context: object,
+        *,
+        bead_action: str | None = None,
+    ) -> StitchCommandResult:
+        seen_actions.append(bead_action)
+        return real_git_stitch(
+            repo_arg,
+            message,
+            excludes,
+            context,
+            bead_action=bead_action,
+        )
+
+    monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", stitch)
+
+    resolve_and_persist_finalizer_plan(PromptDirectives(), artifacts_dir=str(artifacts))
+    publication = publish_final_context(artifacts_dir=str(artifacts))
+    decisions = [
+        decision
+        for item in publication.payload["manifest_template"]["payloads"]
+        for decision in item["payload"].get("repositories", [])
+    ]
+    assert decisions[0]["bead_action"] is None
+    with pytest.raises(FinalizerDeclarationError) as exc_info:
+        submit_final_manifest(
+            deepcopy(publication.payload["manifest_template"]),
+            artifacts_dir=str(artifacts),
+        )
+    assert exc_info.value.code == "commit_bead_action_invalid"
+    assert seen_actions == []
+    assert git_changed_files(str(repo)) == ["agent.py"]
+
+    submit_from_context(artifacts, bead_action="keep")
+    result = run_controller(artifacts)
+
+    assert result.content == "done"
+    assert seen_actions == ["keep"]
+    assert git_changed_files(str(repo)) == []
+    payload = load_result(artifacts)
+    assert payload["status"] == "success"
+    inputs = json.loads(
+        (artifacts / "finalizers" / "commit" / "attempt-1.main.inputs.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert inputs["bead_action"] == "keep"
 
 
 def test_live_dirty_commit_excludes_protected_baseline_and_pushes(

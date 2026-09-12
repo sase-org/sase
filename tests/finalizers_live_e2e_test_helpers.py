@@ -182,7 +182,10 @@ def real_git_stitch(
     message: str,
     excludes: tuple[str, ...],
     context: object,
+    *,
+    bead_action: str | None = None,
 ) -> StitchCommandResult:
+    del bead_action
     excluded = set(excludes)
     to_commit = [path for path in git_changed_files(repo.path) if path not in excluded]
     if not to_commit:
@@ -235,18 +238,33 @@ def real_git_stitch(
 
 def use_real_git_stitch(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("sase.finalizers.commit.run_stitch_create", real_git_stitch)
-    monkeypatch.setattr(
-        "sase.finalizers.commit.run_stitch_resume",
-        lambda repo, context: real_git_stitch(
+
+    def resume(
+        repo: DirtyRepo,
+        context: object,
+        *,
+        bead_action: str | None = None,
+    ) -> StitchCommandResult:
+        return real_git_stitch(
             repo,
             "fix(final): resume conflicted stitch",
             (),
             context,
-        ),
+            bead_action=bead_action,
+        )
+
+    monkeypatch.setattr(
+        "sase.finalizers.commit.run_stitch_resume",
+        resume,
     )
 
 
-def submit_from_context(artifacts: Path, *, action: str = "commit") -> None:
+def submit_from_context(
+    artifacts: Path,
+    *,
+    action: str = "commit",
+    bead_action: str | None = None,
+) -> None:
     publication = publish_final_context(artifacts_dir=str(artifacts))
     manifest = deepcopy(publication.payload["manifest_template"])
     for item in manifest.get("payloads", []):
@@ -262,6 +280,8 @@ def submit_from_context(artifacts: Path, *, action: str = "commit") -> None:
             decision["action"] = action
             if action == "commit":
                 decision["message"] = "fix(final): live acceptance commit"
+                if "bead_action" in decision and bead_action is not None:
+                    decision["bead_action"] = bead_action
             else:
                 decision.pop("message", None)
                 decision["reason"] = "not mine"
