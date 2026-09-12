@@ -96,6 +96,26 @@ def validate_continuation_delivery_record(record: JsonMapping) -> JsonObject:
     )
 
 
+def new_continuation_delivery_record(request: JsonMapping) -> JsonObject:
+    """Create a pending delivery record through the Rust contract."""
+
+    binding = require_rust_binding("continuation_new_delivery_record")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_new_delivery_record",
+    )
+
+
+def transition_continuation_delivery(request: JsonMapping) -> JsonObject:
+    """Apply one legal delivery transition through the Rust contract."""
+
+    binding = require_rust_binding("continuation_transition_delivery")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_transition_delivery",
+    )
+
+
 def plan_continuation_replay(
     request: ContinuationReplayPlanRequestWire | JsonMapping,
 ) -> JsonObject:
@@ -277,6 +297,7 @@ __all__ = [
     "evaluate_conditional_completion",
     "freeze_continuation_policy",
     "invalidate_conditional_completion",
+    "new_continuation_delivery_record",
     "plan_continuation_budget",
     "plan_continuation_replay",
     "preview_conditional_completion",
@@ -284,6 +305,7 @@ __all__ = [
     "rollback_conditional_completion_binding",
     "seal_conditional_completion",
     "select_continuation_evidence",
+    "transition_continuation_delivery",
     "validate_agent_delta",
     "validate_conditional_completion_intent",
     "validate_continuation_delivery_record",

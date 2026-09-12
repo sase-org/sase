@@ -185,18 +185,29 @@ def _run_host_completion(
     record = load_delivery_record(artifacts_dir, key) or new_delivery_record(
         key, selected_action="complete", reserved_identity=HOST_COMPLETION_IDENTITY
     )
-    record = persist_delivery_record(
-        artifacts_dir,
-        transition_delivery(
-            record,
-            "acknowledged",
-            acknowledged_by=HOST_COMPLETION_IDENTITY,
-            reserved_identity=HOST_COMPLETION_IDENTITY,
-        ),
-    )
-
     intent_root = _intent_artifacts_dir(artifacts_dir, meta, project_name)
     try:
+        record = persist_delivery_record(
+            artifacts_dir,
+            transition_delivery(
+                record,
+                "reserved",
+                reserved_identity=HOST_COMPLETION_IDENTITY,
+                workspace_identity=_workspace_identity(meta),
+                workspace_degraded=bool(meta.get("monitor_followup_degraded_reason")),
+            ),
+        )
+        record = persist_delivery_record(
+            artifacts_dir,
+            transition_delivery(
+                record,
+                "acknowledged",
+                acknowledged_by=HOST_COMPLETION_IDENTITY,
+                reserved_identity=HOST_COMPLETION_IDENTITY,
+                workspace_identity=_workspace_identity(meta),
+                workspace_degraded=bool(meta.get("monitor_followup_degraded_reason")),
+            ),
+        )
         intent = load_prepared_completion(completion_ref, artifacts_dir=intent_root)
         plan = _ensure_finalizer_plan(artifacts_dir)
         observations = observe_completion_repositories(Path(artifacts_dir))

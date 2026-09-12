@@ -1,4 +1,11 @@
-"""Durable delivery records for monitor continuation and host completion."""
+"""Durable delivery records for monitor continuation and host completion.
+
+Lock order (never invert; never wait on a process, provider, user, or child
+acknowledgment while holding either lock):
+
+1. ``continuation/delivery/delivery.lock``
+2. ``continuation/launch_admission/lock``
+"""
 
 from __future__ import annotations
 
@@ -9,14 +16,20 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sase.core.continuation_facade import validate_continuation_delivery_record
+from sase.core.continuation_facade import (
+    new_continuation_delivery_record,
+    transition_continuation_delivery,
+    validate_continuation_delivery_record,
+)
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 from sase.finalizers.declaration_store import write_json_atomic
 from sase.memory.locks import locked_file
 
 DELIVERY_DIRNAME = "delivery"
 DELIVERY_LOCK_FILENAME = "delivery.lock"
+DELIVERY_LOCK_TIMEOUT_SECONDS = 5.0
 HOST_COMPLETION_RECEIPT_FILENAME = "host_completion_receipt.json"
+_DISCOVERABLE_DISPOSITIONS = frozenset({"dispatching", "acknowledged", "settled"})
 
 
 def _delivery_dir(artifacts_dir: str | Path) -> Path:
@@ -65,7 +78,7 @@ def persist_delivery_record(
     root = _delivery_dir(artifacts_dir)
     root.mkdir(parents=True, exist_ok=True)
     path = _record_path(artifacts_dir, validated["key"])
-    with locked_file(root / DELIVERY_LOCK_FILENAME, fcntl.LOCK_EX):
+    with _delivery_lock(root):
         write_json_atomic(path, validated)
     return validated
 
@@ -78,24 +91,14 @@ def new_delivery_record(
 ) -> dict[str, Any]:
     """Return a pending delivery record for *key*."""
 
-    now = _now_iso()
-    return {
-        "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
-        "key": dict(key),
-        "selected_action": selected_action,
-        "reserved_identity": reserved_identity,
-        "attempt_history": [
-            {
-                "attempt_id": "attempt-1",
-                "status": "pending",
-                "recorded_at": now,
-                "detail": None,
-            }
-        ],
-        "acknowledged_by": None,
-        "disposition": "pending",
-        "disposition_reason": None,
-    }
+    return new_continuation_delivery_record(
+        {
+            "key": dict(key),
+            "selected_action": selected_action,
+            "reserved_identity": reserved_identity,
+            "recorded_at": _now_iso(),
+        }
+    )
 
 
 def transition_delivery(
@@ -105,29 +108,144 @@ def transition_delivery(
     acknowledged_by: str | None = None,
     reason: str | None = None,
     reserved_identity: str | None = None,
+    workspace_identity: str | None = None,
+    workspace_degraded: bool = False,
+    retryable_pre_dispatch_failure: bool = False,
 ) -> dict[str, Any]:
-    """Append one attempt and move *record* to *disposition*."""
+    """Apply one Rust-owned delivery transition to *record*."""
 
-    updated = dict(record)
-    history = list(updated.get("attempt_history") or [])
-    attempt_id = f"attempt-{len(history) + 1}"
-    history.append(
+    return transition_continuation_delivery(
         {
-            "attempt_id": attempt_id,
-            "status": disposition,
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "record": dict(record),
+            "target": disposition,
+            "reserved_identity": reserved_identity,
+            "acknowledged_by": acknowledged_by,
+            "reason": reason,
             "recorded_at": _now_iso(),
-            "detail": reason,
+            "workspace_identity": workspace_identity,
+            "workspace_degraded": workspace_degraded,
+            "retryable_pre_dispatch_failure": retryable_pre_dispatch_failure,
         }
     )
-    updated["attempt_history"] = history
-    updated["disposition"] = disposition
-    if acknowledged_by is not None:
-        updated["acknowledged_by"] = acknowledged_by
-    if reason is not None:
-        updated["disposition_reason"] = reason
-    if reserved_identity is not None:
-        updated["reserved_identity"] = reserved_identity
-    return validate_continuation_delivery_record(updated)
+
+
+def claim_dispatch_slot(
+    artifacts_dir: str | Path,
+    key: Mapping[str, str],
+    *,
+    selected_action: str,
+    reserved_identity: str,
+    workspace_identity: str | None = None,
+    workspace_degraded: bool = False,
+    after_reserve: Any | None = None,
+) -> tuple[dict[str, Any], bool]:
+    """Reserve *reserved_identity* and claim the spawn slot under one lock.
+
+    Returns ``(record, claimed)``. ``claimed`` is true only for the caller
+    that moved the record into ``dispatching`` from ``pending`` or
+    ``reserved``. Concurrent callers discover the existing receiver.
+    """
+
+    root = _delivery_dir(artifacts_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    with _delivery_lock(root):
+        record = load_delivery_record(artifacts_dir, key) or new_delivery_record(
+            key,
+            selected_action=selected_action,
+            reserved_identity=reserved_identity,
+        )
+        previous = str(record.get("disposition") or "")
+        if previous in _DISCOVERABLE_DISPOSITIONS or previous in {
+            "cancelled",
+            "nonlaunchable",
+            "needs_attention",
+        }:
+            return record, False
+        if previous == "pending":
+            record = transition_delivery(
+                record,
+                "reserved",
+                reserved_identity=reserved_identity,
+                workspace_identity=workspace_identity,
+                workspace_degraded=workspace_degraded,
+            )
+            write_json_atomic(_record_path(artifacts_dir, record["key"]), record)
+            if after_reserve is not None:
+                after_reserve()
+        if str(record.get("disposition")) == "reserved":
+            record = transition_delivery(
+                record,
+                "dispatching",
+                reserved_identity=reserved_identity,
+                workspace_identity=workspace_identity,
+                workspace_degraded=workspace_degraded,
+            )
+            write_json_atomic(_record_path(artifacts_dir, record["key"]), record)
+            return record, True
+        return record, False
+
+
+def apply_delivery_transition(
+    artifacts_dir: str | Path,
+    key: Mapping[str, str],
+    disposition: str,
+    *,
+    selected_action: str,
+    acknowledged_by: str | None = None,
+    reason: str | None = None,
+    reserved_identity: str | None = None,
+    workspace_identity: str | None = None,
+    workspace_degraded: bool = False,
+    retryable_pre_dispatch_failure: bool = False,
+) -> dict[str, Any]:
+    """Load, transition, and persist *key* under the delivery store lock."""
+
+    root = _delivery_dir(artifacts_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    with _delivery_lock(root):
+        record = load_delivery_record(artifacts_dir, key) or new_delivery_record(
+            key,
+            selected_action=selected_action,
+            reserved_identity=reserved_identity,
+        )
+        updated = transition_delivery(
+            record,
+            disposition,
+            acknowledged_by=acknowledged_by,
+            reason=reason,
+            reserved_identity=reserved_identity,
+            workspace_identity=workspace_identity,
+            workspace_degraded=workspace_degraded,
+            retryable_pre_dispatch_failure=retryable_pre_dispatch_failure,
+        )
+        write_json_atomic(_record_path(artifacts_dir, updated["key"]), updated)
+        return updated
+
+
+def update_delivery_workspace(
+    artifacts_dir: str | Path,
+    key: Mapping[str, str],
+    *,
+    workspace_identity: str | None,
+    workspace_degraded: bool = False,
+) -> dict[str, Any] | None:
+    """Record which workspace the reserved receiver actually used."""
+
+    root = _delivery_dir(artifacts_dir)
+    if not root.is_dir():
+        return None
+    with _delivery_lock(root):
+        record = load_delivery_record(artifacts_dir, key)
+        if record is None:
+            return None
+        if workspace_identity:
+            record["workspace_identity"] = workspace_identity
+        if workspace_degraded:
+            record["workspace_degraded"] = True
+        validated = validate_continuation_delivery_record(record)
+        write_json_atomic(_record_path(artifacts_dir, validated["key"]), validated)
+        return validated
 
 
 def load_host_completion_receipt(artifacts_dir: str | Path) -> dict[str, Any] | None:
@@ -170,9 +288,20 @@ def _now_iso() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def _delivery_lock(root: Path) -> Any:
+    return locked_file(
+        root / DELIVERY_LOCK_FILENAME,
+        fcntl.LOCK_EX,
+        timeout=DELIVERY_LOCK_TIMEOUT_SECONDS,
+    )
+
+
 __all__ = [
     "DELIVERY_DIRNAME",
+    "DELIVERY_LOCK_TIMEOUT_SECONDS",
     "HOST_COMPLETION_RECEIPT_FILENAME",
+    "apply_delivery_transition",
+    "claim_dispatch_slot",
     "delivery_key",
     "load_delivery_record",
     "load_host_completion_receipt",
@@ -180,4 +309,5 @@ __all__ = [
     "persist_delivery_record",
     "persist_host_completion_receipt",
     "transition_delivery",
+    "update_delivery_workspace",
 ]

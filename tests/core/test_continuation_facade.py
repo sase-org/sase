@@ -13,6 +13,7 @@ from sase.core.continuation_facade import (
     evaluate_conditional_completion,
     freeze_continuation_policy,
     invalidate_conditional_completion,
+    new_continuation_delivery_record,
     plan_continuation_budget,
     plan_continuation_replay,
     preview_conditional_completion,
@@ -20,6 +21,7 @@ from sase.core.continuation_facade import (
     rollback_conditional_completion_binding,
     seal_conditional_completion,
     select_continuation_evidence,
+    transition_continuation_delivery,
     validate_continuation_delivery_record,
     validate_continuation_intent,
     validate_continuation_node,
@@ -166,6 +168,29 @@ def test_node_intent_monitor_manifest_and_delivery_validation_round_trip() -> No
     assert (
         validate_continuation_delivery_record(delivery)["disposition"] == "acknowledged"
     )
+
+    pending = new_continuation_delivery_record(
+        {
+            "key": {
+                "monitor_id": "monitor-1",
+                "result_id": "result-1",
+                "branch": "failed",
+            },
+            "selected_action": "continue",
+            "recorded_at": "2026-09-12T00:00:00Z",
+        }
+    )
+    reserved = transition_continuation_delivery(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "record": pending,
+            "target": "reserved",
+            "reserved_identity": "acme--1",
+            "recorded_at": "2026-09-12T00:00:01Z",
+        }
+    )
+    assert reserved["disposition"] == "reserved"
+    assert reserved["reserved_identity"] == "acme--1"
 
     launch_continuation = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,

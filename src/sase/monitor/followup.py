@@ -10,12 +10,15 @@ family, and role when it starts -- exactly as it would for an interactive
 
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 from typing import Any
 
+from sase.agent._family_attach_resolution import resolve_family_attach_plan
+from sase.agent._family_attach_types import FamilyAttachDirective, FamilyAttachError
+from sase.agent.detached_child import spawn_family_successor
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
-from sase.llm_provider.continuation_budget import MONITOR_CONTINUATION_ENV
 from sase.shells.followup import (
     DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
     STARTER_SETTLE_POLL_SECONDS as _STARTER_SETTLE_POLL_SECONDS,
@@ -25,11 +28,20 @@ from sase.shells.followup import (
     launch_shell_followup,
     record_followup_launched,
     record_followup_not_launchable,
-    spawn_shell_family_successor,
     starter_identity,
     vcs_ref_from_meta,
     wait_for_starter,
 )
+
+from .continuation_delivery import (
+    claim_ordinary_continuation_dispatch,
+    continuation_delivery_env,
+    launch_wire_extra,
+    mark_ordinary_continuation_terminal,
+    maybe_crash,
+    queue_launch_prefix,
+)
+from .delivery import update_delivery_workspace
 
 from .followup_prompt import compose_followup_prompt
 from .diagnostics import (
@@ -120,6 +132,11 @@ def launch_followup_agent(
         selection=evidence_selection,
         manifest=manifest,
     )
+    result_id = str(monitor_result.get("result_id") or "")
+    branch = str(monitor_result.get("outcome") or "failed")
+    if result_id:
+        meta["continuation_monitor_result_id"] = result_id
+        update_meta_field(artifacts_dir, "continuation_monitor_result_id", result_id)
 
     prompt_kwargs: dict[str, Any] = {
         "starter_name": starter_name if settled else None,
@@ -157,9 +174,49 @@ def launch_followup_agent(
     }
 
     def _compose(degraded_reason: str | None) -> str:
-        return compose_followup_prompt(
+        prompt = compose_followup_prompt(
             **prompt_kwargs, workspace_degraded_reason=degraded_reason
         )
+        prefix = queue_launch_prefix(meta)
+        return f"{prefix}{prompt}" if prefix else prompt
+
+    try:
+        resolved_plan = resolve_family_attach_plan(
+            FamilyAttachDirective(parent=lane, suffix="@"),
+            project_name=project_name,
+        )
+    except (FamilyAttachError, RuntimeError, OSError, ValueError) as exc:
+        return _record_not_launchable(artifacts_dir, meta, str(exc), _compose(None))
+
+    reserved_name = resolved_plan.agent_name
+    claim = claim_ordinary_continuation_dispatch(
+        artifacts_dir,
+        monitor_id=str(meta.get("monitor_id") or "monitor"),
+        result_id=result_id or "result",
+        branch=branch,
+        selected_action="continue",
+        reserved_identity=reserved_name,
+        extra=launch_wire_extra(meta),
+    )
+    if not claim.spawn:
+        if claim.error:
+            return _record_not_launchable(
+                artifacts_dir, meta, claim.error, _compose(None)
+            )
+        return _record_launched(
+            artifacts_dir,
+            meta,
+            claim.identity or reserved_name,
+        )
+
+    frozen_name = claim.identity or reserved_name
+    frozen_plan = replace(
+        resolved_plan,
+        agent_name=frozen_name,
+        parent_is_running=False,
+        agent_family_role=starter_role or resolved_plan.agent_family_role,
+    )
+    delivery_env = continuation_delivery_env(artifacts_dir, claim.key, frozen_name)
 
     def _spawn(
         prompt: str,
@@ -168,8 +225,9 @@ def launch_followup_agent(
         transfer_pid: int | None,
         vcs_ref: tuple[str, str] | None,
     ) -> Any:
-        return spawn_shell_family_successor(
-            family=lane,
+        maybe_crash("before_spawn")
+        result = spawn_family_successor(
+            FamilyAttachDirective(parent=lane, suffix="@"),
             project_name=project_name,
             prompt=prompt,
             workspace_dir=workspace_dir,
@@ -178,9 +236,21 @@ def launch_followup_agent(
             cl_name=_clean_str(meta.get("cl_name")),
             agent_family_role=starter_role,
             vcs_ref=vcs_ref,
-            extra_env={MONITOR_CONTINUATION_ENV: "1"},
+            extra_env=delivery_env,
             spawn_fn=spawn_agent_subprocess,
+            resolve_plan=lambda *args, **kwargs: replace(
+                frozen_plan,
+                parent_workspace_dir=workspace_dir or frozen_plan.parent_workspace_dir,
+                parent_workspace_num=workspace_num,
+            ),
         )
+        maybe_crash("after_spawn")
+        update_delivery_workspace(
+            artifacts_dir,
+            claim.key,
+            workspace_identity=workspace_dir,
+        )
+        return result
 
     monitor_artifacts_dir = artifacts_dir
 
@@ -191,16 +261,31 @@ def launch_followup_agent(
         artifacts_dir: str | None = None,
         pid: int | None = None,
     ) -> FollowupLaunchResult:
+        if degraded_reason:
+            update_delivery_workspace(
+                monitor_artifacts_dir,
+                claim.key,
+                workspace_identity=None,
+                workspace_degraded=True,
+            )
         return _record_launched(
             monitor_artifacts_dir,
             meta,
-            agent_name,
+            agent_name or frozen_name,
             degraded_reason=degraded_reason,
             launched_artifacts_dir=artifacts_dir,
             pid=pid,
         )
 
     def _record_not_launchable_result(error: str, prompt: str) -> FollowupLaunchResult:
+        mark_ordinary_continuation_terminal(
+            artifacts_dir,
+            claim.key,
+            "nonlaunchable",
+            selected_action="continue",
+            reason=error,
+            reserved_identity=frozen_name,
+        )
         return _record_not_launchable(artifacts_dir, meta, error, prompt)
 
     transfer_pid = os.getpid() if transfer_from_pid is None else transfer_from_pid

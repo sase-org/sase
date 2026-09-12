@@ -317,6 +317,11 @@ def invoke_agent(
                 "exec_llm_provider",
                 execution_provider_label,
             )
+        from sase.monitor.continuation_delivery import (
+            adopt_ordinary_continuation_delivery,
+        )
+
+        adopt_ordinary_continuation_delivery()
         enforce_continuation_budget(
             query,
             artifacts_dir=artifacts_dir,
