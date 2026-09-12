@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import shutil
+import threading
 import types
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -699,6 +700,92 @@ def test_changed_store_reparses_current_snapshot(
     assert second.notifications[0].id == "n2"
 
 
+@pytest.mark.parametrize("mutation", ["append", "replace"])
+def test_external_write_after_snapshot_read_is_not_cached(
+    mutation: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "notifications.jsonl"
+    path.write_text("old\n", encoding="utf-8")
+    calls: list[str] = []
+
+    def fake_read(store_path: str, include_dismissed: bool, expire: bool) -> dict:
+        _ = (include_dismissed, expire)
+        calls.append(store_path)
+        if len(calls) == 1:
+            if mutation == "append":
+                path.write_text("old\nnew\n", encoding="utf-8")
+            else:
+                replacement = path.with_name("notifications-replacement.jsonl")
+                replacement.write_text("new\n", encoding="utf-8")
+                replacement.replace(path)
+            return _snapshot_payload(notification_id="old")
+        return _snapshot_payload(notification_id="new")
+
+    _fake_module(monkeypatch, read_notifications_snapshot=fake_read)
+
+    first = facade.read_current_notifications_snapshot(path)
+    second = facade.read_current_notifications_snapshot(path)
+    third = facade.read_current_notifications_snapshot(path)
+
+    assert [row.id for row in first.notifications] == ["old"]
+    assert [row.id for row in second.notifications] == ["new"]
+    assert [row.id for row in third.notifications] == ["new"]
+    assert len(calls) == 2
+
+
+def test_interleaved_readers_do_not_publish_stale_snapshot_under_new_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "notifications.jsonl"
+    path.write_text("old\n", encoding="utf-8")
+    first_read_changed_store = threading.Event()
+    release_first_read = threading.Event()
+    call_lock = threading.Lock()
+    calls: list[int] = []
+
+    def fake_read(store_path: str, include_dismissed: bool, expire: bool) -> dict:
+        _ = (store_path, include_dismissed, expire)
+        with call_lock:
+            call_number = len(calls) + 1
+            calls.append(call_number)
+        if call_number == 1:
+            path.write_text("old\nnew\n", encoding="utf-8")
+            first_read_changed_store.set()
+            assert release_first_read.wait(timeout=5)
+            return _snapshot_payload(notification_id="old")
+        return _snapshot_payload(notification_id="new")
+
+    _fake_module(monkeypatch, read_notifications_snapshot=fake_read)
+    first_result: dict[str, str] = {}
+    first_errors: list[BaseException] = []
+
+    def first_reader() -> None:
+        try:
+            snapshot = facade.read_current_notifications_snapshot(path)
+        except BaseException as error:
+            first_errors.append(error)
+            return
+        first_result["id"] = snapshot.notifications[0].id
+
+    reader = threading.Thread(target=first_reader)
+    reader.start()
+    assert first_read_changed_store.wait(timeout=5)
+
+    second = facade.read_current_notifications_snapshot(path)
+    assert [row.id for row in second.notifications] == ["new"]
+
+    release_first_read.set()
+    reader.join(timeout=5)
+
+    assert first_errors == []
+    assert first_result == {"id": "old"}
+
+    stable = facade.read_current_notifications_snapshot(path)
+
+    assert [row.id for row in stable.notifications] == ["new"]
+    assert calls == [1, 2]
+
+
 def test_include_dismissed_is_part_of_snapshot_cache_key(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -724,6 +811,47 @@ def test_include_dismissed_is_part_of_snapshot_cache_key(
     assert active.notifications[0].id == "active"
     assert dismissed.notifications[0].id == "all"
     assert active_again.notifications[0].id == "active"
+
+
+def test_local_mutation_invalidates_snapshot_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "notifications.jsonl"
+    path.write_text("{}\n", encoding="utf-8")
+    calls: list[int] = []
+
+    def fake_read(_store_path: str, _include: bool, _expire: bool) -> dict:
+        calls.append(1)
+        return _snapshot_payload(notification_id=f"n{len(calls)}")
+
+    def fake_append_counts(_store_path: str, _notification: dict[str, Any]) -> dict:
+        return {
+            "schema_version": NOTIFICATION_STORE_WIRE_SCHEMA_VERSION,
+            "matched_count": 0,
+            "changed_count": 0,
+            "appended_count": 1,
+            "rewritten": False,
+            "notifications": [],
+            "counts": {},
+            "expired_ids": [],
+            "stats": {},
+        }
+
+    _fake_module(
+        monkeypatch,
+        read_notifications_snapshot=fake_read,
+        append_notification_counts=fake_append_counts,
+    )
+
+    first = facade.read_current_notifications_snapshot(path)
+    second = facade.read_current_notifications_snapshot(path)
+    facade.append_notification_counts(path, _notification("n2"))
+    third = facade.read_current_notifications_snapshot(path)
+
+    assert first.notifications[0].id == "n1"
+    assert second.notifications[0].id == "n1"
+    assert third.notifications[0].id == "n2"
+    assert len(calls) == 2
 
 
 def test_cached_current_snapshot_does_not_replay_expired_ids(

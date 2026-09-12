@@ -320,7 +320,11 @@ def _read_snapshot_cached(
     memo = replace(snapshot, expired_ids=[])
     new_token = _change_token(live)
     with _SNAPSHOT_CACHE_LOCK:
-        if generation == _SNAPSHOT_CACHE_GENERATION:
+        # The Rust reader holds the store lock while it parses, but Python only
+        # owns the cache token outside that lock. If another writer changes the
+        # file before token publication, the snapshot describes the old bytes,
+        # so keep it uncached and let the next stable read observe disk.
+        if generation == _SNAPSHOT_CACHE_GENERATION and new_token == token:
             _SNAPSHOT_CACHE[key] = (new_token, _clone_snapshot(memo))
     return snapshot
 
