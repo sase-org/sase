@@ -351,8 +351,9 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-zs.5(classify_failure_retryability)' \
-        --epic-symbol 'sase-zs.5(is_retryable_failure)' \
+        --epic-symbol 'sase-zs.6(GhCommandResult)' \
+        --epic-symbol 'sase-zs.6(GhSubprocessRunner)' \
+        --epic-symbol 'sase-zs.6(run_gh)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

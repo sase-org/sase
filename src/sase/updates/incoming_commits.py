@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 import math
-import shutil
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -12,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.dev_update.models import DevUpdateRootPlan
+from sase.github_cli import gh_api_json
 from sase.plugins.catalog import PluginCatalogEntry
 from sase.plugins.github_source import GH_TIMEOUT_SECONDS
 from sase.uv_tool.versions import CorePackageVersion
@@ -339,26 +338,13 @@ def _run_git(
 
 
 def _gh_api_json(endpoint: str, *, run_fn: RunFn | None) -> Mapping[str, Any]:
-    if shutil.which("gh") is None:
-        raise RuntimeError("the GitHub CLI (gh) was not found on PATH")
-    runner = subprocess.run if run_fn is None else run_fn
-    completed = runner(
-        ["gh", "api", "-X", "GET", endpoint],
-        capture_output=True,
-        text=True,
+    payload = gh_api_json(
+        endpoint,
         timeout=GH_TIMEOUT_SECONDS,
+        run_fn=run_fn,
+        op="updates.incoming_commits.gh_api",
     )
-    if completed.returncode != 0:
-        detail = _first_nonempty_line(completed.stderr, completed.stdout)
-        suffix = f": {detail}" if detail else ""
-        raise RuntimeError(f"`gh api` failed (exit {completed.returncode}){suffix}")
-    try:
-        payload = json.loads(completed.stdout)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"could not parse `gh api` output as JSON: {exc}") from exc
-    if not isinstance(payload, dict):
-        raise RuntimeError("`gh api` returned JSON that was not an object")
-    return payload
+    return dict(payload)
 
 
 def _parse_git_log(stdout: str) -> tuple[CommitSummary, ...]:
