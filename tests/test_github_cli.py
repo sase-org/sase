@@ -21,8 +21,8 @@ from sase.core.retryability_wire import (
 from sase.github_cli import (
     DEFAULT_GH_TIMEOUT_SECONDS,
     GhCommandError,
+    _run_gh,
     gh_api_json,
-    run_gh,
 )
 
 
@@ -79,7 +79,7 @@ def test_run_gh_retries_transient_failure(
         lambda *_args, **kwargs: fake_classifier(**kwargs),
     )
 
-    result = run_gh(
+    result = _run_gh(
         ["api", "repos/sase-org/sase"],
         run_fn=run_fn,
         sleep_fn=sleeps.append,
@@ -124,7 +124,7 @@ def test_run_gh_honors_classifier_retry_after(
         ),
     )
 
-    result = run_gh(["api", "rate_limit"], run_fn=run_fn, sleep_fn=sleeps.append)
+    result = _run_gh(["api", "rate_limit"], run_fn=run_fn, sleep_fn=sleeps.append)
 
     assert result.returncode == 0
     assert calls == 2
@@ -157,7 +157,7 @@ def test_run_gh_honors_x_ratelimit_reset(
         lambda *_args, **_kwargs: _verdict(retryable=True),
     )
 
-    result = run_gh(
+    result = _run_gh(
         ["api", "rate_limit"],
         run_fn=run_fn,
         sleep_fn=sleeps.append,
@@ -193,7 +193,7 @@ def test_run_gh_does_not_retry_permanent_failure(
     )
 
     with pytest.raises(GhCommandError) as exc_info:
-        run_gh(["api", "repos/missing"], check=True, run_fn=run_fn)
+        _run_gh(["api", "repos/missing"], check=True, run_fn=run_fn)
 
     assert calls == 1
     assert exc_info.value.result is not None
@@ -230,7 +230,7 @@ def test_run_gh_retries_timeout(
         lambda *_args, **_kwargs: _verdict(retryable=True),
     )
 
-    result = run_gh(
+    result = _run_gh(
         ["api", "repos/sase-org/sase"], run_fn=run_fn, sleep_fn=sleeps.append
     )
 

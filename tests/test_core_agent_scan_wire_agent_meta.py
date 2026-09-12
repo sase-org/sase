@@ -276,6 +276,7 @@ def test_agent_meta_imported_source_owner_round_trips() -> None:
                     "timestamp": "1",
                     "agent_meta": {
                         "name": "bob.zeus.crew--code",
+                        "source_machine": "zeus",
                         "imported_source_owner": {
                             "username": "bob",
                             "machine_name": "zeus",
@@ -288,10 +289,13 @@ def test_agent_meta_imported_source_owner_round_trips() -> None:
 
     meta = snapshot.records[0].agent_meta
     assert meta is not None
+    assert meta.source_machine == "zeus"
     assert meta.imported_source_owner == {
         "username": "bob",
         "machine_name": "zeus",
     }
+    payload = agent_scan_wire_to_json_dict(snapshot)
+    assert payload["records"][0]["agent_meta"]["source_machine"] == "zeus"
 
 
 def test_agent_meta_plan_committed_preserves_true_false_and_absent() -> None:
@@ -360,6 +364,7 @@ def test_rehydration_ignores_unknown_marker_keys() -> None:
                     "done": {
                         "outcome": "completed",
                         "cl_name": "myproj",
+                        "source_machine": "apollo",
                         "added_by_newer_writer": ["ignored"],
                     },
                     "running": {"pid": 123, "added_by_newer_writer": None},
@@ -390,6 +395,7 @@ def test_rehydration_ignores_unknown_marker_keys() -> None:
     assert record.done is not None
     assert record.done.outcome == "completed"
     assert record.done.cl_name == "myproj"
+    assert record.done.source_machine == "apollo"
     assert record.running is not None
     assert record.running.pid == 123
     assert record.agent_meta is not None
@@ -399,3 +405,5 @@ def test_rehydration_ignores_unknown_marker_keys() -> None:
     assert [step.name for step in record.workflow_state.steps] == ["main"]
     assert [step.file_name for step in record.prompt_steps] == ["prompt_step_main.json"]
     assert not hasattr(record.done, "added_by_newer_writer")
+    payload = agent_scan_wire_to_json_dict(snapshot)
+    assert payload["records"][0]["done"]["source_machine"] == "apollo"

@@ -26,9 +26,11 @@ from sase.core.agent_scan_wire_markers import (
 )
 
 AGENT_SCAN_WIRE_SCHEMA_VERSION = 8
-AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 27
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 28
 AgentArtifactRecordShape = Literal["full", "list"]
-AgentArtifactCandidateField = Literal["project", "cl", "model", "provider", "type"]
+AgentArtifactCandidateField = Literal[
+    "project", "cl", "model", "provider", "machine", "type"
+]
 
 # Workflow directory categories the Phase 3A scanner walks.
 #

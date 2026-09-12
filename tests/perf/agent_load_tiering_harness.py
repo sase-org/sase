@@ -9,10 +9,8 @@ query paths.
 The fixture writes production-shaped marker files rather than wire objects
 so the Rust scanner, SQLite index rebuild, index query, and Python
 snapshot-to-Agent projection all run on their real interfaces. A few rows
-carry imported-owner/source-machine-looking provenance in marker JSON; the
-current artifact scan wire does not yet expose a first-class
-``source_machine`` field, which is part of the later Rust-index phase's
-scope.
+carry imported-owner/source-machine provenance in marker JSON so later
+phases can exercise the indexed machine candidate field.
 """
 
 from __future__ import annotations

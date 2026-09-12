@@ -88,7 +88,7 @@ class GhCommandError(RuntimeError):
         self.result = result
 
 
-def run_gh(
+def _run_gh(
     args: Sequence[str],
     *,
     cwd: str | Path | None = None,
@@ -273,7 +273,7 @@ def gh_api_json(
     op: str = "gh.api",
 ) -> Mapping[str, Any] | Any:
     """Run ``gh api`` and parse the response JSON."""
-    result = run_gh(
+    result = _run_gh(
         ["api", "-X", method, endpoint],
         cwd=cwd,
         timeout=timeout,
@@ -520,5 +520,4 @@ __all__ = [
     "DEFAULT_GH_TIMEOUT_SECONDS",
     "GhCommandError",
     "gh_api_json",
-    "run_gh",
 ]

@@ -27,7 +27,7 @@ def test_load_tiering_query_battery_has_no_missing_rows_within_tier1_window(
         assert result.diff_for("index_full_history").visible_extra == (), case.query
 
 
-def test_load_tiering_oracle_reports_under_selecting_candidate_filter(
+def test_load_tiering_oracle_reports_under_selecting_candidate_filter_on_index_paths(
     tmp_path: Path,
 ) -> None:
     fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=48)
@@ -45,4 +45,5 @@ def test_load_tiering_oracle_reports_under_selecting_candidate_filter(
 
     bounded_diff = result.diff_for("index_bounded")
     assert bounded_diff.missing
-    assert result.diff_for("index_full_history").missing == ()
+    full_history_diff = result.diff_for("index_full_history")
+    assert full_history_diff.missing
