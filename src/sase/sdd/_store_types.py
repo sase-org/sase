@@ -53,6 +53,10 @@ class SddMaterializationError(RuntimeError):
     """Raised when provider-owned separate-repo storage cannot be materialized."""
 
 
+class SddTransientMaterializationError(SddMaterializationError):
+    """Raised when materialization failed for a retryable transport reason."""
+
+
 @dataclass(frozen=True)
 class SddSidecar:
     """Repository identity for one side of a split SDD store."""

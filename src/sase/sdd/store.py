@@ -41,6 +41,7 @@ from sase.sdd._store_types import (
     SddStorage,
     SddStore,
     SddStoreRecord,
+    SddTransientMaterializationError,
     document_sidecar_roles,
 )
 from sase.sdd._store_workspace import (
@@ -62,6 +63,7 @@ __all__ = [
     "SddInitOutcome",
     "SddSidecar",
     "SddMaterializationError",
+    "SddTransientMaterializationError",
     "SddStorage",
     "SddStore",
     "SddStoreRecord",

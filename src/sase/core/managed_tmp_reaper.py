@@ -64,6 +64,7 @@ MANAGED_TMPDIR_HORIZONS: Mapping[str, float] = {
     "editors": COMMAND_SCRATCH_HORIZON_SECONDS,
     "embedded-artifacts": COMMAND_SCRATCH_HORIZON_SECONDS,
     "muse-prompts": COMMAND_SCRATCH_HORIZON_SECONDS,
+    "sdd-remote-clone-pool": COMMAND_SCRATCH_HORIZON_SECONDS,
     "viewers": COMMAND_SCRATCH_HORIZON_SECONDS,
     "workflow-loader": COMMAND_SCRATCH_HORIZON_SECONDS,
     "wrappers": COMMAND_SCRATCH_HORIZON_SECONDS,

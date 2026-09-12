@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import fcntl
+import os
 from pathlib import Path
 import subprocess
 
@@ -8,7 +10,17 @@ import pytest
 from sase.sdd._git import run_sdd_git
 from sase.sdd._store_clone_ops import clone_sdd_store
 from sase.sdd._store_link import ensure_sidecar_sdd_clone
-from sase.sdd._store_types import SddMaterializationError
+from sase.sdd._store_types import (
+    SddMaterializationError,
+    SddTransientMaterializationError,
+)
+
+
+def _hold_remote_clone_slot(lock_dir: Path) -> int:
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock_dir / "slot-0.lock", os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return fd
 
 
 @pytest.fixture(autouse=True)
@@ -129,6 +141,115 @@ def test_sidecar_clone_retries_transient_transport_failures(
     assert attempts == 3
     assert sleeps == [0.25, 1.0]
     assert not (clone_dir / "partial").exists()
+
+
+def test_remote_clone_waits_for_host_clone_permit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = "git@example.test:private/plans.git"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    lock_dir = tmp_path / "clone-pool"
+    held_fd = _hold_remote_clone_slot(lock_dir)
+    sleeps: list[float] = []
+    released = False
+
+    def release_during_sleep(delay: float) -> None:
+        nonlocal released
+        sleeps.append(delay)
+        if not released:
+            fcntl.flock(held_fd, fcntl.LOCK_UN)
+            os.close(held_fd)
+            released = True
+
+    def successful_clone(*_args, **_kwargs):
+        assert released
+        (clone_dir / ".git").mkdir(parents=True)
+        return subprocess.CompletedProcess(
+            args=["git", "clone"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setenv("SASE_SDD_REMOTE_CLONE_CONCURRENCY", "1")
+    monkeypatch.setattr(
+        "sase.sdd._store_clone_ops._remote_clone_lock_dir",
+        lambda: lock_dir,
+    )
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", successful_clone)
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", release_during_sleep)
+
+    try:
+        assert clone_sdd_store(remote, clone_dir, strict=True) is True
+    finally:
+        if not released:
+            fcntl.flock(held_fd, fcntl.LOCK_UN)
+            os.close(held_fd)
+
+    assert sleeps == [0.1]
+
+
+def test_remote_clone_permit_wait_respects_deadline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = "git@example.test:private/plans.git"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    lock_dir = tmp_path / "clone-pool"
+    held_fd = _hold_remote_clone_slot(lock_dir)
+    now = [10.0]
+    calls = 0
+
+    def advance_past_deadline(_delay: float) -> None:
+        now[0] = 10.2
+
+    def unexpected_clone(*_args, **_kwargs):
+        nonlocal calls
+        calls += 1
+        return subprocess.CompletedProcess(
+            args=["git", "clone"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setenv("SASE_SDD_REMOTE_CLONE_CONCURRENCY", "1")
+    monkeypatch.setattr(
+        "sase.sdd._store_clone_ops._remote_clone_lock_dir",
+        lambda: lock_dir,
+    )
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.monotonic", lambda: now[0])
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", advance_past_deadline)
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", unexpected_clone)
+
+    try:
+        with pytest.raises(
+            SddTransientMaterializationError,
+            match="timed out waiting for SDD remote clone permit",
+        ):
+            clone_sdd_store(remote, clone_dir, strict=True, deadline=10.1)
+    finally:
+        fcntl.flock(held_fd, fcntl.LOCK_UN)
+        os.close(held_fd)
+
+    assert calls == 0
+
+
+def test_local_clone_bypasses_host_remote_clone_permit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    remote = str(tmp_path / "remote.git")
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+
+    def successful_clone(*_args, **_kwargs):
+        (clone_dir / ".git").mkdir(parents=True)
+        return subprocess.CompletedProcess(
+            args=["git", "clone"], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr(
+        "sase.sdd._store_clone_ops._remote_clone_lock_dir",
+        lambda: pytest.fail("local clone tried to enter remote clone pool"),
+    )
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", successful_clone)
+
+    assert clone_sdd_store(remote, clone_dir, strict=True) is True
 
 
 def test_sidecar_clone_timeout_retries_without_reference_and_cleans_partial(

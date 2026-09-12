@@ -42,6 +42,10 @@ from sase.axe.source_skew import preload_post_gate_modules
 from sase.bead.claims import clear_bead_claim_marker
 from sase.dev_update.code_swap_lock import code_swap_advisory_reader_lock
 from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
+from sase.sdd.store import SddTransientMaterializationError
+
+
+SETUP_MATERIALIZATION_FAILED_OUTCOME = "setup_materialization_failed"
 
 
 def _prepare_workspace_and_repos(
@@ -106,6 +110,15 @@ def _prepare_workspace_and_repos(
             artifacts_timestamp=state.artifacts_timestamp,
             fresh_sidecar_paths=fresh_sidecar_paths,
         )
+
+
+def _is_transient_materialization_failure(exc: BaseException) -> bool:
+    current: BaseException | None = exc
+    while current is not None:
+        if isinstance(current, SddTransientMaterializationError):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
 
 
 def _refresh_clan_summary(
@@ -215,7 +228,12 @@ def _build_exec_context(
 def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
     """Prepare the claimed workspace and run the agent execution loop."""
     info = bootstrap.info
-    _prepare_workspace_and_repos(state, bootstrap)
+    try:
+        _prepare_workspace_and_repos(state, bootstrap)
+    except Exception as exc:
+        if _is_transient_materialization_failure(exc):
+            state.exec_outcome = SETUP_MATERIALIZATION_FAILED_OUTCOME
+        raise
     _refresh_clan_summary(state, bootstrap)
 
     if state.is_home_mode:

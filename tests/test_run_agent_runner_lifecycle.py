@@ -55,6 +55,14 @@ from tests._run_agent_runner_lifecycle_helpers import (
         ({"exec_outcome": "plan_committed"}, False, False, False, False, False),
         ({"exec_outcome": "epic_approved"}, False, False, False, False, False),
         ({"exec_outcome": "epic_launch_failed"}, False, False, False, False, False),
+        (
+            {"exec_outcome": "setup_materialization_failed"},
+            False,
+            False,
+            False,
+            False,
+            False,
+        ),
         ({"exec_outcome": "gated"}, False, False, False, False, False),
         ({}, True, False, False, False, False),
         ({}, False, True, False, False, False),
@@ -303,6 +311,31 @@ def test_finalize_releases_failed_retry_parent(tmp_path: Path) -> None:
             state=make_state(
                 exec_outcome="failed_retried",
                 error_summary=None,
+            ),
+            deps=deps,
+        )
+
+    hold.assert_not_called()
+    release.assert_called_once_with(
+        "/tmp/project.sase", 17, "run", "feature", caller_tag="agent-finalize"
+    )
+
+
+def test_finalize_releases_transient_setup_materialization_failure(
+    tmp_path: Path,
+) -> None:
+    context = make_context(tmp_path)
+    deps = make_deps(all_steps_hidden=MagicMock(return_value=False))
+
+    with (
+        patch("sase.running_field.hold_workspace_claim") as hold,
+        patch("sase.running_field.release_workspace") as release,
+    ):
+        finalize_runner_shutdown(
+            context=context,
+            state=make_state(
+                current_artifacts_dir=str(tmp_path),
+                exec_outcome="setup_materialization_failed",
             ),
             deps=deps,
         )

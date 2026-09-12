@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+import fcntl
 import logging
 import os
 from pathlib import Path
 import shutil
 import time
 
-from sase._git_remote import is_http_git_remote
+from sase._git_remote import is_http_git_remote, parse_hosted_git_remote
 from sase.core.retryability_facade import is_retryable_git_clone_failure
 from sase.core.retryability_wire import RETRY_OPERATION_GIT_CLONE
 from sase.sdd._store_git import (
@@ -16,10 +19,16 @@ from sase.sdd._store_git import (
     paths_same_file as _paths_same_file,
     same_git_remote as _same_git_remote,
 )
-from sase.sdd._store_types import SddMaterializationError
+from sase.sdd._store_types import (
+    SddMaterializationError,
+    SddTransientMaterializationError,
+)
 
 _logger = logging.getLogger(__name__)
 
+ENV_REMOTE_CLONE_CONCURRENCY = "SASE_SDD_REMOTE_CLONE_CONCURRENCY"
+DEFAULT_REMOTE_CLONE_CONCURRENCY = 1
+_REMOTE_CLONE_ADMISSION_POLL_SECONDS = 0.1
 _REMOTE_CLONE_RETRY_DELAYS = (0.25, 1.0, 2.0)
 _REMOTE_CLONE_TIMEOUT_GROWTH = 0.5
 _MAX_RETRIES_WITHOUT_REFERENCE = 1
@@ -71,20 +80,36 @@ def clone_sdd_store(
                 f"deadline expired before cloning SDD store {remote_url} into "
                 f"{workspace_sdd}",
                 strict=strict,
+                transient=True,
             )
         try:
             # Clone builds a fresh checkout with no existing index.lock to recover.
-            result = run_sdd_git(
-                clone_args,
-                cwd=workspace_sdd.parent,
-                op="sdd.clone.remote",
-                timeout=timeout,
-                check=False,
-                capture_output=True,
-                text=True,
-                env=clone_env,
-                telemetry=attempt_telemetry,
-                retryability_operation_kind=RETRY_OPERATION_GIT_CLONE,
+            with _remote_clone_admission(remote_url, workspace_sdd, deadline=deadline):
+                timeout = _deadline_timeout(timeout, deadline)
+                if timeout <= 0.0:
+                    raise _RemoteCloneAdmissionTimeout(
+                        "deadline expired after acquiring SDD remote clone permit "
+                        f"for {remote_url} into {workspace_sdd}"
+                    )
+                result = run_sdd_git(
+                    clone_args,
+                    cwd=workspace_sdd.parent,
+                    op="sdd.clone.remote",
+                    timeout=timeout,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    env=clone_env,
+                    telemetry=attempt_telemetry,
+                    retryability_operation_kind=RETRY_OPERATION_GIT_CLONE,
+                )
+        except _RemoteCloneAdmissionTimeout as exc:
+            return handle_failed_sdd_clone(
+                workspace_sdd,
+                str(exc),
+                strict=strict,
+                transient=True,
+                cause=exc,
             )
         except SddGitCommandTimeout as exc:
             can_retry_without_reference = (
@@ -113,6 +138,7 @@ def clone_sdd_store(
                     f"timed out cloning SDD store {remote_url} into {workspace_sdd}",
                     strict=strict,
                     cause=exc,
+                    transient=True,
                 )
 
             _remove_partial_sdd_clone(workspace_sdd)
@@ -133,6 +159,7 @@ def clone_sdd_store(
                     f"deadline expired before retrying SDD clone {remote_url} into "
                     f"{workspace_sdd}",
                     strict=strict,
+                    transient=True,
                 )
             continue
         except Exception as exc:
@@ -177,6 +204,7 @@ def clone_sdd_store(
                 f"failed to clone SDD store {remote_url} into {workspace_sdd}: "
                 f"{detail or f'git clone exited {result.returncode}'}",
                 strict=strict,
+                transient=_is_transient_remote_clone_failure(detail),
             )
 
         _remove_partial_sdd_clone(workspace_sdd)
@@ -197,6 +225,7 @@ def clone_sdd_store(
                 f"deadline expired before retrying SDD clone {remote_url} into "
                 f"{workspace_sdd}",
                 strict=strict,
+                transient=True,
             )
 
     raise AssertionError("remote clone retry loop did not return")
@@ -259,6 +288,119 @@ def _is_transient_remote_clone_failure(detail: str) -> bool:
     return is_retryable_git_clone_failure(detail)
 
 
+class _RemoteCloneAdmissionTimeout(RuntimeError):
+    """Raised when the host remote-clone pool stays full until the deadline."""
+
+
+class _RemoteClonePermit:
+    def __init__(self, fd: int, path: Path) -> None:
+        self._fd = fd
+        self.path = path
+
+    def close(self) -> None:
+        fd = self._fd
+        self._fd = -1
+        if fd < 0:
+            return
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
+@contextmanager
+def _remote_clone_admission(
+    remote_url: str,
+    workspace_sdd: Path,
+    *,
+    deadline: float | None,
+) -> Iterator[None]:
+    permit: _RemoteClonePermit | None = None
+    if _should_bound_remote_clone(remote_url):
+        permit = _acquire_remote_clone_permit(
+            remote_url,
+            workspace_sdd,
+            deadline=deadline,
+        )
+    try:
+        yield
+    finally:
+        if permit is not None:
+            permit.close()
+
+
+def _should_bound_remote_clone(remote_url: str) -> bool:
+    return parse_hosted_git_remote(remote_url) is not None
+
+
+def _configured_remote_clone_concurrency() -> int:
+    """Return the host-wide remote clone concurrency bound."""
+
+    raw = os.environ.get(ENV_REMOTE_CLONE_CONCURRENCY)
+    if raw is None:
+        return DEFAULT_REMOTE_CLONE_CONCURRENCY
+    try:
+        value = int(raw)
+    except ValueError:
+        return DEFAULT_REMOTE_CLONE_CONCURRENCY
+    return value if value > 0 else DEFAULT_REMOTE_CLONE_CONCURRENCY
+
+
+def _remote_clone_lock_dir() -> Path | None:
+    try:
+        from sase.core.paths import get_sase_managed_tmpdir
+
+        return Path(get_sase_managed_tmpdir("sdd-remote-clone-pool"))
+    except Exception:
+        _logger.warning(
+            "Unable to resolve SDD remote clone admission directory; "
+            "continuing without the host-wide clone bound",
+            exc_info=True,
+        )
+        return None
+
+
+def _acquire_remote_clone_permit(
+    remote_url: str,
+    workspace_sdd: Path,
+    *,
+    deadline: float | None,
+) -> _RemoteClonePermit | None:
+    lock_dir = _remote_clone_lock_dir()
+    if lock_dir is None:
+        return None
+
+    limit = _configured_remote_clone_concurrency()
+    while True:
+        for index in range(limit):
+            permit = _try_remote_clone_permit(lock_dir / f"slot-{index}.lock")
+            if permit is not None:
+                return permit
+
+        if deadline is not None and time.monotonic() >= deadline:
+            raise _RemoteCloneAdmissionTimeout(
+                f"timed out waiting for SDD remote clone permit before cloning "
+                f"{remote_url} into {workspace_sdd}; "
+                f"host clone concurrency limit is {limit}"
+            )
+        time.sleep(_REMOTE_CLONE_ADMISSION_POLL_SECONDS)
+
+
+def _try_remote_clone_permit(path: Path) -> _RemoteClonePermit | None:
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        return None
+    except OSError:
+        os.close(fd)
+        raise
+    os.ftruncate(fd, 0)
+    os.write(fd, f"pid={os.getpid()} acquired_at={time.time():.6f}\n".encode())
+    return _RemoteClonePermit(fd, path)
+
+
 def _remove_partial_sdd_clone(workspace_sdd: Path) -> None:
     try:
         if workspace_sdd.is_dir() and not workspace_sdd.is_symlink():
@@ -279,12 +421,16 @@ def handle_failed_sdd_clone(
     *,
     strict: bool,
     cause: Exception | None = None,
+    transient: bool = False,
 ) -> bool:
     """Remove partial clone output and optionally fail the setup transaction."""
 
     _remove_partial_sdd_clone(workspace_sdd)
     if strict:
-        error = SddMaterializationError(message)
+        error_cls = (
+            SddTransientMaterializationError if transient else SddMaterializationError
+        )
+        error = error_cls(message)
         if cause is not None:
             raise error from cause
         raise error

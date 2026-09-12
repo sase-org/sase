@@ -9,6 +9,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from sase.axe.run_agent_exec import AgentExecContext, LoopState, _finalize_loop
 from sase.axe.run_agent_exec_types import AgentExecResult
 from sase.axe.run_agent_exec_retry import RetryTracker
@@ -20,6 +22,7 @@ from sase.axe.run_agent_runner_launch import launch_agent_run
 from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.linked_repos import LinkedRepoResolution
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
+from sase.sdd.store import SddMaterializationError, SddTransientMaterializationError
 from sase.workspace_provider.occupant import read_occupant_record
 
 from tests._axe_run_agent_exec_helpers import make_exec_ctx
@@ -149,6 +152,45 @@ def test_finalize_loop_returns_and_writes_rebound_workspace(
     assert done["workspace_dir"] == str(workspace)
 
 
+def _launch_state(tmp_path: Path) -> RunnerRunState:
+    artifacts = tmp_path / "artifacts"
+    workspace = tmp_path / "project"
+    artifacts.mkdir(exist_ok=True)
+    workspace.mkdir(exist_ok=True)
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("work", encoding="utf-8")
+    output = tmp_path / "output.txt"
+    output.write_text("", encoding="utf-8")
+    return RunnerRunState(
+        cl_name="feature",
+        project_file=str(tmp_path / "project.sase"),
+        prompt_file=str(prompt),
+        output_path=str(output),
+        workflow_name="ace-runner",
+        timestamp="20260828_120000",
+        update_target="",
+        is_home_mode=False,
+        workspace_dir=str(workspace),
+        workspace_num=0,
+        project_name="project",
+        artifacts_timestamp="20260828120000",
+        artifacts_dir=str(artifacts),
+        prompt="work",
+        agent_name="identity-agent",
+    )
+
+
+def _launch_bootstrap() -> RunnerBootstrap:
+    return RunnerBootstrap(
+        info=AGENT_INFO,
+        agent_meta={"pid": os.getpid()},
+        retry_handoff=None,
+        deferred_workspace=False,
+        has_dependency_wait=False,
+        has_wait=False,
+    )
+
+
 def test_launch_agent_run_copies_rebound_exec_workspace_identity(
     tmp_path: Path,
 ) -> None:
@@ -218,3 +260,43 @@ def test_launch_agent_run_copies_rebound_exec_workspace_identity(
 
     assert state.workspace_num == 10
     assert state.workspace_dir == str(rebound)
+
+
+def test_launch_agent_run_marks_transient_setup_materialization_failure(
+    tmp_path: Path,
+) -> None:
+    state = _launch_state(tmp_path)
+    bootstrap = _launch_bootstrap()
+    failure = SddTransientMaterializationError("timed out cloning SDD store")
+
+    with (
+        patch(
+            "sase.axe.run_agent_runner_launch.prepare_workspace_if_needed",
+            side_effect=failure,
+        ),
+        patch("sase.axe.run_agent_runner_launch.run_execution_loop") as run_loop,
+        pytest.raises(SddTransientMaterializationError),
+    ):
+        launch_agent_run(state, bootstrap)
+
+    assert state.exec_outcome == "setup_materialization_failed"
+    run_loop.assert_not_called()
+
+
+def test_launch_agent_run_does_not_mark_permanent_setup_materialization_failure(
+    tmp_path: Path,
+) -> None:
+    state = _launch_state(tmp_path)
+    bootstrap = _launch_bootstrap()
+    failure = SddMaterializationError("authentication failed for plans remote")
+
+    with (
+        patch(
+            "sase.axe.run_agent_runner_launch.prepare_workspace_if_needed",
+            side_effect=failure,
+        ),
+        pytest.raises(SddMaterializationError),
+    ):
+        launch_agent_run(state, bootstrap)
+
+    assert state.exec_outcome == ""

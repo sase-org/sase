@@ -445,12 +445,14 @@ def runner_capacity_snapshot_from_capacity_records(
     candidate: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the Rust capacity snapshot for already-projected record dicts."""
+    records_list = [_with_queue_capacity_alias(record) for record in records]
+    candidate_record = (
+        None if candidate is None else _with_queue_capacity_alias(candidate)
+    )
     request = {
         "effective_limit": float(effective_limit),
-        "records": [_with_queue_capacity_alias(record) for record in records],
-        "candidate": (
-            None if candidate is None else _with_queue_capacity_alias(candidate)
-        ),
+        "records": records_list,
+        "candidate": candidate_record,
         "now": now,
         "deference_seconds_per_step": int(deference_seconds_per_step),
         "deference_max_seconds": int(deference_max_seconds),
@@ -458,7 +460,41 @@ def runner_capacity_snapshot_from_capacity_records(
     from sase.xprompt.queue_directive import launch_feature_flag_keys
 
     request["feature_flags"] = launch_feature_flag_keys()
-    return _core_runner_capacity_snapshot(request)
+    snapshot = _core_runner_capacity_snapshot(request)
+    _restore_waiter_thresholds(
+        snapshot,
+        [*records_list, *([] if candidate_record is None else [candidate_record])],
+    )
+    return snapshot
+
+
+def _restore_waiter_thresholds(
+    snapshot: dict[str, Any],
+    records: Iterable[Mapping[str, Any]],
+) -> None:
+    thresholds = {
+        str(record.get("artifact_dir") or ""): threshold
+        for record in records
+        if (threshold := _record_capacity_threshold(record)) is not None
+    }
+    waiters = snapshot.get("waiters")
+    if not isinstance(waiters, list):
+        return
+    for waiter in waiters:
+        if not isinstance(waiter, dict):
+            continue
+        if "wait_runners" in waiter or "queue_capacity" in waiter:
+            continue
+        threshold = thresholds.get(str(waiter.get("artifact_dir") or ""))
+        if threshold is not None:
+            waiter["queue_capacity"] = threshold
+
+
+def _record_capacity_threshold(record: Mapping[str, Any]) -> int | None:
+    value = record.get("queue_capacity")
+    if type(value) is not int:
+        value = record.get("wait_runners")
+    return int(value) if type(value) is int and value >= 0 else None
 
 
 def runner_slot_candidate_record(

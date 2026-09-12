@@ -33,6 +33,7 @@ _NON_HOLD_FAILURE_OUTCOMES = {
     "plan_committed",
     "epic_approved",
     "epic_launch_failed",
+    "setup_materialization_failed",
 }
 
 
