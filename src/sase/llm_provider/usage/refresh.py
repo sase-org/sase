@@ -500,10 +500,17 @@ def _referenced_provider_ids() -> set[str]:
 
 
 def _provider_cli_ready(provider: str, metadata: Mapping[str, Any]) -> bool:
-    token = re.sub(r"[^A-Za-z0-9]+", "_", provider).strip("_").upper()
-    override = os.environ.get(f"SASE_{token}_PATH", "").strip()
-    cli_name = metadata.get("autodetect_cli_name")
-    command = override or (str(cli_name).strip() if cli_name else "")
+    if provider == "codex":
+        # Match the launcher/collector's own resolver so an NVM-only install
+        # (no ``codex`` on PATH) still counts as ready.
+        from sase.llm_provider.codex import resolve_codex_executable
+
+        command = resolve_codex_executable()
+    else:
+        token = re.sub(r"[^A-Za-z0-9]+", "_", provider).strip("_").upper()
+        override = os.environ.get(f"SASE_{token}_PATH", "").strip()
+        cli_name = metadata.get("autodetect_cli_name")
+        command = override or (str(cli_name).strip() if cli_name else "")
     if not command:
         return True
     path = Path(command)
