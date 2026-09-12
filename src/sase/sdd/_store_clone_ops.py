@@ -10,6 +10,7 @@ import time
 
 from sase._git_remote import is_http_git_remote
 from sase.core.retryability_facade import is_retryable_git_clone_failure
+from sase.core.retryability_wire import RETRY_OPERATION_GIT_CLONE
 from sase.sdd._store_git import (
     git_remote_url as _git_remote_url,
     paths_same_file as _paths_same_file,
@@ -56,6 +57,13 @@ def clone_sdd_store(
     max_attempts = len(_REMOTE_CLONE_RETRY_DELAYS) + 1
     base_timeout = network_git_timeout()
     for attempt in range(max_attempts):
+        attempt_telemetry = _clone_attempt_telemetry(
+            workspace_sdd,
+            remote_url=remote_url,
+            attempt=attempt,
+            max_attempts=max_attempts,
+            reference=reference,
+        )
         timeout = _clone_attempt_timeout(base_timeout, attempt, deadline)
         if timeout <= 0.0:
             return handle_failed_sdd_clone(
@@ -75,6 +83,8 @@ def clone_sdd_store(
                 capture_output=True,
                 text=True,
                 env=clone_env,
+                telemetry=attempt_telemetry,
+                retryability_operation_kind=RETRY_OPERATION_GIT_CLONE,
             )
         except SddGitCommandTimeout as exc:
             can_retry_without_reference = (
@@ -207,6 +217,25 @@ def _remote_clone_args(
         clone_args.extend(["--reference-if-able", str(reference), "--dissociate"])
     clone_args.extend([remote_url, str(workspace_sdd)])
     return clone_args
+
+
+def _clone_attempt_telemetry(
+    workspace_sdd: Path,
+    *,
+    remote_url: str,
+    attempt: int,
+    max_attempts: int,
+    reference: Path | None,
+) -> dict[str, object]:
+    return {
+        "retry_attempt_index": attempt,
+        "retry_attempt_ordinal": attempt + 1,
+        "retry_attempts_total": max_attempts,
+        "reference_repo_used": reference is not None,
+        "sdd_store_path": str(workspace_sdd),
+        "sdd_store_name": workspace_sdd.name,
+        "sdd_remote_url": remote_url,
+    }
 
 
 def _matching_clone_reference(

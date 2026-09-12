@@ -14,6 +14,7 @@ from sase.doctor.checks_install_management import (
     uv_tool_data,
     uv_tool_details,
 )
+from sase.doctor.checks_git_transport import check_git_transport_margin
 from sase.doctor.checks_runtime_common import (
     optional_str,
     resolve_command_from_env,
@@ -99,6 +100,12 @@ def runtime_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Git executable and identity",
             runner=lambda: _check_vcs_git(context),
         ),
+        CheckSpec(
+            id="vcs.git_transport_margin",
+            group="vcs",
+            title="Git transport margin",
+            runner=lambda: _check_git_transport_margin(context),
+        ),
     )
 
 
@@ -140,6 +147,10 @@ def _check_vcs_git(context: DoctorContext) -> DiagnosticCheck:
         git_result_fn=_git_result,
         git_config_fn=_git_config,
     )
+
+
+def _check_git_transport_margin(context: DoctorContext) -> DiagnosticCheck:
+    return check_git_transport_margin(context)
 
 
 _GIT_TIMEOUT_SECONDS = GIT_TIMEOUT_SECONDS

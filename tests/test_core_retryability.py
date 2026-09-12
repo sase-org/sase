@@ -7,7 +7,6 @@ import pytest
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
 from sase.core.retryability_facade import (
     classify_failure_retryability,
-    is_retryable_failure,
 )
 from sase.core.retryability_wire import (
     RETRYABILITY_VERDICT_AFTER_DELAY,
@@ -60,7 +59,7 @@ def test_retryability_facade_calls_rust_binding(
     ]
 
 
-def test_is_retryable_failure_uses_classifier_retryable_flag(
+def test_classifier_surfaces_permanent_retryable_flag(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fake_classifier(
@@ -82,10 +81,11 @@ def test_is_retryable_failure_uses_classifier_retryable_flag(
         classify_failure_retryability=fake_classifier,
     )
 
-    assert not is_retryable_failure(
-        operation_kind=RETRY_OPERATION_GH,
+    verdict = classify_failure_retryability(
+        RETRY_OPERATION_GH,
         stderr="gh: Not Found (HTTP 404)",
     )
+    assert not verdict.retryable
 
 
 def test_legacy_clone_helper_routes_to_shared_classifier(

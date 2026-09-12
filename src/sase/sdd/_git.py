@@ -44,6 +44,8 @@ def run_sdd_git(
     text: bool = False,
     env: Mapping[str, str] | None = None,
     always_log: bool = False,
+    telemetry: Mapping[str, Any] | None = None,
+    retryability_operation_kind: str | None = None,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a bounded git command with SDD telemetry."""
     timeout_seconds = timeout if timeout is not None else _local_git_timeout()
@@ -58,6 +60,8 @@ def run_sdd_git(
             text=text,
             env=env,
             always_log=always_log,
+            telemetry=telemetry,
+            retryability_operation_kind=retryability_operation_kind,
         )
 
     cmd = sdd_git_command(args)
@@ -85,6 +89,8 @@ def run_sdd_git(
             stdout=exc.stdout,
             stderr=exc.stderr,
             timeout_reason="wall_clock",
+            telemetry=telemetry,
+            retryability_operation_kind=retryability_operation_kind,
         )
         raise SddGitCommandTimeout(
             f"git operation {op!r} timed out after {timeout_seconds:.1f}s in {cwd}"
@@ -101,6 +107,8 @@ def run_sdd_git(
             returncode=exc.returncode,
             stdout=exc.stdout,
             stderr=exc.stderr,
+            telemetry=telemetry,
+            retryability_operation_kind=retryability_operation_kind,
         )
         raise
 
@@ -116,6 +124,8 @@ def run_sdd_git(
             returncode=result.returncode,
             stdout=result.stdout,
             stderr=result.stderr,
+            telemetry=telemetry,
+            retryability_operation_kind=retryability_operation_kind,
         )
     return result
 
@@ -143,6 +153,8 @@ def _run_streaming_sdd_git(
     text: bool,
     env: Mapping[str, str] | None,
     always_log: bool,
+    telemetry: Mapping[str, Any] | None,
+    retryability_operation_kind: str | None,
 ) -> subprocess.CompletedProcess[Any]:
     """Run a long git transfer, aborting on idle progress rather than wall time."""
 
@@ -204,6 +216,8 @@ def _run_streaming_sdd_git(
                     stdout=_decode_stream(stdout, text=text),
                     stderr=_decode_stream(stderr, text=text),
                     timeout_reason=reason,
+                    telemetry=telemetry,
+                    retryability_operation_kind=retryability_operation_kind,
                 )
                 raise SddGitCommandTimeout(message)
 
@@ -244,6 +258,8 @@ def _run_streaming_sdd_git(
             returncode=returncode,
             stdout=completed_stdout,
             stderr=completed_stderr,
+            telemetry=telemetry,
+            retryability_operation_kind=retryability_operation_kind,
         )
         raise subprocess.CalledProcessError(
             returncode,
@@ -262,6 +278,8 @@ def _run_streaming_sdd_git(
             returncode=returncode,
             stdout=completed_stdout,
             stderr=completed_stderr,
+            telemetry=telemetry,
+            retryability_operation_kind=retryability_operation_kind,
         )
     return result
 
@@ -309,6 +327,8 @@ def _log_git_operation(
     stdout: str | bytes | None,
     stderr: str | bytes | None,
     timeout_reason: str | None = None,
+    telemetry: Mapping[str, Any] | None = None,
+    retryability_operation_kind: str | None = None,
 ) -> None:
     try:
         from sase.logs import log_tui_git_operation
@@ -326,11 +346,76 @@ def _log_git_operation(
             "stdout_preview": _preview_stream(stdout),
             "stderr_preview": _preview_stream(stderr),
         }
+        record.update(_git_operation_margin_fields(duration_ms, timeout_seconds))
         if timeout_reason is not None:
             record["timeout_reason"] = timeout_reason
+        if telemetry is not None:
+            record.update(dict(telemetry))
+        classifier = _classify_retryability(
+            retryability_operation_kind,
+            returncode=returncode,
+            stdout=stdout,
+            stderr=stderr,
+        )
+        if classifier:
+            record.update(classifier)
         log_tui_git_operation(record)
     except Exception:
         _logger.debug("failed to write SDD git operation telemetry", exc_info=True)
+
+
+def _git_operation_margin_fields(
+    duration_ms: float,
+    timeout_seconds: float,
+) -> dict[str, float]:
+    limit_ms = max(timeout_seconds * 1000.0, 0.0)
+    margin_ms = limit_ms - duration_ms
+    fields = {
+        "duration_limit_margin_ms": round(margin_ms, 3),
+    }
+    if limit_ms > 0.0:
+        fields["duration_limit_ratio"] = round(duration_ms / limit_ms, 6)
+    return fields
+
+
+def _classify_retryability(
+    operation_kind: str | None,
+    *,
+    returncode: int | None,
+    stdout: str | bytes | None,
+    stderr: str | bytes | None,
+) -> dict[str, Any]:
+    if operation_kind is None:
+        return {}
+    if returncode == 0:
+        return {}
+    try:
+        from sase.core.retryability_facade import classify_failure_retryability
+
+        verdict = classify_failure_retryability(
+            operation_kind,
+            exit_status=returncode,
+            stdout=_stream_text(stdout),
+            stderr=_stream_text(stderr),
+        )
+    except Exception:
+        _logger.debug("failed to classify SDD git retryability", exc_info=True)
+        return {}
+    return {
+        "classifier_operation_kind": operation_kind,
+        "classifier_verdict": verdict.verdict,
+        "classifier_reason": verdict.reason,
+        "classifier_retryable": verdict.retryable,
+        "classifier_retry_after_seconds": verdict.retry_after_seconds,
+    }
+
+
+def _stream_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
 
 
 def _preview_stream(value: str | bytes | None, limit: int = 500) -> str | None:

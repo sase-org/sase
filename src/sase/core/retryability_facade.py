@@ -46,10 +46,10 @@ def is_retryable_failure(
 
 def is_retryable_git_clone_failure(detail: str) -> bool:
     """Compatibility helper for the legacy SDD clone retry call site."""
-    return is_retryable_failure(
-        operation_kind=RETRY_OPERATION_GIT_CLONE,
+    return classify_failure_retryability(
+        RETRY_OPERATION_GIT_CLONE,
         stderr=detail,
-    )
+    ).retryable
 
 
 __all__ = [
