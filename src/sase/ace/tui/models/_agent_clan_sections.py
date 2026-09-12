@@ -453,7 +453,7 @@ def _waiting_digest(row: Agent) -> tuple[str, ...]:
     if row.wait_until:
         parts.append(f"until {row.wait_until}")
     if row.wait_runners is not None:
-        parts.append(f"runners≤{row.wait_runners}")
+        parts.append(f"c{row.wait_runners}")
     if row.runner_slot_queue_position is not None:
         queue = f"queue #{row.runner_slot_queue_position}"
         if row.runner_slot_queue_size is not None:

@@ -323,9 +323,9 @@ class AgentState:
     wait_until: str | None = None
 
     # Runner-slot wait metadata projected from waiting.json. ``wait_runners``
-    # keeps the persisted storage spelling of the optional weighted-load
-    # capacity threshold; occupied capacity units are projected separately
-    # from the global snapshot below.
+    # keeps the persisted storage spelling of the optional authored
+    # queue-capacity budget; occupied capacity units and per-waiter admission
+    # limits are projected separately from the snapshot below.
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
     wait_priority: int | None = None
@@ -344,6 +344,7 @@ class AgentState:
     runner_slots_in_use: int | None = None
     runner_occupied_capacity: float | None = None
     runner_effective_limit: float | None = None
+    runner_admission_limit: float | None = None
     runner_slot_queue_position: int | None = None
     runner_slot_queue_size: int | None = None
     runner_capacity_blockers: tuple[dict[str, Any], ...] = field(default_factory=tuple)

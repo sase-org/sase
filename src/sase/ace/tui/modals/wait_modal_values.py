@@ -144,7 +144,7 @@ def validate_time_token(token: str) -> TimeValidation:
 
 
 def validate_capacity_token(token: str) -> CapacityValidation:
-    """Validate a weighted-load capacity budget for live preview."""
+    """Validate a runner-capacity budget for live preview."""
     from sase.xprompt.queue_directive import validate_queue_capacity
 
     token = token.strip()
@@ -164,7 +164,7 @@ def validate_capacity_token(token: str) -> CapacityValidation:
             message=str(exc),
             css_class="wait-time-error",
         )
-    message = f"uses a per-launch weighted-load budget of {value}"
+    message = f"uses a per-launch capacity budget of {value}"
     if value == 1:
         message = "run alone: starts when one capacity unit is available"
     return CapacityValidation(

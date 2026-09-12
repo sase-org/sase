@@ -68,7 +68,7 @@ def _waiting_digest(agent: Agent) -> tuple[str, ...]:
     if agent.wait_until:
         parts.append(f"until {agent.wait_until}")
     if agent.wait_runners is not None:
-        parts.append(f"runners≤{agent.wait_runners}")
+        parts.append(f"c{agent.wait_runners}")
     return tuple(parts)
 
 

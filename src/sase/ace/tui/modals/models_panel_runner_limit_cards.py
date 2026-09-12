@@ -81,7 +81,7 @@ class RunnerLimitActionModal(ModalScreen[RunnerLimitAction | None]):
                     )
             yield Static(
                 "Capacity is measured in weighted agent units.\n"
-                "Existing agents continue if lowered; %queue(capacity=N) is a weighted-load threshold.",
+                "Existing agents continue if lowered; %queue(capacity=N) sets a per-launch budget.",
                 id="runner-limit-action-note",
             )
             yield Static("esc / q: cancel", id="runner-limit-action-footer")

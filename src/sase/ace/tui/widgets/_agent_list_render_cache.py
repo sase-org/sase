@@ -29,6 +29,7 @@ from ..models.agent_groups import GroupingMode, GroupRow
 from ..models.agent_time import row_runtime_or_wait_ticks, wait_display_agent
 from ..models.tribe_display import TRIBE_IDENTITY_FALLBACK_COLOR
 from ._agent_list_helpers import ordered_row_providers
+from ._queue_weight_badge import queue_capacity_budget_display_enabled
 
 _AGENT_CACHE_MAX = 512
 _BANNER_CACHE_MAX = 128
@@ -314,9 +315,11 @@ def agent_render_key(
         wait_agent.runner_slots_in_use,
         wait_agent.runner_occupied_capacity,
         wait_agent.runner_effective_limit,
+        wait_agent.runner_admission_limit,
         wait_agent.runner_slot_queue_position,
         wait_agent.runner_slot_queue_size,
         _freeze_jsonish(wait_agent.runner_capacity_blockers),
+        queue_capacity_budget_display_enabled(),
         agent_file_change_hint(agent),
         agent.reverted,
         agent_has_confirmed_bead(agent),

@@ -6,6 +6,7 @@ from rich.text import Text
 
 from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
+from sase.feature_flags import override_flags
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 
@@ -45,7 +46,7 @@ class TestRunnerSlotWaitRendering:
         assert "10/10 runners" not in header.plain
         assert "completed-dependency" not in header.plain
 
-    def test_explicit_threshold_and_priority_render_on_queued_row(self) -> None:
+    def test_explicit_capacity_and_priority_render_on_queued_row(self) -> None:
         agent = make_agent(
             status="QUEUED",
             wait_runners=9,
@@ -58,8 +59,27 @@ class TestRunnerSlotWaitRendering:
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "test_cl (QUEUED ▶10→9 p20)" in left.plain
+        assert "test_cl c9 (QUEUED p20)" in left.plain
+        assert "▶" not in left.plain
+        assert _styles_covering(left, "c9") == {"dim", "#87AFD7"}
         assert "dim #5F87FF" in _styles_covering(left, "p20")
+
+    def test_explicit_threshold_legacy_display_stays_available(self) -> None:
+        agent = make_agent(
+            status="QUEUED",
+            wait_runners=9,
+            wait_runners_explicit=True,
+            wait_priority=20,
+            wait_priority_explicit=True,
+            slot_requested_at="2026-07-12T12:00:00Z",
+            runner_slots_in_use=10,
+        )
+
+        with override_flags(queue_capacity_budget=False):
+            left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "test_cl (QUEUED ▶10→9 p20)" in left.plain
+        assert "c9" not in left.plain
 
     def test_implicit_priority_and_threshold_are_hidden_on_queued_row(self) -> None:
         agent = make_agent(
@@ -92,11 +112,11 @@ class TestRunnerSlotWaitRendering:
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
         header, _ = build_header_text(agent, cheap=True)
 
-        assert "test_cl (QUEUED #2/2 ▶3→0)" in left.plain
-        assert "dim #5F87FF" in _styles_covering(left, "▶3→0")
+        assert "test_cl c0 (QUEUED #2/2)" in left.plain
+        assert "▶" not in left.plain
+        assert _styles_covering(left, "c0") == {"dim", "#87AFD7"}
         assert (
-            "Wait: [capacity] waiting for weighted load ≤0 (drain barrier)"
-            " · queue #2 of 2"
+            "Wait: [capacity] legacy capacity=0 (runs alone) · queue #2 of 2"
         ) in header.plain
 
     def test_explicit_wait_queue_position_is_labeled(self) -> None:
@@ -163,6 +183,23 @@ class TestRunnerSlotWaitRendering:
         assert "epic.land w2 (RUNNING)" in left.plain
         assert _styles_covering(left, "w2") == {"dim", "#87D7D7"}
         assert "Weight: 2.0 capacity units" in header.plain
+
+    def test_capacity_badge_accents_over_subscribed_budget(self) -> None:
+        agent = make_agent(
+            agent_name="epic.land",
+            cl_name="epic.land",
+            queue_weight=2.0,
+            queue_weight_explicit=True,
+            wait_runners=100,
+            wait_runners_explicit=True,
+            runner_effective_limit=10.0,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "epic.land w2 c100 (RUNNING)" in left.plain
+        assert _styles_covering(left, "w2") == {"dim", "#87D7D7"}
+        assert _styles_covering(left, "c100") == {"dim", "#FFD700"}
 
     def test_default_and_synthetic_rows_hide_weight_badge(self) -> None:
         explicit_default = make_agent(

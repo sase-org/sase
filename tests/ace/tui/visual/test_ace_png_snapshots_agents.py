@@ -252,7 +252,7 @@ async def test_runner_slot_queue_window_png_snapshot(
         prompt_text = renderable_to_text(prompt.content) or ""
         assert "5 ahead" in prompt_text
         assert "QUEUE · 9 waiting · 0.0/10.0 capacity" in prompt_text
-        assert "≤0" in prompt_text
+        assert "c0" in prompt_text
         assert "p1" in prompt_text
         assert "… +2 more" in prompt_text
         assert "… +1 more" in prompt_text

@@ -38,6 +38,31 @@ def test_runner_capacity_uses_source_roster_before_display_filtering() -> None:
     assert waiter.runner_capacity_blockers[0]["code"] == "insufficient-capacity"
 
 
+def test_waiter_projection_keeps_admission_limit_separate_from_global_limit() -> None:
+    holder = _agent(
+        "holder",
+        status="RUNNING",
+        run_start_time=datetime(2026, 7, 12, 11, 59),
+        queue_weight=3.0,
+        queue_weight_explicit=True,
+    )
+    waiter = _agent(
+        "waiter",
+        wait_runners=4,
+        wait_runners_explicit=True,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+
+    capacity = refresh_runner_slot_context([holder, waiter], effective_limit=10)
+
+    assert capacity.effective_limit == 10.0
+    assert capacity.occupied_capacity == 3.0
+    assert capacity.queue[0].admission_limit == 4.0
+    assert capacity.queue[0].occupied_capacity == 3.0
+    assert waiter.runner_admission_limit == 4.0
+    assert waiter.runner_effective_limit == 10.0
+
+
 def test_runner_capacity_reports_over_limit_without_clamping() -> None:
     holders = [
         _agent(

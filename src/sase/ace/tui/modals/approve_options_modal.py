@@ -226,7 +226,7 @@ class _CapacityInputResult:
 
 
 class _CapacityInput(SingleLineVimTextArea):
-    """Single-line vim editor for an optional epic capacity threshold."""
+    """Single-line vim editor for an optional epic capacity budget."""
 
 
 class _CapacityInputModal(ModalScreen[_CapacityInputResult | None]):
@@ -248,7 +248,7 @@ class _CapacityInputModal(ModalScreen[_CapacityInputResult | None]):
                 id="approve-capacity-title",
             )
             yield Static(
-                "Per-launch weighted-load budget. "
+                "Per-launch runner-capacity budget. "
                 "Blank uses default queue behavior; 1 runs alone.",
                 id="approve-capacity-hint",
             )

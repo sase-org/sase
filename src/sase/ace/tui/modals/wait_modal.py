@@ -66,7 +66,7 @@ class WaitModal(WaitModalCompletionScreen):
         with Container(id="wait-modal-body"):
             yield Label("Wait", id="modal-title")
             yield Static(
-                "Wait for agents, beads, a time floor, and/or a weighted-load capacity.",
+                "Wait for agents, beads, a time floor, and/or a runner-capacity budget.",
                 id="wait-modal-summary",
             )
             yield Label("Agents", classes="wait-field-label")
@@ -297,7 +297,7 @@ class WaitModal(WaitModalCompletionScreen):
         return validation
 
     def _update_capacity_preview(self) -> CapacityValidation:
-        """Update weighted-load capacity preview and return validation state."""
+        """Update runner-capacity budget preview and return validation state."""
         validation = _validate_capacity_token(
             self.query_one("#capacity-input", WaitInput).value
         )

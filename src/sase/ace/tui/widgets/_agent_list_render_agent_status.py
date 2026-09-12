@@ -46,7 +46,10 @@ from ._agent_list_styling import (
     gate_status_presentation,
     monitor_status_presentation,
 )
-from ._queue_weight_badge import append_agent_queue_weight_badge
+from ._queue_weight_badge import (
+    append_agent_queue_badges,
+    queue_capacity_budget_display_enabled,
+)
 
 
 def append_agent_row_status(
@@ -60,7 +63,7 @@ def append_agent_row_status(
 ) -> None:
     """Append the status parenthetical and adjacent outcome badges."""
     # Status (wrapped in parentheses, parens are dim)
-    append_agent_queue_weight_badge(text, agent)
+    append_agent_queue_badges(text, agent)
     display_status = agent.display_status
     row_prefix = text.plain
     status_opener = "(" if not row_prefix or row_prefix[-1].isspace() else " ("
@@ -108,7 +111,11 @@ def append_agent_row_status(
             text.append(queue_label, style=QUEUED_STATUS_COLOR)
         wait_agent = wait_display_agent(agent)
         slot_label = ""
-        if wait_agent.wait_runners_explicit and wait_agent.wait_runners is not None:
+        if (
+            not queue_capacity_budget_display_enabled()
+            and wait_agent.wait_runners_explicit
+            and wait_agent.wait_runners is not None
+        ):
             occupied = wait_agent.runner_occupied_capacity
             if occupied is None and wait_agent.runner_slots_in_use is not None:
                 occupied = float(wait_agent.runner_slots_in_use)

@@ -66,7 +66,7 @@ def wait_spec_label(result: WaitModalResult) -> str:
     elif result.time_token:
         label = f"waiting until {result.time_token}"
     elif result.capacity is not None:
-        label = f"waiting for weighted load ≤ {result.capacity}"
+        label = f"waiting with capacity budget {result.capacity}"
     elif result.priority is not None:
         label = f"waiting with priority {result.priority}"
     else:
@@ -74,7 +74,7 @@ def wait_spec_label(result: WaitModalResult) -> str:
     if result.capacity is not None and (
         result.agents or result.beads or result.time_token
     ):
-        label = f"{label}, with weighted load ≤ {result.capacity}"
+        label = f"{label}, with capacity budget {result.capacity}"
     if result.priority is not None and (
         result.agents
         or result.beads

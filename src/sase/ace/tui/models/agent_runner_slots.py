@@ -37,6 +37,8 @@ class RunnerQueueEntry:
     slot_requested_at: str | None
     status: str
     requested_weight: float = DEFAULT_QUEUE_WEIGHT
+    occupied_capacity: float | None = None
+    admission_limit: float | None = None
     eligible: bool = False
     blockers: tuple[dict[str, Any], ...] = ()
     parked: bool = False
@@ -179,6 +181,7 @@ def _refresh_runner_slot_context_fallback(
             agent.runner_slots_in_use = running_count
             agent.runner_occupied_capacity = None
             agent.runner_effective_limit = None
+            agent.runner_admission_limit = None
             agent.runner_slot_queue_position = queue_positions.get(id(agent))
             agent.runner_slot_queue_size = queue_size
             agent.runner_capacity_blockers = ()
@@ -186,6 +189,7 @@ def _refresh_runner_slot_context_fallback(
             agent.runner_slots_in_use = None
             agent.runner_occupied_capacity = None
             agent.runner_effective_limit = None
+            agent.runner_admission_limit = None
             agent.runner_slot_queue_position = None
             agent.runner_slot_queue_size = None
             agent.runner_capacity_blockers = ()
@@ -231,6 +235,7 @@ def _apply_runner_capacity_snapshot(
     queue_entries: list[RunnerQueueEntry] = []
     queue_positions: dict[int, int] = {}
     queue_blockers: dict[int, tuple[dict[str, Any], ...]] = {}
+    queue_admission_limits: dict[int, float | None] = {}
     waiters = _ordered_snapshot_waiters(raw_snapshot.get("waiters", ()))
     queue_size = len(waiters)
 
@@ -253,6 +258,9 @@ def _apply_runner_capacity_snapshot(
         if display_agent is not None:
             queue_positions[id(display_agent)] = queue_position
             queue_blockers[id(display_agent)] = blockers
+            queue_admission_limits[id(display_agent)] = _finite_float(
+                waiter.get("admission_limit")
+            )
             display_agent.status = runner_slot_display_status(
                 display_agent.status,
                 slot_queued=True,
@@ -277,6 +285,8 @@ def _apply_runner_capacity_snapshot(
                     _finite_float(waiter.get("requested_weight"))
                     or DEFAULT_QUEUE_WEIGHT
                 ),
+                occupied_capacity=occupied_capacity,
+                admission_limit=_finite_float(waiter.get("admission_limit")),
                 eligible=waiter.get("eligible") is True,
                 blockers=blockers,
                 parked=_snapshot_waiter_is_parked(waiter),
@@ -288,13 +298,15 @@ def _apply_runner_capacity_snapshot(
             agent.runner_slots_in_use = running_count
             agent.runner_occupied_capacity = occupied_capacity
             agent.runner_effective_limit = effective_limit
+            agent.runner_admission_limit = queue_admission_limits.get(id(agent))
             agent.runner_slot_queue_position = queue_positions.get(id(agent))
             agent.runner_slot_queue_size = queue_size
             agent.runner_capacity_blockers = queue_blockers.get(id(agent), ())
         else:
             agent.runner_slots_in_use = None
-            agent.runner_occupied_capacity = None
-            agent.runner_effective_limit = None
+            agent.runner_occupied_capacity = occupied_capacity
+            agent.runner_effective_limit = effective_limit
+            agent.runner_admission_limit = None
             agent.runner_slot_queue_position = None
             agent.runner_slot_queue_size = None
             agent.runner_capacity_blockers = ()

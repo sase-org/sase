@@ -450,7 +450,7 @@ class AgentWaitActionsMixin:
             slot_queued=True,
         )
         label = (
-            f"weighted load ≤ {result.capacity}"
+            f"capacity budget {result.capacity}"
             if result.capacity is not None
             else "global runner cap"
         )

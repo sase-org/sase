@@ -33,6 +33,7 @@ def _agent(
     queue_weight: float | None = None,
     occupied_capacity: float | None = None,
     effective_limit: float | None = None,
+    admission_limit: float | None = None,
     blockers: tuple[dict[str, object], ...] = (),
 ) -> Agent:
     return Agent(
@@ -53,6 +54,7 @@ def _agent(
         runner_slots_in_use=10,
         runner_occupied_capacity=occupied_capacity,
         runner_effective_limit=effective_limit,
+        runner_admission_limit=admission_limit,
         runner_slot_queue_position=position,
         runner_slot_queue_size=size,
         runner_capacity_blockers=blockers,
@@ -67,6 +69,8 @@ def _entry(
     priority: int = 10,
     requested_at: str = "2026-07-25T12:00:00Z",
     requested_weight: float = 1.0,
+    occupied_capacity: float | None = None,
+    admission_limit: float | None = None,
     blockers: tuple[dict[str, object], ...] = (),
     parked: bool = False,
 ) -> RunnerQueueEntry:
@@ -79,6 +83,8 @@ def _entry(
         slot_requested_at=requested_at,
         status="QUEUED",
         requested_weight=requested_weight,
+        occupied_capacity=occupied_capacity,
+        admission_limit=admission_limit,
         blockers=blockers,
         parked=parked,
     )
@@ -187,25 +193,40 @@ def test_queue_ladder_renders_duration_value(
     assert "1m30s" in queue_text
 
 
-def test_explicit_threshold_waiter_gets_the_same_queue_ladder() -> None:
+def test_explicit_capacity_waiter_gets_the_same_queue_ladder() -> None:
     selected = _agent(
         "barrier",
         position=1,
         size=1,
-        threshold=0,
+        threshold=1,
         explicit=True,
+        occupied_capacity=1.0,
+        effective_limit=10.0,
+        admission_limit=1.0,
     )
     selected.status = "WAITING"
     header = _header(
         selected,
-        (_entry("barrier", threshold=0, explicit=True, parked=True),),
+        (
+            _entry(
+                "barrier",
+                threshold=1,
+                explicit=True,
+                occupied_capacity=1.0,
+                admission_limit=1.0,
+                parked=True,
+            ),
+        ),
+        occupied_capacity=1.0,
     )
 
-    assert "Wait: [capacity] waiting for weighted load ≤0 (drain barrier)" in (
-        header.plain
+    assert (
+        "Wait: [capacity] needs 1.0 · 0.0 free · capacity budget 1 (run alone)"
+        in header.plain
     )
-    assert "❖ QUEUE · 1 waiting · 1 parked · 10.0/10.0 capacity" in header.plain
-    assert "≤0" in header.plain
+    assert "❖ QUEUE · 1 waiting · 1 parked · 1.0/10.0 capacity" in header.plain
+    assert "c1" in header.plain
+    assert "≤" not in header.plain
 
 
 def test_queue_ladder_demotes_deeper_barrier_and_marks_selected_rank() -> None:
@@ -265,7 +286,8 @@ def test_queue_qualifiers_render_only_where_they_explain_ordering() -> None:
         _agent("selected", position=3, size=3),
         qualified_queue,
     )
-    assert qualified_header.plain.count("≤0") == 1
+    assert "≤" not in qualified_header.plain
+    assert qualified_header.plain.count("c0") == 1
     assert qualified_header.plain.count("p5") == 1
     assert "p10" not in qualified_header.plain
 
