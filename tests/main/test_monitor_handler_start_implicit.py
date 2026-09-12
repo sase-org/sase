@@ -230,3 +230,60 @@ def test_start_implicit_family_container_derives_cwd_from_the_live_member(
     monitor = payload["monitor"]
     assert monitor["lane"] == "046"
     assert monitor["cwd"] == str(caller_ws)
+
+
+def test_start_implicit_prefers_agent_artifact_project_key_over_cwd_alias(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Managed workspaces can expose a display alias while artifacts use the key."""
+    caller_ws = tmp_path / "ws17"
+    caller_ws.mkdir()
+    project_key = "gh_sase-org__sase"
+    write_project_file(
+        project_key,
+        running_claims=[
+            WorkspaceClaim(17, "ace-run", "sase-zl.13.10", pid=os.getpid())
+        ],
+    )
+    caller_dir = make_starter_agent(
+        project_key,
+        "20260912134334",
+        "sase-zl.13.10",
+        workspace_dir=str(caller_ws),
+        workspace_num=17,
+        pid=os.getpid(),
+        cl_name=project_key,
+    )
+    patch_project_records(monkeypatch, [caller_dir])
+    pin_project(monkeypatch, project="sase")
+    monkeypatch.chdir(caller_ws)
+    monkeypatch.setenv("SASE_AGENT_NAME", "sase-zl.13.10")
+    monkeypatch.setenv("SASE_AGENT_CL_NAME", project_key)
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", caller_dir)
+
+    exit_code = dispatch(
+        [
+            "monitor",
+            "start",
+            "-c",
+            "true",
+            "-r",
+            "verify alias project",
+            "-t",
+            "30s",
+            "--json",
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
+        ]
+    )
+
+    assert exit_code == 0
+    payload = json.loads(capsys.readouterr().out)
+    monitor = payload["monitor"]
+    assert monitor["project_name"] == project_key
+    assert monitor["lane"] == "sase-zl.13.10"
+    assert monitor["cwd"] == str(caller_ws)

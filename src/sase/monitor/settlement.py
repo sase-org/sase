@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
+from sase.continuation_capture.rollout import monitor_continuation_records_enabled
 from sase.running_field import release_workspace
 from sase.shells.settlement import (
     ShellSettlementConfig,
@@ -75,6 +76,30 @@ def settle_claim_and_followup(
         raw = launcher(*args, **kwargs)
         captured_launch_result = _coerce_monitor_followup_result(raw, meta)
         return captured_launch_result
+
+    if not monitor_continuation_records_enabled():
+        error = settle_shell_claim_and_followup(
+            artifacts_dir,
+            meta,
+            shell_state=monitor_state,
+            project_name=project_name,
+            config=_MONITOR_SETTLEMENT_CONFIG,
+            release_claim=_release_monitor_claim_positional,
+            launch_followup=launch_and_capture,
+            launch_kwargs={
+                "monitor_state": monitor_state,
+                "exit_code": exit_code,
+                "elapsed_seconds": elapsed_seconds,
+                "capture": capture,
+                "timeout_kind": timeout_kind,
+                "project_name": project_name,
+                "transfer_from_pid": transfer_from_pid,
+            },
+            update_meta_field=update_meta_field,
+        )
+        return _MonitorFollowupSettlementResult(
+            error=error, launch_result=captured_launch_result
+        )
 
     blocked_reason = None
     if monitor_state not in ("stopped", "lost"):

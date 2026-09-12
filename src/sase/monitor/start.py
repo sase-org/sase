@@ -22,6 +22,7 @@ from typing import Any
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
+from sase.continuation_capture.rollout import monitor_continuation_records_enabled
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -161,25 +162,34 @@ def _start_monitor_locked(
 ) -> MonitorRecord:
     """Start one monitor while the caller holds the lane start lock."""
     label = request.label or default_label(request.command)
-    parent_node_ids, starter_run_id, starter_artifacts_dir = _peek_continuation_parents(
-        request, identity
-    )
+    records_enabled = monitor_continuation_records_enabled()
+    if not records_enabled:
+        _reject_versioned_start_controls_when_disabled(request)
+        parent_node_ids: list[str] = []
+        starter_run_id = None
+        starter_artifacts_dir = None
+    else:
+        parent_node_ids, starter_run_id, starter_artifacts_dir = (
+            _peek_continuation_parents(request, identity)
+        )
     request = replace(
         request,
         parent_node_ids=tuple(parent_node_ids),
         starter_run_id=starter_run_id,
     )
-    inherited_model, inherited_effort = _inherited_route(starter_artifacts_dir)
-    try:
-        from sase.monitor.outcome_policy import freeze_start_outcome_policy
+    frozen_policy: dict[str, Any] | None = None
+    if records_enabled:
+        inherited_model, inherited_effort = _inherited_route(starter_artifacts_dir)
+        try:
+            from sase.monitor.outcome_policy import freeze_start_outcome_policy
 
-        frozen_policy = freeze_start_outcome_policy(
-            request,
-            inherited_model=inherited_model,
-            inherited_effort=inherited_effort,
-        )
-    except (TypeError, ValueError, AttributeError) as exc:
-        raise MonitorError(str(exc)) from exc
+            frozen_policy = freeze_start_outcome_policy(
+                request,
+                inherited_model=inherited_model,
+                inherited_effort=inherited_effort,
+            )
+        except (TypeError, ValueError, AttributeError) as exc:
+            raise MonitorError(str(exc)) from exc
     if frozen_policy is not None:
         request = replace(
             request,
@@ -245,12 +255,12 @@ def _start_monitor_locked(
         request_fingerprint=request_fingerprint,
         starter_agent=lane_start.starter_agent,
         execution_argv=request.execution_argv,
-        completion_ref=request.completion_ref,
-        profile=request.profile,
-        policy_digest=request.policy_digest,
-        checkpoint_ref=request.checkpoint_ref,
-        starter_artifacts_dir=starter_artifacts_dir,
-        parent_node_ids=request.parent_node_ids,
+        completion_ref=request.completion_ref if records_enabled else None,
+        profile=request.profile if records_enabled else None,
+        policy_digest=request.policy_digest if records_enabled else None,
+        checkpoint_ref=request.checkpoint_ref if records_enabled else None,
+        starter_artifacts_dir=starter_artifacts_dir if records_enabled else None,
+        parent_node_ids=request.parent_node_ids if records_enabled else (),
     )
     log_path = monitor_log_path(artifacts_dir)
     update_meta_field(artifacts_dir, "monitor_output_path", str(log_path))
@@ -411,7 +421,7 @@ def _start_monitor_locked(
         next_model=request.next_model or None,
         completion_ref=request.completion_ref or None,
         profile=request.profile or None,
-        policy_digest=request.policy_digest or None,
+        policy_digest=request.policy_digest if records_enabled else None,
         pid=proc.pid or claim_holder.get("pid"),
         supervisor_identity=proc.supervisor_id,
         request_fingerprint=request_fingerprint,
@@ -425,6 +435,24 @@ def _start_monitor_locked(
         starter_artifacts_dir=starter_artifacts_dir,
     )
     return record
+
+
+def _reject_versioned_start_controls_when_disabled(
+    request: StartMonitorRequest,
+) -> None:
+    if not (
+        request.checkpoint_ref
+        or request.checkpoint_document
+        or request.completion_ref
+        or request.outcome_policy
+        or request.policy_digest
+        or request.profile
+    ):
+        return
+    raise MonitorError(
+        "checkpoint, outcome-policy, profile, and host-completion monitor "
+        "controls require feature flag monitor_continuation_records"
+    )
 
 
 def _replayed_lane_monitor(
@@ -652,6 +680,8 @@ def _persist_monitor_start_intent_after_ack(
     request_fingerprint: str,
     starter_artifacts_dir: str | None,
 ) -> None:
+    if not monitor_continuation_records_enabled():
+        return
     parent_node_ids = list(request.parent_node_ids) or _continuation_parent_node_ids(
         lane_start.member_meta
     )

@@ -14,6 +14,7 @@ import sase.procs.spawn as spawn_module
 import sase.shells.followup as shells_followup_module
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.artifact_file_facade import list_explicit_artifact_files
+from sase.feature_flags import override_flags
 from sase.llm_provider.continuation_budget import MONITOR_CONTINUATION_ENV
 from sase.monitor.output import OutputCapture
 from sase.monitor.start import StartMonitorRequest, start_monitor
@@ -199,6 +200,43 @@ def test_launch_followup_agent_attaches_to_the_lane_and_transfers_the_claim(
     # Persisted to disk too, not just the in-memory dict.
     on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
     assert on_disk["monitor_followup_agent"] == "acme--1"
+
+
+def test_launch_followup_agent_uses_legacy_launcher_when_records_disabled(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    with override_flags(monitor_continuation_records=False):
+        monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+            tmp_path, monkeypatch
+        )
+        meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+        meta["stopped_at"] = "2026-08-12T14:19:48+00:00"
+        capture = _capture_with_output(monitor_dir, "hello world\n")
+
+        captured: dict[str, Any] = {}
+
+        def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+            captured.update(kwargs)
+            return _fake_result()
+
+        monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+        result = followup_module.launch_followup_agent(
+            monitor_dir,
+            meta,
+            monitor_state="completed",
+            exit_code=0,
+            elapsed_seconds=1.5,
+            capture=capture,
+            project_name="proj",
+            settle_timeout_seconds=_SETTLE_TIMEOUT,
+        )
+
+    assert result.launched is True
+    assert meta["monitor_followup_agent"] == "acme--1"
+    assert MONITOR_CONTINUATION_ENV not in captured["extra_env"]
+    assert "continuation_monitor_result_id" not in meta
+    assert not (Path(monitor_dir) / "continuation" / "delivery").exists()
 
 
 def test_launch_followup_agent_uses_explicit_next_model(

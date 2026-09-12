@@ -26,6 +26,7 @@ class FeatureFlag(StrEnum):
     agents_deferred_history = "agents_deferred_history"
     agents_index_full_history = "agents_index_full_history"
     agents_unified_query = "agents_unified_query"
+    monitor_continuation_records = "monitor_continuation_records"
     provider_drain = "provider_drain"
     queue_capacity_budget = "queue_capacity_budget"
     ref_sync_gesture = "ref_sync_gesture"
@@ -77,6 +78,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "engine and the FilterBar chrome."
         ),
         bead="sase-zg",
+    ),
+    FeatureFlag.monitor_continuation_records: FeatureFlagDefinition(
+        key=FeatureFlag.monitor_continuation_records,
+        kind="sunset",
+        description=(
+            "New monitor starts persist versioned continuation records, frozen "
+            "outcome policy, checkpoints, and durable delivery/adoption state "
+            "for production continuation routing."
+        ),
+        bead="sase-102",
     ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,

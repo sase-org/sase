@@ -48,6 +48,7 @@ from ._validation import (
 )
 from .checkpoints import publish_handoff_checkpoint
 from .models import MonitorResultPublishResult
+from .rollout import monitor_continuation_records_enabled
 
 
 def persist_monitor_start_intent_best_effort(
@@ -72,7 +73,7 @@ def persist_monitor_start_intent_best_effort(
 ) -> str | None:
     """Persist a passive continuation intent for a started monitor member."""
 
-    if not next_action:
+    if not next_action or not monitor_continuation_records_enabled():
         return None
     try:
         return persist_monitor_start_intent(
@@ -271,6 +272,8 @@ def persist_monitor_result_best_effort(
 ) -> MonitorResultPublishResult | None:
     """Persist a terminal monitor result without interrupting settlement."""
 
+    if not monitor_continuation_records_enabled():
+        return None
     try:
         return persist_monitor_result(
             artifacts_dir=artifacts_dir,

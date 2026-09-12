@@ -20,6 +20,7 @@ import pytest
 import sase.monitor.followup as followup_module
 from sase.ace.scheduler.stale_running_cleanup import cleanup_stale_running_entries
 from sase.agent.launch_types import AgentLaunchResult
+from sase.feature_flags import override_flags
 from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
 from sase.monitor.models import MonitorError
 from sase.monitor.output import OutputCapture
@@ -215,6 +216,96 @@ def test_start_monitor_persists_next_action_intent_after_ack(
             except ProcessLookupError:
                 pass
         wait_for_done(record.artifacts_dir, timeout=10.0)
+
+
+def test_start_monitor_uses_legacy_writer_when_continuation_records_are_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+        continuation_node_id="agent-delta:starter:abc123",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    with override_flags(monitor_continuation_records=False):
+        record = start_monitor(
+            StartMonitorRequest(
+                command="sleep 30",
+                reason="verify disabled rollout",
+                timeout_seconds=30.0,
+                cwd=str(tmp_path),
+                project_name="proj",
+                start_status="MONITORING",
+                stop_status="MONITORED",
+                lane="acme",
+                next_action="Inspect the completed monitor output.",
+                next_model="claude-sonnet-5",
+            )
+        )
+
+    try:
+        meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+        assert "continuation_parent_node_ids" not in meta
+        assert "continuation_intent_ref" not in meta
+        assert "monitor_policy_digest" not in meta
+        assert not (Path(record.artifacts_dir) / "continuation").exists()
+    finally:
+        if record.pid is not None:
+            try:
+                os.kill(record.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        wait_for_done(record.artifacts_dir, timeout=10.0)
+
+
+def test_start_monitor_rejects_versioned_controls_when_rollout_is_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    with (
+        override_flags(monitor_continuation_records=False),
+        pytest.raises(MonitorError, match="monitor_continuation_records"),
+    ):
+        start_monitor(
+            StartMonitorRequest(
+                command="sleep 30",
+                reason="verify disabled rollout",
+                timeout_seconds=30.0,
+                cwd=str(tmp_path),
+                project_name="proj",
+                start_status="MONITORING",
+                stop_status="MONITORED",
+                lane="acme",
+                next_action="Inspect the completed monitor output.",
+                checkpoint_ref="local:continuation/checkpoints/authored.json",
+            )
+        )
 
 
 def test_start_monitor_without_metadata_workspace_num_claims_the_cwd_checkout(

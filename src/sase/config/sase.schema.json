@@ -4580,6 +4580,12 @@
           "default": true,
           "deprecated": true
         },
+        "monitor_continuation_records": {
+          "type": "boolean",
+          "description": "New monitor starts persist versioned continuation records, frozen outcome policy, checkpoints, and durable delivery/adoption state for production continuation routing.",
+          "default": true,
+          "deprecated": true
+        },
         "provider_drain": {
           "type": "boolean",
           "description": "Hard-disabling an LLM provider drains it: a usage-limit disable submits a durable 'sase agent drain' proc that relaunches the agents that provider stranded and sends one enriched usage-limit notification naming what moved and what did not, and a manual disable in Launch Control offers the same relaunch.",

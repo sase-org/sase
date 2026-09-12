@@ -18,6 +18,7 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     ref_sync = definitions[FeatureFlag.ref_sync_gesture]
     typed_launch = definitions[FeatureFlag.typed_launch_units]
     refresh_tokens = definitions[FeatureFlag.ace_refresh_tokens]
+    continuation_records = definitions[FeatureFlag.monitor_continuation_records]
 
     assert flags_pane.kind == "sunset"
     assert flags_pane.default is True
@@ -28,6 +29,9 @@ def test_registered_consumer_flags_have_expected_kinds() -> None:
     assert ref_sync.kind == "sunset"
     assert ref_sync.default is True
     assert ref_sync.bead == "sase-qu"
+    assert continuation_records.kind == "sunset"
+    assert continuation_records.default is True
+    assert continuation_records.bead == "sase-102"
     assert typed_launch.kind == "beta"
     assert typed_launch.default is False
     assert typed_launch.bead == "sase-s7"
@@ -40,6 +44,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert default.enabled(FeatureFlag.admin_center_flags) is True
     assert default.enabled(FeatureFlag.ref_sync_gesture) is True
     assert default.enabled(FeatureFlag.ace_refresh_tokens) is True
+    assert default.enabled(FeatureFlag.monitor_continuation_records) is True
     assert default.enabled(FeatureFlag.typed_launch_units) is False
 
     user = resolve_feature_flags(
@@ -51,6 +56,7 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
                     "admin_center_flags": False,
                     "ref_sync_gesture": False,
                     "ace_refresh_tokens": False,
+                    "monitor_continuation_records": False,
                     "typed_launch_units": True,
                 },
                 detail="user.yml",
@@ -63,6 +69,8 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert user.decision(FeatureFlag.ref_sync_gesture).source == "user"
     assert user.enabled(FeatureFlag.ace_refresh_tokens) is False
     assert user.decision(FeatureFlag.ace_refresh_tokens).source == "user"
+    assert user.enabled(FeatureFlag.monitor_continuation_records) is False
+    assert user.decision(FeatureFlag.monitor_continuation_records).source == "user"
     assert user.enabled(FeatureFlag.typed_launch_units) is True
     assert user.decision(FeatureFlag.typed_launch_units).source == "user"
 
@@ -71,7 +79,8 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
         layers=[],
         env_value=(
             '{"admin_center_flags":false,"ref_sync_gesture":false,'
-            '"ace_refresh_tokens":false,"typed_launch_units":true}'
+            '"ace_refresh_tokens":false,"monitor_continuation_records":false,'
+            '"typed_launch_units":true}'
         ),
     )
     assert env.enabled(FeatureFlag.admin_center_flags) is False
@@ -80,6 +89,8 @@ def test_consumer_flags_resolve_from_every_layer() -> None:
     assert env.decision(FeatureFlag.ref_sync_gesture).source == "env"
     assert env.enabled(FeatureFlag.ace_refresh_tokens) is False
     assert env.decision(FeatureFlag.ace_refresh_tokens).source == "env"
+    assert env.enabled(FeatureFlag.monitor_continuation_records) is False
+    assert env.decision(FeatureFlag.monitor_continuation_records).source == "env"
     assert env.enabled(FeatureFlag.typed_launch_units) is True
     assert env.decision(FeatureFlag.typed_launch_units).source == "env"
 
@@ -92,6 +103,7 @@ def test_consumer_flags_both_states_via_override(
         admin_center_flags=False,
         ref_sync_gesture=False,
         ace_refresh_tokens=False,
+        monitor_continuation_records=False,
         typed_launch_units=True,
     ) as snapshot:
         assert snapshot.enabled(FeatureFlag.admin_center_flags) is False
@@ -100,6 +112,10 @@ def test_consumer_flags_both_states_via_override(
         assert current_flags().enabled(FeatureFlag.ref_sync_gesture) is False
         assert snapshot.enabled(FeatureFlag.ace_refresh_tokens) is False
         assert current_flags().enabled(FeatureFlag.ace_refresh_tokens) is False
+        assert snapshot.enabled(FeatureFlag.monitor_continuation_records) is False
+        assert (
+            current_flags().enabled(FeatureFlag.monitor_continuation_records) is False
+        )
         assert snapshot.enabled(FeatureFlag.typed_launch_units) is True
         assert current_flags().enabled(FeatureFlag.typed_launch_units) is True
 
@@ -107,4 +123,5 @@ def test_consumer_flags_both_states_via_override(
     assert restored.enabled(FeatureFlag.admin_center_flags) is True
     assert restored.enabled(FeatureFlag.ref_sync_gesture) is True
     assert restored.enabled(FeatureFlag.ace_refresh_tokens) is True
+    assert restored.enabled(FeatureFlag.monitor_continuation_records) is True
     assert restored.enabled(FeatureFlag.typed_launch_units) is False

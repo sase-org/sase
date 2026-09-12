@@ -23,6 +23,7 @@ from sase.agent.detached_child import spawn_family_successor
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.continuation_capture._storage import sha_json
+from sase.continuation_capture.rollout import monitor_continuation_records_enabled
 from sase.shells.followup import (
     DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
     STARTER_SETTLE_POLL_SECONDS as _STARTER_SETTLE_POLL_SECONDS,
@@ -96,6 +97,7 @@ def launch_followup_agent(
     recorded on the monitor member's own metadata; the caller is responsible
     for releasing the workspace claim and notifying.
     """
+    records_enabled = monitor_continuation_records_enabled()
     next_action = str(meta.get("monitor_next_action") or "")
     lane = str(meta.get("agent_family") or "")
     if not next_action or not lane:
@@ -147,10 +149,10 @@ def launch_followup_agent(
     )
     result_id = str(monitor_result.get("result_id") or "")
     branch = branch_override or str(monitor_result.get("outcome") or "failed")
-    if result_id:
+    if records_enabled and result_id:
         meta["continuation_monitor_result_id"] = result_id
         update_meta_field(artifacts_dir, "continuation_monitor_result_id", result_id)
-    if checkpoint_ref_override:
+    if records_enabled and checkpoint_ref_override:
         meta["continuation_checkpoint_ref"] = checkpoint_ref_override
         update_meta_field(
             artifacts_dir,
@@ -212,35 +214,40 @@ def launch_followup_agent(
         return _record_not_launchable(artifacts_dir, meta, str(exc), _compose(None))
 
     reserved_name = resolved_plan.agent_name
-    claim = claim_ordinary_continuation_dispatch(
-        artifacts_dir,
-        monitor_id=str(meta.get("monitor_id") or "monitor"),
-        result_id=result_id or "result",
-        branch=branch,
-        selected_action="continue",
-        reserved_identity=reserved_name,
-        extra=launch_wire_extra(meta),
-        retryable_pre_dispatch_failure=retryable_pre_dispatch_failure,
-    )
-    if not claim.spawn:
-        if claim.error:
-            return _record_not_launchable(
-                artifacts_dir, meta, claim.error, _compose(None)
-            )
-        return _record_launched(
+    claim_key: Mapping[str, Any] | None = None
+    if records_enabled:
+        claim = claim_ordinary_continuation_dispatch(
             artifacts_dir,
-            meta,
-            claim.identity or reserved_name,
+            monitor_id=str(meta.get("monitor_id") or "monitor"),
+            result_id=result_id or "result",
+            branch=branch,
+            selected_action="continue",
+            reserved_identity=reserved_name,
+            extra=launch_wire_extra(meta),
+            retryable_pre_dispatch_failure=retryable_pre_dispatch_failure,
         )
-
-    frozen_name = claim.identity or reserved_name
+        if not claim.spawn:
+            if claim.error:
+                return _record_not_launchable(
+                    artifacts_dir, meta, claim.error, _compose(None)
+                )
+            return _record_launched(
+                artifacts_dir,
+                meta,
+                claim.identity or reserved_name,
+            )
+        frozen_name = claim.identity or reserved_name
+        claim_key = claim.key
+        delivery_env = continuation_delivery_env(artifacts_dir, claim.key, frozen_name)
+    else:
+        frozen_name = reserved_name
+        delivery_env = None
     frozen_plan = replace(
         resolved_plan,
         agent_name=frozen_name,
         parent_is_running=False,
         agent_family_role=starter_role or resolved_plan.agent_family_role,
     )
-    delivery_env = continuation_delivery_env(artifacts_dir, claim.key, frozen_name)
 
     def _spawn(
         prompt: str,
@@ -269,11 +276,12 @@ def launch_followup_agent(
             ),
         )
         maybe_crash("after_spawn")
-        update_delivery_workspace(
-            artifacts_dir,
-            claim.key,
-            workspace_identity=workspace_dir,
-        )
+        if claim_key is not None:
+            update_delivery_workspace(
+                artifacts_dir,
+                claim_key,
+                workspace_identity=workspace_dir,
+            )
         return result
 
     monitor_artifacts_dir = artifacts_dir
@@ -285,10 +293,10 @@ def launch_followup_agent(
         artifacts_dir: str | None = None,
         pid: int | None = None,
     ) -> FollowupLaunchResult:
-        if degraded_reason:
+        if degraded_reason and claim_key is not None:
             update_delivery_workspace(
                 monitor_artifacts_dir,
-                claim.key,
+                claim_key,
                 workspace_identity=None,
                 workspace_degraded=True,
             )
@@ -302,14 +310,15 @@ def launch_followup_agent(
         )
 
     def _record_not_launchable_result(error: str, prompt: str) -> FollowupLaunchResult:
-        mark_ordinary_continuation_terminal(
-            artifacts_dir,
-            claim.key,
-            "nonlaunchable",
-            selected_action="continue",
-            reason=error,
-            reserved_identity=frozen_name,
-        )
+        if claim_key is not None:
+            mark_ordinary_continuation_terminal(
+                artifacts_dir,
+                claim_key,
+                "nonlaunchable",
+                selected_action="continue",
+                reason=error,
+                reserved_identity=frozen_name,
+            )
         return _record_not_launchable(artifacts_dir, meta, error, prompt)
 
     transfer_pid = os.getpid() if transfer_from_pid is None else transfer_from_pid

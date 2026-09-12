@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+from collections.abc import Mapping
+from pathlib import Path
 import sys
 
 from sase.core.cli_duration import parse_cli_duration
+from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
 from sase.monitor import (
     MonitorAlreadyRunningError,
     MonitorError,
@@ -161,7 +165,7 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
         return 2
 
     cwd = resolve_cwd(getattr(args, "cwd", None), agent, exact=exact_caller)
-    project_name = infer_project_name(str(cwd))
+    project_name = _monitor_start_project_name(infer_project_name(str(cwd)))
     if not project_name:
         print(
             f"sase monitor start: could not infer a project from cwd {cwd}",
@@ -239,6 +243,37 @@ def _clamp_status_label(value: str, *, flag: str) -> str:
             file=sys.stderr,
         )
     return clamped
+
+
+def _monitor_start_project_name(
+    cwd_project_name: str | None,
+    *,
+    env: Mapping[str, str] | None = None,
+) -> str | None:
+    return _agent_artifact_project_name(env=env) or cwd_project_name
+
+
+def _agent_artifact_project_name(
+    *,
+    env: Mapping[str, str] | None = None,
+) -> str | None:
+    current_env = os.environ if env is None else env
+    project_name = (current_env.get("SASE_AGENT_CL_NAME") or "").strip()
+    artifacts_dir = (current_env.get("SASE_ARTIFACTS_DIR") or "").strip()
+    if not project_name or not artifacts_dir:
+        return None
+    if not is_valid_sase_project_name(project_name):
+        return None
+
+    try:
+        artifact_path = Path(artifacts_dir).expanduser().resolve(strict=False)
+        project_artifacts = (sase_projects_dir() / project_name / "artifacts").resolve(
+            strict=False
+        )
+        artifact_path.relative_to(project_artifacts)
+    except (OSError, ValueError):
+        return None
+    return project_name
 
 
 __all__ = [

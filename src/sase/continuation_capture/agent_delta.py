@@ -43,6 +43,7 @@ from ._validation import (
 )
 from .models import ContinuationPublishResult
 from .prompt import ensure_prepared_prompt
+from .rollout import monitor_continuation_records_enabled
 from .segments import wire_segments_from_prepared
 from .workspace import owner, run_id, persist_workspace_facts
 
@@ -61,6 +62,8 @@ def persist_agent_delta_best_effort(
 ) -> ContinuationPublishResult | None:
     """Best-effort wrapper for publishing a local agent-delta node."""
 
+    if not monitor_continuation_records_enabled():
+        return None
     try:
         return persist_agent_delta(
             ctx,
