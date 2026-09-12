@@ -3,6 +3,7 @@
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -152,11 +153,13 @@ def test_commit_bare_git_sdd_init_paths_push_timeout_is_best_effort(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("SASE_SDD_GIT_LOCAL_TIMEOUT", "3")
-    monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TIMEOUT", "7")
+    monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TIMEOUT", "0.05")
+    monkeypatch.setenv("SASE_SDD_GIT_NETWORK_TRANSFER_CEILING", "1")
     generated = tmp_path / "sdd" / "README.md"
     generated.parent.mkdir()
     generated.write_text("guide\n", encoding="utf-8")
     calls: list[tuple[list[str], float | None]] = []
+    streamed_args: list[list[str]] = []
 
     def git_subcommand(cmd: list[str]) -> str:
         index = 1
@@ -180,18 +183,29 @@ def test_commit_bare_git_sdd_init_paths_push_timeout_is_best_effort(
             )
         return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
 
+    from sase.sdd import _git
+
+    original_sdd_git_command = _git.sdd_git_command
+
+    def fake_sdd_git_command(args: list[str]) -> list[str]:
+        if args[:1] == ["push"]:
+            streamed_args.append(args)
+            return [sys.executable, "-c", "import time; time.sleep(60)"]
+        return original_sdd_git_command(args)
+
     # A push timeout is best-effort: the local commit is preserved and the
     # timeout must not propagate to the caller (which would abort an agent
     # launch via ws_get_workspace_directory).
     with (
         patch("sase.sdd._commit.subprocess.run", side_effect=fake_run),
+        patch("sase.sdd._git.sdd_git_command", side_effect=fake_sdd_git_command),
         patch("sase.sdd._repository_transaction.require_sdd_repository_health"),
     ):
         commit_bare_git_sdd_init_paths(tmp_path, [generated], push=True)
 
     assert calls[0][1] == 3.0
-    assert git_subcommand(calls[-1][0]) == "push"
-    assert calls[-1][1] == 7.0
+    assert git_subcommand(calls[-1][0]) == "commit"
+    assert streamed_args == [["push", "--progress", "origin", "HEAD"]]
     records = [
         json.loads(line)
         for line in tui_git_ops_jsonl_path().read_text(encoding="utf-8").splitlines()
@@ -200,7 +214,8 @@ def test_commit_bare_git_sdd_init_paths_push_timeout_is_best_effort(
         record for record in records if record["operation"] == "bare_git_sdd_init.push"
     ]
     assert push_timeout[-1]["status"] == "timeout"
-    assert push_timeout[-1]["timeout_seconds"] == 7.0
+    assert push_timeout[-1]["timeout_reason"] == "stall"
+    assert push_timeout[-1]["timeout_seconds"] == 0.05
 
 
 def test_commit_bare_git_sdd_init_paths_push_rejection_is_best_effort(
