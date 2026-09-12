@@ -98,38 +98,12 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "are inspected only to report member model and outcome metadata."
         ),
     ),
-    "src/sase/history/chat_fork/continuation.py:_add_monitor_result": (
+    "src/sase/history/chat_fork/continuation/_load.py:load_agent_meta": (
         PathPassingReview(
             exemption=(
                 "Read-only continuation replay assembly: agent_meta.json is "
-                "inspected only to recover monitor continuation parent, intent, "
-                "checkpoint, and workspace refs before rendering a replay block."
-            ),
-        )
-    ),
-    "src/sase/history/chat_fork/continuation.py:_add_legacy_boundary": (
-        PathPassingReview(
-            exemption=(
-                "Read-only compatibility boundary assembly: agent_meta.json is "
-                "inspected only to attach known continuation parent refs while "
-                "leaving legacy transcript contents opaque."
-            ),
-        )
-    ),
-    "src/sase/history/chat_fork/continuation.py:_read_captured_agent_node": (
-        PathPassingReview(
-            exemption=(
-                "Read-only continuation replay assembly: agent_meta.json points "
-                "to local continuation record refs that are read and digest-checked "
-                "before a replay block is rendered."
-            ),
-        )
-    ),
-    "src/sase/history/chat_fork/continuation.py:_has_monitor_continuation_meta": (
-        PathPassingReview(
-            exemption=(
-                "Read-only monitor replay probe: agent_meta.json is inspected only "
-                "to decide whether a proc source has continuation metadata or must "
+                "inspected only to recover continuation parent, intent, checkpoint, "
+                "workspace, and node refs, or to decide whether a proc source must "
                 "stay an opaque legacy boundary."
             ),
         )
