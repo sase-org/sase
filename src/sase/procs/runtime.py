@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import time
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +28,37 @@ _START_ACK_TIMEOUT_ENV = "SASE_PROC_START_ACK_TIMEOUT_SECONDS"
 def proc_runtime_dir(proc_id: str) -> Path:
     """Return ``~/.sase/procs/runtime/<proc_id>``."""
     return procs_dir() / "runtime" / proc_id
+
+
+def delete_proc_runtime_dirs(
+    proc_ids: Iterable[str], *, runtime_root: Path | None = None
+) -> None:
+    """Delete runtime sidecar directories for pruned proc rows."""
+    root = runtime_root if runtime_root is not None else procs_dir() / "runtime"
+    for proc_id in proc_ids:
+        try:
+            _validate_proc_id_for_path(proc_id)
+        except ValueError:
+            continue
+        shutil.rmtree(root / proc_id, ignore_errors=True)
+
+
+def sweep_orphan_proc_runtime_dirs(
+    retained_proc_ids: Iterable[str], *, runtime_root: Path | None = None
+) -> None:
+    """Delete proc runtime directories whose durable proc rows are gone."""
+    root = runtime_root if runtime_root is not None else procs_dir() / "runtime"
+    try:
+        entries = list(root.iterdir())
+    except FileNotFoundError:
+        return
+    retained = set(retained_proc_ids)
+    for entry in entries:
+        if entry.name in retained:
+            continue
+        if not entry.is_dir() or entry.is_symlink():
+            continue
+        shutil.rmtree(entry, ignore_errors=True)
 
 
 def proc_go_path(proc_id: str) -> Path:
@@ -97,8 +130,21 @@ def _env_seconds(name: str, default: float) -> float:
         return default
 
 
+def _validate_proc_id_for_path(proc_id: str) -> None:
+    if (
+        not proc_id
+        or proc_id in {".", ".."}
+        or Path(proc_id).name != proc_id
+        or "/" in proc_id
+        or "\\" in proc_id
+        or "\x00" in proc_id
+    ):
+        raise ValueError(f"invalid proc id for runtime path: {proc_id!r}")
+
+
 __all__ = [
     "launch_barrier_timeout_seconds",
+    "delete_proc_runtime_dirs",
     "proc_go_path",
     "proc_operation_request_path",
     "proc_operation_result_path",
@@ -108,5 +154,6 @@ __all__ = [
     "proc_started_path",
     "read_json_object",
     "start_ack_timeout_seconds",
+    "sweep_orphan_proc_runtime_dirs",
     "write_json_atomic",
 ]

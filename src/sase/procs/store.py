@@ -26,6 +26,7 @@ from .models import (
     ProcUpdateOutcome,
 )
 from .paths import proc_store_path
+from .runtime import delete_proc_runtime_dirs, sweep_orphan_proc_runtime_dirs
 
 
 class ProcStoreLockTimeoutError(TimeoutError):
@@ -103,7 +104,12 @@ def append_proc(
         history_limit if history_limit is not None else get_proc_history_limit(),
     )
     outcome = ProcAppendOutcome.from_dict(payload)
-    delete_proc_logs(outcome.pruned_log_proc_ids)
+    _delete_pruned_proc_state(
+        outcome.pruned_log_proc_ids,
+        outcome.pruned_proc_ids,
+        path=path,
+    )
+    _sweep_orphan_proc_runtime_dirs(outcome.snapshot, path=path)
     return outcome
 
 
@@ -124,7 +130,12 @@ def reserve_proc(
         history_limit if history_limit is not None else get_proc_history_limit(),
     )
     outcome = ProcReserveOutcome.from_dict(payload)
-    delete_proc_logs(outcome.pruned_log_proc_ids)
+    _delete_pruned_proc_state(
+        outcome.pruned_log_proc_ids,
+        outcome.pruned_proc_ids,
+        path=path,
+    )
+    _sweep_orphan_proc_runtime_dirs(outcome.snapshot, path=path)
     return outcome
 
 
@@ -225,8 +236,38 @@ def prune_procs(
         history_limit if history_limit is not None else get_proc_history_limit(),
     )
     outcome = ProcPruneOutcome.from_dict(payload)
-    delete_proc_logs(outcome.pruned_log_proc_ids)
+    _delete_pruned_proc_state(
+        outcome.pruned_log_proc_ids,
+        outcome.pruned_proc_ids,
+        path=path,
+    )
+    _sweep_orphan_proc_runtime_dirs(outcome.snapshot, path=path)
     return outcome
+
+
+def _delete_pruned_proc_state(
+    pruned_log_proc_ids: Sequence[str],
+    pruned_proc_ids: Sequence[str],
+    *,
+    path: Path | str | None,
+) -> None:
+    delete_proc_logs(pruned_log_proc_ids)
+    delete_proc_runtime_dirs(
+        pruned_proc_ids, runtime_root=_runtime_root_for_store(path)
+    )
+
+
+def _sweep_orphan_proc_runtime_dirs(
+    snapshot: ProcStoreSnapshot, *, path: Path | str | None
+) -> None:
+    sweep_orphan_proc_runtime_dirs(
+        (proc.proc_id for proc in snapshot.procs),
+        runtime_root=_runtime_root_for_store(path),
+    )
+
+
+def _runtime_root_for_store(path: Path | str | None) -> Path:
+    return Path(path or proc_store_path()).parent / "runtime"
 
 
 def filter_procs(

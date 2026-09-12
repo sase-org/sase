@@ -183,6 +183,20 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "artifact directory."
         ),
     ),
+    "src/sase/procs/runtime.py:delete_proc_runtime_dirs": DirOpReview(
+        exemption=(
+            "Removes only proc runtime sidecar directories under the proc-store "
+            "runtime root for rows already pruned from the durable proc store, "
+            "not agent artifact directories."
+        ),
+    ),
+    "src/sase/procs/runtime.py:sweep_orphan_proc_runtime_dirs": DirOpReview(
+        exemption=(
+            "Sweeps only orphan proc runtime sidecar directories under the "
+            "proc-store runtime root after durable proc-row retention, not "
+            "agent artifact directories."
+        ),
+    ),
     "src/sase/sdd/_store_adoption.py:cleanup_staging": DirOpReview(
         exemption=(
             "Removes only provider-owned SDD materialization staging and recovery "

@@ -112,6 +112,10 @@ def _reserve(
     )
 
 
+def _proc_runtime_dir_for_store(store: Path, proc_id: str) -> Path:
+    return store.parent / "runtime" / proc_id
+
+
 def test_proc_wire_round_trip_ignores_unknown_fields() -> None:
     proc = _proc("0123456789ab")
     payload = proc.to_dict()
@@ -588,7 +592,7 @@ def test_proc_shell_reserve_conflicts_and_lifecycle_facade(tmp_path: Path) -> No
     assert finished.result == {"ok": True}
 
 
-def test_retention_and_pruning_delete_corresponding_logs(
+def test_retention_and_pruning_delete_corresponding_logs_and_runtime_dirs(
     monkeypatch: Any, tmp_path: Path
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
@@ -620,7 +624,13 @@ def test_retention_and_pruning_delete_corresponding_logs(
         log = proc_log_path(proc.proc_id)
         log.parent.mkdir(parents=True, exist_ok=True)
         log.write_text(proc.proc_id, encoding="utf-8")
+        runtime_dir = _proc_runtime_dir_for_store(store, proc.proc_id)
+        runtime_dir.mkdir(parents=True, exist_ok=True)
+        (runtime_dir / "request.json").write_text("{}", encoding="utf-8")
         append_proc(proc, path=store, history_limit=10)
+    orphan_dir = _proc_runtime_dir_for_store(store, "orphan-proc1")
+    orphan_dir.mkdir(parents=True)
+    (orphan_dir / "request.json").write_text("{}", encoding="utf-8")
 
     outcome = prune_procs(path=store, history_limit=1)
 
@@ -634,6 +644,11 @@ def test_retention_and_pruning_delete_corresponding_logs(
     assert proc_log_path(artifact_owned.proc_id).exists()
     assert proc_log_path(second.proc_id).exists()
     assert proc_log_path(running.proc_id).exists()
+    assert not _proc_runtime_dir_for_store(store, first.proc_id).exists()
+    assert not _proc_runtime_dir_for_store(store, artifact_owned.proc_id).exists()
+    assert not orphan_dir.exists()
+    assert _proc_runtime_dir_for_store(store, second.proc_id).exists()
+    assert _proc_runtime_dir_for_store(store, running.proc_id).exists()
 
 
 def test_delete_proc_logs_skips_paths_outside_the_proc_log_root(
