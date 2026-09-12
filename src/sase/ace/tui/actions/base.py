@@ -15,6 +15,7 @@ from ..modals.plugins_browser_comprehensive_update_models import (
 from ..modals.update_panel import UpdatePanel, UpdatePanelResult
 from ..update_panel_state import build_update_panel_state
 from ._admin_center_persistence import AdminCenterPersistenceMixin
+from .event_refresh._freshness import note_surface_refreshed
 
 if TYPE_CHECKING:
     from ...patch import Patch
@@ -493,6 +494,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
                 source="manual",
                 full_history=False,
             )
+            note_surface_refreshed(self, "agents")
             schedule_fleet_refresh = getattr(
                 self,
                 "_schedule_agents_fleet_refresh",
@@ -503,13 +505,16 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
         elif self.current_tab == "artifacts":
             if getattr(self, "current_artifacts_subtab", "patches") == "patches":
                 self._schedule_patches_async_refresh()  # type: ignore[attr-defined]
+                note_surface_refreshed(self, "patches")
             else:
                 self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
+                note_surface_refreshed(self, "artifacts")
         else:  # axe
             # Targeted refresh repaints the focused panel first; the
             # full-fleet refresh lands whenever it lands.
             self._schedule_targeted_axe_refresh()  # type: ignore[attr-defined]
             self._schedule_axe_async_refresh()  # type: ignore[attr-defined]
+            note_surface_refreshed(self, "axe")
         self.notify("Refreshed")  # type: ignore[attr-defined]
 
     def action_refresh_agents_full_history(self) -> None:
@@ -518,6 +523,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             self.notify("Full-history refresh is only available on Agents")  # type: ignore[attr-defined]
             return
         self._agents_history_reconcile_pending = False
+        note_surface_refreshed(self, "agents_full_history")
         self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
             source="manual_full_history",
             full_history=True,

@@ -48,6 +48,7 @@ FOREIGN_ENTRY_PATTERNS: tuple[str, ...] = (
     "chezmoi-deploy-locks",  # see "ace_profile_*"
     "claude-*",
     "dbus-*",
+    "gh-diffs",  # see "ace_profile_*"
     # Third-party pytest plugin scratch, created at plugin-configure time during
     # healthy runs and later swept by tools/run_pytest's stale scratch reaper.
     "inline-snapshot-*",

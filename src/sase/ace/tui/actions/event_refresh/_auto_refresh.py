@@ -17,6 +17,7 @@ from ._constants import (
     AGENTS_LOAD_MIN_INTERVAL_SECONDS,
     FULL_SANITY_REFRESH_SECONDS,
 )
+from ._freshness import note_surface_refreshed
 from ._helpers import callable_accepts_kwarg
 from ._sdd_paths import cached_sdd_beads_dir
 from ._surface_tokens import (
@@ -168,6 +169,9 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                 extra["surfaces_reloaded"] = len(reloaded)
                 extra["surfaces"] = ",".join(reloaded)
                 extra["axe_file_opens"] = axe_file_opens
+                refreshed_at = time.monotonic()
+                for surface in reloaded:
+                    note_surface_refreshed(self, surface, now=refreshed_at)
 
     async def _run_auto_refresh_surfaces(self, reloaded: list[str]) -> int:
         """Run one auto-refresh pass, appending reloaded surface names."""
@@ -416,6 +420,7 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
             and getattr(self, "current_artifacts_subtab", "patches") != "patches"
         ):
             self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
+            reloaded.append("artifacts")
 
         if sanity_due:
             self._last_full_sanity_refresh = now_mono

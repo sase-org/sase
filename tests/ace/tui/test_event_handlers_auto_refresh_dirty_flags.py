@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from sase.ace.tui.actions._event_refresh import AGENTS_LOAD_MIN_INTERVAL_SECONDS
+from sase.ace.tui.actions.event_refresh._freshness import surface_refreshed_age
 from sase.ace.tui.actions.event_handlers import FULL_SANITY_REFRESH_SECONDS
 from sase.feature_flags import override_flags
 
@@ -180,6 +181,8 @@ async def test_watcher_active_dirty_agents_runs_only_agent_path() -> None:
     assert "agents" in app.refresh_calls
     assert "patches" not in app.refresh_calls
     assert app._dirty_agents is False
+    assert surface_refreshed_age(app, "agents") is not None
+    assert surface_refreshed_age(app, "axe") is None
 
 
 @pytest.mark.asyncio
