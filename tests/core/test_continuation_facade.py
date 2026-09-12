@@ -10,7 +10,6 @@ import pytest
 from sase.core.continuation_facade import (
     bind_conditional_completion,
     consume_conditional_completion,
-    continuation_wire_schema_version,
     evaluate_conditional_completion,
     invalidate_conditional_completion,
     plan_continuation_budget,
@@ -21,16 +20,25 @@ from sase.core.continuation_facade import (
     seal_conditional_completion,
     select_continuation_evidence,
     validate_continuation_delivery_record,
-    validate_continuation_graph,
     validate_continuation_intent,
     validate_continuation_node,
     validate_diagnostic_manifest,
-    validate_launch_requester_continuation,
     validate_monitor_result,
 )
-from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
+from sase.core.continuation_wire import (
+    CONTINUATION_WIRE_SCHEMA_VERSION,
+    continuation_wire_to_json_dict,
+)
+from sase.core.rust import require_rust_binding
 
 _SHA = "a" * 64
+
+
+def _call_continuation_binding(name: str, payload: Any) -> dict[str, Any]:
+    value = require_rust_binding(name)(continuation_wire_to_json_dict(payload))
+    if not isinstance(value, dict):
+        raise TypeError(f"{name} returned non-dict payload")
+    return dict(value)
 
 
 def _owner() -> dict[str, str]:
@@ -109,7 +117,8 @@ def _diagnostic_manifest() -> dict[str, Any]:
 
 
 def test_schema_version_matches_rust_binding() -> None:
-    assert continuation_wire_schema_version() == CONTINUATION_WIRE_SCHEMA_VERSION
+    binding = require_rust_binding("continuation_wire_schema_version")
+    assert int(binding()) == CONTINUATION_WIRE_SCHEMA_VERSION
 
 
 def test_node_intent_monitor_manifest_and_delivery_validation_round_trip() -> None:
@@ -169,7 +178,10 @@ def test_node_intent_monitor_manifest_and_delivery_validation_round_trip() -> No
         "terminal_branches": ["stopped"],
     }
     assert (
-        validate_launch_requester_continuation(launch_continuation)["mode"]
+        _call_continuation_binding(
+            "continuation_validate_launch_requester_continuation",
+            launch_continuation,
+        )["mode"]
         == "resume_requester"
     )
 
@@ -186,12 +198,13 @@ def test_unknown_node_kind_and_schema_version_raise_value_error() -> None:
 
 
 def test_graph_validation_summarizes_duplicates_and_missing_parents() -> None:
-    summary = validate_continuation_graph(
+    summary = _call_continuation_binding(
+        "continuation_validate_graph",
         [
             _node("root"),
             _node("root"),
             _node("leaf", ["root", "missing-parent"]),
-        ]
+        ],
     )
 
     assert summary["schema_version"] == CONTINUATION_WIRE_SCHEMA_VERSION

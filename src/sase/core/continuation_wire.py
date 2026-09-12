@@ -69,10 +69,6 @@ ContinuationBudgetReductionKind = Literal[
     "checkpoint",
 ]
 ContinuationBudgetDecisionKind = Literal["fits", "compact", "refuse"]
-LaunchRequesterContinuationMode = Literal[
-    "resume_requester",
-    "terminal_handoff",
-]
 ConditionalCompletionStatus = Literal[
     "prepared",
     "bound",
@@ -241,16 +237,6 @@ class ContinuationBudgetRequestWire(TypedDict):
     checkpoint_threshold_bytes: NotRequired[int | None]
     provider_budget: NotRequired[JsonObject]
     reduction_candidates: NotRequired[list[JsonObject]]
-
-
-class LaunchRequesterContinuationWire(TypedDict):
-    schema_version: int
-    mode: LaunchRequesterContinuationMode
-    required: bool
-    checkpoint: str
-    context: NotRequired[dict[str, str]]
-    resume_branches: NotRequired[list[str]]
-    terminal_branches: NotRequired[list[str]]
 
 
 class _VerificationContractWire(TypedDict):
@@ -424,8 +410,6 @@ __all__ = [
     "DiagnosticStageStatus",
     "JsonMapping",
     "JsonObject",
-    "LaunchRequesterContinuationMode",
-    "LaunchRequesterContinuationWire",
     "MonitorOutcome",
     "MonitorResultWire",
     "MonitorTimeoutKind",

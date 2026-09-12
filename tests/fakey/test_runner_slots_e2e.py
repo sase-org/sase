@@ -242,6 +242,11 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
     assert (
         research_swarm.source_path == "plugin:sase_research_artifacts/research_swarm.md"
     )
+    if "%wait(priority=" in research_swarm.content:
+        pytest.skip(
+            "installed sase-research-artifacts plugin still uses retired "
+            "%wait(priority=...) syntax"
+        )
 
     default_plan = plan_typed_launch_units(
         expand_prompt_for_typed_launch("#research_swarm:: weighted queue acceptance"),

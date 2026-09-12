@@ -83,6 +83,23 @@ def test_compose_followup_prompt_failed_reports_the_exit_code() -> None:
     assert "FAILED — exit 3" in prompt
 
 
+def test_compose_followup_prompt_accepts_long_env_command() -> None:
+    common = dict(_COMMON)
+    common["command"] = "SASE_CORE_WHEEL=/tmp/" + ("x" * 1_100) + " just check"
+
+    prompt = compose_followup_prompt(
+        starter_name="acme--0",
+        monitor_state="failed",
+        exit_code=1,
+        elapsed_seconds=42.0,
+        timeout_seconds=2700.0,
+        **common,
+    )
+
+    assert "FAILED — exit 1" in prompt
+    assert common["command"] in prompt
+
+
 def test_compose_followup_prompt_timeout_says_it_did_not_finish() -> None:
     prompt = compose_followup_prompt(
         starter_name="acme--0",

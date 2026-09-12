@@ -91,6 +91,13 @@ def _highlight_row(panel: ModelsPanel, row_id: str) -> None:
     panel._update_context()
 
 
+def _runner_limit_row_text(panel: ModelsPanel) -> str:
+    option_list = panel.query_one("#models-panel-list", OptionList)
+    return option_list.get_option_at_index(
+        option_list.get_option_index("setting:runner_limit")
+    ).prompt.plain
+
+
 @pytest.mark.parametrize("bucket_state", ["alias", "collapsed", "open"])
 async def test_ctrl_r_opens_global_action_card_in_every_bucket_state(
     monkeypatch: pytest.MonkeyPatch, bucket_state: str
@@ -120,12 +127,13 @@ async def test_title_footer_and_chooser_show_effective_and_configured_limits(
         panel = ModelsPanel()
         pilot.app.push_screen(panel)
         await pilot.pause()
+        await wait_for(
+            pilot,
+            lambda: "override · 42m left" in _runner_limit_row_text(panel),
+        )
         title = panel.query_one("#models-panel-title", Static).content.plain
         assert title == "Launch Control"
-        option_list = panel.query_one("#models-panel-list", OptionList)
-        runner_row = option_list.get_option_at_index(
-            option_list.get_option_index("setting:runner_limit")
-        ).prompt.plain
+        runner_row = _runner_limit_row_text(panel)
         assert "runner capacity" in runner_row
         assert "4" in runner_row
         assert "override · 42m left" in runner_row

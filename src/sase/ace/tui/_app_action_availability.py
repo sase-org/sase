@@ -430,7 +430,12 @@ def _artifact_contract_action_available(app: Any, action: str) -> bool:
 def _prompt_input_owns_keys(app: Any) -> bool:
     """Return True while a prompt bar owns keyboard input."""
     prompt_active = getattr(app, "_prompt_input_active", None)
-    return callable(prompt_active) and bool(prompt_active())
+    if not callable(prompt_active):
+        return False
+    try:
+        return bool(prompt_active())
+    except Exception:
+        return False
 
 
 def _selected_agent(app: Any) -> Any:

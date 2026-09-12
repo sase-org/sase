@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from typing import Any
 
 from sase.core.continuation_wire import (
@@ -23,18 +23,10 @@ from sase.core.continuation_wire import (
     DiagnosticManifestWire,
     JsonMapping,
     JsonObject,
-    LaunchRequesterContinuationWire,
     MonitorResultWire,
     continuation_wire_to_json_dict,
 )
 from sase.core.rust import require_rust_binding
-
-
-def continuation_wire_schema_version() -> int:
-    """Return the Rust continuation wire schema version."""
-
-    binding = require_rust_binding("continuation_wire_schema_version")
-    return int(binding())
 
 
 def validate_continuation_node(
@@ -46,18 +38,6 @@ def validate_continuation_node(
     return _json_object(
         binding(continuation_wire_to_json_dict(record)),
         "continuation_validate_node",
-    )
-
-
-def validate_continuation_graph(
-    records: Sequence[ContinuationNodeWire | JsonMapping],
-) -> JsonObject:
-    """Validate exact node identity, duplicate IDs, parents, and cycles."""
-
-    binding = require_rust_binding("continuation_validate_graph")
-    return _json_object(
-        binding(continuation_wire_to_json_dict(records)),
-        "continuation_validate_graph",
     )
 
 
@@ -112,20 +92,6 @@ def validate_continuation_delivery_record(record: JsonMapping) -> JsonObject:
     return _json_object(
         binding(continuation_wire_to_json_dict(record)),
         "continuation_validate_delivery_record",
-    )
-
-
-def validate_launch_requester_continuation(
-    continuation: LaunchRequesterContinuationWire | JsonMapping,
-) -> JsonObject:
-    """Validate one LaunchApproval requester-continuation contract."""
-
-    binding = require_rust_binding(
-        "continuation_validate_launch_requester_continuation"
-    )
-    return _json_object(
-        binding(continuation_wire_to_json_dict(continuation)),
-        "continuation_validate_launch_requester_continuation",
     )
 
 
@@ -285,7 +251,6 @@ __all__ = [
     "CONTINUATION_WIRE_SCHEMA_VERSION",
     "bind_conditional_completion",
     "consume_conditional_completion",
-    "continuation_wire_schema_version",
     "evaluate_conditional_completion",
     "invalidate_conditional_completion",
     "plan_continuation_budget",
@@ -298,10 +263,8 @@ __all__ = [
     "validate_agent_delta",
     "validate_conditional_completion_intent",
     "validate_continuation_delivery_record",
-    "validate_continuation_graph",
     "validate_continuation_intent",
     "validate_continuation_node",
     "validate_diagnostic_manifest",
-    "validate_launch_requester_continuation",
     "validate_monitor_result",
 ]

@@ -54,6 +54,9 @@ def parser_for(path: tuple[str, ...]) -> argparse.ArgumentParser:
 def help_subcommand_rows(help_text: str, expected_commands: set[str]) -> list[str]:
     commands: list[str] = []
     for line in help_text.splitlines():
+        indent = len(line) - len(line.lstrip())
+        if indent > 8:
+            continue
         stripped = line.strip()
         if not stripped:
             continue
