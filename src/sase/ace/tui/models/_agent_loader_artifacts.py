@@ -117,17 +117,38 @@ def query_artifact_index_for_loader(
 ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
     """Return an index-backed snapshot when the persistent index exists."""
 
-    if full_history:
-        return None
-
     index_path = default_index_path()
     if not index_path.is_file():
-        return None
+        if not full_history:
+            return None
+        fallback_snapshot = scan_artifacts()
+        return (
+            fallback_snapshot,
+            AgentLoadState(
+                tier="tier2",
+                complete_history=True,
+                complete_visible_inbox=True,
+                artifact_source="source_scan",
+                used_artifact_index=False,
+                repair_recommended=True,
+                repair_reason="artifact_index_missing_full_history_fallback",
+                record_count=len(fallback_snapshot.records),
+            ),
+        )
+
+    active_limit = None if full_history else _TIER1_ACTIVE_LIMIT
+    recent_completed_limit = None if full_history else _TIER1_RECENT_COMPLETED_LIMIT
+    # A Tier-2 load sets the app's complete-history latch. Do not satisfy it
+    # from a cached index snapshot: revalidate first so rows written by other
+    # processes since the last index build are not silently suppressed.
+    query_freshness: Literal["revalidate", "cached"] = (
+        "revalidate" if full_history else freshness
+    )
 
     query = AgentArtifactIndexQueryWire(
-        include_active=True,
-        include_recent_completed=True,
-        include_full_history=False,
+        include_active=not full_history,
+        include_recent_completed=not full_history,
+        include_full_history=full_history,
         # The viewport window narrows the Tier 1 tiers; it never replaces
         # their caps. The core only honors ``window_limit`` on cached reads
         # (``should_use_windowed_candidate_query``), so nulling the caps here
@@ -135,12 +156,12 @@ def query_artifact_index_for_loader(
         # and stale-repaired every visible index row instead of the capped
         # tiers, which is both far more rows than Tier 1 promises and slow
         # enough to stall the TUI.
-        active_limit=_TIER1_ACTIVE_LIMIT,
-        recent_completed_limit=_TIER1_RECENT_COMPLETED_LIMIT,
+        active_limit=active_limit,
+        recent_completed_limit=recent_completed_limit,
         include_hidden=False,
-        freshness=freshness,
+        freshness=query_freshness,
         record_shape="list",
-        window_limit=requested_limit,
+        window_limit=None if full_history else requested_limit,
         candidate_filter=candidate_filter,
     )
     try:
@@ -151,34 +172,46 @@ def query_artifact_index_for_loader(
             options=_TUI_SCAN_OPTIONS,
         )
         if snapshot is None:
-            fallback_snapshot = scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS)
+            fallback_snapshot = scan_artifacts(
+                None if full_history else _TIER1_FALLBACK_SCAN_OPTIONS
+            )
             return (
                 fallback_snapshot,
                 AgentLoadState(
-                    tier="tier1",
-                    complete_history=False,
-                    complete_visible_inbox=False,
+                    tier="tier2" if full_history else "tier1",
+                    complete_history=full_history,
+                    complete_visible_inbox=full_history,
                     artifact_source="source_scan",
                     used_artifact_index=False,
                     index_error="artifact index operation lock busy",
                     repair_recommended=False,
-                    repair_reason="artifact_index_lock_busy_bounded_fallback",
+                    repair_reason=(
+                        "artifact_index_lock_busy_full_history_fallback"
+                        if full_history
+                        else "artifact_index_lock_busy_bounded_fallback"
+                    ),
                     record_count=len(fallback_snapshot.records),
                 ),
             )
     except (ImportError, AttributeError, OSError, ValueError, RuntimeError) as exc:
-        fallback_snapshot = scan_artifacts(_TIER1_FALLBACK_SCAN_OPTIONS)
+        fallback_snapshot = scan_artifacts(
+            None if full_history else _TIER1_FALLBACK_SCAN_OPTIONS
+        )
         return (
             fallback_snapshot,
             AgentLoadState(
-                tier="tier1",
-                complete_history=False,
-                complete_visible_inbox=False,
+                tier="tier2" if full_history else "tier1",
+                complete_history=full_history,
+                complete_visible_inbox=full_history,
                 artifact_source="source_scan",
                 used_artifact_index=False,
                 index_error=str(exc),
                 repair_recommended=True,
-                repair_reason="artifact_index_query_failed_bounded_fallback",
+                repair_reason=(
+                    "artifact_index_query_failed_full_history_fallback"
+                    if full_history
+                    else "artifact_index_query_failed_bounded_fallback"
+                ),
                 record_count=len(fallback_snapshot.records),
             ),
         )
@@ -187,13 +220,13 @@ def query_artifact_index_for_loader(
     return (
         snapshot,
         AgentLoadState(
-            tier="tier1",
-            complete_history=False,
+            tier="tier2" if full_history else "tier1",
+            complete_history=full_history,
             complete_visible_inbox=True,
             artifact_source="artifact_index",
             used_artifact_index=True,
             record_count=len(snapshot.records),
-            bounded_prefix=index_window is not None,
+            bounded_prefix=not full_history and index_window is not None,
             requested_limit=(
                 None if index_window is None else index_window.requested_limit
             ),
@@ -218,6 +251,19 @@ def artifact_snapshot_for_tui_load(
     """Return the artifact snapshot for a TUI refresh."""
 
     if full_history:
+        if use_artifact_index:
+            from sase.feature_flags import FeatureFlag, current_flags
+
+            if current_flags().enabled(FeatureFlag.agents_index_full_history):
+                indexed = load_tier1_index(
+                    full_history=full_history,
+                    freshness=index_freshness,
+                    requested_limit=None,
+                    candidate_filter=candidate_filter,
+                )
+                if indexed is not None:
+                    return indexed
+
         full_snapshot = scan_artifacts()
         return (
             full_snapshot,

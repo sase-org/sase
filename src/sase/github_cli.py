@@ -261,6 +261,39 @@ def _run_gh(
     return last_result
 
 
+def run_gh(
+    args: Sequence[str],
+    *,
+    cwd: str | Path | None = None,
+    timeout: float | None = None,
+    check: bool = False,
+    max_attempts: int = DEFAULT_MAX_ATTEMPTS,
+    backoff_delays: Sequence[float] = DEFAULT_BACKOFF_DELAYS_SECONDS,
+    max_retry_sleep: float | None = None,
+    run_fn: _GhSubprocessRunner | None = None,
+    sleep_fn: Any = time.sleep,
+    time_fn: Any = time.time,
+    monotonic_fn: Any = time.perf_counter,
+    op: str = "gh",
+) -> _GhCommandResult:
+    """Run ``gh`` through the shared bounded retry boundary."""
+
+    return _run_gh(
+        args,
+        cwd=cwd,
+        timeout=timeout,
+        check=check,
+        max_attempts=max_attempts,
+        backoff_delays=backoff_delays,
+        max_retry_sleep=max_retry_sleep,
+        run_fn=run_fn,
+        sleep_fn=sleep_fn,
+        time_fn=time_fn,
+        monotonic_fn=monotonic_fn,
+        op=op,
+    )
+
+
 def gh_api_json(
     endpoint: str,
     *,

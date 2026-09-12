@@ -144,8 +144,8 @@ def _artifact_snapshot_for_tui_load(
 
     Tier 1 uses the persistent artifact index when available. Missing or bad
     indexes fall back to a bounded source scan so first paint remains capped.
-    Tier 2 always reconciles from source-of-truth artifacts so a stale index
-    cannot keep visible history stale indefinitely.
+    With ``agents_index_full_history`` enabled, Tier 2 uses a revalidated index
+    query and falls back to source artifacts when the index path is unavailable.
     """
 
     return _tui_artifact_snapshot(
@@ -539,7 +539,9 @@ def load_tiered_agents(
         index_freshness=index_freshness,
         requested_limit=effective_limit,
         candidate_filter=(
-            candidate_filter if effective_limit is not None and window_safe else None
+            candidate_filter
+            if window_safe and (effective_limit is not None or effective_full_history)
+            else None
         ),
     )
     agents = _normalize_loaded_agents(result.agents, result.workflow_agent_steps)
