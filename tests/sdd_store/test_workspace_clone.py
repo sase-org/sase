@@ -22,6 +22,46 @@ from tests.sdd_store._helpers import (
 )
 
 
+def _seed_remote(remote: Path, seed: Path) -> None:
+    init_bare_repo(remote)
+    clone(remote, seed)
+    (seed / "README.md").write_text("# Plans\n", encoding="utf-8")
+    commit_all(seed, "Initialize plans")
+    git(["push", "-u", "origin", "main"], seed)
+
+
+def _write_sidecar_record(primary: Path, plans_remote: Path) -> None:
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 2,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                "plans": {
+                    "repo": "owner/repo--plans",
+                    "remote_url": str(plans_remote),
+                },
+            },
+        },
+    )
+
+
+def _record_clone_commands(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    from sase.sdd import _commit
+
+    original_run_sdd_git = _commit.run_sdd_git
+    clone_commands: list[list[str]] = []
+
+    def recording_run_sdd_git(args: list[str], **kwargs):
+        if args[:1] == ["clone"]:
+            clone_commands.append(list(args))
+        return original_run_sdd_git(args, **kwargs)
+
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", recording_run_sdd_git)
+    return clone_commands
+
+
 def test_ensure_workspace_sdd_clone_managed_separate_repo(
     tmp_path: Path,
     provider_patch,
@@ -119,6 +159,88 @@ def test_ensure_workspace_sdd_clone_syncs_plans_sidecar_only(
     )
     assert research_exclude_lines.count(".sase/") == 1
     assert research_exclude_lines.count("/sase/repos/") == 1
+
+
+def test_sidecar_kind_clone_uses_primary_clone_as_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    provider_patch,
+) -> None:
+    plans_remote = tmp_path / "plans.git"
+    _seed_remote(plans_remote, tmp_path / "seed")
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    primary_plans = primary / "sase" / "repos" / "plans"
+    workspace_plans = workspace / "sase" / "repos" / "plans"
+    primary.mkdir()
+    workspace.mkdir()
+    clone(plans_remote, primary_plans)
+    _write_sidecar_record(primary, plans_remote)
+    provider_patch(None)
+    clone_commands = _record_clone_commands(monkeypatch)
+
+    ensure_workspace_sdd_clone(workspace, 2, strict=True)
+
+    assert clone_commands == [
+        [
+            "clone",
+            "--reference-if-able",
+            str(primary_plans),
+            "--dissociate",
+            str(plans_remote),
+            str(workspace_plans),
+        ]
+    ]
+    assert (workspace_plans / ".git").is_dir()
+
+
+@pytest.mark.parametrize("reference_mode", ["missing", "foreign"])
+def test_sidecar_kind_clone_falls_back_without_matching_primary_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    provider_patch,
+    reference_mode: str,
+) -> None:
+    plans_remote = tmp_path / "plans.git"
+    _seed_remote(plans_remote, tmp_path / "seed")
+    primary = tmp_path / "repo"
+    workspace = tmp_path / "repo_2"
+    primary_plans = primary / "sase" / "repos" / "plans"
+    workspace_plans = workspace / "sase" / "repos" / "plans"
+    primary.mkdir()
+    workspace.mkdir()
+    if reference_mode == "foreign":
+        foreign_remote = tmp_path / "foreign.git"
+        _seed_remote(foreign_remote, tmp_path / "foreign-seed")
+        clone(foreign_remote, primary_plans)
+    _write_sidecar_record(primary, plans_remote)
+    provider_patch(None)
+    clone_commands = _record_clone_commands(monkeypatch)
+
+    ensure_workspace_sdd_clone(workspace, 2, strict=True)
+
+    assert clone_commands == [["clone", str(plans_remote), str(workspace_plans)]]
+    assert (workspace_plans / ".git").is_dir()
+
+
+def test_sidecar_kind_clone_refuses_target_as_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    provider_patch,
+) -> None:
+    plans_remote = tmp_path / "plans.git"
+    _seed_remote(plans_remote, tmp_path / "seed")
+    primary = tmp_path / "repo"
+    primary_plans = primary / "sase" / "repos" / "plans"
+    primary.mkdir()
+    _write_sidecar_record(primary, plans_remote)
+    provider_patch(None)
+    clone_commands = _record_clone_commands(monkeypatch)
+
+    assert ensure_sdd_kind_clone(primary, 1, "plans", strict=True) == primary_plans
+
+    assert clone_commands == [["clone", str(plans_remote), str(primary_plans)]]
+    assert (primary_plans / ".git").is_dir()
 
 
 def test_fresh_workspace_normalizes_legacy_https_record_before_clone(
