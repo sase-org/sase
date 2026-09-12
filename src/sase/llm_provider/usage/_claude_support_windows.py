@@ -16,6 +16,7 @@ from sase.llm_provider.usage._claude_support_text import (
 )
 from sase.llm_provider.usage.types import (
     UsageProbeContext,
+    bounded_probe_diagnostic,
     validate_observation,
     validated_status_observation,
 )
@@ -38,11 +39,12 @@ def parse_usage_windows(
     result_text: str,
     *,
     observed_at: float,
-) -> tuple[list[dict[str, Any]], bool]:
+) -> tuple[list[dict[str, Any]], str | None]:
     """Parse Claude usage prose into provider-usage windows."""
     windows: list[dict[str, Any]] = []
     seen_keys: set[str] = set()
-    had_parse_error = False
+    had_non_reset_parse_error = False
+    unparsed_reset_expressions: list[str] = []
     for raw_line in result_text.splitlines():
         line = normalize_text(raw_line)
         if not line:
@@ -50,7 +52,7 @@ def parse_usage_windows(
         match = _USAGE_ROW_RE.match(line)
         if match is None:
             if line.startswith("Current ") or "% used" in line:
-                had_parse_error = True
+                had_non_reset_parse_error = True
             continue
         label = match.group("label").strip()
         percent_text = match.group("percent")
@@ -58,10 +60,10 @@ def parse_usage_windows(
         try:
             used_percent = float(percent_text)
         except ValueError:
-            had_parse_error = True
+            had_non_reset_parse_error = True
             continue
         if used_percent < 0.0:
-            had_parse_error = True
+            had_non_reset_parse_error = True
             continue
         resets_at = None
         if reset_text:
@@ -70,10 +72,10 @@ def parse_usage_windows(
                 observed_at=observed_at,
             )
             if resets_at is None:
-                had_parse_error = True
+                unparsed_reset_expressions.append(reset_text)
         key, display_label, applicability = _usage_window_identity(label)
         if key in seen_keys:
-            had_parse_error = True
+            had_non_reset_parse_error = True
             continue
         seen_keys.add(key)
         windows.append(
@@ -90,7 +92,10 @@ def parse_usage_windows(
                 "vendor_state": "allowed",
             }
         )
-    return windows, had_parse_error
+    return windows, _usage_parse_diagnostic(
+        unparsed_reset_expressions,
+        had_non_reset_parse_error=had_non_reset_parse_error,
+    )
 
 
 def event_window(
@@ -246,6 +251,22 @@ def _model_id_from_label(normalized_label: str) -> str | None:
         for alias in aliases:
             if f" {alias} " in padded:
                 return model_id
+    return None
+
+
+def _usage_parse_diagnostic(
+    unparsed_reset_expressions: list[str],
+    *,
+    had_non_reset_parse_error: bool,
+) -> str | None:
+    if unparsed_reset_expressions:
+        first, *rest = unparsed_reset_expressions
+        message = f'unparsed Claude usage reset expression: "{first}"'
+        if rest:
+            message = f"{message} (+{len(rest)} more)"
+        return bounded_probe_diagnostic(message)
+    if had_non_reset_parse_error:
+        return bounded_probe_diagnostic("some Claude usage rows could not be parsed")
     return None
 
 

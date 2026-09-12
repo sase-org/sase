@@ -499,7 +499,7 @@ def _observation_from_usage_stdout(
             context, now=now, outcome="error", reason_code="parse_error"
         )
     text_status = status_from_auth_text(result_text)
-    windows, had_parse_error = parse_usage_windows(
+    windows, parse_diagnostic = parse_usage_windows(
         result_text,
         observed_at=context.request_started_at,
     )
@@ -534,11 +534,9 @@ def _observation_from_usage_stdout(
         "received_at": max(now, context.request_started_at),
         "source": "probe",
         "outcome": "ok",
-        "reason_code": "parse_error" if had_parse_error else None,
-        "diagnostic": (
-            "some Claude usage rows could not be parsed" if had_parse_error else None
-        ),
-        "completeness": "partial" if had_parse_error else "complete",
+        "reason_code": "parse_error" if parse_diagnostic else None,
+        "diagnostic": parse_diagnostic,
+        "completeness": "partial" if parse_diagnostic else "complete",
         "authoritative_empty": False,
         "account_mode": "subscription",
         "plan": auth_info.plan or extract_plan(result_text),

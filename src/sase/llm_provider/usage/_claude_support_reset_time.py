@@ -26,6 +26,8 @@ _TIME_RESET_RE = re.compile(
     r"(?:\s*\((" + _ZONE_NAME_RE + r")\))?$",
     re.IGNORECASE,
 )
+_AT_BETWEEN_RE = re.compile(r"(?<=\d)\s+at\s+(?=\d)", re.IGNORECASE)
+_LEADING_AT_RE = re.compile(r"^at\s+", re.IGNORECASE)
 _MONTH_ABBR_TO_NUM = {
     "jan": 1,
     "feb": 2,
@@ -47,6 +49,7 @@ def parse_claude_reset_timestamp(text: str, *, observed_at: float) -> float | No
     normalized = normalize_text(text)
     if not normalized:
         return None
+    normalized = _strip_at_connector(normalized)
     match = _ISO_RESET_RE.match(normalized)
     if match:
         return _resolve_iso_datetime(match.groups())
@@ -57,6 +60,11 @@ def parse_claude_reset_timestamp(text: str, *, observed_at: float) -> float | No
     if match:
         return _resolve_time_only(match.groups(), observed_at=observed_at)
     return None
+
+
+def _strip_at_connector(text: str) -> str:
+    """Drop the optional ``at`` word Claude places before a reset time."""
+    return _LEADING_AT_RE.sub("", _AT_BETWEEN_RE.sub(" ", text), count=1)
 
 
 def _resolve_iso_datetime(groups: tuple[str | None, ...]) -> float | None:

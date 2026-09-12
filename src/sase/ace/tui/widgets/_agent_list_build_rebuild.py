@@ -329,10 +329,10 @@ def build_list(
         if entry.agent_idx is None:
             continue
         i = entry.agent_idx
-        option = agent_options.get(i)
-        if option is None:
+        agent_option = agent_options.get(i)
+        if agent_option is None:
             continue
-        emitted_options.append(option)
+        emitted_options.append(agent_option)
         is_selected_agent = current_group_key is None and i == current_idx
         row_index = len(widget._row_entries)
         if is_selected_agent:

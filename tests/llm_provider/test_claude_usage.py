@@ -190,6 +190,47 @@ def test_claude_usage_probe_parses_all_windows_and_one_cent_cap_argv() -> None:
     assert "private@example.com" not in str(observation)
 
 
+def test_claude_usage_probe_parses_at_connector_reset_rows() -> None:
+    usage_text = "\n".join(
+        [
+            "You are currently using your subscription to power your Claude Code usage",
+            "",
+            "Current session: 18% used · resets Sep 12 at 10am (America/New_York)",
+            "Current week (all models): 94% used · resets Sep 12 at 8pm "
+            "(America/New_York)",
+            "Current week (Fable): 100% used · resets Sep 12 at 8pm (America/New_York)",
+        ]
+    )
+    runner = _runner(usage_text=usage_text)
+
+    observation = collect_claude_usage(
+        _context(),
+        runner=runner,
+        clock=lambda: OBSERVED_AT + 1.0,
+    )
+
+    ny = ZoneInfo("America/New_York")
+    windows = {window["key"]: window for window in observation["windows"]}
+    assert observation["outcome"] == "ok"
+    assert observation["completeness"] == "complete"
+    assert observation["reason_code"] is None
+    assert sorted(windows) == ["session", "weekly", "weekly:claude-fable-5"]
+    assert (
+        windows["session"]["resets_at"]
+        == datetime(
+            2026,
+            9,
+            12,
+            10,
+            0,
+            tzinfo=ny,
+        ).timestamp()
+    )
+    weekly_reset = datetime(2026, 9, 12, 20, 0, tzinfo=ny).timestamp()
+    assert windows["weekly"]["resets_at"] == weekly_reset
+    assert windows["weekly:claude-fable-5"]["resets_at"] == weekly_reset
+
+
 def test_claude_usage_probe_stops_on_api_auth_mode() -> None:
     runner = _runner(auth_payload={"authenticated": True, "authMode": "api_key"})
 
@@ -219,6 +260,7 @@ def test_claude_usage_probe_returns_partial_for_unparseable_reset() -> None:
     assert observation["outcome"] == "ok"
     assert observation["completeness"] == "partial"
     assert observation["reason_code"] == "parse_error"
+    assert "someday soon" in observation["diagnostic"]
     assert observation["windows"][0]["key"] == "session"
     assert observation["windows"][0]["resets_at"] is None
 
@@ -317,6 +359,46 @@ def test_claude_reset_parser_handles_time_date_year_rollover_and_iso() -> None:
             observed_at=september,
         )
         == datetime(2026, 9, 8, 18, 30, tzinfo=ZoneInfo("UTC")).timestamp()
+    )
+
+
+def test_claude_reset_parser_handles_at_connector() -> None:
+    ny = ZoneInfo("America/New_York")
+
+    assert (
+        parse_claude_reset_timestamp(
+            "Sep 12 at 10am (America/New_York)",
+            observed_at=OBSERVED_AT,
+        )
+        == datetime(2026, 9, 12, 10, 0, tzinfo=ny).timestamp()
+    )
+    assert (
+        parse_claude_reset_timestamp(
+            "Sep 12, 2026 at 8pm (America/New_York)",
+            observed_at=OBSERVED_AT,
+        )
+        == datetime(2026, 9, 12, 20, 0, tzinfo=ny).timestamp()
+    )
+    assert (
+        parse_claude_reset_timestamp(
+            "Sep 12 at 10:30am",
+            observed_at=OBSERVED_AT,
+        )
+        == datetime(2026, 9, 12, 10, 30, tzinfo=ny).timestamp()
+    )
+    assert (
+        parse_claude_reset_timestamp(
+            "at 10am",
+            observed_at=OBSERVED_AT,
+        )
+        == datetime(2026, 9, 8, 10, 0, tzinfo=ny).timestamp()
+    )
+    assert (
+        parse_claude_reset_timestamp(
+            "someday soon",
+            observed_at=OBSERVED_AT,
+        )
+        is None
     )
 
 
