@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from sase.monitor.transaction import write_json_marker_atomic
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.workspace_provider.lease import (
     OperationalLease,
     OperationalLeaseError,

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import os
-import time
 from hashlib import sha256
 from pathlib import Path
 
@@ -43,31 +40,6 @@ def monitor_started_path(artifacts_dir: str | Path) -> Path:
     return Path(artifacts_dir) / MONITOR_STARTED_MARKER
 
 
-def write_json_marker_atomic(marker_path: Path, payload: dict[str, object]) -> None:
-    """Write *payload* as JSON to *marker_path* so a reader never sees a partial file.
-
-    Shared by the ``.monitor_go`` launch barrier and the ``.monitor_started``
-    startup acknowledgement: a temp file next to *marker_path*, fsynced, then
-    ``os.replace``d into place.
-    """
-    marker_path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = marker_path.with_name(
-        f".{marker_path.name}.{os.getpid()}.{time.time_ns()}.tmp"
-    )
-    try:
-        with tmp_path.open("w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, sort_keys=True)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp_path, marker_path)
-    except OSError:
-        try:
-            tmp_path.unlink()
-        except OSError:
-            pass
-        raise
-
-
 __all__ = [
     "MONITOR_GO_MARKER",
     "MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS",
@@ -76,5 +48,4 @@ __all__ = [
     "monitor_go_path",
     "monitor_lane_lock_path",
     "monitor_started_path",
-    "write_json_marker_atomic",
 ]

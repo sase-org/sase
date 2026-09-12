@@ -6,6 +6,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from sase.ace.hooks.processes import is_process_running
+from sase.agent.launch_admission_store import (
+    RECEIPT_FILENAME,
+    SIDECAR_FILENAME,
+    admission_dir,
+    read_json,
+)
 
 from ._chop_lifecycle_completion import record_artifacts_dir
 from ._chop_lifecycle_types import TypedAdmissionReconciliation
@@ -74,7 +80,6 @@ def typed_admission_reconciliation(
         else []
     )
     metadata = _dispatch_metadata(payload)
-    from sase.agent.launch_admission_store import admission_dir
 
     admission_root = admission_dir(bundle_dir)
     keys_by_logical_id = _typed_admission_keys(typed)
@@ -161,12 +166,6 @@ def _read_typed_admission_payload(bundle_dir: Path) -> dict[str, object] | None:
 
 
 def _read_admission_receipt(bundle_dir: Path) -> dict[str, object] | None:
-    from sase.agent.launch_admission_store import (
-        RECEIPT_FILENAME,
-        admission_dir,
-        read_json,
-    )
-
     return read_json(admission_dir(bundle_dir) / RECEIPT_FILENAME)
 
 
@@ -175,12 +174,6 @@ def _receipt_complete(receipt: dict[str, object] | None) -> bool:
 
 
 def _coordinator_live(bundle_dir: Path) -> bool:
-    from sase.agent.launch_admission_store import (
-        SIDECAR_FILENAME,
-        admission_dir,
-        read_json,
-    )
-
     sidecar = read_json(admission_dir(bundle_dir) / SIDECAR_FILENAME)
     pid = sidecar.get("pid") if isinstance(sidecar, dict) else None
     return isinstance(pid, int) and pid > 0 and is_process_running(pid)

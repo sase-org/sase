@@ -297,10 +297,12 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     extra linked-repo dirty checks from the live agent workspace, model alias
     overrides affecting resolution assertions, or a live supervisor
     ``SASE_PROC_*`` sidecar being consumed by ordinary gate/ops/launch
-    handlers.  Both the canonical ``SASE_LINKED_REPO*`` vars and the deprecated
-    ``SASE_SIBLING_REPO*`` aliases are scrubbed so finalizer tests don't inherit
-    the developer's real linked repositories (e.g. a dirty chezmoi checkout)
-    from the surrounding agent.
+    handlers. Monitor-delivery continuation variables are also scrubbed so
+    provider-invoking tests don't accidentally acknowledge the surrounding
+    agent's continuation key. Both the canonical ``SASE_LINKED_REPO*`` vars and
+    the deprecated ``SASE_SIBLING_REPO*`` aliases are scrubbed so finalizer tests
+    don't inherit the developer's real linked repositories (e.g. a dirty chezmoi
+    checkout) from the surrounding agent.
     """
     keys_to_clear = {
         key
@@ -308,6 +310,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         if (
             key.startswith("SASE_AGENT_")
             or key.startswith("SASE_LINKED_REPO_")
+            or key.startswith("SASE_MONITOR_DELIVERY_")
             or key.startswith("SASE_PROC_")
             or key.startswith("SASE_SIBLING_REPO_")
             or key
@@ -322,6 +325,7 @@ def _clear_agent_env_vars(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
                 "SASE_FEATURE_FLAGS",
                 "SASE_LINKED_REPOS_JSON",
                 SASE_MODEL_ALIAS_OVERRIDES_ENV,
+                "SASE_MONITOR_CONTINUATION",
                 "SASE_SIBLING_REPOS_JSON",
                 "TMUX_PANE",
             }

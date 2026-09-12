@@ -168,6 +168,21 @@ def test_cache_like_global_replacement_is_invalidation() -> None:
     assert diff.invalidation_counts == {"global": 1}
 
 
+def test_known_snapshot_cache_replacement_is_invalidation() -> None:
+    first = _global_fingerprint({"generated_at": 1.0, "providers": []})
+    assert first is not None
+    second = _global_fingerprint({"generated_at": 2.0, "providers": []})
+    assert second is not None
+
+    diff = _diff_snapshots(
+        _snapshot(globals={"sase.llm_provider.usage.peek._peek_snapshot": first}),
+        _snapshot(globals={"sase.llm_provider.usage.peek._peek_snapshot": second}),
+    )
+
+    assert diff.poisoning == ()
+    assert diff.invalidation_counts == {"global": 1}
+
+
 def test_collection_reset_to_empty_is_cooling() -> None:
     populated = _global_fingerprint({"cached": "value"})
     assert populated is not None

@@ -10,9 +10,8 @@ from typing import Any
 
 from sase.core.continuation_facade import validate_diagnostic_manifest
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.logs.pipe import BoundedLogRetention, RetainedByteRange
-
-from .transaction import write_json_marker_atomic
 
 DIAGNOSTICS_DIRNAME = "diagnostics"
 STAGES_DIRNAME = "stages"

@@ -53,7 +53,7 @@ from sase.core.agent_launch_wire import (
     agent_launch_wire_to_json_dict,
     launch_plan_from_dict,
 )
-from sase.monitor.transaction import write_json_marker_atomic
+from sase.core.atomic_json import write_json_marker_atomic
 
 
 @dataclass(frozen=True)

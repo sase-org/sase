@@ -25,8 +25,8 @@ from sase.agent.launch_request_types import (
     ApprovedLaunchDispatchResult,
     LaunchRequestError,
 )
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.core.paths import sase_subdir
-from sase.monitor.transaction import write_json_marker_atomic
 from sase.notification_gates.paths import REQUEST_FILENAME
 
 _TYPED_LAUNCHES_SUBDIR = "typed_launches"

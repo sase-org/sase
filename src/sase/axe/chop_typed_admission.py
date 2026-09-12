@@ -7,18 +7,14 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
+from sase.agent.launch_admission_store import UNITS_DIRNAME, admission_dir, read_json
 from sase.agent.launch_admission_runtime import UnitDispatcher
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import agent_unit_dispatch_prompt, safe_launch_name
 from sase.core.agent_launch_wire import AgentUnitWire, LaunchUnitWire
+from sase.core.atomic_json import write_json_marker_atomic
 
 from .chop_agents import build_chop_launch_env
-
-# ``launch_admission_store`` and ``monitor.transaction`` are imported lazily
-# below, not at module scope: this module is reached from
-# ``sase.axe.__init__`` via the chop-lifecycle typed-admission path, and
-# ``launch_admission_store`` imports ``sase.monitor``, whose package init
-# imports back into ``sase.axe`` — a top-level import here would cycle.
 
 AXE_CHOP_SOURCE_SURFACE = "axe_chop"
 UNIT_DISPATCH_METADATA_KEY = "unit_dispatch_metadata"
@@ -48,8 +44,6 @@ def make_axe_chop_agent_dispatcher(
         return None
     admission_root: Path | None = None
     if bundle_dir is not None:
-        from sase.agent.launch_admission_store import admission_dir
-
         admission_root = admission_dir(bundle_dir)
 
     def _dispatch(
@@ -252,7 +246,6 @@ def _metadata_proposal_reference(
 def _unit_receipt_identity(admission_root: Path, logical_id: str) -> str | None:
     if not logical_id or "/" in logical_id or "\\" in logical_id:
         return None
-    from sase.agent.launch_admission_store import UNITS_DIRNAME, read_json
 
     receipt = read_json(admission_root / UNITS_DIRNAME / f"{logical_id}.json")
     if not isinstance(receipt, Mapping):
@@ -292,7 +285,6 @@ def _resolve_clan_dispatch_payload(
     full_name = _str_or_none(unit_meta.get("agent_name")) or payload.identity
     tribe = _str_or_none(unit_meta.get("clan_tribe")) or "chop"
     summary = _str_or_none(unit_meta.get("clan_summary"))
-    from sase.monitor.transaction import write_json_marker_atomic
 
     write_json_marker_atomic(
         marker,
@@ -311,8 +303,6 @@ def _resolve_clan_dispatch_payload(
 
 
 def _clan_declared_marker_path(admission_root: Path, clan: str) -> Path:
-    from sase.agent.launch_admission_store import UNITS_DIRNAME
-
     return (
         admission_root / UNITS_DIRNAME / f"clan-declared-{safe_launch_name(clan)}.json"
     )

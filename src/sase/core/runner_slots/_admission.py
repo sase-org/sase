@@ -167,10 +167,39 @@ def _core_runner_capacity_snapshot(request: dict[str, Any]) -> dict[str, Any]:
             "runner-slot admission; rebuild sase_core_rs from the matching "
             "sase-core checkout."
         ) from exc
-    result = snapshot(request)
+    try:
+        result = snapshot(request)
+    except ValueError as exc:
+        if "queue_capacity" not in str(exc):
+            raise
+        result = snapshot(_legacy_runner_capacity_request(request))
     if not isinstance(result, dict):
         raise RuntimeError("sase_core_rs returned an invalid runner capacity snapshot")
     return result
+
+
+def _legacy_runner_capacity_request(request: Mapping[str, Any]) -> dict[str, Any]:
+    """Drop queue-capacity aliases for Rust wheels before the rename."""
+    legacy = dict(request)
+    legacy["records"] = [
+        _drop_queue_capacity_alias(record)
+        for record in request.get("records", [])
+        if isinstance(record, Mapping)
+    ]
+    candidate = request.get("candidate")
+    legacy["candidate"] = (
+        _drop_queue_capacity_alias(candidate)
+        if isinstance(candidate, Mapping)
+        else None
+    )
+    return legacy
+
+
+def _drop_queue_capacity_alias(record: Mapping[str, Any]) -> dict[str, Any]:
+    item = _with_queue_capacity_alias(record)
+    item.pop("queue_capacity", None)
+    item.pop("queue_capacity_explicit", None)
+    return item
 
 
 def _finite_positive_float(value: object) -> float | None:
@@ -240,6 +269,19 @@ def _record_queue_capacity(record: AgentArtifactRecordWire) -> int | None:
     return None
 
 
+def _with_queue_capacity_alias(record: Mapping[str, Any]) -> dict[str, Any]:
+    item = dict(record)
+    if "queue_capacity" not in item and "wait_runners" in item:
+        item["queue_capacity"] = item["wait_runners"]
+    if "queue_capacity_explicit" not in item and "wait_runners_explicit" in item:
+        item["queue_capacity_explicit"] = item["wait_runners_explicit"]
+    if "wait_runners" not in item and "queue_capacity" in item:
+        item["wait_runners"] = item["queue_capacity"]
+    if "wait_runners_explicit" not in item and "queue_capacity_explicit" in item:
+        item["wait_runners_explicit"] = item["queue_capacity_explicit"]
+    return item
+
+
 def _record_pid(record: AgentArtifactRecordWire) -> int | None:
     meta = record.agent_meta
     if meta is not None and meta.pid is not None:
@@ -259,43 +301,45 @@ def _capacity_record_from_scan(
     queue_weight, queue_weight_explicit, queue_weight_invalid = _record_queue_weight(
         record
     )
-    return {
-        "artifact_dir": record.artifact_dir,
-        "project_name": record.project_name,
-        "workflow_dir_name": record.workflow_dir_name,
-        "timestamp": record.timestamp,
-        "has_agent_meta": meta is not None,
-        "has_done_marker": record.has_done_marker,
-        "appears_as_agent": True if state is None else state.appears_as_agent,
-        "live": is_live(record),
-        "pending_question": record.pending_question is not None,
-        "pid": _record_pid(record),
-        "run_started_at": None if meta is None else meta.run_started_at,
-        "runner_claim_owner_key": (
-            None if meta is None else meta.runner_claim_owner_key
-        ),
-        "parent_timestamp": None if meta is None else meta.parent_timestamp,
-        "agent_family": None if meta is None else meta.agent_family,
-        "agent_family_role": None if meta is None else meta.agent_family_role,
-        "agent_family_parallel": (
-            False if meta is None else meta.agent_family_parallel
-        ),
-        "family_shell_kind": None if shell is None else shell.kind,
-        "family_shell_id": None if shell is None else shell.id,
-        "family_shell_state": None if shell is None else shell.state,
-        "queue_weight": queue_weight,
-        "queue_weight_explicit": queue_weight_explicit,
-        "queue_weight_invalid": queue_weight_invalid,
-        "slot_requested_at": None if waiting is None else waiting.slot_requested_at,
-        "queue_capacity": _record_queue_capacity(record),
-        "queue_capacity_explicit": (
-            False
-            if waiting is None
-            else waiting.queue_capacity_explicit or waiting.wait_runners_explicit
-        ),
-        "wait_priority": _record_wait_priority(record),
-        "eligible_since": None if waiting is None else waiting.eligible_since,
-    }
+    return _with_queue_capacity_alias(
+        {
+            "artifact_dir": record.artifact_dir,
+            "project_name": record.project_name,
+            "workflow_dir_name": record.workflow_dir_name,
+            "timestamp": record.timestamp,
+            "has_agent_meta": meta is not None,
+            "has_done_marker": record.has_done_marker,
+            "appears_as_agent": True if state is None else state.appears_as_agent,
+            "live": is_live(record),
+            "pending_question": record.pending_question is not None,
+            "pid": _record_pid(record),
+            "run_started_at": None if meta is None else meta.run_started_at,
+            "runner_claim_owner_key": (
+                None if meta is None else meta.runner_claim_owner_key
+            ),
+            "parent_timestamp": None if meta is None else meta.parent_timestamp,
+            "agent_family": None if meta is None else meta.agent_family,
+            "agent_family_role": None if meta is None else meta.agent_family_role,
+            "agent_family_parallel": (
+                False if meta is None else meta.agent_family_parallel
+            ),
+            "family_shell_kind": None if shell is None else shell.kind,
+            "family_shell_id": None if shell is None else shell.id,
+            "family_shell_state": None if shell is None else shell.state,
+            "queue_weight": queue_weight,
+            "queue_weight_explicit": queue_weight_explicit,
+            "queue_weight_invalid": queue_weight_invalid,
+            "slot_requested_at": None if waiting is None else waiting.slot_requested_at,
+            "queue_capacity": _record_queue_capacity(record),
+            "queue_capacity_explicit": (
+                False
+                if waiting is None
+                else waiting.queue_capacity_explicit or waiting.wait_runners_explicit
+            ),
+            "wait_priority": _record_wait_priority(record),
+            "eligible_since": None if waiting is None else waiting.eligible_since,
+        }
+    )
 
 
 def _project_name_from_artifact_dir(artifacts_dir: str) -> str:
@@ -326,35 +370,37 @@ def _synthetic_capacity_record(
     queue_weight_explicit: bool,
     eligible_since: str | None,
 ) -> dict[str, Any]:
-    return {
-        "artifact_dir": artifacts_dir,
-        "project_name": _project_name_from_artifact_dir(artifacts_dir),
-        "workflow_dir_name": "ace-run",
-        "timestamp": timestamp,
-        "has_agent_meta": True,
-        "has_done_marker": False,
-        "appears_as_agent": True,
-        "live": True,
-        "pending_question": False,
-        "pid": None,
-        "run_started_at": None,
-        "runner_claim_owner_key": None,
-        "parent_timestamp": None,
-        "agent_family": None,
-        "agent_family_role": None,
-        "agent_family_parallel": False,
-        "family_shell_kind": None,
-        "family_shell_id": None,
-        "family_shell_state": None,
-        "queue_weight": queue_weight,
-        "queue_weight_explicit": queue_weight_explicit,
-        "queue_weight_invalid": False,
-        "slot_requested_at": slot_requested_at,
-        "queue_capacity": queue_capacity,
-        "queue_capacity_explicit": queue_capacity_explicit,
-        "wait_priority": wait_priority,
-        "eligible_since": eligible_since,
-    }
+    return _with_queue_capacity_alias(
+        {
+            "artifact_dir": artifacts_dir,
+            "project_name": _project_name_from_artifact_dir(artifacts_dir),
+            "workflow_dir_name": "ace-run",
+            "timestamp": timestamp,
+            "has_agent_meta": True,
+            "has_done_marker": False,
+            "appears_as_agent": True,
+            "live": True,
+            "pending_question": False,
+            "pid": None,
+            "run_started_at": None,
+            "runner_claim_owner_key": None,
+            "parent_timestamp": None,
+            "agent_family": None,
+            "agent_family_role": None,
+            "agent_family_parallel": False,
+            "family_shell_kind": None,
+            "family_shell_id": None,
+            "family_shell_state": None,
+            "queue_weight": queue_weight,
+            "queue_weight_explicit": queue_weight_explicit,
+            "queue_weight_invalid": False,
+            "slot_requested_at": slot_requested_at,
+            "queue_capacity": queue_capacity,
+            "queue_capacity_explicit": queue_capacity_explicit,
+            "wait_priority": wait_priority,
+            "eligible_since": eligible_since,
+        }
+    )
 
 
 def runner_capacity_snapshot(
@@ -401,8 +447,10 @@ def runner_capacity_snapshot_from_capacity_records(
     """Return the Rust capacity snapshot for already-projected record dicts."""
     request = {
         "effective_limit": float(effective_limit),
-        "records": [dict(record) for record in records],
-        "candidate": None if candidate is None else dict(candidate),
+        "records": [_with_queue_capacity_alias(record) for record in records],
+        "candidate": (
+            None if candidate is None else _with_queue_capacity_alias(candidate)
+        ),
         "now": now,
         "deference_seconds_per_step": int(deference_seconds_per_step),
         "deference_max_seconds": int(deference_max_seconds),

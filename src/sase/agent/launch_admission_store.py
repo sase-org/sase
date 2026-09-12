@@ -15,7 +15,7 @@ from sase.core.agent_launch_wire import (
     LaunchPlanWire,
     LaunchUnitWire,
 )
-from sase.monitor.transaction import write_json_marker_atomic
+from sase.core.atomic_json import write_json_marker_atomic
 
 ADMISSION_DIRNAME = "launch_admission"
 JOURNAL_FILENAME = "journal.jsonl"

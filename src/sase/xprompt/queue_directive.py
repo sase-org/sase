@@ -122,9 +122,22 @@ def format_queue_directive(
             raise
         legacy_payload = dict(payload)
         if "capacity" in legacy_payload:
-            legacy_payload["runners"] = legacy_payload.pop("capacity")
-        formatted = format_binding(legacy_payload)
-        return str(formatted).replace("runners=", "capacity=") if formatted else None
+            legacy_payload["queue_capacity"] = legacy_payload.pop("capacity")
+        try:
+            formatted = format_binding(legacy_payload)
+        except ValueError as legacy_exc:
+            if "unknown field `queue_capacity`" not in str(legacy_exc):
+                raise
+            if "queue_capacity" in legacy_payload:
+                legacy_payload["runners"] = legacy_payload.pop("queue_capacity")
+            formatted = format_binding(legacy_payload)
+        if not formatted:
+            return None
+        return (
+            str(formatted)
+            .replace("queue_capacity=", "capacity=")
+            .replace("runners=", "capacity=")
+        )
     return str(formatted) if formatted else None
 
 

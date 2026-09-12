@@ -26,6 +26,7 @@ from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.atomic_json import write_json_marker_atomic
 from sase.continuation_capture import persist_monitor_result_best_effort
 from sase.monitor_state import monitor_state_bucket
 from sase.history.chat import save_chat_history
@@ -60,7 +61,6 @@ from .transaction import (
     MONITOR_LAUNCH_BARRIER_TIMEOUT_SECONDS,
     monitor_go_path,
     monitor_started_path,
-    write_json_marker_atomic,
 )
 
 _POLL_SECONDS = 0.05

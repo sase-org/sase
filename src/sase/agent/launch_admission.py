@@ -60,7 +60,7 @@ from sase.core.agent_launch_wire import (
     LaunchUnitWire,
     ProcUnitWire,
 )
-from sase.monitor.transaction import write_json_marker_atomic
+from sase.core.atomic_json import write_json_marker_atomic
 
 
 def dispatch_typed_launch_request(

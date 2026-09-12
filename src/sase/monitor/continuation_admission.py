@@ -19,6 +19,7 @@ from sase.agent.launch_admission_store import (
     LOCK_FILENAME,
     append_journal,
     next_journal_seq,
+    read_journal,
     write_unit_receipt,
 )
 from sase.core.agent_launch_facade import reconcile_admission_journal
@@ -139,8 +140,6 @@ def _reservation_fingerprint(
 
 
 def _read_journal_entries(root: Path) -> list[dict[str, Any]]:
-    from sase.agent.launch_admission_store import read_journal
-
     return read_journal(root)
 
 
