@@ -191,7 +191,7 @@ def from_bundle_dict(
         elif f.name == "imported_source_owner":
             value = imported_source_owner_from_mapping(value)
         elif f.name == "linked_repos":
-            from sase.ace.tui.models._loaders._meta_enrichment_common import (
+            from sase.ace.tui.models._loaders._meta_enrichment_identity import (
                 parse_linked_repos,
             )
 

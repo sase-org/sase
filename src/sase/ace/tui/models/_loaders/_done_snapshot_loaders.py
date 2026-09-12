@@ -22,7 +22,8 @@ from ._meta_enrichment import (
     enrich_agent_from_meta_wire,
     enrich_agent_from_prompt_markers_wire,
 )
-from ._meta_enrichment_common import apply_gate_done, apply_monitor_done
+from ._meta_enrichment_gate import apply_gate_done
+from ._meta_enrichment_monitor import apply_monitor_done
 from .._timestamps import parse_timestamp_14_digit
 from ..agent import Agent, AgentType
 

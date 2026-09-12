@@ -12,7 +12,7 @@ from sase.core.agent_scan_facade import (
 from sase.core.agent_scan_wire import AgentArtifactRecordWire, PromptStepMarkerWire
 
 from .agent_types import AgentType, LinkedRepoMetadata
-from ._loaders._meta_enrichment_common import parse_linked_repos
+from ._loaders._meta_enrichment_identity import parse_linked_repos
 
 if TYPE_CHECKING:
     from .agent import Agent
