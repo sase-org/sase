@@ -163,10 +163,6 @@ class PromptStepPrepareMixin:
             if format_instr:
                 expanded_prompt = expanded_prompt + format_instr
 
-        from sase.continuation_capture import local_materialized_prompt_segment
-
-        continuation_segments.append(local_materialized_prompt_segment(expanded_prompt))
-
         # Collect meta_* from embedded pre-steps so the TUI can display
         # Workspace/Project/Patch immediately when the agent starts.
         pre_step_meta = _collect_pre_step_meta(embedded_workflows)

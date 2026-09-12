@@ -289,14 +289,9 @@ def preprocess_prompt(
         ref_contexts=ref_contexts,
         materialize_missing_roots=materialize_missing_roots,
     )
-    from sase.continuation_capture import local_materialized_prompt_segment
-
     return PreprocessResult(
         prompt=final_prompt,
         directives=early.directives,
         segment_vcs_refs=early.segment_vcs_refs,
-        continuation_segments=(
-            *early.continuation_segments,
-            local_materialized_prompt_segment(final_prompt),
-        ),
+        continuation_segments=early.continuation_segments,
     )

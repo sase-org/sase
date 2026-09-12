@@ -115,11 +115,32 @@ def handle_monitor_marker(
 
     if member_artifacts_dir and starter_agent:
         update_meta_field(member_artifacts_dir, "monitor_starter_agent", starter_agent)
+        update_meta_field(
+            member_artifacts_dir,
+            "monitor_starter_artifacts_dir",
+            state.current_artifacts_dir,
+        )
     if member_artifacts_dir and continuation_result is not None:
         update_meta_field(
             member_artifacts_dir,
             "continuation_parent_node_ids",
             [continuation_result.node_id],
+        )
+        update_meta_field(
+            member_artifacts_dir,
+            "continuation_parent_node_id",
+            continuation_result.node_id,
+        )
+    elif member_artifacts_dir and _text(monitor_meta.get("monitor_next_action")):
+        from sase.continuation_capture import (
+            CAPTURE_DISPOSITION_NEEDS_RECOVERY,
+            record_capture_disposition,
+        )
+
+        record_capture_disposition(
+            member_artifacts_dir,
+            disposition=CAPTURE_DISPOSITION_NEEDS_RECOVERY,
+            error="starter agent delta was not published before monitor handoff",
         )
 
     reset_killed()

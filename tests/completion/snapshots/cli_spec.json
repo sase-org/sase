@@ -15378,7 +15378,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "0906cf3bf9c3b558",
+            "description_digest": "32750e8ee6836baa",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -15477,6 +15477,18 @@
                   "--json"
                 ],
                 "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "checkpoint",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-k",
+                  "--checkpoint"
+                ],
+                "takes_value": true
               },
               {
                 "choices": null,

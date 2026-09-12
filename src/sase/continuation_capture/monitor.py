@@ -18,13 +18,19 @@ from sase.core.continuation_wire import (
     MonitorResultWire,
 )
 
+from ._disposition import (
+    CAPTURE_DISPOSITION_NEEDS_RECOVERY,
+    CAPTURE_DISPOSITION_OK,
+    record_capture_disposition,
+)
 from ._storage import (
+    PublicationTransaction,
     continuation_root,
     iter_string_list,
-    local_ref,
     optional_float,
     optional_str,
     read_json_object,
+    recover_publication_journal,
     required_text,
     safe_identifier,
     sha_text,
@@ -33,7 +39,6 @@ from ._storage import (
     update_agent_meta_fields,
     wire_reference,
     wire_reference_or_none,
-    write_json_atomic,
     record_capture_error,
 )
 from ._validation import (
@@ -59,6 +64,10 @@ def persist_monitor_start_intent_best_effort(
     request_fingerprint: str,
     parent_node_ids: Sequence[str] = (),
     starter_agent: str | None = None,
+    checkpoint_ref: str | None = None,
+    checkpoint_document: Mapping[str, Any] | None = None,
+    starter_artifacts_dir: str | None = None,
+    meta: dict[str, Any] | None = None,
 ) -> str | None:
     """Persist a passive continuation intent for a started monitor member."""
 
@@ -78,10 +87,19 @@ def persist_monitor_start_intent_best_effort(
             request_fingerprint=request_fingerprint,
             parent_node_ids=parent_node_ids,
             starter_agent=starter_agent,
+            checkpoint_ref=checkpoint_ref,
+            checkpoint_document=checkpoint_document,
+            starter_artifacts_dir=starter_artifacts_dir,
             allow_missing_validation=True,
         )
     except Exception as exc:
         record_capture_error(artifacts_dir, "monitor_intent", exc)
+        record_capture_disposition(
+            artifacts_dir,
+            disposition=CAPTURE_DISPOSITION_NEEDS_RECOVERY,
+            error=str(exc),
+            meta=meta,
+        )
         return None
 
 
@@ -99,11 +117,46 @@ def persist_monitor_start_intent(
     request_fingerprint: str,
     parent_node_ids: Sequence[str] = (),
     starter_agent: str | None = None,
+    checkpoint_ref: str | None = None,
+    checkpoint_document: Mapping[str, Any] | None = None,
+    starter_artifacts_dir: str | None = None,
     allow_missing_validation: bool = False,
 ) -> str:
     """Persist and validate a continuation intent for a monitor's next action."""
 
-    checkpoint_ref = publish_handoff_checkpoint(
+    resolved_parent_ids = list(parent_node_ids) or _hydrate_parent_node_ids(
+        {},
+        starter_artifacts_dir=starter_artifacts_dir,
+    )
+    authored_ref = checkpoint_ref
+    if checkpoint_document:
+        from .checkpoints import (
+            canonicalize_authored_checkpoint,
+            persist_authored_checkpoint,
+        )
+
+        authored = canonicalize_authored_checkpoint(checkpoint_document)
+        authored_ref = persist_authored_checkpoint(
+            artifacts_dir,
+            authored,
+            host_facts={
+                "monitor_id": monitor_id,
+                "member_agent_name": member_agent_name,
+                "project_name": project_name,
+                "command": command,
+                "cwd": cwd,
+                "parent_node_ids": resolved_parent_ids,
+                "starter_agent": starter_agent,
+                "starter_artifacts_dir": starter_artifacts_dir,
+            },
+            parent_ids=resolved_parent_ids,
+            owner={
+                "project": safe_identifier(project_name or "unknown"),
+                "run_id": safe_identifier(Path(artifacts_dir).name),
+                "agent_name": safe_identifier(member_agent_name or "monitor"),
+            },
+        )
+    host_checkpoint_ref = publish_handoff_checkpoint(
         artifacts_dir,
         checkpoint_kind="monitor_start",
         payload={
@@ -114,10 +167,12 @@ def persist_monitor_start_intent(
             "cwd": cwd,
             "next_output": next_output,
             "request_fingerprint": request_fingerprint,
-            "parent_node_ids": list(parent_node_ids),
+            "parent_node_ids": resolved_parent_ids,
             "starter_agent": starter_agent,
+            "starter_artifacts_dir": starter_artifacts_dir,
         },
     )
+    checkpoint_ref = authored_ref or host_checkpoint_ref
     seed = f"{monitor_id}\0{next_action}\0{next_model or ''}\0{next_output}"
     intent_id = f"intent:{safe_identifier(monitor_id)}:{sha_text(seed)[:16]}"
     route: dict[str, Any] = {"inherit_effort": True}
@@ -142,10 +197,10 @@ def persist_monitor_start_intent(
         allow_missing_validation=allow_missing_validation,
     )
     root = continuation_root(artifacts_dir)
+    recover_publication_journal(root)
     filename = f"{intent_id}.json"
-    intent_path = root / "intents" / filename
-    intent_sha = write_json_atomic(intent_path, intent)
-    intent_ref = local_ref("intents", filename)
+    txn = PublicationTransaction(root)
+    intent_ref, intent_sha = txn.write_record("intents", filename, payload=intent)
     manifest: dict[str, Any] = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "kind": "monitor_start_intent",
@@ -153,20 +208,26 @@ def persist_monitor_start_intent(
         "intent_ref": intent_ref,
         "intent_sha256": intent_sha,
         "checkpoint_ref": checkpoint_ref,
-        "parent_node_ids": list(parent_node_ids),
+        "parent_node_ids": list(resolved_parent_ids),
         "validation": {"intent": validation},
         "recorded_at_epoch": time.time(),
     }
-    manifest_path = root / "monitor_intent_manifest.json"
-    write_json_atomic(manifest_path, manifest)
+    manifest_ref, _ = txn.write_pointer(
+        "monitor_intent_manifest.json",
+        payload=manifest,
+    )
+    txn.commit()
     fields: dict[str, Any] = {
         "continuation_intent_id": intent_id,
         "continuation_intent_ref": intent_ref,
-        "continuation_intent_manifest_ref": local_ref("monitor_intent_manifest.json"),
+        "continuation_intent_manifest_ref": manifest_ref,
         "continuation_checkpoint_ref": checkpoint_ref,
+        "continuation_capture_disposition": CAPTURE_DISPOSITION_OK,
     }
-    if parent_node_ids:
-        fields["continuation_parent_node_ids"] = list(parent_node_ids)
+    if resolved_parent_ids:
+        fields["continuation_parent_node_ids"] = list(resolved_parent_ids)
+    if starter_artifacts_dir:
+        fields["monitor_starter_artifacts_dir"] = starter_artifacts_dir
     update_agent_meta_fields(artifacts_dir, fields)
     return intent_ref
 
@@ -204,6 +265,19 @@ def persist_monitor_result_best_effort(
         )
     except Exception as exc:
         record_capture_error(artifacts_dir, "monitor_result", exc)
+        if isinstance(meta, dict):
+            record_capture_disposition(
+                artifacts_dir,
+                disposition=CAPTURE_DISPOSITION_NEEDS_RECOVERY,
+                error=str(exc),
+                meta=meta,
+            )
+        else:
+            record_capture_disposition(
+                artifacts_dir,
+                disposition=CAPTURE_DISPOSITION_NEEDS_RECOVERY,
+                error=str(exc),
+            )
         return None
 
 
@@ -227,7 +301,7 @@ def persist_monitor_result(
     from sase.monitor.result_projection import build_monitor_result_wire
 
     root = continuation_root(artifacts_dir)
-    root.mkdir(parents=True, exist_ok=True)
+    recover_publication_journal(root)
     monitor_id = required_text(meta.get("monitor_id"), "monitor")
     diagnostic_ref = (
         diagnostic_manifest.get("manifest_ref") if diagnostic_manifest else None
@@ -265,17 +339,23 @@ def persist_monitor_result(
         allow_missing_validation=allow_missing_validation,
     )
 
+    txn = PublicationTransaction(root)
     result_filename = f"{result['result_id']}.json"
+    result_ref, result_sha = txn.write_record(
+        "records",
+        "monitor_result",
+        result_filename,
+        payload=result,
+    )
     result_path = root / "records" / "monitor_result" / result_filename
-    result_sha = write_json_atomic(result_path, result)
-    result_ref = local_ref("records", "monitor_result", result_filename)
 
     node_id = _monitor_result_node_id(result)
+    parent_ids = _hydrate_parent_node_ids(meta, exclude=node_id)
     node: ContinuationNodeWire = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "node_id": node_id,
         "kind": "monitor_result",
-        "parent_ids": _parent_node_ids_from_meta(meta, exclude=node_id),
+        "parent_ids": parent_ids,
         "owner": cast(
             ContinuationExecutionIdentityWire,
             _owner_from_monitor_meta(
@@ -304,9 +384,11 @@ def persist_monitor_result(
         allow_missing_validation=allow_missing_validation,
     )
 
-    node_path = root / "nodes" / f"{node_id}.json"
-    node_sha = write_json_atomic(node_path, node)
-    node_ref = local_ref("nodes", f"{node_id}.json")
+    node_ref, node_sha = txn.write_record(
+        "nodes",
+        f"{node_id}.json",
+        payload=node,
+    )
     manifest: dict[str, Any] = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "kind": "monitor_result_capture",
@@ -326,9 +408,12 @@ def persist_monitor_result(
         },
         "recorded_at_epoch": time.time(),
     }
+    manifest_ref, _ = txn.write_pointer(
+        "monitor_result_manifest.json",
+        payload=manifest,
+    )
+    txn.commit()
     manifest_path = root / "monitor_result_manifest.json"
-    write_json_atomic(manifest_path, manifest)
-    manifest_ref = local_ref("monitor_result_manifest.json")
 
     published = MonitorResultPublishResult(
         result_id=result["result_id"],
@@ -340,7 +425,15 @@ def persist_monitor_result(
         result_sha256=result_sha,
         node_ref=node_ref,
     )
-    fields = published.marker_projection()
+    fields: dict[str, Any] = dict(published.marker_projection())
+    missing_starter_parent = _missing_essential_starter_parent(meta, parent_ids)
+    if missing_starter_parent:
+        fields["continuation_capture_disposition"] = CAPTURE_DISPOSITION_NEEDS_RECOVERY
+        fields["continuation_capture_error"] = missing_starter_parent
+    else:
+        fields["continuation_capture_disposition"] = CAPTURE_DISPOSITION_OK
+    if parent_ids:
+        fields["continuation_parent_node_ids"] = list(parent_ids)
     if isinstance(meta, dict):
         meta.update(fields)
     if update_meta:
@@ -370,6 +463,46 @@ def _parent_node_ids_from_meta(
         )
         if node_id != exclude
     ]
+
+
+def _hydrate_parent_node_ids(
+    meta: Mapping[str, Any],
+    *,
+    exclude: str | None = None,
+    starter_artifacts_dir: str | None = None,
+) -> list[str]:
+    ids = _parent_node_ids_from_meta(meta, exclude=exclude)
+    if ids:
+        return ids
+    starter_dir = starter_artifacts_dir or optional_str(
+        meta.get("monitor_starter_artifacts_dir")
+    )
+    if not starter_dir:
+        return []
+    starter_meta = read_json_object(Path(starter_dir) / "agent_meta.json")
+    return _parent_node_ids_from_meta(starter_meta, exclude=exclude)
+
+
+def _missing_essential_starter_parent(
+    meta: Mapping[str, Any],
+    parent_ids: Sequence[str],
+) -> str | None:
+    if optional_str(meta.get("monitor_state")) in {"stopped", "lost"}:
+        return None
+    next_action = optional_str(meta.get("monitor_next_action"))
+    if not next_action:
+        return None
+    has_starter = optional_str(meta.get("monitor_starter_agent")) or optional_str(
+        meta.get("monitor_starter_artifacts_dir")
+    )
+    if not has_starter:
+        return None
+    if parent_ids:
+        return None
+    return (
+        "monitor result is missing its exact starter parent node; "
+        "automatic dispatch is blocked pending recovery"
+    )
 
 
 def _owner_from_monitor_meta(

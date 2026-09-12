@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, field
 import hashlib
 import json
 import os
@@ -11,12 +12,22 @@ import re
 import tempfile
 import time
 from typing import Any
+import uuid
 
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 
 from ._constants import CAPTURE_ERRORS_FILENAME, CONTINUATION_DIRNAME
 
 _ID_SAFE_RE = re.compile(r"[^A-Za-z0-9_.:-]+")
+JOURNAL_FILENAME = ".publication_journal.json"
+
+
+class _PublicationConflictError(ValueError):
+    """An immutable capture path already exists with different content."""
+
+
+class _PublicationIncompleteError(RuntimeError):
+    """A multi-file capture publication did not finish successfully."""
 
 
 def record_capture_error(
@@ -52,13 +63,36 @@ def write_text_blob(root: Path, text: str) -> tuple[str, Path, str, int]:
     data = text.encode("utf-8")
     digest = _sha_bytes(data)
     path = root / "text" / f"{digest}.txt"
-    if not path.exists():
-        _write_bytes_atomic(path, data)
+    _write_immutable_bytes(path, data)
     return local_ref("text", f"{digest}.txt"), path, digest, len(data)
 
 
 def write_json_atomic(path: Path, payload: Mapping[str, Any]) -> str:
     data = _json_bytes(payload)
+    _write_pointer_bytes(path, data)
+    return _sha_bytes(data)
+
+
+def _write_immutable_bytes(path: Path, data: bytes) -> str:
+    digest = _sha_bytes(data)
+    if path.exists():
+        try:
+            existing = path.read_bytes()
+        except OSError as exc:
+            raise _PublicationIncompleteError(
+                f"could not read existing capture file {path}: {exc}"
+            ) from exc
+        if existing == data:
+            return digest
+        raise _PublicationConflictError(
+            f"conflicting continuation write at {path}: "
+            f"existing sha256 {_sha_bytes(existing)} != {_sha_bytes(data)}"
+        )
+    _write_bytes_atomic(path, data)
+    return digest
+
+
+def _write_pointer_bytes(path: Path, data: bytes) -> str:
     _write_bytes_atomic(path, data)
     return _sha_bytes(data)
 
@@ -75,6 +109,8 @@ def _write_bytes_atomic(path: Path, data: bytes) -> None:
     try:
         with os.fdopen(fd, "wb") as stream:
             stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
         os.replace(tmp_path, path)
         replaced = True
     finally:
@@ -83,6 +119,164 @@ def _write_bytes_atomic(path: Path, data: bytes) -> None:
                 tmp_path.unlink()
             except FileNotFoundError:
                 pass
+
+
+def recover_publication_journal(root: Path) -> bool:
+    """Finish or abort a leftover multi-file publication journal.
+
+    Returns True when the leftover journal described a complete, matching
+    publication. Incomplete journals drop their pointer files so callers
+    cannot observe a successful publish of missing content.
+    """
+
+    journal_path = root / JOURNAL_FILENAME
+    payload = read_json_object(journal_path)
+    if not payload:
+        return False
+    if _journal_files_match(root, payload):
+        _unlink_if_exists(journal_path)
+        return True
+    for entry in payload.get("pointers") or []:
+        relpath = entry.get("relpath") if isinstance(entry, Mapping) else None
+        if isinstance(relpath, str) and relpath:
+            _unlink_if_exists(root / relpath)
+    _unlink_if_exists(journal_path)
+    return False
+
+
+def _journal_files_match(root: Path, payload: Mapping[str, Any]) -> bool:
+    for group in ("blobs", "records", "pointers"):
+        raw_entries = payload.get(group)
+        if not isinstance(raw_entries, list):
+            continue
+        for entry in raw_entries:
+            if not isinstance(entry, Mapping):
+                return False
+            relpath = entry.get("relpath")
+            digest = entry.get("sha256")
+            if not isinstance(relpath, str) or not isinstance(digest, str):
+                return False
+            path = root / relpath
+            try:
+                existing = path.read_bytes()
+            except OSError:
+                return False
+            if _sha_bytes(existing) != digest:
+                return False
+    return True
+
+
+def _unlink_if_exists(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _journal_entry(root: Path, path: Path, data: bytes) -> dict[str, str]:
+    return {
+        "relpath": str(path.relative_to(root)),
+        "sha256": _sha_bytes(data),
+    }
+
+
+@dataclass
+class PublicationTransaction:
+    """Persist blobs, then records, then pointers, with a recoverable journal."""
+
+    root: Path
+    publication_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    _blobs: list[tuple[Path, bytes]] = field(default_factory=list)
+    _records: list[tuple[Path, bytes]] = field(default_factory=list)
+    _pointers: list[tuple[Path, bytes]] = field(default_factory=list)
+
+    def write_text_blob(self, text: str) -> tuple[str, Path, str, int]:
+        data = text.encode("utf-8")
+        digest = _sha_bytes(data)
+        path = self.root / "text" / f"{digest}.txt"
+        self._blobs.append((path, data))
+        return local_ref("text", f"{digest}.txt"), path, digest, len(data)
+
+    def write_record(
+        self,
+        *relpath_parts: str,
+        payload: Mapping[str, Any],
+    ) -> tuple[str, str]:
+        data = _json_bytes(payload)
+        path = self.root.joinpath(*relpath_parts)
+        self._records.append((path, data))
+        return local_ref(*relpath_parts), _sha_bytes(data)
+
+    def write_pointer(
+        self,
+        *relpath_parts: str,
+        payload: Mapping[str, Any],
+    ) -> tuple[str, str]:
+        data = _json_bytes(payload)
+        path = self.root.joinpath(*relpath_parts)
+        self._pointers.append((path, data))
+        return local_ref(*relpath_parts), _sha_bytes(data)
+
+    def commit(self) -> None:
+        recover_publication_journal(self.root)
+        self.root.mkdir(parents=True, exist_ok=True)
+        journal_path = self.root / JOURNAL_FILENAME
+        listed: dict[str, Any] = {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "publication_id": self.publication_id,
+            "stage": "pending",
+            "blobs": [
+                _journal_entry(self.root, path, data) for path, data in self._blobs
+            ],
+            "records": [
+                _journal_entry(self.root, path, data) for path, data in self._records
+            ],
+            "pointers": [
+                _journal_entry(self.root, path, data) for path, data in self._pointers
+            ],
+            "recorded_at_epoch": time.time(),
+        }
+        try:
+            _write_pointer_bytes(journal_path, _json_bytes(listed))
+            for path, data in self._blobs:
+                _write_immutable_bytes(path, data)
+            listed["stage"] = "blobs"
+            _write_pointer_bytes(journal_path, _json_bytes(listed))
+            for path, data in self._records:
+                _write_immutable_bytes(path, data)
+            listed["stage"] = "records"
+            _write_pointer_bytes(journal_path, _json_bytes(listed))
+            for path, data in self._pointers:
+                _write_pointer_bytes(path, data)
+            listed["stage"] = "complete"
+            _write_pointer_bytes(journal_path, _json_bytes(listed))
+            _unlink_if_exists(journal_path)
+        except Exception:
+            if recover_publication_journal(self.root):
+                return
+            raise
+
+
+def register_portable_capture_file(
+    path: Path,
+    artifacts_dir: str | os.PathLike[str],
+    *,
+    label: str,
+) -> str | None:
+    """Best-effort explicit artifact snapshot for retention protection."""
+
+    try:
+        from sase.core.artifact_file_facade import store_explicit_artifact_file
+
+        artifact = store_explicit_artifact_file(
+            path,
+            str(artifacts_dir),
+            label=label,
+            kind="file",
+        )
+    except Exception:
+        return None
+    return f"file:{artifact.id}"
 
 
 def _json_bytes(payload: Mapping[str, Any]) -> bytes:

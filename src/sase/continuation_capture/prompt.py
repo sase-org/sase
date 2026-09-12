@@ -15,15 +15,15 @@ from sase.core.continuation_wire import (
 
 from ._constants import PREPARED_PROMPT_FILENAME, _MAX_SEGMENTS
 from ._storage import (
+    PublicationTransaction,
     continuation_root,
     local_ref,
     optional_int,
     read_json_object,
+    recover_publication_journal,
     required_text,
     update_agent_meta_fields,
     wire_reference_or_none,
-    write_json_atomic,
-    write_text_blob,
     record_capture_error,
 )
 from .models import ContinuationSegmentCapture, PreparedPromptCaptureResult
@@ -44,21 +44,20 @@ def record_prepared_prompt_capture(
     """Persist the prompt provenance prepared for one local agent invocation."""
 
     root = continuation_root(artifacts_dir)
-    root.mkdir(parents=True, exist_ok=True)
+    recover_publication_journal(root)
     normalized = complete_prompt_segments(
         authored_local_request=authored_local_request,
         materialized_prompt=materialized_prompt,
         segments=segments,
     )
-
-    materialized_ref, _, materialized_sha, materialized_bytes = write_text_blob(
-        root,
+    txn = PublicationTransaction(root)
+    materialized_ref, _, materialized_sha, materialized_bytes = txn.write_text_blob(
         materialized_prompt,
     )
     wire_segments: list[ContinuationPromptSegmentWire] = []
     source_details: list[dict[str, str]] = []
     for index, segment in enumerate(normalized[:_MAX_SEGMENTS]):
-        text_ref, _, text_sha, text_bytes = write_text_blob(root, segment.text)
+        text_ref, _, text_sha, text_bytes = txn.write_text_blob(segment.text)
         source_ref = wire_reference_or_none(segment.source_ref)
         segment_id = f"seg:{index:03d}:{segment.provenance}:{text_sha[:16]}"
         wire_segment: ContinuationPromptSegmentWire = {
@@ -88,14 +87,16 @@ def record_prepared_prompt_capture(
         "materialized_prompt_sha256": materialized_sha,
         "materialized_prompt_bytes": materialized_bytes,
         "materialized_local_prompt_segments": wire_segments,
+        "debug_archive": True,
         "recorded_at_epoch": time.time(),
     }
     if source_details:
         payload["source_details"] = source_details
+    prepared_ref, _ = txn.write_pointer(PREPARED_PROMPT_FILENAME, payload=payload)
+    txn.commit()
     prepared_path = root / PREPARED_PROMPT_FILENAME
-    write_json_atomic(prepared_path, payload)
     result = PreparedPromptCaptureResult(
-        prepared_ref=local_ref(PREPARED_PROMPT_FILENAME),
+        prepared_ref=prepared_ref,
         prepared_path=str(prepared_path),
         materialized_prompt_ref=materialized_ref,
         materialized_prompt_sha256=materialized_sha,

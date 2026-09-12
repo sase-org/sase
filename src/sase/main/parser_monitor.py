@@ -286,6 +286,17 @@ def register_monitor_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Emit the started monitor as a JSON envelope",
     )
     start_parser.add_argument(
+        "-k",
+        "--checkpoint",
+        default=None,
+        metavar="FILE",
+        help=(
+            "Optional authored checkpoint YAML/JSON with objective, "
+            "constraints, findings, unresolved decisions, remaining work, "
+            "source refs, and coverage. Bound by content digest, not path"
+        ),
+    )
+    start_parser.add_argument(
         "-L",
         "--label",
         default=None,

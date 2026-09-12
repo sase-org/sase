@@ -59,6 +59,9 @@ class StartMonitorRequest:
     profile: str | None = None
     policy_digest: str | None = None
     checkpoint_ref: str | None = None
+    checkpoint_document: dict[str, object] | None = None
+    parent_node_ids: tuple[str, ...] = ()
+    starter_run_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -98,11 +101,13 @@ def monitor_request_fingerprint(
         "next_action": request.next_action or None,
         "next_model": request.next_model or None,
         "next_output": request.next_output,
+        "parent_node_ids": list(request.parent_node_ids) or None,
         "policy_digest": request.policy_digest or None,
         "profile": request.profile or None,
         "project_name": request.project_name,
         "reason": request.reason,
         "start_status": request.start_status,
+        "starter_run_id": request.starter_run_id or None,
         "stop_status": request.stop_status,
         "tail_lines": request.tail_lines,
         "timeout_seconds": request.timeout_seconds,

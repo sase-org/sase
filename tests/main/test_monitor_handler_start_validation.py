@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -226,6 +227,75 @@ def test_start_requires_stop_status(
     assert "TESTING" in err
     assert "TESTED" in err
     assert "Max 20 characters" in err
+
+
+def test_start_rejects_checkpoint_with_next_action(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    checkpoint = tmp_path / "checkpoint.yml"
+    checkpoint.write_text(
+        "objective: land it\nnext_action: do the next thing\n",
+        encoding="utf-8",
+    )
+    assert (
+        dispatch(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-a",
+                "acme",
+                "-s",
+                "TESTING",
+                "-S",
+                "TESTED",
+                "-k",
+                str(checkpoint),
+            ]
+        )
+        == 2
+    )
+    assert "next-action" in capsys.readouterr().err
+
+
+def test_start_rejects_oversized_checkpoint(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.continuation_capture.checkpoints import MAX_CHECKPOINT_BYTES
+
+    checkpoint = tmp_path / "checkpoint.yml"
+    checkpoint.write_bytes(b"x" * (MAX_CHECKPOINT_BYTES + 1))
+    assert (
+        dispatch(
+            [
+                "monitor",
+                "start",
+                "-c",
+                "true",
+                "-r",
+                "verify",
+                "-t",
+                "30s",
+                "-a",
+                "acme",
+                "-s",
+                "TESTING",
+                "-S",
+                "TESTED",
+                "-k",
+                str(checkpoint),
+            ]
+        )
+        == 2
+    )
+    assert "maximum is" in capsys.readouterr().err
 
 
 def test_start_requires_both_status_flags(

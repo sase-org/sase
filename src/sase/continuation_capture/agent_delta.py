@@ -22,10 +22,12 @@ from ._constants import (
     WORKSPACE_FACTS_FILENAME,
 )
 from ._storage import (
+    PublicationTransaction,
     continuation_root,
     iter_string_list,
     local_ref,
     read_json_object,
+    recover_publication_journal,
     required_text,
     safe_identifier,
     sha_json,
@@ -33,8 +35,6 @@ from ._storage import (
     unique_identifiers,
     unique_refs,
     update_agent_meta_fields,
-    write_json_atomic,
-    write_text_blob,
     record_capture_error,
 )
 from ._validation import (
@@ -91,7 +91,7 @@ def persist_agent_delta(
 
     artifacts_dir = state.current_artifacts_dir or ctx.artifacts_dir
     root = continuation_root(artifacts_dir)
-    root.mkdir(parents=True, exist_ok=True)
+    recover_publication_journal(root)
     prepared = ensure_prepared_prompt(
         artifacts_dir,
         state,
@@ -101,16 +101,17 @@ def persist_agent_delta(
     if workspace_ref is None:
         workspace_ref = persist_workspace_facts(ctx, state)
 
+    txn = PublicationTransaction(root)
     final_response_ref: str | None = None
     if final_response:
-        final_response_ref, _, _, _ = write_text_blob(root, final_response)
+        final_response_ref, _, _, _ = txn.write_text_blob(final_response)
 
     prepared_payload = read_json_object(root / PREPARED_PROMPT_FILENAME)
     authored_local_request = required_text(
         prepared_payload.get("authored_local_request"),
         state.original_prompt or state.current_prompt,
     )
-    segments = wire_segments_from_prepared(prepared_payload)
+    segments = wire_segments_from_prepared(prepared_payload, local_only=True)
     source_refs = unique_refs(
         [
             prepared.prepared_ref,
@@ -152,9 +153,12 @@ def persist_agent_delta(
     )
 
     delta_filename = f"{node_id}.json"
-    delta_path = root / "records" / "agent_delta" / delta_filename
-    delta_sha = write_json_atomic(delta_path, delta)
-    delta_ref = local_ref("records", "agent_delta", delta_filename)
+    delta_ref, delta_sha = txn.write_record(
+        "records",
+        "agent_delta",
+        delta_filename,
+        payload=delta,
+    )
 
     node: ContinuationNodeWire = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
@@ -173,9 +177,7 @@ def persist_agent_delta(
         allow_missing_validation=allow_missing_validation,
     )
 
-    node_path = root / "nodes" / delta_filename
-    node_sha = write_json_atomic(node_path, node)
-    node_ref = local_ref("nodes", delta_filename)
+    node_ref, node_sha = txn.write_record("nodes", delta_filename, payload=node)
     manifest: dict[str, Any] = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "kind": "local_continuation_capture",
@@ -198,9 +200,9 @@ def persist_agent_delta(
         manifest["final_response_ref"] = final_response_ref
     if handoff_checkpoint_ref:
         manifest["handoff_checkpoint_ref"] = handoff_checkpoint_ref
+    manifest_ref, _ = txn.write_pointer(MANIFEST_FILENAME, payload=manifest)
+    txn.commit()
     manifest_path = root / MANIFEST_FILENAME
-    write_json_atomic(manifest_path, manifest)
-    manifest_ref = local_ref(MANIFEST_FILENAME)
 
     result = ContinuationPublishResult(
         node_id=node_id,

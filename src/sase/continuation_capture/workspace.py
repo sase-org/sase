@@ -12,13 +12,14 @@ from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 
 from ._constants import WORKSPACE_FACTS_FILENAME
 from ._storage import (
+    PublicationTransaction,
     continuation_root,
     local_ref,
     read_json_object,
+    recover_publication_journal,
     safe_identifier,
     sha_text,
     update_agent_meta_fields,
-    write_json_atomic,
     record_capture_error,
 )
 
@@ -44,7 +45,7 @@ def persist_workspace_facts(ctx: AgentExecContext, state: LoopState) -> str:
 
     artifacts_dir = state.current_artifacts_dir or ctx.artifacts_dir
     root = continuation_root(artifacts_dir)
-    root.mkdir(parents=True, exist_ok=True)
+    recover_publication_journal(root)
     facts: dict[str, Any] = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "kind": "workspace_facts",
@@ -65,9 +66,10 @@ def persist_workspace_facts(ctx: AgentExecContext, state: LoopState) -> str:
         facts["machine_name"] = socket.gethostname()
     except OSError:
         pass
+    txn = PublicationTransaction(root)
+    workspace_ref, _ = txn.write_pointer(WORKSPACE_FACTS_FILENAME, payload=facts)
+    txn.commit()
     path = root / WORKSPACE_FACTS_FILENAME
-    workspace_ref = local_ref(WORKSPACE_FACTS_FILENAME)
-    write_json_atomic(path, facts)
     update_agent_meta_fields(
         artifacts_dir,
         {

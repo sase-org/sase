@@ -76,6 +76,31 @@ def settle_claim_and_followup(
         captured_launch_result = _coerce_monitor_followup_result(raw, meta)
         return captured_launch_result
 
+    blocked_reason = None
+    if monitor_state not in ("stopped", "lost"):
+        blocked_reason = _continuation_dispatch_blocked_reason(meta)
+    if blocked_reason:
+        meta[_MONITOR_SETTLEMENT_CONFIG.outcome_field] = "not-launchable"
+        meta[_MONITOR_SETTLEMENT_CONFIG.error_field] = blocked_reason
+        update_meta_field(
+            artifacts_dir,
+            _MONITOR_SETTLEMENT_CONFIG.outcome_field,
+            "not-launchable",
+        )
+        update_meta_field(
+            artifacts_dir,
+            _MONITOR_SETTLEMENT_CONFIG.error_field,
+            blocked_reason,
+        )
+        release_error = _release_monitor_claim_positional(meta, project_name)
+        return _MonitorFollowupSettlementResult(
+            error=release_error or blocked_reason,
+            launch_result=FollowupLaunchResult(
+                launched=False,
+                error=blocked_reason,
+            ),
+        )
+
     host_settlement = settle_host_completion(
         artifacts_dir,
         meta,
@@ -125,6 +150,12 @@ def settle_claim_and_followup(
     return _MonitorFollowupSettlementResult(
         error=error, launch_result=captured_launch_result
     )
+
+
+def _continuation_dispatch_blocked_reason(meta: dict[str, Any]) -> str | None:
+    from sase.continuation_capture import continuation_dispatch_blocked_reason
+
+    return continuation_dispatch_blocked_reason(meta)
 
 
 def _coerce_monitor_followup_result(

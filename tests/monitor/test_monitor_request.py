@@ -54,3 +54,30 @@ def test_fingerprint_is_stable_for_the_same_successor_model() -> None:
 
     assert first == second
     assert first.startswith("sha256:")
+
+
+def test_fingerprint_includes_checkpoint_digest_and_resolved_parents() -> None:
+    shared = {"lane": "acme", "label": "just check-full"}
+    plain = monitor_request_fingerprint(_request(), **shared)
+    checkpointed = monitor_request_fingerprint(
+        _request(checkpoint_ref="sha256:" + "ab" * 32),
+        **shared,
+    )
+    parented = monitor_request_fingerprint(
+        _request(
+            parent_node_ids=("agent-delta:run:1",),
+            starter_run_id="20260912120000",
+        ),
+        **shared,
+    )
+    pathname_ignored = monitor_request_fingerprint(
+        _request(
+            checkpoint_ref="sha256:" + "ab" * 32,
+            checkpoint_document={"objective": "ignored-in-fingerprint"},
+        ),
+        **shared,
+    )
+
+    assert plain != checkpointed
+    assert plain != parented
+    assert checkpointed == pathname_ignored

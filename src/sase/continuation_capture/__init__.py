@@ -15,7 +15,16 @@ from ._constants import (
     PREPARED_PROMPT_FILENAME,
     WORKSPACE_FACTS_FILENAME,
 )
-from ._storage import record_capture_error
+from ._disposition import (
+    CAPTURE_DISPOSITION_NEEDS_RECOVERY,
+    CAPTURE_DISPOSITION_OK,
+    continuation_dispatch_blocked_reason,
+    record_capture_disposition,
+)
+from ._storage import (
+    PublicationTransaction,
+    record_capture_error,
+)
 from .agent_delta import (
     persist_agent_delta as _persist_agent_delta,
     persist_agent_delta,
@@ -23,6 +32,11 @@ from .agent_delta import (
     read_latest_manifest_projection,
 )
 from .checkpoints import (
+    AuthoredCheckpoint,
+    AuthoredCheckpointError,
+    canonicalize_authored_checkpoint,
+    load_authored_checkpoint,
+    persist_authored_checkpoint,
     publish_handoff_checkpoint,
     publish_handoff_checkpoint_best_effort,
 )
@@ -45,6 +59,7 @@ from .prompt import (
     record_prepared_prompt_capture_best_effort,
 )
 from .segments import (
+    complete_prompt_segments,
     embedded_workflow_prompt_segment,
     local_authored_prompt_segment,
     local_materialized_prompt_segment,
@@ -53,17 +68,27 @@ from .segments import (
 from .workspace import persist_workspace_facts, persist_workspace_facts_best_effort
 
 __all__ = [
+    "AuthoredCheckpoint",
+    "AuthoredCheckpointError",
+    "CAPTURE_DISPOSITION_NEEDS_RECOVERY",
+    "CAPTURE_DISPOSITION_OK",
     "ContinuationPublishResult",
     "ContinuationSegmentCapture",
     "MonitorResultPublishResult",
     "PreparedPromptCaptureResult",
+    "PublicationTransaction",
     "_persist_agent_delta",
     "_record_prepared_prompt_capture",
+    "canonicalize_authored_checkpoint",
+    "complete_prompt_segments",
+    "continuation_dispatch_blocked_reason",
     "embedded_workflow_prompt_segment",
+    "load_authored_checkpoint",
     "local_authored_prompt_segment",
     "local_materialized_prompt_segment",
     "persist_agent_delta",
     "persist_agent_delta_best_effort",
+    "persist_authored_checkpoint",
     "persist_monitor_start_intent",
     "persist_monitor_start_intent_best_effort",
     "persist_monitor_result",
@@ -74,6 +99,7 @@ __all__ = [
     "publish_handoff_checkpoint_best_effort",
     "read_latest_manifest_projection",
     "read_prepared_prompt_capture_ref",
+    "record_capture_disposition",
     "record_capture_error",
     "record_prepared_prompt_capture",
     "record_prepared_prompt_capture_best_effort",

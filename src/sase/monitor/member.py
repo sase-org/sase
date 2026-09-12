@@ -43,6 +43,9 @@ def create_monitor_member(
     completion_ref: str | None = None,
     profile: str | None = None,
     policy_digest: str | None = None,
+    checkpoint_ref: str | None = None,
+    starter_artifacts_dir: str | None = None,
+    parent_node_ids: Sequence[str] = (),
 ) -> str:
     """Create a monitor family member's artifacts directory.
 
@@ -89,6 +92,14 @@ def create_monitor_member(
         monitor_metadata["monitor_profile"] = profile
     if policy_digest:
         monitor_metadata["monitor_policy_digest"] = policy_digest
+    if checkpoint_ref:
+        monitor_metadata["continuation_checkpoint_ref"] = checkpoint_ref
+    if starter_artifacts_dir:
+        monitor_metadata["monitor_starter_artifacts_dir"] = starter_artifacts_dir
+    if parent_node_ids:
+        monitor_metadata["continuation_parent_node_ids"] = [
+            str(node_id) for node_id in parent_node_ids if str(node_id)
+        ]
 
     return create_family_shell_member(
         project_name,

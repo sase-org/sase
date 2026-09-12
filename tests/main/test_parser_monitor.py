@@ -63,6 +63,8 @@ def test_monitor_start_help_documents_positional_command_and_optional_policy() -
     assert_metavar_option_documented(start_help, "-o", "--next-output", "MODE")
     assert_metavar_option_documented(start_help, "-p", "--profile", "NAME")
     assert_metavar_option_documented(start_help, "-P", "--policy", "FILE")
+    assert_metavar_option_documented(start_help, "-k", "--checkpoint", "FILE")
+    assert "Bound by content digest, not path" in start_help
     assert "Profile selection alone never authorizes host completion" in start_help
 
 

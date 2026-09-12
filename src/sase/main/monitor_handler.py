@@ -209,6 +209,23 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         print("sase monitor start: -r/--reason must not be empty", file=sys.stderr)
         return 2
 
+    checkpoint_ref: str | None = None
+    checkpoint_document: dict[str, object] | None = None
+    checkpoint_path = _optional_text(getattr(args, "checkpoint", None))
+    if checkpoint_path:
+        from sase.continuation_capture import (
+            AuthoredCheckpointError,
+            load_authored_checkpoint,
+        )
+
+        try:
+            authored = load_authored_checkpoint(checkpoint_path)
+        except AuthoredCheckpointError as exc:
+            print(f"sase monitor start: {exc}", file=sys.stderr)
+            return 2
+        checkpoint_ref = authored.content_ref
+        checkpoint_document = authored.payload
+
     next_action = getattr(args, "next", None)
     next_model = _optional_text(getattr(args, "model", None))
     if next_model and not _optional_text(next_action):
@@ -315,6 +332,8 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         completion_ref=completion_ref,
         profile=profile,
         policy_digest=policy_digest,
+        checkpoint_ref=checkpoint_ref,
+        checkpoint_document=checkpoint_document,
     )
 
     try:

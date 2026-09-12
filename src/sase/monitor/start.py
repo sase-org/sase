@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import os
 import shlex
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -161,6 +161,14 @@ def _start_monitor_locked(
 ) -> MonitorRecord:
     """Start one monitor while the caller holds the lane start lock."""
     label = request.label or default_label(request.command)
+    parent_node_ids, starter_run_id, starter_artifacts_dir = _peek_continuation_parents(
+        request, identity
+    )
+    request = replace(
+        request,
+        parent_node_ids=tuple(parent_node_ids),
+        starter_run_id=starter_run_id,
+    )
     request_fingerprint = monitor_request_fingerprint(
         request, lane=identity.lock_lane, label=label
     )
@@ -224,6 +232,9 @@ def _start_monitor_locked(
         completion_ref=request.completion_ref,
         profile=request.profile,
         policy_digest=request.policy_digest,
+        checkpoint_ref=request.checkpoint_ref,
+        starter_artifacts_dir=starter_artifacts_dir,
+        parent_node_ids=request.parent_node_ids,
     )
     log_path = monitor_log_path(artifacts_dir)
     update_meta_field(artifacts_dir, "monitor_output_path", str(log_path))
@@ -377,6 +388,7 @@ def _start_monitor_locked(
         record,
         lane_start=lane_start,
         request_fingerprint=request_fingerprint,
+        starter_artifacts_dir=starter_artifacts_dir,
     )
     return record
 
@@ -604,8 +616,11 @@ def _persist_monitor_start_intent_after_ack(
     *,
     lane_start: _LaneStart,
     request_fingerprint: str,
+    starter_artifacts_dir: str | None,
 ) -> None:
-    parent_node_ids = _continuation_parent_node_ids(lane_start.member_meta)
+    parent_node_ids = list(request.parent_node_ids) or _continuation_parent_node_ids(
+        lane_start.member_meta
+    )
     from sase.continuation_capture import persist_monitor_start_intent_best_effort
 
     persist_monitor_start_intent_best_effort(
@@ -621,7 +636,33 @@ def _persist_monitor_start_intent_after_ack(
         request_fingerprint=request_fingerprint,
         parent_node_ids=parent_node_ids,
         starter_agent=lane_start.starter_agent,
+        checkpoint_ref=request.checkpoint_ref,
+        checkpoint_document=request.checkpoint_document,
+        starter_artifacts_dir=starter_artifacts_dir,
     )
+
+
+def _peek_continuation_parents(
+    request: StartMonitorRequest,
+    identity: _StartIdentity,
+) -> tuple[list[str], str | None, str | None]:
+    """Resolve exact parent identities without mutating the selected lane."""
+
+    try:
+        lane_ctx = (
+            identity.context
+            if identity.context is not None
+            else store.resolve_lane(request.project_name, identity.target)
+        )
+    except Exception:
+        return [], None, None
+    artifact_dir = lane_ctx.record.artifact_dir
+    starter_run_id = os.path.basename(str(artifact_dir).rstrip("/")) or None
+    try:
+        meta = _read_meta(artifact_dir)
+    except (OSError, MonitorError):
+        return [], starter_run_id, artifact_dir
+    return _continuation_parent_node_ids(meta), starter_run_id, artifact_dir
 
 
 def _continuation_parent_node_ids(meta: dict[str, Any]) -> list[str]:
