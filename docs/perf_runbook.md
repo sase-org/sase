@@ -5,6 +5,36 @@ This runbook explains how to capture and compare performance data for ACE, the
 performance overhaul (bead `sase-w.1`, `sdd/epics/202604/tui_perf_overhaul_1.md`), and
 later performance phases still rely on the tracing and benchmark harness described here.
 
+## Athena host-relief baseline
+
+Bead `sase-zn.1` captured this host-pressure baseline on athena on 2026-09-11 while
+investigating prompt-input lag in a long-lived `sase ace` session. Use it as the
+reference point for the later `sase-zn` phases that measure remaining CPU, heap,
+refresh, and scratch pressure.
+
+| signal               | before                                                                                                                            | after host relief                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `/tmp` tmpfs         | 20G used, 13G available, 62% full                                                                                                 | 5.6G used, 26G available, 18% full                                                   |
+| `/` filesystem       | 837G used, 29G available, 97% full                                                                                                | 815G used, 51G available, 95% full                                                   |
+| swap                 | 30.4G used of 64G                                                                                                                 | 13.1G used of 64G                                                                    |
+| ACE process          | PID 2019865, 10036968 kB RSS, 3332948 kB swap                                                                                     | PID 2351038, 766372 kB RSS, 0 kB swap                                                |
+| SASE scratch matches | 24 matched `/tmp/*cargo-target*`, `/tmp/*core-target*`, `/tmp/sase-*-recovery*`, and synced managed-root build targets; 37G total | 0 remaining matches                                                                  |
+| `SASE_TMPDIR`        | `/home/bryan/tmp/sase`, via `/home/bryan/tmp -> Sync/home/tmp`                                                                    | `/home/bryan/.cache/sase/tmp` in chezmoi-managed `.profile` and the live ACE process |
+
+The cleanup removed only SASE-named cargo/core target directories, SASE recovery
+bundles, and the stale `~/.sase/perf/tui_trace.jsonl` file. The durable environment
+change is in the chezmoi source `home/dot_profile`, applied to `~/.profile`, then ACE
+was restarted in tmux pane `sase:5.1` after sourcing the updated profile.
+
+Py-spy profiles from the same run are stored outside the repo at:
+
+- `~/.sase/perf/athena-host-relief-before-20260911T1542.svg`
+- `~/.sase/perf/athena-host-relief-after-20260911T1546.svg`
+
+Both profile runs reported delayed sampling under remaining host load, so treat the
+flamegraphs as attribution hints rather than precise wall-clock percentages. The
+resource deltas above are the reliable phase-1 baseline.
+
 ## Idle-host CPU diet
 
 An idle sase host (ace open, lumberjacks running, no agent work) used to burn roughly
