@@ -10,15 +10,21 @@ import json
 from pathlib import Path
 from typing import Any
 
-from sase.core.finalizer_facade import finalizer_json_digest
+from sase.core.finalizer_facade import (
+    finalizer_json_digest,
+    validate_finalizer_bead_decision,
+)
 from sase.core.finalizer_wire import (
     FINALIZER_DEFERRAL_REASONS,
     FINALIZER_WIRE_SCHEMA_VERSION,
+    FinalizerAssignedBeadWire,
     FinalizerContextWire,
     FinalizerDeferralWire,
     FinalizerPlanWire,
-    finalizer_deferral_from_dict,
+    finalizer_assigned_bead_from_dict,
     finalizer_context_from_dict,
+    finalizer_deferral_from_dict,
+    finalizer_wire_to_json_dict,
 )
 from sase.finalizers.declaration_store import (
     FinalizerDeclarationError,
@@ -311,7 +317,7 @@ def _validate_commit_payload(
         seen.add(repo_id)
         action = decision.get("action")
         if action == "commit":
-            _validate_commit_decision(repo_id, decision)
+            _validate_commit_decision(context, repo_id, decision)
         else:
             raise FinalizerDeclarationError(
                 f"commit repository decision for {repo_id} has invalid action; "
@@ -409,11 +415,34 @@ def commit_deferral_decisions_for_payload(
     return tuple(decisions)
 
 
+_COMMIT_DECISION_KEYS = {
+    "repo_id",
+    "action",
+    "message",
+    "bead_action",
+    "bead_id",
+    "bead_status",
+    "repository_scope",
+    "commit_method",
+    "legacy_do_not_close_bead",
+}
+_BEAD_DECISION_KEYS = {
+    "repo_id",
+    "commit_method",
+    "bead_action",
+    "bead_id",
+    "bead_status",
+    "repository_scope",
+    "legacy_do_not_close_bead",
+}
+
+
 def _validate_commit_decision(
+    context: FinalizerContextWire,
     repo_id: str,
     decision: Mapping[str, Any],
 ) -> None:
-    _reject_extra_keys(decision, {"repo_id", "action", "message"}, "commit")
+    _reject_extra_keys(decision, _COMMIT_DECISION_KEYS, "commit")
     message = decision.get("message")
     if not isinstance(message, str) or not message.strip():
         raise FinalizerDeclarationError(
@@ -431,6 +460,44 @@ def _validate_commit_decision(
             f"commit decision for {repo_id} has a non-conventional message",
             code="commit_message_invalid",
         )
+    assigned = _context_assigned_bead(context)
+    has_bead_fields = any(
+        key in decision for key in _BEAD_DECISION_KEYS if key != "repo_id"
+    )
+    if assigned is None and not has_bead_fields:
+        return
+    if assigned is not None and decision.get("bead_action") not in {"keep", "close"}:
+        raise FinalizerDeclarationError(
+            "bead_action is required when a bead is assigned; use keep or close",
+            code="commit_bead_action_invalid",
+        )
+    bead_decision = {
+        key: decision[key] for key in _BEAD_DECISION_KEYS if key in decision
+    }
+    bead_decision.setdefault("repo_id", repo_id)
+    bead_decision.setdefault("commit_method", "create_commit")
+    try:
+        validate_finalizer_bead_decision(context, bead_decision)
+    except AttributeError:
+        return
+    except ValueError as exc:
+        raise FinalizerDeclarationError(
+            str(exc),
+            code="commit_bead_action_invalid",
+        ) from exc
+
+
+def _context_assigned_bead(
+    context: FinalizerContextWire,
+) -> FinalizerAssignedBeadWire | None:
+    assigned = context.assigned_bead
+    if assigned is not None:
+        return assigned
+    encoded = finalizer_wire_to_json_dict(context)
+    raw = encoded.get("assigned_bead") if isinstance(encoded, dict) else None
+    if isinstance(raw, dict):
+        return finalizer_assigned_bead_from_dict(raw)
+    return None
 
 
 def _reject_extra_keys(

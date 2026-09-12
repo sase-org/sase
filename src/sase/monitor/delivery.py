@@ -237,6 +237,57 @@ def claim_dispatch_slot(
         return record, False
 
 
+def adopt_host_completion_delivery(
+    artifacts_dir: str | Path,
+    key: Mapping[str, str],
+    *,
+    reserved_identity: str,
+    workspace_identity: str | None = None,
+    workspace_degraded: bool = False,
+) -> dict[str, Any]:
+    """Atomically reserve and acknowledge host-completion delivery.
+
+    Holds the delivery store lock for the full pending → reserved →
+    acknowledged transition so concurrent host-completion workers discover
+    the same receiver instead of racing two writes. Does not wait on
+    finalizers, providers, or child processes while the lock is held.
+    """
+
+    root = _delivery_dir(artifacts_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    with _delivery_lock(root):
+        record = load_delivery_record(artifacts_dir, key) or new_delivery_record(
+            key,
+            selected_action="complete",
+            reserved_identity=reserved_identity,
+        )
+        previous = str(record.get("disposition") or "")
+        if previous in {"acknowledged", "settled"}:
+            return record
+        if previous in {"cancelled", "nonlaunchable", "needs_attention"}:
+            return record
+        if previous == "pending":
+            record = transition_delivery(
+                record,
+                "reserved",
+                reserved_identity=reserved_identity,
+                workspace_identity=workspace_identity,
+                workspace_degraded=workspace_degraded,
+            )
+            write_json_atomic(_record_path(artifacts_dir, record["key"]), record)
+        if str(record.get("disposition")) == "reserved":
+            record = transition_delivery(
+                record,
+                "acknowledged",
+                reserved_identity=reserved_identity,
+                acknowledged_by=reserved_identity,
+                workspace_identity=workspace_identity,
+                workspace_degraded=workspace_degraded,
+            )
+            write_json_atomic(_record_path(artifacts_dir, record["key"]), record)
+        return record
+
+
 def apply_delivery_transition(
     artifacts_dir: str | Path,
     key: Mapping[str, str],
@@ -361,6 +412,7 @@ __all__ = [
     "DELIVERY_DIRNAME",
     "DELIVERY_LOCK_TIMEOUT_SECONDS",
     "HOST_COMPLETION_RECEIPT_FILENAME",
+    "adopt_host_completion_delivery",
     "apply_delivery_transition",
     "claim_dispatch_slot",
     "delivery_key",

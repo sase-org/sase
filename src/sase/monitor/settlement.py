@@ -122,7 +122,10 @@ def settle_claim_and_followup(
             project_name=project_name,
             launch_recovery=launch_and_capture,
             release_claim=_release_monitor_claim_positional,
+            capture=capture,
             selected_action="complete",
+            timeout_kind=timeout_kind,
+            transfer_from_pid=transfer_from_pid,
         )
         if host_settlement is not None:
             captured_launch_result = (

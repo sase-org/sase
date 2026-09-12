@@ -128,6 +128,19 @@ def aggregate_finalizer_outcomes(
     return finalizer_aggregate_result_from_dict(dict(payload))
 
 
+def validate_finalizer_bead_decision(
+    context: FinalizerContextWire | dict[str, Any],
+    decision: dict[str, Any],
+) -> dict[str, Any]:
+    """Validate one commit repository decision against assigned-bead context."""
+
+    binding = require_rust_binding("validate_finalizer_bead_decision")
+    payload = binding(finalizer_wire_to_json_dict(context), dict(decision))
+    if not isinstance(payload, dict):
+        raise TypeError("validate_finalizer_bead_decision returned a non-mapping")
+    return dict(payload)
+
+
 __all__ = [
     "aggregate_finalizer_outcomes",
     "authenticate_finalizer_plan",
@@ -138,6 +151,7 @@ __all__ = [
     "finalizer_provider_spec_digest",
     "finalizer_wire_schema_version",
     "resolve_finalizer_plan",
+    "validate_finalizer_bead_decision",
     "validate_finalizer_context",
     "validate_finalizer_instance_spec",
     "validate_finalizer_plan",
