@@ -68,7 +68,7 @@ def _isolated_registry(monkeypatch: pytest.MonkeyPatch) -> None:
 def _enable_codex_collection(monkeypatch: pytest.MonkeyPatch) -> None:
     mock_provider_config(
         monkeypatch,
-        {"usage_metrics": {"enabled": True, "providers": {"codex": True}}},
+        {"usage_metrics": {"enabled": True, "providers": {"codex": {"enabled": True}}}},
     )
 
 
@@ -282,7 +282,12 @@ class TestEligibleUsageProvidersExclusionRules:
         self._ready_codex_env(monkeypatch, tmp_path)
         mock_provider_config(
             monkeypatch,
-            {"usage_metrics": {"enabled": True, "providers": {"codex": False}}},
+            {
+                "usage_metrics": {
+                    "enabled": True,
+                    "providers": {"codex": {"enabled": False}},
+                }
+            },
         )
 
         assert eligible_usage_providers() == ()

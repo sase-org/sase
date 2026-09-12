@@ -228,7 +228,10 @@ def test_codex_nvm_weekly_window_reaches_header_through_real_pipeline(
         {
             "usage_metrics": {
                 "enabled": True,
-                "providers": {"codex": True, "grok": True},
+                "providers": {
+                    "codex": {"enabled": True},
+                    "grok": {"enabled": True},
+                },
                 "indicator": {"enabled": True, "weekly_all": "always"},
             }
         },
@@ -266,6 +269,7 @@ def test_codex_nvm_weekly_window_reaches_header_through_real_pipeline(
                 "codex",
                 used_percent=1.0,
                 remaining_percent=99.0,
+                attention={"kind": "none", "provider": "codex", "window_key": None},
                 windows=[codex_window],
                 known_constraints=[],
             ),
@@ -273,6 +277,7 @@ def test_codex_nvm_weekly_window_reaches_header_through_real_pipeline(
                 "grok",
                 used_percent=41.0,
                 remaining_percent=59.0,
+                attention={"kind": "none", "provider": "grok", "window_key": None},
                 windows=[grok_window],
                 known_constraints=[],
             ),
