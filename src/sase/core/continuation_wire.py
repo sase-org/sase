@@ -224,6 +224,25 @@ class ContinuationPolicyResolutionRequestWire(TypedDict):
     profile: NotRequired[str | None]
     shared_next: NotRequired[str | None]
     shared_model: NotRequired[str | None]
+    cli_next: NotRequired[str | None]
+    cli_model: NotRequired[str | None]
+    cli_effort: NotRequired[str | None]
+    cli_evidence: NotRequired[ContinuationEvidencePolicy | None]
+    inherited_model: NotRequired[str | None]
+    inherited_effort: NotRequired[str | None]
+    prepared_completion_ref: NotRequired[str | None]
+
+
+class ContinuationPolicyFreezeRequestWire(TypedDict):
+    schema_version: int
+    explicit_policy: NotRequired[JsonObject | None]
+    profile: NotRequired[str | None]
+    shared_next: NotRequired[str | None]
+    shared_model: NotRequired[str | None]
+    cli_next: NotRequired[str | None]
+    cli_model: NotRequired[str | None]
+    cli_effort: NotRequired[str | None]
+    cli_evidence: NotRequired[ContinuationEvidencePolicy | None]
     inherited_model: NotRequired[str | None]
     inherited_effort: NotRequired[str | None]
     prepared_completion_ref: NotRequired[str | None]
@@ -402,6 +421,7 @@ __all__ = [
     "ContinuationModelRouteWire",
     "ContinuationNodeKind",
     "ContinuationNodeWire",
+    "ContinuationPolicyFreezeRequestWire",
     "ContinuationPolicyResolutionRequestWire",
     "ContinuationPromptSegmentProvenance",
     "ContinuationPromptSegmentWire",

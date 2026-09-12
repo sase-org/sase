@@ -18,6 +18,7 @@ from sase.core.continuation_wire import (
     ContinuationEvidenceSelectionRequestWire,
     ContinuationIntentWire,
     ContinuationNodeWire,
+    ContinuationPolicyFreezeRequestWire,
     ContinuationPolicyResolutionRequestWire,
     ContinuationReplayPlanRequestWire,
     DiagnosticManifestWire,
@@ -128,6 +129,28 @@ def resolve_continuation_policy(
     return _json_object(
         binding(continuation_wire_to_json_dict(request)),
         "continuation_resolve_policy",
+    )
+
+
+def validate_continuation_policy(policy: JsonMapping) -> JsonObject:
+    """Validate and normalize a versioned outcome-policy object."""
+
+    binding = require_rust_binding("continuation_validate_policy")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(policy)),
+        "continuation_validate_policy",
+    )
+
+
+def freeze_continuation_policy(
+    request: ContinuationPolicyFreezeRequestWire | JsonMapping,
+) -> JsonObject:
+    """Freeze every outcome branch before monitor claim changes."""
+
+    binding = require_rust_binding("continuation_freeze_policy")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_freeze_policy",
     )
 
 
@@ -252,6 +275,7 @@ __all__ = [
     "bind_conditional_completion",
     "consume_conditional_completion",
     "evaluate_conditional_completion",
+    "freeze_continuation_policy",
     "invalidate_conditional_completion",
     "plan_continuation_budget",
     "plan_continuation_replay",
@@ -265,6 +289,7 @@ __all__ = [
     "validate_continuation_delivery_record",
     "validate_continuation_intent",
     "validate_continuation_node",
+    "validate_continuation_policy",
     "validate_diagnostic_manifest",
     "validate_monitor_result",
 ]

@@ -90,6 +90,7 @@ def settle_host_completion(
     project_name: str | None,
     launch_recovery: Callable[..., FollowupLaunchResult],
     release_claim: Callable[[dict[str, Any], str | None], str | None],
+    selected_action: str | None = None,
 ) -> _HostCompletionSettlement | None:
     """Attempt host completion when a prepared intent is bound.
 
@@ -97,20 +98,23 @@ def settle_host_completion(
     caller can fall through to ordinary follow-up launch.
     """
 
-    completion_ref = str(meta.get("monitor_completion_ref") or "")
+    completion_ref = str(meta.get("monitor_completion_ref") or "") or str(
+        meta.get("continuation_completion_ref") or ""
+    )
     if not completion_ref:
         return None
-    policy = resolve_continuation_policy(
-        {
-            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
-            "outcome": _policy_outcome(monitor_state),
-            "profile": meta.get("monitor_profile") or None,
-            "shared_next": meta.get("monitor_next_action") or None,
-            "prepared_completion_ref": completion_ref,
-        }
-    )
-    if policy.get("action") != "complete":
-        return None
+    if selected_action != "complete":
+        policy = resolve_continuation_policy(
+            {
+                "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+                "outcome": _policy_outcome(monitor_state),
+                "profile": meta.get("monitor_profile") or None,
+                "shared_next": meta.get("monitor_next_action") or None,
+                "prepared_completion_ref": completion_ref,
+            }
+        )
+        if policy.get("action") != "complete":
+            return None
     if not str(meta.get("monitor_next_action") or "").strip():
         meta["monitor_next_action"] = DEFAULT_RECOVERY_ACTION
         update_meta_field(artifacts_dir, "monitor_next_action", DEFAULT_RECOVERY_ACTION)

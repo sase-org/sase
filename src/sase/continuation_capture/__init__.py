@@ -52,6 +52,10 @@ from .monitor import (
     persist_monitor_start_intent,
     persist_monitor_start_intent_best_effort,
 )
+from .policy import (
+    load_frozen_outcome_policy,
+    persist_frozen_outcome_policy,
+)
 from .prompt import (
     read_prepared_prompt_capture_ref,
     record_prepared_prompt_capture as _record_prepared_prompt_capture,
@@ -84,15 +88,17 @@ __all__ = [
     "continuation_dispatch_blocked_reason",
     "embedded_workflow_prompt_segment",
     "load_authored_checkpoint",
+    "load_frozen_outcome_policy",
     "local_authored_prompt_segment",
     "local_materialized_prompt_segment",
     "persist_agent_delta",
     "persist_agent_delta_best_effort",
     "persist_authored_checkpoint",
-    "persist_monitor_start_intent",
-    "persist_monitor_start_intent_best_effort",
+    "persist_frozen_outcome_policy",
     "persist_monitor_result",
     "persist_monitor_result_best_effort",
+    "persist_monitor_start_intent",
+    "persist_monitor_start_intent_best_effort",
     "persist_workspace_facts",
     "persist_workspace_facts_best_effort",
     "publish_handoff_checkpoint",

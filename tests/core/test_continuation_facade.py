@@ -11,6 +11,7 @@ from sase.core.continuation_facade import (
     bind_conditional_completion,
     consume_conditional_completion,
     evaluate_conditional_completion,
+    freeze_continuation_policy,
     invalidate_conditional_completion,
     plan_continuation_budget,
     plan_continuation_replay,
@@ -22,6 +23,7 @@ from sase.core.continuation_facade import (
     validate_continuation_delivery_record,
     validate_continuation_intent,
     validate_continuation_node,
+    validate_continuation_policy,
     validate_diagnostic_manifest,
     validate_monitor_result,
 )
@@ -347,6 +349,57 @@ def test_policy_resolution_and_budget_decisions_are_typed() -> None:
     assert failed["launchable"] is True
     assert failed["model"] == "gpt-5-codex"
     assert failed["effort"] == "high"
+
+    none_despite_shared = resolve_continuation_policy(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "outcome": "completed",
+            "shared_next": "shared follow-up",
+            "explicit_policy": {
+                "completed": {"action": "none"},
+                "failed": {
+                    "action": "continue",
+                    "next_action": "repair the failure",
+                    "model": "opus@high",
+                },
+                "timeout": {"action": "none"},
+            },
+        }
+    )
+    assert none_despite_shared["action"] == "none"
+    assert none_despite_shared["launchable"] is False
+
+    frozen = freeze_continuation_policy(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "shared_next": "shared follow-up",
+            "explicit_policy": {
+                "completed": {"action": "none"},
+                "failed": {
+                    "action": "continue",
+                    "next_action": "repair the failure",
+                    "model": "opus@high",
+                },
+                "timeout": {"action": "none"},
+            },
+        }
+    )
+    assert frozen["fingerprint"].startswith("sha256:")
+    assert frozen["branches"]["completed"]["action"] == "none"
+    assert frozen["branches"]["failed"]["action"] == "continue"
+    assert frozen["branches"]["failed"]["model"] == "opus"
+    assert frozen["branches"]["failed"]["effort"] == "high"
+    assert frozen["branches"]["stopped"]["action"] == "none"
+    assert frozen["branches"]["lost"]["action"] == "none"
+    validated = validate_continuation_policy(
+        frozen["explicit_policy"]
+        or {
+            "completed": {"action": "none"},
+            "failed": {"action": "none"},
+            "timeout": {"action": "none"},
+        }
+    )
+    assert validated["completed"]["action"] == "none"
 
     budget = plan_continuation_budget(
         {

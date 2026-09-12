@@ -180,13 +180,15 @@ def persist_monitor_start_intent(
         route["model"] = wire_reference(next_model, fallback_kind="model")
     else:
         route["inherit_model"] = True
+    outcome_policy_ref = _frozen_outcome_policy_ref(artifacts_dir)
     intent: ContinuationIntentWire = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "intent_id": intent_id,
         "next_action": next_action,
         "checkpoint_ref": checkpoint_ref,
         "route": cast(ContinuationModelRouteWire, route),
-        "outcome_policy_ref": source_ref(
+        "outcome_policy_ref": outcome_policy_ref
+        or source_ref(
             "monitor-policy",
             next_output or "default",
             request_fingerprint,
@@ -230,6 +232,21 @@ def persist_monitor_start_intent(
         fields["monitor_starter_artifacts_dir"] = starter_artifacts_dir
     update_agent_meta_fields(artifacts_dir, fields)
     return intent_ref
+
+
+def _frozen_outcome_policy_ref(artifacts_dir: str | os.PathLike[str]) -> str | None:
+    meta = read_json_object(Path(artifacts_dir) / "agent_meta.json")
+    if isinstance(meta, Mapping):
+        stored = meta.get("continuation_outcome_policy_ref")
+        if isinstance(stored, str) and stored.strip():
+            return stored.strip()
+    from .policy import load_frozen_outcome_policy
+
+    frozen = load_frozen_outcome_policy(str(artifacts_dir))
+    fingerprint = frozen.get("fingerprint") if frozen else None
+    if isinstance(fingerprint, str) and fingerprint:
+        return fingerprint
+    return None
 
 
 def persist_monitor_result_best_effort(

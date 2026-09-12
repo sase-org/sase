@@ -31,7 +31,7 @@ from sase.shells.followup import (
     wait_for_starter,
 )
 
-from .followup_prompt import DEFAULT_NEXT_OUTPUT, compose_followup_prompt
+from .followup_prompt import compose_followup_prompt
 from .diagnostics import (
     diagnostic_manifest,
     read_selected_diagnostics_text,
@@ -39,7 +39,11 @@ from .diagnostics import (
 )
 from .logs import monitor_log_path
 from .output import OutputCapture
-from .result_projection import build_monitor_result_wire, select_monitor_result_evidence
+from .result_projection import (
+    LEGACY_NEXT_OUTPUT,
+    build_monitor_result_wire,
+    select_monitor_result_evidence,
+)
 
 _SAVED_FOLLOWUP_PROMPT_NAME = "monitor_followup_prompt.md"
 
@@ -87,7 +91,7 @@ def launch_followup_agent(
 
     manifest = diagnostic_manifest(artifacts_dir)
     retained_log = retained_log_metadata(artifacts_dir)
-    next_output = str(meta.get("monitor_next_output") or DEFAULT_NEXT_OUTPUT)
+    next_output = str(meta.get("monitor_next_output") or LEGACY_NEXT_OUTPUT)
     monitor_result = build_monitor_result_wire(
         monitor_id=str(meta.get("monitor_id") or ""),
         monitor_state=monitor_state,

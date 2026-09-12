@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-from hashlib import sha256
 import json
 import sys
 import time
@@ -41,6 +40,7 @@ from sase.monitor.start import (
     DEFAULT_TAIL_LINES,
     DEFAULT_TIMEOUT_SECONDS,
 )
+from sase.monitor.outcome_policy import load_outcome_policy_file
 from sase.monitor.profiles import resolve_monitor_profile
 from sase.monitor_status import MONITOR_STATUS_MAX_CHARS, clamp_monitor_status
 
@@ -228,9 +228,6 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
 
     next_action = getattr(args, "next", None)
     next_model = _optional_text(getattr(args, "model", None))
-    if next_model and not _optional_text(next_action):
-        print(_MODEL_WITHOUT_NEXT, file=sys.stderr)
-        return 2
     profile = _optional_text(getattr(args, "profile", None))
     policy_path = _optional_text(getattr(args, "policy", None))
     if profile and policy_path:
@@ -238,6 +235,19 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
             "sase monitor start: -p/--profile and -P/--policy are mutually exclusive",
             file=sys.stderr,
         )
+        return 2
+    outcome_policy = None
+    if policy_path:
+        try:
+            outcome_policy = load_outcome_policy_file(policy_path)
+        except ValueError as exc:
+            print(f"sase monitor start: {exc}", file=sys.stderr)
+            return 2
+    completion_ref = _optional_text(getattr(args, "completion", None))
+    if next_model and not (
+        _optional_text(next_action) or profile or policy_path or completion_ref
+    ):
+        print(_MODEL_WITHOUT_NEXT, file=sys.stderr)
         return 2
     profile_config = resolve_monitor_profile(profile)
     if profile and profile_config is None:
@@ -261,7 +271,6 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         or (profile_config.next_output if profile_config is not None else None)
         or DEFAULT_NEXT_OUTPUT
     )
-    completion_ref = _optional_text(getattr(args, "completion", None))
 
     try:
         raw_timeout = (
@@ -308,12 +317,6 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         )
         return 2
 
-    try:
-        policy_digest = _policy_file_digest(policy_path) if policy_path else None
-    except ValueError as exc:
-        print(f"sase monitor start: {exc}", file=sys.stderr)
-        return 2
-
     request = StartMonitorRequest(
         command=command,
         reason=reason,
@@ -331,7 +334,8 @@ def _handle_monitor_start(args: argparse.Namespace) -> int:
         next_output=next_output,
         completion_ref=completion_ref,
         profile=profile,
-        policy_digest=policy_digest,
+        outcome_policy=outcome_policy,
+        cli_evidence=_optional_text(raw_next_output),
         checkpoint_ref=checkpoint_ref,
         checkpoint_document=checkpoint_document,
     )
@@ -575,32 +579,6 @@ def _retained_log_evidence(record: MonitorRecord) -> dict[str, object] | None:
     if not metadata:
         return None
     return {"mode": "tail", "retained_log": metadata}
-
-
-def _policy_file_digest(path: str) -> str:
-    """Return a fingerprint for an outcome-policy file without evaluating code."""
-
-    policy_path = Path(path).expanduser()
-    try:
-        raw = policy_path.read_bytes()
-    except OSError as exc:
-        raise ValueError(f"could not read -P/--policy file: {exc}") from exc
-    text = raw.decode("utf-8")
-    try:
-        payload = json.loads(text)
-    except json.JSONDecodeError:
-        from sase._yaml_safe import yaml_safe_load
-
-        try:
-            payload = yaml_safe_load(text)
-        except Exception as exc:
-            raise ValueError(
-                f"-P/--policy {path!r} is not JSON or YAML: {exc}"
-            ) from exc
-    if not isinstance(payload, dict):
-        raise ValueError("-P/--policy file must contain a JSON/YAML object")
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return f"sha256:{sha256(encoded).hexdigest()}"
 
 
 def _validate_show_args(args: argparse.Namespace) -> str | None:

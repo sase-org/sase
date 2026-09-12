@@ -8,7 +8,7 @@ next to each other, away from the process/claim machinery that acts on them.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 
@@ -58,6 +58,8 @@ class StartMonitorRequest:
     completion_ref: str | None = None
     profile: str | None = None
     policy_digest: str | None = None
+    outcome_policy: Mapping[str, object] | None = None
+    cli_evidence: str | None = None
     checkpoint_ref: str | None = None
     checkpoint_document: dict[str, object] | None = None
     parent_node_ids: tuple[str, ...] = ()

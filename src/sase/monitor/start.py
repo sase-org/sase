@@ -169,6 +169,22 @@ def _start_monitor_locked(
         parent_node_ids=tuple(parent_node_ids),
         starter_run_id=starter_run_id,
     )
+    inherited_model, inherited_effort = _inherited_route(starter_artifacts_dir)
+    try:
+        from sase.monitor.outcome_policy import freeze_start_outcome_policy
+
+        frozen_policy = freeze_start_outcome_policy(
+            request,
+            inherited_model=inherited_model,
+            inherited_effort=inherited_effort,
+        )
+    except (TypeError, ValueError, AttributeError) as exc:
+        raise MonitorError(str(exc)) from exc
+    if frozen_policy is not None:
+        request = replace(
+            request,
+            policy_digest=str(frozen_policy.get("fingerprint") or "") or None,
+        )
     request_fingerprint = monitor_request_fingerprint(
         request, lane=identity.lock_lane, label=label
     )
@@ -238,6 +254,24 @@ def _start_monitor_locked(
     )
     log_path = monitor_log_path(artifacts_dir)
     update_meta_field(artifacts_dir, "monitor_output_path", str(log_path))
+    if frozen_policy is not None:
+        try:
+            from sase.continuation_capture import persist_frozen_outcome_policy
+
+            persist_frozen_outcome_policy(artifacts_dir, frozen_policy)
+        except Exception as exc:
+            if bound_completion_ref is not None:
+                from sase.finalizers.prepare import rollback_prepared_completion
+
+                rollback_prepared_completion(
+                    bound_completion_ref,
+                    monitor_id=monitor_id,
+                    artifacts_dir=store.caller_artifacts_dir(),
+                )
+            _teardown_failed_member(artifacts_dir, str(exc))
+            raise MonitorError(
+                f"could not persist frozen outcome policy: {exc}"
+            ) from exc
     member_name = f"{durable_lane}{suffix}"
     member_timestamp = os.path.basename(artifacts_dir.rstrip("/"))
     claim_holder: dict[str, Any] = {}
@@ -640,6 +674,21 @@ def _persist_monitor_start_intent_after_ack(
         checkpoint_document=request.checkpoint_document,
         starter_artifacts_dir=starter_artifacts_dir,
     )
+
+
+def _inherited_route(
+    starter_artifacts_dir: str | None,
+) -> tuple[str | None, str | None]:
+    """Return the selected parent's model and effort, if they can be read."""
+
+    if not starter_artifacts_dir:
+        return None, None
+    try:
+        from sase.monitor.outcome_policy import inherited_route_from_meta
+
+        return inherited_route_from_meta(_read_meta(starter_artifacts_dir))
+    except (OSError, MonitorError):
+        return None, None
 
 
 def _peek_continuation_parents(

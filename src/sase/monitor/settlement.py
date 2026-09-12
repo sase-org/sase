@@ -101,32 +101,52 @@ def settle_claim_and_followup(
             ),
         )
 
-    host_settlement = settle_host_completion(
-        artifacts_dir,
-        meta,
-        monitor_state=monitor_state,
-        exit_code=exit_code,
-        elapsed_seconds=elapsed_seconds,
-        project_name=project_name,
-        launch_recovery=launch_and_capture,
-        release_claim=_release_monitor_claim_positional,
+    from sase.monitor.outcome_policy import (
+        apply_frozen_branch,
+        frozen_action,
+        settlement_policy_decision,
+        should_launch_frozen_followup,
     )
-    if host_settlement is not None:
-        captured_launch_result = host_settlement.launch_result or captured_launch_result
-        if (
-            captured_launch_result is not None
-            and captured_launch_result.host_completed
-            and not meta.get(_MONITOR_SETTLEMENT_CONFIG.outcome_field)
-        ):
-            meta[_MONITOR_SETTLEMENT_CONFIG.outcome_field] = HOST_COMPLETED_OUTCOME
-            update_meta_field(
-                artifacts_dir,
-                _MONITOR_SETTLEMENT_CONFIG.outcome_field,
-                HOST_COMPLETED_OUTCOME,
-            )
-        return _MonitorFollowupSettlementResult(
-            error=host_settlement.error, launch_result=captured_launch_result
+
+    decision = settlement_policy_decision(artifacts_dir, meta, monitor_state)
+    if frozen_action(decision) == "complete":
+        completion_ref = decision.get("completion_ref")
+        if isinstance(completion_ref, str) and completion_ref.strip():
+            meta.setdefault("monitor_completion_ref", completion_ref.strip())
+        host_settlement = settle_host_completion(
+            artifacts_dir,
+            meta,
+            monitor_state=monitor_state,
+            exit_code=exit_code,
+            elapsed_seconds=elapsed_seconds,
+            project_name=project_name,
+            launch_recovery=launch_and_capture,
+            release_claim=_release_monitor_claim_positional,
+            selected_action="complete",
         )
+        if host_settlement is not None:
+            captured_launch_result = (
+                host_settlement.launch_result or captured_launch_result
+            )
+            if (
+                captured_launch_result is not None
+                and captured_launch_result.host_completed
+                and not meta.get(_MONITOR_SETTLEMENT_CONFIG.outcome_field)
+            ):
+                meta[_MONITOR_SETTLEMENT_CONFIG.outcome_field] = HOST_COMPLETED_OUTCOME
+                update_meta_field(
+                    artifacts_dir,
+                    _MONITOR_SETTLEMENT_CONFIG.outcome_field,
+                    HOST_COMPLETED_OUTCOME,
+                )
+            return _MonitorFollowupSettlementResult(
+                error=host_settlement.error, launch_result=captured_launch_result
+            )
+
+    if should_launch_frozen_followup(decision, monitor_state):
+        apply_frozen_branch(artifacts_dir, meta, decision)
+    elif monitor_state not in ("stopped", "lost"):
+        meta.pop(_MONITOR_SETTLEMENT_CONFIG.next_action_field, None)
 
     error = settle_shell_claim_and_followup(
         artifacts_dir,
