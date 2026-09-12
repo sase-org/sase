@@ -266,7 +266,7 @@ def _apply_runner_capacity_snapshot(
                     or agent.cl_name
                     or "unassigned"
                 ),
-                threshold=_nonnegative_int(waiter.get("wait_runners")),
+                threshold=_waiter_threshold(waiter),
                 wait_runners_explicit=agent.wait_runners_explicit,
                 priority=normalize_wait_priority(waiter.get("priority")),
                 slot_requested_at=_text_value(waiter.get("slot_requested_at")),
@@ -513,6 +513,14 @@ def _finite_float(value: object) -> float | None:
 def _nonnegative_int(value: object) -> int | None:
     if type(value) is int and value >= 0:
         return value
+    return None
+
+
+def _waiter_threshold(waiter: dict[str, Any]) -> int | None:
+    for key in ("wait_runners", "queue_capacity"):
+        threshold = _nonnegative_int(waiter.get(key))
+        if threshold is not None:
+            return threshold
     return None
 
 

@@ -1288,6 +1288,21 @@ llm_provider:
   #   buckets:
   #     writing:
   #       description: "Writing and editing roles."
+  # Continuation-budget preflight for monitor successors. Provider/model
+  # entries can override the shared values below; env vars documented in
+  # docs/configuration.md remain highest precedence for local experiments.
+  continuation_budget:
+    context_limit_bytes: 800000
+    estimate_uncertain: true
+    instruction_reserve_bytes: 0
+    tool_reserve_bytes: 0
+    output_reserve_bytes: 0
+    reasoning_reserve_bytes: 0
+    providers:
+      agy:
+        # Antigravity currently sends the print prompt as one argv element.
+        transport_limit_bytes: 122880
+        instruction_reserve_bytes: 512
   retry:
     claude:
       max_retries: 3

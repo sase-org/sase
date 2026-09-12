@@ -65,8 +65,11 @@ def _normalize_queue_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     fields = normalized.get("fields")
     if isinstance(fields, Mapping):
         field_items = dict(fields)
-        if "capacity" not in field_items and "runners" in field_items:
-            field_items["capacity"] = field_items.pop("runners")
+        if "capacity" not in field_items:
+            if "queue_capacity" in field_items:
+                field_items["capacity"] = field_items.pop("queue_capacity")
+            elif "runners" in field_items:
+                field_items["capacity"] = field_items.pop("runners")
         normalized["fields"] = field_items
     errors = normalized.get("errors")
     if isinstance(errors, list):
@@ -80,8 +83,11 @@ def _normalize_queue_error(error: Any) -> Any:
     item = dict(error)
     message = item.get("message")
     if isinstance(message, str):
-        item["message"] = message.replace("%queue runners", "%queue capacity").replace(
-            "runners=", "capacity="
+        item["message"] = (
+            message.replace("%queue runners", "%queue capacity")
+            .replace("%queue queue_capacity", "%queue capacity")
+            .replace("runners=", "capacity=")
+            .replace("queue_capacity=", "capacity=")
         )
     return item
 
@@ -161,7 +167,10 @@ def validate_queue_capacity(value: object) -> int:
     fields = payload.get("fields")
     if not isinstance(fields, Mapping):
         raise ValueError("Invalid %queue directive.")
-    capacity = fields.get("capacity", fields.get("runners"))
+    capacity = fields.get(
+        "capacity",
+        fields.get("queue_capacity", fields.get("runners")),
+    )
     if capacity is None:
         raise ValueError("%queue(capacity=...) requires a non-negative integer.")
     return int(capacity)

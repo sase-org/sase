@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import tempfile
 import time
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from sase.core.continuation_facade import plan_continuation_budget
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
@@ -19,6 +21,14 @@ CONTINUATION_BUDGET_ENFORCE_ENV = "SASE_CONTINUATION_BUDGET_ENFORCE"
 CONTINUATION_BUDGET_DECISION_FILENAME = "continuation_budget_decision.json"
 
 _DEFAULT_CONTEXT_LIMIT_BYTES = 800_000
+_AGY_PRINT_PROMPT_TRANSPORT_LIMIT_BYTES = 120 * 1024
+_AGY_PRINT_PROMPT_OVERHEAD_BYTES = 512
+_PROVIDER_TRANSPORT_LIMIT_BYTES = {
+    "agy": _AGY_PRINT_PROMPT_TRANSPORT_LIMIT_BYTES,
+}
+_PROVIDER_INSTRUCTION_RESERVE_BYTES = {
+    "agy": _AGY_PRINT_PROMPT_OVERHEAD_BYTES,
+}
 _ENV_TO_CONFIG_KEY = {
     "context_limit_bytes": "SASE_CONTINUATION_CONTEXT_LIMIT_BYTES",
     "transport_limit_bytes": "SASE_CONTINUATION_TRANSPORT_LIMIT_BYTES",
@@ -28,6 +38,40 @@ _ENV_TO_CONFIG_KEY = {
     "output_reserve_bytes": "SASE_CONTINUATION_OUTPUT_RESERVE_BYTES",
     "reasoning_reserve_bytes": "SASE_CONTINUATION_REASONING_RESERVE_BYTES",
 }
+_CONTINUATION_BLOCK_HEADING_RE = re.compile(
+    r"(?m)^## Continuation Block `(?P<block_id>[^`]+)`\s*$"
+)
+_HEADING_RE = re.compile(r"(?m)^(?P<marks>#{1,6}) (?P<title>.+?)\s*$")
+_NODE_RE = re.compile(r"(?m)^- \*\*Node:\*\* `(?P<node>[^`]+)`\s*$")
+_CHECKPOINT_REF_RE = re.compile(r"(?m)^- \*\*Checkpoint:\*\* `(?P<ref>[^`]+)`\s*$")
+
+
+@dataclass(frozen=True, slots=True)
+class _PromptReplacement:
+    kind: str
+    start: int
+    end: int
+    replacement: str
+    detail: str
+    checkpoint_ref: str | None = None
+    covered_node_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class _PromptProjection:
+    rendered_prompt_bytes: int
+    essential_bytes: int
+    selected_evidence_bytes: int
+    candidates: tuple[dict[str, Any], ...]
+    replacements_by_kind: Mapping[str, tuple[_PromptReplacement, ...]]
+
+
+class _HeadingSection(TypedDict):
+    start: int
+    heading_end: int
+    end: int
+    level: int
+    title: str
 
 
 def enforce_continuation_budget(
@@ -37,37 +81,59 @@ def enforce_continuation_budget(
     provider_name: str,
     model_tier: ModelTier,
     model_override: str | None,
+    model_name: str | None = None,
     options: LLMInvocationOptions,
     env: Mapping[str, str] | None = None,
-) -> dict[str, Any] | None:
+) -> str:
     """Record and enforce the Rust-owned continuation budget decision."""
 
     runtime_env = env or os.environ
     if not _budget_required(runtime_env):
-        return None
+        return prompt
 
-    request = _budget_request(prompt, runtime_env)
+    projection = _prompt_projection(prompt)
+    request = _budget_request(
+        prompt,
+        runtime_env,
+        provider_name=provider_name,
+        model_tier=model_tier,
+        model_name=model_name or model_override,
+        options=options,
+        projection=projection,
+    )
     decision = _normalized_decision(plan_continuation_budget(request))
+    projected_prompt = _project_prompt(prompt, decision, projection)
     record = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "kind": "continuation_budget_preflight",
         "provider": provider_name,
         "model_tier": model_tier,
-        "model": model_override,
+        "model": model_name or model_override,
         "reasoning_effort": options.reasoning_effort,
         "request": request,
         "decision": decision,
+        "projected_prompt_bytes": _utf8_len(projected_prompt),
         "recorded_at_epoch": time.time(),
     }
+    projected_prompt_path = _persist_projected_prompt(
+        artifacts_dir,
+        projected_prompt,
+        original_prompt=prompt,
+        decision=decision,
+    )
+    if projected_prompt_path:
+        record["projected_prompt_path"] = projected_prompt_path
     decision_path = _persist_decision(artifacts_dir, record)
     _record_child_metadata(
         artifacts_dir,
         decision,
         decision_path=decision_path,
+        projected_prompt_bytes=_utf8_len(projected_prompt),
+        projected_prompt_path=projected_prompt_path,
     )
 
     if str(decision.get("kind") or "") != "refuse":
-        return decision
+        return projected_prompt
 
     message = _refusal_message(decision)
     _record_parent_refusal(
@@ -75,6 +141,11 @@ def enforce_continuation_budget(
         message,
         decision_path=decision_path,
         prompt_path=_prompt_path(artifacts_dir),
+    )
+    _record_delivery_refusal(
+        runtime_env,
+        message,
+        decision_path=decision_path,
     )
     raise LLMInvocationError(message)
 
@@ -86,67 +157,100 @@ def _budget_required(env: Mapping[str, str]) -> bool:
     )
 
 
-def _budget_request(prompt: str, env: Mapping[str, str]) -> dict[str, Any]:
+def _budget_request(
+    prompt: str,
+    env: Mapping[str, str],
+    *,
+    provider_name: str,
+    model_tier: ModelTier,
+    model_name: str | None,
+    options: LLMInvocationOptions,
+    projection: _PromptProjection | None = None,
+) -> dict[str, Any]:
     from sase.llm_provider.config import get_llm_provider_config
 
     raw_config = get_llm_provider_config()
     budget_config = raw_config.get("continuation_budget") if raw_config else None
     config = budget_config if isinstance(budget_config, Mapping) else {}
-    prompt_bytes = len(prompt.encode("utf-8", errors="replace"))
-    provider_budget: dict[str, Any] = {
+    layers = _config_layers(config, provider_name=provider_name, model_name=model_name)
+    prompt_projection = projection or _prompt_projection(prompt)
+    provider_budget = _provider_budget(
+        env,
+        provider_name=provider_name,
+        layers=layers,
+    )
+    request: dict[str, Any] = {
+        "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+        "rendered_prompt_bytes": prompt_projection.rendered_prompt_bytes,
+        "essential_bytes": prompt_projection.essential_bytes,
+        "selected_evidence_bytes": prompt_projection.selected_evidence_bytes,
+        "provider_budget": provider_budget,
+        "reduction_candidates": list(prompt_projection.candidates),
+        "provider": provider_name,
+        "model_tier": model_tier,
+        "model": model_name,
+        "reasoning_effort": options.reasoning_effort,
+    }
+    threshold = _int_setting("checkpoint_threshold_bytes", env, layers)
+    if threshold is not None:
+        request["checkpoint_threshold_bytes"] = threshold
+    return request
+
+
+def _provider_budget(
+    env: Mapping[str, str],
+    *,
+    provider_name: str,
+    layers: tuple[Mapping[str, object], ...],
+) -> dict[str, Any]:
+    instruction_reserve = (
+        _int_setting("instruction_reserve_bytes", env, layers, default=0) or 0
+    )
+    instruction_reserve = max(
+        instruction_reserve,
+        _PROVIDER_INSTRUCTION_RESERVE_BYTES.get(provider_name, 0),
+    )
+    return {
         "context_limit_bytes": _int_setting(
             "context_limit_bytes",
             env,
-            config,
+            layers,
             default=_DEFAULT_CONTEXT_LIMIT_BYTES,
         ),
         "transport_limit_bytes": _int_setting(
             "transport_limit_bytes",
             env,
-            config,
+            layers,
+            default=_PROVIDER_TRANSPORT_LIMIT_BYTES.get(provider_name),
         ),
-        "instruction_reserve_bytes": _int_setting(
-            "instruction_reserve_bytes",
-            env,
-            config,
-            default=0,
-        )
-        or 0,
+        "instruction_reserve_bytes": instruction_reserve,
         "tool_reserve_bytes": _int_setting(
             "tool_reserve_bytes",
             env,
-            config,
+            layers,
             default=0,
         )
         or 0,
         "output_reserve_bytes": _int_setting(
             "output_reserve_bytes",
             env,
-            config,
+            layers,
             default=0,
         )
         or 0,
         "reasoning_reserve_bytes": _int_setting(
             "reasoning_reserve_bytes",
             env,
-            config,
+            layers,
             default=0,
         )
         or 0,
-        "estimate_uncertain": True,
+        "estimate_uncertain": _bool_setting(
+            "estimate_uncertain",
+            layers,
+            default=True,
+        ),
     }
-    request: dict[str, Any] = {
-        "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
-        "rendered_prompt_bytes": prompt_bytes,
-        "essential_bytes": prompt_bytes,
-        "selected_evidence_bytes": 0,
-        "provider_budget": provider_budget,
-        "reduction_candidates": [],
-    }
-    threshold = _int_setting("checkpoint_threshold_bytes", env, config)
-    if threshold is not None:
-        request["checkpoint_threshold_bytes"] = threshold
-    return request
 
 
 def _normalized_decision(decision: Mapping[str, Any]) -> dict[str, Any]:
@@ -167,13 +271,16 @@ def _normalized_decision(decision: Mapping[str, Any]) -> dict[str, Any]:
 def _int_setting(
     key: str,
     env: Mapping[str, str],
-    config: Mapping[str, object],
+    config_layers: tuple[Mapping[str, object], ...],
     *,
     default: int | None = None,
 ) -> int | None:
     raw: object | None = env.get(_ENV_TO_CONFIG_KEY[key])
     if raw is None:
-        raw = config.get(key)
+        for config in reversed(config_layers):
+            if key in config:
+                raw = config.get(key)
+                break
     if raw is None or isinstance(raw, bool):
         return default
     if not isinstance(raw, (int, str)):
@@ -185,6 +292,289 @@ def _int_setting(
     except (TypeError, ValueError):
         return default
     return parsed if parsed > 0 else default
+
+
+def _bool_setting(
+    key: str,
+    config_layers: tuple[Mapping[str, object], ...],
+    *,
+    default: bool,
+) -> bool:
+    for config in reversed(config_layers):
+        if key not in config:
+            continue
+        value = config.get(key)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().casefold()
+            if lowered in {"1", "true", "yes", "on"}:
+                return True
+            if lowered in {"0", "false", "no", "off"}:
+                return False
+    return default
+
+
+def _config_layers(
+    config: Mapping[str, object],
+    *,
+    provider_name: str,
+    model_name: str | None,
+) -> tuple[Mapping[str, object], ...]:
+    layers: list[Mapping[str, object]] = [config]
+    providers = config.get("providers")
+    provider_config: Mapping[str, object] | None = None
+    if isinstance(providers, Mapping):
+        raw_provider = providers.get(provider_name)
+        if isinstance(raw_provider, Mapping):
+            provider_config = raw_provider
+            layers.append(provider_config)
+    if model_name and provider_config is not None:
+        models = provider_config.get("models")
+        if isinstance(models, Mapping):
+            raw_model = models.get(model_name)
+            if isinstance(raw_model, Mapping):
+                layers.append(raw_model)
+    return tuple(layers)
+
+
+def _prompt_projection(prompt: str) -> _PromptProjection:
+    replacements = _discover_replacements(prompt)
+    by_kind: dict[str, list[_PromptReplacement]] = {}
+    for replacement in replacements:
+        saved = _replacement_saved_bytes(prompt, replacement)
+        if saved <= 0:
+            continue
+        by_kind.setdefault(replacement.kind, []).append(replacement)
+
+    candidates: list[dict[str, Any]] = []
+    reducible_bytes = 0
+    selected_evidence_bytes = 0
+    replacements_by_kind: dict[str, tuple[_PromptReplacement, ...]] = {}
+    for kind, items in by_kind.items():
+        replacements_by_kind[kind] = tuple(items)
+        bytes_saved = sum(_replacement_saved_bytes(prompt, item) for item in items)
+        reducible_bytes += bytes_saved
+        if kind in {"old_raw_excerpts", "newest_diagnostics"}:
+            selected_evidence_bytes += bytes_saved
+        candidate: dict[str, Any] = {
+            "kind": kind,
+            "bytes": bytes_saved,
+        }
+        checkpoint_refs = [item.checkpoint_ref for item in items if item.checkpoint_ref]
+        if checkpoint_refs:
+            candidate["checkpoint_ref"] = checkpoint_refs[0]
+        covered = sorted(
+            {node_id for item in items for node_id in item.covered_node_ids if node_id}
+        )
+        if covered:
+            candidate["covered_node_ids"] = covered
+        candidates.append(candidate)
+
+    rendered_bytes = _utf8_len(prompt)
+    return _PromptProjection(
+        rendered_prompt_bytes=rendered_bytes,
+        essential_bytes=max(0, rendered_bytes - reducible_bytes),
+        selected_evidence_bytes=selected_evidence_bytes,
+        candidates=tuple(candidates),
+        replacements_by_kind=replacements_by_kind,
+    )
+
+
+def _discover_replacements(prompt: str) -> list[_PromptReplacement]:
+    replacements: list[_PromptReplacement] = []
+    headings = _heading_sections(prompt)
+    for section in headings:
+        title = section["title"].casefold()
+        level = section["level"]
+        if "selected diagnostics" in title:
+            replacements.append(
+                _section_replacement(
+                    prompt,
+                    section,
+                    kind="newest_diagnostics",
+                    detail="selected diagnostics",
+                    message=(
+                        "Selected diagnostics omitted by continuation budget; "
+                        "use the evidence refs and monitor retrieval command above."
+                    ),
+                )
+            )
+        elif (
+            "selected output" in title
+            or ("last " in title and "lines of output" in title)
+        ) and level >= 2:
+            replacements.append(
+                _section_replacement(
+                    prompt,
+                    section,
+                    kind="old_raw_excerpts",
+                    detail="raw output excerpt",
+                    message=(
+                        "Raw output excerpt omitted by continuation budget; "
+                        "use the retained log refs or monitor retrieval command above."
+                    ),
+                )
+            )
+    replacements.extend(_checkpoint_replacements(prompt))
+    return replacements
+
+
+def _section_replacement(
+    prompt: str,
+    section: _HeadingSection,
+    *,
+    kind: str,
+    detail: str,
+    message: str,
+) -> _PromptReplacement:
+    start = section["start"]
+    end = section["end"]
+    heading = prompt[start : section["heading_end"]].rstrip()
+    replacement = f"{heading}\n\n_{message}_\n"
+    return _PromptReplacement(
+        kind=kind,
+        start=start,
+        end=end,
+        replacement=replacement,
+        detail=detail,
+    )
+
+
+def _checkpoint_replacements(prompt: str) -> list[_PromptReplacement]:
+    blocks = list(_CONTINUATION_BLOCK_HEADING_RE.finditer(prompt))
+    replacements: list[_PromptReplacement] = []
+    for index, match in enumerate(blocks):
+        start = match.start()
+        end = blocks[index + 1].start() if index + 1 < len(blocks) else len(prompt)
+        block = prompt[start:end]
+        checkpoint = _CHECKPOINT_REF_RE.search(block)
+        if checkpoint is None:
+            continue
+        assistant = re.search(r"(?m)^### Assistant\s*$", block)
+        if assistant is None:
+            continue
+        assistant_start = start + assistant.start()
+        assistant_end = _next_heading_start(
+            prompt,
+            start + assistant.end(),
+            section_end=end,
+            max_level=3,
+        )
+        original = prompt[assistant_start:assistant_end]
+        replacement = (
+            "### Assistant\n\n"
+            "_Pre-checkpoint assistant transcript omitted by continuation "
+            "budget; the checkpoint in this block preserves the current "
+            "objective, constraints, findings, and remaining work._\n"
+        )
+        if _utf8_len(original) <= _utf8_len(replacement):
+            continue
+        node = _NODE_RE.search(block)
+        node_ids = (node.group("node"),) if node else ()
+        replacements.append(
+            _PromptReplacement(
+                kind="checkpoint",
+                start=assistant_start,
+                end=assistant_end,
+                replacement=replacement,
+                detail="checkpoint-covered assistant transcript",
+                checkpoint_ref=checkpoint.group("ref"),
+                covered_node_ids=node_ids,
+            )
+        )
+    return replacements
+
+
+def _heading_sections(prompt: str) -> list[_HeadingSection]:
+    matches = list(_HEADING_RE.finditer(prompt))
+    sections: list[_HeadingSection] = []
+    for index, match in enumerate(matches):
+        level = len(match.group("marks"))
+        end = len(prompt)
+        for following in matches[index + 1 :]:
+            if len(following.group("marks")) <= level:
+                end = following.start()
+                break
+        sections.append(
+            {
+                "start": match.start(),
+                "heading_end": match.end(),
+                "end": end,
+                "level": level,
+                "title": match.group("title"),
+            }
+        )
+    return sections
+
+
+def _next_heading_start(
+    prompt: str,
+    offset: int,
+    *,
+    section_end: int,
+    max_level: int,
+) -> int:
+    for match in _HEADING_RE.finditer(prompt, offset, section_end):
+        if len(match.group("marks")) <= max_level:
+            return match.start()
+    return section_end
+
+
+def _project_prompt(
+    prompt: str,
+    decision: Mapping[str, Any],
+    projection: _PromptProjection,
+) -> str:
+    if str(decision.get("kind") or "") != "compact":
+        return prompt
+    selected_kinds = [
+        str(item.get("kind"))
+        for item in decision.get("reductions", [])
+        if isinstance(item, Mapping) and item.get("kind")
+    ]
+    replacements: list[_PromptReplacement] = []
+    for kind in selected_kinds:
+        replacements.extend(projection.replacements_by_kind.get(kind, ()))
+    if not replacements:
+        return prompt
+    return _apply_replacements(prompt, replacements)
+
+
+def _apply_replacements(
+    prompt: str,
+    replacements: list[_PromptReplacement],
+) -> str:
+    selected: list[_PromptReplacement] = []
+    last_end = 0
+    for replacement in sorted(replacements, key=lambda item: (item.start, item.end)):
+        if replacement.start < last_end:
+            continue
+        selected.append(replacement)
+        last_end = replacement.end
+    parts: list[str] = []
+    cursor = 0
+    for replacement in selected:
+        parts.append(prompt[cursor : replacement.start])
+        parts.append(replacement.replacement)
+        cursor = replacement.end
+    parts.append(prompt[cursor:])
+    return "".join(parts)
+
+
+def _replacement_saved_bytes(
+    prompt: str,
+    replacement: _PromptReplacement,
+) -> int:
+    return max(
+        0,
+        _utf8_len(prompt[replacement.start : replacement.end])
+        - _utf8_len(replacement.replacement),
+    )
+
+
+def _utf8_len(text: str) -> int:
+    return len(text.encode("utf-8", errors="replace"))
 
 
 def _persist_decision(
@@ -212,11 +602,34 @@ def _persist_decision(
         return None
 
 
+def _persist_projected_prompt(
+    artifacts_dir: str | None,
+    prompt: str,
+    *,
+    original_prompt: str,
+    decision: Mapping[str, Any],
+) -> str | None:
+    if not artifacts_dir or prompt == original_prompt:
+        return None
+    if str(decision.get("kind") or "") != "compact":
+        return None
+    root = Path(artifacts_dir)
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        path = root / "continuation_budget_prompt.md"
+        path.write_text(prompt, encoding="utf-8")
+        return str(path)
+    except OSError:
+        return None
+
+
 def _record_child_metadata(
     artifacts_dir: str | None,
     decision: Mapping[str, Any],
     *,
     decision_path: str | None,
+    projected_prompt_bytes: int,
+    projected_prompt_path: str | None,
 ) -> None:
     if not artifacts_dir:
         return
@@ -229,6 +642,9 @@ def _record_child_metadata(
     }
     if decision_path:
         fields["continuation_budget_decision_path"] = decision_path
+    fields["continuation_budget_projected_prompt_bytes"] = projected_prompt_bytes
+    if projected_prompt_path:
+        fields["continuation_budget_projected_prompt_path"] = projected_prompt_path
     disposition = decision.get("disposition")
     if isinstance(disposition, str) and disposition:
         fields["continuation_budget_disposition"] = disposition
@@ -237,6 +653,62 @@ def _record_child_metadata(
 
         for key, value in fields.items():
             update_meta_field(artifacts_dir, key, value)
+    except Exception:
+        return
+
+
+def _record_delivery_refusal(
+    env: Mapping[str, str],
+    message: str,
+    *,
+    decision_path: str | None,
+) -> None:
+    try:
+        from sase.monitor.continuation_delivery import (
+            DELIVERY_ARTIFACTS_ENV,
+            DELIVERY_IDENTITY_ENV,
+            DELIVERY_KEY_ENV,
+        )
+        from sase.monitor.delivery import (
+            apply_delivery_transition,
+            load_delivery_record,
+        )
+    except Exception:
+        return
+    artifacts_dir = env.get(DELIVERY_ARTIFACTS_ENV)
+    raw_key = env.get(DELIVERY_KEY_ENV)
+    identity = env.get("SASE_AGENT_NAME") or env.get(DELIVERY_IDENTITY_ENV)
+    if not artifacts_dir or not raw_key:
+        return
+    try:
+        key_payload = json.loads(raw_key)
+    except ValueError:
+        return
+    if not isinstance(key_payload, Mapping):
+        return
+    try:
+        key = {
+            "monitor_id": str(key_payload["monitor_id"]),
+            "result_id": str(key_payload["result_id"]),
+            "branch": str(key_payload["branch"]),
+        }
+    except KeyError:
+        return
+    try:
+        record = load_delivery_record(artifacts_dir, key)
+        current = str(record.get("disposition") or "") if record else ""
+        target = "needs_attention" if current == "acknowledged" else "nonlaunchable"
+        reason = f"context_budget_exceeded: {message}"
+        if decision_path:
+            reason = f"{reason} (decision: {decision_path})"
+        apply_delivery_transition(
+            artifacts_dir,
+            key,
+            target,
+            selected_action="continue",
+            reason=reason,
+            reserved_identity=identity,
+        )
     except Exception:
         return
 

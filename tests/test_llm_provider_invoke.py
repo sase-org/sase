@@ -20,8 +20,10 @@ from sase.agent._family_attach_types import FAMILY_ATTACH_ENV
 from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.continuation_budget import (
     CONTINUATION_BUDGET_DECISION_FILENAME,
+    CONTINUATION_BUDGET_ENFORCE_ENV,
     MONITOR_CONTINUATION_ENV,
 )
+from sase.llm_provider.types import LLMInvocationOptions
 from sase.llm_provider.messages import AIMessage
 from sase.llm_provider.preprocessing import _PreprocessResult
 from sase.llm_provider.types import InvokeResult, LLMInvocationError
@@ -275,3 +277,100 @@ def test_monitor_continuation_budget_refusal_records_nonlaunchable(
     assert parent_meta["monitor_followup_prompt_path"] == str(
         artifacts / "agent_prompt.md"
     )
+
+
+def test_monitor_continuation_budget_compacts_raw_output_before_provider(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = tmp_path / "child"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="ok")
+    provider.resolve_model_name.return_value = "fake-model"
+    prompt = "\n".join(
+        [
+            "# Monitored command finished",
+            "",
+            "Protected objective stays visible.",
+            "",
+            "## Last 100 lines of output",
+            "",
+            "```text",
+            "RAW_SENTINEL " + ("x" * 900),
+            "```",
+            "",
+            "## Your next action",
+            "",
+            "Keep NEXT_SENTINEL and continue from the retained result.",
+        ]
+    )
+    monkeypatch.setenv(CONTINUATION_BUDGET_ENFORCE_ENV, "1")
+    monkeypatch.setenv("SASE_CONTINUATION_CONTEXT_LIMIT_BYTES", "420")
+
+    def passthrough_finalizers(**kwargs: object) -> InvokeResult:
+        result = kwargs["invoke_result"]
+        assert isinstance(result, InvokeResult)
+        return result
+
+    with (
+        patch("sase.llm_provider._invoke.get_provider", return_value=provider),
+        patch("sase.llm_provider._invoke.postprocess_success"),
+        patch("sase.finalizers.run_finalizers", side_effect=passthrough_finalizers),
+    ):
+        invoke_agent(
+            prompt,
+            agent_type="agent",
+            artifacts_dir=str(artifacts),
+            provider_name="fakey",
+            suppress_output=True,
+            skip_preprocessing=True,
+        )
+
+    submitted_prompt = provider.invoke.call_args.args[0]
+    assert "RAW_SENTINEL" not in submitted_prompt
+    assert "Raw output excerpt omitted by continuation budget" in submitted_prompt
+    assert "NEXT_SENTINEL" in submitted_prompt
+
+    decision_path = artifacts / CONTINUATION_BUDGET_DECISION_FILENAME
+    record = json.loads(decision_path.read_text(encoding="utf-8"))
+    assert record["decision"]["kind"] == "compact"
+    assert [item["kind"] for item in record["decision"]["reductions"]] == [
+        "old_raw_excerpts"
+    ]
+    assert (
+        record["request"]["essential_bytes"]
+        < record["request"]["rendered_prompt_bytes"]
+    )
+    projected_path = Path(record["projected_prompt_path"])
+    assert projected_path.read_text(encoding="utf-8") == submitted_prompt
+
+    child_meta = json.loads((artifacts / "agent_meta.json").read_text())
+    assert child_meta["continuation_budget_kind"] == "compact"
+    assert child_meta["continuation_budget_projected_prompt_path"] == str(
+        projected_path
+    )
+
+
+def test_continuation_budget_uses_provider_transport_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.llm_provider import continuation_budget as budget_module
+
+    monkeypatch.setattr(
+        "sase.llm_provider.config.get_llm_provider_config",
+        lambda: {"continuation_budget": {}},
+    )
+
+    request = budget_module._budget_request(
+        "small prompt",
+        {},
+        provider_name="agy",
+        model_tier="large",
+        model_name="gemini-3.7-flash-high",
+        options=LLMInvocationOptions(),
+    )
+
+    assert request["provider_budget"]["transport_limit_bytes"] == 120 * 1024
+    assert request["provider_budget"]["instruction_reserve_bytes"] >= 512

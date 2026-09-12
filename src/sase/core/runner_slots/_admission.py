@@ -23,6 +23,14 @@ DEFAULT_QUEUE_WEIGHT = 1.0
 _RUNNER_CAPACITY_HELPER_LIMIT = 1.0e300
 
 
+def _nonnegative_int_field(data: Mapping[str, Any], *keys: str) -> int | None:
+    for key in keys:
+        value = data.get(key)
+        if type(value) is int and value >= 0:
+            return value
+    return None
+
+
 def _family_shell_of_kind(
     meta: AgentMetaWire | None, kind: str
 ) -> FamilyShellWire | None:
@@ -598,12 +606,12 @@ def live_runner_slot_waiters(
             artifact_dir=str(waiter.get("artifact_dir") or ""),
             slot_requested_at=str(waiter.get("slot_requested_at") or ""),
             timestamp=str(waiter.get("timestamp") or ""),
-            threshold=(
-                int(waiter["wait_runners"])
-                if type(waiter.get("wait_runners")) is int
-                and waiter["wait_runners"] >= 0
-                else 0
-            ),
+            threshold=_nonnegative_int_field(
+                waiter,
+                "wait_runners",
+                "queue_capacity",
+            )
+            or 0,
             priority=normalize_wait_priority(waiter.get("priority")),
             requested_weight=float(waiter.get("requested_weight") or 1.0),
             eligible=waiter.get("eligible") is True,

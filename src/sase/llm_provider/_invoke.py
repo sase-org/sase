@@ -322,24 +322,45 @@ def invoke_agent(
         )
 
         adopt_ordinary_continuation_delivery()
-        enforce_continuation_budget(
+        budget_model_name = model_override
+        if budget_model_name is None:
+            try:
+                budget_model_name = provider.resolve_model_name(model_tier)
+            except Exception:
+                budget_model_name = None
+        if not isinstance(budget_model_name, str):
+            budget_model_name = None
+        query = enforce_continuation_budget(
             query,
             artifacts_dir=artifacts_dir,
             provider_name=execution_provider_label,
             model_tier=model_tier,
             model_override=model_override,
+            model_name=budget_model_name,
             options=invocation_options,
         )
         if context.metadata_model is None:
-            metadata_provider = provider
+            metadata_model = budget_model_name
             if execution_provider_label != requested_provider_label:
                 metadata_provider = get_provider(
                     requested_provider_label,
                     routing_context=routing_context,
                 )
-            resolved_model = metadata_provider.resolve_model_name(model_tier)
-            if resolved_model and resolved_model != "unknown":
-                context.metadata_model = resolved_model
+                try:
+                    metadata_model = metadata_provider.resolve_model_name(model_tier)
+                except Exception:
+                    metadata_model = None
+            elif metadata_model is None:
+                try:
+                    metadata_model = provider.resolve_model_name(model_tier)
+                except Exception:
+                    metadata_model = None
+            if (
+                isinstance(metadata_model, str)
+                and metadata_model
+                and metadata_model != "unknown"
+            ):
+                context.metadata_model = metadata_model
         invoke_result = provider.invoke(
             query,
             model_tier=model_tier,

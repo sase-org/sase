@@ -16,7 +16,9 @@ import sase.procs.spawn as spawn_module
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.continuation_facade import transition_continuation_delivery
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
+from sase.llm_provider.continuation_budget import MONITOR_CONTINUATION_ENV
 from sase.llm_provider.types import InvokeResult
+from sase.llm_provider.types import LLMInvocationError
 from sase.monitor.continuation_admission import _continuation_admission_dir
 from sase.monitor.continuation_delivery import (
     DELIVERY_ARTIFACTS_ENV,
@@ -336,6 +338,62 @@ def test_invoke_adopts_before_fake_provider(
     assert record is not None
     assert record["disposition"] == "acknowledged"
     assert record["acknowledged_by"] == "acme--1"
+
+
+def test_budget_refusal_marks_adopted_delivery_needs_attention(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.llm_provider._invoke import invoke_agent
+
+    artifacts = tmp_path / "child"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
+    parent = tmp_path / "monitor"
+    parent.mkdir()
+    claim = claim_ordinary_continuation_dispatch(
+        str(parent),
+        monitor_id="monitor-1",
+        result_id="result-1",
+        branch="failed",
+        selected_action="continue",
+        reserved_identity="acme--1",
+    )
+    monkeypatch.setenv(DELIVERY_ARTIFACTS_ENV, str(parent))
+    monkeypatch.setenv(DELIVERY_KEY_ENV, json.dumps(claim.key, sort_keys=True))
+    monkeypatch.setenv(DELIVERY_IDENTITY_ENV, "acme--1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme--1")
+    monkeypatch.setenv(MONITOR_CONTINUATION_ENV, "1")
+    monkeypatch.setenv("SASE_CONTINUATION_CONTEXT_LIMIT_BYTES", "32")
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="should not run")
+    provider.resolve_model_name.return_value = "fake-model"
+
+    with (
+        pytest.raises(LLMInvocationError, match="Continuation context budget exceeded"),
+        pytest.MonkeyPatch.context() as patch,
+    ):
+        patch.setattr(
+            "sase.llm_provider._invoke.get_provider", lambda *a, **k: provider
+        )
+        patch.setattr("sase.llm_provider._invoke.postprocess_error", lambda **k: None)
+        patch.setattr(
+            "sase.llm_provider._invoke.handle_possible_usage_limit",
+            lambda **k: None,
+        )
+        invoke_agent(
+            "x" * 100,
+            agent_type="agent",
+            artifacts_dir=str(artifacts),
+            provider_name="fakey",
+            suppress_output=True,
+            skip_preprocessing=True,
+        )
+
+    provider.invoke.assert_not_called()
+    record = load_delivery_record(parent, claim.key)
+    assert record is not None
+    assert record["disposition"] == "needs_attention"
+    assert "context_budget_exceeded" in record["disposition_reason"]
 
 
 def test_wrong_receiver_cannot_transition_delivery() -> None:

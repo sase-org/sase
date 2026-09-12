@@ -3301,6 +3301,140 @@
             }
           }
         },
+        "continuation_budget": {
+          "type": "object",
+          "description": "Continuation preflight budget settings for monitor successor prompts. Environment variables documented in docs/configuration.md override these values.",
+          "additionalProperties": false,
+          "properties": {
+            "context_limit_bytes": {
+              "type": "integer",
+              "description": "Maximum provider context budget, in UTF-8 bytes, before reserves are subtracted.",
+              "default": 800000,
+              "minimum": 1
+            },
+            "transport_limit_bytes": {
+              "type": "integer",
+              "description": "Maximum prompt bytes that can safely pass through the provider transport.",
+              "minimum": 1
+            },
+            "checkpoint_threshold_bytes": {
+              "type": "integer",
+              "description": "Prompt-size threshold at which checkpoint-backed reductions are considered.",
+              "minimum": 1
+            },
+            "instruction_reserve_bytes": {
+              "type": "integer",
+              "description": "Bytes reserved for provider-side system instructions or command framing.",
+              "default": 0,
+              "minimum": 0
+            },
+            "tool_reserve_bytes": {
+              "type": "integer",
+              "description": "Bytes reserved for provider tool definitions or tool-call framing.",
+              "default": 0,
+              "minimum": 0
+            },
+            "output_reserve_bytes": {
+              "type": "integer",
+              "description": "Bytes reserved for the model's response.",
+              "default": 0,
+              "minimum": 0
+            },
+            "reasoning_reserve_bytes": {
+              "type": "integer",
+              "description": "Bytes reserved for hidden reasoning or provider-specific overhead.",
+              "default": 0,
+              "minimum": 0
+            },
+            "estimate_uncertain": {
+              "type": "boolean",
+              "description": "Whether the budget request marks byte estimates as uncertain when exact provider accounting is unavailable.",
+              "default": true
+            },
+            "providers": {
+              "type": "object",
+              "description": "Per-provider continuation budget overrides. Keys are registered provider names.",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "context_limit_bytes": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "transport_limit_bytes": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "checkpoint_threshold_bytes": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "instruction_reserve_bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "tool_reserve_bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "output_reserve_bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "reasoning_reserve_bytes": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "estimate_uncertain": {
+                    "type": "boolean"
+                  },
+                  "models": {
+                    "type": "object",
+                    "description": "Per-model continuation budget overrides for this provider. Keys are provider-resolved model names.",
+                    "additionalProperties": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "context_limit_bytes": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "transport_limit_bytes": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "checkpoint_threshold_bytes": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "instruction_reserve_bytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "tool_reserve_bytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "output_reserve_bytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "reasoning_reserve_bytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "estimate_uncertain": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "retry": {
           "type": "object",
           "description": "Per-provider retry configuration. Keys are provider names (e.g., 'agy', 'claude', 'codex').",
