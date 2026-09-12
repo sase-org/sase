@@ -51,13 +51,14 @@ grammar.
 
 `%wait` covers dependencies and time floors only; `runners=`/`priority=` permanently
 moved to `%queue`/`%q` and raise a migration error on `%wait`. Authored `runners=` on
-`%queue` is also a migration error naming `capacity=`. `%queue`/`%q` accept a
-non-negative positional `capacity` (colon or parenthesized) plus parenthesized
+`%queue` is also a migration error naming `capacity=`. `%queue`/`%q` accept a positive
+positional `capacity` (colon or parenthesized) plus parenthesized
 `capacity=`/`priority=`/`p=`/`weight=`/`w=`; `p` canonicalizes to `priority` and `w` to
-`weight`. Capacity is a weighted-load threshold: occupied load must be at most `N`
-before admission, excluding the candidate's weight. The global `max_running_agents`
-budget still applies. `capacity=0` is a true drain. Each canonical field may occur once
-per launch unit across occurrences/aliases; disjoint fields compose, e.g.
+`weight`. Capacity is this launch's admission budget: occupied load plus the candidate's
+weight must fit within authored positive integer `N`, replacing the global
+`max_running_agents` limit for that launch only. `%q:1` is the run-alone barrier for a
+default-weight launch; authored `capacity=0` is rejected. Each canonical field may occur
+once per launch unit across occurrences/aliases; disjoint fields compose, e.g.
 `%w(builder, time=5m) %q(1, p=20)`. Bare/empty `%q` never acquires `%wait`'s
 previous-agent meaning.
 

@@ -3013,7 +3013,7 @@ requires a case-sensitive `name_prefix` and checks canonical clan metadata for a
 agents, including waiting members; it never infers clans from dotted names.
 `agent_runners.max` defaults to `0` and inhibits while more than that many participating
 agent lanes are occupied, a participating-lane count distinct from the weighted
-`%queue(capacity=N)` threshold. Weighted capacity is tracked separately by the
+`%queue(capacity=N)` admission budget. Weighted capacity is tracked separately by the
 runner-capacity snapshot and ACE header. A `STARTING` agent has not yet been admitted
 and does not count; an agent parked on a question has yielded its capacity and does not
 count. `trigger` accepts `always`, `git.commits_since`, or `fs`; the git provider
@@ -3509,8 +3509,10 @@ previous value, expiry is enforced at its deadline, and a persistent edit leaves
 active override in force. Lowering the effective value is non-preemptive, so existing
 agents continue and new launches wait for occupied capacity to drain. Parked waiters and
 question continuations reread the effective cap on each normal poll. An explicit
-`%queue(capacity=N)` keeps its own weighted-load threshold, but it cannot bypass the
-global capacity budget.
+`%queue(capacity=N)` uses that positive-integer value as the launch's own admission
+budget, replacing the global budget for that launch only. Once admitted, the launch
+holds an ordinary weighted claim, so occupied capacity can honestly exceed the global
+budget until work drains.
 
 When upgrading from an unweighted scheduler build, restart ACE and AXE and let already
 running agent processes finish or relaunch them under the new binary. Legacy records
@@ -5317,7 +5319,7 @@ once. Removal is irreversible.
 | --------------------- | ---------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
 | `targets`             | bead IDs or plan paths | (required) | One or more epic/task beads or validated epic plan files, processed in order until the first error |
 | `-a, --artifacts-dir` | directory              | -          | Back-fill planner artifacts after each approved epic; plan-file targets only                       |
-| `-c, --capacity`      | non-negative integer   | omitted    | Epic-only max already-running weighted load before admission; `0` waits for a drain                |
+| `-c, --capacity`      | positive integer       | omitted    | Epic-only per-launch capacity budget; `1` is the run-alone barrier for default-weight launches     |
 | `-C, --cl-name`       | Patch name             | -          | Approved epic Patch name applied per plan-file target                                              |
 | `-n, --dry-run`       | flag                   | -          | Preview the epic wave plan or task prompt without mutating files, beads, or agents                 |
 | `-j, --json`          | flag                   | -          | Print one result object per processed target as JSON Lines and imply `--yes-to-all`                |

@@ -1577,20 +1577,20 @@ git and a locally-missing ID can still be valid upstream.
 Behavior depends on the agent's status:
 
 - **WAITING or QUEUED agent**: Edit dependency names, bead gates, a time floor, the
-  weighted-load `capacity` threshold, or the runner-slot `priority`. A
-  runner-slot-parked agent applies a capacity- or priority-only edit live on its next
-  poll; changing earlier wait stages restarts the agent. Clearing an explicit capacity
-  threshold returns it to the global `max_running_agents` cap rather than bypassing that
-  cap.
-- **RUNNING agent**: Enter a dependency, bead gate, time floor, capacity threshold, or
+  per-launch `capacity` budget, or the runner-slot `priority`. A runner-slot-parked
+  agent applies a capacity- or priority-only edit live on its next poll; changing
+  earlier wait stages restarts the agent. Clearing an explicit capacity budget returns
+  that launch to the current global `max_running_agents` budget.
+- **RUNNING agent**: Enter a dependency, bead gate, time floor, capacity budget, or
   priority to kill and restart the current agent with canonical `%wait(...)` /
   `%queue(...)` directives.
 
-The **Capacity** field is an admission threshold against already occupied weighted load,
-not a count of individual shells. A serial family — including its monitor and `--next`
-follow-up — still occupies one claim of its family weight, so that weight still counts
-against this threshold. Only a root or a live parallel family member waits here; a
-serial family member rides the family's slot and never parks.
+The **Capacity** field is this launch's capacity budget, replacing the current global
+`max_running_agents` budget for its own admission decision. It is not a count of
+individual shells. A serial family — including its monitor and `--next` follow-up —
+still occupies one claim of its family weight, so that weight still counts against this
+budget. Only a root or a live parallel family member waits here; a serial family member
+rides the family's slot and never parks.
 
 Priority must be a non-negative integer and defaults to `10`; lower values are admitted
 first. See [Runner slot waits](troubleshooting/runner-slots.md) for how priority
@@ -2138,28 +2138,28 @@ scan has loaded, avoiding a misleading zero-agent count. Each TUI launch starts 
 by-project grouping; cycling only changes the current session.
 
 **Queued** holds `QUEUED` agents that have cleared every dependency, bead, and time wait
-and need only runner capacity or an authored `%queue(capacity=N)` weighted-load
-threshold. A queued row renders as `QUEUED #3/12`; an explicit capacity threshold keeps
-its arrow qualifier, such as `QUEUED #4/12 ▶7→0 p20`, so a drain barrier cannot be
-mistaken for a fraction. Non-default queue weights render as the same quiet `wN` badge
-used on running rows and queue-ladder entries. Implicit-cap rows omit the repeated
-capacity-threshold suffix. **Waiting** holds genuinely blocked but self-progressing
-agents — `WAITING` with a time wait (`%wait(time=5m)`, `%wait(time=1430)`), a non-empty
-`waiting_for` dependency, or a bead wait. A compact `WAITING` row summarizes named waits
-as one sequence of independent tokens: agent counts keep the established status glyphs
-(`✗1 ▶1 ✓1 ?1`), while bead counts keep the canonical Beads-tab status glyph (`○` open,
-`◐` in progress, `●` closed). When a bead status matches a present agent bucket, the
-bead token follows that agent token, for example `WAITING ▶1 ◐2` or `WAITING ✓1 ●1`;
-unmatched bead tokens trail in canonical bead order. Zero entries are omitted. When a
-row waits on exactly one bead and has no agent, name, or group wait dependency, ACE
-shows that bead's ID instead of a count. The ID has no prefix until status resolution;
-afterward it is prefixed by the bead's status glyph (or `?` for an unknown status).
-Multiple or mixed waits keep the counts. Unknown agents and unknown beads both render as
-`?N`; when both are present they appear as adjacent independent counts, as in
-`WAITING ?1 ?2`. These tokens sit directly after `WAITING` and before a reserved-tribe
-`!`, duration, or countdown annotation. They are not the trailing gold `◆` linked-bead
-badge that marks an agent launched by `sase bead work`. **Stopped** keeps the strict
-"you need to act" semantics for plan approval, questions, and workflow input.
+and need only runner capacity under their current admission budget. A queued row renders
+as `QUEUED #3/12`; authored capacity renders as a quiet `cN` badge beside the existing
+`wN` weight badge, and turns gold when the launch's budget exceeds the current effective
+global limit. Non-default queue weights render as the same quiet `wN` badge used on
+running rows and queue-ladder entries. **Waiting** holds genuinely blocked but
+self-progressing agents — `WAITING` with a time wait (`%wait(time=5m)`,
+`%wait(time=1430)`), a non-empty `waiting_for` dependency, or a bead wait. A compact
+`WAITING` row summarizes named waits as one sequence of independent tokens: agent counts
+keep the established status glyphs (`✗1 ▶1 ✓1 ?1`), while bead counts keep the canonical
+Beads-tab status glyph (`○` open, `◐` in progress, `●` closed). When a bead status
+matches a present agent bucket, the bead token follows that agent token, for example
+`WAITING ▶1 ◐2` or `WAITING ✓1 ●1`; unmatched bead tokens trail in canonical bead order.
+Zero entries are omitted. When a row waits on exactly one bead and has no agent, name,
+or group wait dependency, ACE shows that bead's ID instead of a count. The ID has no
+prefix until status resolution; afterward it is prefixed by the bead's status glyph (or
+`?` for an unknown status). Multiple or mixed waits keep the counts. Unknown agents and
+unknown beads both render as `?N`; when both are present they appear as adjacent
+independent counts, as in `WAITING ?1 ?2`. These tokens sit directly after `WAITING` and
+before a reserved-tribe `!`, duration, or countdown annotation. They are not the
+trailing gold `◆` linked-bead badge that marks an agent launched by `sase bead work`.
+**Stopped** keeps the strict "you need to act" semantics for plan approval, questions,
+and workflow input.
 
 ### Agent Row Glyphs
 
@@ -3546,9 +3546,10 @@ persistent edit does not clear a live temporary override. Lowering the effective
 never stops an already-running agent: occupied capacity may temporarily exceed the cap,
 and new work waits until enough capacity drains. Raising the cap lets eligible parked
 agents advance through the existing priority/FIFO gate on their next poll. Launches with
-an explicit `%queue(capacity=N)` retain that additional weighted-load threshold, but it
-cannot bypass the global capacity budget. Question continuations reacquire against the
-current effective global cap after their gate shell has released capacity.
+an explicit `%queue(capacity=N)` use that positive-integer budget for their own
+admission decision, so they can intentionally start above the global budget while still
+holding an ordinary weighted claim once admitted. Question continuations reacquire
+against the current effective global cap after their gate shell has released capacity.
 
 ### Provider routing controls
 
@@ -4794,12 +4795,12 @@ cursor.
   status (`▶1 ◐2`, `✓1 ●1`); unmatched bead tokens trail in bead order. Unknown targets
   can render as adjacent independent counts (`?1 ?2`). Timed-only and capacity-only
   waits do not receive those markers. Timed waits add compact duration, target time, and
-  countdown text when available. An explicit capacity threshold on a `QUEUED` row shows
-  the live occupied weighted load, threshold, and its `queue #N of M` capacity-aware
-  display rank; `capacity=0` is labeled as a drain barrier. A `QUEUED` detail uses a
-  separate `Queue:` line led by its rank and elapsed time since `slot_requested_at`,
-  followed by cap context. It deliberately suppresses the marker's stale dependency,
-  bead, and time-wait fields.
+  countdown text when available. An authored capacity on a `QUEUED` row shows as the
+  same `cN` badge used elsewhere, and its detail context reports occupied capacity
+  against that row's own admission budget. A `QUEUED` detail uses a separate `Queue:`
+  line led by its rank and elapsed time since `slot_requested_at`, followed by cap
+  context. It deliberately suppresses the marker's stale dependency, bead, and time-wait
+  fields.
 - **OUTPUT VARIABLES**: Small JSON-shaped values written by the selected agent family
   with `sase var set`. Strings, numbers, booleans, null, lists, and nested maps retain
   their types. A single contributing agent renders as a flat sorted key/value block;
