@@ -9,7 +9,6 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents import _fleet as fleet_mod
-from sase.ace.tui.models.fleet_agents import FleetRowsProjection
 from sase.dispatch.federation import FederationConfig, FederationWorkerSettings
 from tests.ace.tui.fleet_fixture import (
     OfflineFleetFacade,
@@ -41,6 +40,7 @@ def _patch_fleet_refresh(
     facade: OfflineFleetFacade | None = None,
     config_error: str | None = None,
 ) -> None:
+    monkeypatch.setattr(fleet_mod, "get_machine_name", lambda: "athena")
     if config_error is None:
         monkeypatch.setattr(
             fleet_mod,
@@ -112,6 +112,18 @@ def _fleet_visual_responses() -> Mapping[str, Any]:
     )
     cached["connection_health"] = "offline"
     cached["freshness"] = "stale"
+    mac_host = fleet_host_response(
+        alias="mac",
+        installation_id=mac_installation,
+        summaries=(cached,),
+        freshness="cached 12m",
+        connection_health="offline",
+        observed_at_unix=1_783_076_400.0,
+    )["hosts"][0]
+    # Viewer freshness classifies cached copies from age_seconds; without
+    # it the row renders as "unknown" instead of the fixture's stale cache.
+    mac_host["cached"] = True
+    mac_host["age_seconds"] = 720.0
     summary_response = fleet_multi_host_response(
         fleet_host_response(
             alias="apollo",
@@ -120,14 +132,7 @@ def _fleet_visual_responses() -> Mapping[str, Any]:
             freshness="fresh",
             connection_health="online",
         )["hosts"][0],
-        fleet_host_response(
-            alias="mac",
-            installation_id=mac_installation,
-            summaries=(cached,),
-            freshness="cached 12m",
-            connection_health="offline",
-            observed_at_unix=1_783_076_400.0,
-        )["hosts"][0],
+        mac_host,
         configured_hosts=2,
         partial=True,
         diagnostics=(
@@ -156,13 +161,14 @@ async def test_agents_fleet_followed_partial_offline_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents(page)
-        await _show_fleet(page, expected_count=3)
+        # Unified list concatenates 3 local visual fixtures with 3 fleet rows.
+        await _show_fleet(page, expected_count=6)
         await wait_for_visual_idle(page)
 
         assert facade.calls[:2] == ["summary", "catalog"]
         assert_page_svg_contains(page, "apollo")
         assert_page_svg_contains(page, "mac")
-        assert_page_svg_contains(page, "partial")
+        assert_page_svg_contains(page, "2 machines")
         assert_page_svg_contains(page, "offline")
         assert_page_svg_contains(page, "stale")
         ace_png_visual.assert_page_png(
@@ -186,7 +192,7 @@ async def test_agents_fleet_keyboard_focus_and_narrow_png_snapshot(
 
     async with AcePage(query='"visual"', patches=patches(), size=(82, 28)) as page:
         await _open_agents(page)
-        await _show_fleet(page, expected_count=3)
+        await _show_fleet(page, expected_count=6)
         await wait_for_visual_idle(page)
 
         assert page.app.current_agents_subtab == "focus"
@@ -217,7 +223,8 @@ async def test_agents_fleet_state_strip_png_snapshots(
         await wait_for_visual_idle(page)
 
         assert not page.query_one_widget("#agents-view").has_class("-onboarding-active")
-        assert_page_svg_contains(page, "0 results")
+        assert_page_svg_contains(page, "here: athena")
+        assert_page_svg_contains(page, "0 active")
         ace_png_visual.assert_page_png(
             page,
             "agents_fleet_loaded_zero_results_120x40",
@@ -227,7 +234,7 @@ async def test_agents_fleet_state_strip_png_snapshots(
         page.app._agents_fleet_loading = True
         page.app._update_agents_header()
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "loading fleet")
+        assert_page_svg_contains(page, "loading machines")
         ace_png_visual.assert_page_png(
             page,
             "agents_fleet_loading_120x40",
