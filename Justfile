@@ -981,18 +981,22 @@ rust-dev-install VENV=venv_dir_abs: _venv
         VIRTUAL_ENV="{{ VENV }}" \
         PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 \
         CARGO_TARGET_DIR="$py_target_dir" \
+        CARGO_INCREMENTAL=0 \
         CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
         "{{ VENV }}/bin/maturin" develop --profile "$profile" && \
-    "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/purge_sase_core_rs_extensions" --exclude-newer-than "$marker"
+    "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/purge_sase_core_rs_extensions" --exclude-newer-than "$marker" && \
+    rm -rf "$py_target_dir/$profile/incremental"
     @sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     lsp_target_dir="$sase_core_abs/target/uv-tool-lsp"; \
     profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
     cd "$sase_core_abs" && \
         CARGO_TARGET_DIR="$lsp_target_dir" \
+        CARGO_INCREMENTAL=0 \
         CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
-        cargo build --profile "$profile" -p sase_xprompt_lsp
+        cargo build --profile "$profile" -p sase_xprompt_lsp && \
+    rm -rf "$lsp_target_dir/$profile/incremental"
     @dest="{{ VENV }}/bin/sase-xprompt-lsp"; \
     sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
@@ -1039,9 +1043,11 @@ rust-lsp-install VENV=venv_dir_abs: _venv
     profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
     cd "$sase_core_abs" && \
         CARGO_TARGET_DIR="$lsp_target_dir" \
+        CARGO_INCREMENTAL=0 \
         CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
-        cargo build --profile "$profile" -p sase_xprompt_lsp
+        cargo build --profile "$profile" -p sase_xprompt_lsp && \
+    rm -rf "$lsp_target_dir/$profile/incremental"
     @dest="{{ VENV }}/bin/sase-xprompt-lsp"; \
     sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \

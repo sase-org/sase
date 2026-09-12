@@ -376,9 +376,11 @@ parity tests with a confusing completion diff. Re-running the target after a
 
 Editable `sase update` uses `just rust-dev-install-uv-tool` instead. It builds with the
 `dev-update` Cargo profile from `sase-core`, which inherits `release` but disables LTO,
-uses 16 codegen units, and enables incremental compilation so a human-triggered update
-does not pay the published-wheel optimization cost. Set `SASE_RUST_DEV_PROFILE=release`
-to force the published release profile for one update without editing the Justfile.
+uses 16 codegen units, and disables incremental compilation so repeated updates do not
+leave unbounded `incremental/` trees under the shared target roots. The Justfile also
+sets `CARGO_INCREMENTAL=0` on those dev-update build commands so older `sase-core`
+checkouts keep the same bounded-disk behavior. Set `SASE_RUST_DEV_PROFILE=release` to
+force the published release profile for one update without editing the Justfile.
 
 A measured feature-unified
 `cargo build --release -p sase_core_py -p sase_xprompt_lsp --features sase_core_py/extension-module`
@@ -387,8 +389,8 @@ still left `maturin develop --release` rebuilding the PyO3 crate through maturin
 fast-update plan: separate target directories for the Python extension and LSP builds.
 
 ```bash
-CARGO_TARGET_DIR=../sase-core/target/uv-tool-py maturin develop --profile ${SASE_RUST_DEV_PROFILE:-dev-update}
-CARGO_TARGET_DIR=../sase-core/target/uv-tool-lsp cargo build --profile ${SASE_RUST_DEV_PROFILE:-dev-update} -p sase_xprompt_lsp
+CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=../sase-core/target/uv-tool-py maturin develop --profile ${SASE_RUST_DEV_PROFILE:-dev-update}
+CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=../sase-core/target/uv-tool-lsp cargo build --profile ${SASE_RUST_DEV_PROFILE:-dev-update} -p sase_xprompt_lsp
 ```
 
 This does not deduplicate the first compile after `cargo clean`, but it prevents the two
@@ -399,6 +401,15 @@ uv-tool venv with the same atomic temp-file install used by `just rust-lsp-insta
 older separate `rust-install*` and `rust-lsp-install*` targets remain available for
 direct maintenance, `just install`, and CI paths that intentionally exercise the
 published release profile separately.
+
+Launched agents receive `TMPDIR`/`TMP`/`TEMP` and `CARGO_TARGET_DIR` under SASE's
+managed temp root for each run. Agent code and ad hoc commands should use that exported
+`CARGO_TARGET_DIR`; do not invent a target directory under `~/.cache`, `~/Sync`, or
+`/var/tmp`, because an invented root has no owner and no retention policy. The
+repo-owned exceptions are the two Justfile roots above: `../sase-core/target/uv-tool-py`
+for `sase_core_rs` and `../sase-core/target/uv-tool-lsp` for `sase-xprompt-lsp`. Those
+are shared across workspaces on purpose, visible to disk tooling, and safe to prune at
+the `incremental/` layer while preserving `deps/`.
 
 ### Required Extension And Cleanup Compatibility Exception
 

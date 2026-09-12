@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.agent.launcher import spawn_agent_subprocess
+from sase.agent.launch_spawn import _managed_agent_scratch_env
 from sase.axe.chop_agents import (
     ENV_CHOP_LUMBERJACK,
     ENV_CHOP_NAME,
@@ -90,6 +91,28 @@ def _fake_spawn_success(
     assert env["SASE_HOME"]
     assert "PYTEST_CURRENT_TEST" in env
     return 4321
+
+
+def test_managed_agent_scratch_env_roots_cargo_target_under_managed_tmp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _redirect_managed_tmpdir(monkeypatch, tmp_path / "tmp")
+
+    env = _managed_agent_scratch_env(
+        safe_name="proj",
+        workspace_num=3,
+        timestamp="260101_120000",
+    )
+
+    scratch_key = "proj-ws3-260101_120000"
+    assert env["CARGO_TARGET_DIR"] == str(
+        tmp_path / "tmp" / "cargo-targets" / scratch_key
+    )
+    assert env["TMPDIR"] == str(tmp_path / "tmp" / "agent-tmp" / scratch_key)
+    assert env["TMP"] == env["TMPDIR"]
+    assert env["TEMP"] == env["TMPDIR"]
+    assert Path(env["CARGO_TARGET_DIR"]).is_dir()
 
 
 @patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))

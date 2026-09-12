@@ -343,6 +343,14 @@ def test_rust_install_recipes_skip_refresh_helper_when_stale_core_is_allowed(
     assert "maturin" in output
 
 
+def test_rust_dev_install_disables_cargo_incremental_cache() -> None:
+    output = _dry_run("rust-dev-install", "/tmp/fake-venv")
+
+    assert output.count("CARGO_INCREMENTAL=0") >= 2
+    assert output.count('rm -rf "$py_target_dir/$profile/incremental"') == 1
+    assert output.count('rm -rf "$lsp_target_dir/$profile/incremental"') == 1
+
+
 def test_rust_install_also_refreshes_the_xprompt_lsp_binary() -> None:
     """`just install` must never leave a stale `sase-xprompt-lsp` behind.
 
