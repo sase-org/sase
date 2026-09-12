@@ -690,6 +690,19 @@ project/config stores. Treat zero mounted concrete panes and comparable results 
 fixture sizes as the hard acceptance criteria; use the timing table for before/after
 comparison rather than adding a unit-test wall-clock threshold.
 
+For the `sase-zu` Agents-tab load-tiering path, use the source/index oracle benchmark:
+
+```bash
+just bench-agent-load-tiering
+```
+
+It builds a temporary synthetic `SASE_HOME` with about 13,000 artifact directories by
+default, rebuilds the agent artifact index once, then compares authoritative source-scan
+rows with bounded and full-history index rows through the same Agents-tab query
+evaluator. The report includes p50/p95/max wall time for `source_scan`, `index_bounded`,
+and `index_full_history`; pass `--artifact-count`, `--runs`, `--warmup`, and repeated
+`--query` flags while iterating.
+
 Run via pytest:
 
 ```bash

@@ -100,10 +100,10 @@ def _candidate_filter_for_expr(expr: QueryExpr) -> CandidateFilterWire | None:
             return None
         return {"kind": "any", "filters": [f for f in filters if f is not None]}
     if isinstance(expr, NotExpr):
-        inner = _candidate_filter_for_expr(expr.operand)
-        if inner is None:
-            return None
-        return {"kind": "not", "filter": inner}
+        # Live filtering preserves matched containers and their descendants. A
+        # negated record predicate can drop those descendants before tree
+        # projection knows they are needed.
+        return None
     if isinstance(expr, StringMatch):
         return None
     return None

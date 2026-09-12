@@ -354,6 +354,8 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-zs.6(GhCommandResult)' \
         --epic-symbol 'sase-zs.6(GhSubprocessRunner)' \
         --epic-symbol 'sase-zs.6(run_gh)' \
+        --epic-symbol 'sase-zs.6(classify_failure_retryability)' \
+        --epic-symbol 'sase-zs.6(is_retryable_failure)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
@@ -1141,6 +1143,10 @@ bench-query *args: _setup
 # backend against.
 bench-agent-scan *args: _setup
     {{ venv_bin }}/python tests/perf/bench_agent_scan.py {{ args }}
+
+# Run the Agents-tab load-tiering oracle and archive-scale benchmark.
+bench-agent-load-tiering *args: _setup
+    {{ venv_bin }}/python tests/perf/bench_agent_load_tiering.py {{ args }}
 
 # Run the Python agent-launch benchmark. Uses fake subprocesses and temp
 # ProjectSpec files so launch planning/spawn baselines do not start LLM CLIs.

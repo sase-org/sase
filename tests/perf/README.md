@@ -208,3 +208,18 @@ For revive modal checks, run the same process and time
 `__c{idx}` child bundles. For index work, capture full rebuild wall time and a second
 query immediately after rebuild so the cold rebuild and warm lookup costs are visible
 separately.
+
+## Agent Load Tiering
+
+Measure the `sase-zu` Agents-tab load paths against a synthetic artifact archive:
+
+```bash
+just bench-agent-load-tiering
+just bench-agent-load-tiering --artifact-count 500 --runs 1 --warmup 0
+```
+
+The default fixture writes about 13,000 real artifact directories, rebuilds the SQLite
+agent artifact index once, then reports p50/p95/max wall time for the authoritative
+source scan, the bounded index window, and the index-backed full-history query. The
+shared oracle lives in `tests/perf/agent_load_tiering_harness.py` and is also covered by
+fast smoke tests with a small within-window corpus.

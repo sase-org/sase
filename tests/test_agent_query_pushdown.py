@@ -95,8 +95,7 @@ def test_compile_agents_live_query_pushdown_builds_exact_profile_filter(
     )
 
     plan = compile_agents_live_query_pushdown(
-        'project:"Internal Tools" AND (model:opus OR provider:codex) '
-        "AND NOT kind:workflow"
+        'project:"Internal Tools" AND (model:opus OR provider:codex)'
     )
 
     assert plan.window_safe is True
@@ -125,10 +124,6 @@ def test_compile_agents_live_query_pushdown_builds_exact_profile_filter(
                     {"kind": "equals", "field": "provider", "value": "codex"},
                 ],
             },
-            {
-                "kind": "not",
-                "filter": {"kind": "equals", "field": "type", "value": "workflow"},
-            },
         ],
     }
 
@@ -139,7 +134,6 @@ def test_compile_agents_live_query_pushdown_matches_legacy_equivalent_filters() 
         ("model:opus", "model:opus"),
         ("type:workflow", "kind:workflow"),
         ("type:run", "kind:agent"),
-        ("cl:target AND NOT type:workflow", "cl:target AND NOT kind:workflow"),
     )
 
     for legacy_query, live_query in pairs:
@@ -157,6 +151,8 @@ def test_compile_agents_live_query_pushdown_keeps_unsupported_queries_unbounded(
         "status:FAILED",
         "machine:apollo",
         "kind:member",
+        "NOT provider:grok",
+        "cl:target AND NOT kind:workflow",
         '"free text"',
     ):
         plan = compile_agents_live_query_pushdown(query)
