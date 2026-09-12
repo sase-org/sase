@@ -1512,6 +1512,10 @@ workspace:
   # Explicit override for project_key namespacing under managed roots.
   # Empty string means derive from git remote or primary path.
   project_key: ""
+  # Share the primary checkout's Git object database with numbered managed
+  # workspace clones. Disable to materialize standalone clones; `sase workspace
+  # repair` will dissociate existing SASE-managed borrowers.
+  share_git_objects: true
   # Days before unclaimed managed workspaces are eligible for cleanup.
   cleanup_ttl_days: 14
   # Days before a pinned (held) dead-PID workspace claim is released

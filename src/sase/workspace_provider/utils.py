@@ -27,6 +27,13 @@ from sase.workspace_provider._utils_git import (
 from sase.workspace_provider._utils_origin import (
     reconcile_managed_checkout_origin,
 )
+from sase.workspace_provider.git_objects import (
+    classify_alternate_state,
+    compact_checkout,
+    dissociate_checkout,
+    fsck_connectivity,
+    git_object_dir,
+)
 
 # Test doubles patch ``sase.workspace_provider.utils.subprocess.run``.
 
@@ -41,6 +48,11 @@ __all__ = [
     "ProjectProviderMismatchError",
     "ensure_git_clone_at",
     "ensure_workspace_checkout",
+    "classify_alternate_state",
+    "compact_checkout",
+    "dissociate_checkout",
+    "fsck_connectivity",
+    "git_object_dir",
     "get_default_branch",
     "non_interactive_git_env",
     "parse_bare_repo_dir",

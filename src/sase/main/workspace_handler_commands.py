@@ -15,6 +15,7 @@ from .workspace_handler_list import (
     handle_path as list_handle_path,
 )
 from .workspace_handler_maintenance import (
+    handle_compact as maintenance_handle_compact,
     handle_cleanup as maintenance_handle_cleanup,
     handle_repair as maintenance_handle_repair,
 )
@@ -96,6 +97,19 @@ def handle_cleanup_command(
         get_claimed_nums=get_claimed_nums,
         remove_checkout_dir=remove_checkout_dir,
         remove_transition=remove_transition,
+    )
+
+
+def handle_compact_command(
+    args: argparse.Namespace,
+    *,
+    resolve_project_context: ProjectContextResolver,
+    get_claimed_nums: ClaimedNums,
+) -> int:
+    return maintenance_handle_compact(
+        args,
+        resolve_project_context=resolve_project_context,
+        get_claimed_nums=get_claimed_nums,
     )
 
 

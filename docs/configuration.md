@@ -4230,6 +4230,7 @@ reference and CLI workflows.
 workspace:
   root: xdg-state # "xdg-state", "adjacent", or an absolute path
   project_key: "" # explicit project-key override; empty = derive from git remote / primary path
+  share_git_objects: true # borrow primary Git objects for numbered managed checkouts
   cleanup_ttl_days: 14 # age threshold for `sase workspace cleanup --stale`
   held_claim_ttl_days: 14 # age threshold for releasing pinned dead workspace claims
 ```
@@ -4238,6 +4239,7 @@ workspace:
 | ------------------------------- | ------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `workspace.root`                | string | `"xdg-state"` | Root policy. `"xdg-state"` uses the platform state dir; `"adjacent"` keeps the legacy `<primary>_<num>/` layout as an explicit opt-in; an absolute path is used as the managed-root base. `SASE_WORKSPACE_ROOT` overrides this base directory. |
 | `workspace.project_key`         | string | `""`          | Override the per-project namespace under managed roots. Empty derives a stable key from a single git remote slug or the primary-path basename plus a short hash.                                                                               |
+| `workspace.share_git_objects`   | bool   | `true`        | Borrow the primary checkout's Git object database for numbered managed clones. Disable for standalone clones; `sase workspace repair` dissociates existing SASE-managed borrowers.                                                             |
 | `workspace.cleanup_ttl_days`    | int    | `14`          | Minimum age (in days) of an unclaimed managed checkout before `sase workspace cleanup --stale` will remove it.                                                                                                                                 |
 | `workspace.held_claim_ttl_days` | int    | `14`          | Minimum age (in days) of a pinned dead-PID workspace claim before the stale sweep releases it. Artifacts are kept so the failed run stays dismissible in ACE; only the workspace hold is dropped. `0` disables age-based release.              |
 
@@ -5165,8 +5167,11 @@ project, or for the project named by `-p/--project`. With no subcommand,
 | `sase workspace cleanup` | `-s, --stale`              | flag         | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`.                         |
 | `sase workspace cleanup` | `-i, --include-shares`     | flag         | Also consider workflow-share managed checkouts for removal.                                         |
 | `sase workspace cleanup` | `-n, --dry-run`            | flag         | Report planned removals without touching the filesystem.                                            |
+| `sase workspace compact` | `-p, --project`            | project name | Compact a project other than the inferred one.                                                      |
+| `sase workspace compact` | `-n, --dry-run`            | flag         | Report planned Git object compactions without touching config or objects.                           |
+| `sase workspace compact` | `workspace_nums`           | integer list | Optional registered workspace numbers to compact; omit to scan all numbered checkouts.              |
 | `sase workspace repair`  | `-p, --project`            | project name | Repair a project other than the inferred one.                                                       |
-| `sase workspace repair`  | `-n, --dry-run`            | flag         | Report registry/filesystem reconciliation without writing.                                          |
+| `sase workspace repair`  | `-n, --dry-run`            | flag         | Report registry/filesystem and SASE-managed alternate reconciliation without writing.               |
 | `sase workspace migrate` | `-p, --project`            | project name | Migrate a project other than the inferred one.                                                      |
 | `sase workspace migrate` | `-t, --to`                 | `xdg-state`  | Target managed root policy for migration.                                                           |
 | `sase workspace migrate` | `-s, --symlink-transition` | flag         | Leave `<primary>_<num>` symlinks pointing to migrated managed checkouts.                            |

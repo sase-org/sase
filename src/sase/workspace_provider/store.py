@@ -295,6 +295,7 @@ class WorkspaceStore:
         self._held_claim_ttl_days = _positive_int(
             section.get("held_claim_ttl_days"), 14
         )
+        self._share_git_objects = _coerce_bool(section.get("share_git_objects"), True)
 
         explicit_key = section.get("project_key", "") or ""
         explicit_key = explicit_key.strip() if isinstance(explicit_key, str) else ""
@@ -333,6 +334,10 @@ class WorkspaceStore:
     @property
     def held_claim_ttl_days(self) -> int:
         return self._held_claim_ttl_days
+
+    @property
+    def share_git_objects(self) -> bool:
+        return self._share_git_objects
 
     def resolve(self, workspace_num: int) -> WorkspacePath:
         """Return the resolved ``WorkspacePath`` for *workspace_num*.
@@ -398,6 +403,21 @@ def _positive_int(value: Any, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return result if result >= 0 else default
+
+
+def _coerce_bool(value: Any, default: bool) -> bool:
+    """Coerce common config boolean shapes, falling back to *default*."""
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
 
 
 def held_claim_ttl_days_from_config(config: Mapping[str, Any] | None) -> int:

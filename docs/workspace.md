@@ -499,7 +499,8 @@ disabled projects; `--json` emits the same inventory model as structured data.
 | `sase workspace list [-p PROJECT] [-a/--all] [-j/--json]`              | List one project's registry or all registered workspaces. All-project rows include claim/liveness, pin, staleness, checkout presence, and isolated per-project issues. |
 | `sase workspace path NUM`                                              | Print the configured checkout path for `NUM` without cloning or preparing it.                                                                                          |
 | `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                   |
-| `sase workspace repair [-n]`                                           | Drop registry entries whose checkout is gone; re-materialize missing registered checkouts that still have live RUNNING claims.                                         |
+| `sase workspace compact [NUM ...] [-n]`                                | Safely retrofit unclaimed, clean, registry-owned numbered checkouts to borrow primary Git objects and repack away duplicate private packs.                             |
+| `sase workspace repair [-n]`                                           | Drop missing registry entries, re-materialize live claimed checkouts, repoint stale SASE Git alternates, or dissociate borrowers when sharing is disabled.             |
 | `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                           |
 | `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                         |
 
@@ -508,6 +509,27 @@ corrupt or unreadable registry is returned as an isolated issue and does not sup
 rows from other projects. Registry entries whose checkout has been deleted remain
 visible with `exists: false`; preview reconciliation with
 `sase workspace repair -p <project> -n`.
+
+By default, numbered managed Git checkouts share the primary checkout's object database
+through Git alternates. New managed clones are created with the shared object store
+enabled, the primary checkout is protected with local `gc.pruneExpire=never`, and
+borrowers disable automatic Git maintenance that would silently copy objects back into
+private packs. The dependency is explicit: deleting or moving the primary checkout can
+break borrowers until `sase workspace repair` repoints their alternates to the current
+primary object directory.
+
+`sase workspace compact -n` previews eligible existing checkouts and reports local
+object bytes without changing Git config or objects. Pass one or more workspace numbers
+to restrict the operation to those registered checkouts. Apply mode skips the primary,
+missing or non-Git paths, RUNNING claims, live occupant records, dirty checkouts, and
+unexpected alternates. It repeats those checks under the project lock before writing the
+SASE-owned alternate, runs a local-only repack, and requires
+`git fsck --connectivity-only` to pass before reporting success.
+
+Set `workspace.share_git_objects: false` to opt out for future materializations. With
+sharing disabled, `sase workspace repair` safely dissociates existing SASE-managed
+borrowers by first copying reachable objects into a local pack, then removing the
+alternate only after connectivity can be proven.
 
 `sase doctor -C workspace.occupancy_conflicts` is the read-only occupancy check. It
 reads every project's RUNNING field and each checkout's occupant record, then reports

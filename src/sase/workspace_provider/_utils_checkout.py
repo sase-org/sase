@@ -27,6 +27,11 @@ from sase.workspace_provider._utils_origin import (
     heal_clone_origin_if_needed as _heal_clone_origin_if_needed,
     reconcile_managed_checkout_origin,
 )
+from sase.workspace_provider.git_objects import (
+    GitObjectSharingError,
+    configure_primary_for_sharing,
+    ensure_sase_alternate,
+)
 from sase.workspace_provider.store import WorkspacePath, WorkspaceStore
 
 
@@ -173,6 +178,7 @@ def ensure_git_clone_at(
     target_checkout_dir: str,
     *,
     assume_managed_checkout: bool = False,
+    share_git_objects: bool = False,
 ) -> str:
     """Materialize a Git clone at a caller-supplied target directory.
 
@@ -220,6 +226,14 @@ def ensure_git_clone_at(
                     primary_workspace_dir=primary_workspace_dir.rstrip("/"),
                     target_checkout_dir=target_checkout_dir.rstrip("/"),
                 )
+            if share_git_objects:
+                try:
+                    ensure_sase_alternate(
+                        primary_workspace_dir.rstrip("/"),
+                        target_checkout_dir.rstrip("/"),
+                    )
+                except GitObjectSharingError as exc:
+                    raise RuntimeError(str(exc)) from exc
             return target_checkout_dir
         import shutil
 
@@ -238,16 +252,25 @@ def ensure_git_clone_at(
         os.makedirs(parent, exist_ok=True)
 
     real_url = _read_required_origin_url(primary_workspace_dir.rstrip("/"))
+    if share_git_objects:
+        try:
+            configure_primary_for_sharing(primary_workspace_dir.rstrip("/"))
+        except GitObjectSharingError as exc:
+            raise RuntimeError(str(exc)) from exc
 
     # Clone builds a fresh target with no pre-existing index.lock to recover.
+    clone_cmd = ["git", "clone"]
+    if share_git_objects:
+        clone_cmd.append("--shared")
+    clone_cmd.extend(
+        [
+            primary_workspace_dir.rstrip("/"),
+            target_checkout_dir.rstrip("/"),
+        ]
+    )
     try:
         subprocess.run(
-            [
-                "git",
-                "clone",
-                primary_workspace_dir.rstrip("/"),
-                target_checkout_dir.rstrip("/"),
-            ],
+            clone_cmd,
             capture_output=True,
             text=True,
             check=True,
@@ -275,6 +298,14 @@ def ensure_git_clone_at(
                         primary_workspace_dir=primary_workspace_dir.rstrip("/"),
                         target_checkout_dir=target_checkout_dir.rstrip("/"),
                     )
+                if share_git_objects:
+                    try:
+                        ensure_sase_alternate(
+                            primary_workspace_dir.rstrip("/"),
+                            target_checkout_dir.rstrip("/"),
+                        )
+                    except GitObjectSharingError as share_exc:
+                        raise RuntimeError(str(share_exc)) from share_exc
                 return target_checkout_dir
         error_msg = f"git clone failed (exit code {e.returncode})"
         if e.stderr:
@@ -302,6 +333,15 @@ def ensure_git_clone_at(
         cwd=target_checkout_dir,
         result_adapter=_git_result_adapter,
     )
+
+    if share_git_objects:
+        try:
+            ensure_sase_alternate(
+                primary_workspace_dir.rstrip("/"),
+                target_checkout_dir.rstrip("/"),
+            )
+        except GitObjectSharingError as exc:
+            raise RuntimeError(str(exc)) from exc
 
     return target_checkout_dir
 
@@ -342,6 +382,7 @@ def ensure_workspace_checkout(
         workspace_num,
         path.checkout_dir,
         assume_managed_checkout=store.root_policy != "adjacent",
+        share_git_objects=store.share_git_objects,
     )
     _record_managed_workspace(store, path)
     try:

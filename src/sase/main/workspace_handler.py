@@ -17,6 +17,7 @@ from sase.workspace_provider.store import (
 
 from .workspace_handler_commands import (
     handle_cleanup_command,
+    handle_compact_command,
     handle_list_command,
     handle_migrate_command,
     handle_migrate_finalize_command,
@@ -132,6 +133,14 @@ def _handle_cleanup(args: argparse.Namespace) -> int:
     )
 
 
+def _handle_compact(args: argparse.Namespace) -> int:
+    return handle_compact_command(
+        args,
+        resolve_project_context=_resolve_project_context,
+        get_claimed_nums=_claimed_nums,
+    )
+
+
 def _handle_repair(args: argparse.Namespace) -> int:
     return handle_repair_command(
         args,
@@ -160,12 +169,13 @@ def _handle_migrate_finalize(args: argparse.Namespace) -> int:
 
 
 _HANDLERS = {
-    "list": _handle_list,
-    "path": _handle_path,
-    "open": _handle_open,
     "cleanup": _handle_cleanup,
-    "repair": _handle_repair,
+    "compact": _handle_compact,
+    "list": _handle_list,
     "migrate": _handle_migrate,
+    "open": _handle_open,
+    "path": _handle_path,
+    "repair": _handle_repair,
 }
 
 
@@ -175,7 +185,7 @@ def handle_workspace_command(args: argparse.Namespace) -> None:
     handler = _HANDLERS.get(sub) if isinstance(sub, str) else None
     if handler is None:
         print(
-            "Usage: sase workspace {cleanup,list,migrate,path,repair}",
+            "Usage: sase workspace {cleanup,compact,list,migrate,path,repair}",
             file=sys.stderr,
         )
         sys.exit(2)

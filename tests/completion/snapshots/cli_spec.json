@@ -25035,6 +25035,67 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "0be01a819c171dae",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "compact",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--project"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "dry_run",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--dry-run"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "workspace",
+              "compact"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "workspace_nums",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "NUM",
+                "nargs": "*"
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "7d2b63c30543f3b5",
             "hidden": false,
             "mutex_groups": [],

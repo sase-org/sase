@@ -14,7 +14,7 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
     workspace_sub = workspace_parser.add_subparsers(
         dest="workspace_subcommand",
         help="Workspace subcommands",
-        metavar="{cleanup,list,migrate,path,repair}",
+        metavar="{cleanup,compact,list,migrate,path,repair}",
     )
 
     list_parser = workspace_sub.add_parser(
@@ -124,6 +124,31 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         dest="dry_run",
         help="Report planned removals without touching the filesystem",
+    )
+
+    compact_parser = workspace_sub.add_parser(
+        "compact",
+        help="Share and compact Git objects for safe managed checkouts",
+    )
+    compact_parser.add_argument(
+        "workspace_nums",
+        nargs="*",
+        type=int,
+        metavar="NUM",
+        help="Optional workspace number(s) to compact; default scans all numbered checkouts",
+    )
+    compact_parser.add_argument(
+        "-p",
+        "--project",
+        default=None,
+        help="Project to compact (default: infer from current directory)",
+    )
+    compact_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Report planned compactions without touching Git config or objects",
     )
 
     repair_parser = workspace_sub.add_parser(

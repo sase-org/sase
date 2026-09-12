@@ -417,6 +417,15 @@ def test_workspace_help_hides_deprecated_open_alias() -> None:
 
     workspace_help = flat_help(parser_for(("sase", "workspace")).format_help())
 
-    assert "{cleanup,list,migrate,path,repair}" in workspace_help
+    assert "{cleanup,compact,list,migrate,path,repair}" in workspace_help
     assert "open ==SUPPRESS==" not in workspace_help
     assert "Prepare the workspace checkout and print its path" not in workspace_help
+
+
+def test_workspace_compact_help_documents_project_and_dry_run() -> None:
+    compact_help = flat_help(parser_for(("sase", "workspace", "compact")).format_help())
+
+    assert "NUM" in compact_help
+    _assert_metavar_option_documented(compact_help, "-p", "--project", "PROJECT")
+    assert "-n, --dry-run" in compact_help
+    assert "planned compactions" in compact_help

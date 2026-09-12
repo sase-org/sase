@@ -4123,6 +4123,11 @@
           "description": "Explicit override for the project_key used to namespace managed workspaces. Empty string means derive from the single Git remote (preferred) or the primary path plus a short hash.",
           "default": ""
         },
+        "share_git_objects": {
+          "type": "boolean",
+          "description": "When true, numbered managed workspace clones borrow the primary checkout's Git object database through SASE-managed alternates. Set false to keep standalone clones; `sase workspace repair` dissociates existing SASE-managed borrowers safely.",
+          "default": true
+        },
         "cleanup_ttl_days": {
           "type": "integer",
           "description": "Days before unclaimed managed workspaces are eligible for `sase workspace cleanup --stale`.",

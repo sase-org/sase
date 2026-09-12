@@ -234,6 +234,37 @@ class TestAbsoluteRootPolicy:
             )
 
 
+# ── sharing config ─────────────────────────────────────────────────
+
+
+class TestShareGitObjects:
+    def test_defaults_true(self, tmp_path: Path) -> None:
+        primary = tmp_path / "repo"
+        primary.mkdir()
+
+        assert WorkspaceStore(str(primary), config={}).share_git_objects is True
+
+    def test_can_be_disabled(self, tmp_path: Path) -> None:
+        primary = tmp_path / "repo"
+        primary.mkdir()
+        store = WorkspaceStore(
+            str(primary),
+            config={"workspace": {"share_git_objects": False}},
+        )
+
+        assert store.share_git_objects is False
+
+    def test_string_false_is_accepted(self, tmp_path: Path) -> None:
+        primary = tmp_path / "repo"
+        primary.mkdir()
+        store = WorkspaceStore(
+            str(primary),
+            config={"workspace": {"share_git_objects": "false"}},
+        )
+
+        assert store.share_git_objects is False
+
+
 # ── state root helper ──────────────────────────────────────────────
 
 
