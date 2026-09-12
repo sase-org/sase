@@ -82,3 +82,8 @@ def init_git_repo(path: Path) -> None:
     (path / "README.md").write_text("fixture\n", encoding="utf-8")
     subprocess.run(["git", "add", "README.md"], cwd=path, check=True)
     subprocess.run(["git", "commit", "-qm", "fixture"], cwd=path, check=True)
+
+
+def set_git_origin(path: Path, remote_url: str) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+    subprocess.run(["git", "remote", "add", "origin", remote_url], cwd=path, check=True)
