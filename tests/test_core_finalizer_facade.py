@@ -11,6 +11,7 @@ from sase.core.finalizer_facade import (
     finalizer_provider_spec_digest,
     finalizer_wire_schema_version,
     resolve_finalizer_plan,
+    validate_finalizer_assigned_bead_binding,
     validate_finalizer_context,
     validate_finalizer_plan,
     validate_finalizer_provider_spec,
@@ -151,6 +152,35 @@ def test_finalizer_facade_aggregates_instance_outcomes() -> None:
         "commit",
     ]
     assert aggregate.diagnostics[0].instance_id == "commit"
+
+
+def test_finalizer_facade_validates_assigned_bead_binding() -> None:
+    assigned = FinalizerAssignedBeadWire(
+        bead_id="sase-zq.3",
+        primary_repo_obligation_id="repo:primary",
+    )
+    context = FinalizerContextWire(
+        schema_version=FINALIZER_WIRE_SCHEMA_VERSION,
+        run_id="run-1",
+        agent_id="agent-1",
+        turn_nonce="nonce-1",
+        plan_digest="0" * 64,
+        assigned_bead=assigned,
+    )
+
+    validate_finalizer_assigned_bead_binding(context, assigned)
+    validate_finalizer_assigned_bead_binding(
+        finalizer_wire_to_json_dict(context),
+        finalizer_wire_to_json_dict(assigned),
+    )
+    with pytest.raises(ValueError, match="different assigned bead"):
+        validate_finalizer_assigned_bead_binding(
+            context,
+            FinalizerAssignedBeadWire(
+                bead_id="sase-other.1",
+                primary_repo_obligation_id="repo:primary",
+            ),
+        )
 
 
 def test_finalizer_facade_round_trips_deferred_instance_result() -> None:

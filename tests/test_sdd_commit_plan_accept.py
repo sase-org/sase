@@ -18,10 +18,12 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
 
         captured_msg_content: list[str] = []
         captured_msg_paths: list[Path] = []
+        captured_cmds: list[list[str]] = []
 
         def fake_run(
             cmd: list[str], **kwargs: object
         ) -> subprocess.CompletedProcess[str]:
+            captured_cmds.append(list(cmd))
             m_idx = cmd.index("-M")
             msg_path = Path(cmd[m_idx + 1])
             assert msg_path.is_file(), f"-M should point to a file, got: {msg_path}"
@@ -35,6 +37,7 @@ def test_commit_sdd_files_passes_tempfile_to_m() -> None:
             assert _commit_sdd_files(ws, "my_plan") is True
 
         assert len(captured_msg_content) == 1
+        assert captured_cmds[0][captured_cmds[0].index("-B") + 1] == "keep"
         assert captured_msg_paths
         assert not captured_msg_paths[0].exists()
         assert (

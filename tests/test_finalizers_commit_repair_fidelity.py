@@ -9,10 +9,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sase.axe.runner_reporting import write_error_report
+from sase.finalizers.bounded_subprocess import BoundedCompletedProcess
 from sase.finalizers.commit_repair import (
     load_latest_stitch_attempt,
     record_stitch_artifacts,
+    run_stitch_create,
+    run_stitch_resume,
     stitch_attempt_fingerprint,
     stitch_attempt_input_fields,
     stitch_failure_message,
@@ -134,6 +139,118 @@ def test_stitch_attempt_fingerprint_changes_with_excludes(tmp_path: Path) -> Non
     )
 
     assert first != second
+
+
+def test_stitch_attempt_fingerprint_changes_with_assigned_bead(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+
+    first = stitch_attempt_fingerprint(
+        stitch_attempt_input_fields(
+            repo,
+            "fix(final): reconcile",
+            (),
+            assigned_bead_id="sase-zq.1",
+        )
+    )
+    second = stitch_attempt_fingerprint(
+        stitch_attempt_input_fields(
+            repo,
+            "fix(final): reconcile",
+            (),
+            assigned_bead_id="sase-zq.2",
+        )
+    )
+
+    assert first != second
+
+
+def test_run_stitch_create_binds_saved_assigned_bead_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    repo = _repo(repo_path)
+    artifacts = tmp_path / "artifacts"
+    captured: list[dict[str, str]] = []
+
+    def fake_run_bounded_subprocess(
+        _argv: list[str],
+        *,
+        cwd: str,
+        env: dict[str, str],
+        input_bytes: bytes | None,
+        timeout: float,
+    ) -> BoundedCompletedProcess:
+        del cwd, input_bytes, timeout
+        captured.append(dict(env))
+        return BoundedCompletedProcess(
+            returncode=0,
+            stdout=b"",
+            stderr=b"",
+            duration_seconds=0.01,
+        )
+
+    monkeypatch.setenv("SASE_BEAD_ID", "sase-ambient.9")
+    monkeypatch.setattr(
+        "sase.finalizers.commit_repair.run_bounded_subprocess",
+        fake_run_bounded_subprocess,
+    )
+
+    run_stitch_create(
+        repo,
+        "fix(final): reconcile",
+        (),
+        FinalizerExecutionContext(
+            artifacts_dir=str(artifacts),
+            plan_digest=None,
+            assigned_bead_id="sase-accepted.1",
+        ),
+        bead_action="keep",
+    )
+
+    assert captured[0]["SASE_BEAD_ID"] == "sase-accepted.1"
+
+
+def test_run_stitch_resume_clears_ambient_bead_when_context_is_unbound(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    repo = _repo(repo_path)
+    captured: list[dict[str, str]] = []
+
+    def fake_run_bounded_subprocess(
+        _argv: list[str],
+        *,
+        cwd: str,
+        env: dict[str, str],
+        input_bytes: bytes | None,
+        timeout: float,
+    ) -> BoundedCompletedProcess:
+        del cwd, input_bytes, timeout
+        captured.append(dict(env))
+        return BoundedCompletedProcess(
+            returncode=0,
+            stdout=b"",
+            stderr=b"",
+            duration_seconds=0.01,
+        )
+
+    monkeypatch.setenv("SASE_BEAD_ID", "sase-ambient.9")
+    monkeypatch.setattr(
+        "sase.finalizers.commit_repair.run_bounded_subprocess",
+        fake_run_bounded_subprocess,
+    )
+
+    run_stitch_resume(
+        repo,
+        FinalizerExecutionContext(artifacts_dir=None, plan_digest=None),
+        bead_action="keep",
+    )
+
+    assert "SASE_BEAD_ID" not in captured[0]
 
 
 def test_record_and_load_latest_stitch_attempt_round_trip(tmp_path: Path) -> None:

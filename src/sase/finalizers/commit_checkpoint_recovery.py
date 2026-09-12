@@ -152,6 +152,8 @@ def resume_owned_pending_checkpoint(
             "repo_path": matching.path,
             "operation_id": getattr(checkpoint, "operation_id", None),
             "commit_sha": getattr(checkpoint, "commit_sha", None),
+            "bead_action": _decision_bead_action(decision_payload),
+            "assigned_bead_id": _context_assigned_bead_id(context),
         },
     )
     if resumed.timed_out or resumed.stdout_truncated or resumed.stderr_truncated:
@@ -259,6 +261,14 @@ def _load_checkpoint(
 def _decision_bead_action(decision: Mapping[str, Any]) -> str | None:
     value = decision.get("bead_action")
     return value if value in {"close", "keep"} else None
+
+
+def _context_assigned_bead_id(context: FinalizerExecutionContext) -> str | None:
+    value = getattr(context, "assigned_bead_id", None)
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _call_resume_runner(

@@ -73,7 +73,7 @@ def commit_sdd_files_for_exec_plan(
         os.write(msg_fd, message.encode())
     finally:
         os.close(msg_fd)
-    cmd = ["sase", "stitch", "create", "-M", msg_path]
+    cmd = ["sase", "stitch", "create", "-M", msg_path, "-B", "keep"]
     for f in files:
         cmd.extend(["--only-file", f])
     try:

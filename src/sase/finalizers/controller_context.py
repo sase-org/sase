@@ -65,6 +65,7 @@ def bind_execution_context(
     publication: FinalContextPublication,
 ) -> FinalizerExecutionContext:
     """Bind a plan and accepted submission to an executor context."""
+    assigned_bead = publication.context.assigned_bead
     payloads: dict[str, Any] = {}
     if artifacts_dir:
         try:
@@ -92,6 +93,12 @@ def bind_execution_context(
         obligations=tuple(
             finalizer_wire_to_json_dict(item)
             for item in publication.context.obligations
+        ),
+        assigned_bead_id=assigned_bead.bead_id if assigned_bead is not None else None,
+        assigned_bead_primary_repo_id=(
+            assigned_bead.primary_repo_obligation_id
+            if assigned_bead is not None
+            else None
         ),
     )
 

@@ -85,12 +85,17 @@ def test_restore_patch_success(make_patch) -> None:  # type: ignore[no-untyped-d
                     with mock_patch(
                         "sase.ace.restore.run_workspace_command",
                         return_value=(True, None),
-                    ):
+                    ) as run_workspace_command:
                         with mock_patch("pathlib.Path.exists", return_value=True):
                             success, error = restore_patch(patch, console)
 
     assert success is True
     assert error is None
+    run_workspace_command.assert_called_once_with(
+        ["sase", "stitch", "create", "test_project_feature", "-B", "keep"],
+        "/tmp",
+        capture_output=False,
+    )
     mock_rename.assert_called_once_with(
         patch.file_path, "test_project_feature__1", "test_project_feature"
     )

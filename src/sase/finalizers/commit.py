@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 import inspect
 from pathlib import Path
 from typing import Any, cast
@@ -376,6 +377,7 @@ def execute_commit_finalizer(
             result=result,
             invoke_result=invoke_result,
         ) from exc
+    stitch_context = _context_for_accepted_assigned_bead(context, accepted_context)
 
     obligation_by_id = {
         obligation.obligation_id: obligation
@@ -435,7 +437,7 @@ def execute_commit_finalizer(
         accepted_repos,
         decisions=decisions,
         artifacts=artifacts,
-        context=context,
+        context=stitch_context,
         instance_id=instance.instance_id,
         resume_runner=resume,
         ledger=ledger,
@@ -505,7 +507,7 @@ def execute_commit_finalizer(
             already_clean,
             decisions=decisions,
             artifacts=artifacts,
-            context=context,
+            context=stitch_context,
             instance_id=instance.instance_id,
             resume_runner=resume,
             ledger=ledger,
@@ -545,7 +547,7 @@ def execute_commit_finalizer(
         ordered,
         decisions,
         state=state,
-        context=context,
+        context=stitch_context,
         instance_id=instance.instance_id,
         artifacts=artifacts,
         project_dir=project_dir,
@@ -665,6 +667,22 @@ def execute_commit_finalizer(
             attempts=attempts,
             evidence=evidence,
             diagnostics=diagnostics,
+        ),
+    )
+
+
+def _context_for_accepted_assigned_bead(
+    context: FinalizerExecutionContext,
+    accepted_context: Any,
+) -> FinalizerExecutionContext:
+    assigned_bead = getattr(accepted_context, "assigned_bead", None)
+    return replace(
+        context,
+        assigned_bead_id=(assigned_bead.bead_id if assigned_bead is not None else None),
+        assigned_bead_primary_repo_id=(
+            assigned_bead.primary_repo_obligation_id
+            if assigned_bead is not None
+            else None
         ),
     )
 

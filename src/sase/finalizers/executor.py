@@ -132,6 +132,7 @@ def validate_external_declaration_payload(
         provider_ref
     ):
         raise FinalizerExecutionError(f"unknown finalizer instance {instance_id!r}")
+    assigned_bead = context.assigned_bead
     exec_context = FinalizerExecutionContext(
         artifacts_dir=artifacts_dir,
         plan_digest=context.plan_digest,
@@ -143,6 +144,12 @@ def validate_external_declaration_payload(
         accepted_payloads={instance_id: dict(payload)},
         obligations=tuple(
             finalizer_wire_to_json_dict(item) for item in context.obligations
+        ),
+        assigned_bead_id=assigned_bead.bead_id if assigned_bead is not None else None,
+        assigned_bead_primary_repo_id=(
+            assigned_bead.primary_repo_obligation_id
+            if assigned_bead is not None
+            else None
         ),
     )
     provider = _resolve_provider(provider_ref)

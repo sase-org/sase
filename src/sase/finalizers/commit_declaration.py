@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from sase.core.finalizer_facade import validate_finalizer_submission
+from sase.core.finalizer_facade import (
+    validate_finalizer_assigned_bead_binding,
+    validate_finalizer_submission,
+)
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
     FinalizerContextWire,
@@ -72,6 +75,7 @@ def load_accepted_commit_declaration(
             submission,
             fallback=latest,
         )
+        _validate_assigned_bead_binding(context)
         envelope = finalizer_declaration.normalize_submission_envelope(
             submission["submission"]
         )
@@ -85,6 +89,16 @@ def load_accepted_commit_declaration(
             else ()
         )
         return envelope, context, host_records, accepted_deferrals
+
+
+def _validate_assigned_bead_binding(context: FinalizerContextWire) -> None:
+    try:
+        validate_finalizer_assigned_bead_binding(context, context.assigned_bead)
+    except (TypeError, ValueError) as exc:
+        raise finalizer_declaration.FinalizerDeclarationError(
+            str(exc),
+            code="assigned_bead_binding_invalid",
+        ) from exc
 
 
 def accepted_deferrals_for_instance(

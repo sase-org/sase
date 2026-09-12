@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 import json
 from pathlib import Path
 from typing import Any
@@ -44,9 +44,15 @@ def _state(repo: DirtyRepo) -> PreparedCommitDirtyState:
     )
 
 
-def _context(artifacts: Path) -> FinalizerExecutionContext:
+def _context(
+    artifacts: Path,
+    *,
+    assigned_bead_id: str | None = None,
+) -> FinalizerExecutionContext:
     return FinalizerExecutionContext(
-        artifacts_dir=str(artifacts), plan_digest="sha256:test"
+        artifacts_dir=str(artifacts),
+        plan_digest="sha256:test",
+        assigned_bead_id=assigned_bead_id,
     )
 
 
@@ -156,12 +162,19 @@ def _dispatch(
     ) = None,
     provider: MagicMock | None = None,
     ledger: InstanceLedger | None = None,
+    decision: Mapping[str, Any] | None = None,
+    context: FinalizerExecutionContext | None = None,
 ) -> Any:
+    accepted_decision = (
+        dict(decision)
+        if decision is not None
+        else {"action": "commit", "message": "feat: x"}
+    )
     return dispatch_commit_decisions(
         (repo,),
-        {repository_decision_id(repo): {"action": "commit", "message": "feat: x"}},
+        {repository_decision_id(repo): accepted_decision},
         state=_state(repo),
-        context=_context(artifacts),
+        context=context or _context(artifacts),
         instance_id="commit",
         artifacts=artifacts,
         project_dir=repo.path,
@@ -314,6 +327,103 @@ def test_output_cap_stitch_with_landed_commit_does_not_raise(tmp_path: Path) -> 
         "stitch_output_cap_after_commit"
     ]
     assert result.diagnostics[0].severity == "warning"
+    assert any(
+        item.kind == "commit_sha" and item.value == sha for item in result.evidence
+    )
+
+
+def test_close_action_timeout_with_landed_marker_requires_closed_bead(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    dirty = _repo(repo_path, changed_files=("src/app.py",))
+    changed_files: list[str] = []
+    sha = "e" * 40
+    monkeypatch.setattr(
+        "sase.finalizers.commit_dispatch_followup._default_assigned_bead_status",
+        lambda _bead_id, _repo_arg: "in_progress",
+    )
+
+    def stitch_runner(
+        repo_arg: DirtyRepo,
+        _message: str,
+        _excludes: Sequence[str],
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        _append_marker(artifacts, repo_arg, sha=sha, tree="f" * 40)
+        return StitchCommandResult(returncode=-9, timed_out=True)
+
+    with pytest.raises(BuiltinCommitFinalizerError) as exc_info:
+        _dispatch(
+            repo=dirty,
+            artifacts=artifacts,
+            changed_files=changed_files,
+            stitch_runner=stitch_runner,
+            decision={
+                "action": "commit",
+                "message": "feat: x",
+                "bead_action": "close",
+            },
+            context=_context(artifacts, assigned_bead_id="sase-zq.3"),
+        )
+
+    assert exc_info.value.code == "stitch_timeout_bead_not_closed"
+    assert "assigned bead sase-zq.3 is in_progress, not closed" in str(exc_info.value)
+    evidence = exc_info.value.result.evidence
+    assert any(item.kind == "commit_sha" and item.value == sha for item in evidence)
+    assert any(
+        item.kind == "assigned_bead_status" and item.value == "sase-zq.3:in_progress"
+        for item in evidence
+    )
+
+
+def test_close_action_timeout_with_landed_marker_rescues_when_bead_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo_path = tmp_path / "repo"
+    repo_path.mkdir()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    dirty = _repo(repo_path, changed_files=("src/app.py",))
+    changed_files: list[str] = []
+    sha = "1" * 40
+    monkeypatch.setattr(
+        "sase.finalizers.commit_dispatch_followup._default_assigned_bead_status",
+        lambda _bead_id, _repo_arg: "closed",
+    )
+
+    def stitch_runner(
+        repo_arg: DirtyRepo,
+        _message: str,
+        _excludes: Sequence[str],
+        _context_arg: FinalizerExecutionContext,
+    ) -> StitchCommandResult:
+        _append_marker(artifacts, repo_arg, sha=sha, tree="2" * 40)
+        return StitchCommandResult(returncode=-9, timed_out=True)
+
+    result = _dispatch(
+        repo=dirty,
+        artifacts=artifacts,
+        changed_files=changed_files,
+        stitch_runner=stitch_runner,
+        decision={
+            "action": "commit",
+            "message": "feat: x",
+            "bead_action": "close",
+        },
+        context=_context(artifacts, assigned_bead_id="sase-zq.3"),
+    )
+
+    assert [item.code for item in result.diagnostics] == ["stitch_timeout_after_commit"]
+    assert any(
+        item.kind == "assigned_bead_status" and item.value == "sase-zq.3:closed"
+        for item in result.evidence
+    )
     assert any(
         item.kind == "commit_sha" and item.value == sha for item in result.evidence
     )

@@ -202,11 +202,11 @@ def _bead_action_decision(
     if "bead_action" in payload:
         request["bead_action"] = bead_action
     if bead_action == "close":
-        request["bead_status"] = _bead_status_fact(bead_id, cwd)
+        request["bead_status"] = bead_status_fact(bead_id, cwd)
     return decide_bead_action(request)
 
 
-def _bead_status_fact(bead_id: str, cwd: str) -> str:
+def bead_status_fact(bead_id: str, cwd: str) -> str:
     if not bead_id:
         return "unchecked"
     issue = _resolve_bead_issue(bead_id, cwd)

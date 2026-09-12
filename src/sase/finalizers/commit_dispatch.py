@@ -222,11 +222,13 @@ def dispatch_commit_decisions(
 
         message = str(decision.get("message", "")).strip()
         bead_action = _decision_bead_action(decision)
+        assigned_bead_id = _context_assigned_bead_id(context)
         attempt_fields = stitch_attempt_input_fields(
             repo,
             message,
             protected,
             bead_action=bead_action,
+            assigned_bead_id=assigned_bead_id,
         )
         attempt_fingerprint = stitch_attempt_fingerprint(attempt_fields)
         prior_attempt = load_latest_stitch_attempt(context, instance_id, repo.name)
@@ -300,6 +302,8 @@ def dispatch_commit_decisions(
             evidence=evidence,
             diagnostics=diagnostics,
             current_result=current_result,
+            bead_action=bead_action,
+            assigned_bead_id=assigned_bead_id,
         )
         repaired_conflict = False
         repaired_without_commit = False
@@ -454,6 +458,14 @@ def dispatch_commit_decisions(
 def _decision_bead_action(decision: Mapping[str, Any]) -> str | None:
     value = decision.get("bead_action")
     return value if value in {"close", "keep"} else None
+
+
+def _context_assigned_bead_id(context: FinalizerExecutionContext) -> str | None:
+    value = getattr(context, "assigned_bead_id", None)
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _call_stitch_runner(

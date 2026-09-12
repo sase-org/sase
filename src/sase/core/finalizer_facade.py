@@ -6,6 +6,7 @@ from typing import Any
 
 from sase.core.finalizer_wire import (
     FinalizerAggregateResultWire,
+    FinalizerAssignedBeadWire,
     FinalizerContextWire,
     FinalizerInstanceResultWire,
     FinalizerInstanceSpecWire,
@@ -115,6 +116,19 @@ def validate_finalizer_submission(
     return finalizer_submission_validation_from_dict(dict(payload))
 
 
+def validate_finalizer_assigned_bead_binding(
+    context: FinalizerContextWire | dict[str, Any],
+    expected: FinalizerAssignedBeadWire | dict[str, Any] | None = None,
+) -> None:
+    """Validate that a finalizer context is bound to the expected assigned bead."""
+
+    binding = require_rust_binding("validate_finalizer_assigned_bead_binding")
+    expected_payload = (
+        None if expected is None else finalizer_wire_to_json_dict(expected)
+    )
+    binding(finalizer_wire_to_json_dict(context), expected_payload)
+
+
 def finalizer_json_digest(value: Any) -> str:
     binding = require_rust_binding("finalizer_json_digest")
     return str(binding(value))
@@ -151,6 +165,7 @@ __all__ = [
     "finalizer_provider_spec_digest",
     "finalizer_wire_schema_version",
     "resolve_finalizer_plan",
+    "validate_finalizer_assigned_bead_binding",
     "validate_finalizer_bead_decision",
     "validate_finalizer_context",
     "validate_finalizer_instance_spec",

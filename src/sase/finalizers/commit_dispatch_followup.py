@@ -92,6 +92,7 @@ def attempt_post_repair_follow_up(
         message,
         protected,
         bead_action=bead_action,
+        assigned_bead_id=_context_assigned_bead_id(context),
     )
     attempt_fingerprint = stitch_attempt_fingerprint(attempt_fields)
     stitch = _call_stitch_runner(
@@ -122,6 +123,8 @@ def attempt_post_repair_follow_up(
         evidence=evidence,
         diagnostics=diagnostics,
         current_result=current_result,
+        bead_action=bead_action,
+        assigned_bead_id=_context_assigned_bead_id(context),
     )
     if not rescued_bounds_failure:
         if stitch.returncode == EXIT_CODE_CONFLICT:
@@ -307,6 +310,9 @@ def rescue_landed_commit_after_bounds_failure(
     evidence: list[FinalizerOutcomeEvidenceWire],
     diagnostics: list[FinalizerDiagnosticWire],
     current_result: InvokeResult,
+    bead_action: str | None = None,
+    assigned_bead_id: str | None = None,
+    bead_status_reader: Callable[[str, DirtyRepo], str] | None = None,
 ) -> bool:
     """Raise on a bounds failure with no marker; rescue when the commit landed.
 
@@ -343,6 +349,21 @@ def rescue_landed_commit_after_bounds_failure(
             ),
             invoke_result=current_result,
         )
+    if _clean_bead_action(bead_action) == "close":
+        _verify_closed_assigned_bead_for_marker_rescue(
+            stitch,
+            repo=repo,
+            code=code,
+            artifacts=artifacts,
+            instance_id=instance_id,
+            attempt_id=attempt_id,
+            attempts=attempts,
+            evidence=evidence,
+            current_result=current_result,
+            assigned_bead_id=assigned_bead_id,
+            bead_status_reader=bead_status_reader,
+            marker=repo_markers[-1],
+        )
     diagnostics.append(
         FinalizerDiagnosticWire(
             code=f"{code}_after_commit",
@@ -361,6 +382,119 @@ def rescue_landed_commit_after_bounds_failure(
         )
     )
     return True
+
+
+def _verify_closed_assigned_bead_for_marker_rescue(
+    stitch: StitchCommandResult,
+    *,
+    repo: DirtyRepo,
+    code: str,
+    artifacts: Path | None,
+    instance_id: str,
+    attempt_id: int,
+    attempts: list[FinalizerAttemptWire],
+    evidence: list[FinalizerOutcomeEvidenceWire],
+    current_result: InvokeResult,
+    assigned_bead_id: str | None,
+    bead_status_reader: Callable[[str, DirtyRepo], str] | None,
+    marker: Mapping[str, Any],
+) -> None:
+    bead_id = _clean_assigned_bead_id(assigned_bead_id)
+    status = _assigned_bead_marker_rescue_status(
+        bead_id,
+        repo,
+        bead_status_reader=bead_status_reader,
+    )
+    status_evidence = FinalizerOutcomeEvidenceWire(
+        kind="assigned_bead_status",
+        value=f"{bead_id or '<unbound>'}:{status}",
+    )
+    if status == "closed":
+        evidence.append(status_evidence)
+        return
+    failure_evidence = [*evidence, *marker_evidence(marker), status_evidence]
+    failure_code = f"{code}_bead_not_closed"
+    message_text = _close_marker_rescue_failure_message(
+        repo,
+        stitch,
+        code=code,
+        artifacts=artifacts,
+        bead_id=bead_id,
+        status=status,
+    )
+    attempts[0] = FinalizerAttemptWire(
+        attempt=attempt_id,
+        status="failed",
+        diagnostic_code=failure_code,
+    )
+    raise BuiltinCommitFinalizerError(
+        message_text,
+        result=failed_result(
+            instance_id,
+            failure_code,
+            message_text,
+            attempts=attempts,
+            evidence=failure_evidence,
+        ),
+        invoke_result=current_result,
+    )
+
+
+def _assigned_bead_marker_rescue_status(
+    bead_id: str | None,
+    repo: DirtyRepo,
+    *,
+    bead_status_reader: Callable[[str, DirtyRepo], str] | None,
+) -> str:
+    if bead_id is None:
+        return "missing"
+    reader = bead_status_reader or _default_assigned_bead_status
+    try:
+        return str(reader(bead_id, repo))
+    except Exception as exc:
+        return f"unreadable ({type(exc).__name__}: {exc})"
+
+
+def _close_marker_rescue_failure_message(
+    repo: DirtyRepo,
+    stitch: StitchCommandResult,
+    *,
+    code: str,
+    artifacts: Path | None,
+    bead_id: str | None,
+    status: str,
+) -> str:
+    base = stitch_bounds_failure_message(repo, stitch, code, artifacts=artifacts)
+    target = f"assigned bead {bead_id}" if bead_id is not None else "the assigned bead"
+    return (
+        f"{base}; commit marker landed, but -B close cannot be treated as complete "
+        f"because {target} is {status}, not closed. "
+        "Repair or complete the bead close, then retry the finalizer."
+    )
+
+
+def _default_assigned_bead_status(bead_id: str, repo: DirtyRepo) -> str:
+    from sase.workflows.commit.bead_hooks import bead_status_fact
+
+    return bead_status_fact(bead_id, repo.path)
+
+
+def _clean_bead_action(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip().lower()
+    return stripped or None
+
+
+def _clean_assigned_bead_id(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
+
+
+def _context_assigned_bead_id(context: FinalizerExecutionContext) -> str | None:
+    return _clean_assigned_bead_id(getattr(context, "assigned_bead_id", None))
 
 
 __all__ = [

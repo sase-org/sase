@@ -53,6 +53,8 @@ class FinalizerExecutionContext:
     accepted_payloads: Mapping[str, Any] = field(default_factory=dict)
     obligations: tuple[Mapping[str, Any], ...] = ()
     attempt: int | None = None
+    assigned_bead_id: str | None = None
+    assigned_bead_primary_repo_id: str | None = None
 
 
 ProviderOperationRunner = Callable[

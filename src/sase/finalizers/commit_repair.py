@@ -562,6 +562,7 @@ def stitch_attempt_input_fields(
     excludes: Sequence[str],
     *,
     bead_action: str | None = None,
+    assigned_bead_id: str | None = None,
 ) -> dict[str, Any]:
     """Capture everything that determines whether a stitch attempt can succeed.
 
@@ -577,6 +578,7 @@ def stitch_attempt_input_fields(
         "excludes": sorted(excludes),
         "message_digest": hashlib.sha256(message.encode("utf-8")).hexdigest(),
         "bead_action": bead_action,
+        "assigned_bead_id": _clean_assigned_bead_id(assigned_bead_id),
     }
 
 
@@ -665,6 +667,7 @@ def _run_stitch_argv(
     env = dict(os.environ)
     if context.artifacts_dir:
         env["SASE_ARTIFACTS_DIR"] = context.artifacts_dir
+    _bind_assigned_bead_env(env, context)
     completed = run_bounded_subprocess(
         argv,
         cwd=repo.path,
@@ -681,6 +684,24 @@ def _run_stitch_argv(
         stdout_truncated=completed.stdout_truncated,
         stderr_truncated=completed.stderr_truncated,
     )
+
+
+def _bind_assigned_bead_env(
+    env: dict[str, str],
+    context: FinalizerExecutionContext,
+) -> None:
+    bead_id = _clean_assigned_bead_id(getattr(context, "assigned_bead_id", None))
+    if bead_id is None:
+        env.pop("SASE_BEAD_ID", None)
+        return
+    env["SASE_BEAD_ID"] = bead_id
+
+
+def _clean_assigned_bead_id(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _write_message_file(repo_path: str, message: str) -> Path:

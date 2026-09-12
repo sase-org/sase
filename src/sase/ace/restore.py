@@ -214,10 +214,12 @@ def restore_patch(
     # Run sase stitch create - it will find the renamed Patch and use its description
     if console:
         # Keep the exact command argument visible and copyable.
-        console.print(f"[cyan]Running sase stitch create {base_name}...[/cyan]")
+        console.print(f"[cyan]Running sase stitch create {base_name} -B keep...[/cyan]")
 
     success, error = run_workspace_command(
-        ["sase", "stitch", "create", base_name], workspace_dir, capture_output=False
+        ["sase", "stitch", "create", base_name, "-B", "keep"],
+        workspace_dir,
+        capture_output=False,
     )
     if not success:
         return (False, error)

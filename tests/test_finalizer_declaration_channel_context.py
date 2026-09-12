@@ -12,11 +12,13 @@ from sase.finalizers.declaration import (
     FINAL_CONTEXT_FILENAME,
     FINAL_CONTEXT_HOST_FILENAME,
     FINAL_SUBMISSION_HOST_FILENAME,
+    FinalizerDeclarationError,
     load_accepted_host_repositories,
     publish_final_context,
     repository_state_digest,
     submit_final_manifest,
 )
+from sase.finalizers.commit_declaration import load_accepted_commit_declaration
 from sase.finalizers.declaration_context_evidence import COMMIT_DECLARATION_RULE
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.main.parser import create_parser
@@ -108,6 +110,66 @@ def test_context_publishes_assigned_bead_and_template_action_placeholder(
             "intermediate commits and deferrals."
         ),
     }
+
+
+def test_load_accepted_commit_declaration_validates_assigned_bead_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepare_dirty_declaration(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_BEAD_ID", "sase-zq.2")
+    publication = publish_final_context()
+    manifest = valid_manifest(publication)
+    manifest["payloads"][0]["payload"]["repositories"][0]["bead_action"] = "keep"  # type: ignore[index]
+    submit_final_manifest(manifest)
+    seen: list[tuple[str | None, str | None]] = []
+
+    def validate_binding(context: object, expected: object) -> None:
+        seen.append(
+            (
+                getattr(getattr(context, "assigned_bead", None), "bead_id", None),
+                getattr(expected, "bead_id", None),
+            )
+        )
+
+    monkeypatch.setattr(
+        "sase.finalizers.commit_declaration.validate_finalizer_assigned_bead_binding",
+        validate_binding,
+    )
+
+    _envelope, context, _host_records, _deferrals = load_accepted_commit_declaration(
+        str(tmp_path)
+    )
+
+    assert context.assigned_bead is not None
+    assert context.assigned_bead.bead_id == "sase-zq.2"
+    assert seen == [("sase-zq.2", "sase-zq.2")]
+
+
+def test_load_accepted_commit_declaration_rejects_binding_policy_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    prepare_dirty_declaration(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_BEAD_ID", "sase-zq.2")
+    publication = publish_final_context()
+    manifest = valid_manifest(publication)
+    manifest["payloads"][0]["payload"]["repositories"][0]["bead_action"] = "keep"  # type: ignore[index]
+    submit_final_manifest(manifest)
+
+    def validate_binding(_context: object, _expected: object) -> None:
+        raise ValueError("finalizer declaration applies to a different assigned bead")
+
+    monkeypatch.setattr(
+        "sase.finalizers.commit_declaration.validate_finalizer_assigned_bead_binding",
+        validate_binding,
+    )
+
+    with pytest.raises(FinalizerDeclarationError) as exc_info:
+        load_accepted_commit_declaration(str(tmp_path))
+
+    assert exc_info.value.code == "assigned_bead_binding_invalid"
+    assert "different assigned bead" in str(exc_info.value)
 
 
 def test_context_publishes_bounded_repository_commit_provenance(
