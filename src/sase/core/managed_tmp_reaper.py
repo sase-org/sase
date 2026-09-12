@@ -59,15 +59,18 @@ MANAGED_TMPDIR_HORIZONS: Mapping[str, float] = {
     "ace-profiles": COMMAND_SCRATCH_HORIZON_SECONDS,
     "agent-clis": COMMAND_SCRATCH_HORIZON_SECONDS,
     "artifact-pages": COMMAND_SCRATCH_HORIZON_SECONDS,
+    "chezmoi-deploy-locks": COMMAND_SCRATCH_HORIZON_SECONDS,
     "commit-messages": COMMAND_SCRATCH_HORIZON_SECONDS,
     "editors": COMMAND_SCRATCH_HORIZON_SECONDS,
     "embedded-artifacts": COMMAND_SCRATCH_HORIZON_SECONDS,
+    "muse-prompts": COMMAND_SCRATCH_HORIZON_SECONDS,
     "viewers": COMMAND_SCRATCH_HORIZON_SECONDS,
     "workflow-loader": COMMAND_SCRATCH_HORIZON_SECONDS,
     "wrappers": COMMAND_SCRATCH_HORIZON_SECONDS,
     "xprompts_catalog": COMMAND_SCRATCH_HORIZON_SECONDS,
     # Per-agent scratch exported through the child process environment.
     "agent-tmp": COMMAND_SCRATCH_HORIZON_SECONDS,
+    "build-targets": BUILD_SCRATCH_HORIZON_SECONDS,
     "cargo-targets": BUILD_SCRATCH_HORIZON_SECONDS,
     # Handoff files a launched process owns for the length of its run.
     "gh-diffs": HANDOFF_HORIZON_SECONDS,
@@ -100,7 +103,7 @@ DEFAULT_PRESSURE_MIN_AGE_SECONDS = COMMAND_SCRATCH_HORIZON_SECONDS
 DEFAULT_PRESSURE_MIN_ENTRY_BYTES = _GIB
 """Small entries do not participate in pressure pruning."""
 
-PRESSURE_REAP_BUCKETS = frozenset({"agent-tmp", "cargo-targets"})
+PRESSURE_REAP_BUCKETS = frozenset({"agent-tmp", "build-targets", "cargo-targets"})
 """Known managed buckets whose aged large children may be pruned under pressure."""
 
 
@@ -193,8 +196,8 @@ def reap_managed_tmpdir(
         if budget <= 0:
             capped = True
             break
-        horizon = horizons.get(entry.name)
-        if horizon is not None and entry.is_dir() and not entry.is_symlink():
+        if entry.is_dir() and not entry.is_symlink():
+            horizon = horizons.get(entry.name, default_horizon_seconds)
             candidates = [
                 (child, clock - horizon, entry.name) for child in _iter_children(entry)
             ]

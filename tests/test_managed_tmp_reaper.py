@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import os
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from sase.core.managed_tmp_reaper import (
     BUILD_SCRATCH_HORIZON_SECONDS,
     COMMAND_SCRATCH_HORIZON_SECONDS,
     DEFAULT_HORIZON_SECONDS,
+    MANAGED_TMPDIR_HORIZONS,
     RUN_ARTIFACT_HORIZON_SECONDS,
     reap_managed_tmpdir,
 )
@@ -188,16 +190,48 @@ def test_unknown_top_level_entries_use_the_default_horizon(tmp_path: Path) -> No
     recent = _aged_file(
         tmp_path, "sase_ace_prompt_new.md", age_seconds=DEFAULT_HORIZON_SECONDS - HOUR
     )
-    unknown_subdir = _aged_dir(
-        tmp_path, "some-future-bucket", age_seconds=DEFAULT_HORIZON_SECONDS + HOUR
+    stale_unknown_child = _aged_file(
+        tmp_path,
+        "some-future-bucket/old.tmp",
+        age_seconds=DEFAULT_HORIZON_SECONDS + HOUR,
     )
+    fresh_unknown_child = _aged_file(
+        tmp_path,
+        "some-future-bucket/new.tmp",
+        age_seconds=DEFAULT_HORIZON_SECONDS - HOUR,
+    )
+    unknown_bucket = tmp_path / "some-future-bucket"
 
     result = reap_managed_tmpdir(tmp_path, now=NOW)
 
     assert not residue.exists()
     assert recent.exists()
-    assert not unknown_subdir.exists()
-    assert result.removed_by_subdir == {"<root>": 2}
+    assert unknown_bucket.is_dir()
+    assert not stale_unknown_child.exists()
+    assert fresh_unknown_child.exists()
+    assert result.removed_by_subdir == {"<root>": 1, "some-future-bucket": 1}
+
+
+def test_every_literal_managed_tmpdir_bucket_has_a_horizon() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    buckets: set[str] = set()
+
+    for source in (repo_root / "src" / "sase").rglob("*.py"):
+        text = source.read_text(encoding="utf-8")
+        if "get_sase_managed_tmpdir" not in text:
+            continue
+        module = ast.parse(text)
+        constants = _module_string_constants(module)
+        for node in ast.walk(module):
+            if not isinstance(node, ast.Call) or not _calls_managed_tmpdir(node):
+                continue
+            if not node.args:
+                continue
+            bucket = _literal_or_module_constant(node.args[0], constants)
+            if bucket is not None:
+                buckets.add(bucket)
+
+    assert buckets - set(MANAGED_TMPDIR_HORIZONS) == set()
 
 
 def test_pressure_reaping_prunes_large_build_scratch_before_horizon(
@@ -237,6 +271,30 @@ def test_pressure_reaping_prunes_large_build_scratch_before_horizon(
     assert result.pressure_removed == 1
     assert result.pressure_reclaimed_bytes >= 8 * 1024
     assert result.removed_by_subdir == {"cargo-targets": 1}
+
+
+def test_pressure_reaping_catches_legacy_build_targets_bucket(
+    tmp_path: Path,
+) -> None:
+    old_large = _aged_dir(
+        tmp_path,
+        "build-targets/run-old",
+        age_seconds=DAY,
+        size_bytes=8 * 1024,
+    )
+
+    result = reap_managed_tmpdir(
+        tmp_path,
+        now=NOW,
+        pressure_max_bytes=4 * 1024,
+        pressure_target_bytes=1024,
+        pressure_min_age_seconds=12 * HOUR,
+        pressure_min_entry_bytes=2 * 1024,
+    )
+
+    assert not old_large.exists()
+    assert result.pressure_removed == 1
+    assert result.removed_by_subdir == {"build-targets": 1}
 
 
 def test_pressure_reaping_catches_large_top_level_target_residue(
@@ -372,3 +430,35 @@ def test_the_default_root_follows_the_managed_tmpdir_resolution(
     assert result.root == managed
     assert not stale.exists()
     assert not (tmp_path / "developer-root").exists()
+
+
+def _module_string_constants(module: ast.Module) -> dict[str, str]:
+    constants: dict[str, str] = {}
+    for node in module.body:
+        if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+            continue
+        target = node.targets[0]
+        if isinstance(target, ast.Name) and isinstance(node.value, ast.Constant):
+            if isinstance(node.value.value, str):
+                constants[target.id] = node.value.value
+    return constants
+
+
+def _calls_managed_tmpdir(node: ast.Call) -> bool:
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id == "get_sase_managed_tmpdir"
+    if isinstance(func, ast.Attribute):
+        return func.attr == "get_sase_managed_tmpdir"
+    return False
+
+
+def _literal_or_module_constant(
+    node: ast.expr,
+    constants: dict[str, str],
+) -> str | None:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    if isinstance(node, ast.Name):
+        return constants.get(node.id)
+    return None
