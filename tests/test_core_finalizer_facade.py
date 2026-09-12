@@ -18,6 +18,7 @@ from sase.core.finalizer_facade import (
 )
 from sase.core.finalizer_wire import (
     FINALIZER_WIRE_SCHEMA_VERSION,
+    FinalizerAssignedBeadWire,
     FinalizerAttemptWire,
     FinalizerContextWire,
     FinalizerDeferralWire,
@@ -31,6 +32,9 @@ from sase.core.finalizer_wire import (
     FinalizerSubmissionEnvelopeWire,
     FinalizerSubmissionPayloadWire,
     finalizer_add,
+    finalizer_assigned_bead_from_dict,
+    finalizer_context_from_dict,
+    finalizer_wire_to_json_dict,
 )
 
 
@@ -214,3 +218,37 @@ def test_finalizer_facade_all_skipped_and_all_failed_aggregation() -> None:
     )
     assert failed.status == "failed"
     assert failed.diagnostics[0].instance_id == "lint"
+
+
+def test_assigned_bead_wire_round_trips_and_is_omitted_when_absent() -> None:
+    data = {
+        "schema_version": FINALIZER_WIRE_SCHEMA_VERSION,
+        "run_id": "run-1",
+        "agent_id": "agent-1",
+        "turn_nonce": "nonce-1",
+        "plan_digest": "d" * 64,
+        "requirements": [],
+        "obligations": [],
+    }
+    context = finalizer_context_from_dict(data)
+    assert context.assigned_bead is None
+    encoded = finalizer_wire_to_json_dict(context)
+    assert "assigned_bead" not in encoded
+
+    data["assigned_bead"] = {
+        "bead_id": "sase-zq.1",
+        "primary_repo_obligation_id": "repo:primary",
+    }
+    context = finalizer_context_from_dict(data)
+    assert context.assigned_bead == FinalizerAssignedBeadWire(
+        bead_id="sase-zq.1",
+        primary_repo_obligation_id="repo:primary",
+    )
+    encoded = finalizer_wire_to_json_dict(context)
+    assert encoded["assigned_bead"] == {
+        "bead_id": "sase-zq.1",
+        "primary_repo_obligation_id": "repo:primary",
+    }
+    assert finalizer_assigned_bead_from_dict(encoded["assigned_bead"]) == (
+        context.assigned_bead
+    )

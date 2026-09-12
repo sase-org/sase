@@ -104,6 +104,12 @@ class FinalizerObligationWire:
 
 
 @dataclass(frozen=True)
+class FinalizerAssignedBeadWire:
+    bead_id: str
+    primary_repo_obligation_id: str | None = None
+
+
+@dataclass(frozen=True)
 class FinalizerContextWire:
     schema_version: int
     run_id: str
@@ -113,6 +119,7 @@ class FinalizerContextWire:
     requirements: list[FinalizerPayloadRequirementWire] = field(default_factory=list)
     obligations: list[FinalizerObligationWire] = field(default_factory=list)
     context_digest: str | None = None
+    assigned_bead: FinalizerAssignedBeadWire | None = None
 
 
 @dataclass(frozen=True)
@@ -321,6 +328,20 @@ def finalizer_context_from_dict(data: dict[str, Any]) -> FinalizerContextWire:
             for obligation in data.get("obligations", [])
         ],
         context_digest=_optional_str(data.get("context_digest")),
+        assigned_bead=finalizer_assigned_bead_from_dict(data.get("assigned_bead")),
+    )
+
+
+def finalizer_assigned_bead_from_dict(
+    data: dict[str, Any] | None,
+) -> FinalizerAssignedBeadWire | None:
+    if data is None:
+        return None
+    return FinalizerAssignedBeadWire(
+        bead_id=str(data["bead_id"]),
+        primary_repo_obligation_id=_optional_str(
+            data.get("primary_repo_obligation_id")
+        ),
     )
 
 
@@ -415,6 +436,7 @@ __all__ = [
     "FINALIZER_DEFERRAL_REASONS",
     "FINALIZER_WIRE_SCHEMA_VERSION",
     "FinalizerAggregateResultWire",
+    "FinalizerAssignedBeadWire",
     "FinalizerAttemptWire",
     "FinalizerContextWire",
     "FinalizerDeferralWire",
@@ -436,6 +458,7 @@ __all__ = [
     "JsonValue",
     "finalizer_add",
     "finalizer_aggregate_result_from_dict",
+    "finalizer_assigned_bead_from_dict",
     "finalizer_clear",
     "finalizer_context_from_dict",
     "finalizer_deferral_from_dict",
