@@ -9,6 +9,7 @@ publishes a ``waiting.json`` queue marker and retries with jittered backoff.
 import fcntl
 import math
 import sys
+import time
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,6 +22,10 @@ from sase.axe.run_agent_wait_markers import (
     write_waiting_marker,
 )
 from sase.axe.run_agent_wait_slot_poll import advance_runner_slot_poll
+from sase.axe.runner_idle_memory import (
+    IDLE_TRIM_INTERVAL_SECONDS,
+    release_idle_memory,
+)
 from sase.axe.runner_signals import was_killed
 from sase.config.core import (
     get_max_running_agents,
@@ -609,6 +614,7 @@ def wait_for_runner_slot(
     """
     poll_attempt = 0
     seen_token = runner_slot_state_token()
+    next_trim_at: float | None = None
     while not was_killed():
         run_started_at, parked = _try_claim_runner_slot(
             artifacts_dir=artifacts_dir,
@@ -626,6 +632,14 @@ def wait_for_runner_slot(
         if parked:
             print("Waiting for a runner slot")
             poll_attempt = 0
+        # Only reached when the claim failed, so this runner is queued behind
+        # the capacity budget and may sit here for hours still holding its
+        # bootstrap peak. Release it, then keep it released against what each
+        # further claim attempt allocates.
+        now = time.monotonic()
+        if next_trim_at is None or now >= next_trim_at:
+            release_idle_memory()
+            next_trim_at = now + IDLE_TRIM_INTERVAL_SECONDS
         poll_attempt, seen_token = advance_runner_slot_poll(
             poll_attempt,
             seen_token,

@@ -28,6 +28,10 @@ from sase.axe.run_agent_wait_markers import (
     record_wait_completed_at,
     write_waiting_marker,
 )
+from sase.axe.runner_idle_memory import (
+    IDLE_TRIM_INTERVAL_SECONDS,
+    release_idle_memory,
+)
 from sase.axe.runner_signals import was_killed
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
@@ -155,7 +159,14 @@ def wait_for_dependencies(
         if not was_killed():
             record_wait_completed_at(artifacts_dir, agent_meta)
         return False
-    elif has_dependencies:
+
+    # Every branch below parks this process. The bootstrap that ran before this
+    # call peaked near half a gigabyte and has already dropped almost all of
+    # it, so hand those pages back now rather than holding them for the whole
+    # wait -- which is hours on a busy host, across dozens of parked runners.
+    release_idle_memory()
+
+    if has_dependencies:
         # --- Dependency path (with optional duration/time floor) ---
         waiting_path = os.path.join(artifacts_dir, "waiting.json")
         waiting_data: dict[str, Any] = {
@@ -207,6 +218,7 @@ def wait_for_dependencies(
             if project_name and wait_beads
             else None
         )
+        next_trim_at = time.monotonic() + IDLE_TRIM_INTERVAL_SECONDS
         while not dependencies_resolved:
             if os.path.exists(ready_path):
                 dependencies_resolved = read_ready_result(ready_path)
@@ -233,6 +245,11 @@ def wait_for_dependencies(
                 next_fallback_at = now + _WAIT_DEPENDENCY_FALLBACK_INTERVAL
             blocked = True
             _opportunistic_ensure_axe()
+            # Fallback resolution and axe healing both allocate; release what
+            # they leave behind instead of growing the parked runner again.
+            if now >= next_trim_at:
+                release_idle_memory()
+                next_trim_at = now + IDLE_TRIM_INTERVAL_SECONDS
             time.sleep(_WAIT_POLL_INTERVAL)
 
         post_dependency_wait_until = wait_until
