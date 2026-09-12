@@ -27,8 +27,8 @@ class UsageHeader(Header):
     UsageHeader HeaderTitle {
         text-wrap: nowrap;
         text-overflow: ellipsis;
-        content-align: left middle;
-        text-align: left;
+        content-align: center middle;
+        text-align: center;
         width: 1fr;
     }
 
@@ -81,7 +81,7 @@ class UsageHeader(Header):
             )
         except Exception:
             return
-        if not usage.region.contains(event.screen_x, event.screen_y):
+        if not usage.click_within_rendered_extent(event):
             return
         event.stop()
         event.prevent_default()
@@ -105,25 +105,48 @@ class UsageHeader(Header):
             )
         except Exception:
             return
-        usage.set_usage_budget(self._measure_usage_budget())
-        self._apply_title_tooltip()
+        budget = self._measure_usage_budget()
+        usage.set_usage_budget(budget)
+        self._apply_title_padding(budget)
+        self._apply_title_tooltip(budget)
 
-    def _measure_usage_budget(self) -> int:
-        """Return cells remaining after the icon and the unclipped title."""
-        inner = int(self.content_size.width)
-        if inner <= 0:
-            return 0
+    def _icon_width(self) -> int:
         try:
             icon = self.query_one(HeaderIcon)
         except Exception:
             return 0
-        icon_width = int(icon.outer_size.width)
+        return int(icon.outer_size.width)
+
+    def _measure_usage_budget(self) -> int:
+        """Return the right-hand reserve that keeps the title screen-centered.
+
+        The reserve is symmetric with the title's left padding: both grow
+        from a free allowance equal to the icon width (the left margin the
+        icon already occupies), bounded so usage never crowds the icon and
+        never eats into the space the unclipped title needs.
+        """
+        inner = int(self.content_size.width)
+        if inner <= 0:
+            return 0
+        icon_width = self._icon_width()
         if icon_width <= 0:
             return 0
         title_width = int(self.format_title().cell_length)
-        return max(0, inner - icon_width - title_width)
+        half_reserve = max(icon_width, (inner - title_width) // 2)
+        return max(0, min(inner - icon_width, half_reserve))
 
-    def _apply_title_tooltip(self) -> None:
+    def _apply_title_padding(self, budget: int) -> None:
+        """Pad the title so its content box stays symmetric about the header center."""
+        try:
+            title = self.query_one(HeaderTitle)
+        except Exception:
+            return
+        icon_width = self._icon_width()
+        padding = (0, max(0, icon_width - budget), 0, max(0, budget - icon_width))
+        if title.styles.padding != padding:
+            title.styles.padding = padding
+
+    def _apply_title_tooltip(self, budget: int) -> None:
         """Expose the full title when the single-line header has to ellipsize it."""
         try:
             title = self.query_one(HeaderTitle)
@@ -131,11 +154,8 @@ class UsageHeader(Header):
             return
         formatted = self.format_title()
         inner = int(self.content_size.width)
-        try:
-            icon_width = int(self.query_one(HeaderIcon).outer_size.width)
-        except Exception:
-            icon_width = 0
-        available = max(0, inner - icon_width)
+        reserve = max(self._icon_width(), budget)
+        available = max(0, inner - 2 * reserve)
         if inner > 0 and formatted.cell_length > available:
             title.tooltip = formatted.plain
         else:

@@ -46,8 +46,8 @@
 }
 
 #ace-header HeaderTitle {
-    content-align: left middle;
-    text-align: left;
+    content-align: center middle;
+    text-align: center;
 }
 
 #provider-usage-indicator {

@@ -98,7 +98,7 @@ async def _settle(page: AcePage) -> None:
 
 
 @pytest.mark.parametrize("width", _HEADER_WIDTHS)
-async def test_usage_header_keeps_title_left_and_usage_right(
+async def test_usage_header_centers_title_on_screen(
     monkeypatch: pytest.MonkeyPatch,
     width: int,
 ) -> None:
@@ -111,12 +111,16 @@ async def test_usage_header_keeps_title_left_and_usage_right(
         assert page.query_one_widget("#top-bar").region.height == 1
         assert not list(header.query(HeaderClockSpace))
         assert icon.region.x == header.region.x
-        assert title.region.x == icon.region.x + icon.region.width
+        assert icon.region.width == 8
         assert (
             usage.region.x + usage.region.width == header.region.x + header.region.width
         )
-        if usage.region.width:
-            assert title.region.x + title.region.width <= usage.region.x
+
+        content = title.content_region
+        header_center = header.region.x + header.region.width / 2
+        content_center = content.x + content.width / 2
+        assert abs(content_center - header_center) <= 1
+
         assert header.scroll_offset.x == 0
         assert str(page.app.title).startswith("sase ace")
         if width >= 120:
@@ -161,16 +165,21 @@ async def test_late_version_title_change_shrinks_usage_budget(
         assert usage._usage_budget <= before
 
 
-async def test_no_usage_keeps_title_and_empty_cluster(
+async def test_no_usage_keeps_title_centered_with_reserved_cluster(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_usage(monkeypatch)
     async with AcePage(size=(80, 24)) as page:
         await _settle(page)
-        header, icon, title, usage = _header_widgets(page)
+        header, _icon, title, usage = _header_widgets(page)
         assert usage.render().plain == ""
-        assert usage.region.width == 0
-        assert title.region.x == icon.region.x + icon.region.width
+        assert usage._usage_budget > 0
+        assert usage.region.width == usage._usage_budget
+
+        content = title.content_region
+        header_center = header.region.x + header.region.width / 2
+        content_center = content.x + content.width / 2
+        assert abs(content_center - header_center) <= 1
         assert header.region.height == 1
 
 
@@ -180,16 +189,15 @@ async def test_zero_space_and_narrow_to_wide_restoration(
     _patch_usage(monkeypatch, *_claude_windows())
     async with AcePage(size=(20, 24)) as page:
         await _settle(page)
-        header, _icon, title, usage = _header_widgets(page)
-        assert usage._usage_budget == 0
-        assert usage.render().plain == ""
+        header, icon, title, usage = _header_widgets(page)
+        assert usage._usage_budget == icon.region.width
         assert title.tooltip
         assert header.region.height == 1
         assert header.scroll_offset.x == 0
 
         await page._pilot.resize_terminal(160, 24)  # noqa: SLF001
         await _settle(page)
-        assert usage._usage_budget > 0
+        assert usage._usage_budget > icon.region.width
         assert "🎭" in usage.render().plain
 
 
@@ -216,6 +224,7 @@ async def test_usage_only_changes_do_not_move_control_row(
         await _settle(page)
         header, _icon, title, usage = _header_widgets(page)
         title_origin = title.region.x
+        title_content = title.content_region
         usage_right = usage.region.x + usage.region.width
         before = _top_bar_regions(page)
         header_height = header.region.height
@@ -263,6 +272,7 @@ async def test_usage_only_changes_do_not_move_control_row(
             await _settle(page)
             assert _top_bar_regions(page) == before
             assert title.region.x == title_origin
+            assert title.content_region == title_content
             assert header.region.height == header_height == 1
             assert page.query_one_widget("#top-bar").region.height == top_height == 1
             if usage.region.width:
@@ -277,7 +287,10 @@ async def test_pilot_clicks_open_usage_without_expanding_header(
         await _settle(page)
         header, _icon, _title, usage = _header_widgets(page)
         assert usage.region.width > 0
-        assert await page._pilot.click(usage, offset=(1, 0))  # noqa: SLF001
+        content_start = usage.region.width - usage.rendered_content_width
+        assert await page._pilot.click(  # noqa: SLF001
+            usage, offset=(content_start, 0)
+        )
         await page.pause()
         await page.expect_modal("ProviderUsageModal")
         assert not header.has_class("-tall")
@@ -315,8 +328,9 @@ async def test_fallback_clicks_open_usage(
             or "🎭" in usage.render().plain
             or rendered == ""
         )
-        if usage.region.width:
-            await page.click("#provider-usage-indicator")
+        if usage.rendered_content_width:
+            content_offset = usage.region.width - usage.rendered_content_width
+            await page.click("#provider-usage-indicator", offset=(content_offset, 0))
             await page.expect_modal("ProviderUsageModal")
             assert not page.app.query_one("#ace-header", UsageHeader).has_class("-tall")
             await page.press("escape")
@@ -364,7 +378,7 @@ async def test_header_icon_keeps_hit_target_and_palette_works_at_zero_space(
         await _settle(page)
         _header, icon, _title, usage = _header_widgets(page)
         assert icon.region.width == 8
-        assert usage._usage_budget == 0
+        assert usage._usage_budget == icon.region.width
         page.app.action_open_command_palette()
         await page.expect_modal("CommandPaletteModal")
         await page.press("escape")
@@ -393,7 +407,9 @@ async def test_unused_header_space_still_expands(
     async with AcePage(size=(120, 24)) as page:
         await _settle(page)
         header, _icon, title, usage = _header_widgets(page)
-        assert usage.region.width == 0
+        assert usage.render().plain == ""
+        assert usage._usage_budget > 0
+        assert usage.region.width == usage._usage_budget
         assert title.region.width > 1
         # Click the title widget so the event bubbles into Header. Textual
         # dispatches every matching MRO handler; a subclass `_on_click` would
@@ -404,3 +420,93 @@ async def test_unused_header_space_still_expands(
         await _settle(page)
         assert header.has_class("-tall")
         assert header.region.height == 3
+
+
+async def test_complete_title_priority_caps_usage_at_half_remainder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_usage(monkeypatch, *_claude_windows())
+    async with AcePage(size=(160, 24)) as page:
+        await _settle(page)
+        header, icon, title, usage = _header_widgets(page)
+
+        assert title.tooltip is None
+        title_width = header.format_title().cell_length
+        inner = int(header.content_size.width)
+        half_remainder = (inner - title_width) // 2
+        assert usage._usage_budget > icon.region.width
+        assert usage._usage_budget <= half_remainder
+
+
+async def test_overlong_title_ellipsizes_but_stays_centered_with_tooltip(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_usage(monkeypatch, *_claude_windows())
+    async with AcePage(size=(60, 24)) as page:
+        await _settle(page)
+        header, icon, title, usage = _header_widgets(page)
+        page.app.title = "sase ace " + ("n" * 80)
+        await _settle(page)
+
+        inner = int(header.content_size.width)
+        icon_width = icon.region.width
+        title_width = header.format_title().cell_length
+        assert title_width > inner - 2 * icon_width
+        assert title.tooltip == header.format_title().plain
+
+        content = title.content_region
+        assert content.width == inner - 2 * icon_width
+        header_center = header.region.x + header.region.width / 2
+        content_center = content.x + content.width / 2
+        assert abs(content_center - header_center) <= 1
+
+
+async def test_blank_reserved_click_toggles_tall_header_without_opening_modal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_usage(monkeypatch, *_claude_windows())
+    async with AcePage(size=(240, 24)) as page:
+        await _settle(page)
+        header, _icon, _title, usage = _header_widgets(page)
+        assert usage.region.width > usage.rendered_content_width
+
+        blank_offset = usage.region.width - usage.rendered_content_width - 1
+        assert await page._pilot.click(  # noqa: SLF001
+            usage, offset=(blank_offset, 0)
+        )
+        await _settle(page)
+        assert header.has_class("-tall")
+        await page.expect_no_modal()
+
+        header.remove_class("-tall")
+        await _settle(page)
+        content_offset = usage.region.width - 1
+        assert await page._pilot.click(  # noqa: SLF001
+            usage, offset=(content_offset, 0)
+        )
+        await page.pause()
+        await page.expect_modal("ProviderUsageModal")
+        assert not header.has_class("-tall")
+        await page.press("escape")
+        await page.expect_no_modal()
+
+
+async def test_reapplying_usage_budget_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_usage(monkeypatch, *_claude_windows())
+    async with AcePage(size=(120, 24)) as page:
+        await _settle(page)
+        header, _icon, title, usage = _header_widgets(page)
+
+        padding_before = title.styles.padding
+        width_before = usage.region.width
+        content_before = title.content_region
+
+        header._apply_usage_budget()  # noqa: SLF001
+        header._apply_usage_budget()  # noqa: SLF001
+        await page.pause()
+
+        assert title.styles.padding == padding_before
+        assert usage.region.width == width_before
+        assert title.content_region == content_before

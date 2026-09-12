@@ -225,7 +225,13 @@ async def test_click_opens_provider_usage_when_groups_exist(
         )
         indicator.set_usage_budget(80)
         indicator._apply_content()
-        event = MagicMock()
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        await page.pause()
+        event = MagicMock(
+            screen_x=indicator.region.right - 1,
+            screen_y=indicator.region.y,
+        )
         await indicator.on_click(event)
         await page.pause()
 

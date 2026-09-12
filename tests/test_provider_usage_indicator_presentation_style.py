@@ -84,7 +84,12 @@ def test_name_percent_and_countdown_share_bold_value_color(dark: bool) -> None:
 
 @pytest.mark.parametrize("dark", [True, False])
 def test_exact_zero_percent_uses_inverted_value_style(dark: bool) -> None:
-    entry = _entry(remaining_percent=0.0)
+    entry = _entry(
+        window_key="weekly:claude-fable-5",
+        weekly_all=False,
+        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
+        remaining_percent=0.0,
+    )
     segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
     exhausted_color = usage_percent_color(0, dark=dark)
     badge_surface = _usage_badge_surface_color(dark=dark)
@@ -101,7 +106,7 @@ def test_exact_zero_percent_uses_inverted_value_style(dark: bool) -> None:
     assert zero_style.bgcolor is not None
     assert zero_style.bgcolor.get_truecolor().hex == exhausted_color.lower()
 
-    zero_run = "0% 3d4h"
+    zero_run = "fable 0% 3d4h"
     zero_start, zero_end = _assert_style_run(
         segment,
         zero_run,
@@ -115,7 +120,7 @@ def test_exact_zero_percent_uses_inverted_value_style(dark: bool) -> None:
 
 
 @pytest.mark.parametrize("dark", [True, False])
-def test_named_and_rejected_zero_neighbors_keep_normal_badge_surface(
+def test_named_and_rejected_zero_run_forms_one_inverted_block(
     dark: bool,
 ) -> None:
     entry = _entry(
@@ -128,18 +133,46 @@ def test_named_and_rejected_zero_neighbors_keep_normal_badge_surface(
         display_attention="rejected",
     )
     segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
-    badge_surface = _usage_badge_surface_color(dark=dark)
+    exhausted_color = usage_percent_color(0, dark=dark)
 
     assert segment.plain.strip() == "🛰️ grok-preview ! 0% 3d4h"
-    for token in ("grok-preview", "!"):
-        style = _style_at_token(segment, token)
-        assert style.bgcolor is not None
-        assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
-    _assert_style_run(
+    start, end = _assert_style_run(
         segment,
-        "0% 3d4h",
+        "grok-preview ! 0% 3d4h",
         Style.parse(usage_zero_value_style(dark=dark)),
     )
+
+    for offset in (start - 1, end):
+        adjacent_style = _style_at_offset(segment, offset)
+        assert adjacent_style.bgcolor is not None
+        assert adjacent_style.bgcolor.get_truecolor().hex != exhausted_color.lower()
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_zero_and_healthy_windows_stay_separated_by_normal_divider(
+    dark: bool,
+) -> None:
+    healthy = _entry(provider="claude", window_key="weekly", remaining_percent=62.0)
+    exhausted = _entry(
+        provider="claude",
+        window_key="weekly:claude-fable-5",
+        weekly_all=False,
+        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
+        remaining_percent=0.0,
+    )
+    segment = build_usage_indicator_segment(
+        _groups(healthy, exhausted, dark=dark), dark=dark
+    )
+
+    assert segment.plain.strip() == "🎭 62% 3d4h · fable 0% 3d4h"
+    assert _dot_styles(segment) == [Style.parse(usage_divider_style(dark=dark))]
+    _assert_style_run(
+        segment,
+        "fable 0% 3d4h",
+        Style.parse(usage_zero_value_style(dark=dark)),
+    )
+    healthy_style = _style_at_token(segment, "62%")
+    assert healthy_style != Style.parse(usage_zero_value_style(dark=dark))
 
 
 @pytest.mark.parametrize(

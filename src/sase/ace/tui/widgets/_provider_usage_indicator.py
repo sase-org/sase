@@ -331,18 +331,22 @@ def _entry_fragment(
 
     text = Text("", style=base_style)
     rejected = _optional_text(entry.get("vendor_state")) == "rejected"
-    if name:
-        text.append(name, style=value_style)
-        text.append(" ", style=value_style if not rejected else base_style)
-    if rejected:
-        text.append("!", style=usage_rejected_style(dark=dark))
-        text.append(" ", style=base_style)
     if percent_text == "0%":
-        text.append(
-            f"{percent_text} {countdown_text}",
-            style=usage_zero_value_style(dark=dark),
-        )
+        zero_style = usage_zero_value_style(dark=dark)
+        if name:
+            text.append(name, style=zero_style)
+            text.append(" ", style=zero_style)
+        if rejected:
+            text.append("!", style=zero_style)
+            text.append(" ", style=zero_style)
+        text.append(f"{percent_text} {countdown_text}", style=zero_style)
     else:
+        if name:
+            text.append(name, style=value_style)
+            text.append(" ", style=value_style if not rejected else base_style)
+        if rejected:
+            text.append("!", style=usage_rejected_style(dark=dark))
+            text.append(" ", style=base_style)
         text.append(percent_text, style=value_style)
         text.append(" ", style=value_style)
         text.append(countdown_text, style=value_style)

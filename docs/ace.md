@@ -3414,11 +3414,11 @@ right of the existing title row, for example:
 🎭 62% 3d4h · fable 0% 1d8h  🤖 81% 5d2h
 ```
 
-The title stays left-aligned after the header icon. Usage is a separate right-aligned
-cluster; changing usage text does not move the title's left edge, usage's right edge, or
-the navigation and routing controls on the row below. The complete title has priority:
-ACE never truncates it merely to show more usage, and a clipped title keeps the full
-string in its tooltip.
+The title is centered on the header line. Usage occupies a right-docked reserve sized so
+the complete title still fits centered; changing usage text never moves the title, and
+the navigation and routing controls on the row below stay put. The complete title has
+priority: ACE never truncates it merely to show more usage, and a clipped title keeps
+the full string in its tooltip.
 
 The rendered segment owns one quiet space before the first provider icon and one after
 the block. Each provider icon appears once, followed by one space, and providers are
@@ -3432,9 +3432,10 @@ additional selected windows include compact names such as `fable`, `5h`, `mo`, o
 model/family distinctions; `scope?` means the provider did not expose exact
 applicability. The name, percentage, and reset countdown share the window's ten-step
 remaining-capacity color, from red (nearly exhausted) to blue (nearly full), except an
-exact `0%` highlights the whole `0% <reset-countdown>` value run with the inverted red
-style. Adjacent names, rejected markers, provider icons, middle dots, provider gaps, and
-outer padding keep their normal surfaces; structural punctuation is neutral, normal
+exact `0%` highlights the window's whole value run — its name, rejection marker,
+percentage, and reset countdown together — with the inverted red style. Provider icons,
+middle dots, provider gaps, and outer padding keep their normal surfaces; a non-zero
+window's name and rejected marker do too. Structural punctuation is neutral, normal
 weight in both themes. Which windows appear, and at what remaining percentage, is fully
 configurable through
 [`llm_provider.usage_metrics.indicator`](configuration.md#llm_providerusage_metrics).

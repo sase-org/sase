@@ -46,6 +46,7 @@ class ProviderUsageIndicator(Static):
         self._usage_budget = 0
         self._sync_usage_groups()
         self._content_signature = text_signature(Text(""))
+        self._content_width = 0
         super().__init__(Text(""), **kwargs)
         self.tooltip = None
 
@@ -54,14 +55,39 @@ class ProviderUsageIndicator(Static):
         """Return the provider a usage click should open, if any."""
         return self._usage_open_provider
 
+    @property
+    def rendered_content_width(self) -> int:
+        """Return the current rendered content's terminal-cell width."""
+        return self._content_width
+
     def set_usage_budget(self, budget: int) -> None:
-        """Apply a measured header cell budget; zero keeps the cluster empty."""
+        """Apply a measured header cell budget; zero keeps the cluster empty.
+
+        The budget is also the widget's reserved width, so the header's
+        symmetric title box never depends on how wide the usage text renders.
+        """
         normalized = max(0, int(budget))
         if normalized == self._usage_budget:
             return
         self._usage_budget = normalized
+        self.styles.width = normalized
         if self.is_mounted:
             self._apply_content()
+
+    def click_within_rendered_extent(self, event: Click) -> bool:
+        """Return whether *event* lands inside this indicator's rendered text.
+
+        A fixed-width reserve means blank cells belong to this widget even
+        when it renders nothing; those clicks must bubble to ``Header`` so an
+        empty-header click still toggles the tall header exactly as before.
+        """
+        width = self._content_width
+        if width <= 0:
+            return False
+        region = self.region
+        if not region.contains(event.screen_x, event.screen_y):
+            return False
+        return event.screen_x >= region.right - width
 
     def on_mount(self) -> None:
         """Poll through the lock-free peek cache on the header cadence."""
@@ -104,7 +130,9 @@ class ProviderUsageIndicator(Static):
             self._usage_peek_in_flight = False
 
     async def on_click(self, event: Click) -> None:
-        """Open Usage without expanding Header, including overflow/fallback clicks."""
+        """Open Usage for clicks inside the rendered text; let others bubble."""
+        if not self.click_within_rendered_extent(event):
+            return
         event.stop()
         event.prevent_default()
         cast(_ProviderUsageApp, self.app).action_open_provider_usage()
@@ -150,6 +178,7 @@ class ProviderUsageIndicator(Static):
         if signature != self._content_signature:
             self.update(content)
             self._content_signature = signature
+            self._content_width = content.cell_len
         if self.tooltip != tooltip:
             self.tooltip = tooltip
 
