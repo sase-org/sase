@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import threading
 
 import pytest
 
 from sase.ace.tui._proc_observer_log import ProcLogStream
+from sase.ace.tui.session_proc_reporter import (
+    SESSION_PROC_MAX_OUTPUT_BYTES,
+    _stream_subprocess,  # noqa: SLF001
+)
 from tests.ace.tui._session_reporter import session_reporter
 
 
@@ -209,3 +214,126 @@ def test_session_reporter_dev_command_runner_streams_and_sets_phase() -> None:
     assert "dev-line" in reporter.proc.get_live_output()
     assert reporter.proc.phase is not None
     assert reporter.proc.phase.startswith("Running ")
+
+
+def test_stream_subprocess_under_cap_is_byte_identical() -> None:
+    payload = "hello\nworld\n"
+    result = _stream_subprocess(
+        [
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.write('hello\\nworld\\n')",
+        ],
+        on_line=lambda _line: None,
+        cancel_event=threading.Event(),
+        max_output_bytes=SESSION_PROC_MAX_OUTPUT_BYTES,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == payload
+    assert "bytes elided" not in result.stdout
+
+
+def test_stream_subprocess_elides_middle_once_over_the_cap() -> None:
+    seen: list[str] = []
+    result = _stream_subprocess(
+        [
+            sys.executable,
+            "-c",
+            "print('HEAD-TOKEN', flush=True)\n"
+            "for i in range(80):\n"
+            "    print(f'line {i:04d}', flush=True)\n"
+            "print('TAIL-TOKEN', flush=True)",
+        ],
+        on_line=seen.append,
+        cancel_event=threading.Event(),
+        max_output_bytes=80,
+    )
+
+    assert result.returncode == 0
+    assert "bytes elided" in result.stdout
+    assert result.stdout.startswith("HEAD-TOKEN")
+    assert result.stdout.rstrip().endswith("TAIL-TOKEN")
+    assert "line 0040" not in result.stdout
+    assert "line 0040" in seen
+    assert "HEAD-TOKEN" in seen
+    assert "TAIL-TOKEN" in seen
+    marker_start = result.stdout.index("\n… ")
+    marker_end = result.stdout.index(" …\n", marker_start) + len(" …\n")
+    head = result.stdout[:marker_start]
+    tail = result.stdout[marker_end:]
+    assert len(head.encode("utf-8")) <= 40
+    assert len(tail.encode("utf-8")) <= 40
+
+
+def test_session_reporter_run_elides_stdout_but_logs_every_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.session_proc_reporter.SESSION_PROC_MAX_OUTPUT_BYTES",
+        80,
+    )
+    reporter = session_reporter()
+    result = reporter.run(
+        [
+            sys.executable,
+            "-c",
+            "print('start-line', flush=True)\n"
+            "for i in range(80):\n"
+            "    print(f'unique-middle-{i:04d}', flush=True)\n"
+            "print('end-line', flush=True)",
+        ]
+    )
+
+    assert result.returncode == 0
+    assert "bytes elided" in result.stdout
+    assert "start-line" in result.stdout
+    assert "end-line" in result.stdout
+    live = reporter.proc.get_live_output()
+    assert "unique-middle-0040" in live
+    assert "unique-middle-0040" not in result.stdout
+    assert "bytes elided" not in live
+
+
+def test_session_reporter_run_retain_full_keeps_oversize_stdout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.ace.tui.session_proc_reporter.SESSION_PROC_MAX_OUTPUT_BYTES",
+        40,
+    )
+    blob = "x" * 400
+    reporter = session_reporter()
+    result = reporter.run(
+        [
+            sys.executable,
+            "-c",
+            f"import sys; sys.stdout.write({blob!r})",
+        ],
+        log_lines=False,
+        retain="full",
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == blob
+    assert "bytes elided" not in result.stdout
+    texts = [text for text, _stream in _streams(reporter)]
+    assert blob not in texts
+
+
+def test_stream_subprocess_retain_full_ignores_byte_cap() -> None:
+    blob = "y" * 200
+    result = _stream_subprocess(
+        [
+            sys.executable,
+            "-c",
+            f"import sys; sys.stdout.write({blob!r})",
+        ],
+        on_line=lambda _line: None,
+        cancel_event=threading.Event(),
+        retain="full",
+        max_output_bytes=20,
+    )
+
+    assert result.returncode == 0
+    assert result.stdout == blob

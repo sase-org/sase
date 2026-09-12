@@ -17,6 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.shells.output import SHELL_MAX_OUTPUT_BYTES, OutputCapture
+
 from ._proc_observer_log import ProcLogStream
 from ._proc_observer_models import ObservedProc
 from .proc_subprocess import command_display
@@ -28,6 +30,11 @@ if TYPE_CHECKING:
 
 LineCallback = Callable[[str], None]
 RunOutputTarget = Literal["stdout", "stderr"]
+RetainMode = Literal["bounded", "full"]
+
+#: Byte budget for :class:`subprocess.CompletedProcess` stdout retained from a
+#: streamed child (head + tail). The live proc log is bounded separately.
+SESSION_PROC_MAX_OUTPUT_BYTES = SHELL_MAX_OUTPUT_BYTES
 
 
 def _stream_subprocess(
@@ -38,11 +45,24 @@ def _stream_subprocess(
     cwd: str | Path | None = None,
     env: Mapping[str, str] | None = None,
     timeout: float | None = None,
+    retain: RetainMode = "bounded",
+    max_output_bytes: int = SESSION_PROC_MAX_OUTPUT_BYTES,
 ) -> subprocess.CompletedProcess[str]:
-    """Run *argv* while streaming combined stdout/stderr lines to *on_line*."""
+    """Run *argv* while streaming combined stdout/stderr lines to *on_line*.
+
+    ``CompletedProcess.stdout`` is a head+tail view capped at
+    *max_output_bytes* unless ``retain="full"``. Elided output includes a
+    marker line naming the dropped byte count. ``on_line`` still receives
+    every child line; the presentation log, not this buffer, bounds the
+    live view.
+
+    ``text=True`` is kept so ``\\r`` progress repaints still reach ``on_line``
+    as distinct lines. Changing that would alter proc-log appearance.
+    """
     args = [str(part) for part in argv]
     started = time.monotonic()
-    output_chunks: list[str] = []
+    capture = OutputCapture(max_bytes=max_output_bytes) if retain == "bounded" else None
+    full_chunks: list[str] | None = [] if retain == "full" else None
     output_lock = threading.Lock()
     timed_out = False
     cancelled = False
@@ -63,7 +83,11 @@ def _stream_subprocess(
         assert process.stdout is not None
         for raw in process.stdout:
             with output_lock:
-                output_chunks.append(raw)
+                if capture is not None:
+                    capture.append_bytes(raw.encode("utf-8"))
+                else:
+                    assert full_chunks is not None
+                    full_chunks.append(raw)
             on_line(raw.rstrip("\r\n"))
 
     reader = threading.Thread(
@@ -92,7 +116,11 @@ def _stream_subprocess(
         reader.join(timeout=1.0)
 
     with output_lock:
-        output = "".join(output_chunks)
+        if capture is not None:
+            output = capture.retained_text()
+        else:
+            assert full_chunks is not None
+            output = "".join(full_chunks)
     if timed_out:
         assert timeout is not None
         raise subprocess.TimeoutExpired(args, timeout, output=output)
@@ -165,8 +193,14 @@ class SessionProcReporter:
         stream: ProcLogStream = "stdout",
         log_lines: bool = True,
         on_line: LineCallback | None = None,
+        retain: RetainMode = "bounded",
     ) -> subprocess.CompletedProcess[str]:
         """Run a subprocess with live line streaming into this proc.
+
+        ``CompletedProcess.stdout`` is a head+tail view of at most
+        :data:`SESSION_PROC_MAX_OUTPUT_BYTES` unless ``retain="full"``. Elided
+        content is replaced by a marker line; callers that parse the whole
+        stream (JSON check payloads) must pass ``retain="full"``.
 
         ``log_lines=False`` still captures stdout on the returned
         ``CompletedProcess`` but does not append child lines to the proc log
@@ -198,6 +232,8 @@ class SessionProcReporter:
             cwd=cwd,
             env=env,
             timeout=timeout,
+            retain=retain,
+            max_output_bytes=SESSION_PROC_MAX_OUTPUT_BYTES,
         )
         self.proc.exit_code = result.returncode
         return result
@@ -205,7 +241,12 @@ class SessionProcReporter:
     def subprocess_run_fn(
         self, *, output_target: RunOutputTarget = "stdout"
     ) -> Callable[..., subprocess.CompletedProcess[str]]:
-        """Return a ``subprocess.run``-shaped function backed by :meth:`run`."""
+        """Return a ``subprocess.run``-shaped function backed by :meth:`run`.
+
+        Captured stdout/stderr uses the default bounded retention. Callers
+        that parse a full JSON payload must use :meth:`run` with
+        ``retain="full"`` instead of this adapter.
+        """
 
         def _run(
             argv: Sequence[object],
@@ -297,4 +338,4 @@ class SessionProcReporter:
         return _run
 
 
-__all__ = ["SessionProcReporter"]
+__all__ = ["SESSION_PROC_MAX_OUTPUT_BYTES", "SessionProcReporter"]

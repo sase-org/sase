@@ -80,6 +80,7 @@ async def test_i_on_drifted_project_submits_check_and_sets_status(
             "--json",
         ]
         assert reporter.runs[0][1]["log_lines"] is False
+        assert reporter.runs[0][1]["retain"] == "full"
         assert reporter.runs[0][1]["cwd"] == Path.home()
         assert isinstance(result, TrackedProcResult)
 

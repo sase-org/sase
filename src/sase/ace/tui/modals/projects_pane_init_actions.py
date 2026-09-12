@@ -303,6 +303,7 @@ def _run_init_check(
             cwd=cwd,
             timeout=timeout,
             log_lines=False,
+            retain="full",
         )
     except subprocess.TimeoutExpired:
         message = f"Initialization check timed out after {timeout:.0f}s"
