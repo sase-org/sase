@@ -61,6 +61,25 @@ def test_update_search_query_seeded_tag_follows_rich_segment() -> None:
     assert "filter: project:demo seeded  1/1" in plain
 
 
+def test_update_search_query_shows_partial_history_notice() -> None:
+    panel = AgentInfoPanel()
+    highlighted = Text("status:FAILED")
+    with patch.object(panel, "update"):
+        panel.update_search_query(
+            "status:FAILED",
+            rich=highlighted,
+            match_count=(1, 5),
+            partial_history=True,
+        )
+
+    plain = collect_text(panel)
+
+    assert (
+        "filter: status:FAILED  1/5  filtered on recent history; "
+        "loading full history..."
+    ) in plain
+
+
 def test_search_query_click_span_covers_only_the_query_segment() -> None:
     panel = AgentInfoPanel()
     panel._sase_agent_count = 5

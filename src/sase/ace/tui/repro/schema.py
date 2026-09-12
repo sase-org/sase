@@ -148,6 +148,7 @@ class ReproLoadState:
     repair_recommended: bool = False
     repair_reason: str | None = None
     truncated: bool = False
+    query_incomplete: bool = False
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReproLoadState:
@@ -184,6 +185,9 @@ class ReproLoadState:
                 data.get("repair_reason"), field_name="repair_reason"
             ),
             truncated=_bool(data.get("truncated", False), field_name="truncated"),
+            query_incomplete=_bool(
+                data.get("query_incomplete", False), field_name="query_incomplete"
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -197,6 +201,7 @@ class ReproLoadState:
             "repair_recommended": self.repair_recommended,
             "repair_reason": self.repair_reason,
             "truncated": self.truncated,
+            "query_incomplete": self.query_incomplete,
         }
 
 

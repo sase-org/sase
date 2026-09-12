@@ -239,6 +239,7 @@ def _snapshot_from_page(
             "repair_recommended": app._agent_load_state.repair_recommended,
             "repair_reason": app._agent_load_state.repair_reason,
             "truncated": app._agent_load_state.truncated,
+            "query_incomplete": app._agent_load_state.query_incomplete,
         }
     return ReproReplayStepSnapshot(
         step_id=observed.step_id,

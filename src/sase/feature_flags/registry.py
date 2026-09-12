@@ -23,6 +23,7 @@ class FeatureFlag(StrEnum):
 
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
+    agents_deferred_history = "agents_deferred_history"
     agents_unified_query = "agents_unified_query"
     provider_drain = "provider_drain"
     queue_capacity_budget = "queue_capacity_budget"
@@ -47,6 +48,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "feature-flag control."
         ),
         bead="sase-rx",
+    ),
+    FeatureFlag.agents_deferred_history: FeatureFlagDefinition(
+        key=FeatureFlag.agents_deferred_history,
+        kind="beta",
+        description=(
+            "Pushdown misses in the Agents tab serve the bounded recent-history "
+            "window first and arm the existing quiet-window full-history reconcile."
+        ),
+        bead="sase-zx",
     ),
     FeatureFlag.agents_unified_query: FeatureFlagDefinition(
         key=FeatureFlag.agents_unified_query,

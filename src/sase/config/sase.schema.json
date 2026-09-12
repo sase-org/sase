@@ -4558,6 +4558,11 @@
           "default": true,
           "deprecated": true
         },
+        "agents_deferred_history": {
+          "type": "boolean",
+          "description": "Pushdown misses in the Agents tab serve the bounded recent-history window first and arm the existing quiet-window full-history reconcile.",
+          "default": false
+        },
         "agents_unified_query": {
           "type": "boolean",
           "description": "The Agents tab parses, evaluates, and edits its filter with the shared agents-live boolean query profile through the Rust corpus engine and the FilterBar chrome.",

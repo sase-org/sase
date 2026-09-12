@@ -48,6 +48,8 @@ def _should_arm_full_history_reconcile(load_state: AgentLoadState | None) -> boo
         return False
     if load_state.repair_recommended:
         return True
+    if load_state.query_incomplete:
+        return True
     return not load_state.complete_visible_inbox and not load_state.used_artifact_index
 
 

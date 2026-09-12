@@ -55,6 +55,7 @@ class AgentInfoPanel(Static):
         self._search_query_seeded: bool = False
         self._search_query_rich: Text | None = None
         self._search_query_match_count: tuple[int, int] | None = None
+        self._search_query_partial_history: bool = False
         self._search_query_click_span: tuple[int, int] | None = None
         self._loading: bool = False
         self._registry = load_keymap_registry({})
@@ -175,6 +176,7 @@ class AgentInfoPanel(Static):
         seeded: bool = False,
         rich: Text | None = None,
         match_count: tuple[int, int] | None = None,
+        partial_history: bool = False,
     ) -> None:
         """Update the search query filter display.
 
@@ -188,11 +190,14 @@ class AgentInfoPanel(Static):
                 becomes clickable (see :class:`FilterClicked`).
             match_count: Optional ``(matched, loaded)`` pair rendered beside
                 *rich*.
+            partial_history: When True, the filtered corpus is bounded to
+                recent history while a full-history reconcile is pending.
         """
         self._search_query = query
         self._search_query_seeded = seeded
         self._search_query_rich = rich
         self._search_query_match_count = match_count
+        self._search_query_partial_history = partial_history
         self._update_display()
 
     def update_state(
@@ -218,6 +223,7 @@ class AgentInfoPanel(Static):
         search_query_seeded: bool = False,
         search_query_rich: Text | None = None,
         search_query_match_count: tuple[int, int] | None = None,
+        search_query_partial_history: bool = False,
         runner_limit: float = 0.0,
         runner_occupied_capacity: float | None = None,
         runner_queue_count: int = 0,
@@ -251,6 +257,7 @@ class AgentInfoPanel(Static):
             search_query_seeded,
             search_query_rich.plain if search_query_rich is not None else None,
             search_query_match_count,
+            search_query_partial_history,
         )
         old_stable = (
             self._position,
@@ -278,6 +285,7 @@ class AgentInfoPanel(Static):
                 else None
             ),
             self._search_query_match_count,
+            self._search_query_partial_history,
         )
         if new_stable == old_stable:
             self.update_countdown_only(countdown, interval)
@@ -306,6 +314,7 @@ class AgentInfoPanel(Static):
             self._search_query_seeded,
             _,
             _,
+            self._search_query_partial_history,
         ) = new_stable
         self._countdown = countdown
         self._interval = interval
@@ -466,6 +475,11 @@ class AgentInfoPanel(Static):
             text.append(self._search_query, style="bold #FFD700")
             if self._search_query_seeded:
                 text.append(" seeded", style="dim")
+        if self._search_query and self._search_query_partial_history:
+            text.append(
+                "  filtered on recent history; loading full history...",
+                style="dim italic",
+            )
         if self._view_mode:
             text.append("   ")
             text.append("[", style="dim")

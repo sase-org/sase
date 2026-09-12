@@ -156,10 +156,11 @@ def test_load_tiered_agents_unsupported_query_uses_full_history(
         lambda agents, _steps: list(agents),
     )
 
-    _agents, state = load_tiered_agents(
-        search_query="status:failed",
-        requested_limit=25,
-    )
+    with override_flags(agents_deferred_history=False):
+        _agents, state = load_tiered_agents(
+            search_query="status:failed",
+            requested_limit=25,
+        )
 
     assert state.complete_history is True
     assert calls == [
@@ -169,6 +170,122 @@ def test_load_tiered_agents_unsupported_query_uses_full_history(
             "use_artifact_index": True,
             "index_freshness": "cached",
             "requested_limit": None,
+            "candidate_filter": None,
+        }
+    ]
+
+
+def test_load_tiered_agents_deferred_history_uses_bounded_unified_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed = _make_agent(status="FAILED", cl_name="a")
+    running = _make_agent(status="RUNNING", cl_name="b")
+    calls: list[dict[str, object]] = []
+
+    def fake_load_agents_with_state(**kwargs: object) -> SimpleNamespace:
+        calls.append(kwargs)
+        return SimpleNamespace(
+            agents=[failed, running],
+            workflow_agent_steps=[],
+            state=AgentLoadState(
+                tier="tier1",
+                complete_history=False,
+                artifact_source="artifact_index",
+                used_artifact_index=True,
+                bounded_prefix=True,
+                requested_limit=25,
+                returned_count=2,
+                has_more=True,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        fake_load_agents_with_state,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        lambda agents, _steps: list(agents),
+    )
+
+    with override_flags(
+        agents_deferred_history=True,
+        agents_unified_query=True,
+    ):
+        agents, state = load_tiered_agents(
+            search_query="status:FAILED",
+            requested_limit=25,
+        )
+
+    assert agents == [failed]
+    assert state.query_incomplete is True
+    assert state.needs_full_history_reconcile is True
+    assert state.returned_count == 1
+    assert state.has_more is True
+    assert calls == [
+        {
+            "patch_snapshot": None,
+            "full_history": False,
+            "use_artifact_index": True,
+            "index_freshness": "cached",
+            "requested_limit": 25,
+            "candidate_filter": None,
+        }
+    ]
+
+
+def test_load_tiered_agents_deferred_history_uses_bounded_legacy_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed = _make_agent(status="FAILED", cl_name="a")
+    running = _make_agent(status="RUNNING", cl_name="b")
+    calls: list[dict[str, object]] = []
+
+    def fake_load_agents_with_state(**kwargs: object) -> SimpleNamespace:
+        calls.append(kwargs)
+        return SimpleNamespace(
+            agents=[failed, running],
+            workflow_agent_steps=[],
+            state=AgentLoadState(
+                tier="tier1",
+                complete_history=False,
+                artifact_source="artifact_index",
+                used_artifact_index=True,
+                bounded_prefix=True,
+                requested_limit=25,
+                returned_count=2,
+                has_more=True,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        fake_load_agents_with_state,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        lambda agents, _steps: list(agents),
+    )
+
+    with override_flags(
+        agents_deferred_history=True,
+        agents_unified_query=False,
+    ):
+        agents, state = load_tiered_agents(
+            search_query="status:failed",
+            requested_limit=25,
+        )
+
+    assert agents == [failed]
+    assert state.query_incomplete is True
+    assert state.needs_full_history_reconcile is True
+    assert calls == [
+        {
+            "patch_snapshot": None,
+            "full_history": False,
+            "use_artifact_index": True,
+            "index_freshness": "cached",
+            "requested_limit": 25,
             "candidate_filter": None,
         }
     ]

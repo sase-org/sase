@@ -71,6 +71,7 @@ def load_state_from_repro(state: ReproLoadState) -> AgentLoadState:
         repair_recommended=state.repair_recommended,
         repair_reason=state.repair_reason,
         truncated=state.truncated,
+        query_incomplete=state.query_incomplete,
     )
 
 

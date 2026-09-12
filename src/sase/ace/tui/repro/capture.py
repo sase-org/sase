@@ -394,6 +394,7 @@ def _serialize_load_state(load_state: AgentLoadState | None) -> ReproLoadState:
         repair_recommended=load_state.repair_recommended,
         repair_reason=load_state.repair_reason,
         truncated=load_state.truncated,
+        query_incomplete=load_state.query_incomplete,
     )
 
 

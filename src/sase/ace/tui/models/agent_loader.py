@@ -516,10 +516,20 @@ def load_tiered_agents(
         window_safe = legacy_query_plan.window_safe
         candidate_filter = legacy_query_plan.candidate_filter
         legacy_parsed_query = legacy_query_plan.parsed_query
-    effective_full_history = full_history or (bool(raw_query) and not window_safe)
+    pushdown_miss = bool(raw_query) and not window_safe
+    defer_pushdown_miss = False
+    if pushdown_miss and not full_history:
+        from sase.feature_flags import FeatureFlag, current_flags
+
+        defer_pushdown_miss = current_flags().enabled(
+            FeatureFlag.agents_deferred_history
+        )
+    effective_full_history = full_history or (pushdown_miss and not defer_pushdown_miss)
     effective_limit = (
         requested_limit
-        if requested_limit is not None and not effective_full_history and window_safe
+        if requested_limit is not None
+        and not effective_full_history
+        and (window_safe or defer_pushdown_miss)
         else None
     )
     result = _load_agents_with_load_state(
@@ -528,9 +538,16 @@ def load_tiered_agents(
         use_artifact_index=use_artifact_index,
         index_freshness=index_freshness,
         requested_limit=effective_limit,
-        candidate_filter=candidate_filter if effective_limit else None,
+        candidate_filter=(
+            candidate_filter if effective_limit is not None and window_safe else None
+        ),
     )
     agents = _normalize_loaded_agents(result.agents, result.workflow_agent_steps)
+    state = (
+        replace(result.state, query_incomplete=True)
+        if defer_pushdown_miss and not result.state.complete_history
+        else result.state
+    )
     if effective_limit is not None and result.state.bounded_prefix:
         if use_unified_query and raw_query:
             agents, filtered_count = _filter_and_cap_windowed_agents_live(
@@ -545,12 +562,12 @@ def load_tiered_agents(
                 effective_limit,
             )
         state = replace(
-            result.state,
+            state,
             returned_count=len(agents),
-            has_more=result.state.has_more or filtered_count > len(agents),
+            has_more=state.has_more or filtered_count > len(agents),
         )
         return agents, state
-    return agents, result.state
+    return agents, state
 
 
 def _filter_and_cap_windowed_agents(

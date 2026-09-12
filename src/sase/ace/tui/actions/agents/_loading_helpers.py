@@ -298,6 +298,7 @@ def load_agents_from_disk_with_state(
         counters["requested_limit"] = state.requested_limit
         counters["returned_count"] = state.returned_count
         counters["has_more"] = state.has_more
+        counters["query_incomplete"] = state.query_incomplete
         return result
 
 

@@ -61,13 +61,17 @@ class AgentLoadState:
     requested_limit: int | None = None
     returned_count: int | None = None
     has_more: bool = False
+    query_incomplete: bool = False
 
     @property
     def needs_full_history_reconcile(self) -> bool:
         """Return whether the caller should schedule a Tier 2 refresh."""
 
         return (
-            not self.complete_visible_inbox or self.repair_recommended or self.truncated
+            not self.complete_visible_inbox
+            or self.repair_recommended
+            or self.truncated
+            or self.query_incomplete
         )
 
 

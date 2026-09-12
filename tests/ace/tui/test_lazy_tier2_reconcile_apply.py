@@ -63,6 +63,33 @@ def test_apply_complete_visible_inbox_does_not_arm_history_reconcile() -> None:
     assert app._agents_history_reconcile_armed_mono == 0.0
 
 
+def test_apply_query_incomplete_arms_history_reconcile() -> None:
+    """A bounded query-incomplete load reuses the Tier 2 reconcile path."""
+    app = FakeAgentApp()
+    app._agents_history_reconcile_pending = False
+    app._agents_history_reconcile_armed_mono = 0.0
+
+    load_state = AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        complete_visible_inbox=True,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+        bounded_prefix=True,
+        requested_limit=25,
+        returned_count=1,
+        has_more=True,
+        query_incomplete=True,
+    )
+
+    before = time.monotonic()
+    apply_load(app, load_state)
+
+    assert app._agents_history_reconcile_pending is True
+    assert app._agents_history_reconcile_armed_mono >= before
+    assert app.timer_calls == []
+
+
 def test_apply_clears_pending_flag_on_complete_history() -> None:
     app = FakeAgentApp()
     app._agents_history_reconcile_pending = True
