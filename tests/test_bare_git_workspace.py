@@ -419,6 +419,103 @@ class TestResolveGitRef:
 
         mock_init.assert_not_called()
 
+    @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
+    def test_claimed_project_name_raises_provider_mismatch(
+        self,
+        mock_init: MagicMock,
+        mock_find: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        from sase.core.paths import sase_projects_dir
+
+        checkout = tmp_path / "github" / "sase"
+        checkout.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/org/sase.git"],
+            cwd=checkout,
+            check=True,
+        )
+        project_dir = sase_projects_dir() / "gh_org__sase"
+        project_dir.mkdir(parents=True)
+        project_file = project_dir / "gh_org__sase.sase"
+        project_file.write_text(
+            f"WORKSPACE_DIR: {checkout}/\nPROJECT_NAME: sase\nNAME: c\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ProjectProviderMismatchError, match="not a bare-git project"
+        ):
+            resolve_git_ref("sase")
+
+        assert not (sase_projects_dir() / "sase").exists()
+        mock_find.assert_not_called()
+        mock_init.assert_not_called()
+
+    @patch(f"{_REF_MOD}.get_default_branch", return_value="origin/main")
+    @patch(f"{_REF_MOD}.find_all_patches", return_value=[])
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
+    def test_claimed_alias_resolves_canonical_bare_git_project(
+        self,
+        mock_init: MagicMock,
+        mock_find: MagicMock,
+        mock_branch: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        from sase.core.paths import sase_projects_dir
+
+        project_dir = sase_projects_dir() / "demo"
+        project_dir.mkdir(parents=True)
+        project_file = project_dir / "demo.sase"
+        project_file.write_text(
+            "WORKSPACE_DIR: /work/demo/\n"
+            "BARE_REPO_DIR: /repos/demo.git\n"
+            "PROJECT_ALIASES: nick\n"
+            "NAME: c\n",
+            encoding="utf-8",
+        )
+
+        result = resolve_git_ref("nick")
+
+        assert result.project_name == "demo"
+        assert result.bare_repo_dir == "/repos/demo.git"
+        assert result.primary_workspace_dir == "/work/demo/"
+        mock_init.assert_not_called()
+        mock_find.assert_not_called()
+        mock_branch.assert_called_once_with("/work/demo/")
+
+    @patch(f"{_INIT_MOD}.init_bare_git_project")
+    def test_bare_repo_path_claimed_name_raises_provider_mismatch(
+        self,
+        mock_init: MagicMock,
+        tmp_path: Path,
+    ) -> None:
+        from sase.core.paths import sase_projects_dir
+
+        checkout = tmp_path / "github" / "sase"
+        checkout.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+        subprocess.run(
+            ["git", "remote", "add", "origin", "https://github.com/org/sase.git"],
+            cwd=checkout,
+            check=True,
+        )
+        project_dir = sase_projects_dir() / "gh_org__sase"
+        project_dir.mkdir(parents=True)
+        (project_dir / "gh_org__sase.sase").write_text(
+            f"WORKSPACE_DIR: {checkout}/\nPROJECT_NAME: sase\nNAME: c\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(
+            ProjectProviderMismatchError, match="not a bare-git project"
+        ):
+            resolve_git_ref("/repos/sase.git")
+
+        mock_init.assert_not_called()
+
 
 # ── init_bare_git_project ────────────────────────────────────────────
 

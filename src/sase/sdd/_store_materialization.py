@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 import logging
 from pathlib import Path
@@ -44,6 +45,8 @@ from sase.sdd._store_workspace import ensure_workspace_sdd_clone
 
 _logger = logging.getLogger(__name__)
 
+PrimaryWorkspaceResolver = Callable[[str, int], str]
+
 
 @dataclass(frozen=True)
 class SddInitOutcome:
@@ -60,6 +63,7 @@ def materialize_sdd_store(
     workspace_num: int,
     *,
     sdd_creation_authorized: bool | None = None,
+    primary_workspace_resolver: PrimaryWorkspaceResolver = get_primary_workspace_dir,
 ) -> SddStore:
     """Materialize the provider-selected store or fail without a local fallback.
 
@@ -73,6 +77,7 @@ def materialize_sdd_store(
         workspace_dir,
         workspace_num,
         sdd_creation_authorized=sdd_creation_authorized,
+        primary_workspace_resolver=primary_workspace_resolver,
     )
     return store
 
@@ -116,11 +121,17 @@ def preflight_sdd_sidecar(
 def create_and_materialize_sdd_store(
     workspace_dir: str | Path,
     workspace_num: int,
+    *,
+    primary_workspace_resolver: PrimaryWorkspaceResolver = get_primary_workspace_dir,
 ) -> SddInitOutcome:
     """Compatibility name for the unified provider-owned materialization path."""
 
-    store, created = _materialize_sdd_store_with_created(workspace_dir, workspace_num)
-    primary = Path(get_primary_workspace_dir(str(Path(workspace_dir)), workspace_num))
+    store, created = _materialize_sdd_store_with_created(
+        workspace_dir,
+        workspace_num,
+        primary_workspace_resolver=primary_workspace_resolver,
+    )
+    primary = Path(primary_workspace_resolver(str(Path(workspace_dir)), workspace_num))
     record = read_sdd_store_record(primary)
     return SddInitOutcome(
         store=store,
@@ -135,12 +146,29 @@ def _materialize_sdd_store_with_created(
     workspace_num: int,
     *,
     sdd_creation_authorized: bool | None = None,
+    primary_workspace_resolver: PrimaryWorkspaceResolver = get_primary_workspace_dir,
 ) -> tuple[SddStore, bool]:
     workspace = Path(workspace_dir).expanduser()
     primary = Path(
-        get_primary_workspace_dir(str(workspace), workspace_num)
+        primary_workspace_resolver(str(workspace), workspace_num)
     ).expanduser()
     record = read_sdd_store_record(primary)
+
+    def _resolve_store(store_workspace: str | Path, store_num: int) -> SddStore:
+        return resolve_sdd_store(
+            store_workspace,
+            store_num,
+            primary_workspace_resolver=primary_workspace_resolver,
+        )
+
+    def _ensure_clone() -> None:
+        ensure_workspace_sdd_clone(
+            workspace,
+            workspace_num,
+            strict=True,
+            resolve_store=_resolve_store,
+            primary_workspace_resolver=primary_workspace_resolver,
+        )
 
     creation_authorized: bool | None = None
     if _is_remote_backed_record(record):
@@ -150,13 +178,21 @@ def _materialize_sdd_store_with_created(
         )
 
     if _is_sidecar_record(record):
-        ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
-        return resolve_sdd_store(workspace, workspace_num), False
+        _ensure_clone()
+        return _resolve_store(workspace, workspace_num), False
 
     if _usable_primary_record(
         primary, record
     ) and not _primary_record_needs_legacy_adoption(primary, workspace, record):
-        return _finalize_existing_store(primary, workspace, workspace_num), False
+        return (
+            _finalize_existing_store(
+                primary,
+                workspace,
+                workspace_num,
+                primary_workspace_resolver=primary_workspace_resolver,
+            ),
+            False,
+        )
 
     policy = (
         None
@@ -164,7 +200,7 @@ def _materialize_sdd_store_with_created(
         else provider_sdd_storage_policy(workspace)
     )
     if policy != SDD_STORAGE_SEPARATE_REPO and not is_materialized_record(record):
-        return resolve_sdd_store(workspace, workspace_num), False
+        return _resolve_store(workspace, workspace_num), False
 
     if creation_authorized is None:
         creation_authorized = _resolve_sdd_creation_authorization(
@@ -178,7 +214,15 @@ def _materialize_sdd_store_with_created(
         if usable_record and not _primary_record_needs_legacy_adoption(
             primary, workspace, record
         ):
-            return _finalize_existing_store(primary, workspace, workspace_num), False
+            return (
+                _finalize_existing_store(
+                    primary,
+                    workspace,
+                    workspace_num,
+                    primary_workspace_resolver=primary_workspace_resolver,
+                ),
+                False,
+            )
 
         # Only recognized negative records are stale cache entries. Foreign or
         # malformed records fail while loading, before this replacement path.
@@ -226,15 +270,15 @@ def _materialize_sdd_store_with_created(
             adopt_provider_store(primary, workspace, normalized, staging)
             write_sdd_store_record(primary, normalized)
             try:
-                ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
+                _ensure_clone()
             except Exception:
                 delete_sdd_store_record(primary)
                 raise
 
-            store = resolve_sdd_store(workspace, workspace_num)
+            store = _resolve_store(workspace, workspace_num)
             _refresh_materialized_store(store.sdd_dir)
             _ensure_materialized_store_initialized(store)
-            return resolve_sdd_store(workspace, workspace_num), created
+            return _resolve_store(workspace, workspace_num), created
         finally:
             cleanup_staging(staging)
 
@@ -267,12 +311,27 @@ def _finalize_existing_store(
     primary: Path,
     workspace: Path,
     workspace_num: int,
+    *,
+    primary_workspace_resolver: PrimaryWorkspaceResolver = get_primary_workspace_dir,
 ) -> SddStore:
-    ensure_workspace_sdd_clone(workspace, workspace_num, strict=True)
-    store = resolve_sdd_store(workspace, workspace_num)
+    def _resolve_store(store_workspace: str | Path, store_num: int) -> SddStore:
+        return resolve_sdd_store(
+            store_workspace,
+            store_num,
+            primary_workspace_resolver=primary_workspace_resolver,
+        )
+
+    ensure_workspace_sdd_clone(
+        workspace,
+        workspace_num,
+        strict=True,
+        resolve_store=_resolve_store,
+        primary_workspace_resolver=primary_workspace_resolver,
+    )
+    store = _resolve_store(workspace, workspace_num)
     _refresh_materialized_store(store.sdd_dir)
     _ensure_materialized_store_initialized(store)
-    return resolve_sdd_store(workspace, workspace_num)
+    return _resolve_store(workspace, workspace_num)
 
 
 def _is_sidecar_record(record: SddStoreRecord | None) -> bool:

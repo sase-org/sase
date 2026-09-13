@@ -354,6 +354,31 @@ class TestInitBareGitProjectEndToEnd:
         assert not (home / ".sase" / "repos").exists()
         assert not (home / "projects" / "git").exists()
 
+    def test_claimed_project_name_is_refused_without_filesystem_residue(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.core.paths import sase_projects_dir
+
+        _isolate_sase_home(tmp_path, monkeypatch)
+        checkout = tmp_path / "github" / "sase"
+        checkout.mkdir(parents=True)
+        _git(None, "init", "-q", str(checkout))
+        _git(checkout, "remote", "add", "origin", "https://github.com/org/sase.git")
+        project_dir = sase_projects_dir() / "gh_org__sase"
+        project_dir.mkdir(parents=True)
+        original = f"WORKSPACE_DIR: {checkout}/\nPROJECT_NAME: sase\nNAME: c\n"
+        (project_dir / "gh_org__sase.sase").write_text(original, encoding="utf-8")
+
+        with pytest.raises(ProjectProviderMismatchError):
+            init_bare_git_project("sase")
+
+        assert (project_dir / "gh_org__sase.sase").read_text(
+            encoding="utf-8"
+        ) == original
+        assert not (sase_projects_dir() / "sase").exists()
+        assert not (Path.home() / ".sase" / "repos" / "sase.git").exists()
+        assert not (Path.home() / "projects" / "git" / "sase").exists()
+
 
 def test_run_git_error_includes_stderr(monkeypatch: pytest.MonkeyPatch) -> None:
     def fake_run(

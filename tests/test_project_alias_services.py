@@ -626,3 +626,29 @@ def test_find_project_ref_owner_reports_display_name_and_alias_claims(
     assert find_project_ref_owner("widgets", projects_root) == "gh_acme__sase"
     assert find_project_ref_owner("gh_acme__sase", projects_root) is None
     assert find_project_ref_owner("unclaimed", projects_root) is None
+
+
+def test_project_ref_conflicts_from_records_reports_directory_key_collision() -> None:
+    from sase.project_alias_records import project_ref_conflicts_from_records
+
+    stray = _record(
+        "sase",
+        archive_file="/tmp/projects/sase/sase.archive",
+    )
+    canonical = _record(
+        "gh_acme__sase",
+        archive_file="/tmp/projects/gh_acme__sase/gh_acme__sase.archive",
+        display_name="sase",
+        aliases=["widgets"],
+    )
+
+    conflicts = project_ref_conflicts_from_records([stray, canonical])
+
+    assert len(conflicts) == 1
+    conflict = conflicts[0]
+    assert conflict.ref == "sase"
+    assert conflict.kind == "PROJECT_NAME"
+    assert conflict.claimant == "gh_acme__sase"
+    assert conflict.occupant == "sase"
+    assert conflict.claimant_workspace_dir == "/tmp/workspaces/gh_acme__sase"
+    assert conflict.occupant_workspace_dir == "/tmp/workspaces/sase"

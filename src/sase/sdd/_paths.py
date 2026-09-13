@@ -222,25 +222,42 @@ def resolve_primary_from_project(
 ) -> str | None:
     """Resolve primary workspace from the project's WORKSPACE_DIR field.
 
+    Canonicalizes the workspace-name hook result through the alias registry
+    and only returns a configured primary when it actually owns
+    *workspace_dir* (including adjacent ``_<N>`` variants). When that
+    primary does not own the cwd, falls through to
+    :func:`sase.bead.project_name.scan_projects_for_cwd`.
+
     Returns ``None`` if project/workspace metadata cannot be resolved.
     """
     try:
+        from sase.ace.patch.project_spec_path import preferred_project_spec_path
+        from sase.bead.project_name import (
+            cwd_matches_project_workspace,
+            scan_projects_for_cwd,
+        )
+        from sase.project_aliases import resolve_project_alias_ref
         from sase.workspace_provider import get_workspace_name
         from sase.workspace_provider.utils import parse_workspace_dir
 
-        project_name = get_workspace_name(workspace_dir)
-        if not project_name:
-            return None
+        hook_name = get_workspace_name(workspace_dir)
+        if hook_name:
+            canonical = resolve_project_alias_ref(hook_name)
+            home = Path.home() if project_home is None else project_home
+            project_dir = home / ".sase" / "projects" / canonical
+            project_file = preferred_project_spec_path(str(project_dir), canonical)
+            primary = parse_workspace_dir(project_file)
+            if primary:
+                primary = primary.rstrip("/")
+                if cwd_matches_project_workspace(
+                    workspace_dir, Path(primary), hook_name
+                ):
+                    return primary
 
-        from sase.ace.patch.project_spec_path import preferred_project_spec_path
-
-        home = Path.home() if project_home is None else project_home
-        project_dir = home / ".sase" / "projects" / project_name
-        project_file = preferred_project_spec_path(str(project_dir), project_name)
-        primary = parse_workspace_dir(project_file)
-        if not primary:
-            return None
-        return primary.rstrip("/")
+        scanned = scan_projects_for_cwd(workspace_dir)
+        if scanned is not None:
+            return str(scanned[1]).rstrip("/")
+        return None
     except Exception:
         return None
 

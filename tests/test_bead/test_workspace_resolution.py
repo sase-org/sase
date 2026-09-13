@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.bead.project_name import (
-    _cwd_matches_project_workspace,
+    cwd_matches_project_workspace,
     infer_project_name_from_cwd,
 )
 from sase.bead.workspace import (
@@ -248,41 +248,41 @@ def test_get_all_project_beads_dirs_dedupes_known_project_dirs(
 
 def test_numbered_workspace_basic_match() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert _cwd_matches_project_workspace("/a/b/yserve_101/google3", primary, "yserve")
+    assert cwd_matches_project_workspace("/a/b/yserve_101/google3", primary, "yserve")
 
 
 def test_numbered_workspace_cwd_deeper_than_primary() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert _cwd_matches_project_workspace(
+    assert cwd_matches_project_workspace(
         "/a/b/yserve_101/google3/deep/path", primary, "yserve"
     )
 
 
 def test_numbered_workspace_no_match_different_project() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert not _cwd_matches_project_workspace(
+    assert not cwd_matches_project_workspace(
         "/a/b/other_101/google3", primary, "yserve"
     )
 
 
 def test_exact_match_same_dir() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert _cwd_matches_project_workspace("/a/b/yserve/google3", primary, "yserve")
+    assert cwd_matches_project_workspace("/a/b/yserve/google3", primary, "yserve")
 
 
 def test_numbered_workspace_no_match_cwd_too_short() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert not _cwd_matches_project_workspace("/a/b", primary, "yserve")
+    assert not cwd_matches_project_workspace("/a/b", primary, "yserve")
 
 
 def test_numbered_workspace_suffix_only_digits() -> None:
     primary = Path("/a/b/yserve/google3")
-    assert _cwd_matches_project_workspace("/a/b/yserve_abc/google3", primary, "yserve")
+    assert cwd_matches_project_workspace("/a/b/yserve_abc/google3", primary, "yserve")
 
 
 def test_numbered_workspace_variant_to_variant_match() -> None:
     primary = Path("/a/b/yserve_yp_last_conv/google3")
-    assert _cwd_matches_project_workspace("/a/b/yserve_101/google3", primary, "yserve")
+    assert cwd_matches_project_workspace("/a/b/yserve_101/google3", primary, "yserve")
 
 
 # --- _resolve_by_scanning_projects tests ---

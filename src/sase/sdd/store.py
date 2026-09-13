@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -49,6 +50,8 @@ from sase.sdd._store_workspace import (
     ensure_sdd_kind_clone as _ensure_sdd_kind_clone,
     ensure_workspace_sdd_clone as _ensure_workspace_sdd_clone,
 )
+
+PrimaryWorkspaceResolver = Callable[[str, int], str]
 
 __all__ = [
     "SDD_STORAGE_IN_TREE",
@@ -100,13 +103,23 @@ def resolve_sdd_kind_dir(
     return resolve_sdd_store(workspace_dir, workspace_num).kind_root(kind)
 
 
-def resolve_sdd_store(workspace_dir: str | Path, workspace_num: int) -> SddStore:
+def resolve_sdd_store(
+    workspace_dir: str | Path,
+    workspace_num: int,
+    *,
+    primary_workspace_resolver: PrimaryWorkspaceResolver | None = None,
+) -> SddStore:
     """Resolve provider-owned storage policy and concrete filesystem paths."""
 
+    resolver = (
+        get_primary_workspace_dir
+        if primary_workspace_resolver is None
+        else primary_workspace_resolver
+    )
     return _resolve_sdd_store(
         workspace_dir,
         workspace_num,
-        primary_workspace_resolver=get_primary_workspace_dir,
+        primary_workspace_resolver=resolver,
     )
 
 
@@ -124,6 +137,7 @@ def materialize_sdd_store(
     workspace_num: int,
     *,
     sdd_creation_authorized: bool | None = None,
+    primary_workspace_resolver: PrimaryWorkspaceResolver | None = None,
 ) -> SddStore:
     """Materialize the provider-selected store or fail without a local fallback.
 
@@ -133,10 +147,16 @@ def materialize_sdd_store(
     while ``False`` still permits discovery but must prevent remote creation.
     """
 
+    resolver = (
+        get_primary_workspace_dir
+        if primary_workspace_resolver is None
+        else primary_workspace_resolver
+    )
     return _materialize_store(
         workspace_dir,
         workspace_num,
         sdd_creation_authorized=sdd_creation_authorized,
+        primary_workspace_resolver=resolver,
     )
 
 

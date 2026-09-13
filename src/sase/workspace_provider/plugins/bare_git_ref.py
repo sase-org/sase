@@ -171,6 +171,43 @@ class ResolvedGitRef:
     checkout_target: str
 
 
+def _try_resolve_claimed_git_ref(
+    git_ref: str, projects_base: Path
+) -> ResolvedGitRef | None:
+    """Resolve *git_ref* when another project claims it as name or alias.
+
+    Returns ``None`` when no other project claims the ref. A claimed
+    bare-git owner is resolved as Mode 1 against that canonical project.
+    A claimed non-bare-git owner raises ``ProjectProviderMismatchError``
+    so the ref never falls through into auto-init.
+    """
+    from sase.ace.patch.project_spec_path import preferred_project_spec_path
+    from sase.project_aliases import find_project_ref_owner
+
+    owner = find_project_ref_owner(git_ref)
+    if owner is None:
+        return None
+
+    project_file = preferred_project_spec_path(str(projects_base / owner), owner)
+    bare_repo_dir = parse_bare_repo_dir(project_file)
+    if not bare_repo_dir:
+        raise build_provider_mismatch_error(owner, project_file)
+
+    workspace_dir = parse_workspace_dir(project_file)
+    if not workspace_dir:
+        raise ValueError(
+            f"Project '{owner}' has BARE_REPO_DIR but WORKSPACE_DIR is not set"
+        )
+    checkout_target = get_default_branch(workspace_dir)
+    return ResolvedGitRef(
+        project_file=project_file,
+        project_name=owner,
+        primary_workspace_dir=workspace_dir,
+        bare_repo_dir=bare_repo_dir,
+        checkout_target=checkout_target,
+    )
+
+
 def _init_missing_project_ref(project_name: str) -> ResolvedGitRef:
     """Initialize and resolve a missing project-name ``#git`` reference."""
     if not project_name:
@@ -261,6 +298,10 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
                 if not is_bare_git_project(str(project_file_path)):
                     raise build_provider_mismatch_error(git_ref, str(project_file_path))
 
+        claimed = _try_resolve_claimed_git_ref(git_ref, projects_base)
+        if claimed is not None:
+            return claimed
+
         # --- Mode 2: Patch name ---
         for cs in find_all_patches():
             if cs.name == git_ref:
@@ -293,6 +334,10 @@ def resolve_git_ref(git_ref: str) -> ResolvedGitRef:
     if not project_name:
         raise ValueError(f"Cannot derive project name from path '{git_ref}'")
     validate_sase_project_name(project_name)
+
+    claimed = _try_resolve_claimed_git_ref(project_name, projects_base)
+    if claimed is not None:
+        return claimed
 
     clone_dir = str(Path.home() / "projects" / "git" / project_name) + "/"
 

@@ -78,9 +78,20 @@ def init_bare_git_project(
 
     # Resolve the destination spec path and guard before any filesystem or
     # git work runs, so a rejected call leaves no bare repo or clone behind.
-    from sase.ace.patch.project_spec_path import active_project_spec_filename
+    from sase.ace.patch.project_spec_path import (
+        active_project_spec_filename,
+        preferred_project_spec_path,
+    )
+    from sase.project_aliases import find_project_ref_owner
 
     projects_base = sase_projects_dir()
+    owner = find_project_ref_owner(project_name)
+    if owner is not None:
+        raise build_provider_mismatch_error(
+            owner,
+            preferred_project_spec_path(str(projects_base / owner), owner),
+        )
+
     project_file = str(
         projects_base / project_name / active_project_spec_filename(project_name)
     )

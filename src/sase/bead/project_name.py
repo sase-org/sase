@@ -15,7 +15,7 @@ def _is_workspace_variant(component: str, project_name: str) -> bool:
     return component == project_name or component.startswith(f"{project_name}_")
 
 
-def _cwd_matches_project_workspace(cwd: str, primary: Path, project_name: str) -> bool:
+def cwd_matches_project_workspace(cwd: str, primary: Path, project_name: str) -> bool:
     """Check if *cwd* is under *primary* or one of its project workspace variants."""
     primary_parts = primary.parts
     cwd_parts = Path(cwd).parts
@@ -58,7 +58,7 @@ def scan_projects_for_cwd(cwd: str) -> tuple[str, Path] | None:
 
         primary = Path(workspace_dir.rstrip("/"))
 
-        if _cwd_matches_project_workspace(cwd, primary, project_name):
+        if cwd_matches_project_workspace(cwd, primary, project_name):
             return project_name, primary
 
     return None

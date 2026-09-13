@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from sase.core.paths import is_valid_sase_project_name
@@ -12,6 +13,23 @@ from sase.core.project_lifecycle_wire import ProjectRecordWire
 logger = logging.getLogger(__name__)
 
 ListProjectRecords = Callable[..., list[ProjectRecordWire]]
+
+
+@dataclass(frozen=True)
+class ProjectRefConflict:
+    """A PROJECT_NAME or alias that collides with another project's refs.
+
+    ``claimant`` declared *ref* as ``PROJECT_NAME`` or an alias.
+    ``occupant`` is the project whose directory key already is that ref,
+    or the earlier claimant of the same alias.
+    """
+
+    ref: str
+    kind: str
+    claimant: str
+    occupant: str
+    claimant_workspace_dir: str | None = None
+    occupant_workspace_dir: str | None = None
 
 
 def filtered_project_records(
@@ -169,6 +187,63 @@ def project_alias_map_from_records(
             add_ref(alias, record.project_name, "project alias")
 
     return alias_map
+
+
+def project_ref_conflicts_from_records(
+    records: Sequence[ProjectRecordWire],
+) -> tuple[ProjectRefConflict, ...]:
+    """Return dropped/conflicting refs that alias-map construction would ignore.
+
+    Each conflict names the claimant (the project that declared the ref as
+    ``PROJECT_NAME`` or alias) and the occupant (the project whose directory
+    key already is that ref, or the earlier claimant of the same alias).
+    """
+    spec_backed = _spec_backed_project_records(records)
+    by_name = {record.project_name: record for record in spec_backed}
+    project_names = set(by_name)
+    claimed: dict[str, str] = {}
+    conflicts: list[ProjectRefConflict] = []
+
+    def _conflict(
+        ref: str, kind: str, claimant: str, occupant: str
+    ) -> ProjectRefConflict:
+        claimant_record = by_name.get(claimant)
+        occupant_record = by_name.get(occupant)
+        return ProjectRefConflict(
+            ref=ref,
+            kind=kind,
+            claimant=claimant,
+            occupant=occupant,
+            claimant_workspace_dir=(
+                claimant_record.workspace_dir if claimant_record is not None else None
+            ),
+            occupant_workspace_dir=(
+                occupant_record.workspace_dir if occupant_record is not None else None
+            ),
+        )
+
+    for record in spec_backed:
+        claims: list[tuple[str, str]] = []
+        display_name = normalize_project_name(record.display_name)
+        if display_name is not None and display_name != record.project_name:
+            claims.append((display_name, "PROJECT_NAME"))
+        for alias in normalize_project_aliases(record.aliases):
+            if alias != record.project_name:
+                claims.append((alias, "project alias"))
+
+        for ref, kind in claims:
+            if not is_valid_sase_project_name(ref):
+                continue
+            if ref in project_names:
+                conflicts.append(_conflict(ref, kind, record.project_name, ref))
+                continue
+            existing = claimed.get(ref)
+            if existing is not None and existing != record.project_name:
+                conflicts.append(_conflict(ref, kind, record.project_name, existing))
+                continue
+            claimed[ref] = record.project_name
+
+    return tuple(conflicts)
 
 
 def validate_project_aliases(

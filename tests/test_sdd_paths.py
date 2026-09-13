@@ -135,6 +135,82 @@ def test_primary_workspace_dir_uses_marker_when_project_unresolved(
     assert result != str(checkout.parent / "proj")
 
 
+def _write_project_spec(name: str, content: str) -> Path:
+    from sase.core.paths import sase_projects_dir
+
+    project_dir = sase_projects_dir() / name
+    project_dir.mkdir(parents=True, exist_ok=True)
+    project_file = project_dir / f"{name}.sase"
+    project_file.write_text(content, encoding="utf-8")
+    return project_file
+
+
+def test_stale_hook_named_spec_does_not_win_primary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary = tmp_path / "github" / "sase"
+    stray = tmp_path / "git" / "sase"
+    primary.mkdir(parents=True)
+    stray.mkdir(parents=True)
+    _write_project_spec(
+        "gh_org__sase",
+        f"WORKSPACE_DIR: {primary}/\nPROJECT_NAME: sase\nNAME: c\n",
+    )
+    _write_project_spec(
+        "sase",
+        f"WORKSPACE_DIR: {stray}/\nBARE_REPO_DIR: {tmp_path / 'sase.git'}\nNAME: s\n",
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_workspace_name",
+        lambda _cwd: "sase",
+    )
+
+    from sase.sdd._paths import get_primary_workspace_dir as resolve_primary
+
+    result = resolve_primary(str(primary), 1)
+    assert result == str(primary)
+
+
+def test_primary_checkout_resolves_owning_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary = tmp_path / "github" / "sase"
+    primary.mkdir(parents=True)
+    _write_project_spec(
+        "gh_org__sase",
+        f"WORKSPACE_DIR: {primary}/\nPROJECT_NAME: sase\nNAME: c\n",
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_workspace_name",
+        lambda _cwd: "sase",
+    )
+
+    from sase.sdd._paths import get_primary_workspace_dir as resolve_primary
+
+    assert resolve_primary(str(primary), 1) == str(primary)
+
+
+def test_adjacent_workspace_variant_still_resolves_primary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary = tmp_path / "github" / "sase"
+    variant = tmp_path / "github" / "sase_2"
+    primary.mkdir(parents=True)
+    variant.mkdir(parents=True)
+    _write_project_spec(
+        "gh_org__sase",
+        f"WORKSPACE_DIR: {primary}/\nPROJECT_NAME: sase\nNAME: c\n",
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_workspace_name",
+        lambda _cwd: "sase",
+    )
+
+    from sase.sdd._paths import get_primary_workspace_dir as resolve_primary
+
+    assert resolve_primary(str(variant), 2) == str(primary)
+
+
 # ---------------------------------------------------------------------------
 # resolve_sdd_readme_path
 # ---------------------------------------------------------------------------

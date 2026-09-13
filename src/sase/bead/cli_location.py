@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 import re
@@ -44,6 +45,17 @@ class _WorkspaceContext:
     primary: Path
     workspace_num: int
     project_name: str | None = None
+
+
+def _pinned_primary_resolver(primary: Path) -> Callable[[str, int], str]:
+    """Return a resolver that always yields the already-computed primary."""
+
+    resolved = str(primary)
+
+    def _resolve(_workspace_dir: str, _workspace_num: int) -> str:
+        return resolved
+
+    return _resolve
 
 
 def resolve_workspace_anchor(cwd: Path | None = None) -> Path | None:
@@ -97,8 +109,13 @@ def resolve_beads_location(
             resolve_sdd_store,
         )
 
+        primary_workspace_resolver = _pinned_primary_resolver(context.primary)
         if materialize:
-            store = materialize_sdd_store(context.root, context.workspace_num)
+            store = materialize_sdd_store(
+                context.root,
+                context.workspace_num,
+                primary_workspace_resolver=primary_workspace_resolver,
+            )
             if (
                 store.storage == SDD_STORAGE_SIDECAR_REPOS
                 and store.beads_dir is not None
@@ -107,7 +124,11 @@ def resolve_beads_location(
 
                 ensure_beads_sidecar_clone(context.root, context.workspace_num)
         else:
-            store = resolve_sdd_store(context.root, context.workspace_num)
+            store = resolve_sdd_store(
+                context.root,
+                context.workspace_num,
+                primary_workspace_resolver=primary_workspace_resolver,
+            )
         if store.storage == SDD_STORAGE_IN_TREE:
             root = _select_in_tree_beads_root(
                 current,

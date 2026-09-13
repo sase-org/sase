@@ -12,6 +12,7 @@ from sase.core.project_lifecycle_wire import (
 from sase.doctor.checks_project import (
     _check_junk_project_directories,
     _check_project_current,
+    _check_project_name_collisions,
     project_check_specs,
 )
 from sase.doctor.runner import DoctorContext
@@ -138,4 +139,67 @@ def test_project_junk_directories_is_clean_when_every_directory_has_spec(
 def test_project_check_specs_registers_junk_directory_check(tmp_path: Path) -> None:
     ids = [spec.id for spec in project_check_specs(_context(tmp_path))]
 
-    assert ids == ["project.current", "project.junk_directories"]
+    assert ids == [
+        "project.current",
+        "project.junk_directories",
+        "project.name_collisions",
+    ]
+
+
+def test_project_name_collisions_warns_for_conflicting_setup(
+    monkeypatch, tmp_path: Path
+) -> None:
+    occupant_workspace = Path.home() / "projects" / "git" / "sase"
+    occupant_file = tmp_path / "sase.sase"
+    occupant_file.write_text(
+        f"BARE_REPO_DIR: {tmp_path / 'sase.git'}\n"
+        f"WORKSPACE_DIR: {occupant_workspace}/\n"
+        "NAME: s\n",
+        encoding="utf-8",
+    )
+    occupant = replace(
+        _record(tmp_path, name="sase", workspace_dir=f"{occupant_workspace}/"),
+        project_file=str(occupant_file),
+        archive_file=str(occupant_file),
+    )
+    claimant = replace(
+        _record(
+            tmp_path,
+            name="gh_org__sase",
+            workspace_dir="/tmp/github/sase",
+        ),
+        display_name="sase",
+        archive_file=str(tmp_path / "claimant.archive"),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_project.list_project_records",
+        lambda *_args, **_kwargs: [occupant, claimant],
+    )
+
+    check = _check_project_name_collisions(_context(tmp_path, project=None))
+
+    assert check.status == "WARN"
+    assert check.data["collision_count"] == 1
+    collision = check.data["collisions"][0]
+    assert collision["ref"] == "sase"
+    assert collision["claimant"] == "gh_org__sase"
+    assert collision["occupant"] == "sase"
+    assert collision["claimant_workspace_dir"] == "/tmp/github/sase"
+    assert collision["occupant_workspace_dir"] == f"{occupant_workspace}/"
+    assert collision["occupant_is_auto_init_bare_git"] is True
+    assert "Quarantine the accidental project 'sase'" in check.next_steps[0]
+
+
+def test_project_name_collisions_is_clean_without_conflicts(
+    monkeypatch, tmp_path: Path
+) -> None:
+    record = _record(tmp_path, name="alpha")
+    monkeypatch.setattr(
+        "sase.doctor.checks_project.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+
+    check = _check_project_name_collisions(_context(tmp_path))
+
+    assert check.status == "OK"
+    assert check.data["collision_count"] == 0

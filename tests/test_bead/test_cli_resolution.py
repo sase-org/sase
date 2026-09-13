@@ -470,6 +470,49 @@ def test_plain_checkout_sidecar_record_never_auto_commits(
     commit.assert_not_called()
 
 
+def test_resolve_beads_location_ignores_stray_sase_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.core.paths import sase_projects_dir
+
+    primary = tmp_path / "github" / "sase"
+    stray = tmp_path / "git" / "sase"
+    primary.mkdir(parents=True)
+    stray.mkdir(parents=True)
+    leftover = primary / ".sase" / "sdd" / "beads"
+    leftover.mkdir(parents=True)
+    beads = primary / "sase" / "repos" / "beads"
+    beads.mkdir(parents=True)
+    with BeadProject.init(beads, beads_dirname=BEADS_DIRNAME_ROOT):
+        pass
+    _write_sidecar_record(primary, split_beads=True)
+
+    projects_root = sase_projects_dir()
+    gh_dir = projects_root / "gh_org__sase"
+    gh_dir.mkdir(parents=True)
+    (gh_dir / "gh_org__sase.sase").write_text(
+        f"WORKSPACE_DIR: {primary}/\nPROJECT_NAME: sase\nNAME: c\n",
+        encoding="utf-8",
+    )
+    stray_dir = projects_root / "sase"
+    stray_dir.mkdir(parents=True)
+    (stray_dir / "sase.sase").write_text(
+        f"WORKSPACE_DIR: {stray}/\nBARE_REPO_DIR: {tmp_path / 'sase.git'}\nNAME: s\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        "sase.workspace_provider.get_workspace_name",
+        lambda _cwd: "sase",
+    )
+
+    location = resolve_beads_location(cwd=primary, require_existing=True)
+
+    assert location is not None
+    assert location.storage == "sidecar_repos"
+    assert location.root == beads
+    assert location.beads_dirname == BEADS_DIRNAME_ROOT
+
+
 def _set_sdd_config(monkeypatch, *, storage: str) -> None:
     set_sdd_policy(monkeypatch, storage)
 

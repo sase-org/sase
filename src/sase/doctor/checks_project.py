@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.core.paths import is_valid_sase_project_name, sase_projects_dir
@@ -13,6 +14,10 @@ from sase.core.project_lifecycle_wire import (
     project_lifecycle_wire_to_json_dict,
 )
 from sase.diagnostics import CheckSpec, CheckStatus, DiagnosticCheck
+from sase.project_alias_records import (
+    ProjectRefConflict,
+    project_ref_conflicts_from_records,
+)
 
 if TYPE_CHECKING:
     from sase.doctor.runner import DoctorContext
@@ -48,6 +53,12 @@ def project_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="project",
             title="Unregistered project directories",
             runner=lambda: _check_junk_project_directories(context),
+        ),
+        CheckSpec(
+            id="project.name_collisions",
+            group="project",
+            title="Project name collisions",
+            runner=lambda: _check_project_name_collisions(context),
         ),
     )
 
@@ -136,6 +147,161 @@ def _check_junk_project_directories(context: DoctorContext) -> DiagnosticCheck:
             "details_truncated": len(junk_dirs) > len(visible),
         },
     )
+
+
+def _check_project_name_collisions(context: DoctorContext) -> DiagnosticCheck:
+    """Warn when a project directory key collides with another project's refs."""
+
+    projects_root = context.sase_home / "projects"
+    try:
+        records = tuple(
+            list_project_records(projects_root, _ALL_PROJECT_STATES, include_home=False)
+        )
+    except FileNotFoundError:
+        return DiagnosticCheck(
+            id="project.name_collisions",
+            group="project",
+            status="SKIP",
+            title="Project name collisions",
+            summary="SASE projects directory is not present",
+            data={
+                "projects_root": str(projects_root),
+                "projects_root_exists": False,
+                "collision_count": 0,
+                "collisions": [],
+            },
+        )
+    except OSError as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        return DiagnosticCheck(
+            id="project.name_collisions",
+            group="project",
+            status="ERROR",
+            title="Project name collisions",
+            summary="SASE projects directory could not be scanned",
+            details=(error,),
+            next_steps=(f"Check permissions for {projects_root}.",),
+            data={
+                "projects_root": str(projects_root),
+                "projects_root_exists": True,
+                "error": error,
+            },
+        )
+
+    directory_keys = {record.project_name for record in records}
+    records_by_name = {record.project_name: record for record in records}
+    collisions = [
+        conflict
+        for conflict in project_ref_conflicts_from_records(records)
+        if conflict.ref in directory_keys
+    ]
+    if not collisions:
+        return DiagnosticCheck(
+            id="project.name_collisions",
+            group="project",
+            status="OK",
+            title="Project name collisions",
+            summary="no project directory key collides with another project's name or alias",
+            data={
+                "projects_root": str(projects_root),
+                "projects_root_exists": projects_root.is_dir(),
+                "collision_count": 0,
+                "collisions": [],
+            },
+        )
+
+    visible = collisions[:_MAX_DETAIL_ROWS]
+    details = tuple(
+        _collision_detail(conflict, records_by_name) for conflict in visible
+    )
+    next_steps = tuple(
+        dict.fromkeys(_collision_next_step(conflict) for conflict in visible)
+    )
+    return DiagnosticCheck(
+        id="project.name_collisions",
+        group="project",
+        status="WARN",
+        title="Project name collisions",
+        summary=(
+            f"found {len(collisions)} project directory key(s) colliding with "
+            "another project's PROJECT_NAME or alias"
+        ),
+        details=details,
+        next_steps=next_steps,
+        data={
+            "projects_root": str(projects_root),
+            "projects_root_exists": True,
+            "collision_count": len(collisions),
+            "collisions": [
+                _collision_data(conflict, records_by_name) for conflict in visible
+            ],
+            "details_truncated": len(collisions) > len(visible),
+        },
+    )
+
+
+def _collision_detail(
+    conflict: ProjectRefConflict,
+    records_by_name: dict[str, ProjectRecordWire],
+) -> str:
+    occupant = records_by_name.get(conflict.occupant)
+    auto_init = _occupant_is_auto_init_bare_git(occupant)
+    auto_init_note = "; auto-init bare-git signature" if auto_init else ""
+    return (
+        f"{conflict.ref}: directory {conflict.occupant} "
+        f"({conflict.occupant_workspace_dir or 'no WORKSPACE_DIR'}) "
+        f"collides with {conflict.kind} of {conflict.claimant} "
+        f"({conflict.claimant_workspace_dir or 'no WORKSPACE_DIR'})"
+        f"{auto_init_note}"
+    )
+
+
+def _collision_next_step(conflict: ProjectRefConflict) -> str:
+    return (
+        f"Quarantine the accidental project {conflict.occupant!r} so "
+        f"{conflict.ref!r} resolves to {conflict.claimant!r}."
+    )
+
+
+def _collision_data(
+    conflict: ProjectRefConflict,
+    records_by_name: dict[str, ProjectRecordWire],
+) -> dict[str, object]:
+    occupant = records_by_name.get(conflict.occupant)
+    return {
+        "ref": conflict.ref,
+        "kind": conflict.kind,
+        "claimant": conflict.claimant,
+        "occupant": conflict.occupant,
+        "claimant_workspace_dir": conflict.claimant_workspace_dir,
+        "occupant_workspace_dir": conflict.occupant_workspace_dir,
+        "occupant_is_auto_init_bare_git": _occupant_is_auto_init_bare_git(occupant),
+    }
+
+
+def _occupant_is_auto_init_bare_git(record: ProjectRecordWire | None) -> bool:
+    if record is None or not _workspace_under_auto_init_git_root(record.workspace_dir):
+        return False
+    from sase.workspace_provider.plugins.bare_git_ref import is_bare_git_project
+    from sase.workspace_provider.utils import parse_bare_repo_dir
+
+    if parse_bare_repo_dir(record.project_file):
+        return True
+    try:
+        return is_bare_git_project(record.project_file)
+    except Exception:
+        return False
+
+
+def _workspace_under_auto_init_git_root(workspace_dir: str | None) -> bool:
+    if not workspace_dir:
+        return False
+    try:
+        workspace = Path(workspace_dir.rstrip("/")).expanduser().resolve()
+        git_root = (Path.home() / "projects" / "git").resolve()
+    except OSError:
+        return False
+    return workspace == git_root or git_root in workspace.parents
 
 
 def resolve_current_project_record(context: DoctorContext) -> _ProjectResolution:
