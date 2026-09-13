@@ -27,6 +27,27 @@ def test_load_tiering_query_battery_has_no_missing_rows_within_tier1_window(
         assert result.diff_for("index_full_history").visible_extra == (), case.query
 
 
+def test_load_tiering_machine_pushdown_has_no_missing_rows(
+    tmp_path: Path,
+) -> None:
+    from sase.feature_flags import override_flags
+
+    fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=72)
+    oracle = AgentLoadTieringOracle(fixture)
+
+    with override_flags(agents_machine_pushdown=True):
+        for query in (
+            "machine:apollo",
+            "not machine:apollo",
+            "cl:feature AND not machine:apollo",
+        ):
+            result = oracle.evaluate(query, requested_limit=400)
+
+            assert result.pushdown_window_safe is True, query
+            assert result.diff_for("index_bounded").missing == (), query
+            assert result.diff_for("index_full_history").missing == (), query
+
+
 def test_load_tiering_oracle_reports_under_selecting_candidate_filter_on_index_paths(
     tmp_path: Path,
 ) -> None:

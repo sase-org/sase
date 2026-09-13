@@ -250,6 +250,13 @@ def test_machine_here_matches_local_only() -> None:
     assert not _eval("machine:here", _make_agent(fleet_origin_alias="apollo"))
 
 
+def test_machine_matches_archive_source_machine() -> None:
+    imported = _make_agent(source_machine="apollo")
+    assert _eval("machine:apollo", imported)
+    assert _eval("machine:here", imported)
+    assert not _eval("NOT machine:apollo", imported)
+
+
 def test_bare_machine_matches_any_remote_agent() -> None:
     assert _eval("machine:", _make_agent(fleet_origin_alias="apollo"))
     assert not _eval("machine:", _make_agent(fleet_origin_alias=None))

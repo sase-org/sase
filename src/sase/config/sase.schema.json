@@ -4579,6 +4579,11 @@
           "description": "TUI full-history agent loads read through the persistent artifact index before falling back to the source artifact scan.",
           "default": false
         },
+        "agents_machine_pushdown": {
+          "type": "boolean",
+          "description": "Compile machine: filters into exact artifact-index candidate predicates.",
+          "default": false
+        },
         "agents_unified_query": {
           "type": "boolean",
           "description": "The Agents tab parses, evaluates, and edits its filter with the shared agents-live boolean query profile through the Rust corpus engine and the FilterBar chrome.",

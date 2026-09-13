@@ -23,12 +23,47 @@ from .agent_live_query_engine import (
 
 CandidateFilterWire = dict[str, object]
 
+# Index-backed fields. Adding an agents-live profile field without listing it
+# here or in ``KNOWN_FALLBACK_FIELDS`` must fail the coverage test — a
+# wildcard would hide the next performance cliff.
 _PUSHABLE_TEXT_FIELDS = frozenset({"cl", "model"})
 _PUSHABLE_EXACT_FIELDS = frozenset({"provider"})
+_PUSHABLE_KIND_FIELD = "kind"
+_PUSHABLE_PROJECT_FIELD = "project"
+_PUSHABLE_MACHINE_FIELD = "machine"
 _PUSHABLE_KIND_VALUES = {
     "agent": "agent",
     "workflow": "workflow",
 }
+
+# Every agents-live field that is not pushable. Keep this explicit so a new
+# profile field cannot silently reintroduce a full-archive load.
+KNOWN_FALLBACK_FIELDS = frozenset(
+    {
+        "after",
+        "attempt",
+        "attention",
+        "before",
+        "clan",
+        "family",
+        "hidden",
+        "max",
+        "min",
+        "name",
+        "needs",
+        "pinned",
+        "retry",
+        "role",
+        "since",
+        "source",
+        "status",
+        "text",
+        "tribe",
+        "unread",
+        "until",
+        "workflow",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -100,10 +135,16 @@ def _candidate_filter_for_expr(expr: QueryExpr) -> CandidateFilterWire | None:
             return None
         return {"kind": "any", "filters": [f for f in filters if f is not None]}
     if isinstance(expr, NotExpr):
-        # Live filtering preserves matched containers and their descendants. A
-        # negated record predicate can drop those descendants before tree
-        # projection knows they are needed.
-        return None
+        # Live filtering preserves matched containers and their descendants.
+        # Negating a contains/superset filter under-selects, and negating most
+        # record predicates can drop descendants the tree projection would
+        # keep. Machine is the exception: index-resident values are exactly
+        # {"here"} ∪ {source_machine}, matching live evaluation, so NotExpr
+        # around a machine-only exact filter is safe.
+        inner = _candidate_filter_for_expr(expr.operand)
+        if inner is None or not _is_exact_machine_filter(inner):
+            return None
+        return {"kind": "not", "filter": inner}
     if isinstance(expr, StringMatch):
         return None
     return None
@@ -114,14 +155,54 @@ def _candidate_filter_for_property(prop: PropertyMatch) -> CandidateFilterWire |
         return _contains(prop.key, prop.value)
     if prop.key in _PUSHABLE_EXACT_FIELDS:
         return _equals(prop.key, prop.value)
-    if prop.key == "project":
+    if prop.key == _PUSHABLE_PROJECT_FIELD:
         return _project_filter(prop.value)
-    if prop.key == "kind":
+    if prop.key == _PUSHABLE_KIND_FIELD:
         value = _PUSHABLE_KIND_VALUES.get(prop.value)
         if value is None:
             return None
         return _equals("type", value)
+    if prop.key == _PUSHABLE_MACHINE_FIELD:
+        return _machine_filter(prop.value)
     return None
+
+
+def _machine_filter(value: str) -> CandidateFilterWire | None:
+    # Bare ``machine:`` is "any remote" in the help text, but the live
+    # boolean parser rejects empty property values. Leave an empty needle
+    # unpushable: sase-core ``contains_case_insensitive`` matches everything
+    # for an empty needle, and equals against "" matches nothing.
+    if not value.strip() or not _machine_pushdown_enabled():
+        return None
+    return _equals(_PUSHABLE_MACHINE_FIELD, value)
+
+
+def _machine_pushdown_enabled() -> bool:
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.agents_machine_pushdown)
+
+
+def _is_exact_machine_filter(candidate: CandidateFilterWire) -> bool:
+    kind = candidate.get("kind")
+    if kind == "equals":
+        return candidate.get("field") == _PUSHABLE_MACHINE_FIELD and bool(
+            str(candidate.get("value") or "").strip()
+        )
+    if kind == "not":
+        inner = candidate.get("filter")
+        return isinstance(inner, dict) and _is_exact_machine_filter(inner)
+    if kind in {"all", "any"}:
+        filters = candidate.get("filters")
+        return (
+            isinstance(filters, list)
+            and bool(filters)
+            and all(
+                isinstance(item, dict) and _is_exact_machine_filter(item)
+                for item in filters
+            )
+        )
+    return False
 
 
 def _contains(field: str, value: str) -> CandidateFilterWire:
@@ -156,5 +237,6 @@ def _project_filter(value: str) -> CandidateFilterWire:
 
 __all__ = [
     "CandidateFilterWire",
+    "KNOWN_FALLBACK_FIELDS",
     "compile_agents_live_query_pushdown",
 ]

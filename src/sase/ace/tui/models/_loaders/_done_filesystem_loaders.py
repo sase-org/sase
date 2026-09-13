@@ -23,6 +23,10 @@ from ._meta_enrichment import (
     enrich_agent_from_meta,
     enrich_agent_from_prompt_markers,
 )
+from ._meta_enrichment_identity import (
+    apply_archive_source_machine,
+    apply_imported_source_owner,
+)
 from ._meta_enrichment_gate import apply_gate_done
 from ._meta_enrichment_monitor import apply_monitor_done
 from .._timestamps import parse_timestamp_14_digit
@@ -213,6 +217,8 @@ def load_done_agent_for_dir(
         # Always enrich from agent_meta.json. It may contain fields not in
         # done.json, such as a name set via TUI rename after agent start.
         enrich_agent_from_meta(agent, str(artifact_dir))
+        apply_imported_source_owner(agent, data.get("imported_source_owner"))
+        apply_archive_source_machine(agent, data.get("source_machine"))
         if outcome == "monitored":
             apply_monitor_done(
                 agent,

@@ -1,8 +1,22 @@
 from __future__ import annotations
 
 from sase.ace.agent_query.pushdown import compile_agent_query_pushdown
+from sase.ace.query_profile.profiles._agents_live import agents_live_query_schema
 from sase.ace.tui.models.agent_live_query_pushdown import (
+    KNOWN_FALLBACK_FIELDS,
+    _PUSHABLE_EXACT_FIELDS,
+    _PUSHABLE_KIND_FIELD,
+    _PUSHABLE_MACHINE_FIELD,
+    _PUSHABLE_PROJECT_FIELD,
+    _PUSHABLE_TEXT_FIELDS,
     compile_agents_live_query_pushdown,
+)
+from sase.feature_flags import override_flags
+
+_PUSHABLE_FIELDS = (
+    _PUSHABLE_TEXT_FIELDS
+    | _PUSHABLE_EXACT_FIELDS
+    | {_PUSHABLE_KIND_FIELD, _PUSHABLE_PROJECT_FIELD, _PUSHABLE_MACHINE_FIELD}
 )
 
 
@@ -170,3 +184,79 @@ def test_compile_agents_live_query_pushdown_reports_legacy_parse_hint() -> None:
     assert plan.candidate_filter is None
     assert plan.unsupported_reason is not None
     assert "until:2h" in plan.unsupported_reason
+
+
+def test_compile_machine_pushdown_disabled_keeps_machine_unbounded() -> None:
+    with override_flags(agents_machine_pushdown=False):
+        live = compile_agents_live_query_pushdown("not machine:apollo")
+        legacy = compile_agent_query_pushdown("NOT machine:apollo")
+
+    assert live.window_safe is False
+    assert live.candidate_filter is None
+    assert live.unsupported_reason == "unsupported_query"
+    assert legacy.window_safe is False
+    assert legacy.candidate_filter is None
+    assert legacy.unsupported_reason == "unsupported_query"
+
+
+def test_compile_machine_pushdown_enabled_builds_exact_machine_filters() -> None:
+    machine_equals = {"kind": "equals", "field": "machine", "value": "apollo"}
+    with override_flags(agents_machine_pushdown=True):
+        live_match = compile_agents_live_query_pushdown("machine:apollo")
+        live_not = compile_agents_live_query_pushdown("not machine:apollo")
+        live_compound = compile_agents_live_query_pushdown(
+            "cl:feature AND not machine:apollo"
+        )
+        legacy_match = compile_agent_query_pushdown("machine:apollo")
+        legacy_not = compile_agent_query_pushdown("NOT machine:apollo")
+
+    assert live_match.window_safe is True
+    assert live_match.candidate_filter == machine_equals
+    assert live_not.window_safe is True
+    assert live_not.candidate_filter == {"kind": "not", "filter": machine_equals}
+    assert live_compound.window_safe is True
+    assert live_compound.candidate_filter == {
+        "kind": "all",
+        "filters": [
+            {"kind": "contains", "field": "cl", "value": "feature"},
+            {"kind": "not", "filter": machine_equals},
+        ],
+    }
+    assert legacy_match.candidate_filter == live_match.candidate_filter
+    assert legacy_not.candidate_filter == live_not.candidate_filter
+
+
+def test_compile_machine_pushdown_leaves_bare_machine_unpushable() -> None:
+    with override_flags(agents_machine_pushdown=True):
+        live = compile_agents_live_query_pushdown("machine:")
+        legacy = compile_agent_query_pushdown("machine:")
+
+    assert live.window_safe is False
+    assert live.candidate_filter is None
+    assert legacy.window_safe is False
+    assert legacy.candidate_filter is None
+
+
+def test_compile_agents_live_query_pushdown_still_rejects_non_machine_negation() -> (
+    None
+):
+    with override_flags(agents_machine_pushdown=True):
+        plan = compile_agents_live_query_pushdown("NOT provider:grok")
+
+    assert plan.window_safe is False
+    assert plan.candidate_filter is None
+
+
+def test_agents_live_pushdown_coverage_classifies_every_profile_field() -> None:
+    keys = {field.key for field in agents_live_query_schema().fields}
+
+    assert not (_PUSHABLE_FIELDS & KNOWN_FALLBACK_FIELDS)
+    assert keys - _PUSHABLE_FIELDS - KNOWN_FALLBACK_FIELDS == set()
+    assert keys == _PUSHABLE_FIELDS | KNOWN_FALLBACK_FIELDS
+
+
+def test_agents_live_pushdown_coverage_fails_for_unclassified_field() -> None:
+    keys = {field.key for field in agents_live_query_schema().fields}
+    keys.add("brand_new_trap")
+
+    assert keys - _PUSHABLE_FIELDS - KNOWN_FALLBACK_FIELDS == {"brand_new_trap"}

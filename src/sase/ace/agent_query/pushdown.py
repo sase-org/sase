@@ -95,11 +95,31 @@ def _candidate_filter_for_property(prop: PropertyMatch) -> CandidateFilterWire |
     if prop.key == "type":
         value = "workflow" if prop.value == "workflow" else "agent"
         return {"kind": "equals", "field": "type", "value": value}
+    if prop.key == "machine":
+        return _machine_filter(prop.value)
     return None
+
+
+def _machine_filter(value: str) -> CandidateFilterWire | None:
+    # Bare ``machine:`` means "any remote" in this dialect. Do not compile an
+    # empty needle: contains matches everything and equals matches nothing.
+    if not value.strip() or not _machine_pushdown_enabled():
+        return None
+    return _equals("machine", value)
+
+
+def _machine_pushdown_enabled() -> bool:
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.agents_machine_pushdown)
 
 
 def _contains(field: str, value: str) -> CandidateFilterWire:
     return {"kind": "contains", "field": field, "value": value}
+
+
+def _equals(field: str, value: str) -> CandidateFilterWire:
+    return {"kind": "equals", "field": field, "value": value}
 
 
 def _project_filter(value: str) -> CandidateFilterWire:

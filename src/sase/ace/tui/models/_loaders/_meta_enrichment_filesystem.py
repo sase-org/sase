@@ -16,6 +16,7 @@ from sase.sdd.plan_tiers import cached_plan_tier
 from ._json_cache import load_json_cached
 from ._meta_enrichment_gate import apply_gate_meta
 from ._meta_enrichment_identity import (
+    apply_archive_source_machine,
     apply_imported_source_owner,
     apply_workflow_child_identity_from_meta,
     is_main_workflow_agent_step,
@@ -197,6 +198,7 @@ def enrich_agent_from_meta(
         agent.agent_family_role = data["agent_family_role"]
     if not workflow_child:
         apply_imported_source_owner(agent, data.get("imported_source_owner"))
+        apply_archive_source_machine(agent, data.get("source_machine"))
     if not workflow_child:
         agent.agent_family_parallel = bool(data.get("agent_family_parallel", False))
         raw_clan = data.get("agent_clan")

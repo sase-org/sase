@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ._meta_enrichment_gate import apply_gate_done, apply_gate_meta
 from ._meta_enrichment_identity import (
+    apply_archive_source_machine,
     apply_imported_source_owner,
     apply_workflow_child_identity_from_meta,
     apply_workflow_child_identity_from_meta_wire,
@@ -32,6 +33,7 @@ __all__ = [
     "ACTIVE_ENRICHMENT_STATUSES",
     "append_timestamp_field",
     "append_timestamp_values",
+    "apply_archive_source_machine",
     "apply_gate_done",
     "apply_gate_meta",
     "apply_imported_source_owner",

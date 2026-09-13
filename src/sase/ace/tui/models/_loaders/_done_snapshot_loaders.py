@@ -22,6 +22,10 @@ from ._meta_enrichment import (
     enrich_agent_from_meta_wire,
     enrich_agent_from_prompt_markers_wire,
 )
+from ._meta_enrichment_identity import (
+    apply_archive_source_machine,
+    apply_imported_source_owner,
+)
 from ._meta_enrichment_gate import apply_gate_done
 from ._meta_enrichment_monitor import apply_monitor_done
 from .._timestamps import parse_timestamp_14_digit
@@ -152,6 +156,8 @@ def build_done_agent_from_record(
         ),
         has_done_marker=record.has_done_marker,
     )
+    apply_imported_source_owner(agent, done.imported_source_owner)
+    apply_archive_source_machine(agent, done.source_machine)
     done_shell = done.family_shell
     done_monitor_shell = (
         done_shell if done_shell is not None and done_shell.kind == "monitor" else None

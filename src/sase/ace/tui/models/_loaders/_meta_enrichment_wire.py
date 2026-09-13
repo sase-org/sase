@@ -15,6 +15,7 @@ from sase.sdd.plan_tiers import cached_plan_tier
 
 from ._meta_enrichment_gate import apply_gate_meta
 from ._meta_enrichment_identity import (
+    apply_archive_source_machine,
     apply_imported_source_owner,
     apply_workflow_child_identity_from_meta_wire,
     is_main_workflow_agent_step,
@@ -127,6 +128,7 @@ def enrich_agent_from_meta_wire(
         if meta.agent_family_role:
             agent.agent_family_role = meta.agent_family_role
         apply_imported_source_owner(agent, meta.imported_source_owner)
+        apply_archive_source_machine(agent, meta.source_machine)
         if meta.agent_clan:
             agent.agent_clan = meta.agent_clan
         if meta.agent_clan_generation:

@@ -21,9 +21,46 @@ if TYPE_CHECKING:
 
 def apply_imported_source_owner(agent: Agent, raw: object) -> None:
     """Copy an ``imported_source_owner`` mapping onto *agent* when present."""
+    if agent.imported_source_owner is not None:
+        return
     owner = imported_source_owner_from_mapping(raw)
     if owner is not None:
         agent.imported_source_owner = owner
+
+
+def apply_archive_source_machine(agent: Agent, *candidates: object) -> None:
+    """Copy archive provenance onto ``agent.source_machine`` when pushdown is on.
+
+    Index-resident ``machine`` values are ``{"here"} ∪ {source_machine}``.
+    Loaders must project the same provenance the artifact index stores, or
+    ``not machine:VAL`` under-selects imported rows. Gated by
+    ``agents_machine_pushdown`` so the Off branch keeps pre-epic semantics.
+    """
+    if agent.source_machine:
+        return
+    text = None
+    for raw in candidates:
+        text = _normalized_machine(raw)
+        if text:
+            break
+    if text is None and agent.imported_source_owner is not None:
+        text = _normalized_machine(agent.imported_source_owner.machine_name)
+    if not text or not _machine_pushdown_enabled():
+        return
+    agent.source_machine = text
+
+
+def _machine_pushdown_enabled() -> bool:
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.agents_machine_pushdown)
+
+
+def _normalized_machine(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
 
 
 def valid_meta_tribe(raw_value: object) -> str | None:

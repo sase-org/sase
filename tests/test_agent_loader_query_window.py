@@ -143,6 +143,114 @@ def test_load_tiered_agents_unified_query_uses_bounded_pushdown(
     ]
 
 
+def test_load_tiered_agents_machine_pushdown_stays_on_bounded_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local = _make_agent(cl_name="local")
+    calls: list[dict[str, object]] = []
+
+    def fake_load_agents_with_state(**kwargs: object) -> SimpleNamespace:
+        calls.append(kwargs)
+        return SimpleNamespace(
+            agents=[local],
+            workflow_agent_steps=[],
+            state=AgentLoadState(
+                tier="tier1",
+                complete_history=False,
+                artifact_source="artifact_index",
+                used_artifact_index=True,
+                bounded_prefix=True,
+                requested_limit=25,
+                returned_count=1,
+                has_more=False,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        fake_load_agents_with_state,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        lambda agents, _steps: list(agents),
+    )
+
+    with override_flags(
+        agents_machine_pushdown=True,
+        agents_unified_query=True,
+        agents_deferred_history=False,
+    ):
+        _agents, state = load_tiered_agents(
+            search_query="not machine:apollo",
+            requested_limit=25,
+        )
+
+    assert state.query_incomplete is not True
+    assert calls == [
+        {
+            "patch_snapshot": None,
+            "full_history": False,
+            "use_artifact_index": True,
+            "index_freshness": "cached",
+            "requested_limit": 25,
+            "candidate_filter": {
+                "kind": "not",
+                "filter": {
+                    "kind": "equals",
+                    "field": "machine",
+                    "value": "apollo",
+                },
+            },
+        }
+    ]
+
+
+def test_load_tiered_agents_machine_pushdown_off_keeps_escalation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_load_agents_with_state(**kwargs: object) -> SimpleNamespace:
+        calls.append(kwargs)
+        return SimpleNamespace(
+            agents=[],
+            workflow_agent_steps=[],
+            state=AgentLoadState(
+                tier="tier2",
+                complete_history=True,
+                artifact_source="source_scan",
+                used_artifact_index=False,
+            ),
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
+        fake_load_agents_with_state,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
+        lambda agents, _steps: list(agents),
+    )
+
+    with override_flags(
+        agents_machine_pushdown=False,
+        agents_deferred_history=False,
+        agents_unified_query=True,
+    ):
+        load_tiered_agents(search_query="not machine:apollo", requested_limit=25)
+
+    assert calls == [
+        {
+            "patch_snapshot": None,
+            "full_history": True,
+            "use_artifact_index": True,
+            "index_freshness": "cached",
+            "requested_limit": None,
+            "candidate_filter": None,
+        }
+    ]
+
+
 def test_load_tiered_agents_unsupported_query_uses_full_history(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
