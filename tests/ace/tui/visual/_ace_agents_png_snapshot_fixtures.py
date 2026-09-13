@@ -381,6 +381,66 @@ def weighted_runner_capacity_agents() -> list[Agent]:
     ]
 
 
+def capacity_budget_accent_agents() -> list[Agent]:
+    """Return an occupant, a quiet c1 waiter, and a gold c100 bypass admit.
+
+    Under a global limit of 1, the occupant alone already saturates the
+    limit; the explicit capacity=100 launch is admitted anyway (an authored
+    budget replaces the global limit for its own admission), pushing
+    occupancy over the limit for the header's pressure accent.
+    """
+    project_file = "/workspace/sase/visual_project.sase"
+    occupant = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-capacity-occupant",
+        project_file=project_file,
+        status="RUNNING",
+        start_time=datetime(2026, 8, 3, 9, 0, 0),
+        run_start_time=datetime(2026, 8, 3, 9, 0, 0),
+        raw_suffix="20260803090000",
+        artifacts_dir="/workspace/sase/artifacts/ace-run/20260803090000",
+        agent_name="capacity-occupant",
+        pid=6001,
+        llm_provider="claude",
+        model="sonnet",
+    )
+    quiet_waiter = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-capacity-quiet",
+        project_file=project_file,
+        status="WAITING",
+        start_time=datetime(2026, 8, 3, 9, 1, 0),
+        raw_suffix="20260803090100",
+        artifacts_dir="/workspace/sase/artifacts/ace-run/20260803090100",
+        agent_name="capacity-quiet",
+        pid=6002,
+        slot_requested_at="2026-08-03T13:01:00Z",
+        wait_runners=1,
+        wait_runners_explicit=True,
+        runner_effective_limit=1.0,
+        llm_provider="codex",
+        model="gpt-5-mini",
+    )
+    gold_admitted = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-capacity-gold",
+        project_file=project_file,
+        status="RUNNING",
+        start_time=datetime(2026, 8, 3, 9, 2, 0),
+        run_start_time=datetime(2026, 8, 3, 9, 2, 0),
+        raw_suffix="20260803090200",
+        artifacts_dir="/workspace/sase/artifacts/ace-run/20260803090200",
+        agent_name="capacity-gold",
+        pid=6003,
+        wait_runners=100,
+        wait_runners_explicit=True,
+        runner_effective_limit=1.0,
+        llm_provider="qwen",
+        model="qwen3-coder",
+    )
+    return [occupant, quiet_waiter, gold_admitted]
+
+
 def output_variable_family_agents() -> list[Agent]:
     parent = Agent(
         agent_type=AgentType.RUNNING,

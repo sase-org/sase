@@ -16,6 +16,7 @@ from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
+    capacity_budget_accent_agents,
     output_variable_family_agents,
     plan_handoff_status_agents,
     reserved_tribe_wait_agents,
@@ -330,6 +331,50 @@ async def test_weighted_runner_capacity_png_snapshots(
             "agents_weighted_runner_capacity_expanded_80x32",
             title="ACE weighted runner capacity expanded",
         )
+
+
+async def test_capacity_budget_accent_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cover a quiet c1, a gold c100 bypass admit, and the red global header."""
+    rows = capacity_budget_accent_agents()
+    pin_agents_visual_now(monkeypatch, datetime(2026, 8, 3, 9, 5, 0))
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 1)
+    patch_startup_loaders(monkeypatch, agents=rows)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await wait_for_visual_idle(page)
+
+        info_panel = page.app.query_one(AgentInfoPanel)
+        assert info_panel._runner_capacity_style() == "bold #FF5F5F"
+
+        assert_page_svg_styled_text_contains(page, "c1")
+        assert_page_svg_styled_text_contains(page, "c100")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_capacity_budget_accent_120x40",
+            title="ACE agents capacity budget accent",
+        )
+
+        for _ in range(len(page.app._agents) + 1):
+            selected = (
+                page.app._agents[page.app.current_idx]
+                if 0 <= page.app.current_idx < len(page.app._agents)
+                else None
+            )
+            if selected is not None and selected.agent_name == "capacity-gold":
+                break
+            await page.press("j")
+            await wait_for_visual_idle(page)
+        selected = page.app._agents[page.app.current_idx]
+        assert selected.agent_name == "capacity-gold"
+        prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_text = renderable_to_text(prompt.content) or ""
+        assert "Capacity: 100 capacity units" in prompt_text
 
 
 async def test_agent_output_variables_multi_agent_png_snapshot(
