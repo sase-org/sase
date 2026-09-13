@@ -351,8 +351,9 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol 'sase-100.2(surface_refreshed_age)' \
-        --epic-symbol 'sase-100.2(freshness_label)' \
+        --epic-symbol 'sase-100.3(surface_refreshed_age)' \
+        --epic-symbol 'sase-100.3(freshness_label)' \
+        --epic-symbol 'sase-100.3(RefreshPanelModal)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -3130,6 +3130,7 @@ ProjectAliasEditorModal Button {
 PromptSubmitChoiceModal,
 JumpActionModal,
 QuitOptionsModal,
+RefreshPanelModal,
 SnoozeDurationModal,
 DisabledProviderLaunchModal,
 ProviderDrainPromptModal,
@@ -3202,12 +3203,32 @@ _DurationPickerModal {
     width: 100%;
 }
 
+#refresh-panel-container {
+    width: 72;
+}
+
+#refresh-panel-title {
+    width: 100%;
+}
+
 #jump-action-header {
     color: $text;
 }
 
 .jump-action-footer {
     color: $text-muted;
+}
+
+.refresh-panel-header,
+.refresh-panel-footer {
+    color: $text-muted;
+}
+
+.refresh-panel-row-selected {
+    background: $boost;
+    height: auto;
+    padding: 0 0 0 0;
+    margin-bottom: 1;
 }
 
 .duration-choice-title {
