@@ -267,7 +267,7 @@ def test_malformed_candidate_decision_fails_closed(tmp_path: Path) -> None:
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
         patch(
-            "sase.core.runner_slots._admission._core_runner_capacity_snapshot",
+            "sase.core.runner_slots._admission_snapshot._core_runner_capacity_snapshot",
             side_effect=broken_snapshot,
         ),
         pytest.raises(run_agent_wait_slots._RunnerSlotAdmissionError, match="decision"),

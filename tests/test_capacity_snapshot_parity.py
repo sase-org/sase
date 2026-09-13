@@ -3,7 +3,7 @@ TUI capacity header/queue must all agree when built from the same records.
 
 Every test in this module derives its runtime-admission, CLI, and TUI views
 from one shared set of :class:`_EntitySpec` values so a divergence between
-``_capacity_record_from_scan`` (admission/CLI) and ``_capacity_record_from_agent``
+``capacity_record_from_scan`` (admission/CLI) and ``_capacity_record_from_agent``
 (TUI) -- the two independent adapters into the Rust capacity engine -- shows up
 as a real test failure instead of staying latent.
 """
