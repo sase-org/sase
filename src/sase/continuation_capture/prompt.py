@@ -27,7 +27,7 @@ from ._storage import (
     record_capture_error,
 )
 from .models import ContinuationSegmentCapture, PreparedPromptCaptureResult
-from .rollout import monitor_continuation_records_enabled
+from .rollout import monitor_continuation_capture_enabled
 from .segments import complete_prompt_segments, wire_segments_from_prepared
 
 if TYPE_CHECKING:
@@ -127,7 +127,7 @@ def record_prepared_prompt_capture_best_effort(
 ) -> PreparedPromptCaptureResult | None:
     """Best-effort wrapper for prepared prompt capture."""
 
-    if artifacts_dir is None or not monitor_continuation_records_enabled():
+    if artifacts_dir is None or not monitor_continuation_capture_enabled():
         return None
     try:
         return record_prepared_prompt_capture(

@@ -26,7 +26,7 @@ from ._storage import (
     record_capture_error,
     update_agent_meta_fields,
 )
-from .rollout import monitor_continuation_records_enabled
+from .rollout import monitor_continuation_capture_enabled
 
 MAX_CHECKPOINT_BYTES = 256 * 1024
 
@@ -57,7 +57,7 @@ def publish_handoff_checkpoint_best_effort(
 ) -> str | None:
     """Best-effort wrapper for handoff checkpoint publication."""
 
-    if artifacts_dir is None or not monitor_continuation_records_enabled():
+    if artifacts_dir is None or not monitor_continuation_capture_enabled():
         return None
     try:
         return publish_handoff_checkpoint(

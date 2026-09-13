@@ -13,7 +13,10 @@ from sase.continuation_capture import (
     ContinuationSegmentCapture,
     _persist_agent_delta,
     _record_prepared_prompt_capture,
+    record_prepared_prompt_capture_best_effort,
 )
+from sase.continuation_capture.rollout import MONITOR_CONTINUATION_CAPTURE_ENV
+from sase.feature_flags import override_flags
 
 from sase.llm_provider.preprocessing import preprocess_prompt_early
 from sase.xprompt.models import XPrompt
@@ -88,6 +91,33 @@ def test_prepared_prompt_capture_publishes_blobs_without_delimiter_recovery(
         assert isinstance(ref, str)
         blob = artifacts / "continuation" / ref.removeprefix("local:continuation/")
         assert blob.exists()
+
+
+def test_prepared_prompt_capture_uses_monitor_continuation_env_when_flag_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+
+    with override_flags(monitor_continuation_records=False):
+        assert (
+            record_prepared_prompt_capture_best_effort(
+                artifacts,
+                authored_local_request="hello",
+                materialized_prompt="hello",
+            )
+            is None
+        )
+        monkeypatch.setenv(MONITOR_CONTINUATION_CAPTURE_ENV, "1")
+        result = record_prepared_prompt_capture_best_effort(
+            artifacts,
+            authored_local_request="hello",
+            materialized_prompt="hello materialized",
+        )
+
+    assert result is not None
+    assert Path(result.prepared_path).exists()
 
 
 def test_agent_delta_capture_uses_wire_validators_and_exact_authored_text(

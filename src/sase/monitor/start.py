@@ -22,7 +22,10 @@ from typing import Any
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
-from sase.continuation_capture.rollout import monitor_continuation_records_enabled
+from sase.continuation_capture.rollout import (
+    monitor_continuation_protocol_for_new_start,
+    monitor_continuation_records_enabled,
+)
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -163,6 +166,7 @@ def _start_monitor_locked(
     """Start one monitor while the caller holds the lane start lock."""
     label = request.label or default_label(request.command)
     records_enabled = monitor_continuation_records_enabled()
+    continuation_protocol = monitor_continuation_protocol_for_new_start(records_enabled)
     if not records_enabled:
         _reject_versioned_start_controls_when_disabled(request)
         parent_node_ids: list[str] = []
@@ -261,6 +265,7 @@ def _start_monitor_locked(
         checkpoint_ref=request.checkpoint_ref if records_enabled else None,
         starter_artifacts_dir=starter_artifacts_dir if records_enabled else None,
         parent_node_ids=request.parent_node_ids if records_enabled else (),
+        continuation_protocol=continuation_protocol,
     )
     log_path = monitor_log_path(artifacts_dir)
     update_meta_field(artifacts_dir, "monitor_output_path", str(log_path))
@@ -433,6 +438,7 @@ def _start_monitor_locked(
         lane_start=lane_start,
         request_fingerprint=request_fingerprint,
         starter_artifacts_dir=starter_artifacts_dir,
+        records_enabled=records_enabled,
     )
     return record
 
@@ -679,8 +685,9 @@ def _persist_monitor_start_intent_after_ack(
     lane_start: _LaneStart,
     request_fingerprint: str,
     starter_artifacts_dir: str | None,
+    records_enabled: bool,
 ) -> None:
-    if not monitor_continuation_records_enabled():
+    if not records_enabled:
         return
     parent_node_ids = list(request.parent_node_ids) or _continuation_parent_node_ids(
         lane_start.member_meta

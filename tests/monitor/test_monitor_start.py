@@ -20,6 +20,11 @@ import pytest
 import sase.monitor.followup as followup_module
 from sase.ace.scheduler.stale_running_cleanup import cleanup_stale_running_entries
 from sase.agent.launch_types import AgentLaunchResult
+from sase.continuation_capture.rollout import (
+    MONITOR_CONTINUATION_PROTOCOL_FIELD,
+    MONITOR_CONTINUATION_PROTOCOL_LEGACY,
+    MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1,
+)
 from sase.feature_flags import override_flags
 from sase.monitor.claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
 from sase.monitor.models import MonitorError
@@ -207,6 +212,10 @@ def test_start_monitor_persists_next_action_intent_after_ack(
         assert intent["route"]["model"] == "claude-sonnet-5"
 
         meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+        assert (
+            meta[MONITOR_CONTINUATION_PROTOCOL_FIELD]
+            == MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1
+        )
         assert meta["continuation_parent_node_ids"] == ["agent-delta:starter:abc123"]
         assert meta["continuation_intent_ref"] == intent_ref
     finally:
@@ -256,6 +265,10 @@ def test_start_monitor_uses_legacy_writer_when_continuation_records_are_disabled
 
     try:
         meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
+        assert (
+            meta[MONITOR_CONTINUATION_PROTOCOL_FIELD]
+            == MONITOR_CONTINUATION_PROTOCOL_LEGACY
+        )
         assert "continuation_parent_node_ids" not in meta
         assert "continuation_intent_ref" not in meta
         assert "monitor_policy_digest" not in meta

@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+from sase.continuation_capture.rollout import (
+    MONITOR_CONTINUATION_PROTOCOL_FIELD,
+    MONITOR_CONTINUATION_PROTOCOL_LEGACY,
+)
 from sase.shells.member import create_family_shell_member
 
 _MONITOR_INHERITED_METADATA_FIELDS = (
@@ -46,6 +50,7 @@ def create_monitor_member(
     checkpoint_ref: str | None = None,
     starter_artifacts_dir: str | None = None,
     parent_node_ids: Sequence[str] = (),
+    continuation_protocol: str = MONITOR_CONTINUATION_PROTOCOL_LEGACY,
 ) -> str:
     """Create a monitor family member's artifacts directory.
 
@@ -73,6 +78,7 @@ def create_monitor_member(
         "monitor_state": "running",
         "monitor_settled": False,
         "monitor_request_fingerprint": request_fingerprint,
+        MONITOR_CONTINUATION_PROTOCOL_FIELD: continuation_protocol,
     }
     if idle_timeout_seconds > 0:
         monitor_metadata["monitor_idle_timeout_seconds"] = idle_timeout_seconds

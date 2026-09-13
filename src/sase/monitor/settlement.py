@@ -7,7 +7,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
-from sase.continuation_capture.rollout import monitor_continuation_records_enabled
+from sase.continuation_capture.rollout import (
+    monitor_continuation_records_enabled_for_meta,
+)
 from sase.running_field import release_workspace
 from sase.shells.settlement import (
     ShellSettlementConfig,
@@ -77,7 +79,7 @@ def settle_claim_and_followup(
         captured_launch_result = _coerce_monitor_followup_result(raw, meta)
         return captured_launch_result
 
-    if not monitor_continuation_records_enabled():
+    if not monitor_continuation_records_enabled_for_meta(meta):
         error = settle_shell_claim_and_followup(
             artifacts_dir,
             meta,

@@ -23,7 +23,9 @@ from sase.agent.detached_child import spawn_family_successor
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.continuation_capture._storage import sha_json
-from sase.continuation_capture.rollout import monitor_continuation_records_enabled
+from sase.continuation_capture.rollout import (
+    monitor_continuation_records_enabled_for_meta,
+)
 from sase.shells.followup import (
     DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
     STARTER_SETTLE_POLL_SECONDS as _STARTER_SETTLE_POLL_SECONDS,
@@ -102,7 +104,7 @@ def launch_followup_agent(
     recorded on the monitor member's own metadata; the caller is responsible
     for releasing the workspace claim and notifying.
     """
-    records_enabled = monitor_continuation_records_enabled()
+    records_enabled = monitor_continuation_records_enabled_for_meta(meta)
     intent: Mapping[str, Any] | None = None
     try:
         intent = _load_frozen_monitor_intent(artifacts_dir, meta)

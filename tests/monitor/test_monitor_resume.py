@@ -19,6 +19,7 @@ import sase.procs.spawn as spawn_module
 from sase.agent._family_attach_types import FamilyAttachLaunchPlan
 from sase.agent.launch_types import AgentLaunchResult
 from sase.continuation_capture._storage import continuation_root, sha_json
+from sase.feature_flags import override_flags
 from sase.llm_provider.types import InvokeResult
 from sase.monitor.continuation_delivery import (
     DELIVERY_ARTIFACTS_ENV,
@@ -242,6 +243,34 @@ def test_resume_uses_the_frozen_result_delivery_key(
     on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
     assert on_disk["monitor_followup_agent"] == "acme--1"
     assert on_disk["monitor_followup_outcome"] == "launched"
+
+
+def test_resume_uses_persisted_record_protocol_when_rollout_disabled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir, record, meta = _terminal_monitor(tmp_path, monkeypatch)
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+
+    with override_flags(monitor_continuation_records=False):
+        result = resume_monitor(record)
+
+    assert result.spawned is True
+    assert result.agent_name == "acme--1"
+    delivery_key_payload = json.loads(
+        captured[0]["extra_env"]["SASE_MONITOR_DELIVERY_KEY"]
+    )
+    assert delivery_key_payload == {
+        "monitor_id": record.monitor_id,
+        "result_id": meta["continuation_monitor_result_id"],
+        "branch": "failed",
+    }
+    record_payload = load_delivery_record(monitor_dir, delivery_key_payload)
+    assert record_payload is not None
+    assert record_payload["disposition"] == "dispatching"
 
 
 def test_resume_does_not_retry_dispatching_record_without_uninvoked_proof(

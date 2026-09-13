@@ -50,7 +50,7 @@ from ._validation import (
 )
 from .checkpoints import publish_handoff_checkpoint
 from .models import MonitorResultPublishResult
-from .rollout import monitor_continuation_records_enabled
+from .rollout import monitor_continuation_records_enabled_for_meta
 
 
 def persist_monitor_start_intent_best_effort(
@@ -75,7 +75,7 @@ def persist_monitor_start_intent_best_effort(
 ) -> str | None:
     """Persist a passive continuation intent for a started monitor member."""
 
-    if not next_action or not monitor_continuation_records_enabled():
+    if not next_action or not _records_enabled_for_artifacts(artifacts_dir, meta=meta):
         return None
     try:
         return persist_monitor_start_intent(
@@ -290,7 +290,7 @@ def persist_monitor_result_best_effort(
 ) -> MonitorResultPublishResult | None:
     """Persist a terminal monitor result without interrupting settlement."""
 
-    if not monitor_continuation_records_enabled():
+    if not monitor_continuation_records_enabled_for_meta(meta):
         return None
     try:
         return persist_monitor_result(
@@ -525,6 +525,21 @@ def persist_monitor_result(
 def _monitor_result_node_id(result: MonitorResultWire) -> str:
     suffix = str(result["result_id"]).removeprefix("result:")
     return f"monitor-result:{safe_identifier(suffix, max_len=180)}"
+
+
+def _records_enabled_for_artifacts(
+    artifacts_dir: str | os.PathLike[str],
+    *,
+    meta: Mapping[str, Any] | None = None,
+) -> bool:
+    if meta is not None:
+        return monitor_continuation_records_enabled_for_meta(meta)
+    loaded = read_json_object(Path(artifacts_dir) / "agent_meta.json")
+    return (
+        monitor_continuation_records_enabled_for_meta(loaded)
+        if isinstance(loaded, Mapping)
+        else False
+    )
 
 
 def _parent_node_ids_from_meta(
