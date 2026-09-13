@@ -8,6 +8,9 @@ from pathlib import Path
 
 import pytest
 
+from sase.continuation_capture.rollout import (
+    MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1,
+)
 from sase.monitor.followup import FollowupLaunchResult
 from sase.monitor.proc_adapter import settle_monitor_artifacts, settle_monitor_followup
 from sase.running_field import WorkspaceClaim
@@ -48,6 +51,7 @@ def _make_proc_monitor(
         workspace_dir=str(tmp_path),
         workspace_num=3,
         shell_kind="proc",
+        monitor_continuation_protocol=MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1,
     )
 
 

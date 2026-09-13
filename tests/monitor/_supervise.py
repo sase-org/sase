@@ -20,6 +20,9 @@ from pathlib import Path
 import pytest
 
 from sase.ace.hooks.processes import is_process_running
+from sase.continuation_capture.rollout import (
+    MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1,
+)
 from sase.monitor.transaction import MONITOR_GO_MARKER
 from sase.running_field import WorkspaceClaim
 
@@ -113,6 +116,7 @@ def _make_member(
         cl_name="acme",
         workspace_dir=str(tmp_path),
         workspace_num=workspace_num,
+        monitor_continuation_protocol=MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1,
         **extra_meta,
     )
     if go_barrier:
