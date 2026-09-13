@@ -15,7 +15,7 @@ from ..modals.plugins_browser_comprehensive_update_models import (
 from ..modals.update_panel import UpdatePanel, UpdatePanelResult
 from ..update_panel_state import build_update_panel_state
 from ._admin_center_persistence import AdminCenterPersistenceMixin
-from .event_refresh._freshness import note_surface_refreshed
+from .refresh_panel import RefreshPanelMixin
 
 if TYPE_CHECKING:
     from ...patch import Patch
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 TabName = Literal["artifacts", "agents", "axe"]
 
 
-class BaseActionsMixin(AdminCenterPersistenceMixin):
+class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
     """Mixin providing workflow, tool, and query actions."""
 
     # Type hints for attributes accessed from AceApp (defined at runtime)
@@ -480,56 +480,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin):
             # was never reserved.
             release_workspace(project_file, workspace_num, "mail", cl_name)
 
-    # --- Refresh & Query Actions ---
-
-    def action_refresh(self) -> None:
-        """Refresh the current tab's content."""
-        if self.current_tab == "agents":
-            # Route through the async path so the UI returns immediately.
-            # _apply_loaded_agents triggers _refresh_agent_file after the
-            # background load completes. Normal refresh is always the
-            # visible-inbox Tier 1 path; full-history scans are exposed
-            # through ``action_refresh_agents_full_history`` instead.
-            self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
-                source="manual",
-                full_history=False,
-            )
-            note_surface_refreshed(self, "agents")
-            schedule_fleet_refresh = getattr(
-                self,
-                "_schedule_agents_fleet_refresh",
-                None,
-            )
-            if callable(schedule_fleet_refresh):
-                schedule_fleet_refresh(source="manual", force=True)
-        elif self.current_tab == "artifacts":
-            if getattr(self, "current_artifacts_subtab", "patches") == "patches":
-                self._schedule_patches_async_refresh()  # type: ignore[attr-defined]
-                note_surface_refreshed(self, "patches")
-            else:
-                self._request_active_artifacts_refresh()  # type: ignore[attr-defined]
-                note_surface_refreshed(self, "artifacts")
-        else:  # axe
-            # Targeted refresh repaints the focused panel first; the
-            # full-fleet refresh lands whenever it lands.
-            self._schedule_targeted_axe_refresh()  # type: ignore[attr-defined]
-            self._schedule_axe_async_refresh()  # type: ignore[attr-defined]
-            note_surface_refreshed(self, "axe")
-        self.notify("Refreshed")  # type: ignore[attr-defined]
-
-    def action_refresh_agents_full_history(self) -> None:
-        """Explicitly refresh Agents from full artifact history."""
-        if self.current_tab != "agents":
-            self.notify("Full-history refresh is only available on Agents")  # type: ignore[attr-defined]
-            return
-        self._agents_history_reconcile_pending = False
-        note_surface_refreshed(self, "agents_full_history")
-        self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
-            source="manual_full_history",
-            full_history=True,
-            full_history_reason="manual_full_history_refresh",
-        )
-        self.notify("Refreshing Agents from full history")  # type: ignore[attr-defined]
+    # --- Query Actions ---
 
     def action_edit_query(self) -> None:
         """Edit the search query.

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ...patch import Patch
+from ..actions.refresh_panel import refresh_panel_enabled
 from ..keymaps import KeymapRegistry, footer_key_display
 
 if TYPE_CHECKING:
@@ -385,7 +386,8 @@ class KeybindingModesMixin:
             bindings.append((k("agent_from_cl"), "run agent (PR)"))
         if current_tab == "agents":
             bindings.append((k("toggle_agent_panel_grouping"), "group panels"))
-            bindings.append((k("full_history_refresh"), "full history refresh"))
+            if not refresh_panel_enabled():
+                bindings.append((k("full_history_refresh"), "full history refresh"))
             if has_stopped_agent:
                 bindings.append((k("jump_to_next_stopped_agent"), "next stopped"))
             if has_unread_completed_agent:

@@ -223,6 +223,8 @@ async def test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles(
 
         refresh_baseline = len(calls)
         await page.press("R")
+        await page.expect_modal("RefreshPanelModal")
+        await page.press("r")
         await page.wait_for(lambda _state: len(calls) == refresh_baseline + 1)
         await page.press("F")
         await page.wait_for(
@@ -270,8 +272,11 @@ async def test_commits_refresh_override_drives_action_footer_and_help(
         await page.press("R")
         await page.pause()
         assert len(calls) == baseline
+        assert page.state["modal"] is None
 
         await page.press("f2")
+        await page.expect_modal("RefreshPanelModal")
+        await page.press("r")
         await page.wait_for(lambda _state: len(calls) == baseline + 1)
 
         await page.press("question_mark")

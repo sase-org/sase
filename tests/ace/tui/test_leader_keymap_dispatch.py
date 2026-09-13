@@ -9,6 +9,7 @@ from sase.ace.tui.actions.agents._unread_state import (
     _BulkUnreadToggleResult,
 )
 from sase.ace.tui.keymaps import load_keymap_registry
+from sase.feature_flags import override_flags
 from tests.ace.tui._leader_keymap_helpers import _FakeApp, _make_cs
 
 
@@ -425,21 +426,25 @@ def test_leader_shift_j_noops_on_non_agents_tabs() -> None:
 def test_leader_y_refreshes_agents_from_full_history() -> None:
     app = _FakeApp(current_tab="agents")
 
-    handled = app._handle_leader_key("y")
+    with override_flags(refresh_panel=False):
+        handled = app._handle_leader_key("y")
 
     assert handled is True
     assert app.full_history_refresh_count == 1
     assert app.refresh_count == 1
+    assert app.refresh_panel_opens == []
 
 
 def test_leader_y_noops_on_non_agents_tabs() -> None:
     app = _FakeApp(current_tab="patches")
 
-    handled = app._handle_leader_key("y")
+    with override_flags(refresh_panel=False):
+        handled = app._handle_leader_key("y")
 
     assert handled is True
     assert app.full_history_refresh_count == 0
     assert app.refresh_count == 1
+    assert app.refresh_panel_opens == []
 
 
 def test_leader_u_marks_all_unread_done_agents_read_on_agents_tab() -> None:

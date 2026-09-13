@@ -12,7 +12,9 @@ from .binding_common import (
     Sections,
     custom_mode_sections,
     key_sequence_display,
+    leader_full_history_help_rows,
     memory_panel_section,
+    refresh_help_label,
     snippets_panel_section,
     sk,
 )
@@ -311,10 +313,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_next_stopped_agent'))}",
                     "Jump to next stopped agent",
                 ),
-                (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'full_history_refresh'))}",
-                    "Refresh from full history",
-                ),
+                *leader_full_history_help_rows(km),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'mark_all_unread_done_agents_read'))}",
                     "Mark all unread done agents read / undo",
@@ -590,7 +589,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Quit / restart menu"),
-                (d(a.refresh), "Refresh"),
+                (d(a.refresh), refresh_help_label()),
                 (d(a.quit), "Quit"),
                 (d(a.open_command_palette), "Open command palette"),
             ],

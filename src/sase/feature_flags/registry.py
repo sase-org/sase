@@ -30,6 +30,7 @@ class FeatureFlag(StrEnum):
     provider_drain = "provider_drain"
     queue_capacity_budget = "queue_capacity_budget"
     ref_sync_gesture = "ref_sync_gesture"
+    refresh_panel = "refresh_panel"
     typed_launch_units = "typed_launch_units"
 
 
@@ -122,6 +123,17 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "newly-arrived rows badged."
         ),
         bead="sase-qu",
+    ),
+    FeatureFlag.refresh_panel: FeatureFlagDefinition(
+        key=FeatureFlag.refresh_panel,
+        kind="sunset",
+        description=(
+            "R opens the Refresh panel, whose single-key options run the "
+            "current tab refresh, the Agents full-history rescan, a provider "
+            "usage-window refresh, or all three, and ,y opens that panel with "
+            "the cursor on Full history."
+        ),
+        bead="sase-105",
     ),
     FeatureFlag.typed_launch_units: FeatureFlagDefinition(
         key=FeatureFlag.typed_launch_units,

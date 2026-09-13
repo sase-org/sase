@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import fields
 
+from sase.ace.tui.actions.refresh_panel import refresh_panel_enabled
 from sase.ace.tui.commands import (
     build_command_catalog,
     iter_app_commands,
@@ -27,6 +28,13 @@ from sase.ace.tui.keymaps import (
 
 def _registry() -> KeymapRegistry:
     return load_keymap_registry({})
+
+
+def _expected_leader_ids(reg: KeymapRegistry) -> set[str]:
+    ids = {f"leader.{cid}" for cid in reg.leader_mode.keys}
+    if refresh_panel_enabled():
+        ids.discard("leader.full_history_refresh")
+    return ids
 
 
 # --- App command coverage ---
@@ -396,7 +404,7 @@ def test_copy_mode_commands_per_tab_scope() -> None:
 def test_leader_mode_commands_cover_every_subkey() -> None:
     reg = _registry()
     leader_specs = [c for c in iter_mode_commands(reg) if c.id.startswith("leader.")]
-    expected = {f"leader.{cid}" for cid in reg.leader_mode.keys}
+    expected = _expected_leader_ids(reg)
     assert {c.id for c in leader_specs} == expected
     assert "leader.retry_edit" not in {c.id for c in leader_specs}
 

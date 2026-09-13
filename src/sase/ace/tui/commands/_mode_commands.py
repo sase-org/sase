@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
+from sase.ace.tui.actions.refresh_panel import refresh_panel_enabled
 from sase.ace.tui.commands._formatting import format_key_sequence
 from sase.ace.tui.commands._tabs import ALL_TABS, CL_AGENTS, CL_ONLY, AGENTS_ONLY
 from sase.ace.tui.commands.types import CommandExecutor, CommandSpec, CommandTab
@@ -215,6 +216,8 @@ def _iter_leader_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
     prefix = leader.prefix
     for command_id, subkey in leader.keys.items():
         if not isinstance(subkey, str):
+            continue
+        if command_id == "full_history_refresh" and refresh_panel_enabled():
             continue
         label = _LEADER_LABELS.get(command_id, command_id.replace("_", " ").title())
         tabs = _LEADER_TABS.get(command_id, ALL_TABS)

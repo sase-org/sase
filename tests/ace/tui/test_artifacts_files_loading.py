@@ -357,6 +357,8 @@ async def test_cursor_survives_refresh_and_jk_has_no_highlight_echoes(
 
         before_refresh = calls
         await page.press("R")
+        await page.expect_modal("RefreshPanelModal")
+        await page.press("r")
         await page.wait_for(lambda _state: calls > before_refresh)
         await page.wait_for(
             lambda _state: (

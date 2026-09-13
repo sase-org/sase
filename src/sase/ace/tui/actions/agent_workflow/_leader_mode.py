@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from sase.agent.status_buckets import agent_is_asking
 
 from ..agents._unread_state import BulkUnreadToggleOutcome
+from ..refresh_panel import FULL_HISTORY_MIGRATION_BANNER, refresh_panel_enabled
 from ._types import TabName
 
 if TYPE_CHECKING:
@@ -178,6 +179,13 @@ class LeaderModeMixin:
 
         if key == leader_keys["full_history_refresh"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            if refresh_panel_enabled():
+                self._open_refresh_panel(  # type: ignore[attr-defined]
+                    initial_choice="full_history",
+                    banner=FULL_HISTORY_MIGRATION_BANNER,
+                )
+                self._refresh_current_tab()  # type: ignore[attr-defined]
+                return True
             if self.current_tab == "agents":
                 self.action_refresh_agents_full_history()  # type: ignore[attr-defined]
             self._refresh_current_tab()  # type: ignore[attr-defined]

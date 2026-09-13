@@ -7,6 +7,7 @@ from typing import Any
 
 from sase.ace.tui.actions.agents._loading_compute import PreparedApplyData
 from sase.ace.tui.actions.agents._loading_refresh import AgentLoadingRefreshMixin
+from sase.ace.tui.actions.refresh_panel import RefreshPanelMixin
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.util.nav_gate import NavigationGate
 
@@ -55,7 +56,7 @@ class FakeRefreshApp(AgentLoadingRefreshMixin):
         self._timer_calls.append((delay, callback))
 
 
-class FakeBaseActionsApp:
+class FakeBaseActionsApp(RefreshPanelMixin):
     """Minimal host for BaseActionsMixin refresh actions."""
 
     def __init__(self) -> None:

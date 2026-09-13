@@ -104,7 +104,7 @@ def test_manual_refresh_stamps_requested_surface(
         artifacts_subtab=artifacts_subtab,
     )
 
-    BaseActionsMixin.action_refresh(app)  # type: ignore[arg-type]
+    BaseActionsMixin._refresh_current_tab_surfaces(app)  # type: ignore[arg-type]
 
     assert surface_refreshed_age(app, surface) is not None
 

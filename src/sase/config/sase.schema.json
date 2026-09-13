@@ -4608,6 +4608,12 @@
           "default": true,
           "deprecated": true
         },
+        "refresh_panel": {
+          "type": "boolean",
+          "description": "R opens the Refresh panel, whose single-key options run the current tab refresh, the Agents full-history rescan, a provider usage-window refresh, or all three, and ,y opens that panel with the cursor on Full history.",
+          "default": true,
+          "deprecated": true
+        },
         "typed_launch_units": {
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",

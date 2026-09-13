@@ -7,6 +7,7 @@ import pytest
 from sase.ace.tui.actions.agents._loading_refresh import (
     TIER2_RECONCILE_INPUT_QUIET_THRESHOLD_S,
 )
+from sase.feature_flags import override_flags
 from tests.ace.tui._lazy_tier2_reconcile_helpers import (
     FakeBaseActionsApp,
     FakeRefreshApp,
@@ -26,7 +27,8 @@ def test_manual_agents_refresh_stays_tier1_even_when_reconcile_pending() -> None
     app = FakeBaseActionsApp()
     app._agents_history_reconcile_pending = True
 
-    BaseActionsMixin.action_refresh(app)  # type: ignore[arg-type]
+    with override_flags(refresh_panel=False):
+        BaseActionsMixin.action_refresh(app)  # type: ignore[arg-type]
 
     assert app.scheduled == [(False, None)]
     assert app._agents_history_reconcile_pending is True

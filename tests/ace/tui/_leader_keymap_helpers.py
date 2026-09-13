@@ -51,6 +51,7 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
         self.jump_stopped_count = 0
         self.jump_stopped_result = True
         self.full_history_refresh_count = 0
+        self.refresh_panel_opens: list[dict[str, object]] = []
         self.mark_all_unread_count = 0
         self.mark_all_unread_result = _BulkUnreadToggleResult(
             BulkUnreadToggleOutcome.MARKED_READ,
@@ -111,6 +112,16 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
 
     def action_refresh_agents_full_history(self) -> None:
         self.full_history_refresh_count += 1
+
+    def _open_refresh_panel(
+        self,
+        *,
+        initial_choice: str = "this_tab",
+        banner: str | None = None,
+    ) -> None:
+        self.refresh_panel_opens.append(
+            {"initial_choice": initial_choice, "banner": banner}
+        )
 
     def _toggle_all_unread_done_agents_read(self) -> _BulkUnreadToggleResult:
         self.mark_all_unread_count += 1

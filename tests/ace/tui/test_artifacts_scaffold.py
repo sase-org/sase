@@ -146,6 +146,9 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
             page.query_one_widget("#files-empty", Static).content
         )
         await page.press("R")
+        await page.expect_modal("RefreshPanelModal")
+        await page.press("r")
+        await page.expect_no_modal()
         assert files.refresh_request_count == 1
 
         provider = next(
@@ -162,6 +165,9 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         await page.press(_digit_for(view, "files"))
         await page.expect_state("artifacts_subtab", "files")
         await page.press("R")
+        await page.expect_modal("RefreshPanelModal")
+        await page.press("r")
+        await page.expect_no_modal()
         assert files.refresh_request_count == 2
 
 

@@ -154,6 +154,31 @@ def admin_center_machines_section(
     return ("Admin Center Machines", machines_help_bindings(km.machines))
 
 
+def refresh_help_label() -> str:
+    """Return the General-section label for the app-level refresh key."""
+    from sase.ace.tui.actions.refresh_panel import refresh_panel_enabled
+
+    return "Open Refresh panel" if refresh_panel_enabled() else "Refresh"
+
+
+def leader_full_history_help_rows(
+    km: KeymapRegistry,
+) -> list[tuple[str, str]]:
+    """Return the leader-mode refresh row, migrated to ``R`` while the panel is on."""
+    from sase.ace.tui.actions.refresh_panel import refresh_panel_enabled
+
+    d = key_display_name
+    if refresh_panel_enabled():
+        return [(d(km.app.refresh), refresh_help_label())]
+    lm = km.leader_mode
+    return [
+        (
+            f"{d(lm.prefix)}{d(sk(lm.keys, 'full_history_refresh'))}",
+            "Refresh from full history",
+        )
+    ]
+
+
 def sk(keys: dict[str, str | dict[str, str]], name: str) -> str:
     """Extract a string value from a mode keys dict."""
     v = keys[name]

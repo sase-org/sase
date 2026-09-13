@@ -21,6 +21,11 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
+from sase.ace.tui.actions.refresh_panel import (
+    REFRESH_PANEL_COMMAND_LABEL,
+    REFRESH_TAB_COMMAND_LABEL,
+    refresh_panel_enabled,
+)
 from sase.ace.tui.artifact_tabs import resolve_artifacts_subtabs
 from sase.ace.tui.keymaps.key_validation import is_unbound_key
 from sase.ace.tui.commands._app_metadata import (
@@ -58,6 +63,12 @@ _ensure_metadata_covers_app_keymaps()
 def iter_app_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
     """Yield one :class:`CommandSpec` per :class:`AppKeymaps` field."""
     for action, label, category, tabs, aliases in _APP_COMMAND_META:
+        if action == "refresh":
+            label = (
+                REFRESH_PANEL_COMMAND_LABEL
+                if refresh_panel_enabled()
+                else REFRESH_TAB_COMMAND_LABEL
+            )
         key = getattr(registry.app, action)
         unbound = is_unbound_key(key)
         yield CommandSpec(

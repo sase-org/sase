@@ -12,6 +12,7 @@ from .binding_common import (
     custom_mode_sections,
     key_sequence_display,
     memory_panel_section,
+    refresh_help_label,
     snippets_panel_section,
     sk,
 )
@@ -317,7 +318,7 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.show_notifications), "Notifications (d debugs row)"),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Quit / restart menu"),
-                (d(a.refresh), "Refresh"),
+                (d(a.refresh), refresh_help_label()),
                 (d(a.artifacts_copy_reference), "Copy @patch: reference"),
                 (d(a.quit), "Quit"),
                 (d(a.open_command_palette), "Open command palette"),

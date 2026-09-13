@@ -367,6 +367,8 @@ async def test_unchanged_relative_query_reuses_cache_and_refreshes_its_clock(
         assert pane.filters == values
 
         await page.press("R")
+        await page.expect_modal("RefreshPanelModal")
+        await page.press("r")
         await page.wait_for(
             lambda _state: (
                 len(calls) == 2
