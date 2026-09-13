@@ -83,6 +83,7 @@ class GateShellSnapshot:
     taken_at: float
     gate_shells: tuple[GateShellRecord, ...]
     family_members: Mapping[tuple[str, str], tuple[AgentArtifactRecordWire, ...]]
+    record_count: int
 
     def family_records(
         self, project_name: str, family: str
@@ -105,6 +106,7 @@ def load_gate_shell_snapshot(*, project: str | None = None) -> GateShellSnapshot
         taken_at=taken_at,
         gate_shells=tuple(_gate_shells_from_records(records)),
         family_members={key: tuple(value) for key, value in members.items()},
+        record_count=len(records),
     )
 
 

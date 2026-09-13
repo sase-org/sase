@@ -24,6 +24,7 @@ from sase.gate_shell.reclaim import (
     reclaim_pending_gate_shells,
     reconcile_incomplete_gate_handoffs,
 )
+from sase.gate_shell.store import GateShellSnapshot
 from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
 from tests.gate_shell._cli_fixtures import (
     gate_shell_home,
@@ -227,6 +228,42 @@ def _serve_family_query(
     return queries
 
 
+def _serve_index_with_taken_at(
+    monkeypatch: pytest.MonkeyPatch,
+    dirs_by_read: list[list[str]],
+    *,
+    taken_ats: list[float],
+) -> list[str | None]:
+    """Stub the shared snapshot read with an explicit, non-wall-clock ``taken_at``.
+
+    A gate whose metadata changed "after the snapshot" needs a snapshot whose
+    ``taken_at`` reliably predates it by more than the mtime slack, which
+    real elapsed time during a fast test cannot guarantee.
+    """
+    reads: list[str | None] = []
+
+    def fake(*, project: str | None = None) -> GateShellSnapshot:
+        index = len(reads)
+        reads.append(project)
+        dirs = dirs_by_read[min(index, len(dirs_by_read) - 1)]
+        records = [record_from_disk(d) for d in dirs]
+        members: dict[tuple[str, str], list[AgentArtifactRecordWire]] = {}
+        for record in records:
+            meta = record.agent_meta
+            if meta is not None and meta.agent_family:
+                key = (record.project_name, meta.agent_family)
+                members.setdefault(key, []).append(record)
+        return GateShellSnapshot(
+            taken_at=taken_ats[min(index, len(taken_ats) - 1)],
+            gate_shells=tuple(store_mod._gate_shells_from_records(records)),
+            family_members={key: tuple(value) for key, value in members.items()},
+            record_count=len(records),
+        )
+
+    monkeypatch.setattr(reclaim_mod, "load_gate_shell_snapshot", fake)
+    return reads
+
+
 def _stub_decisions(
     monkeypatch: pytest.MonkeyPatch,
     *,
@@ -268,20 +305,138 @@ def test_reconcile_reads_the_artifact_index_once_for_every_gate(
     assert evidence["lane0"]["attached_agent"] is None
 
 
-def test_reconcile_requeries_evidence_for_a_gate_changed_after_the_snapshot(
+def test_reconcile_refreshes_the_snapshot_once_for_a_gate_changed_after_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     gate = _settled_gate("20260912000001", lane="lane", changed_after_snapshot=True)
+    os.utime(Path(gate) / "agent_meta.json", (1_005.0, 1_005.0))
     successor = _coder_successor("20260912000002", lane="lane")
-    _serve_index(monkeypatch, [gate])
-    family_queries = _serve_family_query(monkeypatch, (successor,))
+    index_reads = _serve_index_with_taken_at(
+        monkeypatch, [[gate], [gate, successor]], taken_ats=[1_000.0, 1_010.0]
+    )
+    family_queries = _serve_family_query(monkeypatch)
     evidence = _stub_decisions(monkeypatch)
 
     summary = reconcile_incomplete_gate_handoffs()
 
     assert summary.scanned == 1
-    assert family_queries == [(_PROJECT, "lane")]
+    assert index_reads == [None, None]
+    assert family_queries == []
     assert evidence["lane"]["attached_agent"] == f"lane{PLAN_CHAIN_CODER_SUFFIX}"
+
+
+def test_reconcile_refreshes_the_snapshot_at_most_once_for_two_changed_gates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The first changed gate triggers the refresh; the second just reuses it."""
+    gate_a = _settled_gate("20260912000001", lane="lane-a", changed_after_snapshot=True)
+    gate_b = _settled_gate("20260912000002", lane="lane-b", changed_after_snapshot=True)
+    for gate in (gate_a, gate_b):
+        os.utime(Path(gate) / "agent_meta.json", (1_005.0, 1_005.0))
+    successor = _coder_successor("20260912000003", lane="lane-a")
+    reads = _serve_index_with_taken_at(
+        monkeypatch,
+        [[gate_a, gate_b], [gate_a, gate_b, successor]],
+        taken_ats=[1_000.0, 1_010.0],
+    )
+    family_queries = _serve_family_query(monkeypatch)
+    evidence = _stub_decisions(monkeypatch)
+
+    summary = reconcile_incomplete_gate_handoffs()
+
+    assert summary.scanned == 2
+    assert reads == [None, None]
+    assert family_queries == []
+    assert evidence["lane-a"]["attached_agent"] == f"lane-a{PLAN_CHAIN_CODER_SUFFIX}"
+    assert evidence["lane-b"]["attached_agent"] is None
+
+
+def test_reconcile_defers_a_gate_still_changed_after_its_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gate = _settled_gate("20260912000001", lane="lane", changed_after_snapshot=True)
+    os.utime(Path(gate) / "agent_meta.json", (1_000_010.0, 1_000_010.0))
+    _serve_index_with_taken_at(
+        monkeypatch,
+        [[gate]],
+        taken_ats=[1_000_000.0, 1_000_000.0, 2_000_000.0],
+    )
+    family_queries = _serve_family_query(monkeypatch)
+    evidence = _stub_decisions(monkeypatch)
+
+    first = reconcile_incomplete_gate_handoffs()
+
+    assert first.scanned == 0
+    assert first.deferred == 1
+    assert family_queries == []
+    assert evidence == {}
+    assert load_reconcile_cursor(_PROJECT) == {}
+
+    second = reconcile_incomplete_gate_handoffs()
+
+    assert second.scanned == 1
+    assert second.deferred == 0
+
+
+def test_reconcile_skips_a_refresh_when_it_would_not_fit_before_the_deadline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gate = _settled_gate("20260912000001", lane="lane", changed_after_snapshot=True)
+    _serve_index(monkeypatch, [gate])
+    family_queries = _serve_family_query(monkeypatch)
+    evidence = _stub_decisions(monkeypatch)
+
+    summary = reconcile_incomplete_gate_handoffs(
+        deadline=100.0, clock=lambda: 50.0, snapshot_read_seconds=60.0
+    )
+
+    assert summary.scanned == 0
+    assert summary.deferred == 1
+    assert family_queries == []
+    assert evidence == {}
+
+
+def test_reconcile_defers_everything_when_its_deadline_has_already_passed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _serve_index(monkeypatch, _settled_gates(3))
+    _serve_family_query(monkeypatch)
+    _stub_decisions(monkeypatch)
+
+    summary = reconcile_incomplete_gate_handoffs(deadline=0.0, clock=lambda: 1.0)
+
+    assert summary.scanned == 0
+    assert summary.deferred == 3
+
+
+def test_reclaim_and_reconcile_share_one_caller_provided_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pending = make_gate_shell(
+        _PROJECT,
+        "20260912000000",
+        "lane--gate",
+        lane="lane",
+        gate_id="gate-pending",
+        gate_state="pending",
+    )
+    settled = _settled_gate("20260912000001", lane="lane2")
+    index_reads = _serve_index(monkeypatch, [pending, settled])
+    family_queries = _serve_family_query(monkeypatch)
+    _stub_decisions(monkeypatch)
+
+    snapshot = store_mod.load_gate_shell_snapshot()
+    reclaim_summary = reclaim_pending_gate_shells(snapshot=snapshot)
+    reconcile_summary = reconcile_incomplete_gate_handoffs(snapshot=snapshot)
+
+    assert index_reads == [None]
+    # Settling the bundle-less pending gate as "lost" makes its own unrelated
+    # follow-up-evidence query through handoff_launch.launch_or_record_followup,
+    # outside the reconcile pass this test exercises.
+    assert family_queries == [(_PROJECT, "lane")]
+    assert reclaim_summary.scanned == 1
+    assert reclaim_summary.lost == 1
+    assert reconcile_summary.scanned == 1
 
 
 def test_reconcile_saves_its_cursor_after_each_gate(

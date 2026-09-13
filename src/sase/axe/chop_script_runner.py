@@ -21,9 +21,16 @@ def _compose_chop_subprocess_env(
     environ: Mapping[str, str],
     extras: Mapping[str, str] | None = None,
 ) -> dict[str, str]:
-    """Return a chop environment without ambient agent identity context."""
+    """Return a chop environment without ambient agent identity context.
+
+    Defaults ``PYTHONUNBUFFERED=1`` so a Python chop's stdout reaches the
+    streamed run log as it is written; otherwise a timeout SIGKILL drops the
+    child's block-buffered output entirely. An explicit ambient or ``extras``
+    value still wins.
+    """
     subprocess_env = dict(environ)
     scrub_agent_identity_env(subprocess_env)
+    subprocess_env.setdefault("PYTHONUNBUFFERED", "1")
     if extras:
         subprocess_env.update(extras)
     return subprocess_env

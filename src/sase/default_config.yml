@@ -1224,8 +1224,9 @@ axe:
             Scans gate-shell family members across projects, reconciles already-terminal gate bundles, cancels
             expired gates at their own deadline, and force-settles shells as lost once the configured grace period
             after that deadline has passed. It then diagnoses settled gates whose requested successor never
-            recorded, sharing one agent-artifact index read across the pass and resuming each project's cursor;
-            gates still waiting after a 60-second budget are deferred to the next tick.
+            recorded, reading the agent-artifact index once for the whole pass and resuming each project's
+            cursor; a gate that changed mid-pass triggers at most one snapshot refresh, and gates still waiting
+            once a pass-wide budget measured from chop start is spent are deferred to the next tick.
         - name: artifact_link_backfill
           script: sase_chop_artifact_link_backfill
           timeout: "5m"

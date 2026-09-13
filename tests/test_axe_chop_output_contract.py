@@ -17,6 +17,7 @@ import pytest
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 from sase.chops.builtin import run_builtin_chop
 from sase.gate_shell.reclaim import GateHandoffReconcileSummary, GateShellReclaimSummary
+from sase.gate_shell.store import GateShellSnapshot
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +25,17 @@ def _isolate_chop_result_file(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep an outer chop runner from overriding each test context."""
 
     monkeypatch.delenv("SASE_CHOP_RESULT_FILE", raising=False)
+
+
+def _stub_empty_snapshot(monkeypatch: pytest.MonkeyPatch, script: object) -> None:
+    """Keep the gate-shell reclaim chop's shared-snapshot read off a real index."""
+    monkeypatch.setattr(
+        script,
+        "load_gate_shell_snapshot",
+        lambda **_kwargs: GateShellSnapshot(
+            taken_at=0.0, gate_shells=(), family_members={}, record_count=0
+        ),
+    )
 
 
 def _write_context(tmp_path: Path, result_path: Path) -> Path:
@@ -429,15 +441,16 @@ def test_gate_shell_reclaim_emits_noop_summary(
     script = importlib.import_module("sase.scripts.sase_chop_gate_shell_reclaim")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
+    _stub_empty_snapshot(monkeypatch, script)
     monkeypatch.setattr(
         script,
         "reclaim_pending_gate_shells",
-        lambda: GateShellReclaimSummary(),
+        lambda **_kwargs: GateShellReclaimSummary(),
     )
     monkeypatch.setattr(
         script,
         "reconcile_incomplete_gate_handoffs",
-        lambda: GateHandoffReconcileSummary(),
+        lambda **_kwargs: GateHandoffReconcileSummary(),
     )
 
     run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
@@ -446,6 +459,7 @@ def test_gate_shell_reclaim_emits_noop_summary(
     assert "gate_shell_reclaim:" in out
     assert "scanned=0" in out
     assert "reason=no_pending_gate_shells" in out
+    assert "gate shell reclaim progress: snapshot read" in out
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["schema_version"] == 1
     assert result["status"] == "no_op"
@@ -461,15 +475,16 @@ def test_gate_shell_reclaim_reports_budget_exhausted_when_every_gate_was_deferre
     script = importlib.import_module("sase.scripts.sase_chop_gate_shell_reclaim")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
+    _stub_empty_snapshot(monkeypatch, script)
     monkeypatch.setattr(
         script,
         "reclaim_pending_gate_shells",
-        lambda: GateShellReclaimSummary(),
+        lambda **_kwargs: GateShellReclaimSummary(),
     )
     monkeypatch.setattr(
         script,
         "reconcile_incomplete_gate_handoffs",
-        lambda: GateHandoffReconcileSummary(deferred=4),
+        lambda **_kwargs: GateHandoffReconcileSummary(deferred=4),
     )
 
     run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
@@ -491,15 +506,16 @@ def test_gate_shell_reclaim_emits_action_summary(
     script = importlib.import_module("sase.scripts.sase_chop_gate_shell_reclaim")
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
+    _stub_empty_snapshot(monkeypatch, script)
     monkeypatch.setattr(
         script,
         "reclaim_pending_gate_shells",
-        lambda: GateShellReclaimSummary(scanned=3, answered=1, lost=1),
+        lambda **_kwargs: GateShellReclaimSummary(scanned=3, answered=1, lost=1),
     )
     monkeypatch.setattr(
         script,
         "reconcile_incomplete_gate_handoffs",
-        lambda: GateHandoffReconcileSummary(),
+        lambda **_kwargs: GateHandoffReconcileSummary(),
     )
 
     run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
@@ -509,6 +525,8 @@ def test_gate_shell_reclaim_emits_action_summary(
     assert "scanned=3" in out
     assert "answered=1" in out
     assert "lost=1" in out
+    assert "gate shell reclaim progress: reclaim phase done" in out
+    assert "gate shell reclaim progress: reconcile done" in out
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "ok"
     assert result["reason"] is None
@@ -537,10 +555,11 @@ def test_gate_shell_reclaim_reports_check_error_on_reclaim_errors(
     result_path = tmp_path / "result.json"
     context_path = _write_context(tmp_path, result_path)
     detail = "lane--gate: RuntimeError: bundle exploded"
+    _stub_empty_snapshot(monkeypatch, script)
     monkeypatch.setattr(
         script,
         "reclaim_pending_gate_shells",
-        lambda: GateShellReclaimSummary(
+        lambda **_kwargs: GateShellReclaimSummary(
             scanned=1,
             errors=1,
             error_details=(detail,),
@@ -549,7 +568,7 @@ def test_gate_shell_reclaim_reports_check_error_on_reclaim_errors(
     monkeypatch.setattr(
         script,
         "reconcile_incomplete_gate_handoffs",
-        lambda: GateHandoffReconcileSummary(),
+        lambda **_kwargs: GateHandoffReconcileSummary(),
     )
 
     run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])

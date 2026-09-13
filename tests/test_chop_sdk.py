@@ -75,6 +75,26 @@ def test_summary_builder_writes_valid_atomic_result(tmp_path: Path) -> None:
     assert list(result_path.parent.glob("*.tmp")) == []
 
 
+def test_progress_lines_with_a_spaced_prefix_do_not_become_the_summary() -> None:
+    stdout = io.StringIO()
+    logger = ChopLogger(stdout=stdout)
+
+    logger.info(
+        "gate shell reclaim progress: snapshot read in 1.0s (10 record(s), 2 gate shell(s))"
+    )
+    line = emit_summary("gate_shell_reclaim", {"scanned": 0}, logger=logger)
+
+    assert (
+        parse_summary(
+            "gate shell reclaim progress: snapshot read in 1.0s "
+            "(10 record(s), 2 gate shell(s))"
+        )
+        is None
+    )
+    assert logger.last_summary is not None
+    assert logger.last_summary.line == line
+
+
 def test_result_builder_proposal_helper_round_trips(tmp_path: Path) -> None:
     result_path = tmp_path / "result.json"
     clan_summary = "[bold magenta]Finding[/bold magenta]\nSplit with care."

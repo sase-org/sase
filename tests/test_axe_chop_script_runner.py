@@ -31,6 +31,7 @@ def test_compose_chop_env_strips_agent_identity_without_extras() -> None:
     assert result == {
         "PATH": "/bin",
         "SASE_CHOP_NAME": "workflow_checks",
+        "PYTHONUNBUFFERED": "1",
     }
     assert environ["SASE_AGENT_NAME"] == "parent"
 
@@ -51,7 +52,28 @@ def test_compose_chop_env_applies_extras_after_scrubbing() -> None:
     assert result == {
         "SASE_AGENT_RETRY_HANDOFF": "current",
         "KEEP": "extra",
+        "PYTHONUNBUFFERED": "1",
     }
+
+
+def test_compose_chop_env_pythonunbuffered_defaults_to_one() -> None:
+    result = _compose_chop_subprocess_env({"PATH": "/bin"})
+
+    assert result["PYTHONUNBUFFERED"] == "1"
+
+
+def test_compose_chop_env_pythonunbuffered_ambient_value_wins() -> None:
+    result = _compose_chop_subprocess_env({"PYTHONUNBUFFERED": "0"})
+
+    assert result["PYTHONUNBUFFERED"] == "0"
+
+
+def test_compose_chop_env_pythonunbuffered_extras_value_wins() -> None:
+    result = _compose_chop_subprocess_env(
+        {"PYTHONUNBUFFERED": "0"}, {"PYTHONUNBUFFERED": "1"}
+    )
+
+    assert result["PYTHONUNBUFFERED"] == "1"
 
 
 def _make_executable(path, content="#!/bin/sh\necho ok"):

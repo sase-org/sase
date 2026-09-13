@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -37,10 +37,15 @@ from sase.notification_gates.paths import CANCELLATION_FILENAME, RESPONSE_FILENA
 _MAX_ERROR_DETAILS = 5
 #: Handoff reconciliation stops taking new gates after this long, well inside
 #: the chop's two-minute timeout, so a slow pass still reports and resumes.
+#: Only used when a caller does not pass an explicit ``deadline``.
 _RECONCILE_TIME_BUDGET_SECONDS = 60.0
 #: Filesystem mtimes can trail ``time.time()`` by a clock tick, so metadata
 #: changed within this margin of a snapshot counts as changed after it.
 _SNAPSHOT_MTIME_SLACK_SECONDS = 1.0
+#: Conservative stand-in for a snapshot read's duration when the caller does
+#: not measure and pass the real one, used to decide whether a mid-pass
+#: refresh still leaves room before the deadline.
+_DEFAULT_SNAPSHOT_READ_SECONDS = 7.0
 
 
 @dataclass(frozen=True)
@@ -71,8 +76,14 @@ def reclaim_pending_gate_shells(
     now: float | None = None,
     grace_seconds: int | None = None,
     project: str | None = None,
+    snapshot: GateShellSnapshot | None = None,
 ) -> GateShellReclaimSummary:
-    """Settle pending gate shells that no longer have a live pending gate."""
+    """Settle pending gate shells that no longer have a live pending gate.
+
+    A caller that already read the artifact index this pass (e.g. because it
+    also runs :func:`reconcile_incomplete_gate_handoffs`) passes ``snapshot``
+    so this phase does not read it again.
+    """
     current = time.time() if now is None else now
     grace = (
         get_gate_shell_reclaim_grace_seconds()
@@ -88,7 +99,12 @@ def reclaim_pending_gate_shells(
         "errors": 0,
     }
     error_details: list[str] = []
-    for record in list_gate_shells(project=project):
+    records = (
+        snapshot.gate_shells
+        if snapshot is not None
+        else list_gate_shells(project=project)
+    )
+    for record in records:
         if record.is_terminal:
             continue
         counts["scanned"] += 1
@@ -196,20 +212,49 @@ class GateHandoffReconcileSummary:
         }
 
 
+@dataclass
+class _ReconcilePassState:
+    """Mutable snapshot state shared by every project and gate in one pass.
+
+    At most one snapshot refresh happens per pass: the first gate whose
+    metadata changed after ``snapshot`` was taken triggers it, and every
+    later gate reuses the refreshed snapshot, or defers if it too changed
+    after the refresh.
+    """
+
+    snapshot: GateShellSnapshot
+    project: str | None
+    read_seconds: float
+    on_refresh: Callable[[str, float], None]
+    refreshed: bool = False
+
+
 def reconcile_incomplete_gate_handoffs(
     *,
     project: str | None = None,
     batch_size: int = RECONCILE_BATCH_SIZE,
     time_budget_seconds: float = _RECONCILE_TIME_BUDGET_SECONDS,
     clock: Callable[[], float] = time.monotonic,
+    snapshot: GateShellSnapshot | None = None,
+    deadline: float | None = None,
+    snapshot_read_seconds: float | None = None,
+    on_refresh: Callable[[str, float], None] | None = None,
 ) -> GateHandoffReconcileSummary:
     """Diagnose terminal gates whose requested successor never recorded.
 
-    The pass reads the artifact index once and shares it across every gate,
-    saves each project's cursor after every gate, and defers the rest of its
-    batches once ``time_budget_seconds`` have elapsed.
+    A caller that already read the artifact index this pass passes
+    ``snapshot`` (and, ideally, ``snapshot_read_seconds`` measured from that
+    read) so this phase does not read it again. The pass saves each
+    project's cursor after every gate, and defers the rest of its batches
+    once ``deadline`` (or ``clock() + time_budget_seconds`` when no deadline
+    is given) has passed.
+
+    A gate whose metadata changed after the active snapshot triggers at most
+    one snapshot refresh for the whole pass, as long as the refresh still
+    leaves room before the deadline; a later changed gate is deferred
+    instead of paying for another full index read.
     """
-    deadline = clock() + time_budget_seconds
+    pass_deadline = deadline if deadline is not None else clock() + time_budget_seconds
     counts = {
         "scanned": 0,
         "incomplete": 0,
@@ -219,8 +264,22 @@ def reconcile_incomplete_gate_handoffs(
         "deferred": 0,
     }
     error_details: list[str] = []
-    snapshot = load_gate_shell_snapshot(project=project)
-    records = [record for record in snapshot.gate_shells if record.is_terminal]
+    active_snapshot = (
+        snapshot if snapshot is not None else load_gate_shell_snapshot(project=project)
+    )
+    pass_state = _ReconcilePassState(
+        snapshot=active_snapshot,
+        project=project,
+        read_seconds=(
+            _DEFAULT_SNAPSHOT_READ_SECONDS
+            if snapshot_read_seconds is None
+            else snapshot_read_seconds
+        ),
+        on_refresh=on_refresh or (lambda _gate, _seconds: None),
+    )
+    records = [
+        record for record in pass_state.snapshot.gate_shells if record.is_terminal
+    ]
     records.sort(key=lambda record: (record.timestamp, record.artifacts_dir))
     grouped: dict[str, list[GateShellRecord]] = {}
     for record in records:
@@ -229,9 +288,9 @@ def reconcile_incomplete_gate_handoffs(
         counts["deferred"] += _reconcile_project(
             project_name,
             project_records,
-            snapshot=snapshot,
+            pass_state=pass_state,
             batch_size=batch_size,
-            deadline=deadline,
+            deadline=pass_deadline,
             clock=clock,
             counts=counts,
             error_details=error_details,
@@ -243,7 +302,7 @@ def _reconcile_project(
     project_name: str,
     records: list[GateShellRecord],
     *,
-    snapshot: GateShellSnapshot,
+    pass_state: _ReconcilePassState,
     batch_size: int,
     deadline: float,
     clock: Callable[[], float],
@@ -262,10 +321,10 @@ def _reconcile_project(
     for index, record in enumerate(batch):
         if clock() >= deadline:
             return len(batch) - index
-        counts["scanned"] += 1
         try:
-            outcome = _diagnose_one(record, snapshot)
+            outcome = _diagnose_one(record, pass_state, deadline=deadline, clock=clock)
         except Exception as error:
+            counts["scanned"] += 1
             counts["errors"] += 1
             if len(error_details) < _MAX_ERROR_DETAILS:
                 error_details.append(
@@ -273,6 +332,9 @@ def _reconcile_project(
                     f"{type(error).__name__}: {error}"
                 )
         else:
+            if outcome is None:
+                return len(batch) - index
+            counts["scanned"] += 1
             if outcome == "incomplete":
                 counts["incomplete"] += 1
             elif outcome == "adopted":
@@ -286,11 +348,23 @@ def _reconcile_project(
     return 0
 
 
-def _diagnose_one(record: GateShellRecord, snapshot: GateShellSnapshot) -> str:
+def _diagnose_one(
+    record: GateShellRecord,
+    pass_state: _ReconcilePassState,
+    *,
+    deadline: float,
+    clock: Callable[[], float],
+) -> str | None:
+    """Diagnose one settled gate, or return None if it must be deferred."""
     with with_gate_followup_lock(record.artifacts_dir):
         live = read_gate_shell_marker(record.project_name, record.artifacts_dir)
         if live is None:
             return "skipped"
+        family_records = _resolve_family_records(
+            pass_state, live, deadline=deadline, clock=clock
+        )
+        if family_records is None:
+            return None
         meta = {
             "gate_id": live.gate_id,
             "gate_kind": live.kind,
@@ -313,7 +387,7 @@ def _diagnose_one(record: GateShellRecord, snapshot: GateShellSnapshot) -> str:
             family=live.lane,
             expected_suffix=live.next_suffix,
             recorded_agent=live.followup_agent,
-            family_records=_snapshot_family_records(snapshot, live),
+            family_records=family_records,
         )
         decision = classify_gate_handoff(
             meta,
@@ -331,22 +405,46 @@ def _diagnose_one(record: GateShellRecord, snapshot: GateShellSnapshot) -> str:
         return "skipped"
 
 
-def _snapshot_family_records(
-    snapshot: GateShellSnapshot, live: GateShellRecord
-) -> Sequence[AgentArtifactRecordWire] | None:
-    """Return the snapshot's family members, or None if the gate changed since.
+def _resolve_family_records(
+    pass_state: _ReconcilePassState,
+    live: GateShellRecord,
+    *,
+    deadline: float,
+    clock: Callable[[], float],
+) -> tuple[AgentArtifactRecordWire, ...] | None:
+    """Return live's family members from a fresh-enough snapshot, or None to defer.
 
-    Launching or recording a successor rewrites the gate's metadata, so a gate
-    touched after the snapshot re-queries its evidence instead of trusting it.
+    Launching or recording a successor rewrites the gate's metadata, so a
+    gate touched after the active snapshot needs fresher evidence. The pass
+    allows at most one refresh; a gate that still looks changed against the
+    refreshed snapshot (or that finds no time left for a refresh) is
+    deferred instead of falling back to a full per-gate index read.
     """
+    if not _changed_since(live, pass_state.snapshot.taken_at):
+        return pass_state.snapshot.family_records(live.project_name, live.lane)
+    if pass_state.refreshed:
+        return None
+    if clock() + pass_state.read_seconds >= deadline:
+        return None
+    refresh_started = clock()
+    pass_state.snapshot = load_gate_shell_snapshot(project=pass_state.project)
+    pass_state.refreshed = True
+    pass_state.on_refresh(
+        live.member_agent_name or live.gate_id, clock() - refresh_started
+    )
+    if _changed_since(live, pass_state.snapshot.taken_at):
+        return None
+    return pass_state.snapshot.family_records(live.project_name, live.lane)
+
+
+def _changed_since(live: GateShellRecord, taken_at: float) -> bool:
+    """Return whether live's metadata was written at or after ``taken_at``."""
     meta_path = os.path.join(live.artifacts_dir, "agent_meta.json")
     try:
         changed_at = os.stat(meta_path).st_mtime
     except OSError:
-        return None
-    if changed_at + _SNAPSHOT_MTIME_SLACK_SECONDS >= snapshot.taken_at:
-        return None
-    return snapshot.family_records(live.project_name, live.lane)
+        return True
+    return changed_at + _SNAPSHOT_MTIME_SLACK_SECONDS >= taken_at
 
 
 __all__ = [

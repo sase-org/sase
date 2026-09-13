@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Gate-shell reclaim chop script."""
 
+import time
+
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
 from sase.gate_shell.reclaim import (
@@ -9,6 +11,12 @@ from sase.gate_shell.reclaim import (
     reclaim_pending_gate_shells,
     reconcile_incomplete_gate_handoffs,
 )
+from sase.gate_shell.store import load_gate_shell_snapshot
+
+#: Keeps one pass's snapshot read plus both phases inside the chop's
+#: ``timeout: "2m"`` (``src/sase/default_config.yml``), leaving room for one
+#: in-flight gate's classify/persist plus the 5s follow-up lock wait.
+_PASS_TIME_BUDGET_SECONDS = 75.0
 
 
 def _reason_for(
@@ -23,8 +31,35 @@ def _reason_for(
 
 @builtin_chop("gate_shell_reclaim")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
-    summary = reclaim_pending_gate_shells()
-    handoff = reconcile_incomplete_gate_handoffs()
+    started = time.monotonic()
+    snapshot = load_gate_shell_snapshot()
+    read_seconds = time.monotonic() - started
+    runtime.log.info(
+        "gate shell reclaim progress: snapshot read in "
+        f"{read_seconds:.1f}s ({snapshot.record_count} record(s), "
+        f"{len(snapshot.gate_shells)} gate shell(s))"
+    )
+
+    summary = reclaim_pending_gate_shells(snapshot=snapshot)
+    runtime.log.info(
+        "gate shell reclaim progress: reclaim phase done in "
+        f"{time.monotonic() - started:.1f}s"
+    )
+
+    handoff = reconcile_incomplete_gate_handoffs(
+        snapshot=snapshot,
+        deadline=started + _PASS_TIME_BUDGET_SECONDS,
+        snapshot_read_seconds=read_seconds,
+        on_refresh=lambda gate, seconds: runtime.log.info(
+            f"gate shell reclaim progress: snapshot refreshed for {gate} "
+            f"in {seconds:.1f}s"
+        ),
+    )
+    runtime.log.info(
+        "gate shell reclaim progress: reconcile done in "
+        f"{time.monotonic() - started:.1f}s"
+    )
+
     for detail in summary.error_details:
         runtime.log.error(f"gate shell reclaim failed: {detail}")
     for detail in handoff.error_details:
