@@ -144,28 +144,42 @@ def test_leader_g_noops_on_non_agents_tabs() -> None:
     assert app.refresh_count == 1
 
 
-def test_leader_h_uppercase_no_longer_dispatches_selected_panel_toggle() -> None:
+def test_leader_h_uppercase_dispatches_collapse_fold_by_hint() -> None:
     app = _FakeApp(current_tab="agents")
 
     assert app._handle_leader_key("H") is True
+    assert app.collapse_fold_by_hint_count == 1
     assert app.toggle_selected_panels_count == 0
-    assert app.agent_footer_refresh_count == 0
-    assert app.refresh_count == 1
-    assert app._last_leader_key is None
+    assert app._last_leader_key == "H"
+    assert app.agent_footer_refresh_count == 1
+    assert app.refresh_count == 0
 
     app._leader_mode_active = True
     assert app._handle_leader_key("comma") is True
+    assert app.collapse_fold_by_hint_count == 2
     assert app.toggle_selected_panels_count == 0
+    assert app.agent_footer_refresh_count == 2
+
+
+def test_leader_h_uppercase_skips_footer_refresh_when_hint_mode_arms() -> None:
+    app = _FakeApp(current_tab="agents")
+    app.arm_hint_on_collapse = True
+
+    assert app._handle_leader_key("H") is True
+    assert app.collapse_fold_by_hint_count == 1
+    assert app._panel_fold_hint_mode_active is True
     assert app.agent_footer_refresh_count == 0
-    assert app.notifications == ["No leader command to repeat"]
-    assert app.refresh_count == 2
+    assert app.refresh_count == 0
+    assert app.toggle_selected_panels_count == 0
 
 
 def test_leader_h_uppercase_noops_on_non_agents_tabs() -> None:
     app = _FakeApp(current_tab="patches")
 
     assert app._handle_leader_key("H") is True
+    assert app.collapse_fold_by_hint_count == 0
     assert app.toggle_selected_panels_count == 0
+    assert app.refresh_count == 1
 
 
 def test_leader_j_jumps_to_next_unread_done_agent_on_agents_tab() -> None:

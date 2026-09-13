@@ -171,6 +171,8 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         isolation_marked_keys = marked_keys_fn() if callable(marked_keys_fn) else set()
         restore_marked_fn = getattr(self, "_panel_fold_restore_marked_keys", None)
         fold_restore_marked = restore_marked_fn() if callable(restore_marked_fn) else {}
+        title_hints = getattr(self, "_active_panel_title_jump_hints", None)
+        panel_jump_hints = title_hints() if callable(title_hints) else None
         for idx, key in enumerate(self._panel_group.panel_keys):
             try:
                 widget = self.query_one(  # type: ignore[attr-defined]
@@ -182,6 +184,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 key,
                 panel_index.slice_for(key).agents,
                 merge_tribe_panels=merge_tribe_panels,
+                panel_jump_hints=panel_jump_hints,
                 isolation_restore_marked=key in isolation_marked_keys,
                 fold_restore_marked_count=len(fold_restore_marked.get(key, ())),
             )

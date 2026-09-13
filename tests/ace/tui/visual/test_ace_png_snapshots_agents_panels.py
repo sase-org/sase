@@ -84,6 +84,24 @@ def _panel_collapse_agents() -> list[Agent]:
     ]
 
 
+def _all_tribes_collapse_agents() -> list[Agent]:
+    """Two expanded tribes that each own grouping banners, plus ``@default``."""
+    agents = _panel_collapse_agents()
+    agents.append(
+        Agent(
+            agent_type=AgentType.RUNNING,
+            cl_name="visual-keep-secondary",
+            project_file="/workspace/sase/visual_project.sase",
+            status="RUNNING",
+            start_time=datetime(2026, 7, 15, 10, 5, 0),
+            raw_suffix="20260715-100400-keep-secondary",
+            agent_name="keep.secondary",
+            tribe="keep",
+        )
+    )
+    return agents
+
+
 def _panel_auto_expand_agents() -> list[Agent]:
     """Collapsed ``@chop`` panel with an unread target after its first row."""
     agents = _panel_collapse_agents()
@@ -490,3 +508,84 @@ async def test_agents_leader_jump_auto_expands_panel_png_snapshot(
             "agents_leader_jump_auto_expanded_panel_120x40",
             title="ACE agents leader jump auto-expanded panel",
         )
+
+
+async def test_agents_panel_fold_collapse_all_tribes_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=_all_tribes_collapse_agents())
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await wait_for_visual_idle(page)
+
+        for _ in page.app._panel_group.panel_keys:
+            if page.app._panel_group.focused_key is None:
+                break
+            await page.press("K")
+        assert page.app._panel_group.focused_key is None
+        for _ in range(6):
+            focus = page.app._resolve_focused_panel()
+            if focus is not None and not focus.collapsed:
+                break
+            await page.press("h")
+        focus = page.app._resolve_focused_panel()
+        assert focus is not None and not focus.collapsed
+        focused_key = focus.panel_key
+
+        await page.press("comma")
+        await page.press("H")
+        await page.wait_for(lambda _screen: page.app._panel_fold_hint_mode_active)
+        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+        await wait_for_state(
+            page,
+            lambda: (
+                footer._last_layout_inputs is not None
+                and footer._last_layout_inputs
+                == ([("<esc>", "cancel")], "COLLAPSE · ALL TRIBES")
+            ),
+            description="all-tribes fold hint footer",
+        )
+
+        fold_hints = page.app._panel_fold_target_to_hint
+        assert fold_hints
+        panel_keys_with_row_chips = {
+            target[1] for target in fold_hints if target[0] in {"group", "agent"}
+        }
+        assert len(panel_keys_with_row_chips) > 1
+        title_map = page.app._panel_fold_hint_title_map()
+        assert len(title_map) > 1
+        container = page.app.query_one("#agent-list-container")
+        titled = [
+            Text.from_markup(widget.border_title).plain
+            for widget in container.query("AgentList")
+        ]
+        assert any(title.startswith("[") for title in titled)
+        assert footer._last_layout_inputs == (
+            [("<esc>", "cancel")],
+            "COLLAPSE · ALL TRIBES",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_panel_fold_collapse_all_tribes_120x40",
+            title="ACE agents all-tribe fold collapse hints",
+        )
+
+        other_panel = next(
+            key
+            for key in page.app._panel_group.panel_keys
+            if key != focused_key and ("panel", key) in fold_hints
+        )
+        await page.press(fold_hints[("panel", other_panel)])
+        await page.wait_for(lambda _screen: not page.app._panel_fold_hint_mode_active)
+        assert other_panel in effective_panel_collapses(
+            page.app, page.app._panel_group.panel_keys
+        )
+        stayed = page.app._resolve_focused_panel()
+        assert stayed is not None
+        assert stayed.panel_key == focused_key

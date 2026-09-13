@@ -60,6 +60,7 @@ _LEADER_LABELS: dict[str, str] = {
     "agent_home": "Agent (home mode)",
     "agent_from_cl": "Agent from Patch (quick)",
     "toggle_agent_panel_grouping": "Toggle agent panel grouping",
+    "collapse_fold_by_hint": "Collapse a fold by hint",
     "jump_to_next_unread_done_agent": "Jump to next unread completed agent",
     "jump_to_next_stopped_agent": "Jump to next stopped agent",
     "full_history_refresh": "Refresh Agents from full history",
@@ -101,6 +102,7 @@ _BEAD_ISSUE_LABELS: dict[str, str] = {
 
 _LEADER_ALIASES: dict[str, tuple[str, ...]] = {
     "search_forward": ("find", "forward", "/", "metadata", "search"),
+    "collapse_fold_by_hint": ("fold", "hint", "collapse", "tribe", "panels"),
 }
 
 # Per-mode fallback tab scoping (refined per-command for copy_mode).
@@ -114,6 +116,7 @@ _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
     "kill_and_edit_last": AGENTS_ONLY,
     "revert_agent": AGENTS_ONLY,
     "toggle_agent_panel_grouping": AGENTS_ONLY,
+    "collapse_fold_by_hint": AGENTS_ONLY,
     "jump_to_next_unread_done_agent": AGENTS_ONLY,
     "jump_to_next_stopped_agent": AGENTS_ONLY,
     "full_history_refresh": AGENTS_ONLY,

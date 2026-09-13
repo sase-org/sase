@@ -42,6 +42,9 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
         self.refresh_count = 0
         self.toggle_panel_grouping_count = 0
         self.toggle_selected_panels_count = 0
+        self.collapse_fold_by_hint_count = 0
+        self._panel_fold_hint_mode_active = False
+        self.arm_hint_on_collapse = False
         self.agent_footer_refresh_count = 0
         self.retry_edit_count = 0
         self.runners_count = 0
@@ -89,6 +92,11 @@ class _FakeApp(LeaderModeMixin, PatchMixin):
 
     def action_toggle_selected_agent_panels(self) -> None:
         self.toggle_selected_panels_count += 1
+
+    def action_collapse_fold_by_hint(self) -> None:
+        self.collapse_fold_by_hint_count += 1
+        if self.arm_hint_on_collapse:
+            self._panel_fold_hint_mode_active = True
 
     def _refresh_agent_footer_bindings_only(self) -> None:
         self.agent_footer_refresh_count += 1

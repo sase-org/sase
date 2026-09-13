@@ -53,6 +53,13 @@ class AgentFooterDisplayMixin:
             if callable(noun_resolver) and callable(container_resolver):
                 noun = noun_resolver(container_resolver())
             footer_widget.update_member_jump_bindings(pending_digit, noun=noun)
+        elif getattr(self, "_panel_fold_hint_mode_active", False):
+            footer_widget.update_fold_hint_bindings(
+                collapse_only=(
+                    getattr(self, "_panel_fold_hint_intent", "toggle") == "collapse"
+                ),
+                all_tribes=getattr(self, "_panel_fold_hint_scope", "tribe") == "all",
+            )
         elif getattr(self, "_fold_mode_active", False):
             scale_resolver = getattr(self, "_selected_summary_fold_scale", None)
             fold_scale = scale_resolver() if callable(scale_resolver) else None

@@ -287,6 +287,7 @@ def init_agent_state(self: Any) -> None:
     # panel, separately from file hints and apostrophe jump hints.
     self._panel_fold_hint_mode_active = False
     self._panel_fold_hint_intent = "toggle"
+    self._panel_fold_hint_scope = "tribe"
     self._panel_fold_hint_snapshot = ()
     self._panel_fold_hint_to_target = {}
     self._panel_fold_target_to_hint = {}

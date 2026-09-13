@@ -66,6 +66,17 @@ def test_agent_panel_grouping_leader_command_is_agents_only() -> None:
     assert spec.executor.subkey == "g"
 
 
+def test_collapse_fold_by_hint_leader_command_is_agents_only() -> None:
+    catalog = build_command_catalog(_registry())
+    spec = next(c for c in catalog if c.id == "leader.collapse_fold_by_hint")
+
+    assert spec.label == "Collapse a fold by hint"
+    assert spec.key_display == ",H"
+    assert spec.tabs == ("agents",)
+    assert spec.executor.kind == "leader_mode_key"
+    assert spec.executor.subkey == "H"
+
+
 def test_visible_agent_folds_use_contextual_app_command() -> None:
     catalog = build_command_catalog(_registry())
     assert not any(c.id == "leader.toggle_selected_agent_panels" for c in catalog)

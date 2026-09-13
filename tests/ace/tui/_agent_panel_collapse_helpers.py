@@ -70,6 +70,7 @@ class AgentPanelCollapseApp(
         self._panel_index_cache: tuple[Any, bool, Any] | None = None
         self._panel_fold_hint_mode_active = False
         self._panel_fold_hint_intent = "toggle"
+        self._panel_fold_hint_scope = "tribe"
         self._panel_fold_hint_snapshot: tuple[Any, ...] = ()
         self._panel_fold_hint_to_target: dict[str, Any] = {}
         self._panel_fold_target_to_hint: dict[Any, str] = {}

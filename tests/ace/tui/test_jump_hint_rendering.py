@@ -97,6 +97,20 @@ def test_fold_hint_footer_shows_cancel_binding() -> None:
     assert captured == [([("<esc>", "cancel")], "FOLDS")]
 
 
+def test_fold_hint_footer_shows_all_tribes_collapse_label() -> None:
+    footer = KeybindingFooter()
+    captured: list[tuple[list[tuple[str, str]], str | None]] = []
+
+    def _capture(bindings: Any, mode_label: Any = None) -> None:
+        captured.append((list(bindings), mode_label))
+
+    footer._update_display = _capture  # type: ignore[method-assign]
+
+    footer.update_fold_hint_bindings(collapse_only=True, all_tribes=True)
+
+    assert captured == [([("<esc>", "cancel")], "COLLAPSE · ALL TRIBES")]
+
+
 def test_bgcmd_list_hint_marker_rendered() -> None:
     widget = BgCmdList()
     info = BackgroundCommandInfo(

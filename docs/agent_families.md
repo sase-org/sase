@@ -590,11 +590,13 @@ remembered row and every other fold untouched; `H` never expands and never colla
 panel itself, which stays lowercase `h`'s job. A panel with nothing expanded warns
 without arming hint mode; an already collapsed panel keeps the existing
 already-collapsed warning. Whole-panel `H` is unavailable in merged layout, where the
-existing row/group-scoped ladder remains in effect. That row ladder first retreats a
-selected open workflow or family one fold level, then remaining group-wide agent nodes,
-then the selected open clan, then every remaining open canonical clan in the next group;
-the grouping banner closes only after those structural rungs are saturated. Custom keys
-bound to `hooks_or_collapse_all` receive the same contextual behavior and footer labels.
+existing row/group-scoped ladder remains in effect. Use `,H` to open the same collapse
+hints from any row, or from a selected panel to hint every tribe. That row ladder first
+retreats a selected open workflow or family one fold level, then remaining group-wide
+agent nodes, then the selected open clan, then every remaining open canonical clan in
+the next group; the grouping banner closes only after those structural rungs are
+saturated. Custom keys bound to `hooks_or_collapse_all` receive the same contextual
+behavior and footer labels.
 
 Whole-panel focus replaces the ordinary agent detail with a `TRIBE` document. Its four
 `zz` metadata detail levels are:
@@ -622,11 +624,13 @@ numbered member jumps. Outside fold mode, these fixed metadata-member numbers ar
 separate from ordinary apostrophe entry hints, whose adaptive keys may use two
 characters in a large list.
 
-The `,H` leader chord numbers every currently toggleable visible fold owner—eligible
-split-panel titles, grouping banners, and agent-owned clan/family/workflow folds. Enter
-one or more whitespace-separated numbers or ascending ranges such as `1 4-6` to toggle
-the selected mixed set in a single refresh. The ordinary apostrophe jump mode includes
-both expanded and collapsed split-panel titles as destinations and preserves `Ctrl+O`
+The `,H` leader chord opens the same collapse-by-hint picker as whole-panel `H`, from
+any selection. From a row or banner it hints every expanded agent node, clan, workflow,
+family, and top-level grouping banner in the focused tribe. From a selected tribe panel
+it hints those owners across every expanded tribe panel and adds a title chip on each
+expanded panel so picking it collapses that panel. Typing a hint fully collapses that
+one entry and exits; `Esc` cancels. The ordinary apostrophe jump mode includes both
+expanded and collapsed split-panel titles as destinations and preserves `Ctrl+O`
 jump-back history.
 
 ### Tribe wait and fork targets

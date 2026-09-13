@@ -161,6 +161,16 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
+        if key == leader_keys["collapse_fold_by_hint"]:
+            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
+            if self.current_tab != "agents":
+                self._refresh_current_tab()  # type: ignore[attr-defined]
+                return True
+            self.action_collapse_fold_by_hint()  # type: ignore[attr-defined]
+            if not getattr(self, "_panel_fold_hint_mode_active", False):
+                self._refresh_agent_footer_bindings_only()  # type: ignore[attr-defined]
+            return True
+
         if key == leader_keys["jump_to_next_unread_done_agent"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":

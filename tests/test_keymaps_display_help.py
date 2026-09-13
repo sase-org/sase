@@ -696,3 +696,25 @@ def test_help_modal_displays_h_agent_home_leader_key() -> None:
         assert (",h", "Run agent (home)") in pairs
         assert (", Space", "Run agent (home)") not in pairs
         assert (",Space", "Run agent (home)") not in pairs
+
+
+def test_help_modal_lists_collapse_fold_by_hint_with_configured_prefix() -> None:
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "modes": {
+                    "leader_mode": {
+                        "prefix": "semicolon",
+                        "keys": {"collapse_fold_by_hint": "H"},
+                    }
+                }
+            }
+        }
+    )
+    pairs = {
+        (key, label)
+        for _section, bindings in agents_bindings(reg)
+        for key, label in bindings
+    }
+    assert (";H", "Collapse fold by hint") in pairs
+    assert (";H", "Row: tribe hints; panel: all") in pairs

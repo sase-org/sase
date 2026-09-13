@@ -598,6 +598,8 @@ ace:
       # next group, then the selected open clan, then every remaining open
       # clan in that group, then the selected structural fallback and group.
       # On whole-panel focus it hints every expanded fold in that panel.
+      # ,H opens the same collapse hints from any row (selected tribe) and,
+      # from a selected panel, across every tribe panel.
       # l expands or enters a selected panel; L hints the selected tribe's
       # folds, and one key toggles one fold. Z zooms agent detail or
       # isolates/restores a selected panel. Other tabs retain their fold
@@ -809,6 +811,7 @@ ace:
           agent_home: "h"
           agent_from_cl: "space"
           toggle_agent_panel_grouping: "g"
+          collapse_fold_by_hint: "H"
           jump_to_next_unread_done_agent: "j"
           jump_to_next_stopped_agent: "J"
           full_history_refresh: "y"

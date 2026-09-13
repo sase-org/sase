@@ -1969,14 +1969,15 @@ therefore be visible at once:
 | Structural row    | Clan members, family members, and workflow descendants   | `H` retreats a selected workflow/family one level, then remaining group agent nodes, then group clans; `l` expands; `-` sweeps every open agent node and clan at once |
 | Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; on an expanded panel `L` hints an agent-node/clan/banner fold to toggle                                               |
 
-| Key | Action                                                                                                                                                                     |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `l` | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                           |
-| `h` | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                                     |
-| `L` | On an expanded selected panel, hint every visible agent-node/clan/banner fold to toggle expand/collapse; on a collapsed panel, no-op with the already-collapsed warning    |
-| `H` | Collapse selected workflow/family one level, then remaining group agent nodes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail |
-| `=` | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                      |
-| `-` | Sweep every open agent node and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself               |
+| Key  | Action                                                                                                                                                                     |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `l`  | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                           |
+| `h`  | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                                     |
+| `L`  | On an expanded selected panel, hint every visible agent-node/clan/banner fold to toggle expand/collapse; on a collapsed panel, no-op with the already-collapsed warning    |
+| `H`  | Collapse selected workflow/family one level, then remaining group agent nodes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail |
+| `=`  | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                      |
+| `-`  | Sweep every open agent node and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself               |
+| `,H` | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel                             |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain
 visible headings but are skipped by row navigation. When a collapsed banner is focused,
@@ -2060,6 +2061,15 @@ keeps the existing `Panel is already collapsed` warning. The footer shows the co
 expanded agent node, clan, or top-level banner to hint. `L`'s hint mode uses the same
 enumeration but is not restricted to collapsible targets, so it also offers currently
 collapsed agent nodes, clans, and banners and toggles whichever one you pick.
+
+The `,H` leader chord is always one scope wider than the selection. From a row or banner
+it opens the same collapse-only hints as whole-panel `H` for the focused tribe. From a
+selected tribe panel — expanded or collapsed — it hints every expanded fold in every
+expanded tribe panel and adds a title chip on each of those panels, so one keystroke can
+collapse a different panel without navigating to it. Whole-panel focus stays on the
+panel you started from, so `,,` repeats the picker against the current selection. The
+footer reads `COLLAPSE · ALL TRIBES` in that wider scope. `,H` never expands and never
+routes through Tools compaction.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  `
 segment per ancestor L0/L1 banner (in the parent tier's dim accent — project blue or
@@ -2462,30 +2472,31 @@ rows that are loaded in the Agents tab; `,j` can reveal a direct member hidden b
 collapsed clan. Help is not a leader command: press the app-level `?` to open the Help
 modal.
 
-| Key        | Action                                                                                            |
-| ---------- | ------------------------------------------------------------------------------------------------- |
-| `,,`       | Repeat the last leader command                                                                    |
-| `,/`       | Search the selected agent's metadata                                                              |
-| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                           |
-| `,g`       | Toggle between tribe-split panels and one merged agent panel                                      |
-| `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read |
-| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state      |
-| `,u`       | Mark all loaded unread completed agents as read                                                   |
-| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
-| `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))       |
-| `,U`       | Open Update panel (SASE, providers)                                                               |
-| `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable                    |
-| `,L`       | Jump to the log entry for the most recent error toast                                             |
-| `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication          |
-| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                 |
-| `,r`       | Revert focused or marked agent commits, including recorded linked repos                           |
-| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                          |
-| `,X`       | Kill & edit this session's last launched agent, ignoring marks and focus                          |
-| `,<space>` | Run agent from current agent's PR (skips selection)                                               |
-| `,.`       | Open prompt history modal                                                                         |
-| `,Ctrl+G`  | Open prompt history and edit the newest entry immediately                                         |
-| `,>`       | Open prompt history modal with cancelled prompts visible                                          |
-| `,@`       | Open the prompt stash picker without auto-restoring a lone entry                                  |
+| Key        | Action                                                                                                                                         |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `,,`       | Repeat the last leader command                                                                                                                 |
+| `,/`       | Search the selected agent's metadata                                                                                                           |
+| `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                                                                        |
+| `,g`       | Toggle between tribe-split panels and one merged agent panel                                                                                   |
+| `,H`       | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel |
+| `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read                                              |
+| `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state                                                   |
+| `,u`       | Mark all loaded unread completed agents as read                                                                                                |
+| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                                                                          |
+| `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))                                                    |
+| `,U`       | Open Update panel (SASE, providers)                                                                                                            |
+| `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable                                                                 |
+| `,L`       | Jump to the log entry for the most recent error toast                                                                                          |
+| `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication                                                       |
+| `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                                                              |
+| `,r`       | Revert focused or marked agent commits, including recorded linked repos                                                                        |
+| `,x`       | Kill focused or marked agent(s) and edit their prompt(s)                                                                                       |
+| `,X`       | Kill & edit this session's last launched agent, ignoring marks and focus                                                                       |
+| `,<space>` | Run agent from current agent's PR (skips selection)                                                                                            |
+| `,.`       | Open prompt history modal                                                                                                                      |
+| `,Ctrl+G`  | Open prompt history and edit the newest entry immediately                                                                                      |
+| `,>`       | Open prompt history modal with cancelled prompts visible                                                                                       |
+| `,@`       | Open the prompt stash picker without auto-restoring a lone entry                                                                               |
 
 Here, "stopped" means a dismissable terminal row such as `DONE`, `FAILED`, `PLAN DONE`,
 `TALE DONE`, `PLAN REJECTED`, `PLAN COMMITTED`, or `EPIC CREATED`; it is separate from

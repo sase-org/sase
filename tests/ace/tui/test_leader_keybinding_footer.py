@@ -38,6 +38,18 @@ def test_footer_surfaces_panel_grouping_only_on_agents_tab() -> None:
     assert "group panels" not in _last_labels(captured)
 
 
+def test_footer_surfaces_collapse_by_hint_only_on_agents_tab() -> None:
+    footer = KeybindingFooter()
+    captured = _capture_bindings(footer)
+
+    footer.update_leader_bindings(current_tab="agents")
+    assert "H" in _last_keys(captured)
+    assert "collapse by hint" in _last_labels(captured)
+
+    footer.update_leader_bindings(current_tab="patches")
+    assert "collapse by hint" not in _last_labels(captured)
+
+
 def test_footer_does_not_surface_retired_fold_hint_toggle() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)

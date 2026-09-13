@@ -208,6 +208,12 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     "Panel: collapse fold by hint key",
                 ),
                 (
+                    key_sequence_display(
+                        lm.prefix, sk(lm.keys, "collapse_fold_by_hint")
+                    ),
+                    "Row: tribe hints; panel: all",
+                ),
+                (
                     d(a.hooks_or_collapse_all),
                     "Collapse selected workflow/family one level",
                 ),
@@ -304,6 +310,12 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'toggle_agent_panel_grouping'))}",
                     "Toggle tribe panels grouped/split",
+                ),
+                (
+                    key_sequence_display(
+                        lm.prefix, sk(lm.keys, "collapse_fold_by_hint")
+                    ),
+                    "Collapse fold by hint",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_next_unread_done_agent'))}",

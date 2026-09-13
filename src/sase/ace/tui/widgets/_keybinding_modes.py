@@ -275,11 +275,19 @@ class KeybindingModesMixin:
         bindings.append(("<esc>", "cancel"))
         self._update_display(bindings, mode_label="JUMP")
 
-    def update_fold_hint_bindings(self, *, collapse_only: bool = False) -> None:
+    def update_fold_hint_bindings(
+        self, *, collapse_only: bool = False, all_tribes: bool = False
+    ) -> None:
         """Update bindings to show single-key fold hint mode."""
+        if all_tribes:
+            mode_label = "COLLAPSE · ALL TRIBES"
+        elif collapse_only:
+            mode_label = "COLLAPSE"
+        else:
+            mode_label = "FOLDS"
         self._update_display(
             [("<esc>", "cancel")],
-            mode_label="COLLAPSE" if collapse_only else "FOLDS",
+            mode_label=mode_label,
         )
 
     def update_member_jump_bindings(
@@ -386,6 +394,7 @@ class KeybindingModesMixin:
             bindings.append((k("agent_from_cl"), "run agent (PR)"))
         if current_tab == "agents":
             bindings.append((k("toggle_agent_panel_grouping"), "group panels"))
+            bindings.append((k("collapse_fold_by_hint"), "collapse by hint"))
             if not refresh_panel_enabled():
                 bindings.append((k("full_history_refresh"), "full history refresh"))
             if has_stopped_agent:

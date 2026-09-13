@@ -15,7 +15,9 @@ class _PanelFocusEntryApp(_EntryApp):
         super().__init__(**kwargs)  # type: ignore[arg-type]
         self._panel_focus_collapsed = panel_collapsed
 
-    def _resolve_focused_panel(self) -> AgentPanelFocus:
+    def _resolve_focused_panel(self) -> AgentPanelFocus | None:
+        if self._agent_panels_grouped:
+            return None
         return AgentPanelFocus(
             panel_key=self._panel_group.focused_key,
             collapsed=self._panel_focus_collapsed,

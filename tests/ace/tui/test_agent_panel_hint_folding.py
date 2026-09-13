@@ -53,10 +53,14 @@ class _FooterStub:
     def __init__(self) -> None:
         self.fold_hint_updates = 0
         self.fold_hint_collapse_only: bool | None = None
+        self.fold_hint_all_tribes: bool | None = None
 
-    def update_fold_hint_bindings(self, *, collapse_only: bool = False) -> None:
+    def update_fold_hint_bindings(
+        self, *, collapse_only: bool = False, all_tribes: bool = False
+    ) -> None:
         self.fold_hint_updates += 1
         self.fold_hint_collapse_only = collapse_only
+        self.fold_hint_all_tribes = all_tribes
 
 
 class _StubApp(
@@ -101,6 +105,8 @@ class _StubApp(
         self._hint_mode_active = False
         self._hint_mode_hints_for: str | None = None
         self._panel_fold_hint_mode_active = False
+        self._panel_fold_hint_intent = "toggle"
+        self._panel_fold_hint_scope = "tribe"
         self._panel_fold_hint_snapshot: tuple[FoldHintTarget, ...] = ()
         self._panel_fold_hint_to_target: dict[str, FoldHintTarget] = {}
         self._panel_fold_target_to_hint: dict[FoldHintTarget, str] = {}
@@ -112,6 +118,9 @@ class _StubApp(
         self.affected_refreshes: list[set[PanelKey]] = []
         self.footer_refresh_calls = 0
         self.snap_group_focus_calls = 0
+        self.remember_selection_calls = 0
+        self.collapse_focused_panel_calls = 0
+        self.apply_panel_fold_layouts: list[tuple[list[PanelKey], set[PanelKey]]] = []
         self.group_persistence_intents: list[
             tuple[PanelKey, tuple[str, ...], bool]
         ] = []
@@ -190,6 +199,28 @@ class _StubApp(
 
     def _snap_focus_after_group_fold_change(self) -> None:
         self.snap_group_focus_calls += 1
+
+    def _resolve_focused_panel(self) -> Any:
+        return None
+
+    def _remember_focused_panel_selection(self, stop: Any = None) -> None:
+        del stop
+        self.remember_selection_calls += 1
+
+    def _collapse_focused_panel(self) -> None:
+        self.collapse_focused_panel_calls += 1
+        self._collapsed_panel_keys.add(self._panel_group.focused_key)
+        self._expanded_panel_focus = False
+
+    def _apply_panel_fold_layout(
+        self,
+        live_keys: list[PanelKey],
+        desired_collapsed: set[PanelKey],
+    ) -> list[PanelKey]:
+        self.apply_panel_fold_layouts.append((list(live_keys), set(desired_collapsed)))
+        self._collapsed_panel_keys = set(desired_collapsed)
+        self._refresh_agents_display(list_changed=True)
+        return [key for key in live_keys if key in desired_collapsed]
 
     def query_one(self, selector: str, *_args: Any, **_kwargs: Any) -> Any:
         if selector == "#keybinding-footer":
@@ -282,7 +313,7 @@ def test_expanded_focused_panel_without_fold_owners_warns(
     monkeypatch.setattr(
         app,
         "_enumerate_panel_fold_hint_targets",
-        lambda *, collapsible_only=False: (),
+        lambda *, collapsible_only=False, scope="tribe": (),
     )
 
     app.action_toggle_selected_agent_panels()

@@ -60,12 +60,16 @@ class _FooterWidget:
     def __init__(self) -> None:
         self.leader_binding_calls: list[dict[str, object]] = []
         self.agent_binding_calls: list[dict[str, object]] = []
+        self.fold_hint_binding_calls: list[dict[str, object]] = []
 
     def update_agent_bindings(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         self.agent_binding_calls.append(dict(kwargs))
 
     def update_leader_bindings(self, **kwargs: object) -> None:
         self.leader_binding_calls.append(dict(kwargs))
+
+    def update_fold_hint_bindings(self, **kwargs: object) -> None:
+        self.fold_hint_binding_calls.append(dict(kwargs))
 
 
 class _Container:
@@ -382,3 +386,21 @@ def test_footer_all_panel_fold_sweep_probe_across_eligible_panels() -> None:
     call = app.footer_widget.agent_binding_calls[-1]
     assert call["all_panel_fold_sweep_available"] is False
     assert call["all_panel_fold_restore_armed"] is False
+
+
+def test_fold_hint_footer_survives_incidental_agent_footer_refresh() -> None:
+    app = _FakeApp()
+    app._panel_fold_hint_mode_active = True
+    app._panel_fold_hint_intent = "collapse"
+    app._panel_fold_hint_scope = "all"
+
+    app._apply_agent_footer_update(
+        _DetailWidget(), app.footer_widget, app._get_selected_agent()
+    )
+
+    assert app.footer_widget.fold_hint_binding_calls[-1] == {
+        "collapse_only": True,
+        "all_tribes": True,
+    }
+    assert app.footer_widget.agent_binding_calls == []
+    assert app.footer_widget.leader_binding_calls == []

@@ -230,6 +230,13 @@ def test_leader_mode_includes_agent_panel_grouping_toggle() -> None:
     assert reg.leader_mode.keys["toggle_agent_panel_grouping"] == "g"
 
 
+def test_leader_mode_includes_collapse_fold_by_hint() -> None:
+    """LeaderModeKeymaps default includes the ``,H`` collapse-by-hint chord."""
+    reg = load_keymap_registry({})
+    assert reg.leader_mode.keys["collapse_fold_by_hint"] == "H"
+    assert LeaderModeKeymaps().keys["collapse_fold_by_hint"] == "H"
+
+
 def test_visible_fold_selector_defaults_to_direct_l_only() -> None:
     reg = load_keymap_registry({})
 
