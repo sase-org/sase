@@ -134,3 +134,32 @@ def test_first_refresh_promotes_all_slot_waiters_and_clan_aggregate() -> None:
     assert second == first
     assert projected[0].status == "QUEUED"
     assert (implicit.status, explicit.status) == ("QUEUED", "QUEUED")
+
+
+def _testing_clan_rows():
+    testing = _agent(
+        "research.testing",
+        status="TESTING",
+        status_bucket="Running",
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+        monitor_state="running",
+    )
+    waiting = _agent(
+        "research.waiting",
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+    )
+    return project_clan_tree([testing, waiting])
+
+
+def test_refresh_runner_slot_context_keeps_lone_testing_clan_status() -> None:
+    fallback_rows = _testing_clan_rows()
+    refresh_runner_slot_context(fallback_rows)
+    assert fallback_rows[0].status == "TESTING"
+
+    snapshot_rows = _testing_clan_rows()
+    refresh_runner_slot_context(snapshot_rows, effective_limit=10)
+    assert snapshot_rows[0].status == "TESTING"

@@ -130,11 +130,7 @@ def _refresh_runner_slot_context_fallback(
     agents: list[Agent],
 ) -> RunnerCapacitySnapshot:
     """Refresh queue status when no configured capacity limit is available."""
-    from ._agent_clan import (
-        aggregate_clan_status,
-        clan_members,
-        sase_agent_status_counts,
-    )
+    from ._agent_clan import apply_clan_container_status, clan_members
 
     lane_candidates = _lane_candidates(agents)
     running_count = _display_running_lane_count(lane_candidates)
@@ -194,12 +190,13 @@ def _refresh_runner_slot_context_fallback(
             agent.runner_slot_queue_size = None
             agent.runner_capacity_blockers = ()
         if agent.is_clan_container:
-            aggregate = aggregate_clan_status(
-                member.status for member in clan_members(agent)
-            )
-            agent.status = aggregate or runner_slot_display_status(
-                agent.status,
-                slot_queued=False,
+            apply_clan_container_status(
+                agent,
+                clan_members(agent),
+                fallback=runner_slot_display_status(
+                    agent.status,
+                    slot_queued=False,
+                ),
             )
         else:
             agent.status = runner_slot_display_status(
@@ -220,7 +217,7 @@ def _apply_runner_capacity_snapshot(
     capacity_agents: list[Agent] | None = None,
 ) -> RunnerCapacitySnapshot:
     """Apply a Rust runner-capacity snapshot to mutable TUI agent rows."""
-    from ._agent_clan import aggregate_clan_status, clan_members
+    from ._agent_clan import apply_clan_container_status, clan_members
 
     running_count = _int_value(raw_snapshot.get("occupied_lanes")) or 0
     occupied_capacity = _finite_float(raw_snapshot.get("occupied_capacity"))
@@ -311,12 +308,13 @@ def _apply_runner_capacity_snapshot(
             agent.runner_slot_queue_size = None
             agent.runner_capacity_blockers = ()
         if agent.is_clan_container:
-            aggregate = aggregate_clan_status(
-                member.status for member in clan_members(agent)
-            )
-            agent.status = aggregate or runner_slot_display_status(
-                agent.status,
-                slot_queued=False,
+            apply_clan_container_status(
+                agent,
+                clan_members(agent),
+                fallback=runner_slot_display_status(
+                    agent.status,
+                    slot_queued=False,
+                ),
             )
         else:
             agent.status = runner_slot_display_status(

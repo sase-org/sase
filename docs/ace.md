@@ -1979,9 +1979,12 @@ Clan rows aggregate member status using the same operational precedence: human-i
 questions, pending plan review, failure, and running/starting states outrank queued
 work; `QUEUED` then outranks `WAITING`, followed by an all-done result. Consequently, a
 clan with queued work and ordinary waiters displays `QUEUED` unless a higher-priority
-member state is present. Its count chip remains concrete and independent, so
-`QUEUED [Q3 W6]` reports three runner-slot waiters and six dependency, bead, or time
-waiters without merging the two categories.
+member state is present. When exactly one direct member is running, the clan row shows
+that member's own status label and styling (for example a family running a `TESTING`
+monitor makes the clan read `TESTING`) instead of the generic `RUNNING`. The status
+bucket, precedence, and count chip are unchanged. The count chip remains concrete and
+independent, so `QUEUED [Q3 W6]` reports three runner-slot waiters and six dependency,
+bead, or time waiters without merging the two categories.
 
 The uppercase `H` ladder starts with the selected workflow or sequential-family agent
 node when that agent node is still open. The first press retreats that agent node by

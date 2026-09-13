@@ -8,7 +8,7 @@ from sase.core.agent_clan_context import (
     effective_clan_attributes,
 )
 
-from ._agent_clan import aggregate_clan_status, clan_member_status_priority
+from ._agent_clan import apply_clan_container_status, clan_member_status_priority
 from .agent import Agent, AgentType
 from .agent_proc_shells import proc_shell_command_title
 
@@ -415,13 +415,12 @@ def _container_for_clan(
         row.run_start_time for row in runtime_members if row.run_start_time is not None
     ]
     stops = [row.stop_time for row in runtime_members if row.stop_time is not None]
-    status = aggregate_clan_status(row.status for row in runtime_members) or "RUNNING"
 
     container = Agent(
         agent_type=AgentType.RUNNING,
         cl_name=clan_name,
         project_file=anchor.project_file,
-        status=status,
+        status="RUNNING",
         start_time=min(starts) if starts else None,
         run_start_time=min(run_starts) if run_starts else None,
         stop_time=(
@@ -438,6 +437,7 @@ def _container_for_clan(
         tribe=tribes[0] if len(tribes) == 1 else None,
     )
     container.runtime_children.extend(runtime_members)
+    apply_clan_container_status(container, runtime_members, fallback="RUNNING")
     return container
 
 

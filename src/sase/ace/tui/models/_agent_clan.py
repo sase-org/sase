@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import (
     QUEUED_STATUS_BUCKET,
-    aggregate_agent_group_bucket,
+    aggregate_agent_group_effective_status,
     aggregate_agent_group_status,
     agent_is_asking,
     agent_status_bucket,
@@ -79,9 +79,88 @@ class _ProjectedSummaryAgent:
     is_unread: bool
 
 
+_SHELL_STATUS_PRESENTATION_FIELDS: tuple[str, ...] = (
+    "monitor_start_status",
+    "monitor_stop_status",
+    "monitor_state",
+    "gate_start_status",
+    "gate_stop_status",
+    "gate_state",
+    "gate_accent",
+)
+
+
 def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
     """Return the shared aggregate agent-group display status."""
     return aggregate_agent_group_status(statuses)
+
+
+def _copy_shell_status_presentation(target: Agent, source: Agent | None) -> None:
+    """Copy or clear the monitor/gate fields that style a clan status label."""
+    for field_name in _SHELL_STATUS_PRESENTATION_FIELDS:
+        setattr(
+            target,
+            field_name,
+            None if source is None else getattr(source, field_name),
+        )
+
+
+def apply_clan_container_status(
+    container: Agent,
+    members: Iterable[Agent],
+    *,
+    fallback: str,
+) -> None:
+    """Project a clan container's status from its direct members.
+
+    Members are deduplicated by ``identity``, keeping the first occurrence.
+    Aggregation uses :func:`aggregate_agent_group_effective_status` so a
+    row-level bucket override (for example ``TESTED`` with bucket ``Done``)
+    participates in the existing precedence ladder.
+
+    When that aggregate is ``RUNNING`` and exactly one member's effective
+    bucket is ``Running`` (with no other Running or Starting members), the
+    clan copies that member's status label, effective bucket, and the seven
+    monitor/gate presentation fields. The bucket stays ``Running``, so
+    ``BY_STATUS`` grouping, member ordering, count chips, and summary counts
+    are unchanged. A lone ``STARTING`` member therefore still leaves the
+    clan at ``RUNNING``.
+
+    Any other aggregate, including an empty member list (which falls back to
+    *fallback*), clears ``status_bucket`` and those presentation fields so
+    repeated projections stay idempotent after the lone runner finishes.
+    """
+    unique_members: list[Agent] = []
+    seen: set[tuple[AgentType, str, str | None]] = set()
+    for member in members:
+        if member.identity in seen:
+            continue
+        seen.add(member.identity)
+        unique_members.append(member)
+
+    entries = tuple(
+        (member.status, agent_status_bucket(member)) for member in unique_members
+    )
+    aggregate = aggregate_agent_group_effective_status(entries)
+    running_members = [
+        member
+        for member in unique_members
+        if agent_status_bucket(member) in {"Running", "Starting"}
+    ]
+    if (
+        aggregate == "RUNNING"
+        and len(running_members) == 1
+        and agent_status_bucket(running_members[0]) == "Running"
+    ):
+        source = running_members[0]
+        container.status = source.status
+        container.status_bucket = agent_status_bucket(source)
+        _copy_shell_status_presentation(container, source)
+        return
+
+    container.status = fallback if aggregate is None else aggregate
+    container.status_bucket = None
+    _copy_shell_status_presentation(container, None)
 
 
 def clan_member_status_priority(
@@ -398,6 +477,7 @@ __all__ = [
     "agent_status_projections",
     "agent_summary_status_counts",
     "aggregate_clan_status",
+    "apply_clan_container_status",
     "clan_running_lane_rows",
     "clan_member_status_priority",
     "clan_member_counts",
