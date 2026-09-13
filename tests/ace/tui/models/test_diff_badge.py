@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase.ace.tui.models import _diff_badge as diff_badge_mod
 from sase.ace.tui.models._diff_badge import (
     diff_has_real_edits,
     diff_text_has_real_edits,
@@ -116,3 +117,27 @@ def test_diff_has_real_edits_cache_invalidates_when_file_metadata_changes(
 
     diff_path.write_text(_git_diff("src/app.py") + "+extra\n", encoding="utf-8")
     assert diff_has_real_edits(str(diff_path)) is True
+
+
+def test_diff_badge_cache_stays_bounded_across_many_diff_artifacts(
+    tmp_path: Path,
+) -> None:
+    """sase-zn.9.3 heap attribution: a repeated-refresh regression.
+
+    A terminal agent's diff_path file never changes again, so its cache key
+    is permanent. Before this fix the cache had no cap, so classifying one
+    unique diff artifact per agent ever loaded grew it for the process's
+    entire lifetime.
+    """
+    diff_badge_mod._diff_badge_cache.clear()
+    artifact_count = diff_badge_mod._DIFF_BADGE_CACHE_MAX * 2
+    for i in range(artifact_count):
+        diff_path = tmp_path / f"commit_diff_{i}.diff"
+        diff_path.write_text(_git_diff(f"src/app_{i}.py"), encoding="utf-8")
+        diff_has_real_edits(str(diff_path))
+
+    assert (
+        0
+        < len(diff_badge_mod._diff_badge_cache)
+        <= diff_badge_mod._DIFF_BADGE_CACHE_MAX
+    )

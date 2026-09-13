@@ -471,3 +471,98 @@ def test_compute_external_delta_group_preserves_kind_and_canonical_slot(
     ]
     slot = linked_slot_id(canonical_name)
     assert linked_slot_repo_name(slot) == canonical_name
+
+
+def test_ttl_keyed_caches_stay_bounded_across_many_refresh_ticks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """sase-zn.9.3 heap attribution: a repeated-refresh regression.
+
+    ``_linked_diff_text_cache``/``_linked_delta_cache`` keys include a TTL
+    bucket that changes every second, so a stale key is never looked up
+    again. Before this fix neither dict had a cap, so a long session with
+    linked repos grew both by roughly one entry per repo per second.
+    """
+    changes: dict[str, str | None] = {}
+    diffs: dict[str, str] = {}
+    repos = []
+    for i in range(4):
+        repo_dir = tmp_path / f"repo-{i}"
+        repo_dir.mkdir()
+        repos.append(_repo(f"repo-{i}", repo_dir))
+        changes[str(repo_dir)] = f" M file-{i}.py"
+        diffs[str(repo_dir)] = (
+            f"diff --git a/file-{i}.py b/file-{i}.py\n"
+            f"--- a/file-{i}.py\n+++ b/file-{i}.py\n@@ -1 +1 @@\n-old\n+new\n"
+        )
+    provider = _FakeLinkedDiffProvider(
+        changes_by_workspace=changes, diff_by_workspace=diffs
+    )
+    agent = _agent(linked_repos=tuple(repos))
+
+    tick_count = linked_deltas_mod._LINKED_DELTA_CACHE_MAX * 4
+    for tick in range(tick_count):
+        wall_time = 1_700_000_000.0 + tick * linked_deltas_mod.DIFF_CACHE_TTL_SECONDS
+        _patch_provider(monkeypatch, provider, wall_time=wall_time)
+        linked_deltas_mod.compute_linked_delta_groups(agent)
+
+    assert (
+        0
+        < len(linked_deltas_mod._linked_diff_text_cache)
+        <= linked_deltas_mod._LINKED_DELTA_CACHE_MAX
+    )
+    assert (
+        0
+        < len(linked_deltas_mod._linked_delta_cache)
+        <= linked_deltas_mod._LINKED_DELTA_CACHE_MAX
+    )
+
+
+def test_selected_agent_cache_evicts_least_recently_used_not_oldest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A repeatedly-selected agent must survive eviction, not the first one.
+
+    ``_selected_agent_linked_delta_cache``/``_selected_agent_cache_monotonic``
+    are keyed by agent identity and never pruned when an agent disappears.
+    Plain oldest-inserted eviction would drop the hot agent -- the very
+    first identity ever computed -- before any of the cold, one-shot
+    agents that follow it. LRU eviction keeps it alive because every
+    recompute refreshes its recency.
+    """
+    core = tmp_path / "core"
+    core.mkdir()
+    provider = _FakeLinkedDiffProvider(
+        changes_by_workspace={str(core): " M lib.rs"},
+        diff_by_workspace={
+            str(core): (
+                "diff --git a/lib.rs b/lib.rs\n"
+                "--- a/lib.rs\n+++ b/lib.rs\n@@ -1 +1 @@\n-old\n+new\n"
+            )
+        },
+    )
+    _patch_provider(monkeypatch, provider)
+    hot_agent = _agent(linked_repos=(_repo("core", core),))
+    linked_deltas_mod.compute_linked_delta_groups(hot_agent)
+
+    cache_max = linked_deltas_mod._LINKED_DELTA_CACHE_MAX
+    for i in range(cache_max * 2):
+        # Re-touch the hot agent every other iteration while many cold,
+        # never-repeated agent identities cycle through the cache.
+        linked_deltas_mod.compute_linked_delta_groups(hot_agent)
+        cold_agent = Agent(
+            agent_type=hot_agent.agent_type,
+            cl_name="linked-deltas",
+            project_file="/tmp/linked-deltas.sase",
+            status="RUNNING",
+            start_time=hot_agent.start_time,
+            raw_suffix=f"cold-{i}",
+            linked_repos=(_repo("core", core),),
+        )
+        linked_deltas_mod.compute_linked_delta_groups(cold_agent)
+
+    assert hot_agent.identity in linked_deltas_mod._selected_agent_linked_delta_cache
+    assert hot_agent.identity in linked_deltas_mod._selected_agent_cache_monotonic
+    assert len(linked_deltas_mod._selected_agent_linked_delta_cache) <= cache_max

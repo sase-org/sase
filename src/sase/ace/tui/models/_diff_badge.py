@@ -10,6 +10,12 @@ from sase.diff_paths import changed_files_from_diff
 
 DiffBadgeCacheKey = tuple[str, int, int]
 
+# A terminal agent's persisted diff_path file never changes again, so this
+# key is permanent; without a cap the cache grows by one entry per unique
+# diff artifact ever classified for the life of the process (sase-zn.9.3
+# heap attribution). Evict the oldest (least recently classified) first.
+_DIFF_BADGE_CACHE_MAX = 2048
+
 _diff_badge_cache: dict[DiffBadgeCacheKey, bool] = {}
 _diff_badge_cache_lock = Lock()
 
@@ -73,4 +79,6 @@ def diff_has_real_edits(diff_path: str) -> bool:
 
     with _diff_badge_cache_lock:
         _diff_badge_cache[key] = result
+        while len(_diff_badge_cache) > _DIFF_BADGE_CACHE_MAX:
+            _diff_badge_cache.pop(next(iter(_diff_badge_cache)))
     return result

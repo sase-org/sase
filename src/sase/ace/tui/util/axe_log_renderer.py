@@ -12,6 +12,7 @@ fallback path — see :func:`render_axe_output` with ``source_type="ansi"``.
 from __future__ import annotations
 
 import re
+from collections import OrderedDict
 from typing import Literal
 
 from rich.text import Text
@@ -73,7 +74,16 @@ _TAIL_HASH_BYTES = 1024
 # Per-(source_id, source_type) cache slot: ``(size, tail_hash, parsed Text)``.
 # Including source_type in the key keeps semantic and ANSI renders from
 # colliding even when their numeric identity overlaps.
-_render_cache: dict[tuple[str, str], tuple[int, int, Text]] = {}
+#
+# A completed/dismissed gate, monitor, proc-shell, or bgcmd's slot was
+# previously never popped, so this grew by one permanent entry per distinct
+# entity ever rendered (sase-zn.9.3 heap attribution). It is now a bounded
+# LRU: a still-running entity keeps rewriting (and thus refreshing the
+# recency of) its own slot, so plain oldest-inserted eviction would unfairly
+# evict the busiest live rows first -- ``move_to_end`` on every hit and write
+# keeps eviction order tied to actual recency of use instead.
+_RENDER_CACHE_MAX = 256
+_render_cache: OrderedDict[tuple[str, str], tuple[int, int, Text]] = OrderedDict()
 
 
 def _tail_hash(s: str) -> int:
@@ -123,6 +133,7 @@ def render_axe_output(
     digest = _tail_hash(capped)
     cached = _render_cache.get(cache_key)
     if cached is not None and cached[0] == size and cached[1] == digest:
+        _render_cache.move_to_end(cache_key)
         return cached[2]
 
     if source_type == "lumberjack":
@@ -131,6 +142,9 @@ def render_axe_output(
         text = Text.from_ansi(capped)
 
     _render_cache[cache_key] = (size, digest, text)
+    _render_cache.move_to_end(cache_key)
+    while len(_render_cache) > _RENDER_CACHE_MAX:
+        _render_cache.popitem(last=False)
     return text
 
 

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import os
 import time
+from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 from threading import Lock
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from sase.agent.status_buckets import agent_status_bucket
 from sase.ace.patch.models import DeltaEntry
@@ -49,14 +50,58 @@ LinkedDeltaCacheKey = tuple[
     int,  # TTL bucket
 ]
 
+# Every key below either carries a TTL bucket that changes each second
+# (``_linked_diff_text_cache``, ``_linked_delta_cache``) or is keyed by
+# agent identity and never pruned when an agent finishes and drops off the
+# list (``_selected_agent_linked_delta_cache``). Left uncapped these grow for
+# the life of the process; see sase-zn.9.3 heap attribution.
+_LINKED_DELTA_CACHE_MAX = 128
+
 _linked_diff_text_cache: dict[LinkedDeltaCacheKey, str | None] = {}
 _linked_delta_cache: dict[LinkedDeltaCacheKey, LinkedDeltaGroup | None] = {}
-_selected_agent_linked_delta_cache: dict[
-    tuple[object, ...],
-    tuple[LinkedDeltaGroup, ...],
-] = {}
-_selected_agent_cache_monotonic: dict[tuple[object, ...], float] = {}
+# LRU (not plain FIFO): an actively-selected agent rewrites its own identity
+# slot roughly once per TTL window for as long as it stays selected, so
+# oldest-inserted eviction would evict the busiest live agent first. Both
+# dicts are always written together under the same identity key and are kept
+# in the same order, so evicting by identity keeps them in sync.
+_selected_agent_linked_delta_cache: OrderedDict[
+    tuple[object, ...], tuple[LinkedDeltaGroup, ...]
+] = OrderedDict()
+_selected_agent_cache_monotonic: OrderedDict[tuple[object, ...], float] = OrderedDict()
 _linked_delta_cache_lock = Lock()
+
+
+def _evict_oldest(cache: dict[Any, Any], max_size: int) -> None:
+    """Drop the oldest (FIFO) entries once *cache* exceeds *max_size*.
+
+    Only safe for TTL-bucketed caches where a key is written at most once and
+    never re-touched, so insertion order and staleness coincide. Callers must
+    hold ``_linked_delta_cache_lock`` already.
+    """
+    while len(cache) > max_size:
+        cache.pop(next(iter(cache)))
+
+
+def _touch_selected_agent_identity(identity: tuple[object, ...]) -> None:
+    """Move *identity*'s slot to most-recently-used in both LRU caches.
+
+    Callers must hold ``_linked_delta_cache_lock`` already.
+    """
+    if identity in _selected_agent_linked_delta_cache:
+        _selected_agent_linked_delta_cache.move_to_end(identity)
+    if identity in _selected_agent_cache_monotonic:
+        _selected_agent_cache_monotonic.move_to_end(identity)
+
+
+def _evict_oldest_selected_agent_identities() -> None:
+    """Drop least-recently-used identities once over the shared cap.
+
+    Callers must hold ``_linked_delta_cache_lock`` already.
+    """
+    while len(_selected_agent_linked_delta_cache) > _LINKED_DELTA_CACHE_MAX:
+        _selected_agent_linked_delta_cache.popitem(last=False)
+    while len(_selected_agent_cache_monotonic) > _LINKED_DELTA_CACHE_MAX:
+        _selected_agent_cache_monotonic.popitem(last=False)
 
 
 def _agent_allows_linked_deltas(agent: Agent) -> bool:
@@ -215,6 +260,7 @@ def should_refresh_linked_delta_groups(agent: Agent) -> bool:
     identity = agent.identity
     with _linked_delta_cache_lock:
         last_refresh = _selected_agent_cache_monotonic.get(identity)
+        _touch_selected_agent_identity(identity)
     if last_refresh is None:
         return True
     return (time.monotonic() - last_refresh) >= LINKED_DELTAS_REFRESH_INTERVAL_SECONDS
@@ -225,7 +271,9 @@ def get_cached_linked_delta_groups(agent: Agent) -> tuple[LinkedDeltaGroup, ...]
     if not _agent_allows_linked_deltas(agent):
         return ()
     with _linked_delta_cache_lock:
-        return _selected_agent_linked_delta_cache.get(agent.identity, ())
+        result = _selected_agent_linked_delta_cache.get(agent.identity, ())
+        _touch_selected_agent_identity(agent.identity)
+        return result
 
 
 def _cache_key(
@@ -274,6 +322,7 @@ def _compute_repo_group(
     if not diff_text:
         with _linked_delta_cache_lock:
             _linked_delta_cache[key] = None
+            _evict_oldest(_linked_delta_cache, _LINKED_DELTA_CACHE_MAX)
         return None
 
     from ..prompt_panel._agent_deltas import (
@@ -296,6 +345,7 @@ def _compute_repo_group(
     )
     with _linked_delta_cache_lock:
         _linked_delta_cache[key] = group
+        _evict_oldest(_linked_delta_cache, _LINKED_DELTA_CACHE_MAX)
     return group
 
 
@@ -315,6 +365,7 @@ def _fetch_repo_diff_text(
     if not has_changes_ok or not changes:
         with _linked_delta_cache_lock:
             _linked_diff_text_cache[key] = None
+            _evict_oldest(_linked_diff_text_cache, _LINKED_DELTA_CACHE_MAX)
         return None
 
     try:
@@ -324,10 +375,12 @@ def _fetch_repo_diff_text(
     if not diff_text:
         with _linked_delta_cache_lock:
             _linked_diff_text_cache[key] = None
+            _evict_oldest(_linked_diff_text_cache, _LINKED_DELTA_CACHE_MAX)
         return None
 
     with _linked_delta_cache_lock:
         _linked_diff_text_cache[key] = diff_text
+        _evict_oldest(_linked_diff_text_cache, _LINKED_DELTA_CACHE_MAX)
     return diff_text
 
 
@@ -384,4 +437,6 @@ def compute_linked_delta_groups(agent: Agent) -> tuple[LinkedDeltaGroup, ...]:
     with _linked_delta_cache_lock:
         _selected_agent_linked_delta_cache[agent.identity] = result
         _selected_agent_cache_monotonic[agent.identity] = time.monotonic()
+        _touch_selected_agent_identity(agent.identity)
+        _evict_oldest_selected_agent_identities()
     return result

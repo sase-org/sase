@@ -72,6 +72,9 @@ class LinkIndex:
 
 _INDEX_CACHE_LOCK = RLock()
 _INDEX_CACHE: dict[tuple[object, ...], LinkIndex] = {}
+# Keyed by the same aggregate signature as artifact_links._CACHE, so it grows
+# in lockstep and needs the same cap (sase-zn.9.3 heap attribution).
+_INDEX_CACHE_MAX = 64
 
 
 def link_index_for_snapshot(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
@@ -91,6 +94,8 @@ def link_index_for_snapshot(snapshot: ArtifactLinksSnapshot) -> LinkIndex:
     index = _build_link_index(snapshot)
     with _INDEX_CACHE_LOCK:
         _INDEX_CACHE[key] = index
+        while len(_INDEX_CACHE) > _INDEX_CACHE_MAX:
+            _INDEX_CACHE.pop(next(iter(_INDEX_CACHE)))
     return index
 
 

@@ -79,6 +79,11 @@ class _KnownTargetIndex:
 
 _CACHE_LOCK = RLock()
 _CACHE: dict[tuple[tuple[str, object, object], ...], ArtifactLinksSnapshot] = {}
+# A project's aggregate mtime/size signature changes every time a link is
+# created, so a superseded signature is never looked up again; without a cap
+# this grows by one permanent entry per aggregate change for the life of the
+# process (sase-zn.9.3 heap attribution). Evict the oldest first.
+_CACHE_MAX = 64
 
 
 def empty_artifact_links_snapshot() -> ArtifactLinksSnapshot:
@@ -130,6 +135,8 @@ def load_artifact_links_snapshot(project: str | None) -> ArtifactLinksSnapshot:
     )
     with _CACHE_LOCK:
         _CACHE[signature] = snapshot
+        while len(_CACHE) > _CACHE_MAX:
+            _CACHE.pop(next(iter(_CACHE)))
     return snapshot
 
 

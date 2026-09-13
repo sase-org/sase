@@ -59,6 +59,13 @@ DiffCacheKey = tuple[
 ]
 
 
+# The TTL bucket in every key changes each second, so a stale key is never
+# reused -- without a cap this dict grows by one entry per active agent per
+# second for the life of the process (measured as the dominant residual ACE
+# heap-attribution site; see sase-zn.9.3). Evict the oldest entries (which,
+# thanks to the TTL bucket, are also the stalest) once the cap is exceeded.
+_DIFF_CACHE_MAX = 128
+
 _diff_cache: dict[DiffCacheKey, str | None] = {}
 _diff_cache_lock = Lock()
 
@@ -382,4 +389,6 @@ def _get_agent_diff(
 
     with _diff_cache_lock:
         _diff_cache[key] = result
+        while len(_diff_cache) > _DIFF_CACHE_MAX:
+            _diff_cache.pop(next(iter(_diff_cache)))
     return result or persisted_diff

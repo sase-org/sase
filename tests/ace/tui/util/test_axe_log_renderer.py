@@ -176,3 +176,50 @@ def test_render_axe_output_caps_huge_input() -> None:
     assert len(text.plain) < len(big)
     # The recognizable header still appears in the tail.
     assert "[hooks]" in text.plain
+
+
+def test_render_cache_stays_bounded_across_many_sources() -> None:
+    """sase-zn.9.3: a completed/dismissed source's slot was never popped, so
+    this grew by one permanent entry per distinct source ever rendered."""
+    axe_log_renderer._render_cache.clear()
+    source_count = axe_log_renderer._RENDER_CACHE_MAX * 4
+    for i in range(source_count):
+        axe_log_renderer.render_axe_output(
+            f"lumberjack:source-{i}",
+            f"[2026-05-11 12:34:56] [hooks] tick {i}\n",
+            "lumberjack",
+        )
+
+    assert 0 < len(axe_log_renderer._render_cache) <= axe_log_renderer._RENDER_CACHE_MAX
+
+
+def test_render_cache_evicts_least_recently_used_not_oldest_inserted() -> None:
+    """A still-active source rewritten every tick must survive eviction.
+
+    Plain oldest-inserted (FIFO) eviction would drop the busiest live row
+    first, since it was the very first slot ever inserted. LRU eviction
+    keeps it alive because every rewrite -- even one that changes nothing
+    else -- refreshes its recency.
+    """
+    axe_log_renderer._render_cache.clear()
+    hot_source = "lumberjack:hot"
+    axe_log_renderer.render_axe_output(
+        hot_source, "[2026-05-11 12:34:56] [hooks] tick 0\n", "lumberjack"
+    )
+
+    for i in range(axe_log_renderer._RENDER_CACHE_MAX * 2):
+        # Re-render the hot source every other tick so it keeps getting
+        # touched while many other cold sources cycle through the cache.
+        axe_log_renderer.render_axe_output(
+            hot_source,
+            f"[2026-05-11 12:34:56] [hooks] tick {i}\n",
+            "lumberjack",
+        )
+        axe_log_renderer.render_axe_output(
+            f"lumberjack:cold-{i}",
+            f"[2026-05-11 12:34:56] [hooks] tick {i}\n",
+            "lumberjack",
+        )
+
+    assert (hot_source, "lumberjack") in axe_log_renderer._render_cache
+    assert len(axe_log_renderer._render_cache) <= axe_log_renderer._RENDER_CACHE_MAX

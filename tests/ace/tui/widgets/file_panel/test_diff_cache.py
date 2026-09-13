@@ -276,3 +276,36 @@ def test_terminal_agent_uses_persisted_diff_without_workspace_probe(
 
     assert result == persisted_text
     mock_get_provider.assert_not_called()
+
+
+def test_diff_cache_stays_bounded_across_many_refresh_ticks(tmp_path: Path) -> None:
+    """sase-zn.9.3 heap attribution: a repeated-refresh regression.
+
+    Every key includes a TTL bucket that changes each second
+    (``DIFF_CACHE_TTL_SECONDS``), so a stale key is never looked up again.
+    Before this fix the cache had no cap, so a long-lived session with
+    active agents grew this dict by roughly one entry per agent per second
+    for the life of the process.
+    """
+    diff_mod._diff_cache.clear()
+    diff_mod._vcs_provider_cache.clear()
+    agents = [
+        _make_running_agent(
+            workspace_num=i, workspace_dir=str(_setup_workspace(tmp_path, f"proj_{i}"))
+        )
+        for i in range(8)
+    ]
+    provider = _FakeProvider()
+
+    with patch.object(diff_mod, "get_vcs_provider", return_value=provider):
+        tick_count = diff_mod._DIFF_CACHE_MAX * 4
+        for tick in range(tick_count):
+            # Advance one full TTL bucket per tick so every agent probed
+            # this tick gets a brand-new, never-reused cache key -- the
+            # exact growth pattern a long-lived ACE session hits.
+            fake_time = 1_700_000_000.0 + tick * diff_mod.DIFF_CACHE_TTL_SECONDS
+            with patch.object(diff_mod.time, "time", return_value=fake_time):
+                for agent in agents:
+                    diff_mod.get_agent_diff(agent)
+
+    assert 0 < len(diff_mod._diff_cache) <= diff_mod._DIFF_CACHE_MAX
