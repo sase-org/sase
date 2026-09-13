@@ -11,7 +11,6 @@ from sase.ace.tui.models.agent_live_query_pushdown import (
     _PUSHABLE_TEXT_FIELDS,
     compile_agents_live_query_pushdown,
 )
-from sase.feature_flags import override_flags
 
 _PUSHABLE_FIELDS = (
     _PUSHABLE_TEXT_FIELDS
@@ -80,12 +79,15 @@ def test_compile_agent_query_pushdown_keeps_unsupported_queries_unbounded() -> N
     assert plan.unsupported_reason == "unsupported_query"
 
 
-def test_compile_agent_query_pushdown_keeps_machine_queries_unbounded() -> None:
+def test_compile_agent_query_pushdown_builds_machine_filter() -> None:
     plan = compile_agent_query_pushdown("machine:apollo")
 
-    assert plan.window_safe is False
-    assert plan.candidate_filter is None
-    assert plan.unsupported_reason == "unsupported_query"
+    assert plan.window_safe is True
+    assert plan.candidate_filter == {
+        "kind": "equals",
+        "field": "machine",
+        "value": "apollo",
+    }
 
 
 def test_compile_agent_query_pushdown_maps_run_type_alias() -> None:
@@ -163,7 +165,6 @@ def test_compile_agents_live_query_pushdown_keeps_unsupported_queries_unbounded(
 ):
     for query in (
         "status:FAILED",
-        "machine:apollo",
         "kind:member",
         "NOT provider:grok",
         "cl:target AND NOT kind:workflow",
@@ -186,29 +187,15 @@ def test_compile_agents_live_query_pushdown_reports_legacy_parse_hint() -> None:
     assert "until:2h" in plan.unsupported_reason
 
 
-def test_compile_machine_pushdown_disabled_keeps_machine_unbounded() -> None:
-    with override_flags(agents_machine_pushdown=False):
-        live = compile_agents_live_query_pushdown("not machine:apollo")
-        legacy = compile_agent_query_pushdown("NOT machine:apollo")
-
-    assert live.window_safe is False
-    assert live.candidate_filter is None
-    assert live.unsupported_reason == "unsupported_query"
-    assert legacy.window_safe is False
-    assert legacy.candidate_filter is None
-    assert legacy.unsupported_reason == "unsupported_query"
-
-
-def test_compile_machine_pushdown_enabled_builds_exact_machine_filters() -> None:
+def test_compile_machine_pushdown_builds_exact_machine_filters() -> None:
     machine_equals = {"kind": "equals", "field": "machine", "value": "apollo"}
-    with override_flags(agents_machine_pushdown=True):
-        live_match = compile_agents_live_query_pushdown("machine:apollo")
-        live_not = compile_agents_live_query_pushdown("not machine:apollo")
-        live_compound = compile_agents_live_query_pushdown(
-            "cl:feature AND not machine:apollo"
-        )
-        legacy_match = compile_agent_query_pushdown("machine:apollo")
-        legacy_not = compile_agent_query_pushdown("NOT machine:apollo")
+    live_match = compile_agents_live_query_pushdown("machine:apollo")
+    live_not = compile_agents_live_query_pushdown("not machine:apollo")
+    live_compound = compile_agents_live_query_pushdown(
+        "cl:feature AND not machine:apollo"
+    )
+    legacy_match = compile_agent_query_pushdown("machine:apollo")
+    legacy_not = compile_agent_query_pushdown("NOT machine:apollo")
 
     assert live_match.window_safe is True
     assert live_match.candidate_filter == machine_equals
@@ -227,9 +214,8 @@ def test_compile_machine_pushdown_enabled_builds_exact_machine_filters() -> None
 
 
 def test_compile_machine_pushdown_leaves_bare_machine_unpushable() -> None:
-    with override_flags(agents_machine_pushdown=True):
-        live = compile_agents_live_query_pushdown("machine:")
-        legacy = compile_agent_query_pushdown("machine:")
+    live = compile_agents_live_query_pushdown("machine:")
+    legacy = compile_agent_query_pushdown("machine:")
 
     assert live.window_safe is False
     assert live.candidate_filter is None
@@ -240,8 +226,7 @@ def test_compile_machine_pushdown_leaves_bare_machine_unpushable() -> None:
 def test_compile_agents_live_query_pushdown_still_rejects_non_machine_negation() -> (
     None
 ):
-    with override_flags(agents_machine_pushdown=True):
-        plan = compile_agents_live_query_pushdown("NOT provider:grok")
+    plan = compile_agents_live_query_pushdown("NOT provider:grok")
 
     assert plan.window_safe is False
     assert plan.candidate_filter is None

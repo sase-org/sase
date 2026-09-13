@@ -19,6 +19,9 @@ from sase.ace.tui.models.agent_live_query import (
     agent_live_query_entry,
     agent_live_query_row_id,
 )
+from sase.ace.tui.models.agent_live_query_engine import apply_agents_live_query_filter
+from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 _NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
@@ -164,6 +167,42 @@ def test_agent_live_query_entry_projects_remote_machine_alias_and_hostnames() ->
     assert _match_ids("machine:apollo.local AND source:manual", (entry,)) == (
         "remote-run",
     )
+
+
+def test_agent_live_query_entry_projects_imported_owner_machine() -> None:
+    owner = AgentOwnerIdentity(username="bryan", machine_name="apollo")
+    agent = _agent(agent_name="imported-run", imported_source_owner=owner)
+
+    entry = agent_live_query_entry(agent, now=_NOW)
+
+    assert entry["fields"]["machine"] == ("here", "apollo")
+    assert _match_ids("machine:apollo", (entry,)) == ("imported-run",)
+
+
+def test_machine_negation_excludes_imported_clan_container_subtree() -> None:
+    owner = AgentOwnerIdentity(username="bryan", machine_name="apollo")
+    member = _agent(
+        agent_name="remote-family--code",
+        cl_name="remote-family",
+        raw_suffix="remote-code",
+        start_time=None,
+        run_start_time=None,
+        agent_family="remote-family",
+        agent_family_role="code",
+        agent_clan="remote-clan",
+        agent_clan_generation="1",
+        source_machine="apollo",
+        imported_source_owner=owner,
+    )
+    projected = project_clan_tree([member])
+
+    filtered, _facade, error = apply_agents_live_query_filter(
+        "not machine:apollo",
+        projected,
+    )
+
+    assert error is None
+    assert filtered == []
 
 
 def test_agent_live_query_entry_classifies_container_and_workflow_kinds() -> None:

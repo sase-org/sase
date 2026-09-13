@@ -144,8 +144,8 @@ def _artifact_snapshot_for_tui_load(
 
     Tier 1 uses the persistent artifact index when available. Missing or bad
     indexes fall back to a bounded source scan so first paint remains capped.
-    With ``agents_index_full_history`` enabled, Tier 2 uses a revalidated index
-    query and falls back to source artifacts when the index path is unavailable.
+    Tier 2 uses a revalidated index query and falls back to source artifacts when the
+    index path is unavailable.
     """
 
     return _tui_artifact_snapshot(
@@ -524,14 +524,8 @@ def load_tiered_agents(
         use_unified_query=use_unified_query,
     )
     pushdown_miss = bool(raw_query) and not window_safe
-    defer_pushdown_miss = False
-    if pushdown_miss and not full_history:
-        from sase.feature_flags import FeatureFlag, current_flags
-
-        defer_pushdown_miss = current_flags().enabled(
-            FeatureFlag.agents_deferred_history
-        )
-    effective_full_history = full_history or (pushdown_miss and not defer_pushdown_miss)
+    defer_pushdown_miss = pushdown_miss and not full_history
+    effective_full_history = full_history
     effective_limit = (
         requested_limit
         if requested_limit is not None

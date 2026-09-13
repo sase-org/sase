@@ -9,7 +9,6 @@ from sase.ace.tui.models._loaders._meta_enrichment import (
 )
 from sase.ace.tui.models.agent import LinkedRepoMetadata
 from sase.core.agent_scan_wire import AgentMetaWire, WaitingMarkerWire
-from sase.feature_flags import override_flags
 from tests._enrich_agent_helpers import local_time_from_iso, make_agent
 
 
@@ -622,7 +621,7 @@ def test_wait_metadata_wire_without_marker_keeps_starting_start_label() -> None:
     assert agent.wait_start_time is None
 
 
-def test_source_machine_projection_is_gated_by_machine_pushdown(
+def test_source_machine_projection_matches_filesystem_and_wire(
     tmp_path: Path,
 ) -> None:
     metadata = {
@@ -632,15 +631,9 @@ def test_source_machine_projection_is_gated_by_machine_pushdown(
     }
     (tmp_path / "agent_meta.json").write_text(json.dumps(metadata))
 
-    disabled = make_agent()
-    with override_flags(agents_machine_pushdown=False):
-        enrich_agent_from_meta(disabled, str(tmp_path))
-    assert disabled.source_machine is None
-
-    enabled = make_agent()
+    filesystem = make_agent()
     wire = make_agent()
-    with override_flags(agents_machine_pushdown=True):
-        enrich_agent_from_meta(enabled, str(tmp_path))
-        enrich_agent_from_meta_wire(wire, AgentMetaWire(**metadata), None, None)
-    assert enabled.source_machine == "apollo"
+    enrich_agent_from_meta(filesystem, str(tmp_path))
+    enrich_agent_from_meta_wire(wire, AgentMetaWire(**metadata), None, None)
+    assert filesystem.source_machine == "apollo"
     assert wire.source_machine == "apollo"

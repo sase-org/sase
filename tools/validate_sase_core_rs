@@ -918,10 +918,10 @@ def _validate_scalar_plan_timestamp(module: ModuleType) -> bool:
     if not isinstance(snapshot, dict):
         _error("scan_agent_artifacts probe returned a non-dict payload")
         return False
-    if snapshot.get("schema_version") != 8:
+    if snapshot.get("schema_version") != 9:
         _error(
             "scan_agent_artifacts probe returned stale schema: "
-            f"got {snapshot.get('schema_version')!r}, expected 8"
+            f"got {snapshot.get('schema_version')!r}, expected 9"
         )
         return False
 

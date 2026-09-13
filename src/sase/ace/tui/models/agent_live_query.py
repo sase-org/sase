@@ -227,6 +227,9 @@ def _machine_values(agent: Agent) -> tuple[str, ...]:
         *_machine_locator_values(agent.fleet_logical_locator),
         *_machine_locator_values(agent.fleet_exact_locator),
         agent.source_machine,
+        agent.imported_source_owner.machine_name
+        if agent.imported_source_owner is not None
+        else None,
     )
 
 

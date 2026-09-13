@@ -253,17 +253,14 @@ def artifact_snapshot_for_tui_load(
 
     if full_history:
         if use_artifact_index:
-            from sase.feature_flags import FeatureFlag, current_flags
-
-            if current_flags().enabled(FeatureFlag.agents_index_full_history):
-                indexed = load_tier1_index(
-                    full_history=full_history,
-                    freshness=index_freshness,
-                    requested_limit=None,
-                    candidate_filter=candidate_filter,
-                )
-                if indexed is not None:
-                    return indexed
+            indexed = load_tier1_index(
+                full_history=full_history,
+                freshness=index_freshness,
+                requested_limit=None,
+                candidate_filter=candidate_filter,
+            )
+            if indexed is not None:
+                return indexed
 
         full_snapshot = scan_artifacts()
         return (

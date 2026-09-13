@@ -29,12 +29,11 @@ def apply_imported_source_owner(agent: Agent, raw: object) -> None:
 
 
 def apply_archive_source_machine(agent: Agent, *candidates: object) -> None:
-    """Copy archive provenance onto ``agent.source_machine`` when pushdown is on.
+    """Copy archive provenance onto ``agent.source_machine``.
 
     Index-resident ``machine`` values are ``{"here"} ∪ {source_machine}``.
     Loaders must project the same provenance the artifact index stores, or
-    ``not machine:VAL`` under-selects imported rows. Gated by
-    ``agents_machine_pushdown`` so the Off branch keeps pre-epic semantics.
+    ``not machine:VAL`` under-selects imported rows.
     """
     if agent.source_machine:
         return
@@ -45,15 +44,9 @@ def apply_archive_source_machine(agent: Agent, *candidates: object) -> None:
             break
     if text is None and agent.imported_source_owner is not None:
         text = _normalized_machine(agent.imported_source_owner.machine_name)
-    if not text or not _machine_pushdown_enabled():
+    if not text:
         return
     agent.source_machine = text
-
-
-def _machine_pushdown_enabled() -> bool:
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    return current_flags().enabled(FeatureFlag.agents_machine_pushdown)
 
 
 def _normalized_machine(value: object) -> str | None:

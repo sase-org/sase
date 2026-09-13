@@ -122,6 +122,7 @@ def _imported_family_container(
         agent_name=family_name,
         agent_family=family_name,
         agent_family_role="root",
+        source_machine=owner.machine_name,
         imported_source_owner=owner,
         is_imported_family_container=True,
         project_display_name=anchor.project_display_name,

@@ -172,15 +172,9 @@ def _machine_filter(value: str) -> CandidateFilterWire | None:
     # boolean parser rejects empty property values. Leave an empty needle
     # unpushable: sase-core ``contains_case_insensitive`` matches everything
     # for an empty needle, and equals against "" matches nothing.
-    if not value.strip() or not _machine_pushdown_enabled():
+    if not value.strip():
         return None
     return _equals(_PUSHABLE_MACHINE_FIELD, value)
-
-
-def _machine_pushdown_enabled() -> bool:
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    return current_flags().enabled(FeatureFlag.agents_machine_pushdown)
 
 
 def _is_exact_machine_filter(candidate: CandidateFilterWire) -> bool:

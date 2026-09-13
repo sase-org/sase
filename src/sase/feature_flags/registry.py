@@ -23,9 +23,6 @@ class FeatureFlag(StrEnum):
 
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
-    agents_deferred_history = "agents_deferred_history"
-    agents_index_full_history = "agents_index_full_history"
-    agents_machine_pushdown = "agents_machine_pushdown"
     agents_unified_query = "agents_unified_query"
     monitor_continuation_records = "monitor_continuation_records"
     provider_drain = "provider_drain"
@@ -52,32 +49,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "feature-flag control."
         ),
         bead="sase-rx",
-    ),
-    FeatureFlag.agents_deferred_history: FeatureFlagDefinition(
-        key=FeatureFlag.agents_deferred_history,
-        kind="beta",
-        description=(
-            "Pushdown misses in the Agents tab serve the bounded recent-history "
-            "window first and arm the existing quiet-window full-history reconcile."
-        ),
-        bead="sase-zx",
-    ),
-    FeatureFlag.agents_index_full_history: FeatureFlagDefinition(
-        key=FeatureFlag.agents_index_full_history,
-        kind="beta",
-        description=(
-            "TUI full-history agent loads read through the persistent artifact "
-            "index before falling back to the source artifact scan."
-        ),
-        bead="sase-101",
-    ),
-    FeatureFlag.agents_machine_pushdown: FeatureFlagDefinition(
-        key=FeatureFlag.agents_machine_pushdown,
-        kind="beta",
-        description=(
-            "Compile machine: filters into exact artifact-index candidate predicates."
-        ),
-        bead="sase-107",
     ),
     FeatureFlag.agents_unified_query: FeatureFlagDefinition(
         key=FeatureFlag.agents_unified_query,

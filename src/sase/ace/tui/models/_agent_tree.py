@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterable, Mapping
 from sase.core.agent_clan_context import (
     effective_clan_attributes,
 )
+from sase.core.agent_identity_facade import AgentOwnerIdentity
 
 from ._agent_clan import apply_clan_container_status, clan_member_status_priority
 from .agent import Agent, AgentType
@@ -415,6 +416,8 @@ def _container_for_clan(
         row.run_start_time for row in runtime_members if row.run_start_time is not None
     ]
     stops = [row.stop_time for row in runtime_members if row.stop_time is not None]
+    source_machine = _common_source_machine(runtime_members)
+    imported_owner = _common_imported_source_owner(runtime_members)
 
     container = Agent(
         agent_type=AgentType.RUNNING,
@@ -435,10 +438,36 @@ def _container_for_clan(
         is_clan_container=True,
         clan_tribes=tribes,
         tribe=tribes[0] if len(tribes) == 1 else None,
+        source_machine=source_machine,
+        imported_source_owner=imported_owner,
     )
     container.runtime_children.extend(runtime_members)
     apply_clan_container_status(container, runtime_members, fallback="RUNNING")
     return container
+
+
+def _common_source_machine(rows: list[Agent]) -> str | None:
+    machines = {
+        machine
+        for row in rows
+        for machine in (
+            row.source_machine,
+            row.imported_source_owner.machine_name
+            if row.imported_source_owner is not None
+            else None,
+        )
+        if machine
+    }
+    if len(machines) == 1:
+        return next(iter(machines))
+    return None
+
+
+def _common_imported_source_owner(rows: list[Agent]) -> AgentOwnerIdentity | None:
+    owners = {row.imported_source_owner for row in rows if row.imported_source_owner}
+    if len(owners) == 1:
+        return next(iter(owners))
+    return None
 
 
 def _sort_clan_member_units(rows: list[Agent], fold_key: str) -> list[Agent]:

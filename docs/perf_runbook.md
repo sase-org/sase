@@ -63,6 +63,39 @@ the watchdog and key-to-paint evidence do not prove the responsiveness target is
 The remaining hitches point at Agents-tab refresh/render work rather than the original
 `sase-zn` hot sites.
 
+## Agents query load tiering
+
+Bead `sase-zu.7` removed the `sase-zu` load-tiering beta flags on 2026-09-13 and
+remeasured the `not machine:apollo` startup cliff. The key behavior is now
+unconditional: safe indexed query pushdown stays on Tier 1, unsupported queries defer
+full-history reconciliation instead of blocking first paint, and full-history artifact
+index loads use the index before falling back to a source scan.
+
+Reproduce the synthetic archive benchmark with the workspace virtualenv:
+
+```bash
+.venv/bin/python tests/perf/bench_agent_load_tiering.py \
+  --output ~/.sase/perf/agent_load_tiering_sase-zu.7_20260913.json
+```
+
+The 2026-09-13 run used `sase-core-rs` 0.34.24 and a 13,000-artifact fixture with
+`not machine:apollo`, 5 measured runs, 1 warmup run, and `requested_limit=100`.
+
+| path / signal                | before evidence                                                                                             | after evidence                                                                                                      |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| startup first paint          | 2026-09-12 04:57 EDT Tier 1 indexed load: 688 index rows, `agents_ready_seconds=8.036`                      | Real archive direct loader from this checkout: Tier 1 artifact-index load, 820 records, 100 returned rows, no error |
+| source-scan cliff            | 2026-09-12 05:42, 05:56, 06:20 EDT Tier 2 source scans: `agents_ready_seconds=23.336`, `24.395`, `42.663`   | Synthetic source scan remains the expensive baseline: p50 `8621.35 ms`, p95 `8891.94 ms`                            |
+| bounded indexed first window | Regressed path escalated to full source scan for `not machine:apollo`                                       | Synthetic Tier 1 indexed bounded path: p50 `107.17 ms`, p95 `113.48 ms`, 113 visible rows                           |
+| full-history indexed parity  | Source scan was the only complete-history path for this query                                               | Synthetic full-history index path: p50 `7672.78 ms`, p95 `7986.75 ms`, `missing_count=0`, `visible_extra_count=0`   |
+| live log tail                | 2026-09-13 `tui_agent_loads.jsonl` still contains old-process full reloads before this checkout is deployed | 2026-09-13 `tui_startup.jsonl` tail shows Tier 1 artifact-index startups, latest `agents_ready_seconds=8.013`       |
+
+Interpretation: the measured first-window load is again in line with the indexed 04:57
+baseline rather than the 06:20 source-scan cliff. The bounded window is intentionally
+incomplete (`has_more=true`) while the complete indexed path proves parity with the
+source scan. If a future query cannot be narrowed by the artifact index, the loader
+should report the visible result as incomplete and defer history; it should not increase
+the startup read to the full archive.
+
 ## Idle-host CPU diet
 
 An idle sase host (ace open, lumberjacks running, no agent work) used to burn roughly

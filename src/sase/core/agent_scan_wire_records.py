@@ -25,8 +25,8 @@ from sase.core.agent_scan_wire_markers import (
     WorkflowStateWire,
 )
 
-AGENT_SCAN_WIRE_SCHEMA_VERSION = 8
-AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 28
+AGENT_SCAN_WIRE_SCHEMA_VERSION = 9
+AGENT_ARTIFACT_INDEX_SCHEMA_VERSION = 29
 AgentArtifactRecordShape = Literal["full", "list"]
 AgentArtifactCandidateField = Literal[
     "project", "cl", "model", "provider", "machine", "type"

@@ -143,7 +143,7 @@ def test_load_tiered_agents_unified_query_uses_bounded_pushdown(
     ]
 
 
-def test_load_tiered_agents_machine_pushdown_stays_on_bounded_window(
+def test_load_tiered_machine_filter_stays_on_bounded_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     local = _make_agent(cl_name="local")
@@ -175,11 +175,7 @@ def test_load_tiered_agents_machine_pushdown_stays_on_bounded_window(
         lambda agents, _steps: list(agents),
     )
 
-    with override_flags(
-        agents_machine_pushdown=True,
-        agents_unified_query=True,
-        agents_deferred_history=False,
-    ):
+    with override_flags(agents_unified_query=True):
         _agents, state = load_tiered_agents(
             search_query="not machine:apollo",
             requested_limit=25,
@@ -205,7 +201,7 @@ def test_load_tiered_agents_machine_pushdown_stays_on_bounded_window(
     ]
 
 
-def test_load_tiered_agents_machine_pushdown_off_keeps_escalation(
+def test_load_tiered_agents_unsupported_query_defers_full_history(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict[str, object]] = []
@@ -216,10 +212,12 @@ def test_load_tiered_agents_machine_pushdown_off_keeps_escalation(
             agents=[],
             workflow_agent_steps=[],
             state=AgentLoadState(
-                tier="tier2",
-                complete_history=True,
-                artifact_source="source_scan",
-                used_artifact_index=False,
+                tier="tier1",
+                complete_history=False,
+                artifact_source="artifact_index",
+                used_artifact_index=True,
+                bounded_prefix=True,
+                requested_limit=25,
             ),
         )
 
@@ -232,72 +230,25 @@ def test_load_tiered_agents_machine_pushdown_off_keeps_escalation(
         lambda agents, _steps: list(agents),
     )
 
-    with override_flags(
-        agents_machine_pushdown=False,
-        agents_deferred_history=False,
-        agents_unified_query=True,
-    ):
-        load_tiered_agents(search_query="not machine:apollo", requested_limit=25)
+    _agents, state = load_tiered_agents(
+        search_query="status:failed",
+        requested_limit=25,
+    )
 
+    assert state.query_incomplete is True
     assert calls == [
         {
             "patch_snapshot": None,
-            "full_history": True,
+            "full_history": False,
             "use_artifact_index": True,
             "index_freshness": "cached",
-            "requested_limit": None,
+            "requested_limit": 25,
             "candidate_filter": None,
         }
     ]
 
 
-def test_load_tiered_agents_unsupported_query_uses_full_history(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[dict[str, object]] = []
-
-    def fake_load_agents_with_state(**kwargs: object) -> SimpleNamespace:
-        calls.append(kwargs)
-        return SimpleNamespace(
-            agents=[],
-            workflow_agent_steps=[],
-            state=AgentLoadState(
-                tier="tier2",
-                complete_history=True,
-                artifact_source="source_scan",
-                used_artifact_index=False,
-            ),
-        )
-
-    monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._load_agents_with_load_state",
-        fake_load_agents_with_state,
-    )
-    monkeypatch.setattr(
-        "sase.ace.tui.models.agent_loader._normalize_loaded_agents",
-        lambda agents, _steps: list(agents),
-    )
-
-    with override_flags(agents_deferred_history=False):
-        _agents, state = load_tiered_agents(
-            search_query="status:failed",
-            requested_limit=25,
-        )
-
-    assert state.complete_history is True
-    assert calls == [
-        {
-            "patch_snapshot": None,
-            "full_history": True,
-            "use_artifact_index": True,
-            "index_freshness": "cached",
-            "requested_limit": None,
-            "candidate_filter": None,
-        }
-    ]
-
-
-def test_load_tiered_agents_deferred_history_uses_bounded_unified_query(
+def test_load_tiered_unsupported_unified_query_uses_bounded_history(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     failed = _make_agent(status="FAILED", cl_name="a")
@@ -330,10 +281,7 @@ def test_load_tiered_agents_deferred_history_uses_bounded_unified_query(
         lambda agents, _steps: list(agents),
     )
 
-    with override_flags(
-        agents_deferred_history=True,
-        agents_unified_query=True,
-    ):
+    with override_flags(agents_unified_query=True):
         agents, state = load_tiered_agents(
             search_query="status:FAILED",
             requested_limit=25,
@@ -356,7 +304,7 @@ def test_load_tiered_agents_deferred_history_uses_bounded_unified_query(
     ]
 
 
-def test_load_tiered_agents_deferred_history_uses_bounded_legacy_query(
+def test_load_tiered_unsupported_legacy_query_uses_bounded_history(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     failed = _make_agent(status="FAILED", cl_name="a")
@@ -389,10 +337,7 @@ def test_load_tiered_agents_deferred_history_uses_bounded_legacy_query(
         lambda agents, _steps: list(agents),
     )
 
-    with override_flags(
-        agents_deferred_history=True,
-        agents_unified_query=False,
-    ):
+    with override_flags(agents_unified_query=False):
         agents, state = load_tiered_agents(
             search_query="status:failed",
             requested_limit=25,
@@ -464,7 +409,7 @@ def test_load_tiered_agents_full_history_preserves_safe_candidate_filter(
     ]
 
 
-def test_full_history_uses_revalidated_artifact_index_when_flag_enabled() -> None:
+def test_full_history_uses_revalidated_artifact_index() -> None:
     snapshot = _empty_artifact_snapshot()
     mock_scan = Mock()
 
@@ -489,18 +434,17 @@ def test_full_history_uses_revalidated_artifact_index_when_flag_enabled() -> Non
             ),
         )
 
-    with override_flags(agents_index_full_history=True):
-        loaded_snapshot, state = artifact_snapshot_for_tui_load(
-            full_history=True,
-            use_artifact_index=True,
-            candidate_filter={
-                "kind": "contains",
-                "field": "cl",
-                "value": "target",
-            },
-            scan_artifacts=mock_scan,
-            load_tier1_index=load_index,
-        )
+    loaded_snapshot, state = artifact_snapshot_for_tui_load(
+        full_history=True,
+        use_artifact_index=True,
+        candidate_filter={
+            "kind": "contains",
+            "field": "cl",
+            "value": "target",
+        },
+        scan_artifacts=mock_scan,
+        load_tier1_index=load_index,
+    )
 
     assert loaded_snapshot is snapshot
     assert state.artifact_source == "artifact_index"
@@ -550,26 +494,6 @@ def test_full_history_index_loader_uses_pure_revalidated_history_wire(
         "field": "provider",
         "value": "codex",
     }
-
-
-def test_full_history_disabled_flag_uses_source_scan() -> None:
-    snapshot = _empty_artifact_snapshot()
-    mock_scan = Mock(return_value=snapshot)
-    mock_index = Mock(side_effect=AssertionError("index path must stay disabled"))
-
-    with override_flags(agents_index_full_history=False):
-        loaded_snapshot, state = artifact_snapshot_for_tui_load(
-            full_history=True,
-            use_artifact_index=True,
-            scan_artifacts=mock_scan,
-            load_tier1_index=mock_index,
-        )
-
-    assert loaded_snapshot is snapshot
-    assert state.artifact_source == "source_scan"
-    assert state.used_artifact_index is False
-    assert state.complete_history is True
-    mock_scan.assert_called_once_with()
 
 
 def test_full_history_missing_index_falls_back_to_source_scan(
