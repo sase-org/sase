@@ -63,6 +63,11 @@ class AgentLoadState:
     has_more: bool = False
     query_incomplete: bool = False
     history_query_key: tuple[str, str] | None = None
+    marker_signatures_checked: int = 0
+    rows_repaired: int = 0
+    rows_discovered: int = 0
+    rows_removed: int = 0
+    record_json_decoded: int = 0
 
     @property
     def needs_full_history_reconcile(self) -> bool:
@@ -73,6 +78,7 @@ class AgentLoadState:
             or self.repair_recommended
             or self.truncated
             or self.query_incomplete
+            or (self.tier == "tier2" and not self.complete_history)
         )
 
 
@@ -139,9 +145,11 @@ def query_artifact_index_for_loader(
 
     active_limit = None if full_history else _TIER1_ACTIVE_LIMIT
     recent_completed_limit = None if full_history else _TIER1_RECENT_COMPLETED_LIMIT
-    # A Tier-2 load sets the app's complete-history latch. Do not satisfy it
-    # from a cached index snapshot: revalidate first so rows written by other
-    # processes since the last index build are not silently suppressed.
+    # A Tier-2 load sets the app's complete-history latch. Completeness is a
+    # Rust-owned claim: revalidate runs source-directory discovery (new and
+    # deleted dirs) plus bounded marker repair. Marker revalidation does not
+    # discover previously unindexed directories, so this must not treat
+    # ``include_full_history`` itself as proof the archive is complete.
     query_freshness: Literal["revalidate", "cached"] = (
         "revalidate" if full_history else freshness
     )
@@ -180,6 +188,7 @@ def query_artifact_index_for_loader(
                 fallback_snapshot,
                 AgentLoadState(
                     tier="tier2" if full_history else "tier1",
+                    # Source scan is authoritative for the dirs it visited.
                     complete_history=full_history,
                     complete_visible_inbox=full_history,
                     artifact_source="source_scan",
@@ -218,11 +227,21 @@ def query_artifact_index_for_loader(
         )
 
     index_window = snapshot.index_window
+    completeness = snapshot.index_completeness
+    if completeness is None:
+        # Source-scan-shaped mocks and older snapshots have no completeness
+        # envelope. Real index queries always populate it.
+        complete_history = full_history
+    else:
+        complete_history = (
+            bool(completeness.complete_history) if full_history else False
+        )
+    stats = snapshot.stats
     return (
         snapshot,
         AgentLoadState(
             tier="tier2" if full_history else "tier1",
-            complete_history=full_history,
+            complete_history=complete_history,
             complete_visible_inbox=True,
             artifact_source="artifact_index",
             used_artifact_index=True,
@@ -235,6 +254,11 @@ def query_artifact_index_for_loader(
                 None if index_window is None else index_window.returned_record_count
             ),
             has_more=False if index_window is None else index_window.has_more,
+            marker_signatures_checked=stats.marker_signatures_checked,
+            rows_repaired=stats.rows_repaired,
+            rows_discovered=stats.rows_discovered,
+            rows_removed=stats.rows_removed,
+            record_json_decoded=stats.record_json_decoded,
         ),
     )
 

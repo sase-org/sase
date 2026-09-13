@@ -315,6 +315,29 @@ def write_agent_artifact_index_meta(
         rust_write(str(index_path), str(key), str(value))
 
 
+SOURCE_RECONCILE_OK_META_KEY = "source_reconcile_ok"
+
+
+def invalidate_agent_artifact_index_source_reconcile(
+    index_path: Path | str | None = None,
+) -> None:
+    """Forget the last source-directory completeness watermark.
+
+    Event overflow, unobserved writes, and process-restart recovery call
+    this so a later cached full-history read cannot claim complete history
+    on a corpus that has not been rediscovered. Marker revalidation does
+    not discover new directories on its own.
+    """
+    index = (
+        Path(index_path).expanduser()
+        if index_path is not None
+        else default_agent_artifact_index_path()
+    )
+    if not index.is_file():
+        return
+    write_agent_artifact_index_meta(index, SOURCE_RECONCILE_OK_META_KEY, "")
+
+
 def agent_artifact_index_status(
     index_path: Path | str,
 ) -> AgentArtifactIndexStatusWire:
@@ -598,6 +621,7 @@ __all__ = [
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
+    "invalidate_agent_artifact_index_source_reconcile",
     "load_agent_artifact_records_bounded",
     "parse_output_variable_selector",
     "prune_hidden_terminal_agent_artifact_index_rows",

@@ -147,6 +147,25 @@ class AgentArtifactIndexQueryWire:
 
 
 @dataclass(frozen=True)
+class AgentArtifactIndexCompletenessWire:
+    """Completeness of one artifact-index snapshot relative to source.
+
+    Marker revalidation repairs rows the index already stores. It does not
+    discover previously unindexed directories or drop deleted ones. A
+    snapshot may claim ``complete_history`` only after a source-directory
+    reconciliation, or when a still-valid watermark from one remains.
+    """
+
+    complete_history: bool = False
+    source_reconciled: bool = False
+    rows_discovered: int = 0
+    rows_removed: int = 0
+    marker_signatures_checked: int = 0
+    rows_repaired: int = 0
+    record_json_decoded: int = 0
+
+
+@dataclass(frozen=True)
 class AgentArtifactIndexWindowWire:
     """Metadata for an intentionally bounded artifact-index window."""
 
@@ -264,6 +283,11 @@ class AgentArtifactScanStatsWire:
     json_decode_errors: int = 0
     os_errors: int = 0
     prompt_step_markers_parsed: int = 0
+    marker_signatures_checked: int = 0
+    rows_repaired: int = 0
+    rows_discovered: int = 0
+    rows_removed: int = 0
+    record_json_decoded: int = 0
 
 
 @dataclass(frozen=True)
@@ -370,12 +394,14 @@ class AgentArtifactScanWire:
     index_window: AgentArtifactIndexWindowWire | None = None
     records: list[AgentArtifactRecordWire] = field(default_factory=list)
     clan_context: list[AgentClanContextWire] = field(default_factory=list)
+    index_completeness: AgentArtifactIndexCompletenessWire | None = None
 
 
 __all__ = [
     "AGENT_ARTIFACT_INDEX_SCHEMA_VERSION",
     "AGENT_SCAN_WIRE_SCHEMA_VERSION",
     "AgentArtifactCandidateField",
+    "AgentArtifactIndexCompletenessWire",
     "AgentArtifactIndexDismissalReconcileWire",
     "AgentArtifactIndexQueryWire",
     "AgentArtifactIndexWindowWire",

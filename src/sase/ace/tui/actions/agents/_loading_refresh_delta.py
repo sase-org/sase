@@ -134,6 +134,17 @@ class AgentArtifactDeltaRefreshMixin(AgentLoadingStateMixin):
             source=_normalize_refresh_source(source),
             callbacks=callbacks,
         )
+        try:
+            from sase.core.agent_scan_facade import (
+                invalidate_agent_artifact_index_source_reconcile,
+            )
+
+            invalidate_agent_artifact_index_source_reconcile()
+        except Exception:  # noqa: BLE001 - overflow must still fall back.
+            log.debug(
+                "artifact index source-reconcile invalidation failed",
+                exc_info=True,
+            )
         self._schedule_broad_fallback_for_agent_delta(
             broad_request,
             reason="dirty_queue_overflow",

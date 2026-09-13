@@ -7,16 +7,12 @@ index-facade calls. That means they exercise production's actual freshness
 parameters (``revalidate`` forced for full history) and query-pushdown
 compilation rather than a harness re-implementation of them.
 
-Some of these tests reproduce confirmed sase-zu landing-audit defects and
-are *expected to keep passing*, with the defect itself asserted as present,
-until the phases that fix them land:
-
-- ``index-freshness`` (sase-zu.8.2) owns the false-completeness-after-index-
-  rebuild and stale-deleted-row defects.
-- ``machine-parity`` (sase-zu.8.3) owns the conflicting-provenance defect.
+The ``index-freshness`` (sase-zu.8.2) false-completeness and stale-deleted-
+row cases are now zero-diff regressions. The conflicting-provenance
+diagnostic remains until ``machine-parity`` (sase-zu.8.3) lands.
 
 This mirrors the plan's instruction not to leave the default test suite
-knowingly red between phases: each diagnostic asserts the *current*
+knowingly red between phases: remaining diagnostics assert the *current*
 (buggy) behavior so the suite stays green, and the phase that fixes the
 underlying bug is expected to flip the assertion to a zero-diff regression.
 """
@@ -75,15 +71,14 @@ def test_production_oracle_query_battery_matches_source_scan(tmp_path: Path) -> 
 
 
 @pytest.mark.parametrize("unified_query", _DIALECTS)
-def test_production_full_history_oracle_misses_artifact_added_after_index_build(
+def test_production_full_history_oracle_discovers_artifact_added_after_index_build(
     tmp_path: Path, unified_query: bool
 ) -> None:
-    """sase-zu audit defect: a post-rebuild artifact is silently dropped.
+    """Post-rebuild artifacts arrive on the production full-history path.
 
-    Revalidate only repairs rows already present in the SQL index; it does
-    not discover artifact directories written after the last rebuild. The
-    production full-history path both misses the new row *and* falsely
-    reports ``complete_history=True``.
+    Marker revalidation cannot discover directories the index has never
+    seen; source-directory reconciliation during revalidate full-history
+    does. Completeness is claimed only after that discovery.
     """
     fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=72)
     new_artifact_dir = write_completed_artifact(
@@ -99,13 +94,15 @@ def test_production_full_history_oracle_misses_artifact_added_after_index_build(
     }
 
     diff = result.diff_for("production_full_history")
+    assert diff.ok
     missing_dirs = {Path(row.artifact_dir).name for row in diff.missing}
-    assert new_artifact_dir.name in missing_dirs
+    assert new_artifact_dir.name not in missing_dirs
 
     load_state = result.production_full_history.load_state
     assert load_state is not None
     assert load_state.complete_history is True
     assert load_state.needs_full_history_reconcile is False
+    assert load_state.rows_discovered >= 1
 
 
 @pytest.mark.parametrize("unified_query", _DIALECTS)
@@ -143,15 +140,13 @@ def test_production_machine_query_oracle_misses_conflicting_provenance_row(
         assert conflicting_dir.name in missing_dirs, name
 
 
-def test_production_full_history_oracle_serves_stale_deleted_artifact(
+def test_production_full_history_oracle_drops_deleted_artifact(
     tmp_path: Path,
 ) -> None:
-    """A deleted artifact keeps appearing as a stale full-history row.
+    """A deleted artifact is removed from full history instead of served stale.
 
-    Distinct from the two audit failures above: this is not a *missing*
-    row but an *extra* one — the index still serves the last known
-    ``record_json`` for a directory removed from disk without a rebuild,
-    and still claims ``complete_history=True`` while doing so.
+    Source-directory reconciliation drops indexed rows whose directories
+    are gone, so the snapshot does not keep the last ``record_json``.
     """
     fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=72)
     oracle = AgentLoadTieringOracle(fixture)
@@ -167,11 +162,13 @@ def test_production_full_history_oracle_serves_stale_deleted_artifact(
 
     assert target.key not in result.source_scan.visible_rows
     diff = result.diff_for("production_full_history")
-    assert target.key in {row.key for row in diff.visible_extra}
+    assert target.key not in {row.key for row in diff.visible_extra}
+    assert diff.ok
 
     load_state = result.production_full_history.load_state
     assert load_state is not None
     assert load_state.complete_history is True
+    assert load_state.rows_removed >= 1
 
 
 def test_production_full_history_oracle_repairs_hidden_toggle_without_rebuild(
@@ -231,3 +228,39 @@ def test_production_oracle_settles_full_history_beyond_tier1_cap(
     full_state = result.production_full_history.load_state
     assert full_state is not None
     assert full_state.complete_history is True
+
+
+def test_cached_full_history_after_production_reconcile_skips_marker_work(
+    tmp_path: Path,
+) -> None:
+    """After discovery settles, a cached full-history read is complete and cheap."""
+    from sase.core.agent_scan_facade import query_agent_artifact_index
+    from sase.core.agent_scan_wire import AgentArtifactIndexQueryWire
+
+    fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=72)
+    oracle = AgentLoadTieringOracle(fixture)
+    first = oracle.evaluate("", requested_limit=None)
+    first_state = first.production_full_history.load_state
+    assert first_state is not None
+    assert first_state.complete_history is True
+    assert first.diff_for("production_full_history").ok
+
+    cached = query_agent_artifact_index(
+        fixture.index_path,
+        fixture.projects_root,
+        AgentArtifactIndexQueryWire(
+            include_active=False,
+            include_recent_completed=False,
+            include_full_history=True,
+            freshness="cached",
+            record_shape="list",
+        ),
+        loader_artifacts._TUI_SCAN_OPTIONS,
+    )
+    completeness = cached.index_completeness
+    assert completeness is not None
+    assert completeness.complete_history is True
+    assert completeness.source_reconciled is True
+    assert cached.stats.marker_signatures_checked == 0
+    assert cached.stats.rows_repaired == 0
+    assert cached.stats.rows_discovered == 0

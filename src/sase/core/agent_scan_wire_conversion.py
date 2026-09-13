@@ -27,6 +27,7 @@ from sase.core.agent_scan_wire_markers import (
 )
 from sase.core.agent_scan_wire_records import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    AgentArtifactIndexCompletenessWire,
     AgentArtifactIndexDismissalReconcileWire,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
@@ -188,6 +189,27 @@ def _stats_from_dict(data: dict[str, Any]) -> AgentArtifactScanStatsWire:
         json_decode_errors=int(data.get("json_decode_errors", 0)),
         os_errors=int(data.get("os_errors", 0)),
         prompt_step_markers_parsed=int(data.get("prompt_step_markers_parsed", 0)),
+        marker_signatures_checked=int(data.get("marker_signatures_checked", 0)),
+        rows_repaired=int(data.get("rows_repaired", 0)),
+        rows_discovered=int(data.get("rows_discovered", 0)),
+        rows_removed=int(data.get("rows_removed", 0)),
+        record_json_decoded=int(data.get("record_json_decoded", 0)),
+    )
+
+
+def _index_completeness_from_dict(
+    data: dict[str, Any] | None,
+) -> AgentArtifactIndexCompletenessWire | None:
+    if not isinstance(data, dict):
+        return None
+    return AgentArtifactIndexCompletenessWire(
+        complete_history=bool(data.get("complete_history", False)),
+        source_reconciled=bool(data.get("source_reconciled", False)),
+        rows_discovered=int(data.get("rows_discovered", 0)),
+        rows_removed=int(data.get("rows_removed", 0)),
+        marker_signatures_checked=int(data.get("marker_signatures_checked", 0)),
+        rows_repaired=int(data.get("rows_repaired", 0)),
+        record_json_decoded=int(data.get("record_json_decoded", 0)),
     )
 
 
@@ -364,6 +386,9 @@ def agent_scan_wire_from_dict(data: dict[str, Any]) -> AgentArtifactScanWire:
         index_window=_index_window_from_dict(data.get("index_window")),
         records=records,
         clan_context=clan_context,
+        index_completeness=_index_completeness_from_dict(
+            data.get("index_completeness")
+        ),
     )
 
 

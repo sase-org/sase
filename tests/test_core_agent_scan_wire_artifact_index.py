@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sase.core.agent_scan_wire import (
     AGENT_SCAN_WIRE_SCHEMA_VERSION,
+    AgentArtifactIndexCompletenessWire,
     AgentArtifactIndexQueryWire,
     AgentArtifactIndexStatusWire,
     AgentArtifactIndexUpdateWire,
@@ -73,6 +74,15 @@ def test_artifact_index_wire_helpers() -> None:
                 "has_more": True,
                 "truncated": True,
             },
+            "index_completeness": {
+                "complete_history": True,
+                "source_reconciled": True,
+                "rows_discovered": 2,
+                "rows_removed": 1,
+                "marker_signatures_checked": 4,
+                "rows_repaired": 3,
+                "record_json_decoded": 28,
+            },
         }
     )
     assert snapshot.index_window == AgentArtifactIndexWindowWire(
@@ -83,6 +93,15 @@ def test_artifact_index_wire_helpers() -> None:
         completed_candidate_count=22,
         has_more=True,
         truncated=True,
+    )
+    assert snapshot.index_completeness == AgentArtifactIndexCompletenessWire(
+        complete_history=True,
+        source_reconciled=True,
+        rows_discovered=2,
+        rows_removed=1,
+        marker_signatures_checked=4,
+        rows_repaired=3,
+        record_json_decoded=28,
     )
 
     update = agent_artifact_index_update_from_dict(
