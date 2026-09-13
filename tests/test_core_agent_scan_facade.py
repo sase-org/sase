@@ -8,6 +8,7 @@ import pytest
 from sase.core.agent_scan_facade import (
     agent_artifact_index_status,
     delete_agent_artifact_index_row_bounded,
+    find_gate_shell_by_gate_id,
     load_agent_artifact_records_bounded,
     prune_hidden_terminal_agent_artifact_index_rows,
     query_related_agent_artifact_dirs_bounded,
@@ -374,6 +375,47 @@ def test_load_agent_artifact_records_calls_rust_binding(
     assert len(records) == 1
     assert records[0].artifact_dir == payload["artifact_dir"]
     assert records[0].record_shape == "full"
+
+
+def test_find_gate_shell_by_gate_id_calls_rust_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, str | None, str]] = []
+    fake = install_fake_scan_module(
+        monkeypatch, lambda root, opts: minimal_snapshot(root, [])
+    )
+    payload = minimal_record(tmp_path / "projects", "20260504120000", "gate-member")
+
+    def fake_find(
+        index: str, project_name: str | None, gate_id: str
+    ) -> dict[str, Any] | None:
+        calls.append((index, project_name, gate_id))
+        return payload
+
+    fake.find_gate_shell_by_gate_id = fake_find  # type: ignore[attr-defined]
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    record = find_gate_shell_by_gate_id(index_path, "myproj", "gate-1")
+
+    assert calls == [(str(index_path), "myproj", "gate-1")]
+    assert record is not None
+    assert record.artifact_dir == payload["artifact_dir"]
+
+
+def test_find_gate_shell_by_gate_id_returns_none_for_no_match(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = install_fake_scan_module(
+        monkeypatch, lambda root, opts: minimal_snapshot(root, [])
+    )
+    fake.find_gate_shell_by_gate_id = (  # type: ignore[attr-defined]
+        lambda index, project_name, gate_id: None
+    )
+
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    assert find_gate_shell_by_gate_id(index_path, None, "missing") is None
 
 
 def test_snapshot_workflow_hidden_maps_to_agent_hidden(tmp_path: Path) -> None:

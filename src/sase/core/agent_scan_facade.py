@@ -491,6 +491,30 @@ def load_agent_artifact_records_bounded(
     return agent_artifact_records_from_dicts(payload)
 
 
+def find_gate_shell_by_gate_id(
+    index_path: Path | str,
+    project_name: str | None,
+    gate_id: str,
+) -> AgentArtifactRecordWire | None:
+    """Return the newest real gate-shell record for *gate_id*, or ``None``.
+
+    Uses the persistent index's indexed ``gate_shell_id`` column for an
+    O(1) SQL lookup instead of decoding every historical record. A ``None``
+    project searches every project. A clean ``None`` result is authoritative
+    (no matching gate-shell member exists); callers whose index is missing
+    or unusable see an exception instead, so they can distinguish "not
+    found" from "could not look up" and fall back accordingly.
+    """
+    with agent_artifact_index_operation_lock():
+        rust_find = require_rust_binding("find_gate_shell_by_gate_id")
+        payload: dict[str, Any] | None = rust_find(
+            str(index_path), project_name, str(gate_id)
+        )
+    if payload is None:
+        return None
+    return agent_artifact_records_from_dicts([payload])[0]
+
+
 def query_related_agent_artifact_dirs_bounded(
     index_path: Path | str,
     artifact_dir: Path | str,
@@ -621,6 +645,7 @@ __all__ = [
     "default_agent_artifact_index_path",
     "delete_agent_artifact_index_row",
     "delete_agent_artifact_index_row_bounded",
+    "find_gate_shell_by_gate_id",
     "invalidate_agent_artifact_index_source_reconcile",
     "load_agent_artifact_records_bounded",
     "parse_output_variable_selector",

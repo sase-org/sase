@@ -162,3 +162,111 @@ def test_list_gate_shells_orders_tied_timestamps_deterministically(
         "/tmp/proj/artifacts/ace-run/20260812120000-a",
     ]
     assert gate_store.find_gate_shell_by_gate_id("proj", "gate-1") == records[0]
+
+
+def _gate_wire(path: str, gate_id: str = "gate-1") -> AgentArtifactRecordWire:
+    return AgentArtifactRecordWire(
+        project_name="proj",
+        project_dir="/tmp/proj",
+        project_file="/tmp/proj/proj.sase",
+        workflow_dir_name="ace-run",
+        artifact_dir=path,
+        timestamp="20260812120000",
+        agent_meta=AgentMetaWire(
+            name=Path(path).name,
+            agent_family="lane",
+            agent_family_role="gate",
+            family_shell=FamilyShellWire(
+                kind="gate",
+                id=gate_id,
+                state="pending",
+                gate=FamilyShellGateWire(kind="custom"),
+            ),
+        ),
+    )
+
+
+def _fail(*_args: object, **_kwargs: object) -> None:
+    raise AssertionError("this lookup path must not run")
+
+
+def test_find_gate_shell_by_gate_id_uses_indexed_lookup_when_index_exists(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A healthy index resolves through the Rust binding, never the scan."""
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.write_bytes(b"")
+    monkeypatch.setattr(
+        gate_store, "default_agent_artifact_index_path", lambda: index_path
+    )
+    wire = _gate_wire("/tmp/proj/artifacts/ace-run/20260812120000")
+    calls: list[tuple[Path, str | None, str]] = []
+
+    def fake_lookup(
+        index: Path, project_name: str | None, gate_id: str
+    ) -> AgentArtifactRecordWire:
+        calls.append((index, project_name, gate_id))
+        return wire
+
+    monkeypatch.setattr(gate_store, "_rust_find_gate_shell_by_gate_id", fake_lookup)
+    monkeypatch.setattr(gate_store, "_project_records", _fail)
+
+    record = gate_store.find_gate_shell_by_gate_id("proj", "gate-1")
+    assert record is not None
+    assert record.artifacts_dir == wire.artifact_dir
+    assert calls == [(index_path, "proj", "gate-1")]
+
+
+def test_find_gate_shell_by_gate_id_indexed_miss_is_authoritative(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A clean miss from a healthy index must not fall back to a full scan."""
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.write_bytes(b"")
+    monkeypatch.setattr(
+        gate_store, "default_agent_artifact_index_path", lambda: index_path
+    )
+    monkeypatch.setattr(
+        gate_store, "_rust_find_gate_shell_by_gate_id", lambda *a, **k: None
+    )
+    monkeypatch.setattr(gate_store, "_project_records", _fail)
+
+    assert gate_store.find_gate_shell_by_gate_id("proj", "no-such-gate") is None
+
+
+def test_find_gate_shell_by_gate_id_falls_back_when_index_unusable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A stale binding or corrupt index still resolves via the full scan."""
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.write_bytes(b"")
+    monkeypatch.setattr(
+        gate_store, "default_agent_artifact_index_path", lambda: index_path
+    )
+
+    def broken_lookup(*_args: object, **_kwargs: object) -> None:
+        raise RuntimeError("index corrupt")
+
+    monkeypatch.setattr(gate_store, "_rust_find_gate_shell_by_gate_id", broken_lookup)
+    wire = _gate_wire("/tmp/proj/artifacts/ace-run/20260812120000")
+    monkeypatch.setattr(gate_store, "_project_records", lambda project_name: [wire])
+
+    record = gate_store.find_gate_shell_by_gate_id("proj", "gate-1")
+    assert record is not None
+    assert record.artifacts_dir == wire.artifact_dir
+
+
+def test_find_gate_shell_by_gate_id_skips_indexed_lookup_when_index_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A never-built index skips straight to the full scan, matching the
+    prior full-history behavior for this rare, one-time-per-host case."""
+    monkeypatch.setattr(
+        gate_store,
+        "default_agent_artifact_index_path",
+        lambda: tmp_path / "agent_artifact_index.sqlite",
+    )
+    monkeypatch.setattr(gate_store, "_rust_find_gate_shell_by_gate_id", _fail)
+    monkeypatch.setattr(gate_store, "_project_records", lambda project_name: [])
+
+    assert gate_store.find_gate_shell_by_gate_id("proj", "gate-1") is None

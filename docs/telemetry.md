@@ -306,15 +306,16 @@ loaded keeps the prior result visible while marking the refresh as failed.
 
 ## Metric catalog and integration
 
-The catalog contains 27 counters, gauges, and histograms across five groups: Agent
-Lifecycle, LLM Provider, Axe Orchestrator, Hooks/Mentors/Workflows, and VCS/Workspace.
-Run `sase telemetry list` for the authoritative metric names, kinds, and labels.
+The catalog contains 37 counters, gauges, and histograms across seven groups: Agent
+Lifecycle, LLM Provider, Finalizers, Axe Orchestrator, Hooks/Mentors/Workflows,
+VCS/Workspace, and Gate Shell. Run `sase telemetry list` for the authoritative metric
+names, kinds, and labels.
 
 Instrumentation remains at debugging and health boundaries: agent runner
-setup/finalization, LLM invocation, axe and lumberjack loops, hook and mentor runners,
-VCS operations, active-workspace tracking, and zombie detection. Call sites keep the
-stable `.labels().inc()`, `.observe()`, and `.set()` API regardless of whether recording
-is enabled.
+setup/finalization, LLM invocation, commit finalizers, axe and lumberjack loops, hook
+and mentor runners, VCS operations, active-workspace tracking, zombie detection, and the
+gate-shell exact-id lookup. Call sites keep the stable `.labels().inc()`, `.observe()`,
+and `.set()` API regardless of whether recording is enabled.
 
 ## Migration from the external stack
 

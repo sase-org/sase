@@ -15,6 +15,9 @@ from sase.core.agent_scan_facade import (
     query_agent_artifact_index,
     scan_agent_artifacts,
 )
+from sase.core.agent_scan_facade import (
+    find_gate_shell_by_gate_id as _rust_find_gate_shell_by_gate_id,
+)
 from sase.core.agent_scan_wire import (
     AgentArtifactIndexQueryWire,
     AgentArtifactRecordWire,
@@ -30,10 +33,26 @@ from sase.gate_shell.models import (
     is_gate_shell_member_record,
 )
 from sase.gate_shell.naming import short_gate_shell_id
+from sase.telemetry.metrics import (
+    GATE_SHELL_LOOKUP_DURATION,
+    GATE_SHELL_LOOKUP_FALLBACKS,
+)
 
 #: A bare id reference must be at least this many characters, mirroring
 #: ``sase.monitor.store.MIN_MONITOR_REF_LENGTH``.
 MIN_GATE_SHELL_REF_LENGTH = 3
+
+#: Errors that mean the indexed lookup itself could not run (missing or
+#: stale binding, corrupt index, bad on-disk state) rather than an
+#: authoritative "no such gate". Mirrors
+#: ``sase.core.agent_artifact_index_lifecycle_common._INDEX_ERRORS``.
+_INDEX_ERRORS = (
+    ImportError,
+    AttributeError,
+    OSError,
+    RuntimeError,
+    ValueError,
+)
 
 
 def read_gate_shell_marker(
@@ -127,12 +146,39 @@ def find_gate_shell_by_gate_id(
     A ``None`` project searches every project's artifact index, the same
     unscoped lookup :func:`list_gate_shells` already performs for the
     reclaim chop.
+
+    Resolves through the indexed ``gate_shell_id`` column exposed by the
+    Rust binding: an O(1) SQL point lookup instead of decoding every
+    historical record, which is what made the previous full-history scan
+    take seconds on a long-lived host. A clean miss from a healthy index is
+    authoritative and returned immediately; the full-history scan below
+    only runs when the indexed lookup itself could not run (a stale
+    binding, or an index that is missing, corrupt, or mid-migration), so a
+    temporarily unavailable index never silently reports a gate as absent.
     """
+    index_path = default_agent_artifact_index_path()
+    if index_path.is_file():
+        started_at = time.monotonic()
+        try:
+            wire = _rust_find_gate_shell_by_gate_id(index_path, project_name, gate_id)
+        except _INDEX_ERRORS:
+            pass
+        else:
+            GATE_SHELL_LOOKUP_DURATION.labels(path="indexed").observe(
+                time.monotonic() - started_at
+            )
+            return _gate_record_from_wire(wire) if wire is not None else None
+
+    GATE_SHELL_LOOKUP_FALLBACKS.inc()
+    started_at = time.monotonic()
     matches = [
         record
         for record in list_gate_shells(project=project_name)
         if record.gate_id == gate_id
     ]
+    GATE_SHELL_LOOKUP_DURATION.labels(path="fallback").observe(
+        time.monotonic() - started_at
+    )
     return matches[0] if matches else None
 
 

@@ -72,6 +72,12 @@ FINALIZER_SUBMISSIONS: StubCounter = StubCounter()
 FINALIZER_SHARED_CLONE: StubCounter = StubCounter()
 FINALIZER_DEFERRALS: StubCounter = StubCounter()
 
+# ---------------------------------------------------------------------------
+# Gate Shell
+# ---------------------------------------------------------------------------
+GATE_SHELL_LOOKUP_DURATION: StubHistogram = StubHistogram()
+GATE_SHELL_LOOKUP_FALLBACKS: StubCounter = StubCounter()
+
 
 # ---------------------------------------------------------------------------
 # Metric definitions used by _registry.init_telemetry() to create real
@@ -363,6 +369,23 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "sase_finalizer_deferrals_total",
         "Total commit finalizer deferral decisions by typed reason and outcome",
         ["reason", "outcome"],
+        {},
+    ),
+    (
+        "GATE_SHELL_LOOKUP_DURATION",
+        "histogram",
+        "sase_gate_shell_lookup_duration_seconds",
+        "find_gate_shell_by_gate_id lookup duration, by resolution path",
+        ["path"],
+        {"buckets": [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5]},
+    ),
+    (
+        "GATE_SHELL_LOOKUP_FALLBACKS",
+        "counter",
+        "sase_gate_shell_lookup_fallbacks_total",
+        "Gate-shell lookups that fell back to the full-history scan because "
+        "the indexed lookup itself could not run",
+        [],
         {},
     ),
 ]
