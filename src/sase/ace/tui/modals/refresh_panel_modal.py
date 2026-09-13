@@ -24,7 +24,8 @@ from .models_panel_usage_state import load_usage_view_snapshot
 type RefreshChoice = Literal["this_tab", "full_history", "usage", "everything"]
 
 _CHECKING_CHIP = "checking…"
-_ROW_WIDTH = 68
+# 72-cell container minus double border and horizontal padding.
+_ROW_WIDTH = 66
 _FOOTER = "  [dim]r tab · f history · u usage · a all · esc[/]"
 _USAGE_DISABLED_REASON = "subscription usage collection is disabled"
 _USAGE_NO_PROVIDERS_REASON = "No eligible providers."

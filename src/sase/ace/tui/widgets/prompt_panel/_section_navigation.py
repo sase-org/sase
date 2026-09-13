@@ -77,9 +77,9 @@ _SECTION_LAYOUT_CACHE_MAX_ENTRIES = 8
 _section_height_cache: OrderedDict[tuple[str, int], _SectionLayoutCacheEntry] = (
     OrderedDict()
 )
-_section_strip_cache: OrderedDict[tuple[str, int, str], _SectionLayoutCacheEntry] = (
-    OrderedDict()
-)
+_section_strip_cache: OrderedDict[
+    tuple[str, int, int | None, str], _SectionLayoutCacheEntry
+] = OrderedDict()
 _volatile_visual_key_counter = count()
 
 
@@ -152,7 +152,7 @@ class SectionTrackingVisual(Visual):
         options: RenderOptions,
     ) -> list[Strip]:
         style_token = _textual_style_token(style)
-        strip_key = (self._content_digest, width, style_token)
+        strip_key = (self._content_digest, width, height, style_token)
         cached = _section_strip_cache.get(strip_key)
         if cached is not None and cached.strips is not None:
             _section_strip_cache.move_to_end(strip_key)
@@ -176,7 +176,10 @@ class SectionTrackingVisual(Visual):
         )
         height_key = (self._content_digest, width)
         height_cached = _section_height_cache.get(height_key)
-        if height_cached is None or height_cached.height is None:
+        measured_full_height = height is None or len(strips) < height
+        if measured_full_height and (
+            height_cached is None or height_cached.height is None
+        ):
             _store_layout(
                 _section_height_cache,
                 height_key,
@@ -221,7 +224,7 @@ class SectionTrackingVisual(Visual):
             height_key,
             _SectionLayoutCacheEntry(
                 anchors=cached,
-                height=(existing.height if existing is not None else len(strips)),
+                height=existing.height if existing is not None else None,
             ),
         )
         return cached

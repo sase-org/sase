@@ -1457,20 +1457,50 @@ path visible; when epic context is known, validation failure renders one quiet
 
 ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the
 normal Agents-tab working set: active rows plus recent completed, non-hidden rows.
-Startup, manual refresh (`y`), and active agent search use that path through the
-persistent artifact index when it is available.
+Startup, manual This-tab refresh (`R` then `r`), and active agent search use that path
+through the persistent artifact index when it is available.
 
 If the index is missing or unhealthy, ACE falls back to a bounded source-artifact scan
 for the first paint and shows a repair warning with the reason. That repair state can
-arm a deferred full-history reconcile after input has been quiet, but normal `y`
-refreshes still stay on the visible-inbox path. Use `sase agent index status --json` for
-a lightweight check that does not scan source artifacts, `sase agent index verify` to
-compare the index with source artifacts, and `sase agent index gc` to rebuild the index
-and dismissed projection. Use the Agents-tab leader command `,y` when you want an
-immediate full-history refresh from source artifacts. Normal SQLite deletes never
-reclaim disk space; `sase agent index vacuum` reports freelist pages and dismissed row
-counts, and `-a`/`--apply` compacts the index file with `VACUUM` (dry run by default;
-this never removes or alters a row).
+arm a deferred full-history reconcile after input has been quiet, but normal `R`
+This-tab refreshes still stay on the visible-inbox path. Use
+`sase agent index status --json` for a lightweight check that does not scan source
+artifacts, `sase agent index verify` to compare the index with source artifacts, and
+`sase agent index gc` to rebuild the index and dismissed projection. Use `R` then `f`
+when you want an immediate full-history refresh from source artifacts. Normal SQLite
+deletes never reclaim disk space; `sase agent index vacuum` reports freelist pages and
+dismissed row counts, and `-a`/`--apply` compacts the index file with `VACUUM` (dry run
+by default; this never removes or alters a row).
+
+### Refresh Panel
+
+Press `R` on any tab to open the Refresh panel: a centered single-key chooser that names
+every refresh ACE can perform, shows how fresh each target already is, and runs exactly
+one of them.
+
+| Key | Aliases           | Option        | What it does                                                                |
+| --- | ----------------- | ------------- | --------------------------------------------------------------------------- |
+| `r` | `R`, `Enter`, `1` | This tab      | Reload the current tab's visible surface (Agents inbox, Artifacts, or Axe). |
+| `f` | `2`               | Full history  | Rescan Agents from every source artifact. Works from any tab.               |
+| `u` | `3`               | Usage windows | Re-probe provider subscription limits.                                      |
+| `a` | `4`               | Everything    | Forced sanity sweep plus full history and usage.                            |
+
+`R` is an alias for This tab, so a double-tapped `R R` reproduces the old immediate
+refresh. `j`/`k` (or arrows / `Ctrl+N`/`Ctrl+P`) move the cursor; `Enter` activates the
+highlighted row; `Esc` or `q` cancels.
+
+Each row shows a freshness chip from a real reload in this session (`12s ago`, `2h ago`,
+`just now`). A surface that has not been reloaded yet shows `—`, never a guessed age.
+The header line reports the auto-refresh cadence and the countdown to the next tick.
+
+If usage metrics are disabled or no providers are eligible, the usage row stays visible
+but unavailable: pressing `u` explains why and leaves the panel open so you can pick
+something else.
+
+The default-on `refresh_panel` sunset flag is the escape hatch back to the old gestures.
+Disable it (`sase flag disable refresh_panel`) to restore immediate `R` (current tab)
+and `,y` (Agents full-history) without the chooser. See
+[feature flags](configuration.md#feature_flags).
 
 The dismissed projection that hides agents from the visible inbox is rebuilt from the
 in-memory dismissed set _unioned with every dismissed-bundle summary_. Reviving an agent
@@ -2435,7 +2465,6 @@ modal.
 | `,g`       | Toggle between tribe-split panels and one merged agent panel                                      |
 | `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state      |
-| `,y`       | Refresh the Agents tab from full artifact history                                                 |
 | `,u`       | Mark all loaded unread completed agents as read                                                   |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                             |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))       |
@@ -2981,7 +3010,7 @@ These work on all tabs:
 | `@`                     | Open the stashed-prompt restore picker                                                                                                                   |
 | `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                            |
 | `Q`                     | Open the quit / restart menu                                                                                                                             |
-| `R`                     | Refresh current tab                                                                                                                                      |
+| `R`                     | Open the [Refresh panel](#refresh-panel) (this tab, full history, usage, or everything)                                                                  |
 | `q`                     | Quit                                                                                                                                                     |
 | `?`                     | Show help modal                                                                                                                                          |
 
@@ -7213,7 +7242,8 @@ quick access to xprompt references rather than expanding static templates.
 
 ACE auto-refreshes data at a configurable interval (default: 10 seconds). The remaining
 time until the next refresh is shown in the info panel. Set `--refresh-interval 0` to
-disable.
+disable. Press `R` to open the [Refresh panel](#refresh-panel) and choose a manual
+refresh without waiting for the next tick.
 
 Tab switches are instant: cached data is shown immediately while a background refresh
 runs asynchronously, so moving between tabs never blocks on disk I/O.

@@ -192,7 +192,8 @@ async def test_config_center_procs_tab_filtered_png_snapshot(
                     for index in range(option_list.option_count)
                 )
                 and "shown" in pane._title_text().plain
-            )
+            ),
+            timeout=15.0,
         )
         title = pane._title_text().plain
         assert all(

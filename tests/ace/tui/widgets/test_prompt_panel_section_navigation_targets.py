@@ -36,6 +36,7 @@ from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     SectionTrackingVisual,
 )
 from tests.ace.tui.widgets._prompt_panel_section_navigation_helpers import (
+    _ConsoleVisual,
     fold_anchor_section,
     render_panel,
     rendered_section_ids,
@@ -251,6 +252,46 @@ def test_section_tracking_visual_uses_supplied_generation_digest(monkeypatch) ->
     )
 
     assert tracker._content_digest == digest  # noqa: SLF001
+
+
+def _strip_plain(strips: list[Strip]) -> str:
+    return "".join(segment.text for strip in strips for segment in strip)
+
+
+def test_section_tracking_visual_does_not_reuse_cropped_strips_for_taller_paint() -> (
+    None
+):
+    panel = AgentPromptPanel()
+    panel._section_generation = 1  # noqa: SLF001
+    renderable = Group(
+        Text("alpha-cache\n"), Text("bravo-cache\n"), Text("charlie-cache\n")
+    )
+    tracker = SectionTrackingVisual(_ConsoleVisual(renderable), panel, 1)
+    paint = RenderOptions(get_style=lambda _style: Style(), rules={})
+
+    cropped = tracker.render_strips(40, 1, Style(), paint)
+    full = tracker.render_strips(40, None, Style(), paint)
+
+    assert "alpha-cache" in _strip_plain(cropped)
+    assert "bravo-cache" not in _strip_plain(cropped)
+    assert "bravo-cache" in _strip_plain(full)
+    assert "charlie-cache" in _strip_plain(full)
+    assert len(full) > len(cropped)
+
+
+def test_constrained_strip_paint_does_not_poison_measured_height() -> None:
+    panel = AgentPromptPanel()
+    panel._section_generation = 1  # noqa: SLF001
+    renderable = Group(
+        Text("alpha-height\n"), Text("bravo-height\n"), Text("charlie-height\n")
+    )
+    tracker = SectionTrackingVisual(_ConsoleVisual(renderable), panel, 1)
+    paint = RenderOptions(get_style=lambda _style: Style(), rules={})
+
+    cropped = tracker.render_strips(40, 1, Style(), paint)
+
+    assert len(cropped) == 1
+    assert tracker.get_height({}, 40) > 1
 
 
 def test_section_tracking_visual_delegates_non_rich_height_without_anchor_collection(
