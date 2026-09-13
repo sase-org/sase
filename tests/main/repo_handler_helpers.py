@@ -11,11 +11,11 @@ from sase.repo_inventory import RepoCloneRecord, RepoRecord
 from sase.workspace_provider.store import WorkspaceStore
 
 
-def project_context(tmp_path: Path) -> ProjectContext:
+def project_context(tmp_path: Path, *, project_name: str = "demo") -> ProjectContext:
     primary = tmp_path / "demo"
     primary.mkdir(exist_ok=True)
     return ProjectContext(
-        project_name="demo",
+        project_name=project_name,
         project_file=str(tmp_path / "demo.sase"),
         primary_workspace_dir=str(primary),
         store=WorkspaceStore(str(primary)),
@@ -30,14 +30,16 @@ def repo_record(
     slug: str | None = None,
     clones: tuple[RepoCloneRecord, ...] = (),
     remote_url: str | None = None,
+    project: str = "demo",
+    project_key: str | None = None,
 ) -> RepoRecord:
     path = tmp_path / f"{kind}-{name}"
     path.mkdir(parents=True, exist_ok=True)
     return RepoRecord(
         name=name,
         kind=kind,  # type: ignore[arg-type]
-        project="demo",
-        project_key="demo",
+        project=project,
+        project_key=project if project_key is None else project_key,
         path=str(path),
         exists=True,
         auto_clone=False,

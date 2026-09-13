@@ -24,6 +24,7 @@ from sase.external_repos import (
     parse_external_repo_ref,
 )
 from sase.linked_repos import external_repo_clone_dir, record_opened_external_repo
+from sase.main.repo_handler_common import record_belongs_to_host_project
 from sase.main.workspace_handler_context import ProjectContext
 from sase.repo_inventory import RepoInventory
 from sase.workspace_provider import clone_external_repo, get_external_repo_schemes
@@ -234,7 +235,8 @@ def _unknown_repo_error(
         {
             candidate
             for record in inventory.records
-            if record.project == host_ctx.project_name and record.kind != "external"
+            if record_belongs_to_host_project(record, host_ctx)
+            and record.kind != "external"
             for candidate in (record.name, record.slug)
             if candidate is not None
         }

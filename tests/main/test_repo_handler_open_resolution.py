@@ -10,7 +10,7 @@ import pytest
 from sase.main.parser import create_parser
 from sase.main.repo_handler import RepoOpenResolutionError, _match_repo_record
 from sase.main.repo_open_external import ExternalRepoOpenError, open_external_repo
-from sase.repo_inventory import RepoInventory
+from sase.repo_inventory import RepoCloneRecord, RepoInventory
 from tests.main.repo_handler_helpers import (
     project_context,
     repo_record,
@@ -85,6 +85,29 @@ def test_repo_name_resolution_accepts_sidecar_slug(tmp_path: Path) -> None:
     assert resolved is sidecar
 
 
+def test_repo_name_resolution_accepts_display_named_sidecar_with_canonical_host(
+    tmp_path: Path,
+) -> None:
+    host_ctx = project_context(tmp_path, project_name="gh_sase-org__sase")
+    sidecar = repo_record(
+        tmp_path,
+        name="beads",
+        slug="sase--beads",
+        kind="sidecar",
+        project="sase",
+        project_key="gh_sase-org__sase",
+    )
+    inventory = RepoInventory((sidecar,))
+
+    assert (
+        _match_repo_record("beads", host_ctx=host_ctx, inventory=inventory) is sidecar
+    )
+    assert (
+        _match_repo_record("sase--beads", host_ctx=host_ctx, inventory=inventory)
+        is sidecar
+    )
+
+
 def test_repo_name_resolution_raises_ambiguous_error_with_selectable_paths(
     tmp_path: Path,
 ) -> None:
@@ -152,6 +175,42 @@ def test_repo_name_resolution_matches_github_alias_from_linked_origin(
     )
 
 
+def test_repo_name_resolution_matches_display_named_linked_origin(
+    tmp_path: Path,
+) -> None:
+    host_ctx = project_context(tmp_path, project_name="gh_sase-org__sase")
+    primary = repo_record(
+        tmp_path,
+        name="sase",
+        kind="primary",
+        project="sase",
+        project_key="gh_sase-org__sase",
+        clones=(RepoCloneRecord(10, host_ctx.primary_workspace_dir, True),),
+    )
+    linked = repo_record(
+        tmp_path,
+        name="sase-core",
+        kind="linked",
+        project="sase",
+        project_key="gh_sase-org__sase",
+        clones=(RepoCloneRecord(10, str(tmp_path / "linked-sase-core"), True),),
+    )
+    Path(linked.clones[0].path).mkdir(parents=True, exist_ok=True)
+    set_git_origin(Path(linked.clones[0].path), "git@github.com:sase-org/sase-core.git")
+
+    inventory = RepoInventory((primary, linked))
+
+    assert (
+        _match_repo_record(
+            "gh:SASE-Org/SASE-Core",
+            host_ctx=host_ctx,
+            inventory=inventory,
+            workspace_num=10,
+        )
+        is linked
+    )
+
+
 def test_repo_name_resolution_does_not_match_basename_only(
     tmp_path: Path,
 ) -> None:
@@ -196,6 +255,58 @@ def test_unknown_repo_lists_valid_candidates(
         )
 
     assert "Valid repos: core, demo" in str(exc_info.value)
+    assert "gh:owner/repo" in str(exc_info.value)
+
+
+def test_unknown_repo_lists_display_named_project_candidates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    host_ctx = project_context(tmp_path, project_name="gh_sase-org__sase")
+    inventory = RepoInventory(
+        (
+            repo_record(
+                tmp_path,
+                name="sase",
+                kind="primary",
+                project="sase",
+                project_key="gh_sase-org__sase",
+            ),
+            repo_record(
+                tmp_path,
+                name="beads",
+                slug="sase--beads",
+                kind="sidecar",
+                project="sase",
+                project_key="gh_sase-org__sase",
+            ),
+            repo_record(
+                tmp_path,
+                name="core",
+                kind="linked",
+                project="sase",
+                project_key="gh_sase-org__sase",
+            ),
+        )
+    )
+
+    monkeypatch.setattr(
+        "sase.main.repo_open_external.list_project_records",
+        lambda *_args, **_kwargs: [],
+    )
+    with pytest.raises(ExternalRepoOpenError) as exc_info:
+        open_external_repo(
+            "missing",
+            host_ctx=host_ctx,
+            workspace_num=0,
+            inventory=inventory,
+            reason="test",
+            resolve_checkout=lambda *_args, **_kwargs: host_ctx.primary_workspace_dir,
+        )
+
+    assert "Valid repos: beads, core, gh_sase-org__sase, sase, sase--beads" in str(
+        exc_info.value
+    )
     assert "gh:owner/repo" in str(exc_info.value)
 
 

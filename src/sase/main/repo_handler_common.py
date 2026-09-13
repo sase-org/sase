@@ -35,6 +35,15 @@ _CONFIGURED_REPO_KINDS = {"primary", "sidecar", "linked"}
 _GIT_PROBE_TIMEOUT_SECONDS = 2.0
 
 
+def record_belongs_to_host_project(
+    record: RepoRecord,
+    host_ctx: ProjectContext,
+) -> bool:
+    """Match host-project records by canonical key or display name."""
+
+    return host_ctx.project_name in {record.project, record.project_key}
+
+
 def clone_for_workspace(record: RepoRecord, workspace_num: int) -> RepoCloneRecord:
     clone = record.clone_for_workspace(workspace_num)
     if clone is not None:
@@ -111,7 +120,7 @@ def match_repo_record(
     configured = [
         record
         for record in inventory.records
-        if record.project == host_ctx.project_name
+        if record_belongs_to_host_project(record, host_ctx)
         and record.kind in _CONFIGURED_REPO_KINDS
     ]
 
@@ -388,7 +397,8 @@ def _host_checkout_path(
         (
             record
             for record in inventory.records
-            if record.project == host_ctx.project_name and record.kind == "primary"
+            if record_belongs_to_host_project(record, host_ctx)
+            and record.kind == "primary"
         ),
         None,
     )
