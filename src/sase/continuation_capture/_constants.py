@@ -7,5 +7,6 @@ PREPARED_PROMPT_FILENAME = "prepared_prompt.json"
 WORKSPACE_FACTS_FILENAME = "workspace_facts.json"
 MANIFEST_FILENAME = "manifest.json"
 CAPTURE_ERRORS_FILENAME = "capture_errors.jsonl"
+PORTABLE_LOCATORS_FILENAME = "portable_locators.json"
 
 _MAX_SEGMENTS = 512

@@ -23,6 +23,8 @@ from ._constants import (
 )
 from ._storage import (
     PublicationTransaction,
+    RequiredPortableCaptureError,
+    attach_portable_locator,
     continuation_root,
     iter_string_list,
     local_ref,
@@ -215,17 +217,41 @@ def persist_agent_delta(
         agent_delta_ref=delta_ref,
         workspace_ref=workspace_ref,
     )
-    update_agent_meta_fields(
-        artifacts_dir,
-        {
-            "continuation_node_id": result.node_id,
-            "continuation_manifest_ref": result.manifest_ref,
-            "continuation_manifest_path": result.manifest_path,
-            "continuation_agent_delta_ref": result.agent_delta_ref,
-            "continuation_node_ref": result.node_ref,
-            "continuation_status": status,
-        },
-    )
+    fields: dict[str, Any] = {
+        "continuation_node_id": result.node_id,
+        "continuation_manifest_ref": result.manifest_ref,
+        "continuation_manifest_path": result.manifest_path,
+        "continuation_agent_delta_ref": result.agent_delta_ref,
+        "continuation_node_ref": result.node_ref,
+        "continuation_status": status,
+    }
+    try:
+        delta_portable = attach_portable_locator(
+            artifacts_dir,
+            delta_ref,
+            root / "records" / "agent_delta" / delta_filename,
+            label="agent-delta",
+            required=True,
+        )
+        node_portable = attach_portable_locator(
+            artifacts_dir,
+            node_ref,
+            root / "nodes" / delta_filename,
+            label="agent-delta-node",
+            required=True,
+        )
+        if delta_portable:
+            fields["continuation_portable_content_ref"] = delta_portable
+        if node_portable:
+            fields["continuation_node_portable_ref"] = node_portable
+    except RequiredPortableCaptureError:
+        update_agent_meta_fields(artifacts_dir, fields)
+        if not allow_missing_validation:
+            raise
+        state.continuation_node_id = result.node_id
+        state.continuation_manifest_ref = result.manifest_ref
+        return result
+    update_agent_meta_fields(artifacts_dir, fields)
     state.continuation_node_id = result.node_id
     state.continuation_manifest_ref = result.manifest_ref
     return result

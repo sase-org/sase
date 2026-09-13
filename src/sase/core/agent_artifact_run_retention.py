@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import stat
+from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
@@ -41,6 +42,12 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
+from sase.core.continuation_retention import (
+    continuation_protected_dirs,
+    continuation_reasons_by_dir,
+    continuation_unavailable_sources,
+    plan_continuation_run_retention,
+)
 from sase.core.paths import is_valid_sase_project_name
 
 
@@ -71,9 +78,8 @@ def plan_ace_run_retention(
     selected_all: list[AceRunRetentionItem] = []
     protected: list[ProtectedAceRunItem] = []
     unavailable = set(protection_snapshot.sources_unavailable)
-
-    for project in project_names:
-        artifact_dirs = tuple(
+    project_dirs = {
+        project: tuple(
             iter_agent_artifact_dirs(
                 project,
                 ACE_RUN_WORKFLOW_DIR,
@@ -81,6 +87,21 @@ def plan_ace_run_retention(
                 newest_first=False,
             )
         )
+        for project in project_names
+    }
+    all_dirs = tuple(
+        artifact_dir
+        for artifact_dirs in project_dirs.values()
+        for artifact_dir in artifact_dirs
+    )
+    continuation_plan = plan_continuation_run_retention(
+        all_dirs, projects_root=projects_root
+    )
+    continuation_reasons = continuation_reasons_by_dir(continuation_plan)
+    unavailable.update(continuation_unavailable_sources(continuation_plan))
+
+    for project in project_names:
+        artifact_dirs = project_dirs[project]
         records, scan_error = _scan_records(projects_root, artifact_dirs)
         if scan_error is not None:
             unavailable.add(scan_error)
@@ -98,6 +119,9 @@ def plan_ace_run_retention(
                 recent_months=recent_months,
                 current_timestamp=current_timestamp,
                 scan_unavailable=scan_error is not None,
+                continuation_reasons=continuation_reasons.get(
+                    _normalized_path(artifact_dir), ()
+                ),
             )
             if reasons:
                 protected.append(
@@ -161,11 +185,28 @@ def apply_ace_run_retention(
     skipped: list[str] = []
     errors: list[str] = []
     bytes_reclaimed = 0
+    projects_root = plan.policy.normalized_projects_root()
+    live_dirs = continuation_protected_dirs(
+        [
+            artifact_dir
+            for project in _project_names(projects_root, plan.policy.project)
+            for artifact_dir in iter_agent_artifact_dirs(
+                project,
+                ACE_RUN_WORKFLOW_DIR,
+                projects_root=projects_root,
+                newest_first=False,
+            )
+        ],
+        projects_root=projects_root,
+    )
 
     for item in plan.selected:
         path = Path(item.artifact_dir).expanduser()
         if _has_active_marker(path):
             skipped.append(f"{path}: active marker appeared before apply")
+            continue
+        if _normalized_path(path) in live_dirs:
+            skipped.append(f"{path}: continuation ancestry appeared before apply")
             continue
         size_bytes = item.size_bytes or _tree_size(path)
         removed, message = _remove_run_dir(path)
@@ -180,7 +221,6 @@ def apply_ace_run_retention(
         if removed_dirs
         else 0
     )
-    projects_root = plan.policy.normalized_projects_root()
     empty_shards = _empty_out_of_range_shards(
         _project_names(projects_root, plan.policy.project),
         projects_root=projects_root,
@@ -250,9 +290,12 @@ def _protection_reasons(
     recent_months: frozenset[str],
     current_timestamp: str,
     scan_unavailable: bool,
+    continuation_reasons: Sequence[str] = (),
 ) -> list[str]:
     reasons: list[str] = []
     normalized_dir = _normalized_path(artifact_dir)
+    if continuation_reasons:
+        reasons.extend(continuation_reasons)
     if normalized_dir in protections.protected_dirs:
         reasons.append("referenced_dir")
     if timestamp in protections.protected_timestamps:

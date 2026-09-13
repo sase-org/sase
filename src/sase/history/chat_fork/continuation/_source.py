@@ -9,13 +9,14 @@ from pathlib import Path
 
 from sase.core.continuation_wire import ContinuationNodeWire
 
-from ..common import json_string
+from ..common import json_string, load_json_object
 from ._load import (
     delayed_starter_parent_ids,
     iter_captured_nodes,
     load_agent_meta,
     load_captured_node_content,
 )
+from ._refs import read_json_ref
 from ._util import (
     BlockContent,
     ContinuationSourceError,
@@ -51,6 +52,7 @@ class ContinuationNodeIndex:
         starter = json_string(meta, "monitor_starter_artifacts_dir")
         if starter:
             self.observe_dir(Path(starter))
+        self._index_portable_parents(resolved, meta)
 
     def observe_siblings(self, artifact_dir: Path | None) -> None:
         if artifact_dir is None:
@@ -106,6 +108,76 @@ class ContinuationNodeIndex:
                     "conflict",
                     f"conflicting continuation node {node_id}",
                 )
+            self._by_id[node_id] = _HydratedNode(
+                node=node,
+                content=content,
+                artifact_dir=artifact_dir,
+            )
+
+    def _index_portable_parents(
+        self,
+        artifact_dir: Path,
+        meta: Mapping[str, object],
+    ) -> None:
+        refs: dict[str, str] = {}
+        parent_map = meta.get("continuation_parent_portable_refs")
+        if isinstance(parent_map, Mapping):
+            for key, value in parent_map.items():
+                if isinstance(key, str) and isinstance(value, str) and value:
+                    refs[key] = value
+        locators = load_json_object(
+            artifact_dir / "continuation" / "portable_locators.json"
+        )
+        locator_map = locators.get("locators")
+        if isinstance(locator_map, Mapping):
+            for key, value in locator_map.items():
+                if (
+                    isinstance(key, str)
+                    and isinstance(value, str)
+                    and value.startswith("file:")
+                    and not key.startswith("local:")
+                ):
+                    refs.setdefault(key, value)
+        for node_id, ref in refs.items():
+            if node_id in self._by_id:
+                continue
+            try:
+                payload = read_json_ref(artifact_dir, ref)
+            except ContinuationSourceError as exc:
+                self.omissions.append(
+                    {
+                        "kind": exc.kind,
+                        "node_id": node_id,
+                        "parent_id": None,
+                        "reason": str(exc),
+                    }
+                )
+                continue
+            if payload.get("node_id") != node_id and payload.get("kind") is None:
+                continue
+            hydrated_node = dict(payload)
+            if "node_id" not in hydrated_node:
+                hydrated_node["node_id"] = node_id
+            try:
+                loaded = load_captured_node_content(
+                    artifact_dir,
+                    hydrated_node,
+                    label=f"portable `{node_id}`",
+                    meta=meta,
+                )
+            except ContinuationSourceError as exc:
+                self.omissions.append(
+                    {
+                        "kind": exc.kind,
+                        "node_id": node_id,
+                        "parent_id": None,
+                        "reason": str(exc),
+                    }
+                )
+                continue
+            if loaded is None:
+                continue
+            node, content = loaded
             self._by_id[node_id] = _HydratedNode(
                 node=node,
                 content=content,

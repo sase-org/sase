@@ -16,6 +16,7 @@ from sase.core.continuation_facade import (
     new_continuation_delivery_record,
     plan_continuation_budget,
     plan_continuation_replay,
+    plan_continuation_retention,
     preview_conditional_completion,
     resolve_continuation_policy,
     rollback_conditional_completion_binding,
@@ -289,6 +290,42 @@ def test_replay_planning_is_parent_first_and_reports_shared_ancestry() -> None:
         entry["node_id"] == "base" and entry["reused"] is True
         for entry in plan["branch_attribution"]
     )
+
+
+def test_retention_planning_protects_live_ancestry_only() -> None:
+    plan = plan_continuation_retention(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "runs": [
+                {
+                    "artifact_dir": "/tmp/old",
+                    "timestamp": "20260501000000",
+                    "node_id": "agent-delta:old",
+                    "live": False,
+                    "recoverable": False,
+                },
+                {
+                    "artifact_dir": "/tmp/live",
+                    "timestamp": "20260901000000",
+                    "parent_node_ids": ["agent-delta:old"],
+                    "starter_artifact_dir": "/tmp/old",
+                    "live": True,
+                    "recoverable": False,
+                },
+                {
+                    "artifact_dir": "/tmp/unrelated",
+                    "timestamp": "20260401000000",
+                    "live": False,
+                    "recoverable": False,
+                },
+            ],
+        }
+    )
+
+    assert "/tmp/old" in plan["protected_dirs"]
+    assert "/tmp/live" in plan["protected_dirs"]
+    assert "/tmp/unrelated" not in plan["protected_dirs"]
+    assert plan["reasons_by_dir"]["/tmp/old"] == ["continuation_ancestry"]
 
 
 def test_replay_rejects_conflicting_duplicates_and_cycles() -> None:

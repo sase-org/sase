@@ -18,17 +18,39 @@ def continuation_ref_path(artifact_dir: Path, ref: str) -> Path | None:
 
     if not ref:
         return None
-    if ref.startswith(_LOCAL_PREFIX):
-        root = (artifact_dir / "continuation").resolve(strict=False)
-        path = (root / ref.removeprefix(_LOCAL_PREFIX)).resolve(strict=False)
-        try:
-            path.relative_to(root)
-        except ValueError:
-            return None
-        return path
     if ref.startswith(_FILE_PREFIX):
         return _portable_file_ref_path(ref)
+    if ref.startswith(_LOCAL_PREFIX):
+        root = (artifact_dir / "continuation").resolve(strict=False)
+        candidate = (root / ref.removeprefix(_LOCAL_PREFIX)).resolve(strict=False)
+        local_path: Path | None
+        try:
+            candidate.relative_to(root)
+        except ValueError:
+            local_path = None
+        else:
+            local_path = candidate
+        if local_path is not None and local_path.is_file():
+            return local_path
+        portable = _lookup_portable_ref(artifact_dir, ref)
+        if portable and portable != ref:
+            return continuation_ref_path(artifact_dir, portable)
+        return local_path
+    portable = _lookup_portable_ref(artifact_dir, ref)
+    if portable and portable != ref:
+        return continuation_ref_path(artifact_dir, portable)
     return None
+
+
+def _lookup_portable_ref(artifact_dir: Path, ref: str) -> str | None:
+    try:
+        from sase.continuation_capture._storage import lookup_portable_locator
+    except Exception:
+        return None
+    try:
+        return lookup_portable_locator(artifact_dir, ref)
+    except Exception:
+        return None
 
 
 def read_json_ref(

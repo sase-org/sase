@@ -16,7 +16,13 @@ import uuid
 
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 
-from ._constants import CAPTURE_ERRORS_FILENAME, CONTINUATION_DIRNAME
+from sase.core.continuation_retention import CONTINUATION_PORTABLE_LABEL_PREFIX
+
+from ._constants import (
+    CAPTURE_ERRORS_FILENAME,
+    CONTINUATION_DIRNAME,
+    PORTABLE_LOCATORS_FILENAME,
+)
 
 _ID_SAFE_RE = re.compile(r"[^A-Za-z0-9_.:-]+")
 JOURNAL_FILENAME = ".publication_journal.json"
@@ -257,26 +263,123 @@ class PublicationTransaction:
             raise
 
 
-def register_portable_capture_file(
+class RequiredPortableCaptureError(RuntimeError):
+    """Essential continuation content could not be registered portably."""
+
+
+def _register_portable_capture_file(
     path: Path,
     artifacts_dir: str | os.PathLike[str],
     *,
     label: str,
+    required: bool = False,
+    artifact_files_root: Path | str | None = None,
+    index_path: Path | str | None = None,
 ) -> str | None:
-    """Best-effort explicit artifact snapshot for retention protection."""
+    """Register immutable continuation content through the artifact file API.
 
+    Optional debug capture swallows registration failures. Required essential
+    content raises :class:`RequiredPortableCaptureError` so callers cannot
+    report a successful portable retain.
+    """
+
+    portable_label = (
+        label
+        if label.startswith(CONTINUATION_PORTABLE_LABEL_PREFIX)
+        else f"{CONTINUATION_PORTABLE_LABEL_PREFIX}{label}"
+    )
     try:
         from sase.core.artifact_file_facade import store_explicit_artifact_file
 
         artifact = store_explicit_artifact_file(
             path,
             str(artifacts_dir),
-            label=label,
+            label=portable_label,
             kind="file",
+            artifact_files_root=artifact_files_root,
+            index_path=index_path,
         )
-    except Exception:
+    except Exception as exc:
+        if required:
+            raise RequiredPortableCaptureError(
+                f"required portable capture failed for {path}: {exc}"
+            ) from exc
         return None
     return f"file:{artifact.id}"
+
+
+def attach_portable_locator(
+    artifacts_dir: str | os.PathLike[str],
+    local_ref: str,
+    path: Path,
+    *,
+    label: str,
+    required: bool = False,
+) -> str | None:
+    """Register *path* and record the portable locator for *local_ref*."""
+
+    portable = _register_portable_capture_file(
+        path,
+        artifacts_dir,
+        label=label,
+        required=required,
+    )
+    if portable:
+        _record_portable_locator(artifacts_dir, local_ref, portable)
+    return portable
+
+
+def _record_portable_locator(
+    artifacts_dir: str | os.PathLike[str],
+    local_ref: str,
+    portable_ref: str,
+) -> None:
+    """Persist the canonical portable locator for one local continuation ref."""
+
+    if not local_ref or not portable_ref:
+        return
+    root = continuation_root(artifacts_dir)
+    path = root / PORTABLE_LOCATORS_FILENAME
+    payload = read_json_object(path)
+    locators = payload.get("locators")
+    if not isinstance(locators, dict):
+        locators = {}
+    locators[local_ref] = portable_ref
+    write_json_atomic(
+        path,
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "locators": locators,
+            "recorded_at_epoch": time.time(),
+        },
+    )
+
+
+def lookup_portable_locator(
+    artifacts_dir: str | os.PathLike[str] | None,
+    ref: str,
+) -> str | None:
+    """Return the recorded portable locator for *ref*, if any."""
+
+    if not artifacts_dir or not ref:
+        return None
+    if ref.startswith("file:"):
+        return ref
+    payload = read_json_object(
+        continuation_root(artifacts_dir) / PORTABLE_LOCATORS_FILENAME
+    )
+    locators = payload.get("locators")
+    if isinstance(locators, Mapping):
+        stored = locators.get(ref)
+        if isinstance(stored, str) and stored.startswith("file:"):
+            return stored
+    meta = read_json_object(Path(artifacts_dir) / "agent_meta.json")
+    parent_map = meta.get("continuation_parent_portable_refs")
+    if isinstance(parent_map, Mapping):
+        stored = parent_map.get(ref)
+        if isinstance(stored, str) and stored.startswith("file:"):
+            return stored
+    return None
 
 
 def _json_bytes(payload: Mapping[str, Any]) -> bytes:

@@ -13,16 +13,18 @@ from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 
 from ._storage import (
     PublicationTransaction,
+    attach_portable_locator,
     continuation_root,
     json_safe,
+    local_ref,
     recover_publication_journal,
-    register_portable_capture_file,
     required_text,
     safe_identifier,
     sha_json,
     unique_identifiers,
     unique_refs,
     record_capture_error,
+    update_agent_meta_fields,
 )
 from .rollout import monitor_continuation_records_enabled
 
@@ -217,6 +219,7 @@ def persist_authored_checkpoint(
                 "recorded_at_epoch": time.time(),
             },
         )
+    node_id: str | None = None
     if owner:
         node_id = f"checkpoint:{safe_identifier(checkpoint.digest[:16])}"
         txn.write_record(
@@ -234,11 +237,29 @@ def persist_authored_checkpoint(
             },
         )
     txn.commit()
-    register_portable_capture_file(
-        root / "checkpoints" / filename,
+    portable = attach_portable_locator(
         artifacts_dir,
-        label="authored continuation checkpoint",
+        ref,
+        root / "checkpoints" / filename,
+        label="authored-checkpoint",
+        required=True,
     )
+    fields: dict[str, Any] = {}
+    if portable:
+        fields["continuation_checkpoint_portable_ref"] = portable
+    if node_id is not None:
+        node_path = root / "nodes" / f"{node_id}.json"
+        node_portable = attach_portable_locator(
+            artifacts_dir,
+            local_ref("nodes", f"{node_id}.json"),
+            node_path,
+            label="checkpoint-node",
+            required=True,
+        )
+        if node_portable:
+            fields["continuation_node_portable_ref"] = node_portable
+    if fields:
+        update_agent_meta_fields(artifacts_dir, fields)
     return ref
 
 

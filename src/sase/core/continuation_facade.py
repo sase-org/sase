@@ -138,6 +138,16 @@ def plan_continuation_replay(
     )
 
 
+def plan_continuation_retention(request: JsonMapping) -> JsonObject:
+    """Return the live/recoverable continuation ancestry retention closure."""
+
+    binding = require_rust_binding("continuation_plan_retention")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_plan_retention",
+    )
+
+
 def select_continuation_evidence(
     request: ContinuationEvidenceSelectionRequestWire | JsonMapping,
 ) -> JsonObject:
@@ -311,6 +321,7 @@ __all__ = [
     "new_continuation_delivery_record",
     "plan_continuation_budget",
     "plan_continuation_replay",
+    "plan_continuation_retention",
     "preview_conditional_completion",
     "resolve_continuation_policy",
     "rollback_conditional_completion_binding",

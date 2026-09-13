@@ -101,6 +101,7 @@ class ContinuationNodeWire(TypedDict):
     content_ref: str
     content_sha256: str
     parent_ids: NotRequired[list[str]]
+    portable_content_ref: NotRequired[str | None]
     checkpoint_ref: NotRequired[str | None]
     intent_ref: NotRequired[str | None]
     workspace_ref: NotRequired[str | None]

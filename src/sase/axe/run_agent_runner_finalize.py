@@ -169,6 +169,7 @@ def _completion_explicit_artifact_paths(
 
     try:
         from sase.core.artifact_file_facade import list_explicit_artifact_files
+        from sase.core.continuation_retention import CONTINUATION_PORTABLE_LABEL_PREFIX
 
         artifacts = list_explicit_artifact_files(current_artifacts_dir)
     except Exception:
@@ -179,6 +180,9 @@ def _completion_explicit_artifact_paths(
     }
     paths: list[str] = []
     for artifact in artifacts:
+        label = str(getattr(artifact, "label", "") or "")
+        if label.startswith(CONTINUATION_PORTABLE_LABEL_PREFIX):
+            continue
         source_path = getattr(artifact, "source_path", None)
         if source_path:
             try:

@@ -15,6 +15,7 @@ from sase.core.agent_artifact_paths import (
 )
 from sase.core.agent_artifact_run_retention_models import AceRunProtectionSnapshot
 from sase.core.artifact_file_explicit import read_artifact_file_index
+from sase.core.continuation_retention import CONTINUATION_PORTABLE_LABEL_PREFIX
 from sase.core.paths import sase_home, sase_projects_dir
 from sase.repo_inventory import collect_repo_inventory
 
@@ -190,6 +191,8 @@ def _collect_artifact_file_index_dirs(
         scanned.add(str(Path(index_path).expanduser()))
     for row in rows:
         if not row.agent_artifacts_dir:
+            continue
+        if (row.label or "").startswith(CONTINUATION_PORTABLE_LABEL_PREFIX):
             continue
         path = Path(row.agent_artifacts_dir).expanduser()
         parsed = parse_agent_artifact_path(path, projects_root=projects_root)

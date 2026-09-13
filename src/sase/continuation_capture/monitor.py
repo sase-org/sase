@@ -25,6 +25,8 @@ from ._disposition import (
 )
 from ._storage import (
     PublicationTransaction,
+    RequiredPortableCaptureError,
+    attach_portable_locator,
     continuation_root,
     iter_string_list,
     optional_float,
@@ -233,6 +235,22 @@ def persist_monitor_start_intent(
         "continuation_checkpoint_ref": checkpoint_ref,
         "continuation_capture_disposition": CAPTURE_DISPOSITION_OK,
     }
+    try:
+        intent_portable = attach_portable_locator(
+            artifacts_dir,
+            intent_ref,
+            root / "intents" / filename,
+            label="monitor-intent",
+            required=True,
+        )
+        if intent_portable:
+            fields["continuation_intent_portable_ref"] = intent_portable
+    except RequiredPortableCaptureError as exc:
+        fields["continuation_capture_disposition"] = CAPTURE_DISPOSITION_NEEDS_RECOVERY
+        fields["continuation_capture_error"] = str(exc)
+        if not allow_missing_validation:
+            update_agent_meta_fields(artifacts_dir, fields)
+            raise
     if resolved_parent_ids:
         fields["continuation_parent_node_ids"] = list(resolved_parent_ids)
     if starter_artifacts_dir:
@@ -440,6 +458,7 @@ def persist_monitor_result(
     )
     txn.commit()
     manifest_path = root / "monitor_result_manifest.json"
+    node_path = root / "nodes" / f"{node_id}.json"
 
     published = MonitorResultPublishResult(
         result_id=result["result_id"],
@@ -460,6 +479,42 @@ def persist_monitor_result(
         fields["continuation_capture_disposition"] = CAPTURE_DISPOSITION_OK
     if parent_ids:
         fields["continuation_parent_node_ids"] = list(parent_ids)
+    try:
+        result_portable = attach_portable_locator(
+            artifacts_dir,
+            result_ref,
+            Path(result_path),
+            label="monitor-result",
+            required=True,
+        )
+        node_portable = attach_portable_locator(
+            artifacts_dir,
+            node_ref,
+            node_path,
+            label="monitor-result-node",
+            required=True,
+        )
+        if result_portable:
+            fields["continuation_monitor_result_portable_ref"] = result_portable
+        if node_portable:
+            fields["continuation_node_portable_ref"] = node_portable
+        parent_portable = _collect_parent_portable_refs(
+            artifacts_dir,
+            parent_ids,
+            optional_str(meta.get("monitor_starter_artifacts_dir")),
+        )
+        if parent_portable:
+            fields["continuation_parent_portable_refs"] = parent_portable
+    except RequiredPortableCaptureError as exc:
+        fields["continuation_capture_disposition"] = CAPTURE_DISPOSITION_NEEDS_RECOVERY
+        fields["continuation_capture_error"] = str(exc)
+        if isinstance(meta, dict):
+            meta.update(fields)
+        if update_meta:
+            update_agent_meta_fields(artifacts_dir, fields)
+        if not allow_missing_validation:
+            raise
+        return published
     if isinstance(meta, dict):
         meta.update(fields)
     if update_meta:
@@ -559,6 +614,52 @@ def _owner_from_monitor_meta(
     except OSError:
         pass
     return owner
+
+
+def _collect_parent_portable_refs(
+    artifacts_dir: str | os.PathLike[str],
+    parent_ids: Sequence[str],
+    starter_artifacts_dir: str | None,
+) -> dict[str, str]:
+    refs: dict[str, str] = {}
+    search_roots = [Path(artifacts_dir)]
+    if starter_artifacts_dir:
+        starter = Path(starter_artifacts_dir)
+        if starter not in search_roots:
+            search_roots.append(starter)
+    for parent_id in parent_ids:
+        node_path = None
+        for root in search_roots:
+            candidate = root / "continuation" / "nodes" / f"{parent_id}.json"
+            if candidate.is_file():
+                node_path = candidate
+                break
+        if node_path is None:
+            continue
+        portable = attach_portable_locator(
+            artifacts_dir,
+            parent_id,
+            node_path,
+            label="parent-node",
+            required=True,
+        )
+        node_payload = read_json_object(node_path)
+        content_ref = node_payload.get("content_ref")
+        if isinstance(content_ref, str) and content_ref.startswith("local:"):
+            content_path = node_path.parent.parent / content_ref.removeprefix(
+                "local:continuation/"
+            )
+            if content_path.is_file():
+                attach_portable_locator(
+                    artifacts_dir,
+                    content_ref,
+                    content_path,
+                    label="parent-content",
+                    required=True,
+                )
+        if portable:
+            refs[parent_id] = portable
+    return refs
 
 
 def _monitor_command(meta: Mapping[str, Any]) -> object:
