@@ -322,22 +322,20 @@ def test_container_bound_content_drops_partial_logical_plan_reference() -> None:
     assert bounded.notice is not None
 
 
-def test_workspace_resolution_is_memoized_by_inputs(
+def test_workspace_resolution_uses_existing_checkout_without_provider_work(
     tmp_path,
     monkeypatch,
 ) -> None:
-    """Repeated render fragments do not repeat project/workspace disk work."""
-    workspace = tmp_path / "workspace"
+    """Hint rendering infers only already-materialized sibling checkouts."""
+    primary = tmp_path / "workspace"
+    primary.mkdir()
+    workspace = tmp_path / "workspace_21"
     workspace.mkdir()
     project_file = str(tmp_path / "project.sase")
-    detect = Mock(return_value="git")
-    parse = Mock(return_value=str(tmp_path))
-    get_workspace = Mock(return_value=str(workspace))
-    monkeypatch.setattr("sase.workspace_provider.detect_workflow_type", detect)
-    monkeypatch.setattr("sase.workspace_provider.utils.parse_workspace_dir", parse)
+    parse = Mock(return_value=str(primary))
     monkeypatch.setattr(
-        "sase.workspace_provider.get_workspace_directory",
-        get_workspace,
+        "sase.workspace_provider.utils.parse_workspace_dir",
+        parse,
     )
     resolve_agent_workspace_dir.cache_clear()
 
@@ -345,9 +343,31 @@ def test_workspace_resolution_is_memoized_by_inputs(
     second = resolve_agent_workspace_dir(21, project_file, None)
 
     assert first == second == str(workspace)
-    detect.assert_called_once_with(project_file)
     parse.assert_called_once_with(project_file)
-    get_workspace.assert_called_once()
+
+
+def test_workspace_resolution_does_not_materialize_missing_checkout(
+    tmp_path,
+) -> None:
+    """Missing inferred workspaces degrade instead of running Git/provider setup."""
+    primary = tmp_path / "workspace"
+    primary.mkdir()
+    project_file = tmp_path / "project.sase"
+    project_file.write_text(f"WORKSPACE_DIR: {primary}\n", encoding="utf-8")
+    resolve_agent_workspace_dir.cache_clear()
+
+    assert resolve_agent_workspace_dir(21, str(project_file), None) is None
+
+
+def test_workspace_resolution_keeps_existing_explicit_fallback(tmp_path) -> None:
+    """Explicit recorded workspaces still win when they already exist."""
+    workspace = tmp_path / "recorded"
+    workspace.mkdir()
+    resolve_agent_workspace_dir.cache_clear()
+
+    assert resolve_agent_workspace_dir(
+        21, str(tmp_path / "missing.sase"), str(workspace)
+    ) == str(workspace)
 
 
 def test_file_path_resolution_is_memoized_by_inputs(monkeypatch) -> None:

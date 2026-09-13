@@ -117,10 +117,11 @@ def resolve_agent_workspace_dir(
     project_file: str,
     workspace_dir: str | None = None,
 ) -> str | None:
-    """Get workspace directory for an agent.
+    """Return an already-materialized workspace directory for an agent.
 
-    Delegates to workspace provider plugins to correctly resolve the
-    workspace path for any VCS type (Git, Mercurial, etc.).
+    This is a render-path helper for file hints. It must never materialize a
+    checkout or validate Git state; slow workspace setup belongs to action
+    paths that explicitly need a checkout.
 
     Args:
         workspace_num: Agent's workspace number (None or 0 = no workspace).
@@ -140,26 +141,26 @@ def resolve_agent_workspace_dir(
     if workspace_num is None or workspace_num <= 0:
         return explicit_dir
 
-    from pathlib import Path
-
-    from sase.workspace_provider import (
-        detect_workflow_type,
-        get_workspace_directory,
-    )
     from sase.workspace_provider.utils import parse_workspace_dir
 
+    normalized_num = 0 if workspace_num == 1 else workspace_num
     try:
-        workflow_type = detect_workflow_type(project_file)
         primary_dir = parse_workspace_dir(project_file) or ""
-        project_name = Path(project_file).parent.name
-        ws_dir = get_workspace_directory(
-            workflow_type, workspace_num, project_name, primary_dir
-        )
-        ws_dir = ws_dir.rstrip("/")
-        if os.path.isdir(ws_dir):
-            return ws_dir
     except Exception:
-        pass
+        return explicit_dir
+
+    primary_dir = primary_dir.rstrip("/")
+    if not primary_dir:
+        return explicit_dir
+    if normalized_num <= 0:
+        return primary_dir if os.path.isdir(primary_dir) else explicit_dir
+
+    # Managed xdg-state workspaces and legacy adjacent workspaces both place
+    # materialized checkouts next to the primary checkout as <primary>_<num>.
+    # Only return it if it already exists; do not call provider materialization.
+    candidate = f"{primary_dir}_{normalized_num}"
+    if os.path.isdir(candidate):
+        return candidate
 
     return explicit_dir
 

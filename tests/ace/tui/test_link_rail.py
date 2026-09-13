@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from rich.cells import cell_len
+from rich.text import Text
 
 from sase.ace.tui.relations.link_index import LinkChip
 from sase.ace.tui.relations.link_keys import (
@@ -10,7 +11,8 @@ from sase.ace.tui.relations.link_keys import (
     link_key_label,
     link_rail_items,
 )
-from sase.ace.tui.widgets.link_rail import _render_link_rail
+import sase.ace.tui.widgets.link_rail as link_rail_module
+from sase.ace.tui.widgets.link_rail import LinkRail, _render_link_rail
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
 _DEFAULT_TARGET = ArtifactEntryTarget(
@@ -254,6 +256,25 @@ def test_chop_neighbor_without_artifact_target_is_not_missing() -> None:
     plain = text.plain
     assert "hooks/build" in plain
     assert "(missing)" not in plain
+
+
+def test_link_rail_skips_identical_input_render(monkeypatch) -> None:
+    """Repeated highlight moves with the same visible rail avoid recomposition."""
+    rail = LinkRail()
+    calls = 0
+
+    def render(*_args: object, **_kwargs: object) -> Text:
+        nonlocal calls
+        calls += 1
+        return Text(" LINKS")
+
+    monkeypatch.setattr(link_rail_module, "_render_link_rail", render)
+    monkeypatch.setattr(rail, "update", lambda _content: None)
+
+    rail.update_links((_chip(),), subject_accent="#00D7AF")
+    rail.update_links((_chip(),), subject_accent="#00D7AF")
+
+    assert calls == 1
 
 
 def test_no_link_is_dropped_when_a_subject_outgrows_the_direct_keys() -> None:

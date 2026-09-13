@@ -118,7 +118,7 @@ def resume_monitor(
     )
     proofs = _collect_receiver_proofs(record, existing)
     manual_revision = checkpoint is not None or model is not None
-    decision, reused, checkpoint_ref = apply_resume_adoption(
+    decision, reused, checkpoint_ref = _apply_resume_adoption(
         record,
         meta,
         monitor_id=monitor_id,
@@ -496,7 +496,7 @@ def _mark_delivery_needs_attention(
         return
 
 
-def apply_resume_adoption(
+def _apply_resume_adoption(
     record: MonitorRecord,
     meta: dict[str, Any],
     *,
@@ -942,7 +942,6 @@ def _utc_now_iso() -> str:
 __all__ = [
     "MonitorResumeError",
     "MonitorResumeResult",
-    "apply_resume_adoption",
     "reconcile_terminal_delivery",
     "resume_monitor",
 ]

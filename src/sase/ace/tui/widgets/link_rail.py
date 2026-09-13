@@ -52,6 +52,7 @@ class LinkRail(Static):
         self._chips: tuple[LinkChip, ...] = ()
         self._subject_accent = "#87D7FF"
         self._breadcrumb: str | None = None
+        self._last_input_signature: tuple[Any, ...] | None = None
         self._last_signature: tuple[Any, ...] | None = None
 
     def on_mount(self) -> None:
@@ -106,12 +107,16 @@ class LinkRail(Static):
 
         self._chips = ()
         self._breadcrumb = None
+        self._last_input_signature = None
         self._last_signature = None
         self.display = False
         self.update("")
 
     def _refresh(self) -> None:
         width = _available_width(self)
+        input_signature = self._input_signature(width)
+        if input_signature == self._last_input_signature and self.display:
+            return
         with tui_trace("widget.link_rail.update", count=len(self._chips), width=width):
             text = _render_link_rail(
                 self._chips,
@@ -126,11 +131,16 @@ class LinkRail(Static):
                 text.plain,
                 tuple((span.start, span.end, str(span.style)) for span in text.spans),
             )
+            self._last_input_signature = input_signature
             if signature == self._last_signature and self.display:
                 return
             self._last_signature = signature
             self.display = True
             self.update(text)
+
+    def _input_signature(self, width: int) -> tuple[Any, ...]:
+        """Return the cheap state token for one rail render."""
+        return (self._chips, self._subject_accent, self._breadcrumb, width)
 
 
 def _render_link_rail(

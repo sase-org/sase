@@ -190,7 +190,12 @@ class AgentPromptPanel(
             tracking_visual is None
             or getattr(self, "_section_tracking_visual_generation", -1) != generation
         ):
-            tracking_visual = SectionTrackingVisual(self.visual, self, generation)
+            tracking_visual = SectionTrackingVisual(
+                self.visual,
+                self,
+                generation,
+                content_digest=getattr(self, "_section_content_digest", None),
+            )
             self._section_tracking_visual = tracking_visual
             self._section_tracking_visual_generation = generation
         return tracking_visual

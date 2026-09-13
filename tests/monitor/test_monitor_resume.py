@@ -361,7 +361,7 @@ def test_checkpoint_resume_preserves_concurrent_acknowledgment(
     monkeypatch.setenv(DELIVERY_KEY_ENV, json.dumps(claim.key, sort_keys=True))
     monkeypatch.setenv(DELIVERY_IDENTITY_ENV, "acme--1")
     monkeypatch.setenv("SASE_AGENT_NAME", "acme--1")
-    original = resume_module.apply_resume_adoption
+    original = resume_module._apply_resume_adoption  # noqa: SLF001
 
     def adopt_then_apply(*args: Any, **kwargs: Any) -> Any:
         adopted = adopt_ordinary_continuation_delivery()
@@ -370,7 +370,7 @@ def test_checkpoint_resume_preserves_concurrent_acknowledgment(
         assert adopted["acknowledged_by"] == "acme--1"
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(resume_module, "apply_resume_adoption", adopt_then_apply)
+    monkeypatch.setattr(resume_module, "_apply_resume_adoption", adopt_then_apply)
     captured: list[dict[str, Any]] = []
     monkeypatch.setattr(
         followup_module, "spawn_agent_subprocess", _fake_spawn(captured)

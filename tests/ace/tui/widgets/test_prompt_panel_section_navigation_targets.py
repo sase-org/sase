@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from types import SimpleNamespace
 from typing import cast
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from rich.console import Console, Group, RenderableType
 from rich.markdown import Markdown
@@ -228,6 +228,29 @@ def test_section_tracking_visual_reuses_layout_across_visuals_for_same_content()
         "idle",
         "tail",
     ]
+
+
+def test_section_tracking_visual_uses_supplied_generation_digest(monkeypatch) -> None:
+    """The prompt panel can reuse the digest computed during ``update``."""
+    panel = AgentPromptPanel()
+    panel._section_generation = 1  # noqa: SLF001
+    visual = _CountingRichVisual([], renderable=Group(section("IDLE", "body\n")))
+
+    digest = "known-generation-digest"
+    monkeypatch.setattr(
+        _section_navigation,
+        "renderable_content_digest",
+        Mock(side_effect=AssertionError("digest should not be recomputed")),
+    )
+
+    tracker = SectionTrackingVisual(
+        visual,
+        panel,
+        panel._section_generation,  # noqa: SLF001
+        content_digest=digest,
+    )
+
+    assert tracker._content_digest == digest  # noqa: SLF001
 
 
 def test_section_tracking_visual_delegates_non_rich_height_without_anchor_collection(

@@ -128,11 +128,17 @@ class SectionTrackingVisual(Visual):
         visual: Visual,
         owner: AgentPromptPanel,
         generation: int,
+        *,
+        content_digest: str | None = None,
     ) -> None:
         self._visual = visual
         self._owner = ref(owner)
         self._generation = generation
-        self._content_digest = _visual_content_digest(visual)
+        self._content_digest = (
+            content_digest
+            if content_digest is not None
+            else _visual_content_digest(visual)
+        )
         self._anchors_by_key: dict[
             tuple[int, int],
             tuple[PromptPanelSectionAnchor, ...],
