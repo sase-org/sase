@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 from io import StringIO
 from pathlib import Path
@@ -14,7 +15,7 @@ from sase.memory.legacy_glossary_read_log import (
     glossary_read_log_path,
 )
 from sase.memory.cli_log import _render_memory_log_summary, handle_memory_log_command
-from sase.memory.read_log import append_memory_read_event
+from sase.memory.read_log import READ_LOG_SCHEMA_VERSION, append_memory_read_event
 from sase.main.parser import create_parser
 
 from .memory_handler_helpers import memory_read_event
@@ -235,6 +236,64 @@ def test_memory_log_json_output_filters_and_summarizes(
         "total_memory_paths": 1,
         "total_reads": 1,
     }
+
+
+def test_memory_log_json_summary_fans_out_batch_targets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    project = tmp_path.name
+    home = tmp_path / "home"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: home)
+    append_memory_read_event(
+        replace(
+            memory_read_event(
+                read_id="read-batch",
+                canonical_path="a.md",
+                agent_name="agent-a",
+                timestamp="2026-05-23T12:00:00+00:00",
+                reason="Need a batch",
+                project=project,
+            ),
+            schema_version=READ_LOG_SCHEMA_VERSION,
+            resolved_path="",
+            kind="note",
+            selectors=("a.md", "b.md", "web:strand"),
+            resolved_targets=("a.md", "b.md", "web:strand"),
+        )
+    )
+
+    handle_memory_log_command(create_parser().parse_args(["memory", "log", "--json"]))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["total_memory_paths"] == 3
+    assert payload["total_reads"] == 1
+    assert [row["canonical_path"] for row in payload["summary"]] == [
+        "a.md",
+        "b.md",
+        "web:strand",
+    ]
+    assert all(row["read_count"] == 1 for row in payload["summary"])
+
+    handle_memory_log_command(
+        create_parser().parse_args(["memory", "log", "--path", "b.md", "--json"])
+    )
+
+    filtered = json.loads(capsys.readouterr().out)
+    assert filtered["total_memory_paths"] == 1
+    assert filtered["total_reads"] == 1
+    assert filtered["summary"] == [
+        {
+            "canonical_path": "b.md",
+            "distinct_agent_count": 1,
+            "last_agent": "agent-a",
+            "last_read_at": "2026-05-23T12:00:00+00:00",
+            "last_reason": "Need a batch",
+            "read_count": 1,
+        }
+    ]
 
 
 def _seed_glossary_read_event(tmp_path: Path, *, project: str) -> None:

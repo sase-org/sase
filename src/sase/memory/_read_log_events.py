@@ -215,13 +215,26 @@ def filter_memory_read_events(
     )
 
 
+def memory_read_event_targets(event: MemoryReadEvent) -> tuple[str, ...]:
+    """Return the distinct memory files one read event requested, in read order.
+
+    A multi-target batch covers every ``resolved_targets`` entry; any other event
+    (single note, single strand, v1 row) is identified by ``canonical_path``.
+    Link-expanded ``included_targets`` are context, not requested reads.
+    """
+    if len(event.resolved_targets) > 1:
+        return tuple(dict.fromkeys(t for t in event.resolved_targets if t))
+    return (event.canonical_path,) if event.canonical_path else ()
+
+
 def summarize_memory_reads_by_path(
     events: Iterable[MemoryReadEvent],
 ) -> tuple[MemoryReadPathSummary, ...]:
-    """Aggregate read counts and latest-read context by canonical memory path."""
+    """Aggregate read counts and latest-read context by requested memory file."""
     grouped: dict[str, list[MemoryReadEvent]] = {}
     for event in events:
-        grouped.setdefault(event.canonical_path, []).append(event)
+        for target in memory_read_event_targets(event):
+            grouped.setdefault(target, []).append(event)
 
     summaries = [
         MemoryReadPathSummary(
@@ -249,7 +262,13 @@ def summarize_memory_reads_by_agent(
         MemoryReadAgentSummary(
             agent_name=agent_name,
             read_count=len(agent_events),
-            distinct_path_count=len({event.canonical_path for event in agent_events}),
+            distinct_path_count=len(
+                {
+                    target
+                    for event in agent_events
+                    for target in memory_read_event_targets(event)
+                }
+            ),
             last_read_at=_latest_event(agent_events).timestamp,
             last_path=_latest_event(agent_events).canonical_path,
             last_reason=_latest_event(agent_events).reason,
@@ -376,6 +395,7 @@ __all__ = [
     "build_memory_read_batch_event",
     "build_memory_read_event",
     "filter_memory_read_events",
+    "memory_read_event_targets",
     "memory_read_log_path",
     "normalize_read_reason",
     "read_memory_read_events",

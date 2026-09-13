@@ -484,6 +484,60 @@ def test_single_producer_summary_omits_agent_count() -> None:
     assert "agents" not in text.plain
 
 
+def test_pathless_batch_header_counts_each_requested_file() -> None:
+    event = _event(
+        canonical_path="sase_flags.md",
+        timestamp="2026-05-24T14:22:08+00:00",
+        read_id="batch-three",
+        resolved_path="",
+        kind="note",
+        selectors=("sase_flags.md", "tui_perf.md", "lint_and_test.md"),
+        resolved_targets=("sase_flags.md", "tui_perf.md", "lint_and_test.md"),
+    )
+    text = Text()
+    append_agent_memory_reads_section(text, events=(_display(event),))
+
+    assert "▸ MEMORY · 1 read · 3 files\n" in text.plain
+
+
+def test_batch_plus_overlapping_single_read_counts_distinct_files() -> None:
+    batch = _event(
+        canonical_path="sase_flags.md",
+        timestamp="2026-05-24T14:22:08+00:00",
+        read_id="batch-three",
+        resolved_path="",
+        kind="note",
+        selectors=("sase_flags.md", "tui_perf.md", "lint_and_test.md"),
+        resolved_targets=("sase_flags.md", "tui_perf.md", "lint_and_test.md"),
+    )
+    single = _event(
+        canonical_path="tui_perf.md",
+        timestamp="2026-05-24T14:21:00+00:00",
+        read_id="single-tui",
+    )
+    text = Text()
+    append_agent_memory_reads_section(text, events=(_display(batch), _display(single)))
+
+    assert "▸ MEMORY · 2 reads · 3 files\n" in text.plain
+
+
+def test_batch_header_ignores_included_targets() -> None:
+    event = _event(
+        canonical_path="sase_flags.md",
+        timestamp="2026-05-24T14:22:08+00:00",
+        read_id="batch-included",
+        resolved_path="",
+        kind="note",
+        selectors=("sase_flags.md", "tui_perf.md"),
+        resolved_targets=("sase_flags.md", "tui_perf.md"),
+        included_targets=("glossary:stitch", "decisions:memory-webs"),
+    )
+    text = Text()
+    append_agent_memory_reads_section(text, events=(_display(event),))
+
+    assert "▸ MEMORY · 1 read · 2 files\n" in text.plain
+
+
 def test_attributed_reason_aligns_under_primary_text() -> None:
     text = Text()
     events = (

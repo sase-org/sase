@@ -16,6 +16,7 @@ from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
 from sase.ace.tui.tools.slow import select_slow_tool_calls
+from sase.memory.read_log import memory_read_event_targets
 
 from ...models._agent_clan_sections import (
     CLAN_CONTEXT_LANE_ORDER,
@@ -142,14 +143,15 @@ def aggregate_clan_context_lanes(
                 )
         for memory_display in summary.memory_reads:
             memory_event = cast(MemoryReadDisplayEvent, memory_display).event
-            _add_context(
-                accumulators,
-                "MEMORY",
-                memory_event.canonical_path,
-                memory_event.canonical_path,
-                member_label,
-                memory_display,
-            )
+            for target in memory_read_event_targets(memory_event):
+                _add_context(
+                    accumulators,
+                    "MEMORY",
+                    target,
+                    target,
+                    member_label,
+                    memory_display,
+                )
         for glossary_display in summary.glossary_reads:
             glossary_event = cast(GlossaryReadDisplayEvent, glossary_display).event
             for term in glossary_event.terms:

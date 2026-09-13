@@ -24,6 +24,7 @@ from sase.memory.legacy_glossary_read_log import (
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.read_log import (
     MemoryReadEvent,
+    MemoryReadPathSummary,
     filter_memory_read_events,
     read_memory_read_events,
     summarize_memory_reads_by_agent,
@@ -139,7 +140,7 @@ def _build_memory_log_summary_payload(
 ) -> dict[str, Any]:
     """Build a deterministic JSON payload for the summary view."""
     event_tuple = tuple(events)
-    summaries = summarize_memory_reads_by_path(event_tuple)
+    summaries = _path_summaries_for_view(event_tuple, path_filter=path_filter)
     return {
         "filters": {
             "agent": _normalized_filter(agent_filter),
@@ -148,7 +149,7 @@ def _build_memory_log_summary_payload(
         "project": project_name,
         "summary": [asdict(summary) for summary in summaries],
         "total_agents": len({event.agent_name for event in event_tuple}),
-        "total_memory_paths": len({event.canonical_path for event in event_tuple}),
+        "total_memory_paths": len(summaries),
         "total_reads": len(event_tuple),
     }
 
@@ -246,7 +247,8 @@ def _summary_panel(
     summary.add_row("Filters", _filter_label(path_filter, agent_filter))
     summary.add_row("Read events", str(len(events)))
     summary.add_row(
-        "Memory paths", str(len({event.canonical_path for event in events}))
+        "Memory paths",
+        str(len(_path_summaries_for_view(events, path_filter=path_filter))),
     )
     summary.add_row("Agents", str(len({event.agent_name for event in events})))
     return Panel(summary, title="SASE Memory Read Log", border_style="cyan")
@@ -258,7 +260,7 @@ def _paths_panel(
     path_filter: str | None = None,
     agent_filter: str | None = None,
 ) -> Panel:
-    summaries = summarize_memory_reads_by_path(events)
+    summaries = _path_summaries_for_view(events, path_filter=path_filter)
     if not summaries:
         message = (
             "No memory read events match the current filters."
@@ -481,6 +483,21 @@ def _normalized_filter(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped or None
+
+
+def _path_summaries_for_view(
+    events: tuple[MemoryReadEvent, ...],
+    *,
+    path_filter: str | None = None,
+) -> tuple[MemoryReadPathSummary, ...]:
+    """Path summaries shown for the current view, restricted when filtered."""
+    summaries = summarize_memory_reads_by_path(events)
+    normalized = _normalized_filter(path_filter)
+    if normalized is None:
+        return summaries
+    return tuple(
+        summary for summary in summaries if summary.canonical_path == normalized
+    )
 
 
 def _reason_preview(reason: str) -> str:

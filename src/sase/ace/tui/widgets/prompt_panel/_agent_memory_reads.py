@@ -9,6 +9,7 @@ from sase.memory.memory_read_report import (
     MemoryReadReportSpec,
     memory_read_report_path,
 )
+from sase.memory.read_log import memory_read_event_targets
 
 from ._agent_display_state import HeaderHintState
 from ._agent_context_common import (
@@ -95,7 +96,9 @@ def append_agent_memory_reads_section(
             )
         return
 
-    distinct_paths = len({item.event.canonical_path for item in events})
+    distinct_paths = len(
+        {target for item in events for target in memory_read_event_targets(item.event)}
+    )
     distinct_agents = len({item.agent_label for item in events if item.agent_label})
     details = (
         f"{count_phrase(len(events), 'read')} · {count_phrase(distinct_paths, 'file')}"

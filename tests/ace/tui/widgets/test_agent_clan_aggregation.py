@@ -306,6 +306,47 @@ def test_context_lanes_dedupe_in_declared_order_and_count_uses() -> None:
     ]
 
 
+def test_context_lanes_fan_out_batch_memory_read_targets() -> None:
+    member = _agent("research.first")
+    container = project_clan_tree([member])[0]
+    in_memory = aggregate_clan_in_memory(container)
+    memory_event = MemoryReadEvent(
+        schema_version=READ_LOG_SCHEMA_VERSION,
+        id="read-batch",
+        timestamp="2026-07-18T10:00:00+00:00",
+        project="demo",
+        cwd="/tmp",
+        canonical_path="sase_flags.md",
+        resolved_path="",
+        agent_name="research.first",
+        agent_source="test",
+        artifacts_dir="/tmp/artifacts",
+        reason="Need flags and perf notes",
+        byte_count=10,
+        frontmatter_stripped=False,
+        kind="note",
+        selectors=("sase_flags.md", "tui_perf.md"),
+        resolved_targets=("sase_flags.md", "tui_perf.md"),
+    )
+    members = (
+        _member_snapshot(
+            member,
+            ".first",
+            context=DetailHeaderSummary(
+                memory_reads=(MemoryReadDisplayEvent(event=memory_event),),
+            ),
+        ),
+    )
+    lanes = _aggregate_clan_context_lanes(in_memory, members)
+    by_label = {lane.label: lane for lane in lanes}
+
+    assert [entry.label for entry in by_label["MEMORY"].entries] == [
+        "sase_flags.md",
+        "tui_perf.md",
+    ]
+    assert [entry.count for entry in by_label["MEMORY"].entries] == [1, 1]
+
+
 def test_phase_bead_clan_labels_prefer_title_then_description_then_id() -> None:
     titled = _agent("research.titled")
     described = _agent("research.described", minute=2)

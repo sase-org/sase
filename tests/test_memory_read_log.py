@@ -10,12 +10,14 @@ import pytest
 from sase.memory.read_log import (
     AgentIdentity,
     AgentIdentityError,
+    MemoryReadEvent,
     MemoryReadPathError,
     append_memory_read_event,
     build_memory_read_batch_event,
     build_memory_read_event,
     discover_agent_identity,
     filter_memory_read_events,
+    memory_read_event_targets,
     memory_read_log_path,
     read_memory_content,
     read_memory_read_events,
@@ -488,6 +490,122 @@ def test_memory_read_aggregation_groups_by_path_and_agent(tmp_path: Path) -> Non
         canonical_path="foo.md",
         agent_name="agent-b",
     ) == (second,)
+
+
+def test_memory_read_event_targets_single_note_uses_canonical_path(
+    tmp_path: Path,
+) -> None:
+    content = _memory_content(tmp_path, "foo.md")
+    event = build_memory_read_event(
+        content,
+        reason="Need foo",
+        agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", None),
+        project="proj",
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
+        read_id="read-a",
+    )
+
+    assert memory_read_event_targets(event) == ("foo.md",)
+
+
+def test_memory_read_event_targets_batch_returns_deduped_resolved_targets() -> None:
+    event = build_memory_read_batch_event(
+        kind="note",
+        selectors=["a.md", "b.md", "a.md", "web:strand"],
+        resolved_targets=["a.md", "b.md", "a.md", "web:strand"],
+        included_targets=["glossary:stitch"],
+        byte_count=10,
+        frontmatter_stripped=False,
+        reason="Need several notes",
+        agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", None),
+        project="proj",
+        cwd=Path("/tmp/demo"),
+        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
+        read_id="read-batch",
+    )
+
+    assert memory_read_event_targets(event) == ("a.md", "b.md", "web:strand")
+
+
+def test_memory_read_event_targets_v1_event_falls_back_to_canonical_path() -> None:
+    event = MemoryReadEvent(
+        schema_version=1,
+        id="read-v1",
+        timestamp="2026-05-23T12:00:00+00:00",
+        project="proj",
+        cwd="/tmp/demo",
+        canonical_path="foo.md",
+        resolved_path="/tmp/demo/memory/foo.md",
+        agent_name="agent-a",
+        agent_source="SASE_AGENT_NAME",
+        artifacts_dir=None,
+        reason="Need foo",
+        byte_count=10,
+        frontmatter_stripped=False,
+    )
+
+    assert event.resolved_targets == ()
+    assert memory_read_event_targets(event) == ("foo.md",)
+
+
+def test_memory_read_event_targets_empty_when_no_path_or_targets() -> None:
+    event = MemoryReadEvent(
+        schema_version=1,
+        id="read-empty",
+        timestamp="2026-05-23T12:00:00+00:00",
+        project="proj",
+        cwd="/tmp/demo",
+        canonical_path="",
+        resolved_path="",
+        agent_name="agent-a",
+        agent_source="SASE_AGENT_NAME",
+        artifacts_dir=None,
+        reason="Need foo",
+        byte_count=0,
+        frontmatter_stripped=False,
+    )
+
+    assert memory_read_event_targets(event) == ()
+
+
+def test_summarize_memory_reads_credits_every_batch_target(tmp_path: Path) -> None:
+    content = _memory_content(tmp_path, "a.md")
+    single = build_memory_read_event(
+        content,
+        reason="Need a",
+        agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", None),
+        project="proj",
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 12, 0, tzinfo=UTC),
+        read_id="read-single",
+    )
+    batch = build_memory_read_batch_event(
+        kind="note",
+        selectors=["a.md", "b.md", "web:strand"],
+        resolved_targets=["a.md", "b.md", "web:strand"],
+        byte_count=30,
+        frontmatter_stripped=False,
+        reason="Need batch",
+        agent=AgentIdentity("agent-a", "SASE_AGENT_NAME", None),
+        project="proj",
+        cwd=tmp_path,
+        now=datetime(2026, 5, 23, 12, 1, tzinfo=UTC),
+        read_id="read-batch",
+    )
+
+    path_summaries = summarize_memory_reads_by_path([batch, single])
+    agent_summaries = summarize_memory_reads_by_agent([batch, single])
+    by_path = {summary.canonical_path: summary for summary in path_summaries}
+
+    assert set(by_path) == {"a.md", "b.md", "web:strand"}
+    assert by_path["a.md"].read_count == 2
+    assert by_path["b.md"].read_count == 1
+    assert by_path["web:strand"].read_count == 1
+    assert len(agent_summaries) == 1
+    assert agent_summaries[0].distinct_path_count == 3
+    assert agent_summaries[0].read_count == 2
+    assert agent_summaries[0].last_path == "a.md"
 
 
 def _memory_content(tmp_path: Path, relative_path: str):
