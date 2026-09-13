@@ -308,6 +308,7 @@ def _load_agent_delta_node(
             ) from exc
     payload: dict[str, Any] = dict(delta)
     payload["artifact_dir"] = str(artifact_dir)
+    payload["node_id"] = node.get("node_id")
     final_response_ref = json_string(delta, "final_response_ref")
     if final_response_ref:
         payload["final_response_text"] = _read_text_ref(

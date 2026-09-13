@@ -19,6 +19,7 @@ from collections.abc import Mapping
 import json
 from typing import Any
 
+from sase.llm_provider.continuation_budget_spans import open_reducible_span_marker
 from sase.shells.followup import fork_target_for_settled_starter
 from sase.shells.prompt import (
     fenced_block as _fenced_block,
@@ -71,12 +72,19 @@ def _outcome_line(
 
 
 def _tail_section(output_text: str, tail_lines: int, max_chars: int) -> list[str]:
-    return untrusted_output_section(
+    rendered = untrusted_output_section(
         f"## Last {tail_lines} lines of output",
         output_text,
         tail_lines,
         max_chars=max_chars,
     )
+    heading, *body = rendered
+    return [heading, *_reducible_span("old_raw_excerpts", body)]
+
+
+def _reducible_span(kind: str, body: list[str]) -> list[str]:
+    open_marker, close_marker = open_reducible_span_marker(kind=kind)
+    return [open_marker, *body, close_marker]
 
 
 def _routing_prefix(
@@ -263,9 +271,12 @@ def compose_followup_prompt(
             [
                 "## Selected diagnostics",
                 "",
-                *_fenced_block(
-                    "Diagnostics (untrusted program output)",
-                    selected_diagnostics_text,
+                *_reducible_span(
+                    "newest_diagnostics",
+                    _fenced_block(
+                        "Diagnostics (untrusted program output)",
+                        selected_diagnostics_text,
+                    ),
                 ),
                 "",
             ]

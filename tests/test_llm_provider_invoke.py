@@ -283,12 +283,15 @@ def test_monitor_continuation_budget_compacts_raw_output_before_provider(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from sase.llm_provider.continuation_budget_spans import open_reducible_span_marker
+
     artifacts = tmp_path / "child"
     artifacts.mkdir()
     (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
     provider = MagicMock()
     provider.invoke.return_value = InvokeResult(content="ok")
     provider.resolve_model_name.return_value = "fake-model"
+    open_marker, close_marker = open_reducible_span_marker(kind="old_raw_excerpts")
     prompt = "\n".join(
         [
             "# Monitored command finished",
@@ -297,9 +300,11 @@ def test_monitor_continuation_budget_compacts_raw_output_before_provider(
             "",
             "## Last 100 lines of output",
             "",
+            open_marker,
             "```text",
             "RAW_SENTINEL " + ("x" * 900),
             "```",
+            close_marker,
             "",
             "## Your next action",
             "",
@@ -350,6 +355,71 @@ def test_monitor_continuation_budget_compacts_raw_output_before_provider(
     assert child_meta["continuation_budget_kind"] == "compact"
     assert child_meta["continuation_budget_projected_prompt_path"] == str(
         projected_path
+    )
+
+
+def test_monitor_continuation_budget_never_drops_authored_selected_diagnostics_heading(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression for the audit's authored-heading failure.
+
+    An authored ``## Selected diagnostics`` heading is not, by itself,
+    evidence of a genuinely reducible section -- only a render-emitted
+    marker pair from ``continuation_budget_spans`` is. Without a real
+    marker, oversized content following that heading must refuse rather
+    than silently disappear the way heading-regex discovery used to.
+    """
+    artifacts = tmp_path / "child"
+    artifacts.mkdir()
+    (artifacts / "agent_meta.json").write_text("{}", encoding="utf-8")
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="should not run")
+    provider.resolve_model_name.return_value = "fake-model"
+    protected_instruction = "PROTECTED_SENTINEL " + ("y" * 900)
+    prompt = "\n".join(
+        [
+            "# Monitored command finished",
+            "",
+            "## Selected diagnostics",
+            "",
+            protected_instruction,
+            "",
+            "## Your next action",
+            "",
+            "Keep going.",
+        ]
+    )
+    monkeypatch.setenv(CONTINUATION_BUDGET_ENFORCE_ENV, "1")
+    monkeypatch.setenv("SASE_CONTINUATION_CONTEXT_LIMIT_BYTES", "420")
+
+    with (
+        patch("sase.llm_provider._invoke.get_provider", return_value=provider),
+        patch("sase.llm_provider._invoke.postprocess_error"),
+        patch("sase.llm_provider._invoke.handle_possible_usage_limit"),
+        pytest.raises(
+            LLMInvocationError,
+            match="Continuation context budget exceeded",
+        ),
+    ):
+        invoke_agent(
+            prompt,
+            agent_type="agent",
+            artifacts_dir=str(artifacts),
+            provider_name="fakey",
+            suppress_output=True,
+            skip_preprocessing=True,
+        )
+
+    provider.invoke.assert_not_called()
+
+    decision_path = artifacts / CONTINUATION_BUDGET_DECISION_FILENAME
+    record = json.loads(decision_path.read_text(encoding="utf-8"))
+    assert record["decision"]["kind"] == "refuse"
+    assert record["decision"]["reductions"] == []
+    assert (
+        record["request"]["essential_bytes"]
+        == record["request"]["rendered_prompt_bytes"]
     )
 
 

@@ -24,6 +24,7 @@ from sase.core.continuation_wire import (
     MonitorTimeoutKind,
     RetainedLogMetadataWire,
 )
+from sase.llm_provider.continuation_budget_spans import open_reducible_span_marker
 from sase.shells.prompt import (
     fenced_block,
     format_shell_duration,
@@ -255,9 +256,12 @@ def render_monitor_evidence_section(
                     "",
                     f"{heading} Selected diagnostics",
                     "",
-                    *fenced_block(
-                        "Diagnostics (untrusted program output)",
-                        selected_diagnostics_text,
+                    *_reducible_span(
+                        "newest_diagnostics",
+                        fenced_block(
+                            "Diagnostics (untrusted program output)",
+                            selected_diagnostics_text,
+                        ),
                     ),
                 ]
             )
@@ -271,16 +275,15 @@ def render_monitor_evidence_section(
             TOTAL_RAW_EXCERPT_MAX_BYTES,
         )
         if output_text:
+            rendered = untrusted_output_section(
+                f"{heading} Selected output (untrusted program output)",
+                output_text,
+                tail_lines,
+                max_chars=max_chars,
+            )
+            section_heading, *body = rendered
             lines.extend(
-                [
-                    "",
-                    *untrusted_output_section(
-                        f"{heading} Selected output (untrusted program output)",
-                        output_text,
-                        tail_lines,
-                        max_chars=max_chars,
-                    ),
-                ]
+                ["", section_heading, *_reducible_span("old_raw_excerpts", body)]
             )
         else:
             lines.extend(["", "_No retained output text was available to embed._"])
@@ -292,6 +295,11 @@ def render_monitor_evidence_section(
             ]
         )
     return lines
+
+
+def _reducible_span(kind: str, body: list[str]) -> list[str]:
+    open_marker, close_marker = open_reducible_span_marker(kind=kind)
+    return [open_marker, *body, close_marker]
 
 
 def output_cell_for_selection(

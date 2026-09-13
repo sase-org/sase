@@ -4,16 +4,16 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import tempfile
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any
 
 from sase.core.continuation_facade import plan_continuation_budget
 from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
+from sase.llm_provider.continuation_budget_spans import extract_reducible_spans
 from sase.llm_provider.types import LLMInvocationError, LLMInvocationOptions, ModelTier
 
 MONITOR_CONTINUATION_ENV = "SASE_MONITOR_CONTINUATION"
@@ -38,12 +38,21 @@ _ENV_TO_CONFIG_KEY = {
     "output_reserve_bytes": "SASE_CONTINUATION_OUTPUT_RESERVE_BYTES",
     "reasoning_reserve_bytes": "SASE_CONTINUATION_REASONING_RESERVE_BYTES",
 }
-_CONTINUATION_BLOCK_HEADING_RE = re.compile(
-    r"(?m)^## Continuation Block `(?P<block_id>[^`]+)`\s*$"
-)
-_HEADING_RE = re.compile(r"(?m)^(?P<marks>#{1,6}) (?P<title>.+?)\s*$")
-_NODE_RE = re.compile(r"(?m)^- \*\*Node:\*\* `(?P<node>[^`]+)`\s*$")
-_CHECKPOINT_REF_RE = re.compile(r"(?m)^- \*\*Checkpoint:\*\* `(?P<ref>[^`]+)`\s*$")
+_OMISSION_MESSAGES = {
+    "newest_diagnostics": (
+        "Selected diagnostics omitted by continuation budget; "
+        "use the evidence refs and monitor retrieval command above."
+    ),
+    "old_raw_excerpts": (
+        "Raw output excerpt omitted by continuation budget; "
+        "use the retained log refs or monitor retrieval command above."
+    ),
+    "checkpoint": (
+        "Pre-checkpoint assistant transcript omitted by continuation "
+        "budget; the checkpoint in this block preserves the current "
+        "objective, constraints, findings, and remaining work."
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,7 +61,6 @@ class _PromptReplacement:
     start: int
     end: int
     replacement: str
-    detail: str
     checkpoint_ref: str | None = None
     covered_node_ids: tuple[str, ...] = ()
 
@@ -64,14 +72,6 @@ class _PromptProjection:
     selected_evidence_bytes: int
     candidates: tuple[dict[str, Any], ...]
     replacements_by_kind: Mapping[str, tuple[_PromptReplacement, ...]]
-
-
-class _HeadingSection(TypedDict):
-    start: int
-    heading_end: int
-    end: int
-    level: int
-    title: str
 
 
 def enforce_continuation_budget(
@@ -103,6 +103,7 @@ def enforce_continuation_budget(
     )
     decision = _normalized_decision(plan_continuation_budget(request))
     projected_prompt = _project_prompt(prompt, decision, projection)
+    decision = _verify_projection(decision, projected_prompt)
     record = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "kind": "continuation_budget_preflight",
@@ -382,143 +383,61 @@ def _prompt_projection(prompt: str) -> _PromptProjection:
 
 
 def _discover_replacements(prompt: str) -> list[_PromptReplacement]:
+    """Discover reducible spans the render layer explicitly marked.
+
+    Discovery never guesses from Markdown headings: an authored or
+    untrusted heading string like ``## Selected diagnostics`` is not
+    evidence of a genuinely reducible section, only the render-emitted
+    marker pair around it is. See ``continuation_budget_spans``.
+    """
+
     replacements: list[_PromptReplacement] = []
-    headings = _heading_sections(prompt)
-    for section in headings:
-        title = section["title"].casefold()
-        level = section["level"]
-        if "selected diagnostics" in title:
-            replacements.append(
-                _section_replacement(
-                    prompt,
-                    section,
-                    kind="newest_diagnostics",
-                    detail="selected diagnostics",
-                    message=(
-                        "Selected diagnostics omitted by continuation budget; "
-                        "use the evidence refs and monitor retrieval command above."
-                    ),
-                )
-            )
-        elif (
-            "selected output" in title
-            or ("last " in title and "lines of output" in title)
-        ) and level >= 2:
-            replacements.append(
-                _section_replacement(
-                    prompt,
-                    section,
-                    kind="old_raw_excerpts",
-                    detail="raw output excerpt",
-                    message=(
-                        "Raw output excerpt omitted by continuation budget; "
-                        "use the retained log refs or monitor retrieval command above."
-                    ),
-                )
-            )
-    replacements.extend(_checkpoint_replacements(prompt))
-    return replacements
-
-
-def _section_replacement(
-    prompt: str,
-    section: _HeadingSection,
-    *,
-    kind: str,
-    detail: str,
-    message: str,
-) -> _PromptReplacement:
-    start = section["start"]
-    end = section["end"]
-    heading = prompt[start : section["heading_end"]].rstrip()
-    replacement = f"{heading}\n\n_{message}_\n"
-    return _PromptReplacement(
-        kind=kind,
-        start=start,
-        end=end,
-        replacement=replacement,
-        detail=detail,
-    )
-
-
-def _checkpoint_replacements(prompt: str) -> list[_PromptReplacement]:
-    blocks = list(_CONTINUATION_BLOCK_HEADING_RE.finditer(prompt))
-    replacements: list[_PromptReplacement] = []
-    for index, match in enumerate(blocks):
-        start = match.start()
-        end = blocks[index + 1].start() if index + 1 < len(blocks) else len(prompt)
-        block = prompt[start:end]
-        checkpoint = _CHECKPOINT_REF_RE.search(block)
-        if checkpoint is None:
+    for span in extract_reducible_spans(prompt):
+        message = _OMISSION_MESSAGES.get(span.kind)
+        if message is None:
             continue
-        assistant = re.search(r"(?m)^### Assistant\s*$", block)
-        if assistant is None:
-            continue
-        assistant_start = start + assistant.start()
-        assistant_end = _next_heading_start(
-            prompt,
-            start + assistant.end(),
-            section_end=end,
-            max_level=3,
-        )
-        original = prompt[assistant_start:assistant_end]
-        replacement = (
-            "### Assistant\n\n"
-            "_Pre-checkpoint assistant transcript omitted by continuation "
-            "budget; the checkpoint in this block preserves the current "
-            "objective, constraints, findings, and remaining work._\n"
-        )
-        if _utf8_len(original) <= _utf8_len(replacement):
-            continue
-        node = _NODE_RE.search(block)
-        node_ids = (node.group("node"),) if node else ()
         replacements.append(
             _PromptReplacement(
-                kind="checkpoint",
-                start=assistant_start,
-                end=assistant_end,
-                replacement=replacement,
-                detail="checkpoint-covered assistant transcript",
-                checkpoint_ref=checkpoint.group("ref"),
-                covered_node_ids=node_ids,
+                kind=span.kind,
+                start=span.start,
+                end=span.end,
+                replacement=f"_{message}_\n",
+                checkpoint_ref=span.checkpoint_ref,
+                covered_node_ids=span.covered_node_ids,
             )
         )
     return replacements
 
 
-def _heading_sections(prompt: str) -> list[_HeadingSection]:
-    matches = list(_HEADING_RE.finditer(prompt))
-    sections: list[_HeadingSection] = []
-    for index, match in enumerate(matches):
-        level = len(match.group("marks"))
-        end = len(prompt)
-        for following in matches[index + 1 :]:
-            if len(following.group("marks")) <= level:
-                end = following.start()
-                break
-        sections.append(
-            {
-                "start": match.start(),
-                "heading_end": match.end(),
-                "end": end,
-                "level": level,
-                "title": match.group("title"),
-            }
-        )
-    return sections
+def _verify_projection(
+    decision: Mapping[str, Any],
+    projected_prompt: str,
+) -> dict[str, Any]:
+    """Remeasure actual projected UTF-8 bytes; refuse durably if still oversized.
 
+    Rust selects reductions from declared candidate byte counts computed
+    before projection. Applying those reductions can save fewer bytes than
+    declared (defensive overlap skipping, for example), so the prompt that
+    would actually be sent must be remeasured here -- never trust the
+    pre-projection estimate as proof the compacted prompt fits.
+    """
 
-def _next_heading_start(
-    prompt: str,
-    offset: int,
-    *,
-    section_end: int,
-    max_level: int,
-) -> int:
-    for match in _HEADING_RE.finditer(prompt, offset, section_end):
-        if len(match.group("marks")) <= max_level:
-            return match.start()
-    return section_end
+    if str(decision.get("kind") or "") != "compact":
+        return dict(decision)
+    projected_bytes = _utf8_len(projected_prompt)
+    target = _intish(
+        decision.get("target_prompt_bytes") or decision.get("prompt_budget_bytes")
+    )
+    updated = dict(decision)
+    updated["estimated_prompt_bytes"] = projected_bytes
+    if projected_bytes <= target:
+        return updated
+    updated["kind"] = "refuse"
+    updated["reasons"] = [
+        *_strings(updated.get("reasons")),
+        "post_projection_budget_exceeded",
+    ]
+    return _normalized_decision(updated)
 
 
 def _project_prompt(

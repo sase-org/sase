@@ -23,6 +23,7 @@ def _write_agent_node(
     parents: Sequence[str] = (),
     prompt: str,
     response: str | None,
+    checkpoint: Mapping[str, Any] | None = None,
 ) -> None:
     root = artifacts_dir / "continuation"
     artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -40,6 +41,12 @@ def _write_agent_node(
     }
     if final_response_ref:
         delta["final_response_ref"] = final_response_ref
+    if checkpoint is not None:
+        checkpoint_path = root / "checkpoints" / f"{node_id}.json"
+        _write_json(checkpoint_path, checkpoint)
+        delta["handoff_checkpoint_ref"] = (
+            f"local:continuation/checkpoints/{node_id}.json"
+        )
     delta_ref = f"local:continuation/records/agent_delta/{node_id}.json"
     delta_sha = _write_json(root / "records" / "agent_delta" / f"{node_id}.json", delta)
 
@@ -439,3 +446,56 @@ def test_versioned_replay_keeps_uncertain_legacy_as_opaque_boundary(
     assert "OLD_REPLY" in rendered
     assert "CURRENT_REPLY" in rendered
     assert "### Assistant" in rendered
+
+
+def test_versioned_replay_marks_checkpoint_covered_assistant_text_reducible(
+    tmp_path: Path,
+) -> None:
+    """Checkpoint eligibility comes from explicit render-time coverage.
+
+    Only a node whose checkpoint was actually rendered here gets its
+    assistant transcript wrapped as a budget-reducible span -- never a
+    guess from a displayed ref or heading.
+    """
+    from sase.llm_provider.continuation_budget_spans import extract_reducible_spans
+
+    covered = tmp_path / "artifacts" / "covered"
+    _write_agent_node(
+        covered,
+        name="acme--covered",
+        node_id="agent-delta-covered",
+        prompt="Do the thing.",
+        response="COVERED_REPLY",
+        checkpoint={
+            "objective": "Finish the thing.",
+            "constraints": ["Stay on task."],
+        },
+    )
+    uncovered = tmp_path / "artifacts" / "uncovered"
+    _write_agent_node(
+        uncovered,
+        name="acme--uncovered",
+        node_id="agent-delta-uncovered",
+        prompt="Do another thing.",
+        response="UNCOVERED_REPLY",
+    )
+
+    covered_rendered = build_fork_injected_history(
+        [_agent_member(tmp_path, "covered", "acme--covered")]
+    )
+    uncovered_rendered = build_fork_injected_history(
+        [_agent_member(tmp_path, "uncovered", "acme--uncovered")]
+    )
+
+    assert covered_rendered is not None
+    assert uncovered_rendered is not None
+
+    covered_spans = extract_reducible_spans(covered_rendered)
+    assert [span.kind for span in covered_spans] == ["checkpoint"]
+    assert covered_spans[0].covered_node_ids == ("agent-delta-covered",)
+    covered_span = covered_spans[0]
+    assert "COVERED_REPLY" in covered_rendered[covered_span.start : covered_span.end]
+
+    uncovered_spans = extract_reducible_spans(uncovered_rendered)
+    assert uncovered_spans == []
+    assert "UNCOVERED_REPLY" in uncovered_rendered

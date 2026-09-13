@@ -103,6 +103,9 @@ def fork_source_optional_string(
 
 
 def format_text_fence(text: str) -> str:
+    from sase.llm_provider.continuation_budget_spans import sanitize_span_text
+
+    text = sanitize_span_text(text)
     max_backticks = max(
         (len(match.group(0)) for match in re.finditer(r"`+", text)), default=0
     )

@@ -108,7 +108,14 @@ def _render_block(
 
 
 def _render_agent_delta(payload: Mapping[str, Any]) -> list[str]:
-    authored = str(payload.get("authored_local_request") or "").strip()
+    from sase.llm_provider.continuation_budget_spans import (
+        open_reducible_span_marker,
+        sanitize_span_text,
+    )
+
+    authored = sanitize_span_text(
+        str(payload.get("authored_local_request") or "").strip()
+    )
     lines = [
         "### User",
         "",
@@ -119,12 +126,30 @@ def _render_agent_delta(payload: Mapping[str, Any]) -> list[str]:
     ]
     lines.extend(_render_materialized_segments(payload.get("materialized_segments")))
     checkpoint_body = payload.get("checkpoint_body")
-    if isinstance(checkpoint_body, Mapping) and checkpoint_body:
+    checkpoint_covers_assistant = isinstance(checkpoint_body, Mapping) and bool(
+        checkpoint_body
+    )
+    if checkpoint_covers_assistant:
         lines.extend(["", *_render_checkpoint(checkpoint_body)])
     lines.extend(["", "### Assistant", ""])
     final_response = payload.get("final_response_text")
     if isinstance(final_response, str) and final_response:
-        lines.append(final_response.strip())
+        text = sanitize_span_text(final_response.strip())
+        if checkpoint_covers_assistant:
+            checkpoint_ref = payload.get("checkpoint_ref")
+            node_id = payload.get("node_id")
+            open_marker, close_marker = open_reducible_span_marker(
+                kind="checkpoint",
+                checkpoint_ref=(
+                    checkpoint_ref if isinstance(checkpoint_ref, str) else None
+                ),
+                covered_node_ids=(
+                    (node_id,) if isinstance(node_id, str) and node_id else ()
+                ),
+            )
+            lines.extend([open_marker, text, close_marker])
+        else:
+            lines.append(text)
     else:
         status = str(payload.get("status") or "unknown")
         lines.append(f"_No final response was captured for local status `{status}`._")
@@ -265,9 +290,11 @@ def _render_checkpoint(body: object) -> list[str]:
         ("unresolved_decisions", "Unresolved decisions", True),
         ("remaining_work", "Remaining work", True),
     )
+    from sase.llm_provider.continuation_budget_spans import sanitize_span_text
+
     rendered_any = False
     for key, title, protected in field_specs:
-        value = _checkpoint_field_text(document.get(key))
+        value = sanitize_span_text(_checkpoint_field_text(document.get(key)))
         if not value:
             continue
         rendered_any = True
