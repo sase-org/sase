@@ -13,6 +13,7 @@ import sase.monitor.followup as followup_module
 import sase.procs.spawn as spawn_module
 import sase.shells.followup as shells_followup_module
 from sase.agent.launch_types import AgentLaunchResult
+from sase.continuation_capture import persist_monitor_result
 from sase.core.artifact_file_facade import list_explicit_artifact_files
 from sase.feature_flags import override_flags
 from sase.llm_provider.continuation_budget import MONITOR_CONTINUATION_ENV
@@ -271,6 +272,69 @@ def test_launch_followup_agent_uses_explicit_next_model(
     assert captured["prompt"].startswith("#fork:acme--0\n%model:@small\n\n")
     assert "%effort:high" not in captured["prompt"]
     assert "%model:claude-sonnet-5" not in captured["prompt"]
+
+
+def test_launch_followup_agent_renders_from_frozen_result_and_intent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    meta["stopped_at"] = "2026-08-12T14:19:48+00:00"
+    meta["monitor_next_output"] = "none"
+    persist_monitor_result(
+        artifacts_dir=monitor_dir,
+        meta=meta,
+        monitor_state="failed",
+        exit_code=1,
+        elapsed_seconds=1.5,
+        stopped_at=meta["stopped_at"],
+        diagnostic_manifest=None,
+        retained_log={
+            "log_ref": "file:explicit:frozen-log",
+            "local_locator": "diagnostics/retained_logs/frozen.log",
+            "total_observed_bytes": 17,
+            "retained_ranges": [{"start": 0, "end": 17}],
+            "complete": True,
+            "drain_confirmed": True,
+        },
+        project_name="proj",
+        update_meta=False,
+    )
+    frozen_result_id = meta["continuation_monitor_result_id"]
+    meta["monitor_command"] = "echo MUTABLE COMMAND"
+    meta["monitor_cwd"] = "/tmp/mutable-cwd"
+    meta["monitor_next_action"] = "MUTABLE NEXT ACTION"
+    capture = _capture_with_output(monitor_dir, "MUTABLE OUTPUT\n")
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result()
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=99,
+        elapsed_seconds=999.0,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    prompt = captured["prompt"]
+    assert result.launched is True
+    assert "| **Outcome** | FAILED — exit 1 |" in prompt
+    assert "```text\ntrue\n```" in prompt
+    assert str(tmp_path) in prompt
+    assert "Report that it finished." in prompt
+    assert "MUTABLE" not in prompt
+    delivery_key = json.loads(captured["extra_env"]["SASE_MONITOR_DELIVERY_KEY"])
+    assert delivery_key["result_id"] == frozen_result_id
 
 
 def test_launch_followup_agent_repairs_a_meta_workspace_num_mismatch(

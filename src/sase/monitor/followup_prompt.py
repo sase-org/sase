@@ -15,6 +15,10 @@ as defense in depth and to keep persisted prompts readable.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+import json
+from typing import Any
+
 from sase.shells.followup import fork_target_for_settled_starter
 from sase.shells.prompt import (
     fenced_block as _fenced_block,
@@ -28,7 +32,11 @@ from .result_projection import (
     DEFAULT_NEXT_OUTPUT,
     NEXT_OUTPUT_CHOICES,
     build_monitor_result_wire,
+    command_text_for_monitor_result,
     output_cell_for_selection,
+    retained_log_is_truncated,
+    retained_log_locator_for_monitor_result,
+    retained_log_total_bytes,
     select_monitor_result_evidence,
     selected_raw_limits,
 )
@@ -55,7 +63,7 @@ def _outcome_line(
         code = exit_code if exit_code is not None else "unknown"
         return f"FAILED — exit {code}"
     if monitor_state == "timeout":
-        if timeout_kind == "idle":
+        if timeout_kind in {"idle", "no_progress"}:
             return f"TIMED OUT — no output for {_format_duration(idle_timeout_seconds)}"
         budget = _elapsed_with_budget(elapsed_seconds, timeout_seconds)
         return f"TIMED OUT — did not finish after {budget}"
@@ -120,6 +128,9 @@ def compose_followup_prompt(
     selected_diagnostics_text: str | None = None,
     starter_execution_id: str | None = None,
     workspace_identity: str | None = None,
+    monitor_result: Mapping[str, Any] | None = None,
+    checkpoint_ref: str | None = None,
+    checkpoint_body: Mapping[str, Any] | None = None,
 ) -> str:
     """Compose the follow-up agent's full prompt.
 
@@ -137,6 +148,37 @@ def compose_followup_prompt(
     bounded raw tail, ``"file"`` exposes refs/locators only, and ``"none"``
     leaves only facts plus the ``sase monitor show --all-lines`` pointer.
     """
+    frozen_result = dict(monitor_result or {})
+    if frozen_result:
+        monitor_id = _result_text(frozen_result, "monitor_id", monitor_id) or monitor_id
+        monitor_state = _monitor_state_from_result(frozen_result, monitor_state)
+        exit_code = _result_int(frozen_result, "exit_code", exit_code)
+        command = command_text_for_monitor_result(frozen_result, fallback=command)
+        cwd = _result_text(frozen_result, "cwd", cwd) or cwd
+        started_at = _result_text(frozen_result, "started_at", started_at)
+        stopped_at = _result_text(frozen_result, "ended_at", stopped_at)
+        elapsed_seconds = _seconds_from_ms(
+            frozen_result.get("elapsed_ms"),
+            elapsed_seconds,
+        )
+        timeout_seconds = _seconds_from_ms(
+            frozen_result.get("timeout_budget_ms"),
+            timeout_seconds,
+        )
+        timeout_kind = frozen_result.get("timeout_kind") or timeout_kind
+        total_bytes = retained_log_total_bytes(frozen_result, fallback=total_bytes)
+        output_truncated = retained_log_is_truncated(
+            frozen_result,
+            fallback=output_truncated,
+        )
+        output_log_path = retained_log_locator_for_monitor_result(
+            frozen_result,
+            fallback=output_log_path,
+        )
+        retained = frozen_result.get("retained_log")
+        if isinstance(retained, Mapping):
+            retained_log_metadata = dict(retained)
+
     log_pointer = f"sase monitor show {monitor_id} --all-lines"
     diagnostic_ref = (
         diagnostic_manifest.get("manifest_ref") if diagnostic_manifest else None
@@ -150,21 +192,25 @@ def compose_followup_prompt(
             "complete": not output_truncated,
             "drain_confirmed": True,
         }
-    result = build_monitor_result_wire(
-        monitor_id=monitor_id,
-        monitor_state=monitor_state,
-        exit_code=exit_code,
-        command=command,
-        cwd=cwd,
-        started_at=started_at,
-        stopped_at=stopped_at,
-        elapsed_seconds=elapsed_seconds,
-        timeout_seconds=timeout_seconds,
-        timeout_kind=timeout_kind,
-        starter_execution_id=starter_execution_id or starter_name or family_name,
-        workspace_identity=workspace_identity or cwd,
-        diagnostic_manifest_ref=diagnostic_ref,
-        retained_log=retained_log,
+    result = (
+        frozen_result
+        if frozen_result
+        else build_monitor_result_wire(
+            monitor_id=monitor_id,
+            monitor_state=monitor_state,
+            exit_code=exit_code,
+            command=command,
+            cwd=cwd,
+            started_at=started_at,
+            stopped_at=stopped_at,
+            elapsed_seconds=elapsed_seconds,
+            timeout_seconds=timeout_seconds,
+            timeout_kind=timeout_kind,
+            starter_execution_id=starter_execution_id or starter_name or family_name,
+            workspace_identity=workspace_identity or cwd,
+            diagnostic_manifest_ref=diagnostic_ref,
+            retained_log=retained_log,
+        )
     )
     selection = evidence_selection or select_monitor_result_evidence(
         result,
@@ -236,6 +282,8 @@ def compose_followup_prompt(
                 "",
             ]
         )
+    if checkpoint_ref or checkpoint_body:
+        sections.extend(_checkpoint_section(checkpoint_ref, checkpoint_body))
     sections.extend(
         [
             "## Your next action",
@@ -252,6 +300,65 @@ def compose_followup_prompt(
         family_name=family_name,
     )
     return f"{prefix}\n{body}" if prefix else body
+
+
+def _checkpoint_section(
+    checkpoint_ref: str | None,
+    checkpoint_body: Mapping[str, Any] | None,
+) -> list[str]:
+    rows = ["## Continuation checkpoint", ""]
+    if checkpoint_ref:
+        rows.extend([f"- **Ref:** `{checkpoint_ref}`", ""])
+    if checkpoint_body:
+        rows.extend(
+            [
+                *_fenced_block(
+                    "Checkpoint (JSON)",
+                    json.dumps(
+                        checkpoint_body,
+                        ensure_ascii=False,
+                        indent=2,
+                        sort_keys=True,
+                    ),
+                ),
+                "",
+            ]
+        )
+    else:
+        rows.extend(["_Checkpoint body was unavailable from the frozen ref._", ""])
+    return rows
+
+
+def _monitor_state_from_result(
+    result: Mapping[str, Any],
+    fallback: str,
+) -> str:
+    outcome = result.get("outcome")
+    return outcome if isinstance(outcome, str) and outcome else fallback
+
+
+def _result_text(
+    result: Mapping[str, Any],
+    key: str,
+    fallback: str | None,
+) -> str | None:
+    value = result.get(key)
+    return value if isinstance(value, str) and value else fallback
+
+
+def _result_int(
+    result: Mapping[str, Any],
+    key: str,
+    fallback: int | None,
+) -> int | None:
+    value = result.get(key)
+    return value if isinstance(value, int) and not isinstance(value, bool) else fallback
+
+
+def _seconds_from_ms(value: object, fallback: float) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return fallback
+    return max(0.0, float(value) / 1000.0)
 
 
 __all__ = ["DEFAULT_NEXT_OUTPUT", "NEXT_OUTPUT_CHOICES", "compose_followup_prompt"]

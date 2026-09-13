@@ -296,6 +296,11 @@ def test_checkpoint_resume_creates_numbered_manual_branch_and_supersedes_base(
     assert old["disposition"] == "needs_attention"
     manual_key = json.loads(captured[0]["extra_env"]["SASE_MONITOR_DELIVERY_KEY"])
     assert manual_key["branch"] == "manual-recovery-1"
+    prompt = captured[0]["prompt"]
+    assert "## Continuation checkpoint" in prompt
+    assert "recover safely" in prompt
+    assert '"coverage": [' in prompt
+    assert "| **Outcome** | FAILED — exit 1 |" in prompt
     assert (
         Path(monitor_dir) / "continuation" / "manual_resume" / "manual-recovery-1.json"
     ).exists()

@@ -180,7 +180,36 @@ def _write_monitor_result_node(
         project_name="proj",
         update_meta=False,
     )
+    _write_retained_log_snapshot(artifacts_dir, "SECRET_MONITOR_TAIL\n")
     _write_json(artifacts_dir / "agent_meta.json", meta)
+
+
+def _write_retained_log_snapshot(artifacts_dir: Path, text: str) -> None:
+    data = text.encode("utf-8")
+    log_path = artifacts_dir / "diagnostics" / "retained_logs" / "monitor.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    log_path.write_bytes(data)
+    _write_json(
+        artifacts_dir / "diagnostics" / "retained_log_metadata.json",
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "producer": "test",
+            "log_ref": "file:explicit:monitor-log",
+            "local_locator": "diagnostics/retained_logs",
+            "total_observed_bytes": len(data),
+            "retained_ranges": [{"start": 0, "end": len(data)}],
+            "complete": True,
+            "drain_confirmed": True,
+            "segments": [
+                {
+                    "kind": "active",
+                    "locator": "diagnostics/retained_logs/monitor.log",
+                    "bytes": len(data),
+                    "range": {"start": 0, "end": len(data)},
+                }
+            ],
+        },
+    )
 
 
 def _write_text_blob(root: Path, text: str) -> str:
@@ -325,7 +354,14 @@ def test_versioned_monitor_result_tail_policy_uses_frozen_node_once(
         parents=["agent-delta-starter"],
         next_output="tail",
     )
-    direct = _monitor_member(monitor, next_output="tail")
+    direct = _monitor_member(
+        monitor,
+        next_output="tail",
+        log_tail="MUTATED_MONITOR_TAIL\n",
+    )
+    proc = direct["proc"]
+    assert isinstance(proc, dict)
+    proc["command"] = "echo MUTATED_COMMAND"
     family = {
         "kind": "family",
         "name": "acme",
@@ -340,6 +376,8 @@ def test_versioned_monitor_result_tail_policy_uses_frozen_node_once(
 
     assert "STARTER_REPLY" in rendered
     assert rendered.count("SECRET_MONITOR_TAIL") == 1
+    assert "MUTATED_MONITOR_TAIL" not in rendered
+    assert "MUTATED_COMMAND" not in rendered
     assert rendered.count("mon123") >= 1
 
 

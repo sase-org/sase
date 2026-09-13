@@ -98,8 +98,11 @@ def _monitor_payload_from_result(
     *,
     historical_result: bool,
 ) -> Mapping[str, Any]:
+    from sase.monitor.diagnostics import read_retained_log_range
     from sase.monitor.result_projection import (
         LEGACY_NEXT_OUTPUT,
+        command_text_for_monitor_result,
+        retained_log_locator_for_monitor_result,
         select_monitor_result_evidence,
     )
     from sase.monitor.diagnostics import read_selected_diagnostics_text
@@ -120,6 +123,12 @@ def _monitor_payload_from_result(
         selection=selection,
         manifest=dict(diagnostic_manifest),
     )
+    output_text = _frozen_retained_output_text(
+        artifact_dir,
+        result=result,
+        selection=selection,
+        read_range=read_retained_log_range,
+    )
     return {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "kind": "monitor_result",
@@ -128,13 +137,50 @@ def _monitor_payload_from_result(
         "result": result,
         "selection": selection,
         "selected_diagnostics_text": selected_diagnostics.text,
-        "output_text": fork_source_optional_string(proc, "log_tail"),
-        "output_log_path": fork_source_optional_string(proc, "log_path"),
-        "command_text": fork_source_optional_string(proc, "command"),
+        "output_text": output_text,
+        "output_log_path": retained_log_locator_for_monitor_result(result),
+        "command_text": command_text_for_monitor_result(result),
         "historical_result": historical_result,
         "next_action_ref": json_string(meta, "continuation_intent_ref"),
         "checkpoint_ref": json_string(meta, "continuation_checkpoint_ref"),
     }
+
+
+def _frozen_retained_output_text(
+    artifact_dir: Path,
+    *,
+    result: Mapping[str, Any],
+    selection: Mapping[str, Any],
+    read_range: Any,
+) -> str | None:
+    from sase.monitor.result_projection import selected_raw_limits
+
+    raw_limits = selected_raw_limits(selection, requested_tail_lines=10_000)
+    if raw_limits is None:
+        return None
+    _tail_lines, max_chars = raw_limits
+    retained_log = result.get("retained_log")
+    if not isinstance(retained_log, Mapping):
+        return None
+    ranges = retained_log.get("retained_ranges")
+    if not isinstance(ranges, list) or not ranges:
+        return None
+    chunks: list[str] = []
+    remaining = max_chars
+    for item in ranges:
+        if remaining <= 0:
+            break
+        if not isinstance(item, Mapping):
+            continue
+        start = int_or_none(item.get("start"))
+        end = int_or_none(item.get("end"))
+        if start is None or end is None or end <= start:
+            continue
+        read = read_range(artifact_dir, start=start, end=end, max_bytes=remaining)
+        chunks.append(read.text)
+        remaining = max(0, max_chars - len("".join(chunks).encode("utf-8")))
+    text = "".join(chunks)
+    return text or None
 
 
 def read_captured_node(

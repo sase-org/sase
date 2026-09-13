@@ -51,6 +51,7 @@ from .delivery import update_delivery_workspace
 from .followup_prompt import compose_followup_prompt
 from .diagnostics import (
     diagnostic_manifest,
+    read_retained_log_range,
     read_selected_diagnostics_text,
     retained_log_metadata,
 )
@@ -59,7 +60,11 @@ from .output import OutputCapture
 from .result_projection import (
     LEGACY_NEXT_OUTPUT,
     build_monitor_result_wire,
+    retained_log_is_truncated,
+    retained_log_locator_for_monitor_result,
+    retained_log_total_bytes,
     select_monitor_result_evidence,
+    selected_raw_limits,
 )
 
 _SAVED_FOLLOWUP_PROMPT_NAME = "monitor_followup_prompt.md"
@@ -98,7 +103,37 @@ def launch_followup_agent(
     for releasing the workspace claim and notifying.
     """
     records_enabled = monitor_continuation_records_enabled()
-    next_action = str(meta.get("monitor_next_action") or "")
+    intent: Mapping[str, Any] | None = None
+    try:
+        intent = _load_frozen_monitor_intent(artifacts_dir, meta)
+    except ValueError as exc:
+        if records_enabled:
+            return _record_not_launchable(
+                artifacts_dir,
+                meta,
+                str(exc),
+                _recovery_prompt(str(exc)),
+            )
+        intent = None
+    if (
+        records_enabled
+        and intent is None
+        and _clean_str(meta.get("continuation_intent_ref"))
+    ):
+        error = (
+            "frozen monitor intent could not be loaded from continuation metadata; "
+            "manual recovery is required"
+        )
+        return _record_not_launchable(
+            artifacts_dir,
+            meta,
+            error,
+            _recovery_prompt(error),
+        )
+
+    next_action = _next_action_from_intent(intent) or str(
+        meta.get("monitor_next_action") or ""
+    )
     lane = str(meta.get("agent_family") or "")
     if not next_action or not lane:
         return FollowupLaunchResult(launched=False)
@@ -114,7 +149,32 @@ def launch_followup_agent(
     manifest = diagnostic_manifest(artifacts_dir)
     retained_log = retained_log_metadata(artifacts_dir)
     next_output = str(meta.get("monitor_next_output") or LEGACY_NEXT_OUTPUT)
-    loaded_monitor_result = load_frozen_monitor_result(artifacts_dir, meta)
+    try:
+        loaded_monitor_result = load_frozen_monitor_result(artifacts_dir, meta)
+    except ValueError as exc:
+        if records_enabled:
+            return _record_not_launchable(
+                artifacts_dir,
+                meta,
+                str(exc),
+                _recovery_prompt(str(exc)),
+            )
+        raise
+    if (
+        records_enabled
+        and loaded_monitor_result is None
+        and _has_frozen_monitor_result_pointer(meta)
+    ):
+        error = (
+            "frozen monitor result could not be loaded from continuation metadata; "
+            "manual recovery is required"
+        )
+        return _record_not_launchable(
+            artifacts_dir,
+            meta,
+            error,
+            _recovery_prompt(error),
+        )
     monitor_result: Mapping[str, Any]
     if loaded_monitor_result is None:
         monitor_result = build_monitor_result_wire(
@@ -147,6 +207,16 @@ def launch_followup_agent(
         selection=evidence_selection,
         manifest=manifest,
     )
+    output_text = (
+        _frozen_output_text(
+            artifacts_dir,
+            result=monitor_result,
+            selection=evidence_selection,
+            fallback=capture.retained_text(),
+        )
+        if loaded_monitor_result is not None
+        else capture.retained_text()
+    )
     result_id = str(monitor_result.get("result_id") or "")
     branch = branch_override or str(monitor_result.get("outcome") or "failed")
     if records_enabled and result_id:
@@ -159,9 +229,40 @@ def launch_followup_agent(
             "continuation_checkpoint_ref",
             checkpoint_ref_override,
         )
-    selected_next_model = next_model_override or _clean_str(
-        meta.get("monitor_next_model")
+    selected_next_model = (
+        next_model_override
+        or _next_model_from_intent(intent)
+        or _clean_str(meta.get("monitor_next_model"))
     )
+    vcs_prefix = _frozen_intent_vcs_prefix(meta, frozen_next_action=next_action)
+    checkpoint_ref = (
+        checkpoint_ref_override
+        or _clean_str((intent or {}).get("checkpoint_ref"))
+        or _clean_str(meta.get("continuation_checkpoint_ref"))
+    )
+    checkpoint_body = _load_checkpoint_body(artifacts_dir, checkpoint_ref)
+    output_log_path = str(monitor_log_path(artifacts_dir))
+    total_bytes = capture.total_bytes
+    output_truncated = capture.truncated
+    retained_for_prompt = retained_log
+    if loaded_monitor_result is not None:
+        retained = monitor_result.get("retained_log")
+        retained_for_prompt = dict(retained) if isinstance(retained, Mapping) else {}
+        output_log_path = (
+            retained_log_locator_for_monitor_result(
+                monitor_result,
+                fallback=output_log_path,
+            )
+            or output_log_path
+        )
+        total_bytes = retained_log_total_bytes(
+            monitor_result,
+            fallback=capture.total_bytes,
+        )
+        output_truncated = retained_log_is_truncated(
+            monitor_result,
+            fallback=capture.truncated,
+        )
 
     prompt_kwargs: dict[str, Any] = {
         "starter_name": starter_name if settled else None,
@@ -178,24 +279,27 @@ def launch_followup_agent(
         "idle_timeout_seconds": float(meta.get("monitor_idle_timeout_seconds") or 0.0),
         "timeout_kind": timeout_kind or meta.get("monitor_timeout_kind"),
         "monitor_id": str(meta.get("monitor_id") or ""),
-        "output_text": capture.retained_text(),
+        "output_text": output_text,
         "tail_lines": int(meta.get("monitor_tail_lines") or 200),
-        "total_bytes": capture.total_bytes,
-        "output_truncated": capture.truncated,
+        "total_bytes": total_bytes,
+        "output_truncated": output_truncated,
         "next_action": next_action,
         "next_output": next_output,
-        "output_log_path": str(monitor_log_path(artifacts_dir)),
+        "output_log_path": output_log_path,
         "model": _clean_str(meta.get("model")),
         "reasoning_effort": _clean_str(meta.get("reasoning_effort")),
         "next_model": selected_next_model,
         "diagnostic_manifest": manifest,
-        "retained_log_metadata": retained_log,
+        "retained_log_metadata": retained_for_prompt,
         "evidence_selection": evidence_selection,
         "selected_diagnostics_text": selected_diagnostics.text,
         "starter_execution_id": _clean_str(meta.get("monitor_starter_agent"))
         or _clean_str(meta.get("parent_timestamp")),
         "workspace_identity": _clean_str(meta.get("continuation_workspace_ref"))
         or _clean_str(meta.get("workspace_dir")),
+        "monitor_result": monitor_result if loaded_monitor_result is not None else None,
+        "checkpoint_ref": checkpoint_ref,
+        "checkpoint_body": checkpoint_body,
     }
 
     def _compose(degraded_reason: str | None) -> str:
@@ -203,7 +307,7 @@ def launch_followup_agent(
             **prompt_kwargs, workspace_degraded_reason=degraded_reason
         )
         prefix = queue_launch_prefix(meta)
-        return f"{prefix}{prompt}" if prefix else prompt
+        return f"{prefix}{vcs_prefix}{prompt}" if prefix or vcs_prefix else prompt
 
     try:
         resolved_plan = resolve_family_attach_plan(
@@ -355,6 +459,10 @@ def load_frozen_monitor_result(
         payload = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
         return None
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(
+            f"could not read frozen monitor result at {path}: {exc}"
+        ) from exc
     if not isinstance(payload, dict):
         raise ValueError(f"frozen monitor result at {path} is not an object")
     expected = _clean_str(meta.get("continuation_monitor_result_sha256"))
@@ -366,6 +474,168 @@ def load_frozen_monitor_result(
     if not payload.get("result_id"):
         raise ValueError(f"frozen monitor result at {path} has no result_id")
     return payload
+
+
+def _load_frozen_monitor_intent(
+    artifacts_dir: str,
+    meta: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Return the persisted monitor intent, if this run has one."""
+
+    ref = _clean_str(meta.get("continuation_intent_ref"))
+    if not ref:
+        return None
+    payload = _read_continuation_json_ref(artifacts_dir, ref)
+    if payload is None:
+        return None
+    if not isinstance(payload, dict):
+        raise ValueError(f"frozen monitor intent {ref} is not an object")
+    return payload
+
+
+def _read_continuation_json_ref(
+    artifacts_dir: str,
+    ref: str,
+) -> dict[str, Any] | None:
+    path = _continuation_ref_path(artifacts_dir, ref)
+    if path is None:
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError(f"could not read continuation ref {ref}: {exc}") from exc
+    return payload if isinstance(payload, dict) else None
+
+
+def _continuation_ref_path(artifacts_dir: str, ref: str) -> Path | None:
+    prefix = "local:continuation/"
+    if not ref.startswith(prefix):
+        return None
+    root = (Path(artifacts_dir) / "continuation").resolve(strict=False)
+    path = (root / ref.removeprefix(prefix)).resolve(strict=False)
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return None
+    return path
+
+
+def _next_action_from_intent(intent: Mapping[str, Any] | None) -> str | None:
+    if not intent:
+        return None
+    value = intent.get("next_action")
+    return value if isinstance(value, str) and value else None
+
+
+def _next_model_from_intent(intent: Mapping[str, Any] | None) -> str | None:
+    if not intent:
+        return None
+    route = intent.get("route")
+    if not isinstance(route, Mapping):
+        return None
+    return _clean_str(route.get("model"))
+
+
+def _load_checkpoint_body(
+    artifacts_dir: str,
+    checkpoint_ref: str | None,
+) -> Mapping[str, Any] | None:
+    if not checkpoint_ref:
+        return None
+    try:
+        return _read_continuation_json_ref(artifacts_dir, checkpoint_ref)
+    except ValueError:
+        return None
+
+
+def _frozen_intent_vcs_prefix(
+    meta: Mapping[str, Any],
+    *,
+    frozen_next_action: str,
+) -> str:
+    recorded = vcs_ref_from_meta(meta)
+    if recorded is None:
+        return ""
+    mutable_next_action = _clean_str(meta.get("monitor_next_action")) or ""
+    if not mutable_next_action or mutable_next_action == frozen_next_action:
+        return ""
+    if f"#{recorded[0]}:{recorded[1]}" not in mutable_next_action:
+        return ""
+    return f"#{recorded[0]}:{recorded[1]}\n"
+
+
+def _frozen_output_text(
+    artifacts_dir: str,
+    *,
+    result: Mapping[str, Any],
+    selection: Mapping[str, Any],
+    fallback: str,
+) -> str:
+    raw_limits = selected_raw_limits(selection, requested_tail_lines=10_000)
+    if raw_limits is None:
+        return ""
+    _tail_lines, max_chars = raw_limits
+    retained_log = result.get("retained_log")
+    if not isinstance(retained_log, Mapping):
+        return fallback
+    ranges = retained_log.get("retained_ranges")
+    if not isinstance(ranges, list) or not ranges:
+        return fallback
+    chunks: list[str] = []
+    remaining = max_chars
+    for item in ranges:
+        if remaining <= 0:
+            break
+        if not isinstance(item, Mapping):
+            continue
+        start = _int_value(item.get("start"))
+        end = _int_value(item.get("end"))
+        if start is None or end is None or end <= start:
+            continue
+        read = read_retained_log_range(
+            artifacts_dir,
+            start=start,
+            end=end,
+            max_bytes=remaining,
+        )
+        chunks.append(read.text)
+        remaining = max(0, max_chars - len("".join(chunks).encode("utf-8")))
+    text = "".join(chunks)
+    return text if text else fallback
+
+
+def _int_value(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None
+
+
+def _has_frozen_monitor_result_pointer(meta: Mapping[str, Any]) -> bool:
+    return any(
+        _clean_str(meta.get(key))
+        for key in (
+            "continuation_monitor_result_id",
+            "continuation_monitor_result_ref",
+            "continuation_monitor_result_path",
+            "continuation_monitor_result_node_ref",
+            "continuation_monitor_result_manifest_ref",
+        )
+    )
+
+
+def _recovery_prompt(error: str) -> str:
+    return (
+        "%xprompts_enabled:false\n"
+        "# Monitor continuation recovery required\n\n"
+        "The versioned monitor continuation context could not be loaded. "
+        "Do not reconstruct the monitored result from mutable metadata.\n\n"
+        f"```text\n{error}\n```\n"
+        "%xprompts_enabled:true"
+    )
 
 
 def _record_launched(

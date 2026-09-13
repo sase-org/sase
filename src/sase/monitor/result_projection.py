@@ -318,6 +318,72 @@ def output_cell_for_selection(
     return " · ".join(parts)
 
 
+def command_text_for_monitor_result(
+    result: Mapping[str, Any],
+    *,
+    fallback: str | None = None,
+) -> str:
+    """Return a readable command while preserving frozen argv identity."""
+
+    command = result.get("command")
+    if isinstance(command, Sequence) and not isinstance(
+        command,
+        bytes | bytearray | str,
+    ):
+        parts = [str(part) for part in command]
+        if len(parts) == 3 and parts[0] == "/bin/sh" and parts[1] == "-c":
+            return parts[2]
+        if len(parts) == 1:
+            return parts[0]
+        return json.dumps(parts, ensure_ascii=False)
+    if isinstance(command, str) and command:
+        return command
+    return fallback or ""
+
+
+def retained_log_locator_for_monitor_result(
+    result: Mapping[str, Any],
+    *,
+    fallback: str | None = None,
+) -> str | None:
+    """Return the frozen retained-log locator, if the result carries one."""
+
+    retained_log = result.get("retained_log")
+    if isinstance(retained_log, Mapping):
+        locator = retained_log.get("local_locator")
+        if isinstance(locator, str) and locator:
+            return locator
+    return fallback
+
+
+def retained_log_total_bytes(
+    result: Mapping[str, Any],
+    *,
+    fallback: int,
+) -> int:
+    """Return total observed bytes from frozen retained-log metadata."""
+
+    retained_log = result.get("retained_log")
+    if isinstance(retained_log, Mapping):
+        total = _optional_int(retained_log.get("total_observed_bytes"))
+        if total is not None:
+            return max(0, total)
+    return fallback
+
+
+def retained_log_is_truncated(
+    result: Mapping[str, Any],
+    *,
+    fallback: bool,
+) -> bool:
+    """Return whether the frozen retained log is incomplete."""
+
+    retained_log = result.get("retained_log")
+    if isinstance(retained_log, Mapping) and "complete" in retained_log:
+        return not bool(retained_log.get("complete"))
+    return fallback
+
+
 def selected_raw_limits(
     selection: Mapping[str, Any],
     *,
@@ -596,7 +662,11 @@ __all__ = [
     "SELECTED_DIAGNOSTICS_MAX_BYTES",
     "TOTAL_RAW_EXCERPT_MAX_BYTES",
     "build_monitor_result_wire",
+    "command_text_for_monitor_result",
     "output_cell_for_selection",
+    "retained_log_is_truncated",
+    "retained_log_locator_for_monitor_result",
+    "retained_log_total_bytes",
     "render_monitor_evidence_section",
     "render_monitor_result_block",
     "select_monitor_result_evidence",
