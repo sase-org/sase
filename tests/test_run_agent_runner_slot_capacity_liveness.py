@@ -148,8 +148,8 @@ def test_implicit_gate_fails_closed_when_effective_limit_is_unavailable(
         assert first is None
         assert parked is True
         assert marker["queue_capacity_explicit"] is False
-        assert "wait_runners" not in marker
-        assert "wait_runners_explicit" not in marker
+        assert marker["wait_runners"] == 0
+        assert marker["wait_runners_explicit"] is False
         assert marker["wait_priority_explicit"] is False
         assert marker["runner_limit_unavailable"] == "override lock busy"
         scan.assert_not_called()
@@ -271,8 +271,8 @@ def test_answered_root_reacquires_after_yield_without_oversubscribing(
         queued = json.loads((paused / "waiting.json").read_text())
         assert queued["queue_capacity"] == 0
         assert queued["queue_capacity_explicit"] is False
-        assert "wait_runners" not in queued
-        assert "wait_runners_explicit" not in queued
+        assert queued["wait_runners"] == 0
+        assert queued["wait_runners_explicit"] is False
 
         newcomer_started = False
 

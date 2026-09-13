@@ -27,6 +27,31 @@ def read_json_dict(path: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def queue_capacity_marker_fields(
+    queue_capacity: int | None,
+    *,
+    explicit: bool,
+) -> dict[str, Any]:
+    """Return ``waiting.json`` capacity fields in both persisted spellings.
+
+    Other waiters see a parked launch only through the Rust agent scan, which
+    still projects just the legacy ``wait_runners`` keys from ``waiting.json``.
+    A marker carrying only ``queue_capacity`` hides the launch's authored
+    capacity from the rest of the queue, so a waiter blocked by its own
+    capacity looks admissible under the global limit and parks every waiter
+    behind it on ``queue-order``. Write both spellings until the scanner reads
+    ``queue_capacity``.
+    """
+    fields: dict[str, Any] = {
+        "queue_capacity_explicit": explicit,
+        "wait_runners_explicit": explicit,
+    }
+    if queue_capacity is not None:
+        fields["queue_capacity"] = queue_capacity
+        fields["wait_runners"] = queue_capacity
+    return fields
+
+
 def write_waiting_marker(
     artifacts_dir: str,
     waiting_data: dict[str, Any],

@@ -208,8 +208,8 @@ def test_explicit_runner_priority_and_weight_survive_real_parking(
     marker = harness.waiting_marker(barrier)
     assert marker["queue_capacity"] == 1
     assert marker["queue_capacity_explicit"] is True
-    assert "wait_runners" not in marker
-    assert "wait_runners_explicit" not in marker
+    assert marker["wait_runners"] == 1
+    assert marker["wait_runners_explicit"] is True
     assert marker["wait_priority"] == 0
     assert marker["wait_priority_explicit"] is True
     assert marker["queue_weight"] == pytest.approx(0.25)

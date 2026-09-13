@@ -82,8 +82,8 @@ def test_repeated_slot_polls_preserve_foreign_waiting_marker_fields(
             assert marker["timestamp"] == waiter.name
             assert marker["queue_capacity"] == 0
             assert marker["queue_capacity_explicit"] is False
-            assert "wait_runners" not in marker
-            assert "wait_runners_explicit" not in marker
+            assert marker["wait_runners"] == 0
+            assert marker["wait_runners_explicit"] is False
             assert marker["wait_priority"] == 4
             assert marker["wait_priority_explicit"] is True
             assert marker["slot_requested_at"] == requested_at

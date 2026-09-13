@@ -318,13 +318,18 @@ def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> N
         if patch.wait_until is not None:
             existing["wait_until"] = patch.wait_until
         if patch.update_wait_runners:
+            from sase.axe.run_agent_wait_markers import queue_capacity_marker_fields
+
             existing.pop("queue_capacity", None)
             existing.pop("queue_capacity_explicit", None)
             existing.pop("wait_runners", None)
             existing.pop("wait_runners_explicit", None)
-            existing["queue_capacity_explicit"] = patch.wait_runners is not None
-            if patch.wait_runners is not None:
-                existing["queue_capacity"] = patch.wait_runners
+            existing.update(
+                queue_capacity_marker_fields(
+                    patch.wait_runners,
+                    explicit=patch.wait_runners is not None,
+                )
+            )
         if patch.update_wait_priority:
             existing.pop("wait_priority", None)
             existing["wait_priority_explicit"] = patch.wait_priority is not None

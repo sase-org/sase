@@ -17,6 +17,7 @@ from typing import Any
 
 from sase.agent.names import is_process_alive
 from sase.axe.run_agent_wait_markers import (
+    queue_capacity_marker_fields,
     read_json_dict,
     remove_waiting_marker,
     write_waiting_marker,
@@ -251,15 +252,15 @@ def _park_for_unavailable_limit(
         requested_at = datetime.now(UTC).isoformat()
     marker = dict(waiting_data or {})
     marker_queue_capacity = queue_capacity if queue_capacity is not None else 0
-    marker.pop("wait_runners", None)
-    marker.pop("wait_runners_explicit", None)
     marker.update(
         {
             "patch_name": cl_name,
             "cl_name": cl_name,
             "timestamp": timestamp,
-            "queue_capacity": marker_queue_capacity,
-            "queue_capacity_explicit": queue_capacity_explicit,
+            **queue_capacity_marker_fields(
+                marker_queue_capacity,
+                explicit=queue_capacity_explicit,
+            ),
             "wait_priority": priority,
             "wait_priority_explicit": priority_explicit,
             "queue_weight": queue_weight,
@@ -572,8 +573,6 @@ def _try_claim_runner_slot(
                 )
             marker = dict(waiting_data or {})
             marker.pop("runner_limit_unavailable", None)
-            marker.pop("wait_runners", None)
-            marker.pop("wait_runners_explicit", None)
             if eligible_since is None:
                 marker.pop("eligible_since", None)
             else:
@@ -583,10 +582,10 @@ def _try_claim_runner_slot(
                     "patch_name": cl_name,
                     "cl_name": cl_name,
                     "timestamp": timestamp,
-                    "queue_capacity": (
-                        queue_capacity if queue_capacity is not None else 0
+                    **queue_capacity_marker_fields(
+                        queue_capacity if queue_capacity is not None else 0,
+                        explicit=queue_capacity_explicit,
                     ),
-                    "queue_capacity_explicit": queue_capacity_explicit,
                     "wait_priority": priority,
                     "wait_priority_explicit": priority_explicit,
                     "queue_weight": queue_weight,
