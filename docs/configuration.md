@@ -2876,8 +2876,9 @@ axe:
             Prune stale scratch under the managed SASE temp root
 
             Removes old children from managed-temp buckets using workload-specific age limits, without following
-            symlinks or deleting the stable bucket directories. Launched agents default TMPDIR/TMP/TEMP and
-            CARGO_TARGET_DIR into managed buckets. The reaper can also prune aged large build output early
+            symlinks or deleting the stable bucket directories. Launched agents default TMPDIR/TMP/TEMP,
+            CARGO_TARGET_DIR, and CARGO_BUILD_BUILD_DIR into managed buckets. The reaper can also prune aged large
+            build output early
             when the managed root exceeds its size target or the filesystem falls below the free-space floor, while
             preserving generic agent scratch, handoff data, unknown buckets, and build trees with fresh descendants.
             Each pass removes at most 2,000 entries and de-indexes deleted agent-artifact directories, so a neglected

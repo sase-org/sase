@@ -244,6 +244,7 @@ def _build_set(
             "VIRTUAL_ENV": str(Path(target_python).parent.parent),
             "PYO3_USE_ABI3_FORWARD_COMPATIBILITY": "1",
             "CARGO_TARGET_DIR": str(py_target),
+            "CARGO_BUILD_BUILD_DIR": str(py_target / "build"),
         }
     )
     maturin_result = run(
@@ -269,7 +270,12 @@ def _build_set(
     extension_path = artifacts_dir / EXTENSION_FILENAME
     _extract_extension(wheel, extension_path)
 
-    lsp_env = _build_env({"CARGO_TARGET_DIR": str(lsp_target)})
+    lsp_env = _build_env(
+        {
+            "CARGO_TARGET_DIR": str(lsp_target),
+            "CARGO_BUILD_BUILD_DIR": str(lsp_target / "build"),
+        }
+    )
     cargo = run(
         _low_priority_argv(
             (

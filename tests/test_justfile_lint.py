@@ -351,6 +351,19 @@ def test_rust_dev_install_disables_cargo_incremental_cache() -> None:
     assert output.count('rm -rf "$lsp_target_dir/$profile/incremental"') == 1
 
 
+def test_rust_dev_install_isolates_cargo_build_dir_with_target() -> None:
+    output = _dry_run("rust-dev-install", "/tmp/fake-venv")
+
+    assert 'CARGO_BUILD_BUILD_DIR="$py_target_dir/build"' in output
+    assert 'CARGO_BUILD_BUILD_DIR="$lsp_target_dir/build"' in output
+
+
+def test_rust_lsp_install_isolates_cargo_build_dir_with_target() -> None:
+    output = _dry_run("rust-lsp-install", "/tmp/fake-venv")
+
+    assert 'CARGO_BUILD_BUILD_DIR="$lsp_target_dir/build"' in output
+
+
 def test_rust_install_also_refreshes_the_xprompt_lsp_binary() -> None:
     """`just install` must never leave a stale `sase-xprompt-lsp` behind.
 

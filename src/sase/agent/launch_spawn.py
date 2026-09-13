@@ -104,6 +104,29 @@ def _overwrite_project_dir_env(env: dict[str, str], workspace_dir: str) -> None:
     env.pop("CODEX_PROJECT_DIR", None)
 
 
+def _cargo_build_dir_for_target(target_dir: str) -> str:
+    """Return the isolated intermediates directory for a Cargo target dir."""
+    return os.path.join(target_dir, "build")
+
+
+def _apply_launch_cargo_env(
+    env: dict[str, str],
+    *,
+    extra_env: dict[str, str] | None,
+) -> None:
+    """Keep ``CARGO_BUILD_BUILD_DIR`` aligned with the effective target.
+
+    An independently supplied build-dir, including an empty value, is left
+    alone so Cargo's own override semantics remain in effect.
+    """
+    extra = extra_env or {}
+    if "CARGO_BUILD_BUILD_DIR" in extra:
+        return
+    target_dir = env.get("CARGO_TARGET_DIR")
+    if target_dir:
+        env["CARGO_BUILD_BUILD_DIR"] = _cargo_build_dir_for_target(target_dir)
+
+
 def _managed_agent_scratch_env(
     *,
     safe_name: str,
@@ -129,6 +152,10 @@ def _managed_agent_scratch_env(
         "TMP": tmpdir,
         "TEMP": tmpdir,
         "CARGO_TARGET_DIR": cargo_target_dir,
+        "CARGO_BUILD_BUILD_DIR": _cargo_build_dir_for_target(cargo_target_dir),
+        "CARGO_INCREMENTAL": "0",
+        "CARGO_PROFILE_DEV_DEBUG": "line-tables-only",
+        "CARGO_PROFILE_TEST_DEBUG": "line-tables-only",
     }
 
 
@@ -335,6 +362,11 @@ def spawn_agent_subprocess(
 
         apply_linked_repo_env(subprocess_env, linked_resolution)
         _overwrite_project_dir_env(subprocess_env, workspace_dir)
+        if extra_env:
+            # Re-apply so a deliberately empty override (Cargo's env semantics)
+            # is not lost if the launch wire omitted blank values.
+            subprocess_env.update(extra_env)
+        _apply_launch_cargo_env(subprocess_env, extra_env=extra_env)
         from sase.sdd.env import set_sdd_dir_env
 
         set_sdd_dir_env(

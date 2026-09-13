@@ -402,14 +402,16 @@ older separate `rust-install*` and `rust-lsp-install*` targets remain available 
 direct maintenance, `just install`, and CI paths that intentionally exercise the
 published release profile separately.
 
-Launched agents receive `TMPDIR`/`TMP`/`TEMP` and `CARGO_TARGET_DIR` under SASE's
-managed temp root for each run. Agent code and ad hoc commands should use that exported
-`CARGO_TARGET_DIR`; do not invent a target directory under `~/.cache`, `~/Sync`, or
-`/var/tmp`, because an invented root has no owner and no retention policy. The
-repo-owned exceptions are the two Justfile roots above: `../sase-core/target/uv-tool-py`
-for `sase_core_rs` and `../sase-core/target/uv-tool-lsp` for `sase-xprompt-lsp`. Those
-are shared across workspaces on purpose, visible to disk tooling, and safe to prune at
-the `incremental/` layer while preserving `deps/`.
+Launched agents receive `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and
+`CARGO_BUILD_BUILD_DIR` under SASE's managed temp root for each run. Agent code and ad
+hoc commands should use those exported directories; do not invent a target directory
+under `~/.cache`, `~/Sync`, or `/var/tmp`, because an invented root has no owner and no
+retention policy. The repo-owned exceptions are the two Justfile roots above:
+`../sase-core/target/uv-tool-py` for `sase_core_rs` and
+`../sase-core/target/uv-tool-lsp` for `sase-xprompt-lsp`. Those are shared across
+workspaces on purpose, visible to disk tooling, and safe to prune at the `incremental/`
+layer while preserving `deps/`. Each isolated target also sets `CARGO_BUILD_BUILD_DIR`
+beside it so a host `build.build-dir` default cannot merge those recipe caches.
 
 ### Required Extension And Cleanup Compatibility Exception
 

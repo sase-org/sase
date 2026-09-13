@@ -280,6 +280,40 @@ def test_pressure_reaping_prunes_large_build_scratch_before_horizon(
     assert result.removed_by_subdir == {"cargo-targets": 1}
 
 
+def test_ordinary_cargo_build_dir_names_are_eligible_and_protect_fresh_descendants(
+    tmp_path: Path,
+) -> None:
+    stale = _aged_dir(
+        tmp_path,
+        "build-targets/cargo-abcd1234",
+        age_seconds=BUILD_SCRATCH_HORIZON_SECONDS + HOUR,
+    )
+    protected = _aged_dir(
+        tmp_path,
+        "build-targets/cargo-efgh5678",
+        age_seconds=BUILD_SCRATCH_HORIZON_SECONDS + HOUR,
+    )
+    fresh_child = protected / "deps" / "lib.rmeta"
+    fresh_child.parent.mkdir(parents=True, exist_ok=True)
+    fresh_child.write_text("fresh", encoding="utf-8")
+    os.utime(fresh_child, (NOW, NOW))
+    unrelated = _aged_dir(
+        tmp_path,
+        "agent-tmp/unrelated",
+        age_seconds=HOUR,
+    )
+    symlink = tmp_path / "build-targets" / "cargo-symlink"
+    symlink.symlink_to(stale)
+
+    result = reap_managed_tmpdir(tmp_path, now=NOW)
+
+    assert not stale.exists()
+    assert protected.exists()
+    assert unrelated.exists()
+    assert symlink.is_symlink()
+    assert result.removed_by_subdir.get("build-targets") == 1
+
+
 def test_pressure_reaping_catches_legacy_build_targets_bucket(
     tmp_path: Path,
 ) -> None:

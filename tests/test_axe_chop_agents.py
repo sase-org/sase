@@ -106,9 +106,12 @@ def test_managed_agent_scratch_env_roots_cargo_target_under_managed_tmp(
     )
 
     scratch_key = "proj-ws3-260101_120000"
-    assert env["CARGO_TARGET_DIR"] == str(
-        tmp_path / "tmp" / "cargo-targets" / scratch_key
-    )
+    cargo_target = tmp_path / "tmp" / "cargo-targets" / scratch_key
+    assert env["CARGO_TARGET_DIR"] == str(cargo_target)
+    assert env["CARGO_BUILD_BUILD_DIR"] == str(cargo_target / "build")
+    assert env["CARGO_INCREMENTAL"] == "0"
+    assert env["CARGO_PROFILE_DEV_DEBUG"] == "line-tables-only"
+    assert env["CARGO_PROFILE_TEST_DEBUG"] == "line-tables-only"
     assert env["TMPDIR"] == str(tmp_path / "tmp" / "agent-tmp" / scratch_key)
     assert env["TMP"] == env["TMPDIR"]
     assert env["TEMP"] == env["TMPDIR"]
@@ -260,6 +263,10 @@ def test_spawn_agent_subprocess_routes_default_build_scratch_to_managed_tmp(
     monkeypatch.setenv("TMP", "/tmp/inherited")
     monkeypatch.setenv("TEMP", "/tmp/inherited")
     monkeypatch.setenv("CARGO_TARGET_DIR", "/tmp/inherited-cargo-target")
+    monkeypatch.setenv("CARGO_BUILD_BUILD_DIR", "/tmp/inherited-cargo-build")
+    monkeypatch.setenv("CARGO_INCREMENTAL", "1")
+    monkeypatch.setenv("CARGO_PROFILE_DEV_DEBUG", "2")
+    monkeypatch.setenv("CARGO_PROFILE_TEST_DEBUG", "2")
 
     _spawn_agent_for_env_test(
         tmp_path=tmp_path,
@@ -269,12 +276,15 @@ def test_spawn_agent_subprocess_routes_default_build_scratch_to_managed_tmp(
 
     env = mock_spawn.call_args.kwargs["env"]
     scratch_key = "proj-ws3-260101_120000"
+    cargo_target = tmp_path / "tmp" / "cargo-targets" / scratch_key
     assert env["TMPDIR"] == str(tmp_path / "tmp" / "agent-tmp" / scratch_key)
     assert env["TMP"] == env["TMPDIR"]
     assert env["TEMP"] == env["TMPDIR"]
-    assert env["CARGO_TARGET_DIR"] == str(
-        tmp_path / "tmp" / "cargo-targets" / scratch_key
-    )
+    assert env["CARGO_TARGET_DIR"] == str(cargo_target)
+    assert env["CARGO_BUILD_BUILD_DIR"] == str(cargo_target / "build")
+    assert env["CARGO_INCREMENTAL"] == "0"
+    assert env["CARGO_PROFILE_DEV_DEBUG"] == "line-tables-only"
+    assert env["CARGO_PROFILE_TEST_DEBUG"] == "line-tables-only"
     assert Path(env["TMPDIR"]).is_dir()
     assert Path(env["CARGO_TARGET_DIR"]).is_dir()
 
@@ -308,6 +318,83 @@ def test_spawn_agent_subprocess_preserves_explicit_build_scratch_env(
     assert env["TMP"] == str(explicit_tmp)
     assert env["TEMP"] == str(explicit_tmp)
     assert env["CARGO_TARGET_DIR"] == str(explicit_cargo)
+    assert env["CARGO_BUILD_BUILD_DIR"] == str(explicit_cargo / "build")
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_preserves_explicit_cargo_build_dir(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    explicit_cargo = tmp_path / "explicit-cargo"
+    explicit_build = tmp_path / "explicit-build"
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+        extra_env={
+            "CARGO_TARGET_DIR": str(explicit_cargo),
+            "CARGO_BUILD_BUILD_DIR": str(explicit_build),
+        },
+    )
+
+    env = mock_spawn.call_args.kwargs["env"]
+    assert env["CARGO_TARGET_DIR"] == str(explicit_cargo)
+    assert env["CARGO_BUILD_BUILD_DIR"] == str(explicit_build)
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_preserves_empty_cargo_build_dir_override(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    explicit_cargo = tmp_path / "explicit-cargo"
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+        extra_env={
+            "CARGO_TARGET_DIR": str(explicit_cargo),
+            "CARGO_BUILD_BUILD_DIR": "",
+        },
+    )
+
+    env = mock_spawn.call_args.kwargs["env"]
+    assert env["CARGO_TARGET_DIR"] == str(explicit_cargo)
+    assert env["CARGO_BUILD_BUILD_DIR"] == ""
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_preserves_explicit_cargo_profile_overrides(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+        extra_env={
+            "CARGO_INCREMENTAL": "1",
+            "CARGO_PROFILE_DEV_DEBUG": "2",
+            "CARGO_PROFILE_TEST_DEBUG": "2",
+        },
+    )
+
+    env = mock_spawn.call_args.kwargs["env"]
+    assert env["CARGO_INCREMENTAL"] == "1"
+    assert env["CARGO_PROFILE_DEV_DEBUG"] == "2"
+    assert env["CARGO_PROFILE_TEST_DEBUG"] == "2"
 
 
 @patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))

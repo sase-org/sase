@@ -482,9 +482,9 @@ subdirectory: command scratch (`editors/`, `wrappers/`, `viewers/`, `commit-mess
 `agent-tmp/`, …) goes after 12 hours, handoff files (`handoff/`, `gh-diffs/`) after 3
 days, build targets (`cargo-targets/`) after 3 days, and artifacts the ACE Agents tab
 reads back (`launch-prompts/`, `workflow-artifacts/`) after 14 days. Launched agents
-default `TMPDIR`/`TMP`/`TEMP` and `CARGO_TARGET_DIR` to per-launch directories under
-those managed buckets, so shell scratch and Cargo targets no longer fall back to
-host-global `/tmp`.
+default `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to
+per-launch directories under those managed buckets, so shell scratch and Cargo targets
+no longer fall back to host-global `/tmp`.
 
 Each run removes at most 2,000 entries so a long-neglected root converges over several
 passes instead of stalling one. The reaper also runs a pressure pass when the managed

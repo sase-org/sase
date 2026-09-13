@@ -413,7 +413,9 @@ def test_successful_producer_writes_stamp_last_and_prunes_to_two(
             if "maturin" in command:
                 assert cwd == mirror / "crates" / "sase_core_py"
                 assert env is not None
-                dist = Path(env["CARGO_TARGET_DIR"]).parents[1] / "dist"
+                target = Path(env["CARGO_TARGET_DIR"])
+                assert Path(env["CARGO_BUILD_BUILD_DIR"]) == target / "build"
+                dist = target.parents[1] / "dist"
                 dist.mkdir(parents=True, exist_ok=True)
                 wheel = dist / "sase_core_rs-0.0.0-cp312-abi3-linux.whl"
                 with zipfile.ZipFile(wheel, "w") as archive:
@@ -424,6 +426,7 @@ def test_successful_producer_writes_stamp_last_and_prunes_to_two(
             if command[:4] == ("ionice", "-c", "3", "nice") and "cargo" in command:
                 assert env is not None
                 target = Path(env["CARGO_TARGET_DIR"])
+                assert Path(env["CARGO_BUILD_BUILD_DIR"]) == target / "build"
                 lsp = target / "dev-update" / prebuild.LSP_BINARY_NAME
                 lsp.parent.mkdir(parents=True)
                 lsp.write_bytes(b"lsp")
