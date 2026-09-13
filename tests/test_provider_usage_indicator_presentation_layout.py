@@ -57,7 +57,7 @@ def test_partial_overflow_keeps_complete_windows_and_hidden_total() -> None:
     )
     codex = _entry(provider="codex", remaining_percent=81.0)
     groups = _groups(default, fable, session, codex)
-    expected = " 🎭 62% 3d4h · fable 7% 1d8h  +2 "
+    expected = " 🎭 62% 3d4h · 5h 18% 2h9m  +2 "
 
     segment = build_usage_indicator_segment(groups, budget=cell_len(expected))
 
@@ -79,7 +79,8 @@ def test_budget_packing_falls_back_through_the_full_ladder() -> None:
     overflow = build_usage_indicator_segment(groups, budget=full.cell_len - 1)
     assert overflow.cell_len <= full.cell_len - 1
     assert overflow.plain.strip().endswith("+1")
-    assert "🛰️" in overflow.plain
+    assert "🎭" in overflow.plain
+    assert "🛰️" not in overflow.plain
 
     count_only = build_usage_indicator_segment(groups, budget=cell_len(" usage 3 "))
     assert count_only.plain == " usage 3 "
@@ -209,10 +210,10 @@ def test_real_projection_selection_boundary_and_renderer_integration() -> None:
         eligible_providers=["claude"],
         now=FROZEN_NOW,
     )
-    assert [entry["window_key"] for entry in projection.entries] == [
+    assert {entry["window_key"] for entry in projection.entries} == {
         "fable-1999",
         "weekly",
-    ]
+    }
     segment = build_usage_indicator_segment(
         usage_indicator_groups(projection.entries, dark=True, now=FROZEN_NOW)
     )

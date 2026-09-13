@@ -17,6 +17,7 @@ from sase.llm_provider.usage.claude import (
     capture_claude_passive_usage_context,
     collect_claude_usage,
 )
+from sase.llm_provider.usage.refresh import USAGE_REFRESH_CONTEXT_ID
 from sase.llm_provider.usage._claude_support import (
     CLAUDE_USAGE_PROBE_BUDGET_USD,
     ClaudeCommandResult,
@@ -479,7 +480,7 @@ def test_claude_provider_exposes_usage_probe_hook(
     assert result.observation["outcome"] == "ok"
 
 
-def test_passive_context_hashes_auth_identity(
+def test_passive_context_uses_shared_refresh_context_id(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
 ) -> None:
@@ -487,12 +488,21 @@ def test_passive_context_hashes_auth_identity(
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
     runner = _runner()
 
-    context = capture_claude_passive_usage_context(
+    first = capture_claude_passive_usage_context(
         executable="/fake/bin/claude",
         runner=runner,
         clock=lambda: OBSERVED_AT,
     )
+    second = capture_claude_passive_usage_context(
+        executable="/fake/bin/claude",
+        runner=runner,
+        clock=lambda: OBSERVED_AT + 1.0,
+    )
 
-    assert context is not None
-    assert context.context_id.startswith("claude-usage-")
-    assert "private@example.com" not in context.context_id
+    assert first is not None
+    assert second is not None
+    assert first.context_id == USAGE_REFRESH_CONTEXT_ID
+    assert first.auth_context == USAGE_REFRESH_CONTEXT_ID
+    assert second.context_id == first.context_id
+    assert second.account_generation == first.account_generation
+    assert "private@example.com" not in first.context_id

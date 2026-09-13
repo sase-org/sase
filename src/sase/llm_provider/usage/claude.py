@@ -22,7 +22,6 @@ from sase.llm_provider.usage._claude_support import (
     extract_plan,
     extract_version,
     has_zero_cost_markers,
-    hashed_context_id,
     is_finite_number,
     optional_epoch_seconds,
     parse_usage_windows,
@@ -42,6 +41,7 @@ from sase.llm_provider.usage._strategy import (
 )
 from sase.llm_provider.usage.config import collection_skip_reason
 from sase.llm_provider.usage.probe import record_passive_usage_observation
+from sase.llm_provider.usage.refresh import USAGE_REFRESH_CONTEXT_ID
 from sase.llm_provider.usage.store import (
     prepare_provider_usage_account_context,
     record_provider_usage_observation,
@@ -234,11 +234,10 @@ def capture_claude_passive_usage_context(
     auth_info = auth_info_from_result(auth_result)
     if auth_info.mode != "subscription" or not auth_info.context_material:
         return None
-    context_id = hashed_context_id(auth_info.context_material)
     try:
         prepared = prepare_provider_usage_account_context(
             CLAUDE_PROVIDER_NAME,
-            context_id,
+            USAGE_REFRESH_CONTEXT_ID,
             now=now,
         )
     except Exception:
@@ -253,7 +252,7 @@ def capture_claude_passive_usage_context(
         operation_id=f"claude-stream-{uuid.uuid4().hex[:12]}",
         request_started_at=now,
         executable=resolved,
-        auth_context=context_id,
+        auth_context=USAGE_REFRESH_CONTEXT_ID,
     )
 
 

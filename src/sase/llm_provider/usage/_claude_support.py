@@ -6,7 +6,6 @@ from ._claude_support_auth import (
     ClaudeAuthInfo,
     auth_info_from_result,
     extract_plan,
-    hashed_context_id,
     status_from_auth_text,
 )
 from ._claude_support_command import (
@@ -41,7 +40,6 @@ __all__ = [
     "extract_plan",
     "extract_version",
     "has_zero_cost_markers",
-    "hashed_context_id",
     "is_finite_number",
     "optional_epoch_seconds",
     "parse_claude_reset_timestamp",

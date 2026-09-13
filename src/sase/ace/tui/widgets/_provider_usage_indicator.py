@@ -33,14 +33,6 @@ _PROVIDER_GAP = "  "
 _WINDOW_SEPARATOR = " · "
 _DISCLOSURE_GAP = "  "
 
-_ATTENTION_RANK: Mapping[str, int] = {
-    "rejected": 4,
-    "very_low": 3,
-    "collection_problem": 2,
-    "low": 1,
-    "none": 0,
-}
-
 
 @dataclass(frozen=True, slots=True)
 class _UsageWindowFragment:
@@ -48,7 +40,6 @@ class _UsageWindowFragment:
 
     provider: str
     window_key: str
-    attention_rank: int
     text: Text
     tooltip_lines: tuple[str, ...]
 
@@ -84,9 +75,9 @@ def usage_indicator_groups(
         provider = str(entry.get("provider") or "")
         by_provider.setdefault(provider, []).append(entry)
 
-    records: list[tuple[tuple[Any, ...], UsageProviderGroup]] = []
-    for provider, provider_entries in by_provider.items():
-        ordered_entries = _ordered_provider_entries(provider_entries)
+    groups: list[UsageProviderGroup] = []
+    for provider in sorted(by_provider):
+        ordered_entries = _ordered_provider_entries(by_provider[provider])
         named_entries = _entry_display_names(ordered_entries)
         fragments = tuple(
             _entry_fragment(entry, name=name, dark=dark, now=now)
@@ -94,15 +85,14 @@ def usage_indicator_groups(
         )
         if not fragments:
             continue
-        group_rank = max(fragment.attention_rank for fragment in fragments)
-        group = UsageProviderGroup(
-            provider=provider,
-            icon=_provider_icon(provider),
-            fragments=fragments,
+        groups.append(
+            UsageProviderGroup(
+                provider=provider,
+                icon=_provider_icon(provider),
+                fragments=fragments,
+            )
         )
-        records.append(((-group_rank, provider), group))
-    records.sort(key=lambda record: record[0])
-    return tuple(group for _key, group in records)
+    return tuple(groups)
 
 
 def usage_indicator_open_provider(groups: Sequence[UsageProviderGroup]) -> str | None:
@@ -265,9 +255,7 @@ def _ordered_provider_entries(
     defaults = [entry for entry in entries if entry.get("weekly_all") is True]
     anchor = min(defaults, key=_window_key_sort_text) if defaults else None
     extras = [entry for entry in entries if entry is not anchor]
-    extras.sort(
-        key=lambda entry: (-_entry_attention_rank(entry), _window_key_sort_text(entry))
-    )
+    extras.sort(key=_window_key_sort_text)
     if anchor is None:
         return tuple(extras)
     return (anchor, *extras)
@@ -362,14 +350,9 @@ def _entry_fragment(
     return _UsageWindowFragment(
         provider=provider,
         window_key=_optional_text(entry.get("window_key")) or "",
-        attention_rank=_entry_attention_rank(entry),
         text=text,
         tooltip_lines=tooltip,
     )
-
-
-def _entry_attention_rank(entry: Mapping[str, Any]) -> int:
-    return _ATTENTION_RANK.get(_optional_text(entry.get("display_attention")) or "", 0)
 
 
 def _window_key_sort_text(entry: Mapping[str, Any]) -> str:

@@ -2,20 +2,14 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
-import logging
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from sase.core.paths import sase_home
-from sase.core.rust import require_rust_binding
 from sase.llm_provider.usage._claude_support_command import ClaudeCommandResult
 from sase.llm_provider.usage._claude_support_text import normalize_text
-
-log = logging.getLogger(__name__)
 
 _SECRET_FIELD_MARKERS = ("token", "secret", "password", "credential", "key")
 
@@ -67,16 +61,6 @@ def extract_plan(result_text: str) -> str | None:
     if match is None:
         return None
     return _safe_display_value(match.group("plan"))
-
-
-def hashed_context_id(material: Sequence[str]) -> str:
-    """Hash sanitized Claude auth material into a stable local context id."""
-    hasher = hashlib.sha256()
-    hasher.update(_installation_salt().encode("utf-8"))
-    for item in material:
-        hasher.update(b"\0")
-        hasher.update(str(item).encode("utf-8", errors="replace"))
-    return f"claude-usage-{hasher.hexdigest()[:24]}"
 
 
 def _extract_plan_from_payload(payload: Mapping[str, Any]) -> str | None:
@@ -204,21 +188,6 @@ def _auth_context_material(payload: Mapping[str, Any]) -> list[str]:
 
     walk(payload, ())
     return material
-
-
-def _installation_salt() -> str:
-    try:
-        ensure = require_rust_binding("fleet_installation_identity_ensure")
-        payload = ensure(str(sase_home()))
-        record = payload.get("record") if isinstance(payload, Mapping) else None
-        installation_id = (
-            record.get("installation_id") if isinstance(record, Mapping) else None
-        )
-        if isinstance(installation_id, str) and installation_id:
-            return installation_id
-    except Exception:
-        log.debug("provider usage installation salt was unavailable")
-    return str(sase_home())
 
 
 def _payload_text_blob(payload: Mapping[str, Any]) -> str:

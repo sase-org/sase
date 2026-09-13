@@ -3487,19 +3487,20 @@ reset time. `!` marks a vendor-rejected window. Collector failures no longer add
 header warning glyph; selected failing windows keep collector-failure prose in the
 tooltip, and model picker hints keep their own separate `⚠ usage failing` identity.
 
-Provider groups are ranked by their highest selected attention severity, then provider.
-Within a provider, the default window is first, followed by additional windows by
-attention severity and key. ACE shows the longest prefix of complete windows that fits
-the measured header remainder after the icon and unclipped title, allowing the final
-provider group to be partially visible, before adding a `+N` overflow count. If no
-complete window prefix plus disclosure fits, ACE falls back through `usage N`, `N`, and
-`…`, relaxing the text-only padding at one-cell boundaries. Every selected and
-overflowed window's full identity, exact key, precise percentage, scope, effective
-display policy, and reset timestamp are in the tooltip. Clicking the usage cluster —
-including a window, `+N`, `usage N`, a bare count, or `…` — opens Providers · Usage at
-the current attention-leading provider and does not expand the header. Clicking the
-routing pill still opens Config > Launch. The Usage command is also reachable from
-Launch Control's `u` and the command palette when there is no display space at all.
+Provider groups always render in provider-name order. Within a provider, the default
+weekly all-model window is first, followed by additional windows by window key.
+Attention is shown only through color and markers; it never changes order. ACE shows the
+longest prefix of complete windows that fits the measured header remainder after the
+icon and unclipped title, allowing the final provider group to be partially visible,
+before adding a `+N` overflow count. If no complete window prefix plus disclosure fits,
+ACE falls back through `usage N`, `N`, and `…`, relaxing the text-only padding at
+one-cell boundaries. Every selected and overflowed window's full identity, exact key,
+precise percentage, scope, effective display policy, and reset timestamp are in the
+tooltip. Clicking the usage cluster — including a window, `+N`, `usage N`, a bare count,
+or `…` — opens Providers · Usage at the first displayed provider and does not expand the
+header. Clicking the routing pill still opens Config > Launch. The Usage command is also
+reachable from Launch Control's `u` and the command palette when there is no display
+space at all.
 
 Press `u` inside the view to submit or join bounded refresh work for eligible providers.
 The modal stays responsive, reattaches to an in-flight refresh when reopened, reloads

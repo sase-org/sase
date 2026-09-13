@@ -137,7 +137,7 @@ def test_grouped_default_first_text_order_icons_gaps_and_dots() -> None:
 
     segment = build_usage_indicator_segment(_groups(codex, session, fable, all_model))
 
-    assert segment.plain == (" 🎭 62% 3d4h · fable 7% 1d8h · 5h 18% 2h9m  🤖 81% 5d2h ")
+    assert segment.plain == (" 🎭 62% 3d4h · 5h 18% 2h9m · fable 7% 1d8h  🤖 81% 5d2h ")
     assert segment.plain.count("🎭") == 1
     assert segment.plain.count("🤖") == 1
     assert segment.plain.count("·") == 2
@@ -330,12 +330,58 @@ def test_countdown_boundary_values() -> None:
     assert _countdown(86_400.0) == "1d0h"
 
 
-def test_open_provider_prefers_first_ranked_group() -> None:
+def test_open_provider_prefers_first_displayed_group() -> None:
     grok = _entry(provider="grok", remaining_percent=4.0, display_attention="rejected")
     claude = _entry(provider="claude", remaining_percent=62.0)
 
-    assert usage_indicator_open_provider(_groups(claude, grok)) == "grok"
+    assert usage_indicator_open_provider(_groups(claude, grok)) == "claude"
     assert usage_indicator_open_provider(()) is None
+
+
+def test_display_attention_does_not_change_group_or_window_order() -> None:
+    grok = _entry(provider="grok", remaining_percent=4.0, display_attention="rejected")
+    claude_weekly = _entry(provider="claude", remaining_percent=62.0)
+    claude_session = _entry(
+        provider="claude",
+        window_key="session",
+        weekly_all=False,
+        period_kind="session",
+        duration_seconds=None,
+        remaining_percent=18.0,
+        display_attention="very_low",
+    )
+    calm = _groups(grok, claude_session, claude_weekly)
+    stressed = _groups(
+        _entry(
+            provider="grok",
+            remaining_percent=4.0,
+            display_attention="none",
+        ),
+        _entry(
+            provider="claude",
+            remaining_percent=62.0,
+            display_attention="rejected",
+        ),
+        _entry(
+            provider="claude",
+            window_key="session",
+            weekly_all=False,
+            period_kind="session",
+            duration_seconds=None,
+            remaining_percent=18.0,
+            display_attention="none",
+        ),
+    )
+
+    assert [group.provider for group in calm] == [group.provider for group in stressed]
+    assert [group.provider for group in calm] == ["claude", "grok"]
+    assert [fragment.window_key for fragment in calm[0].fragments] == [
+        fragment.window_key for fragment in stressed[0].fragments
+    ]
+    assert [fragment.window_key for fragment in calm[0].fragments] == [
+        "weekly",
+        "session",
+    ]
 
 
 def test_unknown_provider_falls_back_to_id_marker() -> None:
