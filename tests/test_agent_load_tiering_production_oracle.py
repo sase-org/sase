@@ -8,17 +8,13 @@ parameters (``revalidate`` forced for full history) and query-pushdown
 compilation rather than a harness re-implementation of them.
 
 The ``index-freshness`` (sase-zu.8.2) false-completeness and stale-deleted-
-row cases are now zero-diff regressions. The conflicting-provenance
-diagnostic remains until ``machine-parity`` (sase-zu.8.3) lands.
-
-This mirrors the plan's instruction not to leave the default test suite
-knowingly red between phases: remaining diagnostics assert the *current*
-(buggy) behavior so the suite stays green, and the phase that fixes the
-underlying bug is expected to flip the assertion to a zero-diff regression.
+row cases and the ``machine-parity`` (sase-zu.8.3) conflicting-provenance
+case are now zero-diff regressions.
 """
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 
 import pytest
@@ -31,11 +27,13 @@ from tests.perf.agent_load_tiering_fixture import (
     delete_artifact,
     rebuild_index,
     set_artifact_hidden,
+    set_artifact_machine_provenance,
     write_completed_artifact,
 )
 from tests.perf.agent_load_tiering_harness import (
     AgentLoadTieringOracle,
     QUERY_BATTERY,
+    VisibleAgentRow,
 )
 
 # Both agents-live query dialects: legacy (flag off) and unified (flag on).
@@ -105,16 +103,19 @@ def test_production_full_history_oracle_discovers_artifact_added_after_index_bui
     assert load_state.rows_discovered >= 1
 
 
+def _visible_dir_names(rows: Iterable[VisibleAgentRow]) -> set[str]:
+    return {Path(row.artifact_dir).name for row in rows}
+
+
 @pytest.mark.parametrize("unified_query", _DIALECTS)
-def test_production_machine_query_oracle_misses_conflicting_provenance_row(
+def test_production_machine_query_oracle_keeps_conflicting_provenance_row(
     tmp_path: Path, unified_query: bool
 ) -> None:
-    """sase-zu audit defect: conflicting machine provenance under-selects.
+    """Conflicting source/owner machines stay visible to live ``machine:apollo``.
 
-    A row scanned with ``source_machine=athena`` but
-    ``imported_source_owner.machine_name=apollo`` matches the live
-    ``machine:apollo`` query (which checks both fields) but is dropped by
-    the indexed candidate, which stores a single scalar.
+    Legacy matching does not read ``imported_source_owner.machine_name``, so
+    the bounded legacy path may still exclude the row after exact filtering.
+    Full history is re-filtered through the live engine in this oracle.
     """
     fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=72)
     conflicting_dir = write_completed_artifact(
@@ -129,15 +130,124 @@ def test_production_machine_query_oracle_misses_conflicting_provenance_row(
     with override_flags(agents_unified_query=unified_query):
         result = oracle.evaluate("machine:apollo", requested_limit=400)
 
-    assert result.pushdown_window_safe is True
-    assert conflicting_dir.name in {
-        Path(row.artifact_dir).name for row in result.source_scan.visible_rows.values()
-    }
+    assert conflicting_dir.name in _visible_dir_names(
+        result.source_scan.visible_rows.values()
+    )
+    full_missing = _visible_dir_names(
+        result.diff_for("production_full_history").missing
+    )
+    assert conflicting_dir.name not in full_missing
+    assert result.diff_for("production_full_history").ok
 
+    bounded_missing = _visible_dir_names(result.diff_for("production_bounded").missing)
+    if unified_query:
+        assert result.pushdown_window_safe is True
+        assert conflicting_dir.name not in bounded_missing
+        assert result.diff_for("production_bounded").ok
+    else:
+        assert conflicting_dir.name in bounded_missing
+
+
+@pytest.mark.parametrize("query", ("machine:apollo", "not machine:apollo"))
+def test_production_machine_query_oracle_keeps_mixed_provenance_tree(
+    tmp_path: Path, query: str
+) -> None:
+    """Workflow children do not inherit a container's machine values."""
+    fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=72)
+    parent_dir = write_completed_artifact(
+        fixture.projects_root,
+        fixture.artifact_count + 1,
+        source_machine="athena",
+        agent_family="mixed-crew",
+        agent_family_role="plan",
+    )
+    child_dir = write_completed_artifact(
+        fixture.projects_root,
+        fixture.artifact_count + 2,
+        source_machine="athena",
+        owner_machine="apollo",
+        agent_family="mixed-crew",
+        agent_family_role="code",
+        parent_timestamp=parent_dir.name,
+    )
+    rebuild_index(fixture)
+
+    oracle = AgentLoadTieringOracle(fixture)
+    with override_flags(agents_unified_query=True):
+        result = oracle.evaluate(query, requested_limit=400)
+
+    assert result.pushdown_window_safe is True
+    source_dirs = _visible_dir_names(result.source_scan.visible_rows.values())
+    assert parent_dir.name in source_dirs
+    assert child_dir.name in source_dirs
     for name in ("production_bounded", "production_full_history"):
         diff = result.diff_for(name)
-        missing_dirs = {Path(row.artifact_dir).name for row in diff.missing}
-        assert conflicting_dir.name in missing_dirs, name
+        missing_dirs = _visible_dir_names(diff.missing)
+        assert parent_dir.name not in missing_dirs, name
+        assert child_dir.name not in missing_dirs, name
+        assert diff.ok, (name, query)
+
+
+def test_production_machine_query_oracle_repairs_owner_after_index(
+    tmp_path: Path,
+) -> None:
+    """Revalidate projects a newly added owner machine without a rebuild."""
+    fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=72)
+    target_dir = write_completed_artifact(
+        fixture.projects_root,
+        fixture.artifact_count + 1,
+        source_machine="athena",
+    )
+    rebuild_index(fixture)
+    set_artifact_machine_provenance(
+        target_dir, source_machine="athena", owner_machine="apollo"
+    )
+
+    oracle = AgentLoadTieringOracle(fixture)
+    with override_flags(agents_unified_query=True):
+        result = oracle.evaluate("machine:apollo", requested_limit=None)
+
+    assert target_dir.name in _visible_dir_names(
+        result.source_scan.visible_rows.values()
+    )
+    diff = result.diff_for("production_full_history")
+    assert target_dir.name not in _visible_dir_names(diff.missing)
+    assert diff.ok
+
+
+def test_production_machine_query_oracle_uses_meta_over_done_source(
+    tmp_path: Path,
+) -> None:
+    """Done-marker source_machine does not override a present meta value."""
+    fixture = build_synthetic_agent_archive(tmp_path / "fixture", artifact_count=72)
+    target_dir = write_completed_artifact(
+        fixture.projects_root,
+        fixture.artifact_count + 1,
+        meta_source_machine="athena",
+        done_source_machine="zeus",
+        meta_owner_machine="apollo",
+        done_owner_machine="hera",
+    )
+    rebuild_index(fixture)
+
+    oracle = AgentLoadTieringOracle(fixture)
+    with override_flags(agents_unified_query=True):
+        apollo = oracle.evaluate("machine:apollo", requested_limit=400)
+        zeus = oracle.evaluate("machine:zeus", requested_limit=400)
+
+    assert target_dir.name in _visible_dir_names(
+        apollo.source_scan.visible_rows.values()
+    )
+    assert target_dir.name not in _visible_dir_names(
+        zeus.source_scan.visible_rows.values()
+    )
+    assert apollo.diff_for("production_full_history").ok
+    assert target_dir.name not in _visible_dir_names(
+        apollo.diff_for("production_full_history").missing
+    )
+    assert target_dir.name not in _visible_dir_names(
+        zeus.diff_for("production_full_history").visible_extra
+    )
 
 
 def test_production_full_history_oracle_drops_deleted_artifact(

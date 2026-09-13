@@ -690,6 +690,15 @@ def write_completed_artifact(
     outcome: str = "completed",
     source_machine: str | None = None,
     owner_machine: str | None = None,
+    meta_source_machine: str | None = None,
+    done_source_machine: str | None = None,
+    meta_owner_machine: str | None = None,
+    done_owner_machine: str | None = None,
+    agent_family: str | None = None,
+    agent_family_role: str | None = None,
+    agent_clan: str | None = None,
+    agent_clan_generation: str | None = None,
+    parent_timestamp: str | None = None,
 ) -> Path:
     """Write one additional completed artifact without touching the index.
 
@@ -700,12 +709,10 @@ def write_completed_artifact(
     ``>= artifact_count``, or negative for a timestamp newer than the base
     fixture's rows, is always safe).
 
-    ``source_machine`` and ``owner_machine`` are independent, unlike the base
-    fixture's own provenance rows, which always agree. Pass values that
-    differ to reproduce a conflicting-provenance row: the scanned
-    ``source_machine`` disagrees with the imported owner's ``machine_name``,
-    which the live query adapter matches on either field but the indexed
-    candidate (a single scalar) does not.
+    ``source_machine`` and ``owner_machine`` apply to both markers when the
+    more specific ``meta_*`` / ``done_*`` arguments are omitted. Pass values
+    that differ to reproduce a conflicting-provenance row: live evaluation
+    matches either field, and the indexed candidate must preserve both.
     """
     artifact_dir = _artifact_dir(projects_root, project, workflow, index)
     project_file = projects_root / project / f"{project}.sase"
@@ -735,9 +742,65 @@ def write_completed_artifact(
         owner = {"username": "bryan", "machine_name": owner_machine}
         meta["imported_source_owner"] = owner
         done["imported_source_owner"] = owner
+    if meta_source_machine is not None:
+        meta["source_machine"] = meta_source_machine
+    if done_source_machine is not None:
+        done["source_machine"] = done_source_machine
+    if meta_owner_machine is not None:
+        meta["imported_source_owner"] = {
+            "username": "bryan",
+            "machine_name": meta_owner_machine,
+        }
+    if done_owner_machine is not None:
+        done["imported_source_owner"] = {
+            "username": "bryan",
+            "machine_name": done_owner_machine,
+        }
+    if agent_family is not None:
+        meta["agent_family"] = agent_family
+        if agent_family_role is not None:
+            meta["agent_family_role"] = agent_family_role
+    if agent_clan is not None:
+        meta["agent_clan"] = agent_clan
+        if agent_clan_generation is not None:
+            meta["agent_clan_generation"] = agent_clan_generation
+    if parent_timestamp is not None:
+        meta["parent_timestamp"] = parent_timestamp
     _write_json(artifact_dir / "agent_meta.json", meta)
     _write_json(artifact_dir / "done.json", done)
     return artifact_dir
+
+
+def set_artifact_machine_provenance(
+    artifact_dir: Path,
+    *,
+    source_machine: str | None = None,
+    owner_machine: str | None = None,
+) -> None:
+    """Rewrite machine provenance on an already-indexed artifact's markers."""
+
+    for marker_name in ("agent_meta.json", "done.json"):
+        path = artifact_dir / marker_name
+        if not path.is_file():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if source_machine is None:
+            payload.pop("source_machine", None)
+        else:
+            payload["source_machine"] = source_machine
+        if owner_machine is None:
+            payload.pop("imported_source_owner", None)
+        else:
+            payload["imported_source_owner"] = {
+                "username": "bryan",
+                "machine_name": owner_machine,
+            }
+        path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
 
 
 def set_artifact_hidden(artifact_dir: Path, hidden: bool) -> None:

@@ -139,8 +139,10 @@ def _candidate_filter_for_expr(expr: QueryExpr) -> CandidateFilterWire | None:
         # Negating a contains/superset filter under-selects, and negating most
         # record predicates can drop descendants the tree projection would
         # keep. Machine is the exception: index-resident values are exactly
-        # {"here"} ∪ {source_machine}, matching live evaluation, so NotExpr
-        # around a machine-only exact filter is safe.
+        # {"here"} ∪ {source_machine} ∪ {imported_source_owner.machine_name},
+        # matching live evaluation, and candidate selection also loads
+        # family/clan/workflow relatives of those matches, so NotExpr around
+        # a machine-only exact filter stays exact for the final tree.
         inner = _candidate_filter_for_expr(expr.operand)
         if inner is None or not _is_exact_machine_filter(inner):
             return None

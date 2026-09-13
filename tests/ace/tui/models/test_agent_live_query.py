@@ -179,6 +179,57 @@ def test_agent_live_query_entry_projects_imported_owner_machine() -> None:
     assert _match_ids("machine:apollo", (entry,)) == ("imported-run",)
 
 
+def test_agent_live_query_entry_keeps_conflicting_source_and_owner_machines() -> None:
+    owner = AgentOwnerIdentity(username="bryan", machine_name="apollo")
+    agent = _agent(
+        agent_name="different-provenance",
+        source_machine="athena",
+        imported_source_owner=owner,
+    )
+
+    entry = agent_live_query_entry(agent, now=_NOW)
+
+    assert entry["fields"]["machine"] == ("here", "athena", "apollo")
+    assert _match_ids("machine:apollo", (entry,)) == ("different-provenance",)
+    assert _match_ids("machine:athena", (entry,)) == ("different-provenance",)
+    assert _match_ids("not machine:apollo", (entry,)) == ()
+
+
+def test_machine_negation_keeps_mixed_provenance_clan_descendants() -> None:
+    local = _agent(
+        agent_name="local-member",
+        cl_name="crew",
+        start_time=None,
+        run_start_time=None,
+        agent_clan="remote-clan",
+        agent_clan_generation="1",
+        source_machine="athena",
+    )
+    remote = _agent(
+        agent_name="remote-member",
+        cl_name="crew",
+        start_time=None,
+        run_start_time=None,
+        agent_clan="remote-clan",
+        agent_clan_generation="1",
+        source_machine="athena",
+        imported_source_owner=AgentOwnerIdentity(
+            username="bryan", machine_name="apollo"
+        ),
+    )
+    projected = project_clan_tree([local, remote])
+
+    filtered, _facade, error = apply_agents_live_query_filter(
+        "not machine:apollo",
+        projected,
+    )
+
+    assert error is None
+    names = {agent.agent_name for agent in filtered}
+    assert "local-member" in names
+    assert "remote-member" in names
+
+
 def test_machine_negation_excludes_imported_clan_container_subtree() -> None:
     owner = AgentOwnerIdentity(username="bryan", machine_name="apollo")
     member = _agent(

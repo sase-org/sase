@@ -196,6 +196,7 @@ def test_compile_machine_pushdown_builds_exact_machine_filters() -> None:
     )
     legacy_match = compile_agent_query_pushdown("machine:apollo")
     legacy_not = compile_agent_query_pushdown("NOT machine:apollo")
+    legacy_compound = compile_agent_query_pushdown("cl:feature AND NOT machine:apollo")
 
     assert live_match.window_safe is True
     assert live_match.candidate_filter == machine_equals
@@ -210,7 +211,12 @@ def test_compile_machine_pushdown_builds_exact_machine_filters() -> None:
         ],
     }
     assert legacy_match.candidate_filter == live_match.candidate_filter
-    assert legacy_not.candidate_filter == live_not.candidate_filter
+    # Legacy matching does not read imported_source_owner.machine_name, so the
+    # shared index machine set is a superset. Negating it would under-select.
+    assert legacy_not.window_safe is False
+    assert legacy_not.candidate_filter is None
+    assert legacy_compound.window_safe is False
+    assert legacy_compound.candidate_filter is None
 
 
 def test_compile_machine_pushdown_leaves_bare_machine_unpushable() -> None:

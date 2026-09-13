@@ -31,9 +31,11 @@ def apply_imported_source_owner(agent: Agent, raw: object) -> None:
 def apply_archive_source_machine(agent: Agent, *candidates: object) -> None:
     """Copy archive provenance onto ``agent.source_machine``.
 
-    Index-resident ``machine`` values are ``{"here"} ∪ {source_machine}``.
-    Loaders must project the same provenance the artifact index stores, or
-    ``not machine:VAL`` under-selects imported rows.
+    Index-resident ``machine`` values are
+    ``{"here"} ∪ {source_machine} ∪ {imported_source_owner.machine_name}``.
+    Loaders keep both fields so live evaluation and the index candidate see
+    the same set; this dialect's ``source_machine`` fallback still copies the
+    owner when the archive field is empty so legacy matching stays populated.
     """
     if agent.source_machine:
         return

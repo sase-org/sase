@@ -77,7 +77,11 @@ def _candidate_filter_for_expr(expr: QueryExpr) -> CandidateFilterWire | None:
         return {"kind": "any", "filters": [f for f in filters if f is not None]}
     if isinstance(expr, NotExpr):
         inner = _candidate_filter_for_expr(expr.operand)
-        if inner is None:
+        # The shared index machine column is a superset of this dialect's
+        # values (it also stores imported_source_owner.machine_name). Negating
+        # that superset under-selects, so leave machine NOT on the bounded
+        # fallback path. Other exact scalars remain safe to negate.
+        if inner is None or _filter_uses_machine(inner):
             return None
         return {"kind": "not", "filter": inner}
     return None
@@ -106,6 +110,21 @@ def _machine_filter(value: str) -> CandidateFilterWire | None:
     if not value.strip():
         return None
     return _equals("machine", value)
+
+
+def _filter_uses_machine(candidate: CandidateFilterWire) -> bool:
+    kind = candidate.get("kind")
+    if kind in {"equals", "contains"}:
+        return candidate.get("field") == "machine"
+    if kind == "not":
+        inner = candidate.get("filter")
+        return isinstance(inner, dict) and _filter_uses_machine(inner)
+    if kind in {"all", "any"}:
+        filters = candidate.get("filters")
+        return isinstance(filters, list) and any(
+            isinstance(item, dict) and _filter_uses_machine(item) for item in filters
+        )
+    return False
 
 
 def _contains(field: str, value: str) -> CandidateFilterWire:
