@@ -8,7 +8,10 @@ split by resolver responsibility.
 
 from __future__ import annotations
 
-from sase.artifact_ref_operations import parse_artifact_ref
+from dataclasses import replace
+
+from sase.artifact_ref_models import LinkLocation
+from sase.artifact_ref_operations import parse_artifact_ref, split_link_location
 from sase.pager._resolve_artifact_refs import (
     link_target_for_artifact_entry_target,
     resolve_artifact_ref_link,
@@ -19,6 +22,7 @@ from sase.pager._resolve_file_paths import (
     resolve_file_path_link,
     resolve_file_path_target,
 )
+from sase.pager._resolve_location import apply_link_location
 from sase.pager.beads import bead_link_resolution
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.targets import LinkResolution, LinkTarget, LinkTargetKind
@@ -54,13 +58,33 @@ def resolve_link(
     stripped = ref.strip()
     if not stripped:
         return LinkResolution()
+    split = split_link_location(stripped)
+    base = split.base
     try:
-        parsed = parse_artifact_ref(stripped)
+        parsed = parse_artifact_ref(base)
     except (ImportError, RuntimeError, ValueError):
         return resolve_file_path_link(stripped, context=context)
     if parsed.kind_type == "bead":
-        return bead_link_resolution(parsed, context=context)
-    return resolve_artifact_ref_link(stripped, context=context)
+        return _apply_location(
+            bead_link_resolution(parsed, context=context),
+            split.location,
+        )
+    resolution = resolve_artifact_ref_link(base, context=context)
+    if split.location is not None and resolution.target is None:
+        retry = resolve_artifact_ref_link(stripped, context=context)
+        if retry.target is not None:
+            return retry
+    return _apply_location(resolution, split.location)
+
+
+def _apply_location(
+    resolution: LinkResolution,
+    location: LinkLocation | None,
+) -> LinkResolution:
+    target = apply_link_location(resolution.target, location)
+    if target is resolution.target:
+        return resolution
+    return replace(resolution, target=target)
 
 
 __all__ = [

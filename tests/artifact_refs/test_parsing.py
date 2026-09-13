@@ -7,6 +7,7 @@ import pytest
 from sase import artifact_ref_operations, artifact_refs
 from sase.artifact_ref_models import check_record_schema
 from sase.artifact_refs import (
+    ARTIFACT_REF_LINK_LOCATION_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
 )
@@ -51,6 +52,55 @@ def test_document_scan_wrapper_separates_visible_text_from_target() -> None:
         ("@src/app.py:7", "src/app.py:7", "file_path"),
     ]
     assert scan.links[0].source_span.start == len("é ".encode())
+
+
+@pytest.mark.parametrize(
+    ("target", "base", "line", "column", "end_line"),
+    [
+        ("src/app.py:12", "src/app.py", 12, None, None),
+        ("src/app.py:12:5", "src/app.py", 12, 5, None),
+        ("src/app.py:12-40", "src/app.py", 12, None, 40),
+        ("src/app.py:12:5-40", "src/app.py", 12, 5, 40),
+        ("src/app.py#L12", "src/app.py", 12, None, None),
+        ("src/app.py#L12-L40", "src/app.py", 12, None, 40),
+        ("src/app.py#L12C5", "src/app.py", 12, 5, None),
+        ("src/app.py#L12C5-L40C2", "src/app.py", 12, 5, 40),
+        ("plan:202609/x.md:12", "plan:202609/x.md", 12, None, None),
+    ],
+)
+def test_split_link_location_wrapper_uses_core_grammar(
+    target: str,
+    base: str,
+    line: int,
+    column: int | None,
+    end_line: int | None,
+) -> None:
+    split = artifact_refs.split_link_location(target)
+
+    assert ARTIFACT_REF_LINK_LOCATION_WIRE_SCHEMA_VERSION == 1
+    assert split.base == base
+    assert split.location is not None
+    assert split.location.line == line
+    assert split.location.column == column
+    assert split.location.end_line == end_line
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "docs/guide.md#usage",
+        "bead:sase-uk.1",
+        "commit:abc1234",
+        "src/app.py:0",
+        "plan:foo:12",
+        "a/b.py:1:2:3",
+    ],
+)
+def test_split_link_location_leaves_non_locations_whole(target: str) -> None:
+    split = artifact_refs.split_link_location(target)
+
+    assert split.base == target
+    assert split.location is None
 
 
 @pytest.mark.parametrize(

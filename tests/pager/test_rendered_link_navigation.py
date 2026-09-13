@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.pager._line_mark import LineMark, reading_scroll_y
 from sase.pager.adapters import document_from_paths, path_section
 from sase.pager.app import SasePager
 from sase.pager.document import (
@@ -17,6 +18,7 @@ from sase.pager.document import (
 )
 from tests.pager._rendered_link_corpus import (
     CONTROLLER,
+    PLAN_LINE_TARGET,
     ROUTER,
     build_corpus,
     install_inventory,
@@ -71,6 +73,34 @@ async def test_follow_several_hops_then_back_and_forward_restore_the_trail(
         await pilot.press("tab")
         await settle(pilot)
         assert "struct Controller" in screen.document.sections[0].plain_text
+
+
+async def test_plan_line_addressed_link_lands_at_reading_position_with_range_rail(
+    corpus,
+) -> None:
+    source = corpus.primary / "pilot.md"
+    source.write_text(f"Pilot {PLAN_LINE_TARGET}:12-14\n", encoding="utf-8")
+    document = document_from_paths([source], cwd=corpus.cwd)
+    app = SasePager(document)
+    async with app.run_test(size=(100, 12)) as pilot:
+        await settle(pilot)
+        screen = pager_screen(app)
+        await press_hint(pilot, label_for(screen, f"{PLAN_LINE_TARGET}:12-14").hint)
+
+        scroll = screen._body_scroll()
+        assert screen.document.title == "line_target_plan.md"
+        assert screen._goto_mark == LineMark(0, 12, 14)
+        assert int(scroll.scroll_y) == reading_scroll_y(
+            start_row=11,
+            end_row=13,
+            viewport_height=max(int(scroll.size.height), 1),
+            max_scroll_y=int(scroll.max_scroll_y),
+        )
+        assert screen._body is not None
+        rendered = list(screen._body.renderable.renderables)[0]
+        rows = rendered.plain.split("\n")
+        assert rows[11].startswith("12┃ ")
+        assert rows[13].startswith("14┃ ")
 
 
 async def test_same_text_in_two_projects_is_section_isolated(corpus) -> None:

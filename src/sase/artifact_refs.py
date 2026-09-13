@@ -30,6 +30,7 @@ from sase.artifact_ref_lists import (
 from sase.artifact_ref_models import (
     ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION,
+    ARTIFACT_REF_LINK_LOCATION_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_TARGET_RESOLUTION_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
@@ -58,6 +59,8 @@ from sase.artifact_ref_models import (
     ArtifactRefTargetCandidate,
     ArtifactRefTargetFailureCategory,
     ArtifactRefTargetResolution,
+    LinkLocation,
+    LinkLocationSplit,
     ParsedArtifactRef,
 )
 from sase.artifact_ref_operations import (
@@ -73,6 +76,7 @@ from sase.artifact_ref_operations import (
     scan_artifact_ref_document,
     scan_artifact_ref_prompt,
     scan_artifact_refs,
+    split_link_location,
 )
 from sase.artifact_ref_prompt import (
     artifact_ref_resolution_hint,
@@ -101,6 +105,7 @@ from sase.core.artifact_ref_files_index import (
 __all__ = [
     "ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION",
+    "ARTIFACT_REF_LINK_LOCATION_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_LIST_RESOLUTION_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_LSP_CATALOG_SCHEMA_VERSION",
@@ -133,6 +138,8 @@ __all__ = [
     "ArtifactRefTargetCandidate",
     "ArtifactRefTargetFailureCategory",
     "ArtifactRefTargetResolution",
+    "LinkLocation",
+    "LinkLocationSplit",
     "ParsedArtifactRef",
     "PromptRefContext",
     "PromptRefProject",
@@ -169,5 +176,6 @@ __all__ = [
     "scan_artifact_ref_document",
     "scan_artifact_ref_prompt",
     "scan_artifact_refs",
+    "split_link_location",
     "validate_artifact_references",
 ]

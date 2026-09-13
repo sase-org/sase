@@ -275,6 +275,38 @@ def test_link_index_backed_pager_resolver_forwards_context(
     assert seen == [context]
 
 
+def test_link_index_backed_pager_resolver_applies_location(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "indexed.md"
+    path.write_text("one\ntwo\nthree\n", encoding="utf-8")
+    base_ref = f"file:{path}"
+    ref = f"{base_ref}:2-3"
+
+    class _Index:
+        targets_by_ref = {base_ref: ArtifactEntryTarget("files", (str(path),))}
+
+        def target_for(self, value: str) -> ArtifactEntryTarget | None:
+            return self.targets_by_ref[value]
+
+    class _App:
+        _link_index = _Index()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.hints._files.resolve_link",
+        lambda value, **_kwargs: (_ for _ in ()).throw(AssertionError(value)),
+    )
+
+    resolution = _resolve_ref_from_link_index(_App(), ref, context=None)
+    target = resolution.target
+
+    assert target is not None
+    assert target.scroll_line == 2
+    assert target.scroll_end_line == 3
+    assert target.edit_line == 2
+
+
 def test_link_index_backed_pager_resolver_falls_back_for_unknown_ref(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -8,6 +8,7 @@ from typing import Any, cast
 
 from sase.artifact_ref_models import (
     ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION,
+    ARTIFACT_REF_LINK_LOCATION_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_TARGET_RESOLUTION_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
@@ -20,6 +21,7 @@ from sase.artifact_ref_models import (
     ArtifactRefResolution,
     ArtifactRefResolutionStatus,
     ArtifactRefTargetResolution,
+    LinkLocationSplit,
     check_record_schema as _check_record_schema,
     optional_str as _optional_str,
 )
@@ -227,6 +229,14 @@ def scan_artifact_ref_document(
     return ArtifactRefDocumentScan.from_wire(raw)
 
 
+def split_link_location(target: str) -> LinkLocationSplit:
+    """Split a trailing line location from a link target through Rust."""
+    _require_artifact_ref_link_location_schema()
+    binding = require_rust_binding("artifact_ref_split_link_location")
+    raw = cast(Mapping[str, Any], binding(target))
+    return LinkLocationSplit.from_wire(raw)
+
+
 def resolve_document_source_target(
     path: str,
     *,
@@ -374,6 +384,17 @@ def _require_artifact_ref_target_resolution_schema() -> None:
         )
 
 
+def _require_artifact_ref_link_location_schema() -> None:
+    binding = require_rust_binding("artifact_ref_link_location_wire_schema_version")
+    version = int(binding())
+    if version != ARTIFACT_REF_LINK_LOCATION_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs artifact-reference link-location wire is stale: "
+            f"expected {ARTIFACT_REF_LINK_LOCATION_WIRE_SCHEMA_VERSION}, "
+            f"got {version}"
+        )
+
+
 __all__ = [
     "at_reference_context",
     "at_reference_inventory",
@@ -396,4 +417,5 @@ __all__ = [
     "scan_artifact_ref_document",
     "scan_artifact_ref_prompt",
     "scan_artifact_refs",
+    "split_link_location",
 ]

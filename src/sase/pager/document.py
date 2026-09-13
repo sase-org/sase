@@ -11,6 +11,7 @@ from rich.console import Console, RenderableType
 from rich.text import Text
 
 from sase.artifact_ref_models import ArtifactRefDocumentOwner, ArtifactRefDocumentTarget
+from sase.artifact_ref_operations import split_link_location
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import LinkSpan, LinkSpanKind, PagerOrigin, scan_links
 
@@ -163,6 +164,12 @@ def target_resolution_ref(target: PagerTargetSpan, origin: PagerOrigin) -> str |
         if origin is PagerOrigin.DIFF:
             return f"commit:{token}"
         return None
+    if target.kind == LinkSpanKind.ARTIFACT_REF.value and target.semantic_target:
+        preserved = _location_preserving_artifact_destination(
+            target.semantic_target,
+        )
+        if preserved is not None:
+            return preserved
     return target.target if isinstance(target.target, str) else target.text
 
 
@@ -188,6 +195,9 @@ def target_action_destination(
     if target.kind == LinkSpanKind.FILE_PATH.value:
         return semantic.markdown_destination or semantic.target or ref
     if target.kind == LinkSpanKind.ARTIFACT_REF.value:
+        preserved = _location_preserving_artifact_destination(semantic)
+        if preserved is not None:
+            return preserved
         return semantic.artifact_reference or semantic.target or ref
     return semantic.target or ref
 
@@ -217,6 +227,29 @@ def target_resolution_cache_identity(
         semantic.artifact_reference,
         semantic.reference_label,
     )
+
+
+def _location_preserving_artifact_destination(
+    semantic: ArtifactRefDocumentTarget,
+) -> str | None:
+    """Prefer the written artifact ref when it carries a Rust-owned location."""
+    candidates = (
+        semantic.markdown_destination,
+        semantic.text,
+    )
+    for candidate in candidates:
+        if not candidate:
+            continue
+        normalized = candidate[1:] if candidate.startswith("@") else candidate
+        if '"' in normalized:
+            continue
+        try:
+            split = split_link_location(normalized)
+        except (AttributeError, ImportError, RuntimeError, ValueError):
+            continue
+        if split.location is not None:
+            return normalized
+    return None
 
 
 def section_origin(section: PagerSection, origin: PagerOrigin) -> PagerOrigin:

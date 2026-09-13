@@ -109,6 +109,87 @@ def test_resolve_ref_typed_ref_empty_context_keeps_legacy_call(
     assert calls == [{}]
 
 
+def test_resolve_ref_splits_typed_ref_location_before_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _write(tmp_path / "plans" / "doc.md", "one\ntwo\nthree\n")
+    calls: list[str] = []
+
+    def fake_artifact_ref_context(directory: Path, num: int) -> tuple[Path, int]:
+        return (directory, num)
+
+    def fake_resolve_cli_reference(ref: str, **_kwargs: object) -> SimpleNamespace:
+        calls.append(ref)
+        assert ref == "plan:202608/doc.md"
+        return SimpleNamespace(
+            resolution=SimpleNamespace(status="exact", resolved_path=live),
+            parsed=SimpleNamespace(kind_type="document", fragment=None, kind="plan"),
+            canonical_reference=ref,
+            file=None,
+        )
+
+    monkeypatch.setattr(
+        "sase.pager._resolve_artifact_refs.artifact_ref_context",
+        fake_artifact_ref_context,
+    )
+    monkeypatch.setattr(
+        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
+        fake_resolve_cli_reference,
+    )
+
+    target = resolve_ref(
+        "plan:202608/doc.md:2-3",
+        context=LinkResolutionContext(anchors=(LinkAnchor(directory=tmp_path),)),
+    )
+
+    assert calls == ["plan:202608/doc.md"]
+    assert target is not None
+    assert target.edit_path == live
+    assert target.scroll_line == 2
+    assert target.scroll_end_line == 3
+    assert target.edit_line == 2
+
+
+def test_resolve_ref_retries_whole_typed_ref_when_split_base_misses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _write(tmp_path / "plans" / "doc.md", "payload ended in digits\n")
+    calls: list[str] = []
+
+    def fake_resolve_cli_reference(ref: str, **_kwargs: object) -> SimpleNamespace:
+        calls.append(ref)
+        if ref == "plan:202608/doc.md":
+            return SimpleNamespace(
+                resolution=SimpleNamespace(
+                    status="missing",
+                    resolved_path=None,
+                    diagnostic="base is missing",
+                ),
+                parsed=None,
+                canonical_reference=ref,
+                file=None,
+            )
+        assert ref == "plan:202608/doc.md:12"
+        return SimpleNamespace(
+            resolution=SimpleNamespace(status="exact", resolved_path=live),
+            parsed=SimpleNamespace(kind_type="document", fragment=None, kind="plan"),
+            canonical_reference=ref,
+            file=None,
+        )
+
+    monkeypatch.setattr(
+        "sase.pager._resolve_artifact_refs.resolve_cli_reference",
+        fake_resolve_cli_reference,
+    )
+
+    target = resolve_ref("plan:202608/doc.md:12")
+
+    assert calls == ["plan:202608/doc.md", "plan:202608/doc.md:12"]
+    assert target is not None
+    assert target.edit_path == live
+    assert target.scroll_line is None
+
+
 def test_resolve_ref_uses_owned_lookup_instead_of_unrelated_cwd(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

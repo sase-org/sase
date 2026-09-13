@@ -12,9 +12,6 @@ from pathlib import Path
 
 from sase.pager.link_context import LinkResolutionContext
 
-_LINE_COL_SUFFIX_RE = re.compile(r"(.+):(\d+):(\d+)$")
-_LINE_SUFFIX_RE = re.compile(r"(.+):(\d+)$")
-_TRAILING_LINE_DIGITS_RE = re.compile(r":\d+$")
 _NUMBERED_CHECKOUT_RE = re.compile(r"^.+_\d+$")
 _DIFF_PREFIXES = ("a/", "b/")
 _GIT_LS_FILES_TIMEOUT_SECONDS = 2.0
@@ -29,8 +26,8 @@ def search_existing_path(
     *,
     context: LinkResolutionContext,
     cache: _GitLsFilesCache | None = None,
-) -> tuple[Path | None, int | None, int | None, str | None, int]:
-    """Return ``(path, line, column, fragment, locations_probed)`` for the first hit."""
+) -> tuple[Path | None, str | None, int]:
+    """Return ``(path, fragment, locations_probed)`` for the first hit."""
     git_cache: _GitLsFilesCache = {} if cache is None else cache
     probed: list[Path] = []
     seen: set[Path] = set()
@@ -45,18 +42,18 @@ def search_existing_path(
         return None
 
     candidates = path_candidates(text)
-    for path_text, line, column, fragment in candidates:
+    for path_text, fragment in candidates:
         found = _probe_direct(path_text, context, consider)
         if found is not None:
-            return found, line, column, fragment, len(probed)
-    for path_text, line, column, fragment in candidates:
+            return found, fragment, len(probed)
+    for path_text, fragment in candidates:
         needle = _suffix_needle(path_text, context)
         if needle is None:
             continue
         found = _unique_suffix_hit(needle, context, git_cache, consider)
         if found is not None:
-            return found, line, column, fragment, len(probed)
-    return None, None, None, None, len(probed)
+            return found, fragment, len(probed)
+    return None, None, len(probed)
 
 
 def _probe_direct(
@@ -108,16 +105,16 @@ def _unique_suffix_hit(
 
 def path_candidates(
     text: str,
-) -> tuple[tuple[str, int | None, int | None, str | None], ...]:
+) -> tuple[tuple[str, str | None], ...]:
     seen: set[str] = set()
-    candidates: list[tuple[str, int | None, int | None, str | None]] = []
+    candidates: list[tuple[str, str | None]] = []
     for variant in _candidate_texts(text):
-        path_text, line, column, fragment = _split_target_suffix(variant)
+        path_text, fragment = _split_target_suffix(variant)
         key = f"{path_text}#{fragment}" if fragment is not None else path_text
         if not path_text or key in seen:
             continue
         seen.add(key)
-        candidates.append((path_text, line, column, fragment))
+        candidates.append((path_text, fragment))
     return tuple(candidates)
 
 
@@ -142,10 +139,8 @@ def _candidate_texts(text: str) -> tuple[str, ...]:
 
 def _split_target_suffix(
     text: str,
-) -> tuple[str, int | None, int | None, str | None]:
-    path_text, fragment = _split_hash_fragment(text)
-    path_text, line, column = _split_line_suffix(path_text)
-    return path_text, line, column, fragment
+) -> tuple[str, str | None]:
+    return _split_hash_fragment(text)
 
 
 def _split_hash_fragment(text: str) -> tuple[str, str | None]:
@@ -153,20 +148,6 @@ def _split_hash_fragment(text: str) -> tuple[str, str | None]:
         return text, None
     path_text, fragment = text.split("#", 1)
     return path_text, fragment
-
-
-def _split_line_suffix(text: str) -> tuple[str, int | None, int | None]:
-    match = _LINE_COL_SUFFIX_RE.fullmatch(text)
-    if match is not None:
-        path_text = match.group(1)
-        if not _TRAILING_LINE_DIGITS_RE.search(path_text):
-            return path_text, int(match.group(2)), int(match.group(3))
-    match = _LINE_SUFFIX_RE.fullmatch(text)
-    if match is not None:
-        path_text = match.group(1)
-        if not _TRAILING_LINE_DIGITS_RE.search(path_text):
-            return path_text, int(match.group(2)), None
-    return text, None, None
 
 
 def _stale_absolute_remainder(

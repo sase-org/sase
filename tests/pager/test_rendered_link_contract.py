@@ -21,12 +21,14 @@ from sase.pager.targets import LinkTargetKind
 
 from tests.pager._rendered_link_corpus import (
     CONTROLLER,
+    LINE_TARGET,
     ROUTER,
     assert_expected_rendered,
     build_corpus,
     forbid_checkout_allocation,
     install_inventory,
     kitchen_expected,
+    rendered_spans,
     screenshot_expected,
 )
 from tests.pager._rendered_link_pilot import (
@@ -66,6 +68,36 @@ def test_screenshot_scanner_emits_every_independently_declared_target(corpus) ->
 def test_kitchen_scanner_emits_every_independently_declared_target(corpus) -> None:
     document = _kitchen_document(corpus)
     assert_expected_rendered(document, kitchen_expected(corpus))
+
+
+def test_kitchen_line_addressed_links_resolve_to_expected_locations(corpus) -> None:
+    document = _kitchen_document(corpus)
+    section = document.sections[0]
+    context = merge_link_context(
+        section.link_anchors,
+        document.link_context,
+        owner=section.owner,
+    )
+    spans = {span.text: span for span in rendered_spans(document)}
+
+    for occurrence in kitchen_expected(corpus):
+        if (
+            occurrence.line is None
+            and occurrence.column is None
+            and occurrence.end_line is None
+        ):
+            continue
+        span = spans[occurrence.display]
+        ref = target_resolution_ref(span, document.origin)
+        assert ref == occurrence.resolution_ref
+        resolution = resolve_link(ref, context=context)
+        target = resolution.target
+        assert target is not None, occurrence.display
+        assert target.kind is LinkTargetKind.DOCUMENT
+        assert target.scroll_line == occurrence.line
+        assert target.scroll_end_line == occurrence.end_line
+        assert target.edit_line == occurrence.line
+        assert target.edit_column == occurrence.column
 
 
 def test_screenshot_source_is_absent_from_the_primary_git_tree(corpus) -> None:
@@ -219,10 +251,24 @@ async def test_kitchen_follow_copy_edit_and_media_for_each_supported_action(
                 continue
             if occurrence.outcome != "document":
                 continue
+            notifications.clear()
             await press_hint(pilot, label.hint)
             body = screen.document.sections[0].plain_text
             for snippet in occurrence.body_contains:
                 assert snippet in body
+            if occurrence.display == f"{LINE_TARGET}:9999":
+                await wait_for_notification(
+                    pilot,
+                    notifications,
+                    lambda message, severity: (
+                        severity == "information"
+                        and "line_targets.py has 60 lines" in message
+                    ),
+                )
+            else:
+                assert not any(
+                    severity == "warning" for _message, severity in notifications
+                )
             await pilot.press("backspace")
             await settle(pilot)
             assert screen.document is document

@@ -140,18 +140,17 @@ def test_copy_uses_owned_file_and_skips_decoy(
     assert copied == str(live)
 
 
-def test_copy_uses_owned_directory_and_skips_decoy(
+def test_copy_includes_location_for_owned_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    decoy = _plant_decoy(tmp_path, monkeypatch)
-    live = tmp_path / "capture" / "src"
-    live.mkdir(parents=True)
+    _plant_decoy(tmp_path, monkeypatch)
+    live = _write(tmp_path / "capture" / "src" / "secret.py", "live\n")
     _forbid_generic_search(monkeypatch)
 
     def fake_lookup(
         path_text: str, *, context: LinkResolutionContext | None
     ) -> ArtifactRefTargetResolution:
-        assert path_text == "src"
+        assert path_text == "src/secret.py"
         return _owned_resolution(resolved_path=live)
 
     monkeypatch.setattr(
@@ -159,12 +158,66 @@ def test_copy_uses_owned_directory_and_skips_decoy(
     )
 
     copied = copy_text_for_target(
-        "src",
+        "src/secret.py:7:2",
+        LinkSpanKind.FILE_PATH.value,
+        context=_owned_context(tmp_path / "cwd"),
+    )
+
+    assert copied == f"{live}:7:2"
+
+
+def test_copy_uses_owned_directory_and_skips_decoy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    decoy = _plant_decoy(tmp_path, monkeypatch)
+    live = tmp_path / "capture" / "src" / "dir"
+    live.mkdir(parents=True)
+    _forbid_generic_search(monkeypatch)
+
+    def fake_lookup(
+        path_text: str, *, context: LinkResolutionContext | None
+    ) -> ArtifactRefTargetResolution:
+        assert path_text == "src/dir"
+        return _owned_resolution(resolved_path=live)
+
+    monkeypatch.setattr(
+        "sase.pager._resolve_file_paths.lookup_owned_source_path", fake_lookup
+    )
+
+    copied = copy_text_for_target(
+        "src/dir",
         LinkSpanKind.FILE_PATH.value,
         context=_owned_context(tmp_path / "cwd"),
     )
 
     assert decoy.is_file()
+    assert copied == str(live)
+
+
+def test_copy_omits_location_for_owned_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _plant_decoy(tmp_path, monkeypatch)
+    live = tmp_path / "capture" / "src" / "dir"
+    live.mkdir(parents=True)
+    _forbid_generic_search(monkeypatch)
+
+    def fake_lookup(
+        path_text: str, *, context: LinkResolutionContext | None
+    ) -> ArtifactRefTargetResolution:
+        assert path_text == "src/dir"
+        return _owned_resolution(resolved_path=live)
+
+    monkeypatch.setattr(
+        "sase.pager._resolve_file_paths.lookup_owned_source_path", fake_lookup
+    )
+
+    copied = copy_text_for_target(
+        "src/dir:7",
+        LinkSpanKind.FILE_PATH.value,
+        context=_owned_context(tmp_path / "cwd"),
+    )
+
     assert copied == str(live)
 
 
@@ -184,6 +237,21 @@ def test_copy_falls_through_when_owned_lookup_cannot_run(
     )
 
     assert copied == str(decoy.resolve())
+
+
+def test_copy_includes_location_for_generic_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    live = _write(tmp_path / "src" / "secret.py", "live\n")
+    monkeypatch.chdir(tmp_path)
+
+    copied = copy_text_for_target(
+        "src/secret.py:7",
+        LinkSpanKind.FILE_PATH.value,
+        context=LinkResolutionContext(anchors=(LinkAnchor(tmp_path),)),
+    )
+
+    assert copied == f"{live.resolve()}:7"
 
 
 def test_commit_and_card_landings_freeze_context_known_kinds(

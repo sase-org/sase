@@ -93,6 +93,18 @@ def test_resolve_ref_parses_a_line_column_suffix(tmp_path: Path) -> None:
     assert target.edit_column == 3
 
 
+def test_resolve_ref_parses_a_line_range_suffix(tmp_path: Path) -> None:
+    path = _write(tmp_path / "notes.py", "a\nb\nc\nd\n")
+
+    target = resolve_ref(f"{path}:2-4")
+
+    assert target is not None
+    assert target.scroll_line == 2
+    assert target.scroll_end_line == 4
+    assert target.edit_line == 2
+    assert target.edit_column is None
+
+
 def test_resolve_ref_strips_a_trailing_dot_candidate(tmp_path: Path) -> None:
     path = _write(tmp_path / "notes.py")
 
@@ -132,11 +144,11 @@ def test_resolve_link_returns_dead_end_diagnostics_from_one_search(
     second.mkdir()
     context = _context(first, second)
 
-    resolution = resolve_link("src/x.py", context=context)
+    resolution = resolve_link("src/x.py:12", context=context)
 
     assert resolution.target is None
     assert resolution.unresolved_message == "src/x.py not found (searched 2 locations)"
-    assert resolve_ref("src/x.py", context=context) is None
+    assert resolve_ref("src/x.py:12", context=context) is None
 
 
 def test_resolve_ref_parses_markdown_line_fragment(tmp_path: Path) -> None:
@@ -147,7 +159,20 @@ def test_resolve_ref_parses_markdown_line_fragment(tmp_path: Path) -> None:
     assert target is not None
     assert target.edit_path == path.resolve()
     assert target.scroll_line == 3
+    assert target.scroll_end_line == 4
     assert target.edit_line == 3
+
+
+def test_resolve_ref_parses_github_line_fragment_column(tmp_path: Path) -> None:
+    path = _write(tmp_path / "docs" / "guide.md", "one\ntwo\nthree\n")
+
+    target = resolve_ref("docs/guide.md#L3C2", context=_context(tmp_path))
+
+    assert target is not None
+    assert target.edit_path == path.resolve()
+    assert target.scroll_line == 3
+    assert target.edit_line == 3
+    assert target.edit_column == 2
 
 
 def test_resolve_ref_parses_markdown_heading_fragment(tmp_path: Path) -> None:

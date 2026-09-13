@@ -380,6 +380,16 @@ class PagerActionMixin:
             self._body_width = None
             self._ensure_body()
             self._scroll_to_line_mark(mark)
+            call_after_refresh = getattr(self, "call_after_refresh", None)
+            if callable(call_after_refresh):
+                landed_document = document
+
+                def scroll_after_layout() -> None:
+                    if self.document is landed_document and self._goto_mark == mark:
+                        self._scroll_to_line_mark(mark)
+                        self._after_scroll()
+
+                call_after_refresh(scroll_after_layout)
         self._forward_trail.clear()
         self._update_trail()
         self._update_footer()

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.artifact_ref_models import ArtifactRefTargetResolution
+from sase.artifact_ref_models import ArtifactRefTargetResolution, LinkLocation
+from sase.artifact_ref_operations import split_link_location
 from sase.pager._resolve_common import link_target_for_existing_path
 from sase.pager._resolve_fragments import fragment_target_line
+from sase.pager._resolve_location import apply_link_location
 from sase.pager._resolve_path_search import path_candidates, search_existing_path
 from sase.pager.landings import ambiguous_source_resolution
 from sase.pager.link_context import LinkResolutionContext, default_link_context
@@ -34,22 +36,32 @@ def resolve_file_path_link(
     context: LinkResolutionContext | None = None,
 ) -> LinkResolution:
     resolved_context = _file_path_context(context)
-    owned = _owned_file_path_resolution(text, context=resolved_context)
+    split = split_link_location(text)
+    owned = _owned_file_path_resolution(split.base, context=resolved_context)
     if owned is not None:
-        return owned
-    found, line, column, fragment, locations = search_existing_path(
-        text, context=resolved_context
+        return LinkResolution(
+            target=apply_link_location(owned.target, split.location),
+            unresolved_message=owned.unresolved_message,
+            retryable=owned.retryable,
+        )
+    found, fragment, locations = search_existing_path(
+        split.base, context=resolved_context
     )
     if found is None:
         return LinkResolution(
-            unresolved_message=f"{text} not found (searched {locations} locations)",
+            unresolved_message=(
+                f"{split.base} not found (searched {locations} locations)"
+            ),
         )
-    return _link_resolution_for_existing_path(
+    resolution = _link_resolution_for_existing_path(
         found,
-        requested_line=line,
-        requested_column=column,
         fragment=fragment,
         context=resolved_context,
+    )
+    return LinkResolution(
+        target=apply_link_location(resolution.target, split.location),
+        unresolved_message=resolution.unresolved_message,
+        retryable=resolution.retryable,
     )
 
 
@@ -70,18 +82,21 @@ def copy_text_for_target(
     """
     if kind == LinkSpanKind.FILE_PATH.value:
         resolved_context = _file_path_context(context)
-        owned = _owned_file_path_resolution(ref, context=resolved_context)
+        split = split_link_location(ref)
+        owned = _owned_file_path_resolution(split.base, context=resolved_context)
         if owned is not None:
             path = None if owned.target is None else owned.target.edit_path
-            return str(path) if path is not None else ref
-        found, _line, _column, fragment, _locations = search_existing_path(
-            ref, context=resolved_context
+            if path is None:
+                return ref
+            return _copy_path_with_location(path, split.location)
+        found, fragment, _locations = search_existing_path(
+            split.base, context=resolved_context
         )
         if found is not None:
             target_line, fragment_message = fragment_target_line(found, fragment)
             if target_line is None and fragment_message is not None:
                 return ref
-            return str(found)
+            return _copy_path_with_location(found, split.location)
         return ref
     return ref
 
@@ -103,7 +118,7 @@ def _owned_file_path_resolution(
         return None
     last: ArtifactRefTargetResolution | None = None
     last_path = text
-    for path_text, line, column, fragment in path_candidates(text):
+    for path_text, fragment in path_candidates(text):
         owned = lookup_owned_source_path(path_text, context=context)
         if owned is None:
             continue
@@ -112,8 +127,6 @@ def _owned_file_path_resolution(
         if owned_source_is_success(owned) and owned.resolved_path is not None:
             return _link_resolution_for_existing_path(
                 owned.resolved_path,
-                requested_line=line,
-                requested_column=column,
                 fragment=fragment,
                 context=context,
             )
@@ -130,8 +143,6 @@ def _owned_file_path_resolution(
 def _link_resolution_for_existing_path(
     path: Path,
     *,
-    requested_line: int | None,
-    requested_column: int | None,
     fragment: str | None,
     context: LinkResolutionContext,
 ) -> LinkResolution:
@@ -141,13 +152,22 @@ def _link_resolution_for_existing_path(
     return LinkResolution(
         target=link_target_for_existing_path(
             path,
-            requested_line=fragment_line
-            if fragment_line is not None
-            else requested_line,
-            requested_column=requested_column,
+            requested_line=fragment_line,
             context=context,
         )
     )
+
+
+def _copy_path_with_location(
+    path: Path,
+    location: LinkLocation | None,
+) -> str:
+    copied = str(path)
+    if location is None or not path.is_file():
+        return copied
+    if location.column is None:
+        return f"{copied}:{location.line}"
+    return f"{copied}:{location.line}:{location.column}"
 
 
 __all__ = [

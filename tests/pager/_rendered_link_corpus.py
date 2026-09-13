@@ -41,11 +41,14 @@ Outcome = Literal[
 ]
 
 PLAN_CYCLING = "plan:202609/capture_line_edge_cycling.md"
+PLAN_LINE_TARGET = "plan:202609/line_target_plan.md"
 PLAN_PREVIOUS = "plan:202609/capture_ctrl_u_previous_line.md"
 PLAN_SPACED = "plan:spaced plan.md#L3"
 ROUTER = "Sources/BobMacCapture/CaptureKeyCommandRouter.swift"
 CONTROLLER = "Sources/BobMacCapture/CaptureKeyCommandController.swift"
 ROUTER_TESTS = "Tests/BobMacCaptureTests/CaptureKeyCommandRouterTests.swift"
+LINE_TARGET = "src/line_targets.py"
+DESIGN_LINE_TARGET = "designs:line_target_design.md"
 CYCLING_URL = (
     "https://github.com/bobs-org/bob-cli/blob/main/.sase/plans/"
     "202609/capture_line_edge_cycling.md"
@@ -94,6 +97,19 @@ Indexed file:explicit:0123456789abcdef01234567
 Markdown dest [not the path](src/lined.swift:4:2)
 Sigiled file @src/naïve.md
 Unicode line docs/café.md:12
+Line direct src/line_targets.py:12
+Line column src/line_targets.py:12:5
+Line range src/line_targets.py:12-40
+GitHub line src/line_targets.py#L12
+GitHub range src/line_targets.py#L12-L40
+GitHub column src/line_targets.py#L12C5
+Markdown range [range dest](src/line_targets.py:27-44)
+Markdown GitHub [column dest](src/line_targets.py#L27C3)
+Typed plan plan:202609/line_target_plan.md:12
+Sigiled typed plan @plan:202609/line_target_plan.md:12-20
+Typed plan GitHub plan:202609/line_target_plan.md#L3C2
+Configured sidecar designs:line_target_design.md:40
+Past EOF src/line_targets.py:9999
 Directory ./docs/assets
 Media docs/assets/dot.png
 Missing Sources/DoesNotExist.swift
@@ -117,6 +133,7 @@ class ExpectedOccurrence:
     owner_checkout: str | None = None
     line: int | None = None
     column: int | None = None
+    end_line: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,6 +144,7 @@ class RenderedLinkCorpus:
     cwd: Path
     primary: Path
     plans: Path
+    designs: Path
     capture: Path
     other: Path
     screenshot_plan: Path
@@ -136,7 +154,10 @@ class RenderedLinkCorpus:
     router: Path
     controller: Path
     router_tests: Path
+    line_targets: Path
     lined: Path
+    line_plan: Path
+    design_doc: Path
     naive: Path
     cafe: Path
     assets: Path
@@ -161,11 +182,12 @@ def build_corpus(tmp_path: Path) -> RenderedLinkCorpus:
     cwd = root / "cwd"
     primary = root / "bob-cli"
     plans = root / "plans"
+    designs = root / "designs"
     capture = root / "bob-mac-capture"
     other = root / "other-project"
-    for path in (cwd, primary, plans, capture, other):
+    for path in (cwd, primary, plans, designs, capture, other):
         path.mkdir(parents=True)
-        if path is not cwd and path is not plans:
+        if path not in {cwd, plans, designs}:
             (path / ".git").mkdir()
 
     router = _write(
@@ -198,11 +220,23 @@ def build_corpus(tmp_path: Path) -> RenderedLinkCorpus:
         plans / "spaced plan.md",
         "line1\nline2\nline3 target\nline4\n",
     )
+    line_plan = _write(
+        plans / "202609" / "line_target_plan.md",
+        "\n".join(f"plan line {index}" for index in range(1, 31)) + "\n",
+    )
+    design_doc = _write(
+        designs / "line_target_design.md",
+        "\n".join(f"design line {index}" for index in range(1, 51)) + "\n",
+    )
     _write(plans / "202609" / "secret.md", "filtered\n")
 
     lined = _write(
         primary / "src" / "lined.swift",
         "one\ntwo\nthree\nfour\nfive\n",
+    )
+    line_targets = _write(
+        primary / LINE_TARGET,
+        "\n".join(f"source line {index}" for index in range(1, 61)) + "\n",
     )
     naive = _write(primary / "src" / "naïve.md", "naive notes\n")
     cafe = _write(
@@ -221,6 +255,7 @@ def build_corpus(tmp_path: Path) -> RenderedLinkCorpus:
     context = _context(
         plans,
         root,
+        designs=designs,
         repositories=(
             ArtifactRefRepository("bob-cli", checkout_paths=(primary,), kind="primary"),
             ArtifactRefRepository(
@@ -251,6 +286,7 @@ def build_corpus(tmp_path: Path) -> RenderedLinkCorpus:
         cwd=cwd,
         primary=primary,
         plans=plans,
+        designs=designs,
         capture=capture,
         other=other,
         screenshot_plan=screenshot_plan,
@@ -260,7 +296,10 @@ def build_corpus(tmp_path: Path) -> RenderedLinkCorpus:
         router=router,
         controller=controller,
         router_tests=router_tests,
+        line_targets=line_targets,
         lined=lined,
+        line_plan=line_plan,
+        design_doc=design_doc,
         naive=naive,
         cafe=cafe,
         assets=assets,
@@ -408,7 +447,7 @@ def kitchen_expected(corpus: RenderedLinkCorpus) -> tuple[ExpectedOccurrence, ..
             resolution_ref="src/lined.swift:4:2",
             outcome="document",
             body_contains=("four",),
-            copy_text=str(corpus.lined),
+            copy_text=f"{corpus.lined}:4:2",
             edit_path=str(corpus.lined),
             identity_contains=str(corpus.lined),
             line=4,
@@ -430,10 +469,161 @@ def kitchen_expected(corpus: RenderedLinkCorpus) -> tuple[ExpectedOccurrence, ..
             resolution_ref="docs/café.md:12",
             outcome="document",
             body_contains=("cafe 12",),
-            copy_text=str(corpus.cafe),
+            copy_text=f"{corpus.cafe}:12",
             edit_path=str(corpus.cafe),
             identity_contains=str(corpus.cafe),
             line=12,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}:12",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}:12",
+            outcome="document",
+            body_contains=("source line 12",),
+            copy_text=f"{corpus.line_targets}:12",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}:12:5",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}:12:5",
+            outcome="document",
+            body_contains=("source line 12",),
+            copy_text=f"{corpus.line_targets}:12:5",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+            column=5,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}:12-40",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}:12-40",
+            outcome="document",
+            body_contains=("source line 40",),
+            copy_text=f"{corpus.line_targets}:12",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+            end_line=40,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}#L12",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}#L12",
+            outcome="document",
+            body_contains=("source line 12",),
+            copy_text=f"{corpus.line_targets}:12",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}#L12-L40",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}#L12-L40",
+            outcome="document",
+            body_contains=("source line 40",),
+            copy_text=f"{corpus.line_targets}:12",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+            end_line=40,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}#L12C5",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}#L12C5",
+            outcome="document",
+            body_contains=("source line 12",),
+            copy_text=f"{corpus.line_targets}:12:5",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+            column=5,
+        ),
+        ExpectedOccurrence(
+            display=f"[range dest]({LINE_TARGET}:27-44)",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}:27-44",
+            outcome="document",
+            body_contains=("source line 44",),
+            copy_text=f"{corpus.line_targets}:27",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=27,
+            end_line=44,
+        ),
+        ExpectedOccurrence(
+            display=f"[column dest]({LINE_TARGET}#L27C3)",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}#L27C3",
+            outcome="document",
+            body_contains=("source line 27",),
+            copy_text=f"{corpus.line_targets}:27:3",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=27,
+            column=3,
+        ),
+        ExpectedOccurrence(
+            display=f"{PLAN_LINE_TARGET}:12",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=f"{PLAN_LINE_TARGET}:12",
+            outcome="document",
+            body_contains=("plan line 12",),
+            copy_text=f"{PLAN_LINE_TARGET}:12",
+            edit_path=str(corpus.line_plan),
+            identity_contains=PLAN_LINE_TARGET,
+            line=12,
+        ),
+        ExpectedOccurrence(
+            display=f"@{PLAN_LINE_TARGET}:12-20",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=f"{PLAN_LINE_TARGET}:12-20",
+            outcome="document",
+            body_contains=("plan line 20",),
+            copy_text=f"{PLAN_LINE_TARGET}:12-20",
+            edit_path=str(corpus.line_plan),
+            identity_contains=PLAN_LINE_TARGET,
+            line=12,
+            end_line=20,
+        ),
+        ExpectedOccurrence(
+            display=f"{PLAN_LINE_TARGET}#L3C2",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=f"{PLAN_LINE_TARGET}#L3C2",
+            outcome="document",
+            body_contains=("plan line 3",),
+            copy_text=f"{PLAN_LINE_TARGET}#L3C2",
+            edit_path=str(corpus.line_plan),
+            identity_contains=PLAN_LINE_TARGET,
+            line=3,
+            column=2,
+        ),
+        ExpectedOccurrence(
+            display=f"{DESIGN_LINE_TARGET}:40",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=f"{DESIGN_LINE_TARGET}:40",
+            outcome="document",
+            body_contains=("design line 40",),
+            copy_text=f"{DESIGN_LINE_TARGET}:40",
+            edit_path=str(corpus.design_doc),
+            identity_contains=DESIGN_LINE_TARGET,
+            line=40,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}:9999",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}:9999",
+            outcome="document",
+            body_contains=("source line 60",),
+            copy_text=f"{corpus.line_targets}:9999",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=9999,
         ),
         ExpectedOccurrence(
             display="./docs/assets",
@@ -566,15 +756,20 @@ def _context(
     *,
     repositories: tuple[ArtifactRefRepository, ...],
     project: tuple[str, str],
+    designs: Path | None = None,
     plan_globs: tuple[str, ...] | None = None,
 ) -> ArtifactRefContext:
     plans.mkdir(parents=True, exist_ok=True)
     name, key = project
+    document_roots = [
+        ArtifactRefDocumentRoot("plan", plans, path_globs=plan_globs),
+        ArtifactRefDocumentRoot("plans", plans, path_globs=plan_globs),
+    ]
+    if designs is not None:
+        designs.mkdir(parents=True, exist_ok=True)
+        document_roots.append(ArtifactRefDocumentRoot("designs", designs))
     return ArtifactRefContext(
-        document_roots=(
-            ArtifactRefDocumentRoot("plan", plans, path_globs=plan_globs),
-            ArtifactRefDocumentRoot("plans", plans, path_globs=plan_globs),
-        ),
+        document_roots=tuple(document_roots),
         chats_root=store / "chats",
         artifact_index_path=store / "artifacts" / "index.jsonl",
         repositories=repositories,
@@ -585,10 +780,13 @@ def _context(
 __all__ = [
     "CONTROLLER",
     "CYCLING_URL",
+    "DESIGN_LINE_TARGET",
     "ExpectedOccurrence",
     "EXACT_URL",
     "KITCHEN_BODY",
+    "LINE_TARGET",
     "PLAN_CYCLING",
+    "PLAN_LINE_TARGET",
     "PLAN_PREVIOUS",
     "PLAN_SPACED",
     "PREVIOUS_URL",

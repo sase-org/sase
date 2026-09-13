@@ -34,8 +34,15 @@ _FILE_PATH_PATTERN = (
     f"{_FILE_PATH_ALTERNATIVES}"
     r")"
 )
-# Pager-only: the same path token, then an optional :LINE or :LINE:COL, with
-# trailing sentence dots excluded from the path (lookbehind backtracks them).
+# Pager-only: Rust owns this line-location grammar; this matcher only keeps
+# scan_bounded_links from truncating a recognized location suffix in half.
+_PAGER_LINK_LOCATION_SUFFIX = (
+    r"(?:"
+    r"(?::\d+(?::\d+)?(?:-\d+)?)"
+    r"|"
+    r"(?:#[Ll]\d+(?:[Cc]\d+)?(?:-[Ll]?\d+(?:[Cc]\d+)?)?)"
+    r")?"
+)
 _PAGER_FILE_PATH_PATTERN = (
     r"(?<![/\w@.])"
     r"(@?)"
@@ -44,7 +51,7 @@ _PAGER_FILE_PATH_PATTERN = (
     f"{_FILE_PATH_ALTERNATIVES}"
     r")"
     r"(?<!\.)"
-    r"(?::\d+(?::\d+)?)?"
+    f"{_PAGER_LINK_LOCATION_SUFFIX}"
     r")"
 )
 _CONTAINER_FILE_PATH_PATTERN = (

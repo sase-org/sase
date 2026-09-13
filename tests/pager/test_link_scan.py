@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from sase.ace.tui.widgets.prompt_panel._file_path_hints import (
     file_hint_match_span,
     iter_file_path_matches,
@@ -18,7 +20,8 @@ from sase.pager.link_scan import (
 )
 
 _SPAN_FIDELITY_FIXTURE = (
-    "see src/foo.py:12 and src/bar.py:12:5 and /tmp/baz.py. plus "
+    "see src/foo.py:12 and src/bar.py:12:5 and src/range.py:12-40 "
+    "and src/github.py#L12C5-L40C2 and /tmp/baz.py. plus "
     "https://example.com/src/foo.py"
 )
 
@@ -285,11 +288,15 @@ def test_ace_file_path_matcher_output_is_unchanged_on_the_span_fixture() -> None
     assert [match.group(2) for match in matches] == [
         "src/foo.py",
         "src/bar.py",
+        "src/range.py",
+        "src/github.py",
         "/tmp/baz.py.",
     ]
     assert [_SPAN_FIDELITY_FIXTURE[start:end] for start, end in spans] == [
         "src/foo.py",
         "src/bar.py",
+        "src/range.py",
+        "src/github.py",
         "/tmp/baz.py.",
     ]
 
@@ -300,6 +307,8 @@ def test_pager_scan_uses_line_spans_and_drops_sentence_dots_on_fixture() -> None
     assert [(span.kind, span.text) for span in spans] == [
         (LinkSpanKind.FILE_PATH, "src/foo.py:12"),
         (LinkSpanKind.FILE_PATH, "src/bar.py:12:5"),
+        (LinkSpanKind.FILE_PATH, "src/range.py:12-40"),
+        (LinkSpanKind.FILE_PATH, "src/github.py#L12C5-L40C2"),
         (LinkSpanKind.FILE_PATH, "/tmp/baz.py"),
         (LinkSpanKind.URL, "https://example.com/src/foo.py"),
     ]
@@ -307,9 +316,21 @@ def test_pager_scan_uses_line_spans_and_drops_sentence_dots_on_fixture() -> None
         assert _SPAN_FIDELITY_FIXTURE[span.start : span.end] == span.text
 
 
-def test_scan_bounded_links_keeps_line_suffix_spans() -> None:
-    result = scan_bounded_links("src/head.py:12", PagerOrigin.FILE)
+@pytest.mark.parametrize(
+    "text",
+    [
+        "src/head.py:12",
+        "src/head.py:12:5",
+        "src/head.py:12-40",
+        "src/head.py#L12",
+        "src/head.py#L12-L40",
+        "src/head.py#L12C5",
+        "src/head.py#L12C5-L40C2",
+    ],
+)
+def test_scan_bounded_links_keeps_line_suffix_spans(text: str) -> None:
+    result = scan_bounded_links(text, PagerOrigin.FILE)
 
-    assert result.content == "src/head.py:12"
-    assert [span.text for span in result.spans] == ["src/head.py:12"]
+    assert result.content == text
+    assert [span.text for span in result.spans] == [text]
     assert result.notice is None

@@ -6,7 +6,6 @@ import re
 from pathlib import Path
 from urllib.parse import unquote
 
-_LINE_FRAGMENT_RE = re.compile(r"L(\d+)(?:-L?\d+)?", re.IGNORECASE)
 _HEADING_RE = re.compile(r"^#{1,6}\s+(.+?)\s*#*\s*$")
 _MARKDOWN_SUFFIXES = frozenset({".md", ".markdown", ".mdown", ".mkd"})
 
@@ -20,11 +19,6 @@ def fragment_target_line(
     decoded = unquote(fragment)
     if not decoded:
         return None, None
-    line_match = _LINE_FRAGMENT_RE.fullmatch(decoded)
-    if line_match is not None:
-        return int(line_match.group(1)), None
-    if decoded[:1].lower() == "l" and any(char.isdigit() for char in decoded):
-        return None, f"fragment #{decoded} is not a supported line fragment for {path}"
     if not _is_markdown_path(path):
         return None, f"fragment #{decoded} is not supported for {path}"
     line = _heading_fragment_line(path, decoded)

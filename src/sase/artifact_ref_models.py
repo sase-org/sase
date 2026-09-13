@@ -12,6 +12,7 @@ from sase.artifact_ref_context_models import (
     ArtifactRefRepository,
 )
 from sase.artifact_ref_entry_models import ArtifactEntry, ArtifactEntryOrigin
+from sase.artifact_ref_location_models import LinkLocation, LinkLocationSplit
 from sase.artifact_ref_parsed_models import (
     ArtifactRef,
     ArtifactRefFragment,
@@ -36,6 +37,7 @@ from sase.artifact_ref_target_models import (
 from sase.artifact_ref_wire import (
     ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION,
+    ARTIFACT_REF_LINK_LOCATION_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_TARGET_RESOLUTION_WIRE_SCHEMA_VERSION,
     ARTIFACT_REF_WIRE_SCHEMA_VERSION,
@@ -55,6 +57,7 @@ from sase.artifact_ref_wire import (
 __all__ = [
     "ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION",
+    "ARTIFACT_REF_LINK_LOCATION_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_TARGET_RESOLUTION_WIRE_SCHEMA_VERSION",
     "ARTIFACT_REF_WIRE_SCHEMA_VERSION",
@@ -87,6 +90,8 @@ __all__ = [
     "ArtifactRefTargetCandidate",
     "ArtifactRefTargetFailureCategory",
     "ArtifactRefTargetResolution",
+    "LinkLocation",
+    "LinkLocationSplit",
     "ParsedArtifactRef",
     "_check_document_scan_record_schema",
     "_optional_int",

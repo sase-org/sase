@@ -19,7 +19,9 @@ from sase.pager import (
     PagerTargetSpan,
     document_from_paths,
 )
+from sase.artifact_ref_operations import split_link_location
 from sase.pager.app import PendingAction
+from sase.pager._resolve_location import apply_link_location
 from sase.pager.known_kinds import freeze_known_kinds, known_kinds_from_link_context
 from sase.pager.link_context import LinkResolutionContext, default_link_context
 from sase.pager.resolve import (
@@ -175,13 +177,15 @@ def _resolve_ref_from_link_index(
     index = getattr(app, "_link_index", None)
     targets_by_ref = getattr(index, "targets_by_ref", None)
     target_for = getattr(index, "target_for", None)
-    if targets_by_ref is not None and callable(target_for) and ref in targets_by_ref:
-        target = target_for(ref)
+    split = split_link_location(ref)
+    base = split.base
+    if targets_by_ref is not None and callable(target_for) and base in targets_by_ref:
+        target = target_for(base)
         if target is None:
             return LinkResolution()
-        resolved = link_target_for_artifact_entry_target(ref, target, context=context)
+        resolved = link_target_for_artifact_entry_target(base, target, context=context)
         if resolved is not None:
-            return LinkResolution(target=resolved)
+            return LinkResolution(target=apply_link_location(resolved, split.location))
     return resolve_link(ref, context=context)
 
 
