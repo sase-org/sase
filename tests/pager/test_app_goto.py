@@ -8,6 +8,7 @@ import pytest
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
+from sase.pager._line_mark import LineMark, reading_scroll_y
 from sase.pager.app import SasePager
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.screen import PagerScreen
@@ -93,8 +94,20 @@ async def test_goto_line_enter_scrolls_to_the_marked_row() -> None:
         await pilot.pause()
 
         assert screen._body is not None
-        assert screen._goto_mark == (0, 42)
-        assert int(scroll.scroll_y) == screen._body.section_line_rows[0][41]
+        assert screen._goto_mark == LineMark(0, 42, 42)
+        start_row = screen._body.section_line_rows[0][41]
+        end_row = screen._last_row_for_section_line(0, 42)
+        assert end_row is not None
+        expected = reading_scroll_y(
+            start_row=start_row,
+            end_row=end_row,
+            viewport_height=max(int(scroll.size.height), 1),
+            max_scroll_y=int(scroll.max_scroll_y),
+        )
+        assert int(scroll.scroll_y) == expected
+        assert expected < start_row
+        rendered = list(screen._body.renderable.renderables)[0]
+        assert rendered.plain.split("\n")[41].startswith("42┃ ")
         assert "hidden" in _goto_command(app).classes
 
 

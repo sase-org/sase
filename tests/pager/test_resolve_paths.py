@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.pager._resolve_common import file_link_target
 from sase.pager.resolve import resolve_link, resolve_ref
 
 from ._resolve_helpers import _context, _write
@@ -53,6 +54,19 @@ def test_resolve_ref_reroots_a_stale_numbered_clone_path(tmp_path: Path) -> None
 
     assert target is not None
     assert target.edit_path == live.resolve()
+
+
+def test_file_link_target_plumbs_requested_end_line(tmp_path: Path) -> None:
+    path = _write(tmp_path / "notes.py", "a\nb\nc\n")
+
+    target = file_link_target(
+        path, requested_line=2, requested_end_line=3, requested_column=5
+    )
+
+    assert target.scroll_line == 2
+    assert target.scroll_end_line == 3
+    assert target.edit_line == 2
+    assert target.edit_column == 5
 
 
 def test_resolve_ref_parses_a_line_suffix_into_scroll_and_edit_line(

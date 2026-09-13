@@ -88,12 +88,12 @@ def test_apply_gutter_emphasizes_the_marked_line_number() -> None:
         Text("one\ntwo\nthree"),
         content_width=20,
         number_width=2,
-        emphasis_line=2,
+        emphasis_range=(2, 2),
         accent="#FFAF5F",
     )
-    # " 2│ two" sits on visual row 1; the '2' is at offset 1.
+    # " 2┃ two" sits on visual row 1; the '2' is at offset 1.
     second = result.text.plain.split("\n")[1]
-    assert second.startswith(" 2│ ")
+    assert second.startswith(" 2┃ ")
     offset = result.text.plain.index("2")
     style = result.text.get_style_at_offset(_CONSOLE, offset)
     assert style.bold is True
@@ -101,6 +101,50 @@ def test_apply_gutter_emphasizes_the_marked_line_number() -> None:
         _CONSOLE, result.text.plain.index("1")
     )
     assert first_style.bold is not True
+
+
+def test_apply_gutter_rails_every_row_of_an_inclusive_range() -> None:
+    result = apply_gutter(
+        Text("one\ntwo\nthree\nfour"),
+        content_width=20,
+        number_width=2,
+        emphasis_range=(2, 3),
+        accent="#FFAF5F",
+    )
+    rows = result.text.plain.split("\n")
+
+    assert rows[0].startswith(" 1│ ")
+    assert rows[1].startswith(" 2┃ ")
+    assert rows[2].startswith(" 3┃ ")
+    assert rows[3].startswith(" 4│ ")
+    rail_style = result.text.get_style_at_offset(_CONSOLE, result.text.plain.index("┃"))
+    assert rail_style.color is not None
+
+
+def test_apply_gutter_rails_wrapped_continuation_rows_without_changing_width() -> None:
+    unmarked = apply_gutter(Text("x" * 25), content_width=10, number_width=2)
+    marked = apply_gutter(
+        Text("short\n" + "x" * 25 + "\nend"),
+        content_width=10,
+        number_width=2,
+        emphasis_range=(2, 2),
+        accent="#FFAF5F",
+    )
+    rows = marked.text.plain.split("\n")
+
+    assert marked.line_rows == (0, 1, 4)
+    assert rows[0].startswith(" 1│ ")
+    assert rows[1].startswith(" 2┃ ")
+    assert rows[2].startswith("  ┃ ")
+    assert rows[3].startswith("  ┃ ")
+    assert rows[4].startswith(" 3│ ")
+    for unmarked_row, marked_row in zip(
+        unmarked.text.plain.split("\n"),
+        rows[1:4],
+        strict=True,
+    ):
+        assert cell_len(unmarked_row[:4]) == cell_len(marked_row[:4]) == 4
+        assert cell_len(marked_row) - 4 <= 10
 
 
 def test_apply_gutter_wraps_wide_characters_by_cell_width() -> None:

@@ -147,7 +147,7 @@ class PagerBodyMixin:
             label_layer=self._label_layer,
             pending_prefix=self._label_pending_prefix,
             prepared_sections=self._prepared_section_texts(),
-            goto_mark=mark,
+            line_mark=mark,
             goto_accent=accent,
         )
 
@@ -212,9 +212,6 @@ class PagerBodyMixin:
         self._ensure_body()
         self._update_footer()
 
-    def _row_for_document_line(self: Any, line: int) -> int | None:
-        return self._row_for_section_line(0, line)
-
     def _row_for_section_line(self: Any, section_index: int, line: int) -> int | None:
         body = self._body
         if body is None or not 0 <= section_index < len(body.section_line_rows):
@@ -223,6 +220,20 @@ class PagerBodyMixin:
         if line < 1 or line > len(rows):
             return None
         return rows[line - 1]
+
+    def _last_row_for_section_line(
+        self: Any, section_index: int, line: int
+    ) -> int | None:
+        body = self._body
+        first = self._row_for_section_line(section_index, line)
+        if body is None or first is None:
+            return None
+        rows = body.section_line_rows[section_index]
+        if line < len(rows):
+            return rows[line] - 1
+        if section_index + 1 < len(body.section_offsets):
+            return body.section_offsets[section_index + 1] - 1
+        return max(body.total_height - 1, first)
 
     def _current_section_index(self: Any) -> int:
         offsets = self._body.section_offsets if self._body is not None else (0,)

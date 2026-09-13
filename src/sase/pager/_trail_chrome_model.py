@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from sase.ace.tui.modals.trail_strip import entry_marker
+from sase.pager._line_mark import LineMark
 from sase.pager._trail_chrome_text import safe_label as _safe_label
 from sase.pager._trail_chrome_text import safe_optional as _safe_optional
 
@@ -32,6 +33,7 @@ class PagerTrailDisplayEntry:
     section_title: str
     section_kind: str
     state: TrailEntryState
+    line_mark: LineMark | None = None
 
     @property
     def icon(self) -> str:
@@ -45,15 +47,14 @@ class PagerTrailDisplayEntry:
 
     @property
     def short_label(self) -> str:
-        return _safe_label(self.section_title)
+        return _with_line_mark(_safe_label(self.section_title), self.line_mark)
 
     @property
     def full_label(self) -> str:
         document = _safe_label(self.document_title)
         section = _safe_label(self.section_title)
-        if section == document:
-            return section
-        return f"{document} · {section}"
+        base = section if section == document else f"{document} · {section}"
+        return _with_line_mark(base, self.line_mark)
 
     @property
     def secondary_identity(self) -> str:
@@ -74,7 +75,13 @@ class PagerTrailDisplayEntry:
         return " · ".join(unique)
 
     @property
-    def signature(self) -> tuple[str, str, str, str, str, str]:
+    def signature(self) -> tuple[str, str, str, str, str, str, str]:
+        mark = self.line_mark
+        mark_key = (
+            ""
+            if mark is None
+            else f"{mark.section_index}:{mark.start_line}:{mark.end_line}"
+        )
         return (
             self.document_identity,
             self.document_title,
@@ -82,6 +89,7 @@ class PagerTrailDisplayEntry:
             self.section_title,
             self.section_kind,
             self.state,
+            mark_key,
         )
 
 
@@ -117,5 +125,13 @@ class PagerTrailSnapshot:
         return self.total - self.current_index - 1
 
     @property
-    def signature(self) -> tuple[int, tuple[tuple[str, str, str, str, str, str], ...]]:
+    def signature(
+        self,
+    ) -> tuple[int, tuple[tuple[str, str, str, str, str, str, str], ...]]:
         return (self.current_index, tuple(entry.signature for entry in self.entries))
+
+
+def _with_line_mark(label: str, mark: LineMark | None) -> str:
+    if mark is None:
+        return label
+    return f"{label}{mark.suffix}"

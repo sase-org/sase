@@ -13,6 +13,7 @@ from sase.pager._layout import (
     search_corpus,
     styled_search_base,
 )
+from sase.pager._line_mark import LineMark
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 
 _CONSOLE = Console(color_system="truecolor")
@@ -105,13 +106,36 @@ def test_compose_body_emphasizes_the_goto_mark_number() -> None:
         origin=PagerOrigin.FILE,
     )
 
-    composed = compose_body(document, width=40, goto_mark=(0, 2), goto_accent="#FFAF5F")
+    composed = compose_body(
+        document, width=40, line_mark=LineMark(0, 2, 2), goto_accent="#FFAF5F"
+    )
 
     rendered = list(composed.renderable.renderables)[0]
     assert isinstance(rendered, Text)
     row_start = rendered.plain.index("\n") + 1
     style = rendered.get_style_at_offset(_CONSOLE, row_start + 1)
     assert style.bold is True
+    assert "2┃ " in rendered.plain.split("\n")[1]
+
+
+def test_compose_body_rails_a_marked_range() -> None:
+    document = PagerDocument(
+        sections=(_section("a", "one\ntwo\nthree\nfour\n"),),
+        title="a",
+        origin=PagerOrigin.FILE,
+    )
+
+    composed = compose_body(
+        document, width=40, line_mark=LineMark(0, 2, 3), goto_accent="#FFAF5F"
+    )
+
+    rendered = list(composed.renderable.renderables)[0]
+    assert isinstance(rendered, Text)
+    rows = rendered.plain.split("\n")
+    assert rows[0].startswith(" 1│ ")
+    assert rows[1].startswith(" 2┃ ")
+    assert rows[2].startswith(" 3┃ ")
+    assert rows[3].startswith(" 4│ ")
 
 
 def test_current_section_index_picks_the_last_offset_at_or_before_scroll_y() -> None:

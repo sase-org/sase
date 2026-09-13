@@ -315,7 +315,7 @@ class PagerSyntaxMixin:
             label_layer=self._label_layer,
             pending_prefix=self._label_pending_prefix,
             prepared_sections=self._prepared_section_texts(),
-            goto_mark=mark,
+            line_mark=mark,
             goto_accent=accent_fn()
             if mark is not None and accent_fn is not None
             else None,

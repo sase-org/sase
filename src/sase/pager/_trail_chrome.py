@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Literal
 
+from sase.pager._line_mark import LineMark
 from sase.pager._trail_chrome_band import render_trail_band, trail_band_row_count
 from sase.pager._trail_chrome_help import (
     build_pager_help_content,
@@ -31,6 +32,7 @@ def build_pager_trail_snapshot(
     document_identity: str,
     current_section: PagerSection | None,
     forward: Sequence[PagerTrailEntry],
+    current_line_mark: LineMark | None = None,
 ) -> PagerTrailSnapshot:
     """Build the display snapshot from retained stacks and live current metadata."""
 
@@ -42,6 +44,7 @@ def build_pager_trail_snapshot(
             document,
             document_identity=document_identity,
             current_section=current_section,
+            line_mark=current_line_mark,
         )
     )
     entries.extend(
@@ -61,6 +64,7 @@ def _display_entry_from_history(
         section_title=entry.section_title,
         section_kind=entry.section_kind,
         state=state,
+        line_mark=entry.line_mark,
     )
 
 
@@ -69,6 +73,7 @@ def _display_entry_from_current(
     *,
     document_identity: str,
     current_section: PagerSection | None,
+    line_mark: LineMark | None = None,
 ) -> _PagerTrailDisplayEntry:
     if current_section is None:
         return _PagerTrailDisplayEntry(
@@ -78,6 +83,7 @@ def _display_entry_from_current(
             section_title=document.title,
             section_kind="",
             state="current",
+            line_mark=line_mark,
         )
     return _PagerTrailDisplayEntry(
         document_identity=document_identity,
@@ -86,6 +92,7 @@ def _display_entry_from_current(
         section_title=current_section.title,
         section_kind=current_section.kind,
         state="current",
+        line_mark=line_mark,
     )
 
 

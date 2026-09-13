@@ -317,7 +317,11 @@ class PagerActionMixin:
             return
         if target.document is not None:
             self._push_trail_entry()
-            self._navigate_to_document(target.document, line=target.scroll_line)
+            self._navigate_to_document(
+                target.document,
+                line=target.scroll_line,
+                end_line=target.scroll_end_line,
+            )
 
     def _launch_editor(self: Any, target: LinkTarget) -> None:
         if target.edit_path is None:
@@ -350,7 +354,11 @@ class PagerActionMixin:
             self.notify(result.warning, severity="warning")
 
     def _navigate_to_document(
-        self: Any, document: PagerDocument, *, line: int | None
+        self: Any,
+        document: PagerDocument,
+        *,
+        line: int | None,
+        end_line: int | None = None,
     ) -> None:
         self.document = document
         self._body = None
@@ -366,9 +374,12 @@ class PagerActionMixin:
         self._ensure_body()
         scroll = self._body_scroll()
         scroll.scroll_to(x=0, y=0, animate=False, immediate=True)
-        row = self._row_for_document_line(line) if line is not None else None
-        if row is not None:
-            scroll.scroll_to(y=row, animate=False, immediate=True)
+        mark = self._line_mark_for_landing(line=line, end_line=end_line)
+        if mark is not None:
+            self._goto_mark = mark
+            self._body_width = None
+            self._ensure_body()
+            self._scroll_to_line_mark(mark)
         self._forward_trail.clear()
         self._update_trail()
         self._update_footer()

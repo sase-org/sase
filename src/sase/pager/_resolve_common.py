@@ -22,6 +22,7 @@ def link_target_for_existing_path(
     path: Path,
     *,
     requested_line: int | None,
+    requested_end_line: int | None = None,
     requested_column: int | None = None,
     context: LinkResolutionContext,
 ) -> LinkTarget | None:
@@ -41,6 +42,7 @@ def link_target_for_existing_path(
         return file_link_target(
             path,
             requested_line=requested_line,
+            requested_end_line=requested_end_line,
             requested_column=requested_column,
             context=context,
         )
@@ -93,6 +95,7 @@ def file_link_target(
     path: Path,
     *,
     requested_line: int | None,
+    requested_end_line: int | None = None,
     requested_column: int | None = None,
     context: LinkResolutionContext | None = None,
     logical_filename: str | None = None,
@@ -116,6 +119,7 @@ def file_link_target(
         kind=LinkTargetKind.DOCUMENT,
         document=document,
         scroll_line=requested_line,
+        scroll_end_line=requested_end_line,
         edit_path=path,
         edit_line=requested_line,
         edit_column=requested_column,

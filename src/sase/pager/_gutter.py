@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.text import Text
 
 _SEPARATOR = "│ "
+_RAIL_SEPARATOR = "┃ "
 _SEPARATOR_STYLE = "dim"
 _NUMBER_STYLE = "dim"
 _MIN_NUMBER_WIDTH = 2
@@ -62,7 +63,7 @@ def apply_gutter(
     *,
     content_width: int,
     number_width: int,
-    emphasis_line: int | None = None,
+    emphasis_range: tuple[int, int] | None = None,
     accent: str | None = None,
 ) -> _GutterSection:
     """Wrap *text* and prefix every visual row with gutter cells.
@@ -70,6 +71,9 @@ def apply_gutter(
     ``line_rows`` maps each logical line (0-based) to its first visual row
     within the section. An empty body still occupies one visual row so
     layout never collapses, but it has no numbered lines to jump to.
+    ``emphasis_range`` is an inclusive 1-based logical-line range: every
+    visual row in that range, including wrapped continuation rows, paints
+    a thick accent rail. The gutter cell count does not change.
     """
     wrap_width = max(content_width, 1)
     console = Console(
@@ -80,12 +84,13 @@ def apply_gutter(
         markup=False,
         emoji=False,
     )
+    lo, hi = _normalized_emphasis_range(emphasis_range)
     lines = _logical_lines(text)
     visual_rows: list[Text] = []
     line_rows: list[int] = []
     for line_number, logical in enumerate(lines, start=1):
         line_rows.append(len(visual_rows))
-        emphasize = emphasis_line == line_number
+        in_range = lo is not None and hi is not None and lo <= line_number <= hi
         wrapped = _wrap_logical_line(logical, wrap_width, console)
         for wrap_index, piece in enumerate(wrapped):
             number = line_number if wrap_index == 0 else None
@@ -94,7 +99,8 @@ def apply_gutter(
                     piece,
                     number=number,
                     number_width=number_width,
-                    emphasize=emphasize and number is not None,
+                    emphasize=in_range and number is not None,
+                    rail=in_range,
                     accent=accent,
                 )
             )
@@ -105,6 +111,7 @@ def apply_gutter(
                 number=None,
                 number_width=number_width,
                 emphasize=False,
+                rail=False,
                 accent=None,
             )
         )
@@ -118,6 +125,17 @@ def apply_gutter(
         row_count=len(visual_rows),
         line_rows=tuple(line_rows),
     )
+
+
+def _normalized_emphasis_range(
+    emphasis_range: tuple[int, int] | None,
+) -> tuple[int | None, int | None]:
+    if emphasis_range is None:
+        return None, None
+    lo, hi = emphasis_range
+    if lo > hi:
+        lo, hi = hi, lo
+    return lo, hi
 
 
 def _wrap_logical_line(text: Text, width: int, console: Console) -> tuple[Text, ...]:
@@ -136,6 +154,7 @@ def _guttered_row(
     number: int | None,
     number_width: int,
     emphasize: bool,
+    rail: bool,
     accent: str | None,
 ) -> Text:
     row = Text(no_wrap=True, overflow="crop")
@@ -144,6 +163,7 @@ def _guttered_row(
             number,
             number_width,
             emphasize=emphasize,
+            rail=rail,
             accent=accent,
         )
     )
@@ -156,6 +176,7 @@ def _gutter_cells(
     number_width: int,
     *,
     emphasize: bool,
+    rail: bool,
     accent: str | None,
 ) -> Text:
     if number is None:
@@ -169,7 +190,11 @@ def _gutter_cells(
             style = _NUMBER_STYLE
     cells = Text()
     cells.append(label, style=style)
-    cells.append(_SEPARATOR, style=_SEPARATOR_STYLE)
+    if rail:
+        separator_style = accent if accent else "bold"
+        cells.append(_RAIL_SEPARATOR, style=separator_style)
+    else:
+        cells.append(_SEPARATOR, style=_SEPARATOR_STYLE)
     return cells
 
 

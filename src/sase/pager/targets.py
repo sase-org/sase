@@ -30,6 +30,7 @@ class LinkTarget:
     kind: LinkTargetKind
     document: PagerDocument | None = None
     scroll_line: int | None = None
+    scroll_end_line: int | None = None
     media_specs: tuple[ArtifactFileViewSpec, ...] = ()
     edit_path: Path | None = None
     edit_line: int | None = None

@@ -5,6 +5,7 @@ from __future__ import annotations
 from rich.cells import cell_len
 
 from sase.pager._labels import LabelWindowScope
+from sase.pager._line_mark import LineMark
 from sase.pager._trail_chrome import (
     build_pager_help_content,
     build_pager_trail_snapshot,
@@ -59,6 +60,7 @@ def _trail_entry(
     *,
     kind: str = "file",
     identity: str | None = None,
+    line_mark: LineMark | None = None,
 ) -> PagerTrailEntry:
     section = _section(title, kind=kind, identity=identity)
     document = _document(title, section)
@@ -73,6 +75,7 @@ def _trail_entry(
         scroll_y=0,
         search=_search_state(),
         label_anchor=LabelWindowScope(0, 1),
+        line_mark=line_mark,
     )
 
 
@@ -120,6 +123,30 @@ def test_snapshot_orders_back_current_and_reversed_forward_stack() -> None:
     assert snapshot.total == 5
     assert snapshot.back_count == 2
     assert snapshot.forward_count == 2
+
+
+def test_breadcrumb_appends_line_and_range_suffix_from_the_mark() -> None:
+    back = [_trail_entry("resolve.py", line_mark=LineMark(0, 27, 27))]
+    current_section = _section("pager.md", kind="ref:plan")
+    current_document = _document("pager.md", current_section)
+    forward = [_trail_entry("tests", line_mark=LineMark(0, 12, 20))]
+
+    snapshot = build_pager_trail_snapshot(
+        back=back,
+        document=current_document,
+        document_identity="file:/tmp/pager.md",
+        current_section=current_section,
+        current_line_mark=LineMark(0, 3, 3),
+        forward=forward,
+    )
+
+    assert [entry.short_label for entry in snapshot.entries] == [
+        "resolve.py:27",
+        "pager.md:3",
+        "tests:12–20",
+    ]
+    assert snapshot.entries[0].full_label == "resolve.py:27"
+    assert snapshot.current.full_label == "pager.md:3"
 
 
 def test_path_row_expands_to_complete_path_when_it_fits() -> None:

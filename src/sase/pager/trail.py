@@ -12,6 +12,7 @@ from sase.ace.tui.widgets._vim_search import (
 )
 from sase.ace.tui.widgets.vim_search_controller import VimSearchMode
 from sase.pager._labels import LabelWindowScope
+from sase.pager._line_mark import LineMark
 from sase.pager.document import PagerDocument
 
 PAGER_TRAIL_LIMIT = 32
@@ -48,6 +49,7 @@ class PagerTrailEntry:
     scroll_y: int
     search: PagerSearchState
     label_anchor: LabelWindowScope | None
+    line_mark: LineMark | None = None
 
 
 def append_bounded_trail(

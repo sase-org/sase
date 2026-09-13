@@ -13,6 +13,14 @@ def test_help_lists_goto_line_after_top_bottom() -> None:
     assert text.index("g / G") < text.index("; or :") < text.index("backspace")
 
 
+def test_help_lists_line_addressed_link_landing() -> None:
+    text = _pager_help_text(section_total=1).plain
+
+    assert "path:12 / path:12-40 / #L12" in text
+    assert "Land on and rail that line; E opens the editor there" in text
+    assert text.index("; or :") < text.index("path:12") < text.index("backspace")
+
+
 def test_help_inserts_section_rows_after_back_and_before_forward() -> None:
     text = _pager_help_text(section_total=3).plain
 

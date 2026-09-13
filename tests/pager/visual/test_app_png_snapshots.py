@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 from textual.containers import VerticalScroll
 
+from sase.pager._line_mark import LineMark
 from sase.pager.app import SasePager
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.screen import PagerScreen
@@ -152,6 +153,44 @@ async def test_goto_prompt_typing_png_snapshot(
             _SvgExport(app),
             f"goto_prompt_typing_{size[0]}x{size[1]}",
             title="SasePager: goto prompt typing",
+        )
+
+
+def _railed_range_document() -> PagerDocument:
+    body = "\n".join(f"line {index}" for index in range(1, 41)) + "\n"
+    section = PagerSection(
+        identity="file:/tmp/resolve.py",
+        title="resolve.py",
+        kind="file",
+        body=body,
+    )
+    return PagerDocument(
+        sections=(section,),
+        title="resolve.py",
+        origin=PagerOrigin.FILE,
+    )
+
+
+@pytest.mark.parametrize("size", _SIZES)
+async def test_railed_range_png_snapshot(
+    pager_png_visual: AcePngSnapshotFixture,
+    size: tuple[int, int],
+) -> None:
+    app = SasePager(_railed_range_document())
+    async with app.run_test(size=size) as pilot:
+        await pilot.pause()
+        screen = _pager_screen(app)
+        mark = LineMark(0, 5, 12)
+        screen._goto_mark = mark
+        screen._body_width = None
+        screen._ensure_body()
+        screen._scroll_to_line_mark(mark)
+        screen._update_subject()
+        await pilot.pause()
+        pager_png_visual.assert_page_png(
+            _SvgExport(app),
+            f"railed_range_{size[0]}x{size[1]}",
+            title="SasePager: railed line range",
         )
 
 

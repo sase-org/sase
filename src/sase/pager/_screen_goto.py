@@ -9,6 +9,7 @@ from textual.widgets import Static
 
 from sase.pager._chrome import goto_command_line, section_accent
 from sase.pager._layout import ComposedBody
+from sase.pager._line_mark import LineMark, reading_scroll_y
 
 
 class PagerGotoMixin:
@@ -18,7 +19,7 @@ class PagerGotoMixin:
     _body_width: int | None
     _goto_active: bool
     _goto_digits: str
-    _goto_mark: tuple[int, int] | None
+    _goto_mark: LineMark | None
 
     def _init_goto_state(self: Any) -> None:
         self._goto_active = False
@@ -75,13 +76,12 @@ class PagerGotoMixin:
             self._update_goto_command()
             return
         section_index = self._current_section_index()
-        row = self._row_for_section_line(section_index, value)
-        self._goto_mark = (section_index, value)
+        mark = LineMark(section_index, value, value)
+        self._goto_mark = mark
         self._close_goto_prompt()
         self._body_width = None
         self._ensure_body()
-        if row is not None:
-            self._body_scroll().scroll_to(y=row, animate=False, immediate=True)
+        self._scroll_to_line_mark(mark)
         self._after_scroll()
 
     def _clear_goto_state(self: Any) -> None:
@@ -134,9 +134,54 @@ class PagerGotoMixin:
 
     def _goto_accent_for_mark(self: Any) -> str | None:
         mark = self._goto_mark
-        if mark is None or not 0 <= mark[0] < len(self.document.sections):
+        if mark is None or not 0 <= mark.section_index < len(self.document.sections):
             return None
-        return section_accent(self.document.sections[mark[0]].kind)
+        return section_accent(self.document.sections[mark.section_index].kind)
+
+    def _scroll_to_line_mark(self: Any, mark: LineMark) -> None:
+        start_row = self._row_for_section_line(mark.section_index, mark.start_line)
+        if start_row is None:
+            return
+        end_row = self._last_row_for_section_line(mark.section_index, mark.end_line)
+        if end_row is None:
+            end_row = start_row
+        scroll = self._body_scroll()
+        y = reading_scroll_y(
+            start_row=start_row,
+            end_row=end_row,
+            viewport_height=max(int(scroll.size.height), 1),
+            max_scroll_y=int(scroll.max_scroll_y),
+        )
+        scroll.scroll_to(y=y, animate=False, immediate=True)
+
+    def _line_mark_for_landing(
+        self: Any,
+        *,
+        line: int | None,
+        end_line: int | None,
+    ) -> LineMark | None:
+        if line is None:
+            return None
+        body = self._body
+        if body is None or not body.section_line_counts:
+            return None
+        line_count = body.section_line_counts[0]
+        if line_count <= 0:
+            return None
+        start = line if line >= 1 else 1
+        past_eof = start > line_count
+        if past_eof:
+            start = line_count
+        end = start
+        if end_line is not None and end_line >= start:
+            end = min(end_line, line_count)
+        if past_eof:
+            title = self.document.title
+            self.notify(
+                f"{title} has {line_count} lines — showing line {line_count}.",
+                severity="information",
+            )
+        return LineMark(0, start, end)
 
 
 __all__ = ["PagerGotoMixin"]

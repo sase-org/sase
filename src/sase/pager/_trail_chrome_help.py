@@ -180,6 +180,10 @@ def _binding_rows(
         ("ctrl+d / ctrl+u", "Scroll half a page"),
         ("g / G", "Jump to top / bottom"),
         ("; or :", "Jump to a line (1-N)"),
+        (
+            "path:12 / path:12-40 / #L12",
+            "Land on and rail that line; E opens the editor there",
+        ),
         ("backspace / ctrl+o", "Walk back"),
     ]
     insertion = len(rows)

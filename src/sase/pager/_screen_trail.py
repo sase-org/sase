@@ -64,6 +64,7 @@ class PagerTrailMixin:
         self._pending_action = "follow"
         self._footer_status = None
         self._clear_goto_state()
+        self._goto_mark = state.line_mark
         self._reset_syntax_for_new_document()
         self._ensure_body()
         self._restore_search_state(state.search)
@@ -97,6 +98,7 @@ class PagerTrailMixin:
             scroll_y=int(scroll.scroll_y),
             search=self._current_search_state(),
             label_anchor=self._label_window_scope,
+            line_mark=self._goto_mark,
         )
 
     def _current_search_state(self: Any) -> PagerSearchState:
@@ -160,6 +162,7 @@ class PagerTrailMixin:
             document=self.document,
             document_identity=self._document_identity(),
             current_section=self._current_section_or_none(),
+            current_line_mark=self._goto_mark,
             forward=self._forward_trail,
         )
 

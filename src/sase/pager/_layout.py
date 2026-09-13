@@ -32,6 +32,7 @@ from sase.pager._labels import (
     row_for_character_offset,
     style_target_accents,
 )
+from sase.pager._line_mark import LineMark
 from sase.pager.document import PagerDocument, PagerSection
 
 _DIVIDER_LINES = 1
@@ -73,15 +74,15 @@ def compose_body(
     label_layer: PagerLabelLayer | None = None,
     pending_prefix: str = "",
     prepared_sections: Mapping[int, Text] | None = None,
-    goto_mark: tuple[int, int] | None = None,
+    line_mark: LineMark | None = None,
     goto_accent: str | None = None,
 ) -> ComposedBody:
     """Render *document* at ``width``: gutterized bodies plus transition rules.
 
     ``prepared_sections`` maps a section index to syntax-styled ``Text`` that
     should stand in for that section's plain body — omitted indices render
-    exactly as before. ``goto_mark`` is ``(section_index, line_number)`` for
-    the last jump; its gutter number is emphasized with ``goto_accent``.
+    exactly as before. ``line_mark`` is the last jump or link landing; its
+    inclusive range paints an accent rail with ``goto_accent``.
     """
     sections = document.sections
     if not sections:
@@ -113,8 +114,10 @@ def compose_body(
             if prepared_sections is None
             else prepared_sections.get(index),
         )
-        emphasis_line = (
-            goto_mark[1] if goto_mark is not None and goto_mark[0] == index else None
+        emphasis_range = (
+            line_mark.emphasis_range
+            if line_mark is not None and line_mark.section_index == index
+            else None
         )
         painted, height, line_rows = _paint_section_body(
             renderable,
@@ -122,8 +125,8 @@ def compose_body(
             paint_width=paint_width,
             content_width=content_width,
             digits=digits,
-            emphasis_line=emphasis_line,
-            accent=goto_accent if emphasis_line is not None else None,
+            emphasis_range=emphasis_range,
+            accent=goto_accent if emphasis_range is not None else None,
         )
         parts.append(painted)
         heights.append(height)
@@ -152,7 +155,7 @@ def _paint_section_body(
     paint_width: int,
     content_width: int,
     digits: int,
-    emphasis_line: int | None,
+    emphasis_range: tuple[int, int] | None,
     accent: str | None,
 ) -> tuple[RenderableType, int, tuple[int, ...]]:
     """Gutterize a ``Text`` body; keep a no-gutter fallback for other renderables."""
@@ -161,7 +164,7 @@ def _paint_section_body(
             renderable,
             content_width=content_width,
             number_width=digits,
-            emphasis_line=emphasis_line,
+            emphasis_range=emphasis_range,
             accent=accent,
         )
         return guttered.text, guttered.row_count, guttered.line_rows
