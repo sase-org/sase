@@ -265,23 +265,51 @@ def launch_epic_bead_work(
         else:
             vcs_context = resolve_vcs_launch_context()
 
-    with timer.stage("prompt_render"):
-        from sase.agent.names import get_reserved_clan_names
+    from sase.bead.work_queue_capacity import (
+        EpicQueueCapacityConflictError,
+        format_raised_capacity_line,
+        resolve_epic_queue_capacities,
+    )
 
-        query = render_multi_prompt(
+    with timer.stage("queue_capacity_preflight"):
+        try:
+            queue_capacities = resolve_epic_queue_capacities(
+                plan,
+                work_phase_xprompt,
+                land_epic_xprompt,
+                capacity,
+            )
+        except EpicQueueCapacityConflictError as e:
+            raise BeadWorkError(str(e)) from e
+
+    from sase.agent.names import get_reserved_clan_names
+
+    declare_clan = plan.epic_id not in get_reserved_clan_names()
+    rendered_capacity = capacity if not queue_capacities.segment_capacity else None
+    rendered_segment_capacity = queue_capacities.segment_capacity or None
+
+    def _render_prompt(*, launch_names: frozenset[str] | None = None) -> str:
+        return render_multi_prompt(
             plan,
             work_phase_xprompt=work_phase_xprompt,
             land_epic_xprompt=land_epic_xprompt,
             vcs_context=vcs_context,
             patch_context=patch_context,
-            declare_clan=plan.epic_id not in get_reserved_clan_names(),
+            declare_clan=declare_clan,
+            launch_names=launch_names,
             extra_waits=extra_waits,
-            capacity=capacity,
+            capacity=rendered_capacity,
+            segment_capacity=rendered_segment_capacity,
         )
+
+    with timer.stage("prompt_render"):
+        query = _render_prompt()
 
     if issue.is_ready_to_work:
         print(f"Epic {epic_id} is already ready; retrying remaining non-closed phases.")
     print_work_plan_summary(epic_id, issue.title, plan)
+    for entry in queue_capacities.raised:
+        print(format_raised_capacity_line(entry))
 
     preview: CleanupPreview
     with timer.stage("bead_assignee_reads", bead_count=1 + len(plan.phase_bead_ids)):
@@ -310,17 +338,7 @@ def launch_epic_bead_work(
     if dry_run:
         render_cleanup_preview(epic_id, preview)
         render_blocked_launch_warning(len(selection.blocked_targets))
-        dry_query = render_multi_prompt(
-            plan,
-            work_phase_xprompt=work_phase_xprompt,
-            land_epic_xprompt=land_epic_xprompt,
-            vcs_context=vcs_context,
-            patch_context=patch_context,
-            declare_clan=plan.epic_id not in get_reserved_clan_names(),
-            launch_names=selection.launch_names,
-            extra_waits=extra_waits,
-            capacity=capacity,
-        )
+        dry_query = _render_prompt(launch_names=selection.launch_names)
         print("\n--- Multi-prompt (dry run) ---")
         print(dry_query)
         return _EpicWorkResult(
@@ -403,17 +421,7 @@ def launch_epic_bead_work(
                     launch_state="already_running",
                     preserved_agent_names=selection.preserved_names,
                 )
-            query = render_multi_prompt(
-                plan,
-                work_phase_xprompt=work_phase_xprompt,
-                land_epic_xprompt=land_epic_xprompt,
-                vcs_context=vcs_context,
-                patch_context=patch_context,
-                declare_clan=plan.epic_id not in get_reserved_clan_names(),
-                launch_names=selection.launch_names,
-                extra_waits=extra_waits,
-                capacity=capacity,
-            )
+            query = _render_prompt(launch_names=selection.launch_names)
             query = prepare_selected_bead_work_force_reuse(
                 query,
                 selection=selection,

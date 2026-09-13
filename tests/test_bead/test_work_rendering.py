@@ -356,6 +356,27 @@ class TestCapacityDirective:
         assert "\n---\n" not in land_only
         assert land_only.count("%queue(capacity=1)") == 1
 
+        mapped = render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            segment_capacity={
+                "sase-42.1": 1,
+                "sase-42.2": 1,
+                "sase-42.land": 2,
+            },
+        )
+        mapped_phase1, mapped_phase2, mapped_land = mapped.split("\n---\n")
+        assert mapped_phase1.count("%queue(capacity=1)") == 1
+        assert mapped_phase2.count("%queue(capacity=1)") == 1
+        assert mapped_land.count("%queue(capacity=2)") == 1
+        assert "%queue(" not in render_multi_prompt(
+            plan,
+            work_phase_xprompt=Workflow(name="bd/work_phase_bead"),
+            land_epic_xprompt=Workflow(name="bd/land_epic"),
+            segment_capacity={},
+        )
+
     def test_capacity_composes_with_weight_only_land_queue(self) -> None:
         plan = EpicWorkPlan(
             epic_id="sase-42",

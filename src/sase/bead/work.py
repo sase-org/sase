@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -366,6 +367,7 @@ def render_multi_prompt(
     launch_names: frozenset[str] | None = None,
     extra_waits: PromptWaitDirective | None = None,
     capacity: int | None = None,
+    segment_capacity: Mapping[str, int] | None = None,
 ) -> str:
     """Render *plan* as a ``---``-separated multi-prompt string.
 
@@ -397,6 +399,11 @@ def render_multi_prompt(
     line. Unblocked means a phase whose ``waits_on`` is empty, or the land
     segment when ``plan.land_waits_on`` is empty. Dependent segments inherit
     the wait transitively and do not repeat it.
+
+    When *segment_capacity* is a non-empty mapping, each phase and land
+    segment renders ``%queue(capacity=...)`` from its agent-name entry.
+    Otherwise *capacity* is used uniformly. ``None`` (the default) emits no
+    ``%queue`` line.
     """
     if vcs_context is not None and patch_context is not None:
         raise ValueError("provide either vcs_context or patch_context, not both")
@@ -429,7 +436,15 @@ def render_multi_prompt(
             )
             lines.append(f"%model:{model_value}")
             lines.append("%auto")
-            lines.extend(_queue_capacity_lines(capacity))
+            lines.extend(
+                _queue_capacity_lines(
+                    _capacity_for_agent(
+                        assignment.agent_name,
+                        capacity=capacity,
+                        segment_capacity=segment_capacity,
+                    )
+                )
+            )
             if assignment.waits_on:
                 lines.append(f"%w:{','.join(assignment.waits_on)}")
             lines.extend(
@@ -458,7 +473,15 @@ def render_multi_prompt(
         )
         land_lines.append(f"%model:{land_model}")
         land_lines.append("%auto")
-        land_lines.extend(_queue_capacity_lines(capacity))
+        land_lines.extend(
+            _queue_capacity_lines(
+                _capacity_for_agent(
+                    plan.land_agent_name,
+                    capacity=capacity,
+                    segment_capacity=segment_capacity,
+                )
+            )
+        )
         if plan.land_waits_on:
             land_lines.append(f"%w:{','.join(plan.land_waits_on)}")
         land_lines.extend(f"%w(bead={bead_id})" for bead_id in plan.phase_bead_ids)
@@ -468,6 +491,18 @@ def render_multi_prompt(
         segments.append("\n".join(land_lines))
 
     return "\n---\n".join(segments)
+
+
+def _capacity_for_agent(
+    agent_name: str,
+    *,
+    capacity: int | None,
+    segment_capacity: Mapping[str, int] | None,
+) -> int | None:
+    """Return the queue budget for *agent_name*, preferring a per-agent map."""
+    if segment_capacity:
+        return segment_capacity.get(agent_name)
+    return capacity
 
 
 def _queue_capacity_lines(capacity: int | None) -> list[str]:

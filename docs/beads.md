@@ -1964,15 +1964,13 @@ multi-target JSON run is newline-delimited JSON, one object per line, including 
 first failing target's error object when the command stops.
 
 `-c/--capacity N` is an epic-only invocation control: every selected phase and land
-segment emits `%queue(capacity=N)`. A capacity of `N` requires the already occupied
-weighted load to be at most `N` before admission; the candidate's own weight is excluded
-from that threshold, and the global `max_running_agents` budget still must fit occupied
-load plus that weight. Omission preserves default queue behavior. `0` waits for a true
-drain, including when a live claim has a very small positive weight. The option applies
-to epic bead IDs and epic Markdown plan targets. An explicit capacity on a standalone
-task target is an actionable error: earlier successful targets stand and processing
-stops. `-C/--cl-name NAME` retains the existing completion-notification behavior and
-plan-file restriction.
+segment emits `%queue(capacity=N)`, except that a segment whose xprompt claims more
+weight gets a budget equal to that weight (`ceil(weight)`). `N` is that launch's own
+admission budget and must be at least 1; `1` means run alone. Omission preserves default
+queue behavior. The option applies to epic bead IDs and epic Markdown plan targets. An
+explicit capacity on a standalone task target is an actionable error: earlier successful
+targets stand and processing stops. `-C/--cl-name NAME` retains the existing
+completion-notification behavior and plan-file restriction.
 
 `-w/--wait SPEC` holds launched epic phases until every named dependency finishes.
 `SPEC` is a comma-separated list of agent names and `bead=<id>` entries; `time=`,
@@ -2144,17 +2142,17 @@ delegated phase. The land agent now genuinely requires every phase bead to close
 phase crashes before closure, retry or close that phase explicitly rather than expecting
 landing to sweep it up.
 
-| Flag                  | Description                                                                                                          |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch; plan-file targets only                       |
-| `-c, --capacity`      | Epic-only max already-running weighted load before admission; omit for default queue behavior; `0` waits for a drain |
-| `-C, --cl-name`       | Patch name for the approved epic completion notification; plan-file targets only                                     |
-| `-n, --dry-run`       | Preview the epic graph or task prompt, model routing, and cleanup without mutation                                   |
-| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                                                |
-| `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning                                |
-| `-p, --parent`        | Override a plan file's `parent_bead`; use `top-level` for an unparented epic; plan-file targets only                 |
-| `-y, --yes`           | Skip only the launch confirmation prompt                                                                             |
-| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                                    |
+| Flag                  | Description                                                                                                                                     |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-a, --artifacts-dir` | Planner artifacts directory to back-fill after an approved epic launch; plan-file targets only                                                  |
+| `-c, --capacity`      | Epic-only per-launch capacity budget (at least 1); a heavier xprompt weight floors the segment; omit for default queue behavior; `1` runs alone |
+| `-C, --cl-name`       | Patch name for the approved epic completion notification; plan-file targets only                                                                |
+| `-n, --dry-run`       | Preview the epic graph or task prompt, model routing, and cleanup without mutation                                                              |
+| `-j, --json`          | Print one machine-readable result object; also implies `--yes-to-all`                                                                           |
+| `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning                                                           |
+| `-p, --parent`        | Override a plan file's `parent_bead`; use `top-level` for an unparented epic; plan-file targets only                                            |
+| `-y, --yes`           | Skip only the launch confirmation prompt                                                                                                        |
+| `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                                                               |
 
 Progress, timing, and admission are separate from the dependency schedule. Kahn waves
 and `%w` waits decide _order_; they do not wait for an LLM or a runner slot merely to

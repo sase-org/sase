@@ -125,12 +125,17 @@ def test_work_dry_run_renders_run_alone_capacity_on_selected_segments(
 
     bead_cli.handle_bead_work(make_args(epic_id, dry_run=True, yes=True, capacity=1))
 
-    dry_query = (
-        capsys.readouterr().out.split("--- Multi-prompt (dry run) ---\n", 1)[1].rstrip()
-    )
+    out = capsys.readouterr().out
+    dry_query = out.split("--- Multi-prompt (dry run) ---\n", 1)[1].rstrip()
     segments = dry_query.split("\n---\n")
     assert len(segments) == len(phase_ids) + 1
-    assert all(segment.count("%queue(capacity=1)") == 1 for segment in segments)
+    *phases, land = segments
+    assert all(segment.count("%queue(capacity=1)") == 1 for segment in phases)
+    assert land.count("%queue(capacity=2)") == 1
+    assert (
+        f"  Capacity: requested 1 · {epic_id}.land raised to 2 (queue weight 2.0)"
+        in out
+    )
 
 
 def test_work_dry_run_renders_model_directives(

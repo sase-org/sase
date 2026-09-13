@@ -5326,7 +5326,7 @@ once. Removal is irreversible.
 | --------------------- | ---------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
 | `targets`             | bead IDs or plan paths | (required) | One or more epic/task beads or validated epic plan files, processed in order until the first error |
 | `-a, --artifacts-dir` | directory              | -          | Back-fill planner artifacts after each approved epic; plan-file targets only                       |
-| `-c, --capacity`      | positive integer       | omitted    | Epic-only per-launch capacity budget; `1` is the run-alone barrier for default-weight launches     |
+| `-c, --capacity`      | positive integer       | omitted    | Epic-only per-launch capacity budget; `1` runs alone; a heavier xprompt weight floors that segment |
 | `-C, --cl-name`       | Patch name             | -          | Approved epic Patch name applied per plan-file target                                              |
 | `-n, --dry-run`       | flag                   | -          | Preview the epic wave plan or task prompt without mutating files, beads, or agents                 |
 | `-j, --json`          | flag                   | -          | Print one result object per processed target as JSON Lines and imply `--yes-to-all`                |

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,8 @@ from sase.bead import cli as bead_cli
 from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
 from sase.bead.model import Status
 from sase.bead.project import BeadProject
+from sase.feature_flags import override_flags
+from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.bead.work import (
     EPIC_CLAN_SUMMARY_SCRIPT,
@@ -220,6 +223,104 @@ def test_work_launch_threads_capacity_into_rendered_multi_prompt(
     segments = captured["query"].split("\n---\n")
     assert len(segments) == len(phase_ids) + 1
     assert all(segment.count("%queue(capacity=3)") == 1 for segment in segments)
+
+
+def test_work_launch_capacity_1_floors_land_segment(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    epic_id, phase_ids = seed_diamond(project_dir)
+    captured: dict[str, str] = {}
+
+    def fake_launch(
+        query: str,
+        extra_env: Any = None,
+        segment_extra_env: Any = None,
+    ) -> FakeLaunchResult:
+        del extra_env, segment_extra_env
+        captured["query"] = query
+        return FakeLaunchResult()
+
+    monkeypatch.setattr("sase.agent.launcher.launch_agent_from_cwd", fake_launch)
+
+    with override_flags(queue_capacity_budget=True):
+        bead_cli.handle_bead_work(
+            make_args(epic_id, yes=True, json_output=True, capacity=1)
+        )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["ok"] is True
+    assert payload["capacity"] == 1
+    segments = captured["query"].split("\n---\n")
+    assert len(segments) == len(phase_ids) + 1
+    *phases, land = segments
+    assert all(segment.count("%queue(capacity=1)") == 1 for segment in phases)
+    assert land.count("%queue(capacity=2)") == 1
+
+
+def _patch_land_xprompt(monkeypatch: pytest.MonkeyPatch, content: str) -> None:
+    from sase.xprompt.loader import get_all_xprompts
+
+    original = get_all_xprompts
+
+    def patched(project: str | None = None) -> dict[str, XPrompt]:
+        catalog = dict(original(project=project))
+        catalog["bd/land_epic"] = XPrompt(
+            name="bd/land_epic",
+            content=content,
+            inputs=[InputArg(name="bead_id", type=InputType.WORD)],
+        )
+        return catalog
+
+    monkeypatch.setattr("sase.xprompt.processor.get_all_xprompts", patched)
+
+
+@pytest.mark.parametrize("budget_enabled", [True, False])
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_preflight_conflict_raises_before_side_effects(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    budget_enabled: bool,
+    dry_run: bool,
+) -> None:
+    epic_id, _phase_ids = seed_diamond(project_dir)
+    _patch_land_xprompt(monkeypatch, "%q:4\nLand the epic.")
+    invoked: list[str] = []
+
+    def track(name: str) -> Any:
+        def _inner(*_args: object, **_kwargs: object) -> Any:
+            invoked.append(name)
+            raise AssertionError(f"{name} should not run after a pre-flight conflict")
+
+        return _inner
+
+    monkeypatch.setattr(BeadProject, "mark_ready_to_work", track("mark_ready_to_work"))
+    monkeypatch.setattr(BeadProject, "preclaim_epic_work", track("preclaim_epic_work"))
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.checkpoint_epic_work_launch",
+        track("graph_publication"),
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_handler.launch_bead_work_agents",
+        track("launch_bead_work_agents"),
+    )
+
+    with (
+        override_flags(queue_capacity_budget=budget_enabled),
+        BeadProject(project_dir) as project,
+    ):
+        with pytest.raises(BeadWorkError, match="capacity=4"):
+            launch_epic_bead_work(
+                project,
+                epic_id,
+                dry_run=dry_run,
+                yes=True,
+                no_push=False,
+                capacity=2,
+            )
+        assert project.show(epic_id).is_ready_to_work is False
+    assert invoked == []
 
 
 def test_launch_snapshots_authoritative_plan_and_overwrites_on_relaunch(
