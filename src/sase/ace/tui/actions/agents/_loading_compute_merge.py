@@ -119,6 +119,26 @@ def _unique_stable_merge_index(agents: list[Agent]) -> dict[_Tier1MergeKey, Agen
     return by_key
 
 
+def _adds_structural_placement(cached: Agent, incoming: Agent) -> bool:
+    """Return whether stable replacement repairs completed metadata."""
+    return (
+        (cached.parent_timestamp is None and incoming.parent_timestamp is not None)
+        or (cached.agent_family is None and incoming.agent_family is not None)
+        or (cached.agent_family_role is None and incoming.agent_family_role is not None)
+        or (cached.role_suffix is None and incoming.role_suffix is not None)
+        or (not cached.plan_chain_root and incoming.plan_chain_root)
+        or (cached.agent_clan is None and incoming.agent_clan is not None)
+        or (
+            cached.agent_clan_generation is None
+            and incoming.agent_clan_generation is not None
+        )
+        or (cached.clan_tribe is None and incoming.clan_tribe is not None)
+        or (cached.clan_summary is None and incoming.clan_summary is not None)
+        or (cached.clan_context is None and incoming.clan_context is not None)
+        or (cached.tribe is None and incoming.tribe is not None)
+    )
+
+
 def _reattach_children_after_parent_dedup(
     agents_before_dedup: list[Agent],
     agents_after_dedup: list[Agent],
@@ -400,7 +420,14 @@ def merge_incomplete_load_after_complete_history(
             cached_stable_key = _tier1_stable_merge_key(cached)
             if cached_stable_key is not None:
                 stable_replacement = incoming_by_stable_key.get(cached_stable_key)
-                if stable_replacement is not None:
+                # An exact artifact delta carries the row's current scalar
+                # metadata, so it always wins. Other incomplete Tier 1 loads
+                # may only replace a cached row to repair structural placement;
+                # otherwise a placeholder suffix shadow would clobber it.
+                if stable_replacement is not None and (
+                    is_artifact_delta
+                    or _adds_structural_placement(cached, stable_replacement)
+                ):
                     replacement = stable_replacement
         if replacement is None:
             replacement = cached

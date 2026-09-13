@@ -24,6 +24,11 @@ import statistics
 import time
 from typing import Any, Literal
 
+from sase.ace.dismissed_agents import (
+    dismissed_bundle_identities_snapshot,
+    load_dismissed_agents,
+)
+from sase.ace.tui.actions.agents._loading_compute import compute_apply_loaded_agents
 from sase.ace.tui.models import _agent_loader_artifacts as loader_artifacts
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_live_query import agent_live_query_row_id
@@ -121,6 +126,9 @@ class LoadPathRows:
     # real completeness/repair verdict to inspect. The raw ``index_*`` paths
     # call the query facade directly and never produce one.
     load_state: loader_artifacts.AgentLoadState | None = None
+    # Deterministic read/repair/decode counters from the raw snapshot's
+    # stats; only populated for the ``source_scan``/``index_*`` paths.
+    scan_stats: Mapping[str, int] | None = None
 
     @property
     def visible_count(self) -> int:
@@ -351,6 +359,7 @@ class AgentLoadTieringOracle:
                 search_query=query,
                 requested_limit=requested_limit,
             )
+            agents = _tui_visible_agents(agents)
             if full_history:
                 filtered, _facade, error = apply_agents_live_query_filter(query, agents)
             else:
@@ -377,7 +386,7 @@ class AgentLoadTieringOracle:
         with _temporary_sase_home(self.fixture.sase_home):
             start = time.perf_counter()
             snapshot = load_snapshot()
-            agents = _agents_from_snapshot(snapshot)
+            agents = _tui_visible_agents(_agents_from_snapshot(snapshot))
             filtered, _facade, error = apply_agents_live_query_filter(query, agents)
             visible_rows = _visible_rows(filtered)
             elapsed_ms = (time.perf_counter() - start) * 1000.0
@@ -389,6 +398,7 @@ class AgentLoadTieringOracle:
             loaded_keys=frozenset(_row_key(agent) for agent in agents),
             query_error=error,
             elapsed_ms=elapsed_ms,
+            scan_stats=_nonzero_stats(snapshot.stats),
         )
 
 
@@ -399,8 +409,9 @@ def benchmark_load_paths(
     runs: int = 5,
     warmup: int = 1,
     requested_limit: int | None = 100,
+    session_refreshes: int = 10,
 ) -> dict[str, Any]:
-    """Return p50/p95/max timings for every load path and query."""
+    """Return p50/p95/max timings, counters and speedups for every load path."""
 
     oracle = AgentLoadTieringOracle(fixture)
     query_reports: list[dict[str, Any]] = []
@@ -436,6 +447,7 @@ def benchmark_load_paths(
                 totals[rows.name].append(rows.elapsed_ms)
         if last_result is None:
             continue
+        source_p50_ms = _summarize(path_samples["source_scan"])["p50_ms"]
         query_reports.append(
             {
                 "query": query,
@@ -452,9 +464,23 @@ def benchmark_load_paths(
                         ).snapshot_record_count,
                         "loaded_row_count": getattr(last_result, name).loaded_row_count,
                         "visible_row_count": getattr(last_result, name).visible_count,
+                        "counters": _path_counters(getattr(last_result, name)),
+                        "speedup_vs_source_scan": _speedup(
+                            source_p50_ms, _summarize(samples)["p50_ms"]
+                        ),
                     }
                     for name, samples in path_samples.items()
                 },
+                "periodic_revalidate": _benchmark_periodic_revalidate(
+                    fixture, query, runs=runs, requested_limit=requested_limit
+                ),
+                "refresh_session": _benchmark_refresh_session(
+                    fixture,
+                    query,
+                    refreshes=session_refreshes,
+                    requested_limit=requested_limit,
+                    source_scan_p50_ms=source_p50_ms,
+                ),
                 "diffs": {
                     name: {
                         "missing_count": len(diff.missing),
@@ -477,12 +503,171 @@ def benchmark_load_paths(
         "runs": runs,
         "warmup": warmup,
         "requested_limit": requested_limit,
+        "session_refreshes": session_refreshes,
         "fixture": fixture.as_dict(),
         "queries": query_reports,
         "path_totals": {
             name: _summarize(samples) for name, samples in totals.items() if samples
         },
     }
+
+
+_LOAD_STATE_COUNTERS = (
+    "marker_signatures_checked",
+    "rows_repaired",
+    "rows_discovered",
+    "rows_removed",
+    "record_json_decoded",
+)
+
+
+def _timed_production_load(
+    query: str,
+    *,
+    full_history: bool,
+    requested_limit: int | None,
+    index_freshness: Literal["revalidate", "cached"] = "cached",
+) -> tuple[float, loader_artifacts.AgentLoadState]:
+    start = time.perf_counter()
+    agents, state = load_tiered_agents(
+        full_history=full_history,
+        index_freshness=index_freshness,
+        search_query=query,
+        requested_limit=requested_limit,
+    )
+    if full_history:
+        apply_agents_live_query_filter(query, agents)
+    return (time.perf_counter() - start) * 1000.0, state
+
+
+def _benchmark_periodic_revalidate(
+    fixture: SyntheticArchiveFixture,
+    query: str,
+    *,
+    runs: int,
+    requested_limit: int | None,
+) -> dict[str, Any]:
+    """Time the bounded Tier 1 ``revalidate`` load periodic refreshes issue."""
+
+    samples: list[float] = []
+    state: loader_artifacts.AgentLoadState | None = None
+    with _temporary_sase_home(fixture.sase_home):
+        for _ in range(runs):
+            elapsed_ms, state = _timed_production_load(
+                query,
+                full_history=False,
+                requested_limit=requested_limit,
+                index_freshness="revalidate",
+            )
+            samples.append(elapsed_ms)
+    return {
+        "timing_ms": _summarize(samples),
+        "counters": _load_state_counters(state),
+    }
+
+
+def _benchmark_refresh_session(
+    fixture: SyntheticArchiveFixture,
+    query: str,
+    *,
+    refreshes: int,
+    requested_limit: int | None,
+    source_scan_p50_ms: float,
+) -> dict[str, Any]:
+    """Cost one settled unchanged-query session at loader granularity.
+
+    The session is bounded first paint, one completed full-history upgrade,
+    then ``refreshes`` ordinary cached Tier 1 refreshes. That the TUI issues
+    exactly this sequence for an unchanged committed query is proven by the
+    app-level query-keyed reconcile tests; this measures its cost. The
+    pre-epic baseline escalated every broad refresh of an unpushable query
+    to a full source scan, so it is modeled as ``refreshes + 2`` measured
+    source-scan loads.
+    """
+
+    stage_samples: dict[str, list[float]] = {
+        "first_paint": [],
+        "full_history_upgrade": [],
+        "ordinary_refresh": [],
+    }
+    totals: dict[str, int] = dict.fromkeys(_LOAD_STATE_COUNTERS, 0)
+    full_history_reads = 0
+    plan = [
+        ("first_paint", False),
+        ("full_history_upgrade", True),
+        *(("ordinary_refresh", False) for _ in range(refreshes)),
+    ]
+    with _temporary_sase_home(fixture.sase_home):
+        for stage, full_history in plan:
+            elapsed_ms, state = _timed_production_load(
+                query,
+                full_history=full_history,
+                requested_limit=None if full_history else requested_limit,
+            )
+            stage_samples[stage].append(elapsed_ms)
+            full_history_reads += int(state.tier == "tier2")
+            for name, value in _load_state_counters(state).items():
+                totals[name] += value
+    total_ms = sum(sum(samples) for samples in stage_samples.values())
+    baseline_ms = source_scan_p50_ms * len(plan)
+    return {
+        "refreshes": refreshes,
+        "full_history_reads": full_history_reads,
+        "stage_timing_ms": {
+            stage: _summarize(samples) for stage, samples in stage_samples.items()
+        },
+        "counters": totals,
+        "total_ms": total_ms,
+        "modeled_source_scan_session_ms": baseline_ms,
+        "speedup_vs_source_scan_session": _speedup(baseline_ms, total_ms),
+    }
+
+
+def _load_state_counters(
+    state: loader_artifacts.AgentLoadState | None,
+) -> dict[str, int]:
+    if state is None:
+        return {}
+    return {name: int(getattr(state, name)) for name in _LOAD_STATE_COUNTERS}
+
+
+def _path_counters(rows: LoadPathRows) -> dict[str, int]:
+    if rows.load_state is not None:
+        return _load_state_counters(rows.load_state)
+    return dict(rows.scan_stats or {})
+
+
+def _nonzero_stats(stats: object) -> dict[str, int]:
+    return {
+        name: value
+        for name, value in vars(stats).items()
+        if isinstance(value, int) and value
+    }
+
+
+def _speedup(baseline_ms: float, candidate_ms: float) -> float | None:
+    if candidate_ms <= 0:
+        return None
+    return round(baseline_ms / candidate_ms, 2)
+
+
+def _tui_visible_agents(agents: list[Agent]) -> list[Agent]:
+    """Apply the Agents tab's dismissal pipeline to one path's loaded rows.
+
+    Every TUI load, source scan included, passes through
+    :func:`compute_apply_loaded_agents` before display, so each path is
+    compared on what the tab would show. Loader rows never come from
+    dismissed bundles, so there are no recovered identities to pass.
+    """
+    dismissed = load_dismissed_agents()
+    prep = compute_apply_loaded_agents(
+        agents,
+        [],
+        dismissed,
+        False,
+        dismissed_bundle_snapshot=dismissed_bundle_identities_snapshot(),
+    )
+    return prep.filtered_agents
 
 
 def _agents_from_snapshot(snapshot: AgentArtifactScanWire) -> list[Agent]:

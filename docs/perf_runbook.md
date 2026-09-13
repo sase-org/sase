@@ -96,6 +96,92 @@ source scan. If a future query cannot be narrowed by the artifact index, the loa
 should report the visible result as incomplete and defer history; it should not increase
 the startup read to the full archive.
 
+### Measured acceptance (sase-zu.8.5)
+
+Bead `sase-zu.8.5` remeasured the repaired tree on 2026-09-13 15:00-15:30 EDT: main tree
+`d698f92e05`, `sase-core-revision.txt` `23f19f0` built by `just install` from the linked
+checkout (`sase-core-rs` 0.34.24 dev build, index schema 30, scan wire 9). The sase-zu.7
+full-history rows above measured a cached index read, not production's revalidating
+path, and are superseded by these numbers. The harness now routes every path, the source
+scan reference included, through the tab's `compute_apply_loaded_agents` dismissal step,
+reports read/repair/decode counters, a periodic Tier 1 revalidate, and a settled
+unchanged-query session:
+
+```bash
+.venv/bin/python tests/perf/bench_agent_load_tiering.py \
+  --fixture-root ~/.cache/sase/tmp/agent-load-tiering-13k --session-refreshes 10 \
+  --output ~/.sase/perf/agent_load_tiering_sase-zu.8.5_synthetic13k_20260913.json
+.venv/bin/python tests/perf/bench_agent_load_tiering.py --sase-home ~/.sase \
+  --output ~/.sase/perf/agent_load_tiering_sase-zu.8.5_athena_real_20260913.json
+```
+
+Both runs used `not machine:apollo`, 5 measured runs, 1 warmup and `requested_limit=100`
+on a host running other agents. Speedups divide the source-scan p50 by the path's p50;
+the session baseline models the pre-epic behavior of one source scan per broad refresh.
+
+13,000-artifact synthetic fixture (warm page cache, 270 hidden rows):
+
+| path                       | p50 / p95 / max ms       | read / repair / decode work                        | speedup | missing / extra |
+| -------------------------- | ------------------------ | -------------------------------------------------- | ------- | --------------- |
+| source scan                | 8933.0 / 9711.8 / 9711.8 | 13,000 dirs, 26,003 marker files parsed            | 1.00x   | reference       |
+| bounded first paint        | 101.1 / 110.8 / 110.8    | 0 marker checks, 104 records decoded               | 88.32x  | bounded prefix  |
+| actual full history        | 9280.9 / 9928.0 / 9928.0 | 12,938 marker checks, 0 repaired, 12,803 decoded   | 0.96x   | 0 / 0           |
+| periodic Tier 1 revalidate | 136.0 / 174.9 / 174.9    | 339 marker checks, 0 repaired, 204 decoded         | -       | -               |
+| 10-refresh settled session | 10130.5 total            | 1 full-history read, 12,938 checks, 13,947 decoded | 10.6x   | -               |
+
+Athena real archive (11,183 source artifacts):
+
+| path                       | p50 / p95 / max ms          | read / repair / decode work                       | speedup | missing / extra |
+| -------------------------- | --------------------------- | ------------------------------------------------- | ------- | --------------- |
+| source scan                | 10866.4 / 11253.6 / 11253.6 | 11,183 dirs, 41,272 marker files parsed           | 1.00x   | reference       |
+| bounded first paint        | 1002.4 / 1202.8 / 1202.8    | 0 marker checks, 1,062 records decoded            | 10.84x  | bounded prefix  |
+| actual full history        | 2988.8 / 4381.5 / 4381.5    | 7,201 marker checks, 0 repaired, 1,389 decoded    | 3.64x   | 13 / 1          |
+| periodic Tier 1 revalidate | 1087.6 / 1300.6 / 1300.6    | 6,813 marker checks, 0 repaired, 1,273 decoded    | -       | -               |
+| 10-refresh settled session | 10315.0 total               | 1 full-history read, 7,201 checks, 13,071 decoded | 12.6x   | -               |
+
+Stage attribution. On the warm synthetic fixture the raw Rust calls are close: source
+scan p50 1916 ms, cached full-history index read 1624 ms, revalidating full-history read
+2283 ms. Revalidation's source-directory reconcile plus 12,938 marker signatures is the
+epic-added cost (about 660 ms). The remaining time is per-row Python work that both
+paths share: dict-to-wire conversion (about 1.3 s), `Agent` decode (about 2.0 s) and the
+agents-live filter building one field entry per row (about 2.9 s). A single
+non-selective full-history load is therefore not faster than the source scan on a warm
+fixture, and this benchmark does not claim it is. On the real archive the raw Rust
+source scan is 5924 ms against a 1029 ms revalidating index read, because the index
+drops hidden, dismissed and non-matching rows before decode (956 of 11,183 records).
+Most of the Tier 1 revalidate cost there is hidden-row repair: about 6,800 marker
+checks.
+
+Real-archive parity. All 13 missing rows are `--code` and `--mon` members of dismissed
+families. The Rust index hides descendants of a dismissed family root (sase-core
+`34b3229`, before this epic), but the tab's Python dismissal step, which the source scan
+reference uses, does not. The one extra row was an agent created during the run. Before
+the dismissal step was added, 107 rows differed; every one was a dismissed identity or
+one of those family members.
+
+Live session: ACE from this tree (`sase ace -x --tab agents`, PID 2078791, logs in
+`~/.sase/perf/sase-zu.8.5-tui_{startup,agent_loads,trace}.jsonl`) against the real
+archive, with the `not machine:apollo` query committed interactively:
+
+| signal                     | observation                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| startup                    | Tier 1 artifact-index startup, `on_mount_to_first_paint_seconds=0.414`, `agents_ready_seconds=6.457`          |
+| query commit               | bounded `filter` load, 1506 ms, 171 rows, `has_more=true`                                                     |
+| automatic history upgrade  | exactly one `input_quiet_tier2_reconcile`, 7154 ms, `complete_history=true`                                   |
+| ordinary refreshes, 14 min | 13 cached index `auto_refresh` loads (p50 1421 ms, max 3181 ms), no repeated full-history load                |
+| periodic revalidate        | 3 `tier1_index_revalidate` loads, p50 1570 ms                                                                 |
+| exact deltas               | 20 watcher, starting-poll and notification deltas, p50 about 150 ms                                           |
+| explicit Full history      | `,y`, then `f` in the Refresh panel: one `manual_full_history` load, 4066 ms, `complete_history=true`         |
+| remaining expensive stage  | 3 bounded loads before the upgrade fell back to a 6.7-7.4 s source scan: `artifact index operation lock busy` |
+
+First paint stays in the indexed baseline range (8.036 s on 2026-09-12; 5.5-6.8 s in the
+live ACE today). Unchanged covered history is loaded once per committed query. The
+lock-busy fallbacks come from the process-local index lock's 50 ms read timeout, which
+`62ad9b657c` added. Old artifact directories are outside the bounded startup inotify
+watch budget. Their marker changes therefore reach the tab through revalidation, not
+watcher deltas: a touched July `done.json` showed up in the index as a new `done_sig`
+without a rebuild.
+
 ## Idle-host CPU diet
 
 An idle sase host (ace open, lumberjacks running, no agent work) used to burn roughly
