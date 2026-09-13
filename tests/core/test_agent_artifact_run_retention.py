@@ -11,6 +11,7 @@ import pytest
 from sase._repo_inventory_models import RepoInventory, RepoRecord
 from sase.bead.model import Status
 import sase.core.agent_artifact_run_protection as protection
+import sase.core.agent_artifact_run_retention as agent_artifact_run_retention
 from sase.core.agent_artifact_run_retention import (
     AceRunProtectionSnapshot,
     AceRunRetentionPolicy,
@@ -227,3 +228,72 @@ def test_protection_collector_uses_bead_projection_without_bead_text_walk(
     assert str(referenced.resolve(strict=False)) in snapshot.protected_dirs
     assert snapshot.protected_timestamps == frozenset({"20260401000000"})
     assert snapshot.non_closed_bead_ids_by_project == {"proj": frozenset({"sase-open"})}
+
+
+def test_plan_degrades_to_continuation_unavailable_on_retention_value_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    old = _run_dir(projects_root, "proj", "20260501000000")
+    recent = _run_dir(projects_root, "proj", "20260901000000")
+
+    def _raise(*_args: Any, **_kwargs: Any) -> Any:
+        raise ValueError("validation: runs has 11037 entries; maximum is 10000")
+
+    monkeypatch.setattr(
+        agent_artifact_run_retention,
+        "plan_continuation_run_retention",
+        _raise,
+    )
+
+    plan = plan_ace_run_retention(
+        AceRunRetentionPolicy(
+            now=datetime(2026, 9, 12, 12, 0, 0),
+            keep_recent_months=2,
+            projects_root=projects_root,
+        ),
+        protections=AceRunProtectionSnapshot(),
+    )
+
+    assert any(
+        "continuation retention: validation: runs has 11037 entries" in source
+        for source in plan.sources_unavailable
+    )
+    assert plan.counts.selected == 0
+    reasons_by_path = {
+        Path(item.artifact_dir): set(item.reasons) for item in plan.protected
+    }
+    assert "continuation_unavailable" in reasons_by_path[old]
+    assert "continuation_unavailable" in reasons_by_path[recent]
+
+
+def test_apply_still_raises_when_continuation_closure_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    old = _run_dir(projects_root, "proj", "20260501000000")
+
+    plan = plan_ace_run_retention(
+        AceRunRetentionPolicy(
+            now=datetime(2026, 9, 12, 12, 0, 0),
+            keep_recent_months=2,
+            projects_root=projects_root,
+        ),
+        protections=AceRunProtectionSnapshot(),
+    )
+    assert [Path(item.artifact_dir) for item in plan.selected] == [old]
+
+    def _raise(*_args: Any, **_kwargs: Any) -> Any:
+        raise ValueError("validation: runs has 11037 entries; maximum is 10000")
+
+    monkeypatch.setattr(
+        "sase.core.continuation_retention.plan_continuation_run_retention",
+        _raise,
+    )
+
+    with pytest.raises(ValueError, match="runs has 11037 entries"):
+        apply_ace_run_retention(plan)
+
+    assert old.exists()

@@ -94,11 +94,18 @@ def plan_ace_run_retention(
         for artifact_dirs in project_dirs.values()
         for artifact_dir in artifact_dirs
     )
-    continuation_plan = plan_continuation_run_retention(
-        all_dirs, projects_root=projects_root
-    )
-    continuation_reasons = continuation_reasons_by_dir(continuation_plan)
-    unavailable.update(continuation_unavailable_sources(continuation_plan))
+    continuation_reasons: dict[str, tuple[str, ...]] = {}
+    continuation_unavailable = False
+    try:
+        continuation_plan = plan_continuation_run_retention(
+            all_dirs, projects_root=projects_root
+        )
+    except ValueError as exc:
+        unavailable.add(f"continuation retention: {exc}")
+        continuation_unavailable = True
+    else:
+        continuation_reasons = continuation_reasons_by_dir(continuation_plan)
+        unavailable.update(continuation_unavailable_sources(continuation_plan))
 
     for project in project_names:
         artifact_dirs = project_dirs[project]
@@ -119,6 +126,7 @@ def plan_ace_run_retention(
                 recent_months=recent_months,
                 current_timestamp=current_timestamp,
                 scan_unavailable=scan_error is not None,
+                continuation_unavailable=continuation_unavailable,
                 continuation_reasons=continuation_reasons.get(
                     _normalized_path(artifact_dir), ()
                 ),
@@ -290,10 +298,13 @@ def _protection_reasons(
     recent_months: frozenset[str],
     current_timestamp: str,
     scan_unavailable: bool,
+    continuation_unavailable: bool = False,
     continuation_reasons: Sequence[str] = (),
 ) -> list[str]:
     reasons: list[str] = []
     normalized_dir = _normalized_path(artifact_dir)
+    if continuation_unavailable:
+        reasons.append("continuation_unavailable")
     if continuation_reasons:
         reasons.extend(continuation_reasons)
     if normalized_dir in protections.protected_dirs:
