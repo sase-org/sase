@@ -354,10 +354,21 @@ def shared_extension(insertions: Sequence[str], partial: str) -> str:
     return ""
 
 
-@cache
 def _directive_contract_by_name() -> dict[str, dict[str, object]]:
+    return _directive_contract_by_name_for_flags(tuple(_enabled_feature_flags()))
+
+
+@cache
+def _directive_contract_by_name_for_flags(
+    flags: tuple[str, ...],
+) -> dict[str, dict[str, object]]:
     entries: dict[str, dict[str, object]] = {}
-    for entry in require_rust_binding("directive_contract")():
+    contract = require_rust_binding("directive_contract")
+    try:
+        rows = contract(list(flags))
+    except TypeError:
+        rows = contract()
+    for entry in rows:
         if isinstance(entry, dict) and isinstance(entry.get("name"), str):
             entries[str(entry["name"])] = entry
     return entries

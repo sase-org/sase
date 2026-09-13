@@ -69,7 +69,12 @@ def directive_candidates(_project: str | None) -> list[Candidate]:
     try:
         import sase_core_rs  # type: ignore[import-untyped]
 
-        rows = sase_core_rs.directive_contract()
+        try:
+            from sase.xprompt.queue_directive import launch_feature_flag_keys
+
+            rows = sase_core_rs.directive_contract(launch_feature_flag_keys())
+        except TypeError:
+            rows = sase_core_rs.directive_contract()
     except Exception:  # noqa: BLE001 - completion must not traceback
         return []
     if not isinstance(rows, list):

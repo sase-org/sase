@@ -32,6 +32,7 @@ SASE_XPROMPT_MACHINE_CATALOG_ENV = "SASE_XPROMPT_MACHINE_CATALOG"
 SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV = "SASE_XPROMPT_ARTIFACT_REF_CATALOG"
 SASE_XPROMPT_GLOSSARY_CATALOG_ENV = "SASE_XPROMPT_GLOSSARY_CATALOG"
 SASE_TYPED_LAUNCH_UNITS_ENV = "SASE_TYPED_LAUNCH_UNITS"
+SASE_QUEUE_CAPACITY_BUDGET_ENV = "SASE_QUEUE_CAPACITY_BUDGET"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -254,6 +255,7 @@ def _prepare_xprompt_lsp_environment(
     _materialize_artifact_ref_catalog(environ)
     _materialize_glossary_catalog(environ)
     _apply_typed_launch_units_flag(environ)
+    _apply_queue_capacity_budget_flag(environ)
 
 
 def _default_vcs_project_catalog_path() -> Path:
@@ -401,6 +403,14 @@ def _apply_typed_launch_units_flag(environ: MutableMapping[str, str]) -> None:
     from sase.xprompt.code_value import typed_launch_units_enabled
 
     environ[SASE_TYPED_LAUNCH_UNITS_ENV] = "1" if typed_launch_units_enabled() else "0"
+
+
+def _apply_queue_capacity_budget_flag(environ: MutableMapping[str, str]) -> None:
+    """Pin the LSP to the process-local queue_capacity_budget sunset flag."""
+    from sase.xprompt.queue_directive import launch_feature_flag_keys
+
+    enabled = "queue_capacity_budget" in launch_feature_flag_keys()
+    environ[SASE_QUEUE_CAPACITY_BUDGET_ENV] = "1" if enabled else "0"
 
 
 def _discover_plugin_xprompt_dirs() -> list[dict[str, str]]:
