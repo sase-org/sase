@@ -109,6 +109,7 @@ def init_agent_state(self: Any) -> None:
     self._agent_load_state = None
     self._agents_index_repair_notice_key = None
     self._agents_seen_complete_history = False
+    self._agents_complete_history_query_key = None
     self._agents_prefix_completion_pending = False
     self._agents_prefix_completion_done = False
     self._agents_prefix_completion_armed_mono = 0.0

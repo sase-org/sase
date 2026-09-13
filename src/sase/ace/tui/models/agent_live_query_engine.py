@@ -59,6 +59,8 @@ if TYPE_CHECKING:
     from .agent_content_search import AgentContentSearchIndex
 
 AGENTS_LIVE_PANE_ID = "agents-live"
+LEGACY_AGENTS_QUERY_HISTORY_DIGEST = "legacy-agents-query-v1"
+AgentsHistoryQueryKey = tuple[str, str]
 
 
 def agents_unified_query_enabled() -> bool:
@@ -71,6 +73,40 @@ def agents_live_query_profile() -> CompiledQueryProfile:
     profile = compiled_profile_for_builtin_pane(AGENTS_LIVE_PANE_ID)
     assert profile is not None
     return profile
+
+
+def agents_history_query_key(
+    raw_query: str | None,
+    *,
+    use_unified_query: bool | None = None,
+) -> AgentsHistoryQueryKey:
+    """Return the full-history reuse key for one committed Agents query."""
+
+    raw = (raw_query or "").strip()
+    use_unified = (
+        agents_unified_query_enabled()
+        if use_unified_query is None
+        else use_unified_query
+    )
+    if use_unified:
+        profile = agents_live_query_profile()
+        try:
+            canonical = canonical_query_for_profile(raw, profile)
+        except ProfileQueryError:
+            canonical = raw
+        return canonical, profile.digest
+
+    if not raw:
+        return "", LEGACY_AGENTS_QUERY_HISTORY_DIGEST
+
+    from ...agent_query import AgentQueryParseError, parse_agent_query
+    from ...agent_query import to_canonical_string as legacy_canonical_string
+
+    try:
+        canonical = legacy_canonical_string(parse_agent_query(raw))
+    except AgentQueryParseError:
+        canonical = raw
+    return canonical, LEGACY_AGENTS_QUERY_HISTORY_DIGEST
 
 
 def build_agents_live_query_index(
@@ -243,8 +279,10 @@ def apply_agents_live_query_filter(
 __all__ = [
     "AGENTS_LIVE_PANE_ID",
     "AgentsLiveQueryFacade",
+    "AgentsHistoryQueryKey",
     "agents_live_property_query_term",
     "agents_live_query_profile",
+    "agents_history_query_key",
     "agents_unified_query_enabled",
     "apply_agents_live_query_filter",
     "augment_error_with_legacy_hint",

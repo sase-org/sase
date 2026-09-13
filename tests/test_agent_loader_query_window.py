@@ -11,6 +11,7 @@ from sase.ace.tui.models._agent_loader_artifacts import (
     artifact_snapshot_for_tui_load,
     query_artifact_index_for_loader,
 )
+from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
 from sase.ace.tui.models.agent_loader import AgentLoadState, load_tiered_agents
 from sase.core.agent_scan_facade import (
     query_agent_artifact_index,
@@ -60,6 +61,10 @@ def test_load_tiered_agents_uses_bounded_safe_query_pushdown(
         agents, state = load_tiered_agents(search_query="cl:target", requested_limit=1)
 
     assert agents == [target]
+    assert state.history_query_key == agents_history_query_key(
+        "cl:target",
+        use_unified_query=False,
+    )
     assert state.returned_count == 1
     assert state.has_more is True
     assert calls == [
@@ -116,6 +121,10 @@ def test_load_tiered_agents_unified_query_uses_bounded_pushdown(
         agents, state = load_tiered_agents(search_query="cl:target", requested_limit=1)
 
     assert agents == [target]
+    assert state.history_query_key == agents_history_query_key(
+        "cl:target",
+        use_unified_query=True,
+    )
     assert state.returned_count == 1
     assert state.has_more is True
     assert calls == [

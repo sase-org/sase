@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 
 from sase.ace.tui.actions.agents._loading_apply import _agent_index_repair_notice
+from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from tests._agents_tab_query_helpers import FakeAgentApp
 from tests.ace.tui._lazy_tier2_reconcile_helpers import (
@@ -88,6 +89,126 @@ def test_apply_query_incomplete_arms_history_reconcile() -> None:
     assert app._agents_history_reconcile_pending is True
     assert app._agents_history_reconcile_armed_mono >= before
     assert app.timer_calls == []
+
+
+def test_prepared_snapshot_complete_history_is_keyed_by_load_query() -> None:
+    """Worker-side Tier 1 merge only reuses history for the same query key."""
+    app = FakeAgentApp(query="status:FAILED")
+    failed_key = agents_history_query_key(
+        "status:FAILED",
+        use_unified_query=True,
+    )
+    model_key = agents_history_query_key("model:gpt-5", use_unified_query=True)
+    app._agents_seen_complete_history = True
+    app._agents_complete_history_query_key = failed_key
+
+    same_query_snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+            query_incomplete=True,
+            history_query_key=failed_key,
+        ),
+    )
+    changed_query_snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+            query_incomplete=True,
+            history_query_key=model_key,
+        ),
+    )
+
+    assert same_query_snapshot.agents_seen_complete_history is True
+    assert changed_query_snapshot.agents_seen_complete_history is False
+
+
+def test_same_query_incomplete_load_after_reconcile_does_not_rearm() -> None:
+    """Repeated auto-refreshes for one committed query pay Tier 2 once."""
+    app = FakeAgentApp(query="status:FAILED")
+    query_key = agents_history_query_key(
+        "status:FAILED",
+        use_unified_query=True,
+    )
+    apply_load(
+        app,
+        AgentLoadState(
+            tier="tier2",
+            complete_history=True,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+            history_query_key=query_key,
+        ),
+    )
+
+    app._agents_history_reconcile_pending = False
+    app._agents_history_reconcile_armed_mono = 0.0
+    apply_load(
+        app,
+        AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            complete_visible_inbox=True,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+            bounded_prefix=True,
+            requested_limit=25,
+            returned_count=1,
+            has_more=True,
+            query_incomplete=True,
+            history_query_key=query_key,
+        ),
+    )
+
+    assert app._agents_history_reconcile_pending is False
+    assert app._agents_history_reconcile_armed_mono == 0.0
+    assert app._agents_seen_complete_history is True
+    assert app._agents_complete_history_query_key == query_key
+
+
+def test_changed_query_incomplete_load_after_reconcile_rearms() -> None:
+    """A new committed query cannot reuse another query's full-history latch."""
+    app = FakeAgentApp(query="status:FAILED")
+    failed_key = agents_history_query_key(
+        "status:FAILED",
+        use_unified_query=True,
+    )
+    model_key = agents_history_query_key("model:gpt-5", use_unified_query=True)
+    app._agents_seen_complete_history = True
+    app._agents_complete_history_query_key = failed_key
+    app._agents_history_reconcile_pending = False
+    app._agents_history_reconcile_armed_mono = 0.0
+
+    before = time.monotonic()
+    apply_load(
+        app,
+        AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            complete_visible_inbox=True,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+            bounded_prefix=True,
+            requested_limit=25,
+            returned_count=1,
+            has_more=True,
+            query_incomplete=True,
+            history_query_key=model_key,
+        ),
+    )
+
+    assert app._agents_history_reconcile_pending is True
+    assert app._agents_history_reconcile_armed_mono >= before
+    assert app._agents_seen_complete_history is False
+    assert app._agents_complete_history_query_key is None
 
 
 def test_apply_clears_pending_flag_on_complete_history() -> None:

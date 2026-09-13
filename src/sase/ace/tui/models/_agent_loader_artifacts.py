@@ -62,6 +62,7 @@ class AgentLoadState:
     returned_count: int | None = None
     has_more: bool = False
     query_incomplete: bool = False
+    history_query_key: tuple[str, str] | None = None
 
     @property
     def needs_full_history_reconcile(self) -> bool:

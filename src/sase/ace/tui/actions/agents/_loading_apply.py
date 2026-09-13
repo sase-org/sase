@@ -28,6 +28,7 @@ from ._refresh_trace import classify_agents_data_cost, record_agents_refresh_tra
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent_loader import AgentLoadState
+    from ...models.agent_live_query_engine import AgentsHistoryQueryKey
     from ...models.fold_state import FoldLevel
 
 
@@ -42,14 +43,46 @@ def _agent_index_repair_notice(load_state: AgentLoadState | None) -> str | None:
     )
 
 
-def _should_arm_full_history_reconcile(load_state: AgentLoadState | None) -> bool:
+def _history_query_key_for_load(
+    app: object,
+    load_state: AgentLoadState | None,
+) -> AgentsHistoryQueryKey:
+    """Return the committed-query key that the incoming load covers."""
+
+    load_key = getattr(load_state, "history_query_key", None)
+    if load_key is not None:
+        return cast("AgentsHistoryQueryKey", load_key)
+    from ...models.agent_live_query_engine import agents_history_query_key
+
+    return agents_history_query_key(getattr(app, "_agent_search_query", "") or "")
+
+
+def _has_complete_history_for_load_query(
+    app: object,
+    load_state: AgentLoadState | None,
+) -> bool:
+    """Return whether cached full history belongs to this load's query key."""
+
+    complete_key = getattr(app, "_agents_complete_history_query_key", None)
+    if complete_key is None:
+        # Compatibility for tests and older in-memory app fakes that set the
+        # historical boolean directly without the keyed latch.
+        return bool(getattr(app, "_agents_seen_complete_history", False))
+    return complete_key == _history_query_key_for_load(app, load_state)
+
+
+def _should_arm_full_history_reconcile(
+    load_state: AgentLoadState | None,
+    *,
+    history_complete_for_query: bool = False,
+) -> bool:
     """Return whether this load state should arm a deferred Tier 2 reconcile."""
     if load_state is None or not load_state.needs_full_history_reconcile:
         return False
     if load_state.repair_recommended:
         return True
     if load_state.query_incomplete:
-        return True
+        return not history_complete_for_query
     return not load_state.complete_visible_inbox and not load_state.used_artifact_index
 
 
@@ -163,8 +196,9 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 getattr(self, "_agents_with_children", [])
             ),
             dismissed_agents=set(getattr(self, "_dismissed_agents", set())),
-            agents_seen_complete_history=bool(
-                getattr(self, "_agents_seen_complete_history", False)
+            agents_seen_complete_history=_has_complete_history_for_load_query(
+                self,
+                load_state,
             ),
             hide_non_run_agents=bool(self.hide_non_run_agents),
             load_state=load_state,
@@ -377,9 +411,19 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             )
         prep = boundary.prep
 
+        history_query_key = _history_query_key_for_load(self, load_state)
+        history_complete_for_query = _has_complete_history_for_load_query(
+            self,
+            load_state,
+        )
+
         if load_state is not None and load_state.complete_history:
+            self._agents_complete_history_query_key = history_query_key
             self._agents_seen_complete_history = True
             self._agents_history_reconcile_pending = False
+        elif not history_complete_for_query:
+            self._agents_complete_history_query_key = None
+            self._agents_seen_complete_history = False
         self._agent_load_state = load_state
         schema_rebuild_in_flight = bool(
             getattr(self, "_artifact_index_schema_rebuild_in_flight", False)
@@ -392,7 +436,10 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         # refreshes must not prime the next normal refresh into Tier 2.
         if (
             not schema_rebuild_in_flight
-            and _should_arm_full_history_reconcile(load_state)
+            and _should_arm_full_history_reconcile(
+                load_state,
+                history_complete_for_query=history_complete_for_query,
+            )
             and not getattr(self, "_agents_history_reconcile_pending", False)
         ):
             self._agents_history_reconcile_pending = True

@@ -25,7 +25,10 @@ if TYPE_CHECKING:
         AgentContentSearchIndex,
     )
     from ...models.agent_group_fold import AgentGroupFoldRegistry
-    from ...models.agent_live_query_engine import AgentsLiveQueryFacade
+    from ...models.agent_live_query_engine import (
+        AgentsHistoryQueryKey,
+        AgentsLiveQueryFacade,
+    )
     from ...models.agent_loader import AgentLoadState
     from ...models.agent_runner_slots import RunnerCapacitySnapshot
     from ...models.fold_state import FoldStateManager
@@ -213,6 +216,7 @@ class AgentLoadingStateMixin:
     _agents_provider_snapshot: object | None
     _agents_index_repair_notice_key: tuple[str | None, str | None] | None
     _agents_seen_complete_history: bool
+    _agents_complete_history_query_key: AgentsHistoryQueryKey | None
     # One-shot cached unwindowed Tier-1 read that completes the Agents
     # window prefix after first paint. Distinct from
     # ``_agents_seen_complete_history``, which is only set by a Tier-2 load.

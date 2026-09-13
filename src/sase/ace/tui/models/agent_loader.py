@@ -497,7 +497,10 @@ def load_tiered_agents(
 ) -> tuple[list[Agent], AgentLoadState]:
     """Load agents through the TUI tiered artifact path."""
 
-    from .agent_live_query_engine import agents_unified_query_enabled
+    from .agent_live_query_engine import (
+        agents_history_query_key,
+        agents_unified_query_enabled,
+    )
 
     use_unified_query = agents_unified_query_enabled()
     if use_unified_query:
@@ -516,6 +519,10 @@ def load_tiered_agents(
         window_safe = legacy_query_plan.window_safe
         candidate_filter = legacy_query_plan.candidate_filter
         legacy_parsed_query = legacy_query_plan.parsed_query
+    history_query_key = agents_history_query_key(
+        raw_query,
+        use_unified_query=use_unified_query,
+    )
     pushdown_miss = bool(raw_query) and not window_safe
     defer_pushdown_miss = False
     if pushdown_miss and not full_history:
@@ -545,11 +552,9 @@ def load_tiered_agents(
         ),
     )
     agents = _normalize_loaded_agents(result.agents, result.workflow_agent_steps)
-    state = (
-        replace(result.state, query_incomplete=True)
-        if defer_pushdown_miss and not result.state.complete_history
-        else result.state
-    )
+    state = replace(result.state, history_query_key=history_query_key)
+    if defer_pushdown_miss and not state.complete_history:
+        state = replace(state, query_incomplete=True)
     if effective_limit is not None and result.state.bounded_prefix:
         if use_unified_query and raw_query:
             agents, filtered_count = _filter_and_cap_windowed_agents_live(
