@@ -33,6 +33,14 @@ def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)
 
 
+def _optional_queue_capacity(data: dict[str, Any]) -> int | None:
+    if "queue_capacity" in data:
+        raw = data.get("queue_capacity")
+    else:
+        raw = data.get("wait_runners")
+    return None if raw is None else int(raw)
+
+
 def _workspace_claim_request_from_dict(
     data: dict[str, Any],
 ) -> WorkspaceClaimRequestWire:
@@ -197,9 +205,8 @@ def _launch_unit_payload_from_dict(
             auto_enabled=bool(data.get("auto_enabled", False)),
             auto_mode=_optional_str(data.get("auto_mode")),
             finalizers=[str(item) for item in data.get("finalizers", [])],
-            wait_runners=(
-                None if data.get("wait_runners") is None else int(data["wait_runners"])
-            ),
+            queue_capacity=_optional_queue_capacity(data),
+            wait_runners=_optional_queue_capacity(data),
             wait_priority=(
                 None
                 if data.get("wait_priority") is None

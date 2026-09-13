@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from ._admission import (
     live_runner_slot_waiters,
-    may_start,
     running_agent_slot_count,
 )
 from ._admission_capacity_records import runner_slot_candidate_record
@@ -53,7 +52,6 @@ __all__ = [
     "is_runner_slot_user_agent_record",
     "live_runner_slot_waiters",
     "load_or_refresh_runner_slot_scan",
-    "may_start",
     "normalize_wait_priority",
     "notify_runner_slot_state_changed",
     "runner_capacity_snapshot",

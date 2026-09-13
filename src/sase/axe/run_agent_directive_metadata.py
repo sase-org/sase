@@ -219,8 +219,8 @@ def build_agent_meta(
         agent_meta["wait_duration"] = directives.wait_duration
     if directives.wait_until is not None:
         agent_meta["wait_until"] = directives.wait_until
-    if directives.wait_runners is not None:
-        agent_meta["queue_capacity"] = directives.wait_runners
+    if directives.queue_capacity is not None:
+        agent_meta["queue_capacity"] = directives.queue_capacity
         agent_meta["queue_capacity_explicit"] = True
     if directives.wait_priority is not None:
         agent_meta["wait_priority"] = directives.wait_priority

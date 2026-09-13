@@ -58,6 +58,28 @@ def record(
             ),
             family_shell=family_shell_from_mapping(meta),
             wait_priority=meta_wait_priority,
+            queue_capacity=(
+                meta["queue_capacity"]
+                if type(meta.get("queue_capacity")) is int
+                else meta.get("wait_runners")
+                if type(meta.get("wait_runners")) is int
+                else None
+            ),
+            queue_capacity_explicit=bool(
+                meta.get("queue_capacity_explicit", False)
+                or meta.get("wait_runners_explicit", False)
+            ),
+            wait_runners=(
+                meta["queue_capacity"]
+                if type(meta.get("queue_capacity")) is int
+                else meta.get("wait_runners")
+                if type(meta.get("wait_runners")) is int
+                else None
+            ),
+            wait_runners_explicit=bool(
+                meta.get("queue_capacity_explicit", False)
+                or meta.get("wait_runners_explicit", False)
+            ),
             queue_weight=(
                 meta["queue_weight"]
                 if isinstance(meta.get("queue_weight"), (int, float))

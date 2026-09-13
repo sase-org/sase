@@ -109,6 +109,10 @@ def journal_continuation_reservation(
                 payload["queue_weight"] = extra["queue_weight"]
             if extra.get("queue_weight_explicit") is not None:
                 payload["queue_weight_explicit"] = extra["queue_weight_explicit"]
+            if extra.get("queue_capacity") is not None:
+                payload["queue_capacity"] = extra["queue_capacity"]
+            if extra.get("queue_capacity_explicit") is not None:
+                payload["queue_capacity_explicit"] = extra["queue_capacity_explicit"]
         append_journal(root, payload)
         write_unit_receipt(
             root,

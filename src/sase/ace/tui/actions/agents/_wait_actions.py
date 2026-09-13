@@ -137,7 +137,9 @@ class AgentWaitActionsMixin:
                 current_wait_duration=agent.wait_duration,
                 current_wait_until=agent.wait_until,
                 current_wait_runners=(
-                    agent.wait_runners if agent.wait_runners_explicit else None
+                    agent.queue_capacity
+                    if agent.queue_capacity_explicit or agent.wait_runners_explicit
+                    else None
                 ),
                 current_wait_priority=(
                     agent.wait_priority if agent.wait_priority_explicit else None
@@ -338,8 +340,7 @@ class AgentWaitActionsMixin:
             agent.waiting_for_beads = []
             agent.wait_duration = None
             agent.wait_until = None
-            agent.wait_runners = None
-            agent.wait_runners_explicit = False
+            agent.set_queue_capacity(None, explicit=False)
             agent.wait_priority = None
             agent.wait_priority_explicit = False
             agent.slot_requested_at = None
@@ -366,8 +367,8 @@ class AgentWaitActionsMixin:
         wait_spec = prompt_wait_spec(result)
         if wait_spec is not None and effective_priority is not None:
             wait_spec = replace(wait_spec, priority=effective_priority)
-        prior_runners = agent.wait_runners
-        prior_explicit = agent.wait_runners_explicit
+        prior_runners = agent.queue_capacity
+        prior_explicit = agent.queue_capacity_explicit
         prior_waiting_for = list(agent.waiting_for)
         prior_waiting_for_beads = list(agent.waiting_for_beads)
         prior_wait_duration = agent.wait_duration
@@ -385,8 +386,7 @@ class AgentWaitActionsMixin:
                 return
             if getattr(agent, "_directive_generation", None) is not generation:
                 return
-            agent.wait_runners = prior_runners
-            agent.wait_runners_explicit = prior_explicit
+            agent.set_queue_capacity(prior_runners, explicit=prior_explicit)
             agent.waiting_for = prior_waiting_for
             agent.waiting_for_beads = prior_waiting_for_beads
             agent.wait_duration = prior_wait_duration
@@ -440,8 +440,7 @@ class AgentWaitActionsMixin:
         agent.waiting_for_beads = list(result.beads)
         agent.wait_duration = None
         agent.wait_until = None
-        agent.wait_runners = result.capacity
-        agent.wait_runners_explicit = result.capacity is not None
+        agent.set_queue_capacity(result.capacity, explicit=result.capacity is not None)
         if update_wait_priority:
             agent.wait_priority = result.priority
             agent.wait_priority_explicit = result.priority is not None

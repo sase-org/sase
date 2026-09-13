@@ -172,6 +172,7 @@ class AgentUnitWire:
     auto_enabled: bool = False
     auto_mode: str | None = None
     finalizers: list[str] = field(default_factory=list)
+    queue_capacity: int | None = None
     wait_runners: int | None = None
     wait_priority: int | None = None
     queue_weight: float | None = None
@@ -179,6 +180,12 @@ class AgentUnitWire:
     workspace_provider: str | None = None
     workspace_reference: str | None = None
     dispatch_target: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.queue_capacity is None and self.wait_runners is not None:
+            object.__setattr__(self, "queue_capacity", self.wait_runners)
+        elif self.wait_runners is None and self.queue_capacity is not None:
+            object.__setattr__(self, "wait_runners", self.queue_capacity)
 
 
 @dataclass(frozen=True)

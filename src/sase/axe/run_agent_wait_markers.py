@@ -32,23 +32,16 @@ def queue_capacity_marker_fields(
     *,
     explicit: bool,
 ) -> dict[str, Any]:
-    """Return ``waiting.json`` capacity fields in both persisted spellings.
+    """Return canonical ``waiting.json`` capacity fields.
 
-    Other waiters see a parked launch only through the Rust agent scan, which
-    still projects just the legacy ``wait_runners`` keys from ``waiting.json``.
-    A marker carrying only ``queue_capacity`` hides the launch's authored
-    capacity from the rest of the queue, so a waiter blocked by its own
-    capacity looks admissible under the global limit and parks every waiter
-    behind it on ``queue-order``. Write both spellings until the scanner reads
-    ``queue_capacity``.
+    Readers still accept legacy ``wait_runners`` spellings. Writers emit only
+    ``queue_capacity`` now that the scanner projects the canonical keys.
     """
     fields: dict[str, Any] = {
         "queue_capacity_explicit": explicit,
-        "wait_runners_explicit": explicit,
     }
     if queue_capacity is not None:
         fields["queue_capacity"] = queue_capacity
-        fields["wait_runners"] = queue_capacity
     return fields
 
 
@@ -57,9 +50,12 @@ def write_waiting_marker(
     waiting_data: dict[str, Any],
 ) -> None:
     """Publish ``waiting.json`` and refresh the Tier 1 artifact index."""
+    payload = dict(waiting_data)
+    payload.pop("wait_runners", None)
+    payload.pop("wait_runners_explicit", None)
     waiting_path = os.path.join(artifacts_dir, "waiting.json")
     with open(waiting_path, "w", encoding="utf-8") as f:
-        json.dump(waiting_data, f, indent=2)
+        json.dump(payload, f, indent=2)
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
 
 

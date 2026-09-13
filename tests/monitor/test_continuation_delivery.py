@@ -28,6 +28,7 @@ from sase.monitor.continuation_delivery import (
     _InjectedDeliveryCrash,
     adopt_ordinary_continuation_delivery,
     claim_ordinary_continuation_dispatch,
+    launch_wire_extra,
     queue_launch_prefix,
 )
 from sase.monitor.delivery import delivery_key, load_delivery_record
@@ -180,17 +181,127 @@ def test_followup_reserves_identity_before_spawn(
     assert "acme--1" in journal.read_text(encoding="utf-8")
 
 
-def test_queue_launch_prefix_preserves_explicit_zero_directives() -> None:
-    prefix = queue_launch_prefix(
+def test_queue_launch_prefix_prefers_canonical_capacity() -> None:
+    from sase.feature_flags import override_flags
+
+    with override_flags(queue_capacity_budget=True):
+        prefix = queue_launch_prefix(
+            {
+                "wait_priority": 0,
+                "wait_runners": 0,
+                "wait_runners_explicit": True,
+                "queue_priority": 7,
+                "queue_capacity": 3,
+                "queue_capacity_explicit": True,
+                "queue_weight": 0.25,
+            }
+        )
+
+    assert prefix == "%queue(capacity=3, priority=0, weight=0.25)\n"
+
+
+def test_queue_launch_prefix_omits_legacy_zero_when_budget_on() -> None:
+    from sase.feature_flags import override_flags
+
+    with override_flags(queue_capacity_budget=True):
+        prefix = queue_launch_prefix(
+            {
+                "wait_runners": 0,
+                "wait_runners_explicit": True,
+                "wait_priority": 0,
+                "queue_weight": 0.25,
+            }
+        )
+
+    assert prefix == "%queue(priority=0, weight=0.25)\n"
+
+
+def test_queue_launch_prefix_keeps_legacy_zero_when_budget_off() -> None:
+    from sase.feature_flags import override_flags
+
+    with override_flags(queue_capacity_budget=False):
+        prefix = queue_launch_prefix(
+            {
+                "wait_runners": 0,
+                "wait_runners_explicit": True,
+            }
+        )
+
+    assert prefix == "%queue(capacity=0)\n"
+
+
+def test_queue_launch_prefix_omits_implicit_zero() -> None:
+    from sase.feature_flags import override_flags
+
+    with override_flags(queue_capacity_budget=True):
+        prefix = queue_launch_prefix(
+            {
+                "wait_runners": 0,
+                "wait_runners_explicit": False,
+                "queue_weight": 2.0,
+            }
+        )
+
+    assert prefix == "%queue(weight=2)\n"
+
+
+def test_queue_launch_prefix_positive_budget_is_parseable() -> None:
+    from sase.feature_flags import override_flags
+    from sase.xprompt.directives import extract_prompt_directives
+
+    with override_flags(queue_capacity_budget=True):
+        prefix = queue_launch_prefix(
+            {
+                "queue_capacity": 100,
+                "queue_capacity_explicit": True,
+                "wait_priority": 0,
+                "queue_weight": 0.25,
+            }
+        )
+        _cleaned, directives = extract_prompt_directives(f"{prefix}continue")
+
+    assert prefix == "%queue(capacity=100, priority=0, weight=0.25)\n"
+    assert directives.queue_capacity == 100
+    assert directives.wait_runners == 100
+    assert directives.wait_priority == 0
+    assert directives.queue_weight == 0.25
+
+
+def test_queue_launch_prefix_legacy_zero_does_not_reenter_on_parser() -> None:
+    from sase.feature_flags import override_flags
+    from sase.xprompt.directives import extract_prompt_directives
+
+    with override_flags(queue_capacity_budget=True):
+        prefix = queue_launch_prefix(
+            {
+                "wait_runners": 0,
+                "wait_runners_explicit": True,
+                "queue_weight": 0.25,
+            }
+        )
+        _cleaned, directives = extract_prompt_directives(f"{prefix}continue")
+
+    assert "capacity=0" not in prefix
+    assert directives.queue_capacity is None
+    assert directives.queue_weight == 0.25
+
+
+def test_launch_wire_extra_preserves_canonical_capacity() -> None:
+    extra = launch_wire_extra(
         {
-            "wait_priority": 0,
             "wait_runners": 0,
-            "queue_priority": 7,
-            "queue_capacity": 3,
+            "wait_runners_explicit": True,
+            "queue_capacity": 100,
+            "queue_capacity_explicit": True,
+            "queue_weight": 0.25,
+            "queue_weight_explicit": True,
         }
     )
 
-    assert prefix == "%queue(capacity=0, priority=0)\n"
+    assert extra["queue_capacity"] == 100
+    assert extra["queue_capacity_explicit"] is True
+    assert extra["queue_weight"] == 0.25
+    assert extra["queue_weight_explicit"] is True
 
 
 @pytest.mark.parametrize(

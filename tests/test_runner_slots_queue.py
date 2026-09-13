@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
-    RunnerSlotWaiter,
     live_runner_slot_waiters,
-    may_start,
 )
 from tests._runner_slots_helpers import _record
 
@@ -104,46 +102,6 @@ def test_queue_ties_have_deterministic_timestamp_then_path_order() -> None:
     ]
 
 
-def test_older_ineligible_drain_waiter_does_not_block_eligible_waiter() -> None:
-    drain = RunnerSlotWaiter(
-        "/drain",
-        "2026-07-12T12:00:00+00:00",
-        "1",
-        threshold=0,
-        priority=1,
-    )
-    immediate = RunnerSlotWaiter(
-        "/immediate",
-        "2026-07-12T12:00:01+00:00",
-        "2",
-        threshold=9,
-        priority=20,
-    )
-
-    assert not may_start(1, 0, (drain, immediate), "/drain")
-    assert may_start(1, 9, (drain, immediate), "/immediate")
-
-
-def test_fifo_order_is_preserved_among_currently_eligible_waiters() -> None:
-    first = RunnerSlotWaiter("/first", "2026-07-12T12:00:00+00:00", "1", threshold=9)
-    second = RunnerSlotWaiter("/second", "2026-07-12T12:00:01+00:00", "2", threshold=9)
-
-    assert may_start(0, 1, (), "/new")
-    assert not may_start(1, 1, (), "/new")
-    assert may_start(1, 9, (first, second), "/first")
-    assert not may_start(1, 9, (first, second), "/second")
-
-
-def test_drain_waiter_wins_deterministically_once_count_reaches_zero() -> None:
-    first = RunnerSlotWaiter("/drain", "2026-07-12T12:00:00+00:00", "1", threshold=1)
-    second = RunnerSlotWaiter(
-        "/immediate", "2026-07-12T12:00:01+00:00", "2", threshold=9
-    )
-
-    assert may_start(0, 1, (first, second), "/drain")
-    assert not may_start(0, 25, (first, second), "/second")
-
-
 def test_live_waiter_queue_excludes_terminal_records_and_includes_reacquiring_child() -> (
     None
 ):
@@ -198,8 +156,6 @@ def test_released_serial_successor_and_parallel_member_join_fifo_queue() -> None
         "/parallel",
         "/root",
     ]
-    assert may_start(0, 1, queue, "/serial")
-    assert not may_start(0, 1, queue, "/root")
 
 
 def test_serial_child_reuses_active_family_claim_without_queue_entry() -> None:

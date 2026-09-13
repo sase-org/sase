@@ -98,6 +98,8 @@ def test_agent_unit_queue_weight_round_trips_json_shape() -> None:
 
     payload = agent_launch_wire_to_json_dict(unit)
 
+    assert payload["queue_capacity"] == 2
+    assert "wait_runners" not in payload
     assert payload["queue_weight"] == 0.25
     assert payload["queue_weight_explicit"] is True
     plan = launch_plan_from_dict(
@@ -118,6 +120,8 @@ def test_agent_unit_queue_weight_round_trips_json_shape() -> None:
     )
     restored = plan.units[0].payload
     assert isinstance(restored, AgentUnitWire)
+    assert restored.queue_capacity == 2
+    assert restored.wait_runners == 2
     assert restored.queue_weight == 0.25
     assert restored.queue_weight_explicit is True
 

@@ -230,13 +230,11 @@ def enrich_agent_from_meta_wire(
             agent.wait_duration = waiting.wait_duration
         if waiting.wait_until:
             agent.wait_until = waiting.wait_until
-        agent.wait_runners = (
+        agent.set_queue_capacity(
             waiting.queue_capacity
             if waiting.queue_capacity is not None
-            else waiting.wait_runners
-        )
-        agent.wait_runners_explicit = (
-            waiting.queue_capacity_explicit or waiting.wait_runners_explicit
+            else waiting.wait_runners,
+            explicit=waiting.queue_capacity_explicit or waiting.wait_runners_explicit,
         )
         agent.wait_priority = waiting.wait_priority
         agent.wait_priority_explicit = waiting.wait_priority_explicit or (
@@ -257,10 +255,10 @@ def enrich_agent_from_meta_wire(
     raw_capacity = (
         meta.queue_capacity if meta.queue_capacity is not None else meta.wait_runners
     )
-    if agent.wait_runners is None and type(raw_capacity) is int and raw_capacity >= 0:
-        agent.wait_runners = raw_capacity
-        agent.wait_runners_explicit = (
-            meta.queue_capacity_explicit or meta.wait_runners_explicit
+    if agent.queue_capacity is None and type(raw_capacity) is int and raw_capacity >= 0:
+        agent.set_queue_capacity(
+            raw_capacity,
+            explicit=meta.queue_capacity_explicit or meta.wait_runners_explicit,
         )
     if (
         agent.wait_priority is None

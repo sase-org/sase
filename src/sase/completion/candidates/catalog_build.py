@@ -70,9 +70,16 @@ def directive_candidates(_project: str | None) -> list[Candidate]:
         import sase_core_rs  # type: ignore[import-untyped]
 
         try:
-            from sase.xprompt.queue_directive import launch_feature_flag_keys
+            from sase.feature_flags.registry import FeatureFlag
+            from sase.feature_flags.snapshot import current_flags
 
-            rows = sase_core_rs.directive_contract(launch_feature_flag_keys())
+            snapshot = current_flags()
+            flags: list[str] = []
+            if snapshot.enabled(FeatureFlag.queue_capacity_budget):
+                flags.append(str(FeatureFlag.queue_capacity_budget))
+            if snapshot.enabled(FeatureFlag.typed_launch_units):
+                flags.append(str(FeatureFlag.typed_launch_units))
+            rows = sase_core_rs.directive_contract(flags)
         except TypeError:
             rows = sase_core_rs.directive_contract()
     except Exception:  # noqa: BLE001 - completion must not traceback

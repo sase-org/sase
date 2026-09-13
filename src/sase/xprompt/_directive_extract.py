@@ -131,7 +131,10 @@ def extract_prompt_directives(
             raise DirectiveError(message)
         fields = queue_payload.get("fields")
         if isinstance(fields, dict):
-            capacity = fields.get("capacity")
+            capacity = fields.get(
+                "capacity",
+                fields.get("queue_capacity", fields.get("runners")),
+            )
             priority = fields.get("priority")
             wait_runners = int(capacity) if capacity is not None else None
             wait_priority = int(priority) if priority is not None else None
@@ -260,6 +263,7 @@ def extract_prompt_directives(
         wait_beads=wait_beads,
         wait_duration=wait_duration,
         wait_until=wait_until,
+        queue_capacity=wait_runners,
         wait_runners=wait_runners,
         wait_priority=wait_priority,
         queue_weight=queue_weight,

@@ -197,8 +197,12 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
             time_token=wait.get("time_token")
             if isinstance(wait.get("time_token"), str)
             else None,
-            update_wait_runners=bool(wait.get("update_wait_runners", False)),
-            wait_runners=wait.get("wait_runners"),
+            update_wait_runners=bool(
+                wait.get(
+                    "update_queue_capacity", wait.get("update_wait_runners", False)
+                )
+            ),
+            wait_runners=wait.get("queue_capacity", wait.get("wait_runners")),
             update_wait_priority=bool(wait.get("update_wait_priority", False)),
             wait_priority=wait.get("wait_priority"),
         )
@@ -211,8 +215,15 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
             time_token=waiting_payload.get("time_token")
             if isinstance(waiting_payload.get("time_token"), str)
             else None,
-            update_wait_runners=bool(waiting_payload.get("update_wait_runners", False)),
-            wait_runners=waiting_payload.get("wait_runners"),
+            update_wait_runners=bool(
+                waiting_payload.get(
+                    "update_queue_capacity",
+                    waiting_payload.get("update_wait_runners", False),
+                )
+            ),
+            wait_runners=waiting_payload.get(
+                "queue_capacity", waiting_payload.get("wait_runners")
+            ),
             update_wait_priority=bool(
                 waiting_payload.get("update_wait_priority", False)
             ),

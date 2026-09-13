@@ -12,7 +12,7 @@ from sase.core import process_identity
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.runner_slots import (
     live_runner_slot_waiters,
-    may_start,
+    runner_capacity_snapshot,
     running_agent_slot_count,
 )
 
@@ -105,15 +105,15 @@ def test_recycled_thread_pid_does_not_hold_runner_slot(
         is_live = run_agent_wait_slots._record_liveness_probe()
         running_count = running_agent_slot_count(records, is_live)
         queue = live_runner_slot_waiters(records, is_live)
+        snapshot = runner_capacity_snapshot(
+            records,
+            is_live,
+            effective_limit=float(max_running_agents),
+        )
 
     assert running_count == max_running_agents - 1
     assert [entry.artifact_dir for entry in queue] == [str(waiter)]
-    assert may_start(
-        running_count,
-        max_running_agents,
-        queue,
-        str(waiter),
-    )
+    assert snapshot.get("first_eligible_artifact_dir") == str(waiter)
 
 
 def test_implicit_gate_fails_closed_when_effective_limit_is_unavailable(
@@ -148,8 +148,8 @@ def test_implicit_gate_fails_closed_when_effective_limit_is_unavailable(
         assert first is None
         assert parked is True
         assert marker["queue_capacity_explicit"] is False
-        assert marker["wait_runners"] == 0
-        assert marker["wait_runners_explicit"] is False
+        assert "wait_runners" not in marker
+        assert "wait_runners_explicit" not in marker
         assert marker["wait_priority_explicit"] is False
         assert marker["runner_limit_unavailable"] == "override lock busy"
         scan.assert_not_called()
@@ -271,8 +271,8 @@ def test_answered_root_reacquires_after_yield_without_oversubscribing(
         queued = json.loads((paused / "waiting.json").read_text())
         assert queued["queue_capacity"] == 0
         assert queued["queue_capacity_explicit"] is False
-        assert queued["wait_runners"] == 0
-        assert queued["wait_runners_explicit"] is False
+        assert "wait_runners" not in queued
+        assert "wait_runners_explicit" not in queued
 
         newcomer_started = False
 

@@ -15,7 +15,11 @@ from sase.monitor.delivery import (
     claim_dispatch_slot,
     delivery_key,
 )
-from sase.xprompt.queue_directive import format_queue_directive
+from sase.xprompt.queue_directive import (
+    format_queue_directive,
+    reauthor_capacity_for_prefix,
+    resolve_authored_queue_capacity,
+)
 
 DELIVERY_ARTIFACTS_ENV = "SASE_MONITOR_DELIVERY_ARTIFACTS_DIR"
 DELIVERY_KEY_ENV = "SASE_MONITOR_DELIVERY_KEY"
@@ -183,7 +187,12 @@ def queue_launch_prefix(meta: Mapping[str, Any]) -> str:
 
     weight = _optional_float(meta.get("queue_weight"))
     priority = _optional_int(_first_present(meta, "wait_priority", "queue_priority"))
-    capacity = _optional_int(_first_present(meta, "wait_runners", "queue_capacity"))
+    authored, explicit = resolve_authored_queue_capacity(meta)
+    capacity = reauthor_capacity_for_prefix(
+        authored,
+        explicit=explicit,
+        weight=weight,
+    )
     if weight is None and priority is None and capacity is None:
         return ""
     formatted = format_queue_directive(
@@ -200,6 +209,10 @@ def launch_wire_extra(meta: Mapping[str, Any]) -> dict[str, Any]:
     if weight is not None:
         extra["queue_weight"] = weight
         extra["queue_weight_explicit"] = bool(meta.get("queue_weight_explicit"))
+    capacity, explicit = resolve_authored_queue_capacity(meta)
+    if capacity is not None:
+        extra["queue_capacity"] = capacity
+        extra["queue_capacity_explicit"] = explicit
     target = _optional_text(meta.get("dispatch_target"))
     if target:
         extra["dispatch_target"] = target

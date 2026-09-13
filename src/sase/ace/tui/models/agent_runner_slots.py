@@ -387,8 +387,14 @@ def _capacity_record_from_agent(
         "slot_requested_at": agent.slot_requested_at
         if _is_live_slot_waiter(agent)
         else None,
-        "queue_capacity": _nonnegative_int(agent.wait_runners),
-        "queue_capacity_explicit": agent.wait_runners_explicit,
+        "queue_capacity": _nonnegative_int(
+            agent.queue_capacity
+            if agent.queue_capacity is not None
+            else agent.wait_runners
+        ),
+        "queue_capacity_explicit": (
+            agent.queue_capacity_explicit or agent.wait_runners_explicit
+        ),
         "wait_priority": _nonnegative_int(agent.wait_priority),
         "eligible_since": None,
     }

@@ -123,6 +123,8 @@ def test_waiting_runner_slot_fields_match_filesystem_marker(tmp_path: Path) -> N
     assert waiting.wait_for_beads == raw["wait_for_beads"]
     assert waiting.wait_duration == raw["wait_duration"]
     assert waiting.wait_until == raw["wait_until"]
+    assert waiting.queue_capacity == raw["wait_runners"]
+    assert waiting.queue_capacity_explicit is raw["wait_runners_explicit"]
     assert waiting.wait_runners == raw["wait_runners"]
     assert waiting.wait_runners_explicit is raw["wait_runners_explicit"]
     assert waiting.wait_priority == raw["wait_priority"]

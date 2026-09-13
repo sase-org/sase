@@ -322,10 +322,13 @@ class AgentState:
     # Absolute time wait target as ISO 8601 string (from %wait(time=1430) directive)
     wait_until: str | None = None
 
-    # Runner-slot wait metadata projected from waiting.json. ``wait_runners``
-    # keeps the persisted storage spelling of the optional authored
-    # queue-capacity budget; occupied capacity units and per-waiter admission
-    # limits are projected separately from the snapshot below.
+    # Runner-slot wait metadata projected from waiting.json / agent_meta.json.
+    # ``queue_capacity`` is the canonical authored budget; ``wait_runners`` is
+    # the display alias kept in sync by :meth:`set_queue_capacity`. Occupied
+    # capacity units and per-waiter admission limits are projected separately
+    # from the snapshot below.
+    queue_capacity: int | None = None
+    queue_capacity_explicit: bool = False
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
     wait_priority: int | None = None
@@ -619,6 +622,13 @@ class AgentState:
     # Populated alongside ``_loaded_from_dismissed_bundle`` by the dismissed
     # bundle loader so the revive audit log can record which file was deleted.
     _dismissed_bundle_path: str | None = field(default=None, compare=False, repr=False)
+
+    def set_queue_capacity(self, value: int | None, *, explicit: bool = False) -> None:
+        """Set canonical capacity and keep the wait_runners display alias in sync."""
+        self.queue_capacity = value
+        self.queue_capacity_explicit = explicit
+        self.wait_runners = value
+        self.wait_runners_explicit = explicit
 
 
 def _get_commit_entry_id(agent: AgentState) -> str | None:  # legacy compatibility alias

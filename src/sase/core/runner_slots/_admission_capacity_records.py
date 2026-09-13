@@ -66,6 +66,15 @@ def _record_queue_capacity(record: AgentArtifactRecordWire) -> int | None:
         and waiting.wait_runners >= 0
     ):
         return waiting.wait_runners
+    meta = record.agent_meta
+    if (
+        meta is not None
+        and type(meta.queue_capacity) is int
+        and meta.queue_capacity >= 0
+    ):
+        return meta.queue_capacity
+    if meta is not None and type(meta.wait_runners) is int and meta.wait_runners >= 0:
+        return meta.wait_runners
     return None
 
 
@@ -132,9 +141,13 @@ def capacity_record_from_scan(
             "slot_requested_at": None if waiting is None else waiting.slot_requested_at,
             "queue_capacity": _record_queue_capacity(record),
             "queue_capacity_explicit": (
-                False
-                if waiting is None
-                else waiting.queue_capacity_explicit or waiting.wait_runners_explicit
+                waiting.queue_capacity_explicit or waiting.wait_runners_explicit
+                if waiting is not None
+                else (
+                    meta.queue_capacity_explicit or meta.wait_runners_explicit
+                    if meta is not None
+                    else False
+                )
             ),
             "wait_priority": _record_wait_priority(record),
             "eligible_since": None if waiting is None else waiting.eligible_since,

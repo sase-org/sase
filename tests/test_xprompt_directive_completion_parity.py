@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from unittest.mock import patch
 
@@ -17,6 +17,7 @@ from sase.feature_flags import override_flags
 from tests._xprompt_directive_completion_parity_helpers import _write_failing_helper
 from tests._xprompt_directive_completion_parity_lsp import (
     LspSession,
+    SurfaceRow,
     _surface_rows,
 )
 from tests._xprompt_directive_completion_parity_surface import (
@@ -35,6 +36,26 @@ def _typed_launch_units_off_by_default() -> Iterator[None]:
     """Keep ungated-contract assertions independent of host flag state."""
     with override_flags(typed_launch_units=False):
         yield
+
+
+def _surface_rows_for_name_parity(rows: Iterable[SurfaceRow]) -> list[SurfaceRow]:
+    """Ignore `%queue` name-row docs.
+
+    Argument and recipe rows are flag-aware on both surfaces. The LSP name
+    listing still reads the unflagged ``DIRECTIVES`` table for the `%queue`
+    description, so ACE (flag-aware) and LSP disagree on that one field.
+    """
+    normalized: list[SurfaceRow] = []
+    for row in _surface_rows(rows):
+        if row.label == "%queue":
+            row = SurfaceRow(
+                label=row.label,
+                insertion=row.insertion,
+                documentation="",
+                detail=row.detail,
+            )
+        normalized.append(row)
+    return normalized
 
 
 def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
@@ -56,7 +77,11 @@ def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
         lsp_rows = lsp.complete("%")
 
     assert {row.label for row in ace_rows} == set(expected_labels)
-    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert _surface_rows_for_name_parity(lsp_rows) == _surface_rows_for_name_parity(
+        ace_rows
+    )
+    queue = next(row for row in ace_rows if row.label == "%queue")
+    assert "capacity budget" in queue.documentation
     assert "%if" not in expected_labels
     assert "%proc" not in expected_labels
     assert "%dispatch" in expected_labels
@@ -88,7 +113,11 @@ def test_ace_and_lsp_include_queue_directive(
 
     ace_labels = {row.label for row in ace_rows}
     assert {"%queue", "%q:...", "%queue(capacity=..., priority=...)"} <= ace_labels
-    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert _surface_rows_for_name_parity(lsp_rows) == _surface_rows_for_name_parity(
+        ace_rows
+    )
+    queue = next(row for row in ace_rows if row.label == "%queue")
+    assert "capacity budget" in queue.documentation
 
 
 def test_ace_and_lsp_include_dispatch_directive(
@@ -156,9 +185,9 @@ def test_ace_and_lsp_directive_argument_rows_match(
 @pytest.mark.parametrize(
     ("text", "expected_insertions"),
     [
-        ("%queue(", ["capacity=", "p=", "priority=", "w=", "weight=", "0", "1"]),
-        ("%q(", ["capacity=", "p=", "priority=", "w=", "weight=", "0", "1"]),
-        ("%q:", ["0", "1"]),
+        ("%queue(", ["capacity=", "p=", "priority=", "w=", "weight=", "1", "100"]),
+        ("%q(", ["capacity=", "p=", "priority=", "w=", "weight=", "1", "100"]),
+        ("%q:", ["1", "100"]),
     ],
 )
 def test_ace_and_lsp_queue_argument_rows_match(
@@ -172,6 +201,18 @@ def test_ace_and_lsp_queue_argument_rows_match(
 
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
     assert [row.insertion for row in ace_rows] == expected_insertions
+
+
+def test_ace_and_lsp_queue_argument_rows_keep_zero_when_budget_off(
+    tmp_path: Path,
+) -> None:
+    with override_flags(queue_capacity_budget=False):
+        ace_rows = _ace_clause_rows("%q:")
+        with LspSession(tmp_path) as lsp:
+            lsp_rows = lsp.complete("%q:")
+
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert [row.insertion for row in ace_rows] == ["0", "1"]
 
 
 def test_wait_keywords_exclude_queue_fields(

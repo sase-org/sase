@@ -46,6 +46,7 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
     if isinstance(record, AgentUnitWire):
         agent_payload = asdict(record)
         agent_payload["kind"] = "agent"
+        agent_payload.pop("wait_runners", None)
         for key in (
             "identity",
             "clan",
@@ -59,7 +60,7 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
             "reasoning_effort",
             "bead_id",
             "auto_mode",
-            "wait_runners",
+            "queue_capacity",
             "wait_priority",
             "queue_weight",
             "workspace_provider",

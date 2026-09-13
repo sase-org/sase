@@ -146,9 +146,11 @@ class PromptDirectives:
         wait_beads: Ordered, deduplicated bead IDs from %wait(bead=...) keywords.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
-        wait_runners: Persisted spelling of the optional weighted-load
-            capacity threshold from ``%queue(capacity=...)``. Historical
-            launch/wait metadata keeps this storage name.
+        queue_capacity: Authored ``%queue(capacity=...)`` budget. Writers
+            persist this as ``queue_capacity``; ``wait_runners`` remains the
+            read alias at marker boundaries.
+        wait_runners: Legacy alias of ``queue_capacity`` kept for existing
+            launch/wait metadata readers.
         wait_priority: Runner-slot queue priority from the
             %queue(priority=...) keyword. Lower values start first.
         queue_weight: Runner-slot capacity weight from the %queue(weight=...)
@@ -202,6 +204,7 @@ class PromptDirectives:
     wait_beads: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
+    queue_capacity: int | None = None
     wait_runners: int | None = None
     wait_priority: int | None = None
     queue_weight: float | None = None
@@ -217,3 +220,7 @@ class PromptDirectives:
     def __post_init__(self) -> None:
         self.model_alias_overrides = MappingProxyType(dict(self.model_alias_overrides))
         self.proc_options = MappingProxyType(dict(self.proc_options))
+        if self.queue_capacity is None:
+            self.queue_capacity = self.wait_runners
+        if self.wait_runners is None:
+            self.wait_runners = self.queue_capacity

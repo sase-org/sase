@@ -10,7 +10,6 @@ from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from ._admission_ordering import normalize_wait_priority
 from ._admission_snapshot import runner_capacity_snapshot
 from ._admission_types import (
-    DEFAULT_QUEUE_WEIGHT,
     RecordLiveness,
     RunnerSlotWaiter,
     finite_positive_float,
@@ -88,33 +87,3 @@ def live_runner_slot_waiters(
         if isinstance(waiter, dict)
     ]
     return tuple(waiters)
-
-
-def may_start(
-    running_count: int,
-    threshold: int,
-    queue: Iterable[RunnerSlotWaiter],
-    me: str,
-) -> bool:
-    """Return whether *me* is the first currently eligible slot waiter."""
-    occupied_capacity = float(running_count)
-    admission_limit = float(threshold)
-    if occupied_capacity + DEFAULT_QUEUE_WEIGHT > admission_limit:
-        return False
-
-    first_eligible = next(
-        (
-            waiter
-            for waiter in queue
-            if occupied_capacity + waiter.requested_weight
-            <= (
-                admission_limit
-                if waiter.artifact_dir == me
-                else waiter.admission_limit
-                if waiter.admission_limit is not None
-                else float(waiter.threshold)
-            )
-        ),
-        None,
-    )
-    return first_eligible is None or first_eligible.artifact_dir == me

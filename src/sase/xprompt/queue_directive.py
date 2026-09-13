@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from importlib import import_module
 from typing import Any
 
 from sase.core.rust import require_rust_binding
@@ -195,6 +196,65 @@ def validate_queue_capacity(value: object) -> int:
     if capacity is None:
         raise ValueError("%queue(capacity=...) requires a positive integer.")
     return int(capacity)
+
+
+def resolve_authored_queue_capacity(
+    data: Mapping[str, Any],
+) -> tuple[int | None, bool]:
+    """Return canonical capacity and explicitness from mixed spellings.
+
+    Canonical ``queue_capacity`` wins when both spellings are present.
+    Omission, explicit false, and explicit zero stay distinguishable.
+    """
+    if "queue_capacity" in data:
+        raw = data.get("queue_capacity")
+        explicit = bool(data.get("queue_capacity_explicit"))
+    elif "wait_runners" in data:
+        raw = data.get("wait_runners")
+        explicit = bool(data.get("wait_runners_explicit"))
+    else:
+        return None, bool(
+            data.get("queue_capacity_explicit") or data.get("wait_runners_explicit")
+        )
+    if type(raw) is int and raw >= 0:
+        return raw, explicit
+    return None, explicit
+
+
+def reauthor_capacity_for_prefix(
+    capacity: int | None,
+    *,
+    explicit: bool,
+    weight: float | None = None,
+    budget_enabled: bool | None = None,
+) -> int | None:
+    """Return a capacity safe to put through the new-authored parser.
+
+    Persisted explicit zero with the budget flag on is an exact effective-weight
+    drain, not a value the On parser accepts. Implicit zero is "no authored
+    budget" and is omitted rather than reauthored as ``capacity=0``.
+    """
+    if capacity is None or not explicit:
+        return None
+    if budget_enabled is None:
+        budget_enabled = "queue_capacity_budget" in launch_feature_flag_keys()
+    effective_weight = 1.0 if weight is None else float(weight)
+    try:
+        binding = getattr(
+            import_module("sase_core_rs"),
+            "normalize_persisted_queue_capacity",
+            None,
+        )
+    except ImportError:
+        binding = None
+    if callable(binding):
+        payload = binding(capacity, explicit, effective_weight, 1.0, budget_enabled)
+        if isinstance(payload, dict) and "reauthor_capacity" in payload:
+            value = payload.get("reauthor_capacity")
+            return int(value) if type(value) is int else None
+    if budget_enabled and capacity == 0:
+        return None
+    return capacity
 
 
 def launch_feature_flag_keys() -> list[str]:

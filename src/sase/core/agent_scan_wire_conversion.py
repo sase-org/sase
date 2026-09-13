@@ -308,14 +308,13 @@ def _waiting_marker_from_dict(data: dict[str, Any]) -> WaitingMarkerWire:
 
 def _queue_capacity_alias_payload(data: dict[str, Any]) -> dict[str, Any]:
     payload = dict(data)
-    if "queue_capacity" not in payload and "wait_runners" in payload:
-        payload["queue_capacity"] = payload.get("wait_runners")
-    if "queue_capacity_explicit" not in payload and "wait_runners_explicit" in payload:
-        payload["queue_capacity_explicit"] = payload.get("wait_runners_explicit")
-    if "wait_runners" not in payload and "queue_capacity" in payload:
-        payload["wait_runners"] = payload.get("queue_capacity")
-    if "wait_runners_explicit" not in payload and "queue_capacity_explicit" in payload:
-        payload["wait_runners_explicit"] = payload.get("queue_capacity_explicit")
+    from sase.xprompt.queue_directive import resolve_authored_queue_capacity
+
+    capacity, explicit = resolve_authored_queue_capacity(payload)
+    payload["queue_capacity"] = capacity
+    payload["queue_capacity_explicit"] = explicit
+    payload["wait_runners"] = capacity
+    payload["wait_runners_explicit"] = explicit
     return payload
 
 

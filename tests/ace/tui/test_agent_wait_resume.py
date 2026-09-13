@@ -176,8 +176,8 @@ def test_apply_wait_updates_parked_runner_threshold_in_place(tmp_path: Path) -> 
     waiting = json.loads((tmp_path / "waiting.json").read_text(encoding="utf-8"))
     assert waiting["queue_capacity"] == 1
     assert waiting["queue_capacity_explicit"] is True
-    assert waiting["wait_runners"] == 1
-    assert waiting["wait_runners_explicit"] is True
+    assert "wait_runners" not in waiting
+    assert "wait_runners_explicit" not in waiting
     assert waiting["wait_priority"] == 20
     assert waiting["wait_priority_explicit"] is True
     assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"
@@ -300,7 +300,7 @@ def test_apply_wait_run_now_releases_parked_runner_slot(tmp_path: Path) -> None:
         assert "queue_capacity" not in waiting
         assert waiting["queue_capacity_explicit"] is False
         assert "wait_runners" not in waiting
-        assert waiting["wait_runners_explicit"] is False
+        assert "wait_runners_explicit" not in waiting
         assert "wait_priority" not in waiting
         assert waiting["wait_priority_explicit"] is False
         assert waiting["slot_requested_at"] == "2026-07-12T12:00:00Z"

@@ -285,6 +285,21 @@ def test_queue_capacity_completion_describes_limit() -> None:
 
     assert [candidate.insertion for candidate in candidates] == ["capacity="]
     assert directive_arg_metadata(candidates[0]).description == (
+        "This launch's capacity budget, replacing max_running_agents"
+    )
+
+
+def test_queue_capacity_completion_keeps_threshold_help_when_budget_off() -> None:
+    from sase.feature_flags import override_flags
+
+    text = "%queue(cap"
+    with override_flags(queue_capacity_budget=False):
+        clause = classify_directive_completion(text, len(text))
+        assert clause is not None
+        candidates, _ = build_directive_clause_candidates(clause)
+
+    assert [candidate.insertion for candidate in candidates] == ["capacity="]
+    assert directive_arg_metadata(candidates[0]).description == (
         "Start when occupied weighted load is at most this threshold"
     )
 
