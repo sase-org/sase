@@ -165,6 +165,23 @@ def test_validate_sase_core_rs_requires_link_location_bindings() -> None:
     )
 
 
+def test_validate_sase_core_rs_requires_continuation_resume_retention_bindings() -> (
+    None
+):
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "continuation_decide_resume_adoption",
+        "continuation_plan_retention",
+    }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    assert validator._validate_bindings(module_with_required_bindings(validator))
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
 def test_validate_sase_core_rs_requires_bead_action_bindings() -> None:
     validator = load_validate_sase_core_rs()
     bindings = {

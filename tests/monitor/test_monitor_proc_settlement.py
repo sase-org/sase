@@ -13,6 +13,10 @@ from sase.continuation_capture.rollout import (
 )
 from sase.monitor.followup import FollowupLaunchResult
 from sase.monitor.proc_adapter import settle_monitor_artifacts, settle_monitor_followup
+from sase.continuation_capture.rollout import (
+    MONITOR_CONTINUATION_PROTOCOL_FIELD,
+    MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1,
+)
 from sase.running_field import WorkspaceClaim
 
 from ._fixtures import make_starter_agent, write_project_file
@@ -45,6 +49,11 @@ def _make_proc_monitor(
         monitor_reason="test",
         monitor_stop_status="MONITORED",
         monitor_timeout_seconds=30.0,
+        **{
+            MONITOR_CONTINUATION_PROTOCOL_FIELD: (
+                MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1
+            )
+        },
         monitor_next_action=next_action,
         monitor_state="running",
         cl_name="acme",

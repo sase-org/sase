@@ -109,6 +109,8 @@ REQUIRED_BINDINGS = (
     "continuation_preview_conditional_completion",
     "continuation_bind_conditional_completion",
     "continuation_rollback_conditional_completion_binding",
+    "continuation_decide_resume_adoption",
+    "continuation_plan_retention",
     "skill_reference_name",
     "is_agent_name_template",
     "parse_agent_name_template",
@@ -1638,8 +1640,7 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
         snapshot = module.runner_capacity_snapshot(request)
     except Exception as exc:
         _error(
-            "candidate_decision(...) is unsupported by runner_capacity_snapshot: "
-            f"{exc}"
+            f"candidate_decision(...) is unsupported by runner_capacity_snapshot: {exc}"
         )
         return False
 
@@ -1659,7 +1660,9 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
 
     decision = snapshot.get("candidate_decision")
     if not isinstance(decision, dict):
-        _error("candidate_decision(...) is missing from the runner_capacity_snapshot response")
+        _error(
+            "candidate_decision(...) is missing from the runner_capacity_snapshot response"
+        )
         return False
     if decision.get("decision") != "reuse_existing_claim":
         _error(
@@ -1767,7 +1770,9 @@ def _validate_capacity_only_scan_contract(module: ModuleType) -> bool:
             return False
 
     if not isinstance(snapshot, dict):
-        _error("scan_agent_artifacts(capacity_only=True) probe returned a non-dict payload")
+        _error(
+            "scan_agent_artifacts(capacity_only=True) probe returned a non-dict payload"
+        )
         return False
     records = [
         record
@@ -1783,7 +1788,9 @@ def _validate_capacity_only_scan_contract(module: ModuleType) -> bool:
 
     agent_meta = records[0].get("agent_meta")
     if not isinstance(agent_meta, dict):
-        _error("scan_agent_artifacts(capacity_only=True) probe record has no agent_meta dict")
+        _error(
+            "scan_agent_artifacts(capacity_only=True) probe record has no agent_meta dict"
+        )
         return False
     if agent_meta.get("runner_claim_owner_key") != f"probe:fam:parallel:{timestamp}":
         _error(
@@ -1885,8 +1892,8 @@ def _validate_weighted_fleet_summary_contract(module: ModuleType) -> bool:
     so only a behavioral probe can see the gap.
     """
     request = _fleet_weight_summary_probe_request(2.0)
-    request["owner_facts"]["row_revision"]["logical_key"] = module.fleet_logical_locator_key(
-        request["logical_locator"]
+    request["owner_facts"]["row_revision"]["logical_key"] = (
+        module.fleet_logical_locator_key(request["logical_locator"])
     )
     try:
         summary = module.fleet_project_resolved_agent_summary(request)
@@ -1894,7 +1901,9 @@ def _validate_weighted_fleet_summary_contract(module: ModuleType) -> bool:
         _error(f"fleet_project_resolved_agent_summary() probe failed: {exc}")
         return False
     if not isinstance(summary, dict):
-        _error("fleet_project_resolved_agent_summary() probe returned a non-dict payload")
+        _error(
+            "fleet_project_resolved_agent_summary() probe returned a non-dict payload"
+        )
         return False
     try:
         queue_weight = float(summary.get("queue_weight", -1))

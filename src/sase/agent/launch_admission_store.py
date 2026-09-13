@@ -104,6 +104,9 @@ def write_unit_receipt(
         "identity": identity,
     }
     if unit is not None and isinstance(unit.payload, AgentUnitWire):
+        if unit.payload.queue_capacity is not None:
+            payload["queue_capacity"] = unit.payload.queue_capacity
+            payload["queue_capacity_explicit"] = True
         if unit.payload.queue_weight is not None:
             payload["queue_weight"] = unit.payload.queue_weight
         payload["queue_weight_explicit"] = unit.payload.queue_weight_explicit
