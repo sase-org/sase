@@ -220,12 +220,45 @@ def _resolve_auto_gate(
     fingerprint: str,
 ) -> GateCreationResult:
     selected_option_ids = adapter.resolve_auto_selection(spec, spec.auto.argument)
+
+    gate_shell = None
+    if spec.shell is not None:
+        from sase.gate_shell.store import find_gate_shell_by_gate_id
+
+        gate_shell = find_gate_shell_by_gate_id(None, paths.root.name)
+
+    execution_kwargs: dict[str, Any] = {}
+    if gate_shell is not None:
+        from sase.gate_shell.log import bind_gate_shell_execution_callbacks
+
+        execution_kwargs = bind_gate_shell_execution_callbacks(
+            gate_shell.artifacts_dir
+        ).as_kwargs()
+
     execution = execute_gate_selection(
         paths.root,
         selected_option_ids,
         adapter.automatic_input(spec),
         source="auto_resolution",
+        **execution_kwargs,
     )
+
+    if gate_shell is not None:
+        from sase.gate_shell.settlement import settle_gate_shell
+
+        # `creator_live=True`: creation-time auto-resolution always runs
+        # inline in the creating agent's own process/turn, which already
+        # owns the lane and workspace (and, via `prev_artifacts_timestamp`
+        # pointing at that same creator, the family's runner-slot claim) --
+        # never a separate answering process. No follow-up may launch and
+        # no claim may be disposed of here.
+        settle_gate_shell(
+            gate_shell,
+            gate_state="answered",
+            reason="gate resolved automatically",
+            creator_live=True,
+        )
+
     result = _creation_result(
         spec,
         adapter,

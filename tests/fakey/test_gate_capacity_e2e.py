@@ -24,6 +24,8 @@ from sase.main.parser_gate import register_gate_parser
 import sase.notification_gates.cli_answer as gate_cli_answer_module
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.model_shell import GateShellSpec
+from sase.notification_gates.paths import bundle_paths
+from sase.notification_gates.registry import adapter_for_kind
 from sase.notification_gates.service import create_gate
 
 from tests.fakey._runner_slot_harness import (
@@ -124,6 +126,137 @@ def _make_blocking_gate(
 
     update_meta_field(artifacts_dir, "gate_bundle_path", str(gate.bundle_path))
     return gate.bundle_path, artifacts_dir
+
+
+def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_double_charge(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A creation-time ``%auto``-resolved shell-backed gate (production's
+    plan/epic ``%auto`` and question auto-approve routes) runs its real
+    command under the creator's own already-held claim -- reused, not
+    doubly acquired -- and settles the gate shell for real (pid, gate.log,
+    terminal state) even though auto-resolution runs inline inside the
+    creator's own process/turn, never a separate answering process.
+
+    At cap 1 the creator's own 1.0 claim leaves no free capacity; if
+    auto-resolution acquired a second, independent claim instead of riding
+    the creator's existing one (the historical gap this test closes), it
+    would block forever waiting for capacity that can never free while the
+    still-live creator waits on it.
+    """
+    harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
+    creator = harness.create_agent(
+        0, name="creator", queue_weight=1.0, queue_weight_explicit=True
+    )
+    harness.start(creator)
+    harness.wait_started(creator)
+    creator_owner_key = harness.agent_meta(creator)["runner_claim_owner_key"]
+
+    marker = harness.root / "signals" / "auto.ran"
+    shell_block: dict[str, object] = {
+        "pending_status": "GATE",
+        "settled_status": "GATED",
+    }
+    spec_dict: dict[str, object] = {
+        "schema_version": 3,
+        "request_id": "auto-1",
+        "kind": "custom",
+        "producer": {"agent": "test"},
+        "payload": {},
+        "presentation": {
+            "icon": "🧪",
+            "title": "Auto-resolved capacity acceptance",
+            "notes": ["Exercise real runner-slot capacity reuse for %auto."],
+        },
+        "query": "run",
+        "primary_branch": ["run"],
+        "options": [
+            {"id": "run", "label": "Run", "command": {"argv": ["commands/run"]}}
+        ],
+        "resources": [
+            {
+                "path": "commands/run",
+                "role": "command",
+                "content": (
+                    "#!/usr/bin/env python3\n"
+                    "import json, pathlib, sys\n"
+                    "json.load(sys.stdin)\n"
+                    f"pathlib.Path({str(marker)!r}).write_text('1')\n"
+                    "print(json.dumps({'status': 'ok'}))\n"
+                ),
+            }
+        ],
+        "shell": shell_block,
+        "auto": {"enabled": True},
+    }
+
+    # Production's real `create_gate_shell` orchestration creates the
+    # pending gate-shell member -- inheriting the creator's own weight and
+    # `runner_claim_owner_key` -- before ever calling `create_gate`, since
+    # `%auto` resolves synchronously inside that same call.
+    parsed_shell = GateShellSpec.from_mapping(shell_block, branches=(("run",),))
+    gate_dir = create_gate_shell_member(
+        _MONITOR_PROJECT,
+        {
+            "name": "auto--gate",
+            "agent_family": "auto",
+            "model": "test",
+            "queue_weight": 1.0,
+            "queue_weight_explicit": True,
+            "runner_claim_owner_key": creator_owner_key,
+        },
+        lane="auto",
+        suffix="--gate",
+        prev_artifacts_timestamp=creator.artifacts_dir.name,
+        workspace_num=None,
+        gate_id="auto-1",
+        gate_kind="custom",
+        label="Auto-resolved capacity acceptance",
+        reason="auto-approve",
+        creator_agent="creator",
+        timeout_seconds=86_400.0,
+        request_fingerprint=None,
+        shell=parsed_shell,
+    )
+
+    # The registered "custom" adapter forbids auto-resolution entirely
+    # (`auto_policy="forbidden"`), an orthogonal per-kind policy this test
+    # has no interest in; production's only auto-capable kinds (plan,
+    # epic_plan, question) each demand their own exact registered command
+    # script, which would make this a heavy, unrelated fixture. A
+    # locally-built adapter with the same shape as the "question" kind's
+    # (`auto_policy="first"`, just picks `primary_branch`) isolates the
+    # capacity behavior under test through the same private
+    # `_start_gate_creation` -> `_resolve_auto_gate` path every kind shares.
+    import sase.notification_gates.service as gate_service_module
+    from sase.notification_gates.adapters import GateAdapter
+    from sase.notification_gates.models import GateSpec
+
+    custom_adapter = adapter_for_kind("custom")
+    auto_capable_adapter = GateAdapter(
+        **{**custom_adapter.__dict__, "auto_policy": "first"}
+    )
+    spec = GateSpec.from_mapping(spec_dict)
+    paths = bundle_paths(auto_capable_adapter.kind, spec.request_id or "auto-1")
+    gate = gate_service_module._start_gate_creation(spec, auto_capable_adapter, paths)
+    from sase.axe.run_agent_helpers_artifacts import update_meta_field
+
+    update_meta_field(gate_dir, "gate_bundle_path", str(gate.bundle_path))
+
+    assert marker.exists()
+    gate_meta = json.loads((Path(gate_dir) / "agent_meta.json").read_text())
+    assert gate_meta["gate_state"] == "answered"
+    assert gate_meta["runner_claim_owner_key"] == creator_owner_key
+    assert isinstance(gate_meta.get("pid"), int)
+    gate_log = (Path(gate_dir) / "gate.log").read_text()
+    assert "commands/run" in gate_log
+
+    # The creator's own claim is exactly what the gate shell rode -- never
+    # touched or duplicated.
+    assert harness.agent_meta(creator)["runner_claim_owner_key"] == creator_owner_key
+    harness.release_agent(creator)
+    harness.join(creator)
 
 
 def test_pending_gate_shell_holds_zero_runner_slot_capacity(
