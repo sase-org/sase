@@ -489,8 +489,12 @@ range cannot be combined with `--all-lines`.
 eligible requested follow-up without rerunning the monitored command. Repeating a
 successful resume returns the same acknowledged successor. Supplying `-k/--checkpoint`
 or `-m/--model` creates an immutable manual-recovery branch only when the original
-delivery was not already acknowledged; ineligible monitors print the precise eligible
-resume command when one exists.
+delivery was not already acknowledged. Concurrent receiver adoption is revalidated under
+the delivery lock before any undelivered branch is fenced, so an acknowledged delivery
+is never overwritten. A dispatching branch whose launch receipts or process identity
+cannot prove the receiver uninvoked is recorded as `needs_attention` instead of spawning
+another successor. Ineligible monitors print the precise eligible resume command when
+one exists.
 
 Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
 ACE Agents tab refresh path, and the axe scheduler look for running monitor shells whose

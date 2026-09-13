@@ -439,6 +439,39 @@ def test_illegal_skip_of_dispatching_is_rejected() -> None:
         transition_delivery(reserved, "acknowledged", acknowledged_by="acme--1")
 
 
+def test_resume_adoption_decision_preserves_acknowledged_records() -> None:
+    from sase.core.continuation_facade import decide_resume_adoption
+    from sase.monitor.delivery import new_delivery_record, transition_delivery
+
+    record = new_delivery_record(
+        {"monitor_id": "monitor-1", "result_id": "result-1", "branch": "failed"},
+        selected_action="continue",
+    )
+    reserved = transition_delivery(record, "reserved", reserved_identity="acme--1")
+    dispatching = transition_delivery(reserved, "dispatching")
+    acknowledged = transition_delivery(
+        dispatching, "acknowledged", acknowledged_by="acme--1"
+    )
+    decision = decide_resume_adoption(
+        {
+            "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+            "records": [acknowledged],
+            "request": {
+                "kind": "manual_revision",
+                "monitor_id": "monitor-1",
+                "result_id": "result-1",
+                "next_manual_branch": "manual-recovery-1",
+            },
+            "receiver_proofs": [],
+            "recorded_at": "2026-09-13T00:00:00Z",
+        }
+    )
+    assert decision["outcome"] == "already_delivered"
+    assert decision["admit"] is False
+    assert decision["preserve_keys"] == [acknowledged["key"]]
+    assert decision["fence_keys"] == []
+
+
 def test_schema_version_used_by_transition_request() -> None:
     payload = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,

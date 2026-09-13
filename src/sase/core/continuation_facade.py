@@ -116,6 +116,16 @@ def transition_continuation_delivery(request: JsonMapping) -> JsonObject:
     )
 
 
+def decide_resume_adoption(request: JsonMapping) -> JsonObject:
+    """Decide whether resume may fence undelivered branches and admit."""
+
+    binding = require_rust_binding("continuation_decide_resume_adoption")
+    return _json_object(
+        binding(continuation_wire_to_json_dict(request)),
+        "continuation_decide_resume_adoption",
+    )
+
+
 def plan_continuation_replay(
     request: ContinuationReplayPlanRequestWire | JsonMapping,
 ) -> JsonObject:
@@ -294,6 +304,7 @@ __all__ = [
     "CONTINUATION_WIRE_SCHEMA_VERSION",
     "bind_conditional_completion",
     "consume_conditional_completion",
+    "decide_resume_adoption",
     "evaluate_conditional_completion",
     "freeze_continuation_policy",
     "invalidate_conditional_completion",

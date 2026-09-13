@@ -2,21 +2,38 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
+import threading
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
 import sase.monitor.followup as followup_module
 import sase.monitor.outcome_policy as outcome_policy_module
+import sase.monitor.resume as resume_module
 import sase.procs.spawn as spawn_module
 from sase.agent._family_attach_types import FamilyAttachLaunchPlan
 from sase.agent.launch_types import AgentLaunchResult
 from sase.continuation_capture._storage import continuation_root, sha_json
-from sase.monitor.continuation_delivery import claim_ordinary_continuation_dispatch
-from sase.monitor.delivery import delivery_key, load_delivery_record
+from sase.llm_provider.types import InvokeResult
+from sase.monitor.continuation_delivery import (
+    DELIVERY_ARTIFACTS_ENV,
+    DELIVERY_CRASH_ENV,
+    DELIVERY_IDENTITY_ENV,
+    DELIVERY_KEY_ENV,
+    _InjectedDeliveryCrash,
+    adopt_ordinary_continuation_delivery,
+    claim_ordinary_continuation_dispatch,
+)
+from sase.monitor.delivery import (
+    delivery_key,
+    load_delivery_record,
+    update_delivery_workspace,
+)
 from sase.monitor.models import MonitorRecord
 from sase.monitor.resume import MonitorResumeError, resume_monitor
 from sase.monitor.result_projection import build_monitor_result_wire
@@ -227,7 +244,7 @@ def test_resume_uses_the_frozen_result_delivery_key(
     assert on_disk["monitor_followup_outcome"] == "launched"
 
 
-def test_resume_recovers_dispatching_record_without_confirmed_receiver(
+def test_resume_does_not_retry_dispatching_record_without_uninvoked_proof(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -248,13 +265,14 @@ def test_resume_recovers_dispatching_record_without_confirmed_receiver(
 
     result = resume_monitor(record)
 
-    assert result.spawned is True
+    assert result.spawned is False
     assert result.agent_name == "acme--1"
-    assert len(captured) == 1
+    assert result.ownership_outcome == "existing_receiver"
+    assert captured == []
     payload = load_delivery_record(monitor_dir, claim.key)
     assert payload is not None
-    statuses = [attempt["status"] for attempt in payload["attempt_history"]]
-    assert statuses[-2:] == ["reserved", "dispatching"]
+    assert payload["disposition"] == "dispatching"
+    assert payload["reserved_identity"] == "acme--1"
 
 
 def test_checkpoint_resume_creates_numbered_manual_branch_and_supersedes_base(
@@ -323,4 +341,276 @@ def test_resume_rejects_fire_and_forget_monitor(
     record = MonitorRecord.from_record(record_from_disk(monitor_dir))
 
     with pytest.raises(MonitorResumeError, match="fire-and-forget"):
+        resume_monitor(record)
+
+
+def test_checkpoint_resume_preserves_concurrent_acknowledgment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir, record, meta = _terminal_monitor(tmp_path, monkeypatch)
+    claim = claim_ordinary_continuation_dispatch(
+        monitor_dir,
+        monitor_id=record.monitor_id,
+        result_id=meta["continuation_monitor_result_id"],
+        branch="failed",
+        selected_action="continue",
+        reserved_identity="acme--1",
+    )
+    monkeypatch.setenv(DELIVERY_ARTIFACTS_ENV, monitor_dir)
+    monkeypatch.setenv(DELIVERY_KEY_ENV, json.dumps(claim.key, sort_keys=True))
+    monkeypatch.setenv(DELIVERY_IDENTITY_ENV, "acme--1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme--1")
+    original = resume_module.apply_resume_adoption
+
+    def adopt_then_apply(*args: Any, **kwargs: Any) -> Any:
+        adopted = adopt_ordinary_continuation_delivery()
+        assert adopted is not None
+        assert adopted["disposition"] == "acknowledged"
+        assert adopted["acknowledged_by"] == "acme--1"
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(resume_module, "apply_resume_adoption", adopt_then_apply)
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+    checkpoint = tmp_path / "checkpoint.yml"
+    checkpoint.write_text(
+        "objective: recover safely\ncoverage: [abc]\n", encoding="utf-8"
+    )
+
+    with pytest.raises(MonitorResumeError, match="already been acknowledged"):
+        resume_monitor(record, checkpoint_path=str(checkpoint), model="codex/gpt-5")
+
+    old = load_delivery_record(monitor_dir, claim.key)
+    assert old is not None
+    assert old["disposition"] == "acknowledged"
+    assert old["acknowledged_by"] == "acme--1"
+    assert captured == []
+
+
+def test_resume_refuses_stale_receiver_without_live_process(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir, record, meta = _terminal_monitor(tmp_path, monkeypatch)
+    claim = claim_ordinary_continuation_dispatch(
+        monitor_dir,
+        monitor_id=record.monitor_id,
+        result_id=meta["continuation_monitor_result_id"],
+        branch="failed",
+        selected_action="continue",
+        reserved_identity="acme--1",
+    )
+    update_delivery_workspace(monitor_dir, claim.key, workspace_identity=str(tmp_path))
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+
+    with pytest.raises(MonitorResumeError, match="ambiguous"):
+        resume_monitor(record)
+
+    payload = load_delivery_record(monitor_dir, claim.key)
+    assert payload is not None
+    assert payload["disposition"] == "needs_attention"
+    assert payload.get("acknowledged_by") in {None, "acme--1"}
+    assert captured == []
+
+
+def test_concurrent_identical_checkpoint_resume_spawns_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _monitor_dir, record, _meta = _terminal_monitor(tmp_path, monkeypatch)
+    checkpoint = tmp_path / "checkpoint.yml"
+    checkpoint.write_text(
+        "objective: recover safely\ncoverage: [abc]\n", encoding="utf-8"
+    )
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+    started = threading.Barrier(2)
+    results: list[Any] = []
+    errors: list[BaseException] = []
+
+    def worker() -> None:
+        started.wait(timeout=5)
+        try:
+            results.append(
+                resume_monitor(
+                    record, checkpoint_path=str(checkpoint), model="codex/gpt-5"
+                )
+            )
+        except BaseException as exc:  # noqa: BLE001
+            errors.append(exc)
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert len(captured) == 1
+    assert results
+    assert all(item.launched for item in results)
+    assert {item.branch for item in results} <= {"manual-recovery-1"}
+    assert all(
+        isinstance(exc, MonitorResumeError) and exc.code == "ambiguous_receiver"
+        for exc in errors
+    )
+
+
+def test_repeat_resume_after_acknowledgment_does_not_spawn(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir, record, meta = _terminal_monitor(tmp_path, monkeypatch)
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+    first = resume_monitor(record)
+    assert first.spawned is True
+    monkeypatch.setenv(DELIVERY_ARTIFACTS_ENV, monitor_dir)
+    monkeypatch.setenv(
+        DELIVERY_KEY_ENV,
+        json.dumps(
+            {
+                "monitor_id": record.monitor_id,
+                "result_id": meta["continuation_monitor_result_id"],
+                "branch": "failed",
+            },
+            sort_keys=True,
+        ),
+    )
+    monkeypatch.setenv(DELIVERY_IDENTITY_ENV, "acme--1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme--1")
+    adopted = adopt_ordinary_continuation_delivery()
+    assert adopted is not None
+    assert adopted["disposition"] == "acknowledged"
+
+    second = resume_monitor(record)
+
+    assert second.spawned is False
+    assert second.ownership_outcome == "already_delivered"
+    assert len(captured) == 1
+    payload = load_delivery_record(monitor_dir, adopted["key"])
+    assert payload is not None
+    assert payload["disposition"] == "acknowledged"
+    assert payload["acknowledged_by"] == "acme--1"
+
+
+def test_resume_then_adopt_invokes_provider_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.llm_provider._invoke import invoke_agent
+
+    monitor_dir, record, meta = _terminal_monitor(tmp_path, monkeypatch)
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+    launched = resume_monitor(record)
+    assert launched.spawned is True
+    assert len(captured) == 1
+    child = tmp_path / "child"
+    child.mkdir()
+    (child / "agent_meta.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv(DELIVERY_ARTIFACTS_ENV, monitor_dir)
+    monkeypatch.setenv(
+        DELIVERY_KEY_ENV,
+        json.dumps(
+            {
+                "monitor_id": record.monitor_id,
+                "result_id": meta["continuation_monitor_result_id"],
+                "branch": "failed",
+            },
+            sort_keys=True,
+        ),
+    )
+    monkeypatch.setenv(DELIVERY_IDENTITY_ENV, "acme--1")
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme--1")
+    provider = MagicMock()
+    provider.invoke.return_value = InvokeResult(content="ok")
+    provider.resolve_model_name.return_value = "fake-model"
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            "sase.llm_provider._invoke.get_provider", lambda *a, **k: provider
+        )
+        patch.setattr("sase.llm_provider._invoke.postprocess_success", lambda **k: None)
+        invoke_agent(
+            "continue the work",
+            agent_type="agent",
+            artifacts_dir=str(child),
+            provider_name="fakey",
+            suppress_output=True,
+            skip_preprocessing=True,
+        )
+
+    provider.invoke.assert_called_once()
+    repeat = resume_monitor(record)
+    assert repeat.spawned is False
+    assert len(captured) == 1
+    provider.invoke.assert_called_once()
+
+
+def test_crash_after_fence_keeps_acknowledged_branch_intact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir, record, meta = _terminal_monitor(tmp_path, monkeypatch)
+    base_key = delivery_key(
+        monitor_id=record.monitor_id,
+        result_id=meta["continuation_monitor_result_id"],
+        branch="failed",
+    )
+    claim_ordinary_continuation_dispatch(
+        monitor_dir,
+        monitor_id=record.monitor_id,
+        result_id=meta["continuation_monitor_result_id"],
+        branch="failed",
+        selected_action="continue",
+        reserved_identity="acme--1",
+    )
+    checkpoint = tmp_path / "checkpoint.yml"
+    checkpoint.write_text(
+        "objective: recover safely\ncoverage: [abc]\n", encoding="utf-8"
+    )
+    monkeypatch.setenv(DELIVERY_CRASH_ENV, "after_resume_fence")
+
+    with pytest.raises(_InjectedDeliveryCrash, match="after_resume_fence"):
+        resume_monitor(record, checkpoint_path=str(checkpoint), model="codex/gpt-5")
+
+    old = load_delivery_record(monitor_dir, base_key)
+    assert old is not None
+    assert old["disposition"] == "needs_attention"
+    monkeypatch.delenv(DELIVERY_CRASH_ENV, raising=False)
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+    result = resume_monitor(
+        record, checkpoint_path=str(checkpoint), model="codex/gpt-5"
+    )
+    assert result.spawned is True
+    assert result.branch == "manual-recovery-1"
+    assert len(captured) == 1
+    old = load_delivery_record(monitor_dir, base_key)
+    assert old is not None
+    assert old["disposition"] == "needs_attention"
+
+
+def test_resume_rejects_stopped_monitor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _monitor_dir, record, _meta = _terminal_monitor(tmp_path, monkeypatch)
+    record = replace(record, monitor_state="stopped")
+
+    with pytest.raises(MonitorResumeError, match="inspection-only"):
         resume_monitor(record)

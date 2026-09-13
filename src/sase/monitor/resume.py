@@ -23,17 +23,23 @@ from sase.continuation_capture import (
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.continuation_wire import CONTINUATION_WIRE_SCHEMA_VERSION
 from sase.finalizers.declaration_store import write_json_atomic
 from sase.shells.settlement import stamp_shell_finished_at
 from sase.workflows.utils import get_project_file_path
 
+from .continuation_delivery import maybe_crash
 from .delivery import (
+    MANUAL_SUPERSEDE_REASON_PREFIX,
+    decide_resume_adoption,
     delivery_store_lock,
     load_delivery_record,
     load_delivery_records,
     persist_delivery_record,
     transition_delivery,
+    write_delivery_record_locked,
 )
+from .identity import supervisor_is_alive
 from .diagnostics import diagnostic_manifest, retained_log_metadata
 from .followup import (
     FollowupLaunchResult,
@@ -110,8 +116,36 @@ def resume_monitor(
         monitor_id=monitor_id,
         result_id=result_id,
     )
-    delivered = _first_record(existing, _DELIVERED_STATES)
-    if delivered is not None:
+    proofs = _collect_receiver_proofs(record, existing)
+    manual_revision = checkpoint is not None or model is not None
+    decision, reused, checkpoint_ref = apply_resume_adoption(
+        record,
+        meta,
+        monitor_id=monitor_id,
+        result_id=result_id,
+        kind="manual_revision" if manual_revision else "ordinary",
+        requested_branch=base_branch,
+        checkpoint=checkpoint,
+        selected_model=selected_model,
+        next_action=str(meta.get("monitor_next_action") or ""),
+        proofs=proofs,
+    )
+    branch = str(decision.get("selected_branch") or base_branch)
+    outcome = str(decision.get("outcome") or "")
+    if outcome == "already_delivered":
+        delivered = load_delivery_record(
+            record.artifacts_dir,
+            {"monitor_id": monitor_id, "result_id": result_id, "branch": branch},
+        ) or _first_record(existing, _DELIVERED_STATES)
+        if delivered is None:
+            delivered = {
+                "key": {
+                    "monitor_id": monitor_id,
+                    "result_id": result_id,
+                    "branch": branch,
+                },
+                "disposition": "acknowledged",
+            }
         if checkpoint is not None or model is not None:
             raise MonitorResumeError(
                 "monitor continuation has already been acknowledged; checkpoint "
@@ -119,70 +153,47 @@ def resume_monitor(
                 suggested_command=None,
                 code="already_delivered",
             )
-        return _existing_delivery_result(record, delivered, outcome="already_delivered")
-
-    manual_revision = checkpoint is not None or model is not None
-    if manual_revision:
-        branch, reused = _allocate_manual_branch(
-            record.artifacts_dir,
-            monitor_id=monitor_id,
-            result_id=result_id,
-            checkpoint=checkpoint,
-            selected_model=selected_model,
-            next_action=str(meta.get("monitor_next_action") or ""),
-        )
-        _supersede_active_records(
-            record.artifacts_dir,
-            existing,
-            branch=branch,
-        )
-        checkpoint_ref = _persist_manual_intent_revision(
+        return _existing_delivery_result(
             record,
-            meta,
+            delivered,
+            outcome="already_delivered",
+            manual_revision=manual_revision,
+            reused_revision=reused,
+        )
+    if outcome == "existing_receiver":
+        active_record = load_delivery_record(
+            record.artifacts_dir,
+            {"monitor_id": monitor_id, "result_id": result_id, "branch": branch},
+        )
+        receiver = _delivery_identity(active_record)
+        if receiver is not None:
+            _record_successful_resume(record, meta, receiver)
+        return MonitorResumeResult(
+            monitor_id=monitor_id,
             branch=branch,
-            checkpoint=checkpoint,
-            selected_model=selected_model,
+            agent_name=receiver,
+            delivery_disposition=str((active_record or {}).get("disposition") or "")
+            or None,
+            launched=True,
+            spawned=False,
+            manual_revision=manual_revision,
+            reused_revision=reused,
+            ownership_outcome="existing_receiver",
+            message=(
+                f"Monitor {short_monitor_id(monitor_id)} already handed off to "
+                f"{receiver}."
+                if receiver
+                else f"Monitor {short_monitor_id(monitor_id)} already has a receiver."
+            ),
         )
-    else:
-        active = _first_record(existing, _ACTIVE_DELIVERY_STATES)
-        branch = (
-            str((active or {}).get("key", {}).get("branch") or "")
-            if active is not None
-            else base_branch
+    if outcome == "needs_attention" or not decision.get("admit"):
+        reason = str(decision.get("reason") or "receiver ownership is ambiguous")
+        raise MonitorResumeError(
+            f"{reason}; retry with `{_suggested_command(record)}` after inspecting "
+            "the existing delivery",
+            suggested_command=_suggested_command(record),
+            code="ambiguous_receiver",
         )
-        reused = False
-        checkpoint_ref = None
-
-    active_record = load_delivery_record(
-        record.artifacts_dir,
-        {"monitor_id": monitor_id, "result_id": result_id, "branch": branch},
-    )
-    if active_record is not None:
-        disposition = str(active_record.get("disposition") or "")
-        if disposition in _DELIVERED_STATES:
-            return _existing_delivery_result(
-                record,
-                active_record,
-                outcome="already_delivered",
-                manual_revision=manual_revision,
-                reused_revision=reused,
-            )
-        if disposition == "dispatching":
-            receiver = _confirmed_receiver(record.project_name, active_record)
-            if receiver is not None:
-                _record_successful_resume(record, meta, receiver)
-                return MonitorResumeResult(
-                    monitor_id=monitor_id,
-                    branch=branch,
-                    agent_name=receiver,
-                    delivery_disposition=disposition,
-                    launched=True,
-                    spawned=False,
-                    manual_revision=manual_revision,
-                    reused_revision=reused,
-                    ownership_outcome="existing_receiver",
-                    message=f"Monitor {short_monitor_id(monitor_id)} already handed off to {receiver}.",
-                )
 
     launch = _launch_resume(
         record,
@@ -190,9 +201,8 @@ def resume_monitor(
         branch=branch,
         selected_model=selected_model if model is not None else None,
         checkpoint_ref=checkpoint_ref,
-        retryable_pre_dispatch_failure=(
-            active_record is not None
-            and str(active_record.get("disposition") or "") == "dispatching"
+        retryable_pre_dispatch_failure=bool(
+            decision.get("retryable_pre_dispatch_failure")
         ),
     )
     if not launch.launched:
@@ -486,28 +496,126 @@ def _mark_delivery_needs_attention(
         return
 
 
-def _supersede_active_records(
-    artifacts_dir: str,
-    records: list[dict[str, Any]],
+def apply_resume_adoption(
+    record: MonitorRecord,
+    meta: dict[str, Any],
     *,
-    branch: str,
-) -> None:
-    for record in records:
-        disposition = str(record.get("disposition") or "")
-        if disposition not in _ACTIVE_DELIVERY_STATES:
-            continue
-        raw_key = record.get("key")
-        key = raw_key if isinstance(raw_key, Mapping) else {}
-        if key.get("branch") == branch:
-            continue
-        persist_delivery_record(
-            artifacts_dir,
-            transition_delivery(
-                record,
-                "needs_attention",
-                reason=f"superseded by manual resume branch {branch}",
-            ),
+    monitor_id: str,
+    result_id: str,
+    kind: str,
+    requested_branch: str,
+    checkpoint: AuthoredCheckpoint | None,
+    selected_model: str | None,
+    next_action: str,
+    proofs: list[dict[str, Any]],
+) -> tuple[dict[str, Any], bool, str | None]:
+    """Reload current deliveries, decide, fence, and allocate under one lock.
+
+    Spawn, provider invocation, and process waits stay outside this
+    transaction. Receiver proofs are collected before the lock is taken.
+    Intent revision persistence for a newly admitted manual branch stays
+    inside the lock so concurrent identical revisions cannot publish
+    conflicting checkpoint files.
+    """
+
+    artifacts_dir = record.artifacts_dir
+    with delivery_store_lock(artifacts_dir):
+        current = [
+            item
+            for item in load_delivery_records(
+                artifacts_dir,
+                monitor_id=monitor_id,
+                result_id=result_id,
+            )
+            if item.get("selected_action") == "continue"
+        ]
+        maybe_crash("before_resume_decision")
+        reused = False
+        existing_manual: str | None = None
+        next_manual: str | None = None
+        fingerprint: str | None = None
+        if kind == "manual_revision":
+            existing_manual, next_manual, reused, fingerprint = (
+                _plan_manual_branch_unlocked(
+                    artifacts_dir,
+                    monitor_id=monitor_id,
+                    result_id=result_id,
+                    checkpoint=checkpoint,
+                    selected_model=selected_model,
+                    next_action=next_action,
+                )
+            )
+        decision = decide_resume_adoption(
+            {
+                "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
+                "records": current,
+                "request": {
+                    "kind": kind,
+                    "monitor_id": monitor_id,
+                    "result_id": result_id,
+                    "requested_branch": requested_branch,
+                    "revision_fingerprint": fingerprint,
+                    "existing_manual_branch": existing_manual,
+                    "next_manual_branch": next_manual,
+                },
+                "receiver_proofs": proofs,
+                "recorded_at": _utc_now_iso(),
+            }
         )
+        branch = str(decision.get("selected_branch") or requested_branch)
+        reason = f"{MANUAL_SUPERSEDE_REASON_PREFIX} branch {branch}"
+        for key in decision.get("fence_keys") or []:
+            if not isinstance(key, Mapping):
+                continue
+            current_record = load_delivery_record(artifacts_dir, key)
+            if current_record is None:
+                continue
+            updated = transition_delivery(
+                current_record,
+                "needs_attention",
+                reason=reason,
+            )
+            write_delivery_record_locked(artifacts_dir, updated)
+        maybe_crash("after_resume_fence")
+        if (
+            kind == "manual_revision"
+            and decision.get("admit")
+            and next_manual
+            and not reused
+            and branch == next_manual
+            and fingerprint is not None
+        ):
+            _write_manual_branch_unlocked(
+                artifacts_dir,
+                monitor_id=monitor_id,
+                result_id=result_id,
+                branch=next_manual,
+                fingerprint=fingerprint,
+                checkpoint=checkpoint,
+                selected_model=selected_model,
+            )
+        checkpoint_ref: str | None = None
+        if kind == "manual_revision" and decision.get("admit"):
+            if not reused:
+                checkpoint_ref = _persist_manual_intent_revision(
+                    record,
+                    meta,
+                    branch=branch,
+                    checkpoint=checkpoint,
+                    selected_model=selected_model,
+                )
+            else:
+                refreshed = _read_meta(artifacts_dir)
+                checkpoint_ref = (
+                    str(
+                        refreshed.get("continuation_checkpoint_ref")
+                        or meta.get("continuation_checkpoint_ref")
+                        or (checkpoint.content_ref if checkpoint is not None else "")
+                        or ""
+                    )
+                    or None
+                )
+        return decision, reused, checkpoint_ref
 
 
 def _persist_manual_intent_revision(
@@ -557,7 +665,7 @@ def _persist_manual_intent_revision(
     return str(meta.get("continuation_checkpoint_ref") or checkpoint_ref or "")
 
 
-def _allocate_manual_branch(
+def _plan_manual_branch_unlocked(
     artifacts_dir: str,
     *,
     monitor_id: str,
@@ -565,7 +673,7 @@ def _allocate_manual_branch(
     checkpoint: AuthoredCheckpoint | None,
     selected_model: str | None,
     next_action: str,
-) -> tuple[str, bool]:
+) -> tuple[str | None, str | None, bool, str]:
     fingerprint = _manual_revision_fingerprint(
         monitor_id=monitor_id,
         result_id=result_id,
@@ -574,20 +682,35 @@ def _allocate_manual_branch(
         next_action=next_action,
     )
     root = Path(artifacts_dir) / "continuation" / "manual_resume"
-    with delivery_store_lock(artifacts_dir):
-        root.mkdir(parents=True, exist_ok=True)
-        for path in sorted(root.glob("manual-recovery-*.json")):
-            payload = _read_json_object(path)
-            if payload.get("fingerprint") == fingerprint:
-                branch = str(payload.get("branch") or "")
-                if branch:
-                    return branch, True
-        used = _used_manual_branch_numbers(root, artifacts_dir)
-        number = 1
-        while number in used:
-            number += 1
-        branch = f"manual-recovery-{number}"
-        payload = {
+    root.mkdir(parents=True, exist_ok=True)
+    for path in sorted(root.glob("manual-recovery-*.json")):
+        payload = _read_json_object(path)
+        if payload.get("fingerprint") == fingerprint:
+            branch = str(payload.get("branch") or "")
+            if branch:
+                return branch, None, True, fingerprint
+    used = _used_manual_branch_numbers(root, artifacts_dir)
+    number = 1
+    while number in used:
+        number += 1
+    return None, f"manual-recovery-{number}", False, fingerprint
+
+
+def _write_manual_branch_unlocked(
+    artifacts_dir: str,
+    *,
+    monitor_id: str,
+    result_id: str,
+    branch: str,
+    fingerprint: str,
+    checkpoint: AuthoredCheckpoint | None,
+    selected_model: str | None,
+) -> None:
+    root = Path(artifacts_dir) / "continuation" / "manual_resume"
+    root.mkdir(parents=True, exist_ok=True)
+    write_json_atomic(
+        root / f"{branch}.json",
+        {
             "schema_version": 1,
             "kind": "manual_monitor_resume",
             "branch": branch,
@@ -599,9 +722,8 @@ def _allocate_manual_branch(
             else None,
             "next_model": selected_model,
             "recorded_at": _utc_now_iso(),
-        }
-        write_json_atomic(root / f"{branch}.json", payload)
-        return branch, False
+        },
+    )
 
 
 def _used_manual_branch_numbers(root: Path, artifacts_dir: str) -> set[int]:
@@ -649,20 +771,67 @@ def _manual_revision_fingerprint(
     return f"sha256:{sha256(encoded).hexdigest()}"
 
 
-def _confirmed_receiver(
-    project_name: str,
-    delivery: Mapping[str, Any],
-) -> str | None:
-    identity = _delivery_identity(delivery)
-    if not identity:
-        return None
+def _collect_receiver_proofs(
+    record: MonitorRecord,
+    deliveries: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Collect launch-receipt and process-identity proofs outside the lock."""
+
+    meta = _read_meta(record.artifacts_dir)
+    followup_agent = meta.get("monitor_followup_agent")
+    followup_outcome = meta.get("monitor_followup_outcome")
+    proofs: list[dict[str, Any]] = []
+    for delivery in deliveries:
+        raw_key = delivery.get("key")
+        key = raw_key if isinstance(raw_key, Mapping) else {}
+        branch = str(key.get("branch") or "")
+        if not branch:
+            continue
+        identity = _delivery_identity(delivery)
+        discoverable = False
+        process_alive = False
+        spawn_recorded = bool(delivery.get("workspace_identity"))
+        if identity:
+            ctx = _try_resolve_agent(record.project_name, identity)
+            if ctx is not None:
+                spawn_recorded = True
+                process_alive = _receiver_process_alive(ctx)
+                discoverable = process_alive
+            if followup_agent == identity and followup_outcome == "launched":
+                spawn_recorded = True
+        proofs.append(
+            {
+                "branch": branch,
+                "identity": identity,
+                "discoverable": discoverable,
+                "process_alive": process_alive,
+                "spawn_recorded": spawn_recorded,
+            }
+        )
+    return proofs
+
+
+def _try_resolve_agent(project_name: str, identity: str) -> Any | None:
     try:
         from .store import resolve_exact_agent
 
-        resolve_exact_agent(project_name, identity)
+        return resolve_exact_agent(project_name, identity)
     except Exception:
         return None
-    return identity
+
+
+def _receiver_process_alive(ctx: Any) -> bool:
+    running = getattr(ctx.record, "running", None)
+    if running is not None and getattr(running, "pid", None) is not None:
+        return supervisor_is_alive(running.pid, running.process_identity)
+    meta = getattr(ctx.record, "agent_meta", None)
+    if meta is None or getattr(meta, "pid", None) is None:
+        return False
+    identity = None
+    family_shell = getattr(meta, "family_shell", None)
+    if family_shell is not None:
+        identity = getattr(family_shell, "supervisor_identity", None)
+    return supervisor_is_alive(meta.pid, identity)
 
 
 def _delivery_identity(delivery: Mapping[str, Any] | None) -> str | None:
@@ -773,6 +942,7 @@ def _utc_now_iso() -> str:
 __all__ = [
     "MonitorResumeError",
     "MonitorResumeResult",
+    "apply_resume_adoption",
     "reconcile_terminal_delivery",
     "resume_monitor",
 ]

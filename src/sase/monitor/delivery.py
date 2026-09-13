@@ -19,6 +19,7 @@ from typing import Any
 from collections.abc import Iterator
 
 from sase.core.continuation_facade import (
+    decide_resume_adoption,
     new_continuation_delivery_record,
     transition_continuation_delivery,
     validate_continuation_delivery_record,
@@ -31,6 +32,7 @@ DELIVERY_DIRNAME = "delivery"
 DELIVERY_LOCK_FILENAME = "delivery.lock"
 DELIVERY_LOCK_TIMEOUT_SECONDS = 5.0
 HOST_COMPLETION_RECEIPT_FILENAME = "host_completion_receipt.json"
+MANUAL_SUPERSEDE_REASON_PREFIX = "superseded by manual resume"
 _DISCOVERABLE_DISPOSITIONS = frozenset({"dispatching", "acknowledged", "settled"})
 
 
@@ -116,6 +118,19 @@ def persist_delivery_record(
     path = _record_path(artifacts_dir, validated["key"])
     with _delivery_lock(root):
         write_json_atomic(path, validated)
+    return validated
+
+
+def write_delivery_record_locked(
+    artifacts_dir: str | Path,
+    record: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Persist *record* while the caller holds :func:`delivery_store_lock`."""
+
+    validated = validate_continuation_delivery_record(dict(record))
+    root = _delivery_dir(artifacts_dir)
+    root.mkdir(parents=True, exist_ok=True)
+    write_json_atomic(_record_path(artifacts_dir, validated["key"]), validated)
     return validated
 
 
@@ -412,9 +427,11 @@ __all__ = [
     "DELIVERY_DIRNAME",
     "DELIVERY_LOCK_TIMEOUT_SECONDS",
     "HOST_COMPLETION_RECEIPT_FILENAME",
+    "MANUAL_SUPERSEDE_REASON_PREFIX",
     "adopt_host_completion_delivery",
     "apply_delivery_transition",
     "claim_dispatch_slot",
+    "decide_resume_adoption",
     "delivery_key",
     "delivery_store_lock",
     "load_delivery_record",
@@ -425,4 +442,5 @@ __all__ = [
     "persist_host_completion_receipt",
     "transition_delivery",
     "update_delivery_workspace",
+    "write_delivery_record_locked",
 ]
