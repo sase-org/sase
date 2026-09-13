@@ -25,6 +25,7 @@ from sase.doctor.checks_config_tribes import check_config_tribes
 from sase.doctor.checks_config_xprompts import (
     check_config_model_xprompts,
     check_config_xprompt_definitions,
+    check_config_xprompt_directives,
 )
 
 if TYPE_CHECKING:
@@ -131,6 +132,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=lambda: check_config_xprompt_definitions(context),
         ),
         CheckSpec(
+            id="config.xprompt_directives",
+            group="config",
+            title="Retired xprompt directives",
+            runner=lambda: check_config_xprompt_directives(context),
+        ),
+        CheckSpec(
             id="config.skills.applied",
             group="config",
             title="Applied generated skills",
@@ -156,6 +163,7 @@ _check_config_external_mirror = check_config_external_mirror
 _check_config_tribes = check_config_tribes
 _check_config_model_xprompts = check_config_model_xprompts
 _check_config_xprompt_definitions = check_config_xprompt_definitions
+_check_config_xprompt_directives = check_config_xprompt_directives
 _check_config_skills_applied = check_config_skills_applied
 
 

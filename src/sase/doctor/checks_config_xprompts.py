@@ -179,6 +179,95 @@ def check_config_xprompt_definitions(context: DoctorContext) -> DiagnosticCheck:
     )
 
 
+def check_config_xprompt_directives(context: DoctorContext) -> DiagnosticCheck:
+    """Warn when loaded xprompt/workflow bodies use retired directive syntax."""
+    from sase.xprompt._catalog_sources import (
+        classify,
+        classify_workflow,
+        source_path_display,
+    )
+    from sase.xprompt.loader import get_all_workflows, get_all_xprompts
+
+    rows: list[dict[str, str | int]] = []
+    xprompts = get_all_xprompts(context.project)
+    workflows = get_all_workflows(context.project)
+
+    for name in sorted(xprompts):
+        xprompt = xprompts[name]
+        try:
+            source = source_path_display(
+                classify(xprompt, project=context.project)
+            ) or (xprompt.source_path or "unknown source")
+        except Exception:  # noqa: BLE001 - doctor checks must be best-effort.
+            source = xprompt.source_path or "unknown source"
+        _append_retired_directive_rows(rows, name, source, xprompt.content)
+
+    for name in sorted(workflows):
+        workflow = workflows[name]
+        content = workflow.get_prompt_part_content()
+        if not content:
+            continue
+        try:
+            source = source_path_display(
+                classify_workflow(name, workflow, project=context.project)
+            ) or (workflow.source_path or "unknown source")
+        except Exception:  # noqa: BLE001 - doctor checks must be best-effort.
+            source = workflow.source_path or "unknown source"
+        _append_retired_directive_rows(rows, name, source, content)
+
+    status: CheckStatus = "WARN" if rows else "OK"
+    details = tuple(str(row["message"]) for row in rows[:MAX_DETAIL_ROWS])
+    summary = (
+        f"{len(rows)} xprompt definition(s) use retired directive syntax"
+        if rows
+        else "No retired xprompt directive syntax found"
+    )
+    next_steps = (
+        (
+            "Update the listed definition to the suggested replacement, or delete it "
+            "if it is a stale personal or project copy shadowing a plugin or package "
+            "xprompt of the same name. `sase xprompt show <name>` shows which "
+            "definition wins. Then rerun `sase doctor -C "
+            "config.xprompt_directives`.",
+        )
+        if rows
+        else ()
+    )
+
+    return DiagnosticCheck(
+        id="config.xprompt_directives",
+        group="config",
+        status=status,
+        title="Retired xprompt directives",
+        summary=summary,
+        details=details,
+        next_steps=next_steps,
+        data={"scanned": len(xprompts) + len(workflows), "problems": rows},
+    )
+
+
+def _append_retired_directive_rows(
+    rows: list[dict[str, str | int]],
+    name: str,
+    source: str,
+    content: str,
+) -> None:
+    from sase.xprompt.directive_diagnostics import find_retired_directive_usages
+
+    for usage in find_retired_directive_usages(content):
+        rows.append(
+            {
+                "name": name,
+                "source": source,
+                "line": usage.line,
+                "directive": usage.source,
+                "message": (
+                    f"{name} ({source}):{usage.line}: {usage.source} — {usage.message}"
+                ),
+            }
+        )
+
+
 def _model_preset_tokens(content: str) -> _ModelPresetScan | None:
     """Return the final model token(s) a model-preset xprompt expands to.
 

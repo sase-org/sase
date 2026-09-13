@@ -23,7 +23,6 @@ from sase.github_cli import (
     GhCommandError,
     _run_gh,
     gh_api_json,
-    run_gh,
 )
 
 
@@ -94,19 +93,6 @@ def test_run_gh_retries_transient_failure(
     assert calls[0][1]["timeout"] == DEFAULT_GH_TIMEOUT_SECONDS
     assert calls[0][1]["stdin"] == subprocess.DEVNULL
     assert calls[0][1]["env"]["GH_PROMPT_DISABLED"] == "1"
-
-
-def test_public_run_gh_uses_shared_runner() -> None:
-    def run_fn(
-        args: Sequence[str],
-        **_kwargs: Any,
-    ) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(list(args), 0, stdout="ok", stderr="")
-
-    result = run_gh(["api", "repos/sase-org/sase"], run_fn=run_fn)
-
-    assert result.returncode == 0
-    assert result.stdout == "ok"
 
 
 def test_run_gh_honors_classifier_retry_after(

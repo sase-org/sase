@@ -46,13 +46,19 @@ from ._directive_scan import (
 from ._directive_time import parse_absolute_time, parse_duration
 from ._directive_types import PromptDirectives
 from ._exceptions import DirectiveError
+from .directive_diagnostics import (
+    RetiredDirectiveUsage,
+    find_retired_directive_usages,
+)
 from .processor import process_xprompt_references
 
 __all__ = [
     "DirectiveError",
     "PromptDirectives",
+    "RetiredDirectiveUsage",
     "apply_fanout_naming",
     "extract_prompt_directives",
+    "find_retired_directive_usages",
     "has_alt_directive",
     "has_deferred_start_directive",
     "has_model_directive",

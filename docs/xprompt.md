@@ -3219,3 +3219,15 @@ sase doctor -C config.xprompt_definitions
 
 Both commands report `skipped: <file>: <error>` lines for xprompt or workflow
 definitions that could not be loaded.
+
+If a launch fails with a directive migration error such as
+`%wait(priority=...) has moved to %queue`, run:
+
+```bash
+sase doctor -C config.xprompt_directives
+```
+
+The check locates the definition file that still uses retired directive syntax. Remember
+that a personal `~/sase/xprompts/<name>.md` or project `sase/xprompts/` copy shadows a
+plugin or package xprompt of the same name, and `sase xprompt show <name>` reveals which
+definition wins.

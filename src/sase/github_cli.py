@@ -553,5 +553,4 @@ __all__ = [
     "DEFAULT_GH_TIMEOUT_SECONDS",
     "GhCommandError",
     "gh_api_json",
-    "run_gh",
 ]

@@ -1314,7 +1314,8 @@ than erroring. To catch this drift — for example a removed `model_aliases` ent
 quietly reroutes a `#m_<provider>_*` preset to the default provider — `sase doctor`
 (`-C config.model_xprompts`) scans configured model presets and warns with
 `<xprompt> -> <token> does not resolve to a provider; it will fall back to the default provider`.
-The check is provider-neutral and read-only.
+The check is provider-neutral and read-only. For retired prompt directive syntax such as
+`%wait(priority=...)`, use `sase doctor -C config.xprompt_directives`.
 
 #### Implicit role aliases
 

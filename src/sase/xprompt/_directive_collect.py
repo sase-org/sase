@@ -27,6 +27,7 @@ from ._parsing import (
     parse_args,
 )
 from ._parsing_args import process_text_block
+from .directive_diagnostics import retired_wait_keyword_message
 
 
 @dataclass
@@ -127,29 +128,8 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
                         "time",
                         "unit",
                     }
-                    if "runners" in named_args:
-                        raise DirectiveError(
-                            "%wait(runners=...) has moved to %queue. "
-                            "Use %queue(capacity=N) or %q:N, and keep dependencies "
-                            "on %wait."
-                        )
-                    if "capacity" in named_args:
-                        raise DirectiveError(
-                            "%wait(capacity=...) belongs on %queue. "
-                            "Use %queue(capacity=N) or %q:N, and keep dependencies "
-                            "on %wait."
-                        )
-                    if "priority" in named_args:
-                        raise DirectiveError(
-                            "%wait(priority=...) has moved to %queue. "
-                            "Use %queue(priority=N) or %q(p=N), and keep "
-                            "dependencies on %wait."
-                        )
-                    if "p" in named_args:
-                        raise DirectiveError(
-                            "%wait(p=...) is unsupported. Use "
-                            "%queue(priority=...) or %q(p=...)."
-                        )
+                    if message := retired_wait_keyword_message(named_args):
+                        raise DirectiveError(message)
                     unknown_keys = sorted(
                         key for key in named_args if key not in supported_keys
                     )
