@@ -31,6 +31,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "completion": ("sase.main.parser_completion", "register_completion_parser"),
     "config": ("sase.main.parser_commands", "register_config_parser"),
     "core": ("sase.main.parser_core", "register_core_parser"),
+    "disk": ("sase.main.parser_disk", "register_disk_parser"),
     "doctor": ("sase.main.parser_doctor", "register_doctor_parser"),
     "editor": ("sase.main.parser_editor", "register_editor_parser"),
     "file": ("sase.main.parser_commands", "register_file_parser"),

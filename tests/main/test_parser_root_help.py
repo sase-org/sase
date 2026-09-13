@@ -45,6 +45,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
     assert common_command_rows == sorted(common_command_rows)
     assert common_commands == {
         "doctor",
+        "disk",
         "init",
         "version",
         "ace",

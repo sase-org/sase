@@ -65,6 +65,10 @@ _COMPACT_ROOT_COMMANDS: tuple[CompactRootCommand, ...] = (
         "Manage git-portable issues, dependencies, planning beads, and executable epics.",
     ),
     CompactRootCommand(
+        "disk",
+        "List SASE disk usage by owner and delegate safe cleanup to those owners.",
+    ),
+    CompactRootCommand(
         "project",
         "List enabled projects, inspect the current project, and manage disabled work.",
     ),

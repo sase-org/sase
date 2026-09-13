@@ -43,6 +43,7 @@ sections, environment variables, and CLI flags.
   - [max_agent_pipe_chain](#max_agent_pipe_chain)
   - [runner_slots](#runner_slots)
   - [procs](#procs)
+  - [disk](#disk)
   - [markdown](#markdown)
   - [pager](#pager)
   - [timezone](#timezone)
@@ -3619,6 +3620,30 @@ procs:
 | `procs.history_limit` | int  | `100`   | `1`     | Number of finished procs to preserve.       |
 | `tasks.history_limit` | int  | `100`   | `1`     | Deprecated alias for `procs.history_limit`. |
 
+### disk
+
+Disk-pressure thresholds combine absolute byte floors with proportional free-space
+floors, so large volumes warn before they are almost out of bytes. The doctor resource
+check uses these values, and the hourly `disk_pressure` housekeeping chop uses the warn
+threshold to decide when to notify and run owner-safe cleanup early.
+
+```yaml
+disk:
+  pressure:
+    warn_free_percent: 5.0
+    error_free_percent: 1.0
+    top_owner_min_bytes: 1073741824
+```
+
+| Field                               | Type   | Default      | Range   | Description                                                      |
+| ----------------------------------- | ------ | ------------ | ------- | ---------------------------------------------------------------- |
+| `disk.pressure.warn_free_percent`   | number | `5.0`        | `0-100` | Warn when filesystem free space falls below this percentage.     |
+| `disk.pressure.error_free_percent`  | number | `1.0`        | `0-100` | Error when filesystem free space falls below this percentage.    |
+| `disk.pressure.top_owner_min_bytes` | int    | `1073741824` | `>= 0`  | Minimum unowned row size named directly in pressure diagnostics. |
+
+`sase doctor` still honors its absolute floors of 3 GiB for WARN and 1 GiB for ERROR;
+the effective threshold is the larger of the absolute and proportional values.
+
 ### markdown
 
 The column width SASE wraps generated Markdown prose at. It governs every Markdown
@@ -5150,6 +5175,21 @@ sidecar, initializes every enabled configured sidecar, and ensures the project r
 diffs, and `-C, --no-commit` writes project config and ignore changes without the normal
 project commit/pull/push sequence. `sase init repo` is an alias; bare `sase init` and
 `sase validate` include the same check for Git projects.
+
+### `sase disk`
+
+Disk commands inspect SASE-created bytes by owner and delegate cleanup back to those
+owners. With no subcommand, `sase disk` defaults to `sase disk list`.
+
+| Command          | Flag / argument | Values       | Description                                                         |
+| ---------------- | --------------- | ------------ | ------------------------------------------------------------------- |
+| `sase disk list` | `-j, --json`    | flag         | Emit owner, horizon, size, path, and unowned-stray rows as JSON.    |
+| `sase disk reap` | `-a, --apply`   | flag         | Run owner cleanup passes instead of previewing them.                |
+| `sase disk reap` | `-j, --json`    | flag         | Emit the delegated cleanup plan or execution result as JSON.        |
+| `sase disk reap` | `-p, --project` | project name | Limit project-scoped artifact and workspace cleanup to one project. |
+
+Unowned Cargo-shaped strays are listed for human action and are never deleted by
+`sase disk reap`.
 
 ### `sase workspace`
 

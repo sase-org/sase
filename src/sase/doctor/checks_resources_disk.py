@@ -7,6 +7,11 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol, TYPE_CHECKING
 
+from sase.config import (
+    get_disk_pressure_error_free_percent,
+    get_disk_pressure_top_owner_min_bytes,
+    get_disk_pressure_warn_free_percent,
+)
 from sase.config.core import load_merged_config
 from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.workspace_provider.store import WorkspaceStore
@@ -17,6 +22,8 @@ if TYPE_CHECKING:
 _GIB = 1024**3
 _DISK_ERROR_FREE_BYTES = _GIB
 _DISK_WARN_FREE_BYTES = 3 * _GIB
+_DISK_ERROR_FREE_PERCENT = 1.0
+_DISK_WARN_FREE_PERCENT = 5.0
 
 
 class _DiskUsage(Protocol):
@@ -64,9 +71,22 @@ def check_disk_free(
             },
         )
 
+    thresholds = _disk_thresholds()
     rows = (
-        _disk_target("workspace_root", "primary", workspace_root, disk_usage_fn),
-        _disk_target("sase_home", "secondary", context.sase_home, disk_usage_fn),
+        _disk_target(
+            "workspace_root",
+            "primary",
+            workspace_root,
+            disk_usage_fn,
+            thresholds=thresholds,
+        ),
+        _disk_target(
+            "sase_home",
+            "secondary",
+            context.sase_home,
+            disk_usage_fn,
+            thresholds=thresholds,
+        ),
     )
     status = _aggregate_disk_status(rows)
     problem_rows = tuple(row for row in rows if row["status"] != "OK")
@@ -85,6 +105,8 @@ def check_disk_free(
             "workspace_error": None,
             "error_threshold_bytes": _DISK_ERROR_FREE_BYTES,
             "warn_threshold_bytes": _DISK_WARN_FREE_BYTES,
+            "error_threshold_percent": thresholds["error_percent"],
+            "warn_threshold_percent": thresholds["warn_percent"],
         },
     )
 
@@ -114,6 +136,8 @@ def _disk_target(
     role: str,
     path: Path,
     disk_usage_fn: _DiskUsageFn,
+    *,
+    thresholds: dict[str, float],
 ) -> dict[str, Any]:
     expanded = path.expanduser()
     measured_path = _nearest_existing_parent(expanded)
@@ -140,15 +164,28 @@ def _disk_target(
         }
 
     free_bytes = int(usage.free)
-    status = _free_space_status(free_bytes)
+    total_bytes = int(usage.total)
+    status = _free_space_status(
+        free_bytes,
+        total_bytes=total_bytes,
+        thresholds=thresholds,
+    )
     problem = None
     if status == "ERROR":
-        problem = (
-            f"{label} has less than 1 GB free ({_format_bytes(free_bytes)} available)"
+        problem = _threshold_problem(
+            label,
+            "error",
+            free_bytes=free_bytes,
+            total_bytes=total_bytes,
+            thresholds=thresholds,
         )
     elif status == "WARN":
-        problem = (
-            f"{label} has less than 3 GB free ({_format_bytes(free_bytes)} available)"
+        problem = _threshold_problem(
+            label,
+            "warn",
+            free_bytes=free_bytes,
+            total_bytes=total_bytes,
+            thresholds=thresholds,
         )
 
     return {
@@ -158,17 +195,58 @@ def _disk_target(
         "measurement_path": str(measured_path),
         "status": status,
         "problem": problem,
-        "total_bytes": int(usage.total),
+        "total_bytes": total_bytes,
         "used_bytes": int(usage.used),
         "free_bytes": free_bytes,
         "free_gib": round(free_bytes / _GIB, 2),
+        "free_percent": _free_percent(free_bytes, total_bytes),
+        "error_threshold_bytes_effective": int(thresholds["error_bytes"]),
+        "warn_threshold_bytes_effective": int(thresholds["warn_bytes"]),
     }
 
 
-def _free_space_status(free_bytes: int) -> CheckStatus:
-    if free_bytes < _DISK_ERROR_FREE_BYTES:
+def _disk_thresholds() -> dict[str, float]:
+    warn_percent = get_disk_pressure_warn_free_percent()
+    error_percent = get_disk_pressure_error_free_percent()
+    if warn_percent < error_percent:
+        warn_percent = error_percent
+    return {
+        "error_percent": error_percent,
+        "warn_percent": warn_percent,
+        "error_bytes": float(_DISK_ERROR_FREE_BYTES),
+        "warn_bytes": float(_DISK_WARN_FREE_BYTES),
+    }
+
+
+def _effective_threshold_bytes(
+    total_bytes: int,
+    *,
+    absolute_bytes: float,
+    percent: float,
+) -> int:
+    proportional = int(total_bytes * (percent / 100.0))
+    return max(int(absolute_bytes), proportional)
+
+
+def _free_space_status(
+    free_bytes: int,
+    *,
+    total_bytes: int,
+    thresholds: dict[str, float],
+) -> CheckStatus:
+    error_bytes = _effective_threshold_bytes(
+        total_bytes,
+        absolute_bytes=thresholds["error_bytes"],
+        percent=thresholds["error_percent"],
+    )
+    warn_bytes = _effective_threshold_bytes(
+        total_bytes,
+        absolute_bytes=thresholds["warn_bytes"],
+        percent=thresholds["warn_percent"],
+    )
+    if free_bytes < error_bytes:
         return "ERROR"
-    if free_bytes < _DISK_WARN_FREE_BYTES:
+    if free_bytes < warn_bytes:
         return "WARN"
     return "OK"
 
@@ -195,18 +273,13 @@ def _disk_summary(status: CheckStatus, row: dict[str, Any], path_count: int) -> 
     free_bytes = row.get("free_bytes")
     if status == "ERROR":
         if isinstance(free_bytes, int):
-            return (
-                f"{label} has less than 1 GB free "
-                f"({_format_bytes(free_bytes)} available)"
-            )
+            return str(row.get("problem") or f"{label} free space is critically low")
         return f"{label} free space could not be checked"
     if status == "WARN":
         if not isinstance(free_bytes, int):
             return f"{label} free space could not be checked"
-        return (
-            f"{label} has less than 3 GB free ({_format_bytes(free_bytes)} available)"
-        )
-    return f"{path_count} resource path(s) have at least 3 GB free"
+        return str(row.get("problem") or f"{label} free space is low")
+    return f"{path_count} resource path(s) have ample free space"
 
 
 def _disk_detail(row: dict[str, Any]) -> str:
@@ -221,10 +294,60 @@ def _disk_detail(row: dict[str, Any]) -> str:
 
 
 def _disk_next_steps() -> tuple[str, ...]:
-    return (
-        "Free disk space or run `sase workspace cleanup`.",
-        "Live workspaces can consume hundreds of MB to over 1 GB after checkout and `.venv` creation.",
+    steps = [
+        "Run `sase disk list` to inspect SASE-owned and unowned disk usage.",
+        "Run `sase disk reap` to preview owner cleanup passes; add `--apply` only when the plan looks right.",
+    ]
+    try:
+        from sase.core.disk_footprint import format_bytes, largest_unowned_rows
+
+        rows = largest_unowned_rows(
+            min_bytes=get_disk_pressure_top_owner_min_bytes(),
+            limit=3,
+        )
+    except Exception:
+        rows = ()
+    if rows:
+        detail = ", ".join(f"{format_bytes(row.size_bytes)} {row.path}" for row in rows)
+        steps.append(f"Largest unowned SASE-shaped paths: {detail}.")
+    else:
+        steps.append(
+            "Live workspaces can consume hundreds of MB to over 1 GB after checkout and `.venv` creation."
+        )
+    return tuple(steps)
+
+
+def _threshold_problem(
+    label: str,
+    severity: str,
+    *,
+    free_bytes: int,
+    total_bytes: int,
+    thresholds: dict[str, float],
+) -> str:
+    if severity == "error":
+        percent = thresholds["error_percent"]
+        absolute = _DISK_ERROR_FREE_BYTES
+    else:
+        percent = thresholds["warn_percent"]
+        absolute = _DISK_WARN_FREE_BYTES
+    effective = _effective_threshold_bytes(
+        total_bytes,
+        absolute_bytes=absolute,
+        percent=percent,
     )
+    basis = f"{percent:g}%" if effective > absolute else f"{absolute // _GIB} GB"
+    return (
+        f"{label} has less than {basis} free "
+        f"({_format_bytes(free_bytes)} available, "
+        f"{_free_percent(free_bytes, total_bytes):.1f}% of volume)"
+    )
+
+
+def _free_percent(free_bytes: int, total_bytes: int) -> float:
+    if total_bytes <= 0:
+        return 0.0
+    return round((free_bytes / total_bytes) * 100.0, 3)
 
 
 def _format_bytes(value: int) -> str:

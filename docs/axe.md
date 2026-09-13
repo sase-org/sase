@@ -456,6 +456,7 @@ Periodic maintenance:
 | `error_digest`               | Send error notification digests (creates `ViewErrorReport` notification action) |
 | `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                 |
 | `managed_tmp_reap`           | Prune stale scratch under the managed SASE temp root                            |
+| `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                        |
 | `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
 | `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair renamed refs       |
 | `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                         |
@@ -502,6 +503,14 @@ the agent artifact index too, since a workflow launched without an explicit
 `artifacts_dir` gets one under `workflow-artifacts/`. It lives on `housekeeping` rather
 than an interactive path because the first pass over a neglected root walks tens of
 thousands of entries.
+
+The `disk_pressure` chop checks SASE's proportional free-space threshold on the
+filesystem that holds `~/.sase`. When the volume falls below
+`disk.pressure.warn_free_percent`, it logs and sends a notification naming the largest
+rows from `sase disk list`, then runs unattended owner-safe cleanup early. Managed-temp
+pressure pruning and proc runtime orphan sweeps may apply because those owners encode
+their deletion policy. Artifact run directories, backups, and unowned Cargo-shaped
+strays are reported for human action and are never deleted by this chop.
 
 The `bead_stale_cleanup` chop is the other half of the task-bead `+1` bar. Ready task
 beads that never clear their [effective `+1` bar](beads.md#per-type-triage-bar) stay

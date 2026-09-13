@@ -214,6 +214,12 @@ def main() -> NoReturn:
 
         handle_core_command(args)
 
+    # --- disk ---
+    if args.command == "disk":
+        from .disk_handler import handle_disk_command
+
+        handle_disk_command(args)
+
     # --- doctor ---
     if args.command == "doctor":
         from .doctor_handler import handle_doctor_command

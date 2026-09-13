@@ -4229,6 +4229,40 @@
         }
       }
     },
+    "disk": {
+      "type": "object",
+      "description": "Disk-pressure thresholds and disk-owner diagnostics.",
+      "additionalProperties": false,
+      "properties": {
+        "pressure": {
+          "type": "object",
+          "description": "Thresholds used by the disk doctor check and pressure housekeeping.",
+          "additionalProperties": false,
+          "properties": {
+            "error_free_percent": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 1.0,
+              "description": "Error when filesystem free space falls below this percentage, in addition to the absolute byte floor."
+            },
+            "top_owner_min_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 1073741824,
+              "description": "Minimum unowned disk row size named directly in pressure diagnostics."
+            },
+            "warn_free_percent": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "default": 5.0,
+              "description": "Warn when filesystem free space falls below this percentage, in addition to the absolute byte floor."
+            }
+          }
+        }
+      }
+    },
     "tasks": {
       "type": "object",
       "additionalProperties": false,

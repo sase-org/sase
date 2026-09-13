@@ -27,6 +27,7 @@ from sase.main.parser_commit import (
 )
 from sase.main.parser_completion import register_completion_parser
 from sase.main.parser_core import register_core_parser
+from sase.main.parser_disk import register_disk_parser
 from sase.main.parser_doctor import register_doctor_parser
 from sase.main.parser_editor import register_editor_parser
 from sase.main.parser_file_hook import register_file_hook_parser
@@ -81,6 +82,7 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_completion_parser,
         register_config_parser,
         register_core_parser,
+        register_disk_parser,
         register_doctor_parser,
         register_editor_parser,
         register_file_parser,

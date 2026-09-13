@@ -83,6 +83,15 @@ procs:
   # never pruned.
   history_limit: 100
 
+disk:
+  pressure:
+    # Proportional free-space thresholds layered on top of the absolute doctor
+    # floors. A large volume warns before it is almost out of bytes.
+    warn_free_percent: 5.0
+    error_free_percent: 1.0
+    # Minimum unowned row size named directly in disk-pressure diagnostics.
+    top_owner_min_bytes: 1073741824
+
 markdown:
   # Column width SASE wraps generated Markdown prose at: plan files, bead notes
   # and pages, memory shims, generated skills, prompt archives, and the default
@@ -1208,6 +1217,16 @@ axe:
             preserving generic agent scratch, handoff data, unknown buckets, and build trees with fresh descendants.
             Each pass removes at most 2,000 entries and de-indexes deleted agent-artifact directories, so a neglected
             root converges without blocking interactive commands.
+        - name: disk_pressure
+          script: sase_chop_disk_pressure
+          timeout: "5m"
+          description: |-
+            React when SASE's filesystem crosses disk-pressure thresholds
+
+            Checks proportional free-space thresholds, logs and notifies the largest SASE disk owners, then runs
+            unattended owner-safe cleanup passes early. Managed temp and proc runtime sweeps may apply because their
+            owners encode deletion policy. Artifact run directories, backups, and unowned Cargo-shaped strays are
+            reported for human action and are never deleted by this chop.
         - name: bead_stale_cleanup
           script: sase_chop_bead_stale_cleanup
           timeout: "2m"

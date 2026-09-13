@@ -33,6 +33,9 @@ DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL = 3
 DEFAULT_ARTIFACT_RETENTION_KEEP_RECENT_RUN_MONTHS = 2
 DEFAULT_ARTIFACT_RETENTION_MAX_AGE_DAYS = 90
 DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS = 14
+DEFAULT_DISK_PRESSURE_ERROR_FREE_PERCENT = 1.0
+DEFAULT_DISK_PRESSURE_TOP_OWNER_MIN_BYTES = 1024 * 1024 * 1024
+DEFAULT_DISK_PRESSURE_WARN_FREE_PERCENT = 5.0
 DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS = 3600
 DEFAULT_PAGER_SYNTAX = "auto"
 DEFAULT_MONITOR_SELECTED_DIAGNOSTICS_BYTES = 8 * 1024
@@ -358,6 +361,45 @@ def get_artifact_retention_trash_grace_days() -> int:
     if type(value) is int and value >= 0:
         return value
     return DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS
+
+
+def _disk_pressure_config() -> dict[str, Any]:
+    disk = _merged_config().get("disk", {})
+    pressure = disk.get("pressure", {}) if isinstance(disk, dict) else {}
+    return pressure if isinstance(pressure, dict) else {}
+
+
+def get_disk_pressure_error_free_percent() -> float:
+    """Return the error threshold as percent free space."""
+    value = _disk_pressure_config().get(
+        "error_free_percent",
+        DEFAULT_DISK_PRESSURE_ERROR_FREE_PERCENT,
+    )
+    if type(value) in {int, float} and 0 <= float(value) <= 100:
+        return float(value)
+    return DEFAULT_DISK_PRESSURE_ERROR_FREE_PERCENT
+
+
+def get_disk_pressure_top_owner_min_bytes() -> int:
+    """Return the minimum row size named in disk-pressure next steps."""
+    value = _disk_pressure_config().get(
+        "top_owner_min_bytes",
+        DEFAULT_DISK_PRESSURE_TOP_OWNER_MIN_BYTES,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_DISK_PRESSURE_TOP_OWNER_MIN_BYTES
+
+
+def get_disk_pressure_warn_free_percent() -> float:
+    """Return the warning threshold as percent free space."""
+    value = _disk_pressure_config().get(
+        "warn_free_percent",
+        DEFAULT_DISK_PRESSURE_WARN_FREE_PERCENT,
+    )
+    if type(value) in {int, float} and 0 <= float(value) <= 100:
+        return float(value)
+    return DEFAULT_DISK_PRESSURE_WARN_FREE_PERCENT
 
 
 def get_gate_shell_reclaim_grace_seconds() -> int:

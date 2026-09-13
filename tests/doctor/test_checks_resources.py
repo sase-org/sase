@@ -43,6 +43,14 @@ def _disk_usage(free_by_path: dict[str, int]):
     return fake_disk_usage
 
 
+def _disk_usage_with_total(free_by_path: dict[str, int], *, total: int):
+    def fake_disk_usage(path: str) -> _DiskUsage:
+        free = free_by_path[path]
+        return _DiskUsage(total=total, used=total - free, free=free)
+
+    return fake_disk_usage
+
+
 def test_resource_check_specs_registers_chezmoi_as_deep(tmp_path: Path) -> None:
     specs = resource_check_specs(_context(tmp_path, tmp_path / ".sase"))
 
@@ -118,8 +126,39 @@ def test_disk_free_warns_below_three_gib(
 
     assert check.status == "WARN"
     assert "less than 3 GB" in check.summary
-    assert "sase workspace cleanup" in check.next_steps[0]
-    assert "hundreds of MB" in check.next_steps[1]
+    assert "sase disk list" in check.next_steps[0]
+    assert "sase disk reap" in check.next_steps[1]
+
+
+def test_disk_free_warns_by_proportion_on_large_volume(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_root = tmp_path / "workspaces"
+    workspace_root.mkdir()
+    sase_home = tmp_path / ".sase"
+    sase_home.mkdir()
+    monkeypatch.setattr(
+        "sase.doctor.checks_resources.workspace_root_path",
+        lambda _context: (workspace_root, None),
+    )
+
+    total = 875 * 1024**3
+    free = 18 * 1024**3
+    check = _check_disk_free(
+        _context(tmp_path, sase_home),
+        disk_usage_fn=_disk_usage_with_total(
+            {
+                str(workspace_root): free,
+                str(sase_home): total,
+            },
+            total=total,
+        ),
+    )
+
+    assert check.status == "WARN"
+    assert "less than 5%" in check.summary
+    assert check.data["paths"][0]["free_percent"] < 5
 
 
 def test_disk_free_errors_below_one_gib(

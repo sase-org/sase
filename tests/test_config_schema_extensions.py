@@ -270,3 +270,34 @@ def test_config_schema_rejects_invalid_plugins_required(
 ) -> None:
     with pytest.raises(ValidationError):
         Draft7Validator(schema()).validate(payload)
+
+
+def test_config_schema_accepts_disk_pressure_thresholds() -> None:
+    Draft7Validator(schema()).validate(
+        {
+            "disk": {
+                "pressure": {
+                    "warn_free_percent": 7.5,
+                    "error_free_percent": 2.0,
+                    "top_owner_min_bytes": 2048,
+                }
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"disk": {"pressure": {"warn_free_percent": -1}}},
+        {"disk": {"pressure": {"error_free_percent": 101}}},
+        {"disk": {"pressure": {"top_owner_min_bytes": -1}}},
+        {"disk": {"pressure": {"unknown": True}}},
+        {"disk": {"unknown": True}},
+    ],
+)
+def test_config_schema_rejects_invalid_disk_pressure(
+    payload: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate(payload)
