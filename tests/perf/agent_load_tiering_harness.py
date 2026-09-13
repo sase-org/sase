@@ -34,6 +34,7 @@ from sase.ace.tui.models.agent_live_query_pushdown import (
 from sase.ace.tui.models.agent_loader import (
     _load_agents_from_artifact_snapshot_sources,
     _normalize_loaded_agents,
+    load_tiered_agents,
 )
 from sase.core.agent_scan_facade import (
     query_agent_artifact_index,
@@ -53,7 +54,13 @@ _ACTIVE_LIMIT = loader_artifacts._TIER1_ACTIVE_LIMIT
 _RECENT_COMPLETED_LIMIT = loader_artifacts._TIER1_RECENT_COMPLETED_LIMIT
 _TUI_SCAN_OPTIONS = loader_artifacts._TUI_SCAN_OPTIONS
 
-LoadPathName = Literal["source_scan", "index_bounded", "index_full_history"]
+LoadPathName = Literal[
+    "source_scan",
+    "index_bounded",
+    "index_full_history",
+    "production_bounded",
+    "production_full_history",
+]
 
 
 @dataclass(frozen=True)
@@ -109,6 +116,11 @@ class LoadPathRows:
     loaded_keys: frozenset[str]
     query_error: str | None
     elapsed_ms: float
+    # Only populated for the ``production_*`` paths, which load through the
+    # real TUI entry point (:func:`load_tiered_agents`) and therefore have a
+    # real completeness/repair verdict to inspect. The raw ``index_*`` paths
+    # call the query facade directly and never produce one.
+    load_state: loader_artifacts.AgentLoadState | None = None
 
     @property
     def visible_count(self) -> int:
@@ -139,6 +151,8 @@ class AgentLoadTieringOracleResult:
     source_scan: LoadPathRows
     index_bounded: LoadPathRows
     index_full_history: LoadPathRows
+    production_bounded: LoadPathRows
+    production_full_history: LoadPathRows
     diffs: Mapping[LoadPathName, LoadPathDiff]
 
     @property
@@ -158,7 +172,17 @@ class AgentLoadTieringOracleResult:
 
 
 class AgentLoadTieringOracle:
-    """Compare loader-visible rows across the three artifact load paths."""
+    """Compare loader-visible rows across the source, index and production paths.
+
+    ``index_bounded``/``index_full_history`` call the query facade directly
+    with a harness-chosen ``freshness``, which is useful for isolating the
+    index contract but is not what the TUI actually does in production (it
+    forces ``revalidate`` for full-history loads and derives freshness/
+    candidate filters from its own query-pushdown compilation). The
+    ``production_*`` paths call :func:`load_tiered_agents`, the real TUI
+    entry point, so they are the primary paths later acceptance phases
+    should hold to a zero-diff bar.
+    """
 
     def __init__(self, fixture: SyntheticArchiveFixture) -> None:
         self.fixture = fixture
@@ -188,9 +212,22 @@ class AgentLoadTieringOracle:
             query,
             candidate_filter=candidate_filter,
         )
-        diffs = {
+        # Unlike the two raw paths above, these never take a
+        # ``candidate_filter_override``: production always derives its own
+        # candidate filter from ``query``, which is the point of routing
+        # through the real entry point instead of re-implementing it here.
+        production_bounded = self._load_production_bounded(
+            query,
+            requested_limit=requested_limit,
+        )
+        production_full_history = self._load_production_full_history(query)
+        diffs: dict[LoadPathName, LoadPathDiff] = {
             "index_bounded": _diff_load_path(source_scan, index_bounded),
             "index_full_history": _diff_load_path(source_scan, index_full_history),
+            "production_bounded": _diff_load_path(source_scan, production_bounded),
+            "production_full_history": _diff_load_path(
+                source_scan, production_full_history
+            ),
         }
         return AgentLoadTieringOracleResult(
             query=query,
@@ -199,6 +236,8 @@ class AgentLoadTieringOracle:
             source_scan=source_scan,
             index_bounded=index_bounded,
             index_full_history=index_full_history,
+            production_bounded=production_bounded,
+            production_full_history=production_full_history,
             diffs=diffs,
         )
 
@@ -267,6 +306,68 @@ class AgentLoadTieringOracle:
             ),
         )
 
+    def _load_production_bounded(
+        self,
+        query: str,
+        *,
+        requested_limit: int | None,
+    ) -> LoadPathRows:
+        return self._measure_production(
+            "production_bounded",
+            query,
+            full_history=False,
+            requested_limit=requested_limit,
+        )
+
+    def _load_production_full_history(self, query: str) -> LoadPathRows:
+        return self._measure_production(
+            "production_full_history",
+            query,
+            full_history=True,
+            requested_limit=None,
+        )
+
+    def _measure_production(
+        self,
+        name: LoadPathName,
+        query: str,
+        *,
+        full_history: bool,
+        requested_limit: int | None,
+    ) -> LoadPathRows:
+        """Load through :func:`load_tiered_agents`, the real TUI entry point.
+
+        ``load_tiered_agents`` already applies the committed query's final
+        tree-aware semantics for a bounded (Tier 1) load, but a full-history
+        load intentionally skips that step (the TUI's finalize pipeline
+        applies it separately once the load settles). Re-apply the same
+        ``apply_agents_live_query_filter`` finalize step here so the two
+        production paths are comparable.
+        """
+        with _temporary_sase_home(self.fixture.sase_home):
+            start = time.perf_counter()
+            agents, state = load_tiered_agents(
+                full_history=full_history,
+                search_query=query,
+                requested_limit=requested_limit,
+            )
+            if full_history:
+                filtered, _facade, error = apply_agents_live_query_filter(query, agents)
+            else:
+                filtered, error = agents, None
+            visible_rows = _visible_rows(filtered)
+            elapsed_ms = (time.perf_counter() - start) * 1000.0
+        return LoadPathRows(
+            name=name,
+            snapshot_record_count=state.record_count or 0,
+            loaded_row_count=len(filtered),
+            visible_rows=visible_rows,
+            loaded_keys=frozenset(_row_key(agent) for agent in filtered),
+            query_error=error,
+            elapsed_ms=elapsed_ms,
+            load_state=state,
+        )
+
     def _measure(
         self,
         name: LoadPathName,
@@ -307,6 +408,8 @@ def benchmark_load_paths(
         "source_scan": [],
         "index_bounded": [],
         "index_full_history": [],
+        "production_bounded": [],
+        "production_full_history": [],
     }
 
     for query in queries:
@@ -316,6 +419,8 @@ def benchmark_load_paths(
             "source_scan": [],
             "index_bounded": [],
             "index_full_history": [],
+            "production_bounded": [],
+            "production_full_history": [],
         }
         last_result: AgentLoadTieringOracleResult | None = None
         for _ in range(runs):
@@ -324,6 +429,8 @@ def benchmark_load_paths(
                 last_result.source_scan,
                 last_result.index_bounded,
                 last_result.index_full_history,
+                last_result.production_bounded,
+                last_result.production_full_history,
             ):
                 path_samples[rows.name].append(rows.elapsed_ms)
                 totals[rows.name].append(rows.elapsed_ms)

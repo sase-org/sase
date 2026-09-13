@@ -220,6 +220,11 @@ just bench-agent-load-tiering --artifact-count 500 --runs 1 --warmup 0
 
 The default fixture writes about 13,000 real artifact directories, rebuilds the SQLite
 agent artifact index once, then reports p50/p95/max wall time for the authoritative
-source scan, the bounded index window, and the index-backed full-history query. The
-shared oracle lives in `tests/perf/agent_load_tiering_harness.py` and is also covered by
-fast smoke tests with a small within-window corpus.
+source scan, the raw index-facade probes (`index_bounded`/`index_full_history`, which
+use a harness-chosen freshness), and the real `load_tiered_agents` production entry
+point (`production_bounded`/`production_full_history`, which forces the same
+`revalidate` freshness and query-pushdown compilation the TUI uses). The shared oracle
+lives in `tests/perf/agent_load_tiering_harness.py` and is also covered by fast smoke
+tests with a small within-window corpus; the production-path diagnostics that reproduce
+known sase-zu audit defects live in
+`tests/test_agent_load_tiering_production_oracle.py`.

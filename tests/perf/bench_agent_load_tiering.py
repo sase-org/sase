@@ -85,8 +85,13 @@ def test_bench_agent_load_tiering_smoke(tmp_path: Path) -> None:
         "source_scan",
         "index_bounded",
         "index_full_history",
+        "production_bounded",
+        "production_full_history",
     }
     assert report["queries"][0]["diffs"]["index_full_history"]["missing_count"] == 0
+    assert (
+        report["queries"][0]["diffs"]["production_full_history"]["missing_count"] == 0
+    )
 
 
 def _argparser() -> argparse.ArgumentParser:
