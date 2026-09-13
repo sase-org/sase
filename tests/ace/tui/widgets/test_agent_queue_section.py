@@ -221,12 +221,44 @@ def test_explicit_capacity_waiter_gets_the_same_queue_ladder() -> None:
     )
 
     assert (
-        "Wait: [capacity] needs 1.0 · 0.0 free · capacity budget 1 (run alone)"
+        "Wait: [capacity] needs 1.0 · 0.0 free · capacity budget 1 (runs alone)"
         in header.plain
     )
     assert "❖ QUEUE · 1 waiting · 1 parked · 1.0/10.0 capacity" in header.plain
     assert "c1" in header.plain
     assert "≤" not in header.plain
+
+
+def test_fractional_capacity_budget_one_waiter_does_not_claim_run_alone() -> None:
+    selected = _agent(
+        "shared-budget",
+        position=1,
+        size=1,
+        threshold=1,
+        explicit=True,
+        queue_weight=0.25,
+        occupied_capacity=0.25,
+        effective_limit=10.0,
+        admission_limit=1.0,
+    )
+    selected.status = "WAITING"
+    header = _header(
+        selected,
+        (
+            _entry(
+                "shared-budget",
+                threshold=1,
+                explicit=True,
+                requested_weight=0.25,
+                occupied_capacity=0.25,
+                admission_limit=1.0,
+            ),
+        ),
+        occupied_capacity=0.25,
+    )
+
+    assert "capacity budget 1" in header.plain
+    assert "capacity budget 1 (runs alone)" not in header.plain
 
 
 def test_queue_ladder_demotes_deeper_barrier_and_marks_selected_rank() -> None:

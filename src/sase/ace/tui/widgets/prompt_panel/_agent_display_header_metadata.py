@@ -30,6 +30,11 @@ from .._agent_list_styling import (
     _OWNER_BADGE_STYLE,
     _PROC_SHELL_ID_STYLE,
 )
+from .._queue_weight_badge import (
+    format_queue_capacity_badge_value,
+    queue_capacity_badge_number_style,
+    queue_capacity_budget_display_enabled,
+)
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
 from ...models.agent_time import queued_for_label
 from ._agent_page_section import (
@@ -122,7 +127,7 @@ def _append_identity_fields(
         if owner_badge:
             text.append("Owner: ", style="bold #87D7FF")
             text.append(f"{owner_badge}\n", style=_OWNER_BADGE_STYLE)
-        _append_weight_field(text, agent)
+        _append_capacity_fields(text, agent)
         # Structured bead identity belongs exclusively to the deferred BEAD lane.
         is_known_phase = bool(agent.phase_bead_id or agent.agent_family_role == "phase")
         if summary is not None and summary.bead_summary is not None:
@@ -163,24 +168,48 @@ def _append_identity_fields(
     return page_section
 
 
-def _append_weight_field(text: Text, agent: Agent) -> None:
-    """Append the non-default runner-capacity weight for real agent rows."""
-    if (
+def _suppress_capacity_fields(agent: Agent) -> bool:
+    return bool(
         agent.is_clan_container
         or agent.is_proc_shell
         or agent.is_gate
         or agent.is_monitor
         or (agent.is_child_row and not agent.agent_family_parallel)
-    ):
+    )
+
+
+def _append_capacity_fields(text: Text, agent: Agent) -> None:
+    """Append authored runner-capacity metadata for real agent rows."""
+    if _suppress_capacity_fields(agent):
         return
     wait_agent = wait_display_agent(agent)
-    if format_queue_weight_badge_value(wait_agent.queue_weight) is None:
+    if format_queue_weight_badge_value(wait_agent.queue_weight) is not None:
+        text.append("Weight: ", style="bold #87D7FF")
+        text.append(
+            f"{format_capacity_value(wait_agent.queue_weight)} capacity units\n",
+            style="#87D7D7",
+        )
+    if not queue_capacity_budget_display_enabled():
         return
-    text.append("Weight: ", style="bold #87D7FF")
-    text.append(
-        f"{format_capacity_value(wait_agent.queue_weight)} capacity units\n",
-        style="#87D7D7",
+    value = format_queue_capacity_badge_value(
+        wait_agent.wait_runners,
+        explicit=wait_agent.wait_runners_explicit,
     )
+    if value is None:
+        return
+    text.append("Capacity: ", style="bold #87D7FF")
+    value_style = queue_capacity_badge_number_style(
+        wait_agent.wait_runners,
+        explicit=wait_agent.wait_runners_explicit,
+        effective_limit=wait_agent.runner_effective_limit,
+    )
+    if value == "0":
+        text.append("legacy 0", style=value_style)
+        text.append(" (exact-weight drain budget)", style="dim #87AFD7")
+    else:
+        text.append(value, style=value_style)
+        text.append(" capacity units", style=value_style)
+    text.append("\n")
 
 
 def _append_project_fields(

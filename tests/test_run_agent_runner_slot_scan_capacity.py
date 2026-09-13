@@ -8,15 +8,49 @@ authored capacity.
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from sase.ace.tui.models._loaders._meta_enrichment_wire import (
+    enrich_agent_from_meta_wire,
+)
+from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
+from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
+from sase.ace.tui.widgets.prompt_panel._agent_display_parts import build_header_text
 from sase.axe import run_agent_wait_markers, run_agent_wait_slots
+from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.feature_flags import override_flags
 
 from tests._runner_slot_fixtures import artifact
+
+
+def _render_agent_from_record(
+    record: AgentArtifactRecordWire,
+    *,
+    name: str = "capacity-render",
+) -> Agent:
+    agent = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name=name,
+        project_file="/tmp/project/project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 9, 13, 9, 10),
+        raw_suffix=record.timestamp,
+        artifacts_dir=record.artifact_dir,
+        agent_name=name,
+        pid=record.agent_meta.pid if record.agent_meta is not None else None,
+    )
+    enrich_agent_from_meta_wire(
+        agent,
+        record.agent_meta,
+        record.waiting,
+        record.pending_question,
+    )
+    return agent
 
 
 @pytest.mark.parametrize(
@@ -111,6 +145,14 @@ def test_canonical_only_metadata_survives_real_scan_without_waiting_marker(
     assert scanned.agent_meta.queue_capacity_explicit is True
     assert scanned.agent_meta.queue_weight == 2
 
+    rendered = _render_agent_from_record(scanned)
+    refresh_runner_slot_context([rendered], effective_limit=1.0)
+    left, _, _ = format_agent_option(rendered, 0, is_selected=False)
+    header, _ = build_header_text(rendered, cheap=True)
+    assert "capacity-render w2 c100 (RUNNING)" in left.plain
+    assert "Weight: 2.0 capacity units" in header.plain
+    assert "Capacity: 100 capacity units" in header.plain
+
 
 def test_index_rebuild_keeps_metadata_capacity_after_waiting_marker_removal(
     tmp_path: Path,
@@ -162,6 +204,13 @@ def test_index_rebuild_keeps_metadata_capacity_after_waiting_marker_removal(
     assert indexed.agent_meta is not None
     assert indexed.agent_meta.queue_capacity == 100
     assert indexed.agent_meta.queue_capacity_explicit is True
+
+    rendered = _render_agent_from_record(indexed, name="indexed-render")
+    refresh_runner_slot_context([rendered], effective_limit=1.0)
+    left, _, _ = format_agent_option(rendered, 0, is_selected=False)
+    header, _ = build_header_text(rendered, cheap=True)
+    assert "indexed-render c100 (RUNNING)" in left.plain
+    assert "Capacity: 100 capacity units" in header.plain
 
 
 @pytest.mark.parametrize("budget_enabled", [True, False])

@@ -24,6 +24,7 @@ from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from .._queue_weight_badge import (
     append_queue_capacity_badge,
     append_queue_weight_badge,
+    format_queue_capacity_badge_value,
     queue_capacity_budget_display_enabled,
 )
 from ._helpers import append_section_heading
@@ -365,8 +366,11 @@ def _queue_entry_free_capacity(entry: RunnerQueueEntry) -> float | None:
 
 
 def _queue_entry_capacity_badge_width(entry: RunnerQueueEntry) -> int:
-    threshold = entry.threshold if entry.threshold is not None else 0
-    return cell_len(f"c{format_capacity_value(threshold, minimum_decimal=False)}")
+    value = format_queue_capacity_badge_value(
+        entry.threshold,
+        explicit=entry.wait_runners_explicit,
+    )
+    return 0 if value is None else cell_len(f"c{value}")
 
 
 def _has_capacity_blocker(entry: RunnerQueueEntry) -> bool:

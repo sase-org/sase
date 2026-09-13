@@ -116,7 +116,8 @@ class TestRunnerSlotWaitRendering:
         assert "▶" not in left.plain
         assert _styles_covering(left, "c0") == {"dim", "#87AFD7"}
         assert (
-            "Wait: [capacity] legacy capacity=0 (runs alone) · queue #2 of 2"
+            "Wait: [capacity] legacy capacity=0 "
+            "(exact-weight drain budget) · queue #2 of 2"
         ) in header.plain
 
     def test_explicit_wait_queue_position_is_labeled(self) -> None:
@@ -201,6 +202,43 @@ class TestRunnerSlotWaitRendering:
         assert _styles_covering(left, "w2") == {"dim", "#87D7D7"}
         assert _styles_covering(left, "c100") == {"dim", "#FFD700"}
 
+    def test_capacity_header_renders_authored_budget_with_default_weight(self) -> None:
+        agent = make_agent(
+            agent_name="epic.land",
+            cl_name="epic.land",
+            queue_weight=1.0,
+            queue_weight_explicit=True,
+            wait_runners=100,
+            wait_runners_explicit=True,
+            runner_effective_limit=10.0,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "epic.land c100 (RUNNING)" in left.plain
+        assert "Weight:" not in header.plain
+        assert "Capacity: 100 capacity units" in header.plain
+        assert _styles_covering(header, "100 capacity units") == {"#FFD700"}
+
+    def test_capacity_badge_preserves_u32_budget_text(self) -> None:
+        agent = make_agent(
+            agent_name="wide.land",
+            cl_name="wide.land",
+            wait_runners=4294967295,
+            wait_runners_explicit=True,
+            runner_effective_limit=1.0,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+        header, _ = build_header_text(agent, cheap=True)
+
+        assert "wide.land c4294967295 (RUNNING)" in left.plain
+        assert "Capacity: 4294967295 capacity units" in header.plain
+        assert "4.294" not in left.plain
+        assert "4.294" not in header.plain
+        assert _styles_covering(left, "c4294967295") == {"dim", "#FFD700"}
+
     def test_default_and_synthetic_rows_hide_weight_badge(self) -> None:
         explicit_default = make_agent(
             agent_name="ordinary",
@@ -234,6 +272,43 @@ class TestRunnerSlotWaitRendering:
         assert "w2" not in serial_child_left.plain
         assert "Weight:" not in explicit_default_header.plain
         assert "Weight:" not in serial_child_header.plain
+
+    def test_capacity_header_matches_row_suppression_and_family_member_rules(
+        self,
+    ) -> None:
+        serial_child = make_agent(
+            agent_name="epic.phase",
+            cl_name="epic.phase",
+            parent_timestamp="20260712120000",
+            wait_runners=3,
+            wait_runners_explicit=True,
+        )
+        parallel_child = make_agent(
+            agent_name="epic.worker",
+            cl_name="epic.worker",
+            parent_timestamp="20260712120000",
+            agent_family_parallel=True,
+            wait_runners=3,
+            wait_runners_explicit=True,
+        )
+        family_root = make_agent(
+            agent_name="epic",
+            cl_name="epic",
+            agent_family="epic",
+            agent_family_role="root",
+            plan_chain_root=True,
+            wait_runners=3,
+            wait_runners_explicit=True,
+        )
+        family_root.followup_agents.append(serial_child)
+
+        serial_header, _ = build_header_text(serial_child, cheap=True)
+        parallel_header, _ = build_header_text(parallel_child, cheap=True)
+        family_header, _ = build_header_text(family_root, cheap=True)
+
+        assert "Capacity:" not in serial_header.plain
+        assert "Capacity: 3 capacity units" in parallel_header.plain
+        assert "Capacity: 3 capacity units" in family_header.plain
 
     def test_capacity_blocker_detail_distinguishes_weight_from_free_capacity(
         self,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -232,10 +233,14 @@ def build_wait_lanes(
             if queue_capacity_budget_display_enabled():
                 if threshold == 0:
                     value.append("legacy capacity=0", style=_WAITING_VALUE_STYLE)
-                    value.append(" (runs alone)", style="bold #AF87FF")
+                    value.append(
+                        " (exact-weight drain budget)",
+                        style="bold #AF87FF",
+                    )
                 elif threshold == 1:
                     value.append("capacity budget 1", style=_WAITING_VALUE_STYLE)
-                    value.append(" (run alone)", style="bold #AF87FF")
+                    if _capacity_budget_runs_alone(wait_agent, threshold):
+                        value.append(" (runs alone)", style="bold #AF87FF")
                 else:
                     value.append(
                         f"capacity budget {threshold}",
@@ -326,6 +331,16 @@ def _runner_free_capacity(agent: Agent) -> float | None:
     if agent.runner_occupied_capacity is None or agent.runner_effective_limit is None:
         return None
     return max(agent.runner_effective_limit - agent.runner_occupied_capacity, 0.0)
+
+
+def _capacity_budget_runs_alone(agent: Agent, threshold: int) -> bool:
+    weight = (
+        agent.queue_weight if agent.queue_weight is not None else DEFAULT_QUEUE_WEIGHT
+    )
+    if isinstance(weight, bool) or not isinstance(weight, (int, float)):
+        return False
+    weight_float = float(weight)
+    return math.isfinite(weight_float) and weight_float >= float(threshold)
 
 
 def _runner_capacity_explanation_blockers(

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import math
+
 from rich.text import Text
 
 from sase.feature_flags import FeatureFlag, current_flags
 
 from ..models.agent import Agent, wait_display_agent
 from ..models.agent_runner_slots import (
-    format_capacity_value,
     format_queue_weight_badge_value,
 )
 
@@ -57,16 +58,16 @@ def append_queue_capacity_badge(
     pad: bool = True,
 ) -> bool:
     """Append ``cN`` for an authored queue-capacity budget."""
-    value = _format_queue_capacity_badge_value(capacity, explicit=explicit)
+    value = format_queue_capacity_badge_value(capacity, explicit=explicit)
     if value is None:
         return False
     if pad:
         text.append(" ")
     text.append("c", style=QUEUE_WEIGHT_BADGE_PREFIX_STYLE)
-    number_style = (
-        QUEUE_CAPACITY_BADGE_OVER_LIMIT_STYLE
-        if _capacity_over_effective_limit(value, effective_limit)
-        else QUEUE_CAPACITY_BADGE_NUMBER_STYLE
+    number_style = queue_capacity_badge_number_style(
+        capacity,
+        explicit=explicit,
+        effective_limit=effective_limit,
     )
     text.append(value, style=number_style)
     return True
@@ -97,20 +98,53 @@ def append_agent_queue_badges(text: Text, agent: Agent) -> bool:
     )
 
 
-def _format_queue_capacity_badge_value(
+def format_queue_capacity_badge_value(
     capacity: object,
     *,
     explicit: bool,
 ) -> str | None:
     if not explicit:
         return None
-    return format_capacity_value(capacity, minimum_decimal=False)
+    capacity_int = _queue_capacity_int(capacity)
+    if capacity_int is None:
+        return None
+    return str(capacity_int)
 
 
-def _capacity_over_effective_limit(value: str, effective_limit: object | None) -> bool:
-    if not value.isdigit() or effective_limit is None:
+def queue_capacity_badge_number_style(
+    capacity: object,
+    *,
+    explicit: bool,
+    effective_limit: object | None,
+) -> str:
+    """Return the badge number style for an authored capacity value."""
+    if _capacity_over_effective_limit(
+        capacity if explicit else None,
+        effective_limit,
+    ):
+        return QUEUE_CAPACITY_BADGE_OVER_LIMIT_STYLE
+    return QUEUE_CAPACITY_BADGE_NUMBER_STYLE
+
+
+def _capacity_over_effective_limit(
+    capacity: object,
+    effective_limit: object | None,
+) -> bool:
+    capacity_int = _queue_capacity_int(capacity)
+    limit = _finite_float(effective_limit)
+    if capacity_int is None or limit is None:
         return False
-    limit_text = format_capacity_value(effective_limit, minimum_decimal=False)
-    if not limit_text.isdigit():
-        return False
-    return int(value) > int(limit_text)
+    return float(capacity_int) > limit
+
+
+def _queue_capacity_int(capacity: object) -> int | None:
+    if type(capacity) is int and capacity >= 0:
+        return capacity
+    return None
+
+
+def _finite_float(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
