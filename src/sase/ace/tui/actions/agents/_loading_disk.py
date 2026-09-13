@@ -115,6 +115,45 @@ def _agents_viewport_request_key(
     )
 
 
+def _current_agents_history_query_key(app: Any) -> tuple[str, str]:
+    """Return the committed-query key for the app's current Agents query."""
+    from ...models.agent_live_query_engine import agents_history_query_key
+
+    return agents_history_query_key(getattr(app, "_agent_search_query", "") or "")
+
+
+def _agent_load_query_is_stale(app: Any, load_state: AgentLoadState | None) -> bool:
+    """Return whether an async load belongs to an obsolete committed query."""
+    load_key = getattr(load_state, "history_query_key", None)
+    if load_key is None:
+        return False
+    return load_key != _current_agents_history_query_key(app)
+
+
+def _reschedule_stale_agent_query_load(
+    app: Any,
+    *,
+    source: str,
+    full_history: bool,
+    full_history_reason: str | None,
+    index_freshness: Literal["revalidate", "cached"],
+    complete_prefix: bool = False,
+) -> None:
+    """Schedule a replacement read for the current query after discarding stale data."""
+    schedule_refresh = getattr(app, "_schedule_agents_async_refresh", None)
+    if not callable(schedule_refresh):
+        return
+    schedule_refresh(
+        source=source,
+        full_history=full_history,
+        full_history_reason=(
+            full_history_reason or "stale_query_retry" if full_history else None
+        ),
+        revalidate_index=index_freshness == "revalidate",
+        complete_prefix=complete_prefix,
+    )
+
+
 def _disk_load_with_optional_current_project(
     dismissed_snapshot: set[tuple[AgentType, str, str | None]],
     *,
@@ -290,7 +329,8 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
         full_history: bool = False,
         source: str = "unknown",
         index_freshness: Literal["revalidate", "cached"] = "cached",
-    ) -> None:
+        full_history_reason: str | None = None,
+    ) -> bool:
         """Load agents with disk IO and pure-data filtering off the UI thread.
 
         Phase 2 of the post-launch j/k lag fix: the dismissed-set filter,
@@ -306,6 +346,9 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
         from ....patch import find_all_patches_cached
 
         source = normalize_refresh_source(source)
+        complete_prefix = bool(
+            getattr(self, "_agents_refresh_active_prefix_completion", False)
+        )
         merge_result = await asyncio.to_thread(
             self._external_dismissal_merge_result, set(self._dismissed_agents)
         )
@@ -342,15 +385,30 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
             viewport=viewport,
             source=source,
         )
+        if _agent_load_query_is_stale(self, load_result.load_state):
+            _reschedule_stale_agent_query_load(
+                self,
+                source=source,
+                full_history=full_history,
+                full_history_reason=full_history_reason,
+                index_freshness=index_freshness,
+                complete_prefix=complete_prefix,
+            )
+            return False
         if load_result.load_state.bounded_prefix:
             current_query = getattr(self, "_agent_search_query", "") or ""
             current_viewport = _agents_viewport_for_load(self)
             current_key = _agents_viewport_request_key(current_query, current_viewport)
             if current_key != request_key:
-                schedule_refresh = getattr(self, "_schedule_agents_async_refresh", None)
-                if callable(schedule_refresh):
-                    schedule_refresh(source=source)
-                return
+                _reschedule_stale_agent_query_load(
+                    self,
+                    source=source,
+                    full_history=full_history,
+                    full_history_reason=full_history_reason,
+                    index_freshness=index_freshness,
+                    complete_prefix=complete_prefix,
+                )
+                return False
         self._agents_provider_snapshot = getattr(load_result, "provider_snapshot", None)
         self._agents_viewport_last_requested_limit = (
             load_result.load_state.requested_limit or 0
@@ -444,6 +502,16 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
                 worker_snapshot,
                 content_index=content_index,
             )
+        if _agent_load_query_is_stale(self, load_result.load_state):
+            _reschedule_stale_agent_query_load(
+                self,
+                source=source,
+                full_history=full_history,
+                full_history_reason=full_history_reason,
+                index_freshness=index_freshness,
+                complete_prefix=complete_prefix,
+            )
+            return False
         prep_elapsed = time.perf_counter() - prep_start
         log.debug("agents async load: prep=%.3fs", prep_elapsed)
 
@@ -489,6 +557,7 @@ class AgentLoadingDiskMixin(AgentSearchQuerySeedMixin, AgentLoadingDiskSupportMi
             agents=len(all_agents),
             dismissed=len(dismissed_from_loader),
         )
+        return True
 
     async def _load_agent_artifact_delta_async(
         self,

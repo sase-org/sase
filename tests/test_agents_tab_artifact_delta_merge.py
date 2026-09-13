@@ -14,14 +14,15 @@ from sase.ace.tui.actions.agents._loading_compute import (
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_loader import load_artifact_delta_agents
+from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
+from sase.ace.tui.models.agent_loader import AgentLoadState, load_artifact_delta_agents
 from sase.core.agent_scan_wire import AgentClanContextWire
 
 from tests._agents_tab_incomplete_merge_helpers import (
     _incomplete_tier1_snapshot,
     _write_json,
 )
-from tests._agents_tab_query_helpers import _make_agent
+from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
 
 
 def test_artifact_delta_deleted_dir_removes_cached_row() -> None:
@@ -182,6 +183,52 @@ def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> No
     assert root.retry_next_at_epoch == 1_800_000_000.0
     assert coder is cached_coder
     assert coder.status == "FAILED"
+
+
+def test_artifact_delta_under_committed_query_removes_stale_match() -> None:
+    """A scalar metadata delta can remove an old row from the active query."""
+    cached = _make_agent(
+        cl_name="target",
+        project_file="/tmp/project.sase",
+        raw_suffix="20260913120000",
+        status="DONE",
+    )
+    changed = _make_agent(
+        cl_name="other",
+        project_file="/tmp/project.sase",
+        raw_suffix="20260913120000",
+        status="DONE",
+    )
+    app = FakeAgentApp(query="cl:target")
+    app._agents_with_children = [cached]
+    app._agents = [cached]
+    app._agents_seen_complete_history = True
+    app._agents_complete_history_query_key = agents_history_query_key(
+        "cl:target",
+        use_unified_query=False,
+    )
+
+    app._apply_loaded_agents_prepared(
+        PreparedApplyData(
+            filtered_agents=[changed],
+            has_always_visible=False,
+            hidden_count=0,
+            hideable_agents=[changed],
+            dismissed_agent_objects=[],
+        ),
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_delta",
+            used_artifact_index=False,
+        ),
+        persist_dismissed_changes=False,
+    )
+
+    assert app._agents_with_children == [changed]
+    assert app._agents == []
 
 
 def test_exact_child_delta_remirrors_tale_family_root_to_done(

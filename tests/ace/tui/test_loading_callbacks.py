@@ -15,10 +15,21 @@ class _FakeApp(AgentLoadingMixin):
     def __init__(self) -> None:
         self._agents_loading = False
         self._agents_refresh_pending = False
+        self._agents_refresh_pending_source = "unknown"
         self._agents_refresh_pending_full_history = False
+        self._agents_refresh_pending_full_history_reason = None
+        self._agents_refresh_pending_revalidate_index = False
+        self._agents_refresh_pending_prefix_completion = False
         self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled = False
+        self._agents_refresh_scheduled_source = "unknown"
         self._agents_refresh_scheduled_full_history = False
+        self._agents_refresh_scheduled_full_history_reason = None
+        self._agents_refresh_scheduled_revalidate_index = False
+        self._agents_refresh_scheduled_prefix_completion = False
+        self._agents_refresh_active_source = "unknown"
+        self._agents_refresh_active_prefix_completion = False
+        self._agents_artifact_delta_scheduled = None
         self._scheduled: list[Any] = []
         self._nav_gate = NavigationGate(window_s=0.25)
         self._timer_calls: list[tuple[float, Callable[[], Any]]] = []
@@ -93,6 +104,55 @@ async def test_callback_exception_does_not_block_subsequent_callbacks() -> None:
     await app._run_agents_async_refresh()
 
     assert fired == ["bad", "good"]
+
+
+@pytest.mark.asyncio
+async def test_stale_load_carries_callback_to_replacement_refresh() -> None:
+    app = _FakeApp()
+    fired: list[str] = []
+    callback = lambda: fired.append("cb")  # noqa: E731
+    calls = 0
+
+    async def _fake_load_agents_async(*, full_history: bool = False) -> bool:
+        nonlocal calls
+        del full_history
+        calls += 1
+        if calls == 1:
+            app._schedule_agents_async_refresh(source="stale_retry")
+            return False
+        fired.append("load")
+        return True
+
+    app._load_agents_async = _fake_load_agents_async  # type: ignore[method-assign]
+
+    app._schedule_agents_async_refresh(on_complete=callback)
+    await app._run_agents_async_refresh()
+
+    assert fired == []
+    assert app._agents_refresh_pending_callbacks == [callback]
+    assert app._agents_refresh_scheduled is True
+
+    await app._run_agents_async_refresh()
+    assert fired == ["load", "cb"]
+
+
+@pytest.mark.asyncio
+async def test_failed_load_does_not_fire_completion_callback() -> None:
+    app = _FakeApp()
+    fired: list[str] = []
+
+    async def _fake_load_agents_async(*, full_history: bool = False) -> None:
+        del full_history
+        raise RuntimeError("boom")
+
+    app._load_agents_async = _fake_load_agents_async  # type: ignore[method-assign]
+
+    app._schedule_agents_async_refresh(on_complete=lambda: fired.append("cb"))
+    with pytest.raises(RuntimeError, match="boom"):
+        await app._run_agents_async_refresh()
+
+    assert fired == []
+    assert app._agents_refresh_pending_callbacks == []
 
 
 @pytest.mark.asyncio

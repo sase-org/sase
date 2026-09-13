@@ -109,11 +109,21 @@ def test_manual_refresh_stamps_requested_surface(
     assert surface_refreshed_age(app, surface) is not None
 
 
-def test_manual_full_history_refresh_stamps_full_history_surface() -> None:
+def test_complete_history_apply_stamps_full_history_surface() -> None:
     from sase.ace.tui.actions.base import BaseActionsMixin
+    from tests._agents_tab_query_helpers import FakeAgentApp
+    from tests.ace.tui._lazy_tier2_reconcile_helpers import (
+        apply_load,
+        make_complete_load_state,
+    )
 
     app = _ManualRefreshApp(current_tab="agents")
 
     BaseActionsMixin.action_refresh_agents_full_history(app)  # type: ignore[arg-type]
 
-    assert surface_refreshed_age(app, "agents_full_history") is not None
+    assert surface_refreshed_age(app, "agents_full_history") is None
+
+    apply_app = FakeAgentApp()
+    apply_load(apply_app, make_complete_load_state())
+
+    assert surface_refreshed_age(apply_app, "agents_full_history") is not None

@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
+from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
+from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.feature_flags import override_flags
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
@@ -116,3 +120,84 @@ async def test_stale_background_content_index_generation_is_ignored(
 
     assert app._agent_content_search_index is None
     assert app._agents == []
+
+
+@pytest.mark.asyncio
+async def test_async_full_history_discarded_when_query_changes_after_disk_load(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FakeAgentApp(query="cl:old")
+    app._nav_gate = NavigationGate(window_s=0.25)
+    app._agents_refresh_pending = False
+    app._agents_refresh_pending_source = "unknown"
+    app._agents_refresh_pending_full_history = False
+    app._agents_refresh_pending_full_history_reason = None
+    app._agents_refresh_pending_revalidate_index = False
+    app._agents_refresh_pending_prefix_completion = False
+    app._agents_refresh_pending_callbacks = []
+    app._agents_refresh_scheduled = False
+    app._agents_refresh_scheduled_source = "unknown"
+    app._agents_refresh_scheduled_full_history = False
+    app._agents_refresh_scheduled_full_history_reason = None
+    app._agents_refresh_scheduled_revalidate_index = False
+    app._agents_refresh_scheduled_prefix_completion = False
+    app._agents_refresh_active_source = "unknown"
+    app._agents_refresh_active_prefix_completion = False
+    app._agents_artifact_delta_scheduled = None
+    app._agents_artifact_delta_pending = None
+    app._agents_history_reconcile_pending = False
+    app._agents_history_reconcile_armed_mono = 0.0
+    app._agents_seen_complete_history = False
+    app._agents_complete_history_query_key = None
+    app._scheduled_refreshes: list[str] = []
+    fired: list[str] = []
+
+    def fake_spawn() -> None:
+        app._scheduled_refreshes.append("refresh")
+
+    def fake_load_agents(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+        app._agent_search_query = "cl:new"
+        return SimpleNamespace(
+            all_agents=[_make_agent(cl_name="old")],
+            dismissed_from_loader=[],
+            load_state=AgentLoadState(
+                tier="tier2",
+                complete_history=True,
+                artifact_source="artifact_index",
+                used_artifact_index=True,
+                history_query_key=agents_history_query_key(
+                    "cl:old",
+                    use_unified_query=False,
+                ),
+            ),
+        )
+
+    app._spawn_agents_refresh_task = fake_spawn  # type: ignore[method-assign]
+    app._external_dismissal_merge_result = lambda _snapshot: None  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._loading.load_agents_from_disk_with_state",
+        fake_load_agents,
+    )
+    monkeypatch.setattr(
+        "sase.ace.patch.find_all_patches_cached",
+        lambda **_kwargs: [],
+    )
+
+    app._schedule_agents_async_refresh(
+        full_history=True,
+        full_history_reason="manual_full_history_refresh",
+        on_complete=lambda: fired.append("complete"),
+    )
+    await app._run_agents_async_refresh()
+
+    assert app._agents == []
+    assert app._agents_seen_complete_history is False
+    assert app._agents_complete_history_query_key is None
+    assert fired == []
+    assert app._agents_refresh_pending_callbacks
+    assert app._agents_refresh_scheduled is True
+    assert app._agents_refresh_scheduled_full_history is True
+    assert (
+        app._agents_refresh_scheduled_full_history_reason
+        == "manual_full_history_refresh"
+    )

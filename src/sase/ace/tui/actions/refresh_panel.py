@@ -93,7 +93,6 @@ class RefreshPanelMixin:
     def _refresh_agents_full_history(self) -> None:
         """Schedule the Agents full-history rescan without a toast."""
         self._agents_history_reconcile_pending = False
-        note_surface_refreshed(self, "agents_full_history")
         self._schedule_agents_async_refresh(  # type: ignore[attr-defined]
             source="manual_full_history",
             full_history=True,

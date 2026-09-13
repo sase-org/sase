@@ -256,7 +256,8 @@ class AgentLoadingStateMixin:
         full_history: bool = False,
         source: str = "unknown",
         index_freshness: Literal["revalidate", "cached"] = "cached",
-    ) -> None:
+        full_history_reason: str | None = None,
+    ) -> bool:
         raise NotImplementedError
 
     def _load_agents(

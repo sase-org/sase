@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from functools import partial
@@ -97,6 +98,15 @@ class AgentArtifactDeltaRefreshMixin(AgentLoadingStateMixin):
         if callbacks:
             self._agents_refresh_pending_callbacks.extend(callbacks)
 
+    def _invalidate_agents_complete_history_after_delta_loss(self) -> None:
+        """Clear query-keyed full-history reuse after delta coverage is unreliable."""
+        self._agents_complete_history_query_key = None  # type: ignore[attr-defined]
+        self._agents_seen_complete_history = False  # type: ignore[attr-defined]
+        if getattr(self, "_agents_history_reconcile_pending", False):
+            return
+        self._agents_history_reconcile_pending = True  # type: ignore[attr-defined]
+        self._agents_history_reconcile_armed_mono = time.monotonic()  # type: ignore[attr-defined]
+
     def _schedule_broad_fallback_for_agent_delta(
         self,
         request: _AgentArtifactDeltaRefreshRequest,
@@ -104,6 +114,7 @@ class AgentArtifactDeltaRefreshMixin(AgentLoadingStateMixin):
         reason: str,
         record_fallback: bool = True,
     ) -> None:
+        self._invalidate_agents_complete_history_after_delta_loss()
         if record_fallback:
             record_agents_refresh_trace(
                 self,
@@ -275,12 +286,6 @@ class AgentArtifactDeltaRefreshMixin(AgentLoadingStateMixin):
             self._schedule_broad_fallback_for_agent_delta(
                 fallback_request,
                 reason=fallback_reason or "missing_artifact_dir",
-            )
-            return
-        if getattr(self, "_agent_search_query", ""):
-            self._schedule_broad_fallback_for_agent_delta(
-                request,
-                reason="active_search",
             )
             return
 

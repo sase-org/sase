@@ -21,14 +21,23 @@ class _FakeApp(AgentLoadingMixin):
         self._agents_refresh_pending_source = "unknown"
         self._agents_refresh_pending_full_history = False
         self._agents_refresh_pending_full_history_reason = None
+        self._agents_refresh_pending_revalidate_index = False
+        self._agents_refresh_pending_prefix_completion = False
         self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
         self._agents_refresh_scheduled = False
         self._agents_refresh_scheduled_source = "unknown"
         self._agents_refresh_scheduled_full_history = False
         self._agents_refresh_scheduled_full_history_reason = None
+        self._agents_refresh_scheduled_revalidate_index = False
+        self._agents_refresh_scheduled_prefix_completion = False
+        self._agents_refresh_active_prefix_completion = False
         self._agents_refresh_active_source = "unknown"
         self._agents_artifact_delta_scheduled = None
         self._agents_artifact_delta_pending = None
+        self._agents_history_reconcile_pending = False
+        self._agents_history_reconcile_armed_mono = 0.0
+        self._agents_seen_complete_history = False
+        self._agents_complete_history_query_key = None
         self._agents_refresh_debounce_armed = False
         self._agents_refresh_debounce_source = "unknown"
         self._agent_search_query = ""
@@ -200,6 +209,24 @@ def test_exact_delta_requests_merge_before_first_task_runs() -> None:
         "scheduled",
         "coalesced",
     }
+
+
+def test_exact_delta_requests_survive_active_search() -> None:
+    app = _FakeApp()
+    app._agent_search_query = "cl:target"
+    path = Path("/tmp/agent-a")
+
+    app._schedule_agent_artifact_delta_refresh([path], source="watcher")
+
+    assert [entry[0] for entry in app._scheduled] == ["delta"]
+    request = app._agents_artifact_delta_scheduled
+    assert tuple(request.artifact_dirs) == (path,)
+    assert app._agents_refresh_scheduled is False
+    assert [
+        record.fallback_reason
+        for record in app._agents_refresh_trace_records
+        if record.fallback_reason == "active_search"
+    ] == []
 
 
 @pytest.mark.asyncio
@@ -375,6 +402,9 @@ async def test_exact_delta_overflow_schedules_one_broad_recovery() -> None:
 
     assert app._agents_refresh_scheduled is True
     assert app._agents_artifact_delta_scheduled is None
+    assert app._agents_history_reconcile_pending is True
+    assert app._agents_complete_history_query_key is None
+    assert app._agents_seen_complete_history is False
     assert [
         record.fallback_reason
         for record in app._agents_refresh_trace_records

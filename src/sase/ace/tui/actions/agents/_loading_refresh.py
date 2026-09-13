@@ -237,6 +237,8 @@ class AgentLoadingRefreshMixin(
         self._agents_refresh_active_prefix_completion = complete_prefix
         callbacks = list(self._agents_refresh_pending_callbacks)
         self._agents_refresh_pending_callbacks.clear()
+        applied = False
+        carry_callbacks = False
         try:
             load_agents_async = self._load_agents_async
             kwargs: dict[str, Any] = {}
@@ -248,6 +250,8 @@ class AgentLoadingRefreshMixin(
                 kwargs["index_freshness"] = (
                     "revalidate" if revalidate_index else "cached"
                 )
+            if _callable_accepts_kwarg(load_agents_async, "full_history_reason"):
+                kwargs["full_history_reason"] = full_history_reason
             if full_history and "full_history" in kwargs:
                 reason = full_history_reason or "unspecified_full_history_refresh"
                 log.info("agents full-history refresh requested: %s", reason)
@@ -257,16 +261,21 @@ class AgentLoadingRefreshMixin(
                     source=source,
                     data_cost="tier2_full_history",
                 ):
-                    await load_agents_async(**kwargs)
+                    result = await load_agents_async(**kwargs)
             else:
-                await load_agents_async(**kwargs)
+                result = await load_agents_async(**kwargs)
+            applied = result is not False
+            carry_callbacks = result is False
         finally:
             self._agents_loading = False
             self._agents_refresh_active_source = "unknown"
             self._agents_refresh_active_prefix_completion = False
-            for cb in callbacks:
-                try:
-                    cb()
-                except Exception:
-                    log.exception("agents async refresh callback failed")
+            if applied:
+                for cb in callbacks:
+                    try:
+                        cb()
+                    except Exception:
+                        log.exception("agents async refresh callback failed")
+            elif carry_callbacks:
+                self._agents_refresh_pending_callbacks[:0] = callbacks
             self._drain_pending_agents_refresh_work()

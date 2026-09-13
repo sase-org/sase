@@ -421,6 +421,9 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             self._agents_complete_history_query_key = history_query_key
             self._agents_seen_complete_history = True
             self._agents_history_reconcile_pending = False
+            from ..event_refresh._freshness import note_surface_refreshed
+
+            note_surface_refreshed(self, "agents_full_history")
         elif not history_complete_for_query:
             self._agents_complete_history_query_key = None
             self._agents_seen_complete_history = False
