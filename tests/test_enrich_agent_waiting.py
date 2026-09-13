@@ -621,6 +621,44 @@ def test_wait_metadata_wire_without_marker_keeps_starting_start_label() -> None:
     assert agent.wait_start_time is None
 
 
+def test_queue_capacity_metadata_marks_waited_in_filesystem_and_wire(
+    tmp_path: Path,
+) -> None:
+    """Canonical queue_capacity metadata is a wait directive on both paths."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "queue_capacity": 2, "queue_capacity_explicit": True})
+    )
+    filesystem_agent = make_agent(status="DONE")
+    wire_agent = make_agent(status="DONE")
+
+    enrich_agent_from_meta(filesystem_agent, str(tmp_path))
+    enrich_agent_from_meta_wire(
+        wire_agent,
+        AgentMetaWire(pid=1234, queue_capacity=2, queue_capacity_explicit=True),
+        None,
+        None,
+    )
+
+    assert filesystem_agent.wait_start_time is not None
+    assert filesystem_agent.wait_start_time == filesystem_agent.start_time
+    assert wire_agent.wait_start_time is not None
+    assert wire_agent.wait_start_time == wire_agent.start_time
+
+
+def test_canonical_queue_capacity_from_waiting_marker_wire() -> None:
+    """Schema 9 waiting markers carry capacity only as queue_capacity."""
+    agent = make_agent(status="STARTING")
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(),
+        WaitingMarkerWire(queue_capacity=3, queue_capacity_explicit=True),
+        None,
+    )
+
+    assert agent.wait_runners == 3
+    assert agent.wait_runners_explicit is True
+
+
 def test_source_machine_projection_matches_filesystem_and_wire(
     tmp_path: Path,
 ) -> None:
