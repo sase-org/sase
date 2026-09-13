@@ -28,7 +28,7 @@ _TAB_LABELS = {"agents": "Agents", "axe": "Axe"}
 
 
 def refresh_panel_enabled() -> bool:
-    """Return whether ``R`` and ``,y`` should open the Refresh panel."""
+    """Return whether the refresh action and ``,y`` should open the panel."""
     return current_flags().enabled(FeatureFlag.refresh_panel)
 
 

@@ -26,7 +26,7 @@ from sase.ace.tui.models.fold_scale import (
 _REQUIRES_AGENT: frozenset[str] = frozenset(
     {
         "app.edit_spec",
-        "app.run_workflow",
+        "app.agents_retry",
         "app.edit_agent_tribe",
         "app.rename_cl",
         "app.toggle_attempt_view",
@@ -63,7 +63,7 @@ _REMOTE_AGENT_LOCAL_COMMANDS: frozenset[str] = frozenset(
         "app.open_artifact_files",
         "app.open_tmux",
         "app.rename_cl",
-        "app.run_workflow",
+        "app.agents_retry",
         "app.show_agent_run_log",
         "app.start_agent_from_patch",
         "app.start_sibling_mode",
@@ -127,7 +127,7 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if ctx.selected_agent_remote:
         if spec.id == "app.kill_agent":
             return _remote_lifecycle_command_available(ctx, "lifecycle.stop")
-        if spec.id == "app.run_workflow":
+        if spec.id == "app.agents_retry":
             return _remote_lifecycle_command_available(ctx, "lifecycle.retry")
         if spec.id == "app.edit_hooks":
             return _remote_lifecycle_command_available(ctx, "lifecycle.fork")
@@ -157,6 +157,11 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return ctx.mark_count > 0
 
     if getattr(agent, "is_proc_shell", False) and spec.id in _REQUIRES_AGENT:
+        return False
+
+    if spec.id == "app.agents_retry" and (
+        getattr(agent, "is_monitor", False) or getattr(agent, "is_gate", False)
+    ):
         return False
 
     if spec.id == "app.zoom_panel":

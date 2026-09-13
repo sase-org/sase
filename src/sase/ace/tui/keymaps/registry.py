@@ -105,6 +105,9 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # Pane-disjoint by construction: Artifacts-only query history cycling
         # vs Agents-only all-panel fold sweep.
         frozenset({"next_query", "collapse_all_panel_folds"}),
+        # Tab-disjoint: Agents refresh/retry vs Artifacts/Axe run/refresh.
+        frozenset({"agents_refresh", "run_workflow"}),
+        frozenset({"agents_retry", "refresh"}),
     }
 )
 

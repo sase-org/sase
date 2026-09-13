@@ -94,7 +94,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.start_agent_home), "Run agent (home)"),
                 (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
                 (d(a.restore_prompt_stash), "Restore stashed prompt"),
-                (d(a.run_workflow), "Retry local or remote agent"),
+                (d(a.agents_retry), "Retry local or remote agent"),
                 (
                     d(a.accept_proposal),
                     "Auto-approve / answer local or remote attention",
@@ -149,7 +149,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 (d(a.connect_agent_machine), "Show remote machine status"),
                 (d(a.setup_agent_machine), "Connect a machine"),
-                (d(a.run_workflow), "Retry selected remote row on its owner"),
+                (d(a.agents_retry), "Retry selected remote row on its owner"),
                 (d(a.edit_hooks), "Fork selected remote row on its owner"),
                 (d(a.kill_agent), "Stop selected remote row on its owner"),
                 (d(a.edit_spec), "Open remote chat/output/diff content"),
@@ -313,7 +313,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_next_stopped_agent'))}",
                     "Jump to next stopped agent",
                 ),
-                *leader_full_history_help_rows(km),
+                *leader_full_history_help_rows(km, refresh_action="agents_refresh"),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'mark_all_unread_done_agents_read'))}",
                     "Mark all unread done agents read / undo",
@@ -589,7 +589,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Quit / restart menu"),
-                (d(a.refresh), refresh_help_label()),
+                (d(a.agents_refresh), refresh_help_label()),
                 (d(a.quit), "Quit"),
                 (d(a.open_command_palette), "Open command palette"),
             ],

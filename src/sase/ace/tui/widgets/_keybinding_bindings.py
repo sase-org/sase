@@ -367,7 +367,7 @@ class KeybindingBindingsMixin:
                 if remote_capability_enabled(agent, "lifecycle.stop"):
                     bindings.append((x, f"stop {alias}"))
                 if remote_capability_enabled(agent, "lifecycle.retry"):
-                    bindings.append((self._kd("run_workflow"), "retry"))
+                    bindings.append((self._kd("agents_retry"), "retry"))
                 if remote_capability_enabled(agent, "lifecycle.fork"):
                     bindings.append((self._kd("edit_hooks"), "fork"))
                 if remote_content_available(agent):
@@ -415,7 +415,7 @@ class KeybindingBindingsMixin:
                 )
             return bindings
 
-        bindings.append((self._kd("run_workflow"), "retry"))
+        bindings.append((self._kd("agents_retry"), "retry"))
 
         # --- Status-dependent actions ---
         if agent.status == "FAILED" or is_resumable_done_status(agent.status):

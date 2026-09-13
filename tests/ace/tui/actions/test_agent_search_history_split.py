@@ -55,7 +55,9 @@ class _SearchLoadApp(AgentLoadingMixin):
         self.applied = True
         self.applied_kwargs = kwargs
 
-    def _schedule_agents_async_refresh(self, *, source: str = "unknown") -> None:
+    def _schedule_agents_async_refresh(
+        self, *, source: str = "unknown", **_kwargs: Any
+    ) -> None:
         self.async_refresh_sources.append(source)
 
 

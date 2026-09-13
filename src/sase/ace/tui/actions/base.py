@@ -39,7 +39,11 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
     # --- Workflow Actions ---
 
     def action_run_workflow(self) -> None:
-        """Run the contextual ``r`` action for the current tab."""
+        """Run a Patch workflow or an Axe run/re-run.
+
+        Agents retry lives on :meth:`action_agents_retry`. This method still
+        forwards the Agents branch so programmatic callers keep working.
+        """
         # On axe tab, dispatch to re-run for done bgcmds or to manual chop run
         # for chop rows. Other rows (lumberjacks, running bgcmds) are no-ops.
         if self.current_tab == "axe":
@@ -57,15 +61,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
             return
 
         if self.current_tab == "agents":
-            from .agents._remote_lifecycle import is_remote_fleet_agent
-
-            get_selected = getattr(self, "_get_selected_agent", None)
-            if callable(get_selected):
-                selected_agent = get_selected()
-                if is_remote_fleet_agent(selected_agent):
-                    self.action_retry_remote_agent()  # type: ignore[attr-defined]
-                    return
-            self._retry_edit_agent()  # type: ignore[attr-defined]
+            self._retry_selected_agent()
             return
 
         # Only run on patches tab
@@ -95,6 +91,26 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
                     self._run_workflow(patch, workflow_idx)
 
             self.push_screen(WorkflowSelectModal(workflows), on_dismiss)  # type: ignore[attr-defined]
+
+    def action_agents_refresh(self) -> None:
+        """Refresh Agents, or open the Refresh panel when that flag is on."""
+        self.action_refresh()
+
+    def action_agents_retry(self) -> None:
+        """Retry the selected local or remote agent."""
+        self._retry_selected_agent()
+
+    def _retry_selected_agent(self) -> None:
+        """Retry the focused Agents row via the existing local/remote paths."""
+        from .agents._remote_lifecycle import is_remote_fleet_agent
+
+        get_selected = getattr(self, "_get_selected_agent", None)
+        if callable(get_selected):
+            selected_agent = get_selected()
+            if is_remote_fleet_agent(selected_agent):
+                self.action_retry_remote_agent()  # type: ignore[attr-defined]
+                return
+        self._retry_edit_agent()  # type: ignore[attr-defined]
 
     def _run_workflow(self, patch: Patch, workflow_index: int) -> None:
         """Run a specific workflow."""

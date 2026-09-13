@@ -19,10 +19,10 @@ class _FakeAgentForkDispatchApp(BaseActionsMixin, HookEditingMixin):
         self.retry_edit_calls += 1
 
 
-def test_run_workflow_on_agents_dispatches_retry_edit_and_does_not_fork() -> None:
+def test_agents_retry_dispatches_retry_edit_and_does_not_fork() -> None:
     app = _FakeAgentForkDispatchApp()
 
-    BaseActionsMixin.action_run_workflow(app)
+    BaseActionsMixin.action_agents_retry(app)
 
     assert app.retry_edit_calls == 1
     assert app.fork_calls == 0

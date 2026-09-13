@@ -86,7 +86,7 @@ def test_collapsed_panel_exposes_kill_but_hides_hidden_agent_commands() -> None:
 
     assert is_command_available(catalog["app.kill_agent"], ctx)
     for command_id in {
-        "app.run_workflow",
+        "app.agents_retry",
         "app.edit_spec",
         "app.edit_hooks",
         "app.rename_cl",
@@ -114,7 +114,7 @@ def test_expanded_panel_exposes_kill_but_hides_remembered_agent_commands() -> No
 
     assert is_command_available(catalog["app.kill_agent"], ctx)
     for command_id in {
-        "app.run_workflow",
+        "app.agents_retry",
         "app.edit_spec",
         "app.open_tmux",
         "app.toggle_mark",

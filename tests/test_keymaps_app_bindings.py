@@ -78,6 +78,28 @@ def test_diff_and_axe_description_toggle_share_d_in_resolution_order() -> None:
     ]
 
 
+def test_r_and_R_bind_agents_and_generic_pairs_in_order() -> None:
+    bindings = build_app_bindings(default_app_keymaps())
+    fallback_r = [binding.action for binding in DEFAULT_BINDINGS if binding.key == "r"]
+    fallback_shift_r = [
+        binding.action for binding in DEFAULT_BINDINGS if binding.key == "R"
+    ]
+
+    assert [binding.action for binding in bindings if binding.key == "r"] == [
+        "run_workflow",
+        "agents_refresh",
+    ]
+    assert [binding.action for binding in bindings if binding.key == "R"] == [
+        "refresh",
+        "agents_retry",
+    ]
+    assert fallback_r == ["run_workflow", "agents_refresh"]
+    assert fallback_shift_r[fallback_shift_r.index("refresh") :][:2] == [
+        "refresh",
+        "agents_retry",
+    ]
+
+
 def test_build_app_bindings_uses_plus_custom_agent_binding() -> None:
     """The custom-agent launcher builds a ``plus`` binding, not ``at``."""
     bindings = build_app_bindings(default_app_keymaps())

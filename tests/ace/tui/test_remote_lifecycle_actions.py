@@ -190,14 +190,14 @@ class _RunWorkflowHarness(BaseActionsMixin):
 
 def test_agents_retry_key_routes_remote_selection_to_owner_retry() -> None:
     harness = _RunWorkflowHarness(_remote_agent_with_shared_capabilities())
-    harness.action_run_workflow()
+    harness.action_agents_retry()
     assert harness.remote_retry_calls == 1
     assert harness.local_retry_calls == 0
 
 
 def test_agents_retry_key_keeps_local_retry_path() -> None:
     harness = _RunWorkflowHarness(_local_agent())
-    harness.action_run_workflow()
+    harness.action_agents_retry()
     assert harness.remote_retry_calls == 0
     assert harness.local_retry_calls == 1
 
@@ -376,7 +376,7 @@ def test_footer_shows_shared_remote_row_actions() -> None:
         footer._compute_agent_bindings(_remote_agent_with_shared_capabilities())
     )
     assert (footer._kd("kill_agent"), "stop apollo") in bindings
-    assert (footer._kd("run_workflow"), "retry") in bindings
+    assert (footer._kd("agents_retry"), "retry") in bindings
     assert (footer._kd("edit_hooks"), "fork") in bindings
     assert (footer._kd("edit_spec"), "content") in bindings
     assert (footer._kd("accept_proposal"), "answer") in bindings

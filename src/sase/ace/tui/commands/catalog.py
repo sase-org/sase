@@ -63,7 +63,7 @@ _ensure_metadata_covers_app_keymaps()
 def iter_app_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
     """Yield one :class:`CommandSpec` per :class:`AppKeymaps` field."""
     for action, label, category, tabs, aliases in _APP_COMMAND_META:
-        if action == "refresh":
+        if action in {"refresh", "agents_refresh"}:
             label = (
                 REFRESH_PANEL_COMMAND_LABEL
                 if refresh_panel_enabled()

@@ -227,7 +227,8 @@ def test_agents_help_uses_edit_hooks_for_fork_not_r_for_resume() -> None:
         "Fork local or remote agent",
     ) in agent_pairs
     assert ("r", "Resume chat as agent") not in agent_pairs
-    assert ("r", "Retry local or remote agent") in agent_pairs
+    assert ("R", "Retry local or remote agent") in agent_pairs
+    assert ("r", "Open Refresh panel") in agent_pairs
     assert ("e", "Edit chat(s) / open remote content") in agent_pairs
     assert ("e", "Edit chat in editor") not in agent_pairs
 

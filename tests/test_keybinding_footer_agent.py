@@ -50,6 +50,7 @@ def test_keybinding_footer_agent_bindings_none_agent() -> None:
 
     assert _edit_hooks_key(footer) not in binding_keys  # No fork chat
     assert "r" not in binding_keys
+    assert "R" not in binding_keys
     assert "x" not in binding_keys  # Kill/dismiss only when agent selected
 
 
@@ -72,7 +73,7 @@ def test_keybinding_footer_agent_bindings_running_agent() -> None:
 
     assert "x" in binding_keys  # Kill is available
     assert _edit_hooks_key(footer) not in binding_keys  # No fork chat
-    assert ("r", "retry") in bindings
+    assert (footer._kd("agents_retry"), "retry") in bindings
 
 
 def test_keybinding_footer_agent_bindings_running_proc_shell() -> None:
@@ -83,7 +84,7 @@ def test_keybinding_footer_agent_bindings_running_proc_shell() -> None:
     bindings = footer._compute_agent_bindings(agent)
 
     assert ("x", "kill proc") in bindings
-    assert ("r", "retry") not in bindings
+    assert (footer._kd("agents_retry"), "retry") not in bindings
     assert (_edit_hooks_key(footer), "fork") in bindings
     assert (_edit_hooks_key(footer), "fork tribe") not in bindings
     assert ("W", "wait for tribe") not in bindings
@@ -99,7 +100,7 @@ def test_keybinding_footer_agent_bindings_terminal_proc_shell() -> None:
     assert ("x", "kill proc") not in bindings
     assert ("x", "dismiss proc") in bindings
     assert ("x", "dismiss") not in bindings
-    assert ("r", "retry") not in bindings
+    assert (footer._kd("agents_retry"), "retry") not in bindings
     assert (_edit_hooks_key(footer), "fork") in bindings
 
 

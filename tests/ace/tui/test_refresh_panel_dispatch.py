@@ -236,12 +236,15 @@ def test_flag_on_footer_palette_and_help_omit_comma_y() -> None:
 
         catalog_ids = {spec.id for spec in iter_mode_commands(load_keymap_registry({}))}
         assert "leader.full_history_refresh" not in catalog_ids
-        refresh = next(
-            spec
-            for spec in iter_app_commands(load_keymap_registry({}))
-            if spec.id == "app.refresh"
+        catalog = list(iter_app_commands(load_keymap_registry({})))
+        refresh = next(spec for spec in catalog if spec.id == "app.refresh")
+        agents_refresh = next(
+            spec for spec in catalog if spec.id == "app.agents_refresh"
         )
         assert refresh.label == REFRESH_PANEL_COMMAND_LABEL
+        assert agents_refresh.label == REFRESH_PANEL_COMMAND_LABEL
+        assert agents_refresh.tabs == ("agents",)
+        assert refresh.tabs == ("artifacts", "axe")
 
         labels = _help_labels(agents_bindings)
         assert "Refresh from full history" not in labels
@@ -255,6 +258,28 @@ def test_flag_off_refresh_is_immediate() -> None:
 
     with override_flags(refresh_panel=False):
         app.action_refresh()
+
+    assert app.pushed == []
+    assert app.scheduled_agents == [{"source": "manual", "full_history": False}]
+    assert app.notifications == ["Refreshed"]
+
+
+def test_agents_refresh_opens_panel_when_flag_on() -> None:
+    app = _DispatchApp()
+
+    with override_flags(refresh_panel=True):
+        app.action_agents_refresh()
+
+    assert len(app.pushed) == 1
+    assert isinstance(app.pushed[0][0], RefreshPanelModal)
+    assert app.scheduled_agents == []
+
+
+def test_agents_refresh_is_immediate_when_flag_off() -> None:
+    app = _DispatchApp()
+
+    with override_flags(refresh_panel=False):
+        app.action_agents_refresh()
 
     assert app.pushed == []
     assert app.scheduled_agents == [{"source": "manual", "full_history": False}]
@@ -281,12 +306,13 @@ def test_flag_off_footer_palette_and_help_keep_comma_y() -> None:
 
         catalog_ids = {spec.id for spec in iter_mode_commands(load_keymap_registry({}))}
         assert "leader.full_history_refresh" in catalog_ids
-        refresh = next(
-            spec
-            for spec in iter_app_commands(load_keymap_registry({}))
-            if spec.id == "app.refresh"
+        catalog = list(iter_app_commands(load_keymap_registry({})))
+        refresh = next(spec for spec in catalog if spec.id == "app.refresh")
+        agents_refresh = next(
+            spec for spec in catalog if spec.id == "app.agents_refresh"
         )
         assert refresh.label == REFRESH_TAB_COMMAND_LABEL
+        assert agents_refresh.label == REFRESH_TAB_COMMAND_LABEL
 
         labels = _help_labels(agents_bindings)
         assert "Refresh from full history" in labels

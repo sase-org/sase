@@ -64,7 +64,7 @@ _LOCAL_AGENT_ROW_ACTIONS = frozenset(
         "open_artifact_files",
         "open_tmux",
         "rename_cl",
-        "run_workflow",
+        "agents_retry",
         "show_agent_run_log",
         "start_agent_from_patch",
         "start_sibling_mode",
@@ -115,9 +115,17 @@ def check_app_action(
                 selected_agent_remote
                 and getattr(selected_agent, "fleet_dispatch_operation_key", None)
             )
+    if action == "agents_refresh":
+        return app.current_tab == "agents"
+    if action == "refresh" and app.current_tab == "agents":
+        return False
+    if action == "run_workflow" and app.current_tab == "agents":
+        return False
+    if action == "agents_retry" and app.current_tab != "agents":
+        return False
     if selected_agent_remote and action == "kill_agent":
         return _remote_lifecycle_available(selected_agent, "lifecycle.stop")
-    if selected_agent_remote and action == "run_workflow":
+    if selected_agent_remote and action == "agents_retry":
         return _remote_lifecycle_available(selected_agent, "lifecycle.retry")
     if selected_agent_remote and action == "edit_hooks":
         return _remote_lifecycle_available(selected_agent, "lifecycle.fork")

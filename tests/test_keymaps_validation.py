@@ -187,6 +187,47 @@ def test_contextual_all_panel_fold_sweep_may_share_next_querys_key() -> None:
     assert reg.app.collapse_all_panel_folds == "f10"
 
 
+def test_agents_refresh_and_run_workflow_may_share_a_custom_key() -> None:
+    """Agents refresh and Artifacts/Axe run are tab-disjoint."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "agents_refresh": "f9",
+                    "run_workflow": "f9",
+                }
+            }
+        }
+    )
+
+    assert reg.app.agents_refresh == "f9"
+    assert reg.app.run_workflow == "f9"
+
+
+def test_agents_retry_and_refresh_may_share_a_custom_key() -> None:
+    """Agents retry and Artifacts/Axe refresh are tab-disjoint."""
+    reg = load_keymap_registry(
+        {
+            "keymaps": {
+                "app": {
+                    "agents_retry": "f8",
+                    "refresh": "f8",
+                }
+            }
+        }
+    )
+
+    assert reg.app.agents_retry == "f8"
+    assert reg.app.refresh == "f8"
+
+
+def test_agents_retry_collision_with_unrelated_action_reverts() -> None:
+    """An Agents retry override that hits an unrelated default reverts."""
+    reg = load_keymap_registry({"keymaps": {"app": {"agents_retry": "q"}}})
+    assert reg.app.agents_retry == "R"
+    assert reg.app.quit == "q"
+
+
 def test_both_overrides_duplicate_revert_both() -> None:
     """Two user overrides mapping to the same key both revert."""
     reg = load_keymap_registry(

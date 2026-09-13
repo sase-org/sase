@@ -181,10 +181,10 @@ def test_action_open_command_palette_uses_real_catalog() -> None:
     from sase.ace.tui.modals.command_palette_modal import CommandPaletteModal
 
     assert isinstance(modal, CommandPaletteModal)
-    # No patches loaded yet, so the palette only shows what is
-    # applicable on an empty Patches tab.  The refresh command must still
-    # be there (always applicable on every tab).
-    assert any(s.id == "app.refresh" for s in modal._all_specs)
+    # AceApp starts on Agents, so the Agents refresh command must be
+    # present and the Artifacts/Axe refresh command must not.
+    assert any(s.id == "app.agents_refresh" for s in modal._all_specs)
+    assert all(s.id != "app.refresh" for s in modal._all_specs)
 
 
 def test_action_open_command_palette_dispatches_selection() -> None:

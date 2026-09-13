@@ -163,13 +163,15 @@ def refresh_help_label() -> str:
 
 def leader_full_history_help_rows(
     km: KeymapRegistry,
+    *,
+    refresh_action: str = "refresh",
 ) -> list[tuple[str, str]]:
-    """Return the leader-mode refresh row, migrated to ``R`` while the panel is on."""
+    """Return the leader-mode refresh row, migrated onto refresh while the panel is on."""
     from sase.ace.tui.actions.refresh_panel import refresh_panel_enabled
 
     d = key_display_name
     if refresh_panel_enabled():
-        return [(d(km.app.refresh), refresh_help_label())]
+        return [(d(getattr(km.app, refresh_action)), refresh_help_label())]
     lm = km.leader_mode
     return [
         (

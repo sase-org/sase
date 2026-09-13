@@ -11,6 +11,7 @@ from sase.ace.tui.commands._tabs import (
     ALL_TABS,
     AXE_ONLY,
     CL_AGENTS,
+    CL_AXE,
     CL_ONLY,
 )
 from sase.ace.tui.commands.types import AppCommandMeta
@@ -22,9 +23,23 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("change_status", "Change Patch status", "Patch Actions", CL_ONLY, ()),
     (
         "run_workflow",
-        "Run workflow / retry local or remote agent / re-run",
+        "Run workflow / re-run",
         "Patch Actions",
-        ALL_TABS,
+        CL_AXE,
+        ("run", "re-run"),
+    ),
+    (
+        "agents_refresh",
+        "Refresh tab",
+        "Proposals & Sync",
+        AGENTS_ONLY,
+        ("reload",),
+    ),
+    (
+        "agents_retry",
+        "Retry local or remote agent",
+        "Agents",
+        AGENTS_ONLY,
         ("retry", "remote retry", "relaunch", "edit prompt"),
     ),
     ("mail", "Mail Patch", "Patch Actions", CL_ONLY, ("send",)),
@@ -99,7 +114,7 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         (),
     ),
     ("sync", "Sync repo", "Proposals & Sync", ALL_TABS, ()),
-    ("refresh", "Refresh tab", "Proposals & Sync", ALL_TABS, ("reload",)),
+    ("refresh", "Refresh tab", "Proposals & Sync", CL_AXE, ("reload",)),
     (
         "artifacts_copy_reference",
         "Artifacts: copy row reference",

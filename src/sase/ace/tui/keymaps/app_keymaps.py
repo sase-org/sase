@@ -89,6 +89,8 @@ class AppKeymaps:
     agents_prev: str
     agents_revive: str
     agents_filters: str
+    agents_refresh: str
+    agents_retry: str
     connect_agent_machine: str
     setup_agent_machine: str
     retry_remote_agent: str

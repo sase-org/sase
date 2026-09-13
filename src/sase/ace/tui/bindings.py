@@ -12,6 +12,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("q", "quit", "Quit", show=False),
     Binding("s", "change_status", "Status", show=False),
     Binding("r", "run_workflow", "Run", show=False),
+    Binding("r", "agents_refresh", "Refresh", show=False),
     Binding("M", "mail", "Mail", show=False),
     Binding("d", "show_diff", "Diff", show=False),
     Binding("w", "reword", "Reword", show=False),
@@ -56,7 +57,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("C", "checkout", "Checkout", show=False),
     Binding("c", "start_checkout_mode", "Checkout Mode", show=False),
     # Note: "!" binding removed - use "A" then "@" to mark ready to mail
-    Binding("y", "refresh", "Refresh", show=False),
+    Binding("R", "refresh", "Refresh", show=False),
+    Binding("R", "agents_retry", "Retry", show=False),
     Binding("Y", "sync", "Sync", show=False),
     Binding("slash", "edit_query", "Edit Query", show=False),
     Binding("ctrl+r", "search_reverse", "Reverse Search Order", show=False),

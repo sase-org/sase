@@ -166,14 +166,27 @@ def test_start_agent_home_command_uses_bare_space() -> None:
     assert spec.executor.action == "start_agent_home"
 
 
-def test_run_workflow_command_is_contextual_retry_on_agents() -> None:
+def test_run_workflow_command_is_artifacts_and_axe_run() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.run_workflow"]
 
-    assert spec.label == "Run workflow / retry local or remote agent / re-run"
-    assert spec.tabs == ("artifacts", "agents", "axe")
+    assert spec.label == "Run workflow / re-run"
+    assert spec.tabs == ("artifacts", "axe")
     assert spec.key_sequence == ("r",)
     assert spec.key_display == "r"
+    assert spec.executor.action == "run_workflow"
+    assert "retry" not in spec.aliases
+
+
+def test_agents_retry_command_is_agents_only() -> None:
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.agents_retry"]
+
+    assert spec.label == "Retry local or remote agent"
+    assert spec.tabs == ("agents",)
+    assert spec.key_sequence == ("R",)
+    assert spec.key_display == "R"
+    assert spec.executor.action == "agents_retry"
     assert "retry" in spec.aliases
 
 

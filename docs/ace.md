@@ -1226,7 +1226,8 @@ somewhere stale.
 | `A`                 | Open auto-approve menu / answer HITL                                                                           |
 | `F`                 | Prepare a fork of the selected agent/family, proc shell, monitor, clan container, or focused named tribe panel |
 | `n`                 | Name agent                                                                                                     |
-| `r`                 | Edit prompt and relaunch agent (retry without killing)                                                         |
+| `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                   |
+| `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                          |
 | `v`                 | View files (hint mode; annotates clan/family containers in place)                                              |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                              |
 | `V`                 | Open the Agent Run Log modal for the focused agent                                                             |
@@ -1252,6 +1253,10 @@ somewhere stale.
 | `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds         |
 | `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds      |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                  |
+
+On Artifacts and Axe, `r` still runs a Patch workflow or an Axe chop/bgcmd, and `R`
+still opens the [Refresh panel](#refresh-panel) (or refreshes immediately when that
+panel is disabled). Only the Agents tab swaps those keys.
 
 ### Forking Agents and Groups
 
@@ -1457,16 +1462,16 @@ path visible; when epic context is known, validation failure renders one quiet
 
 ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the
 normal Agents-tab working set: active rows plus recent completed, non-hidden rows.
-Startup, manual This-tab refresh (`R` then `r`), and active agent search use that path
-through the persistent artifact index when it is available.
+Startup, manual This-tab refresh (`r` then `r` on Agents), and active agent search use
+that path through the persistent artifact index when it is available.
 
 If the index is missing or unhealthy, ACE falls back to a bounded source-artifact scan
 for the first paint and shows a repair warning with the reason. That repair state can
-arm a deferred full-history reconcile after input has been quiet, but normal `R`
+arm a deferred full-history reconcile after input has been quiet, but normal Agents
 This-tab refreshes still stay on the visible-inbox path. Use
 `sase agent index status --json` for a lightweight check that does not scan source
 artifacts, `sase agent index verify` to compare the index with source artifacts, and
-`sase agent index gc` to rebuild the index and dismissed projection. Use `R` then `f`
+`sase agent index gc` to rebuild the index and dismissed projection. Use `r` then `f`
 when you want an immediate full-history refresh from source artifacts. Normal SQLite
 deletes never reclaim disk space; `sase agent index vacuum` reports freelist pages and
 dismissed row counts, and `-a`/`--apply` compacts the index file with `VACUUM` (dry run
@@ -1474,9 +1479,9 @@ by default; this never removes or alters a row).
 
 ### Refresh Panel
 
-Press `R` on any tab to open the Refresh panel: a centered single-key chooser that names
-every refresh ACE can perform, shows how fresh each target already is, and runs exactly
-one of them.
+Press `R` on Artifacts or Axe, or `r` on Agents, to open the Refresh panel: a centered
+single-key chooser that names every refresh ACE can perform, shows how fresh each target
+already is, and runs exactly one of them.
 
 | Key | Aliases           | Option        | What it does                                                                |
 | --- | ----------------- | ------------- | --------------------------------------------------------------------------- |
@@ -1485,9 +1490,9 @@ one of them.
 | `u` | `3`               | Usage windows | Re-probe provider subscription limits.                                      |
 | `a` | `4`               | Everything    | Forced sanity sweep plus full history and usage.                            |
 
-`R` is an alias for This tab, so a double-tapped `R R` reproduces the old immediate
-refresh. `j`/`k` (or arrows / `Ctrl+N`/`Ctrl+P`) move the cursor; `Enter` activates the
-highlighted row; `Esc` or `q` cancels.
+`R` is an alias for This tab, so a double-tapped `R R` on Artifacts or Axe (or `r r` on
+Agents) reproduces the old immediate refresh. `j`/`k` (or arrows / `Ctrl+N`/`Ctrl+P`)
+move the cursor; `Enter` activates the highlighted row; `Esc` or `q` cancels.
 
 Each row shows a freshness chip from a real reload in this session (`12s ago`, `2h ago`,
 `just now`). A surface that has not been reloaded yet shows `—`, never a guessed age.
@@ -1498,9 +1503,9 @@ but unavailable: pressing `u` explains why and leaves the panel open so you can 
 something else.
 
 The default-on `refresh_panel` sunset flag is the escape hatch back to the old gestures.
-Disable it (`sase flag disable refresh_panel`) to restore immediate `R` (current tab)
-and `,y` (Agents full-history) without the chooser. See
-[feature flags](configuration.md#feature_flags).
+Disable it (`sase flag disable refresh_panel`) to restore immediate current-tab refresh
+(`R` on Artifacts and Axe, `r` on Agents) and `,y` (Agents full-history) without the
+chooser. See [feature flags](configuration.md#feature_flags).
 
 The dismissed projection that hides agents from the visible inbox is rebuilt from the
 in-memory dismissed set _unioned with every dismissed-bundle summary_. Reviving an agent
@@ -2998,21 +3003,22 @@ the CLI contract.
 
 These work on all tabs:
 
-| Key                     | Action                                                                                                                                                   |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Tab` / `Shift+Tab`     | Switch between Agents, Artifacts, and Axe tabs                                                                                                           |
-| `#`                     | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back) |
-| `.`                     | Artifacts: collapse/expand the relations panel; Agents: show/hide non-run agents; Axe: show/hide axe commands                                            |
-| `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                               |
-| `i`                     | Show notifications inbox                                                                                                                                 |
-| `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                 |
-| `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                        |
-| `@`                     | Open the stashed-prompt restore picker                                                                                                                   |
-| `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                            |
-| `Q`                     | Open the quit / restart menu                                                                                                                             |
-| `R`                     | Open the [Refresh panel](#refresh-panel) (this tab, full history, usage, or everything)                                                                  |
-| `q`                     | Quit                                                                                                                                                     |
-| `?`                     | Show help modal                                                                                                                                          |
+| Key                     | Action                                                                                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Tab` / `Shift+Tab`     | Switch between Agents, Artifacts, and Axe tabs                                                                                                                    |
+| `#`                     | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back)          |
+| `.`                     | Artifacts: collapse/expand the relations panel; Agents: show/hide non-run agents; Axe: show/hide axe commands                                                     |
+| `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                                        |
+| `i`                     | Show notifications inbox                                                                                                                                          |
+| `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                          |
+| `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                                 |
+| `@`                     | Open the stashed-prompt restore picker                                                                                                                            |
+| `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                                     |
+| `Q`                     | Open the quit / restart menu                                                                                                                                      |
+| `R`                     | Open the [Refresh panel](#refresh-panel) on Artifacts and Axe (this tab, full history, usage, or everything). On Agents, retry the selected local or remote agent |
+| `r`                     | On Agents, refresh (or open the Refresh panel). Artifacts and Axe keep `r` for Patch workflow / Axe run or re-run                                                 |
+| `q`                     | Quit                                                                                                                                                              |
+| `?`                     | Show help modal                                                                                                                                                   |
 
 The generic **Open SASE Admin Center** action and the first `#` always open a
 lightweight landing page without mounting a working pane. Press `#` again while home is
@@ -7242,8 +7248,9 @@ quick access to xprompt references rather than expanding static templates.
 
 ACE auto-refreshes data at a configurable interval (default: 10 seconds). The remaining
 time until the next refresh is shown in the info panel. Set `--refresh-interval 0` to
-disable. Press `R` to open the [Refresh panel](#refresh-panel) and choose a manual
-refresh without waiting for the next tick.
+disable. Press `R` on Artifacts or Axe, or `r` on Agents, to open the
+[Refresh panel](#refresh-panel) and choose a manual refresh without waiting for the next
+tick.
 
 Tab switches are instant: cached data is shown immediately while a background refresh
 runs asynchronously, so moving between tabs never blocks on disk I/O.

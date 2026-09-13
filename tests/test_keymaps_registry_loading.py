@@ -182,6 +182,9 @@ def test_edit_hooks_default_binding() -> None:
     assert reg.app.patches_filters == "f"
     assert reg.app.edit_hooks == "F"
     assert reg.app.run_workflow == "r"
+    assert reg.app.agents_refresh == "r"
+    assert reg.app.refresh == "R"
+    assert reg.app.agents_retry == "R"
 
 
 def test_g_and_o_default_bindings_do_not_collide() -> None:

@@ -46,7 +46,8 @@ def test_fleet_commands_are_contextual_for_remote_rows() -> None:
     assert is_command_available(catalog["app.connect_agent_machine"], ctx)
     assert is_command_available(catalog["app.retry_remote_agent"], ctx)
     assert is_command_available(catalog["app.view_remote_agent_content"], ctx)
-    assert is_command_available(catalog["app.run_workflow"], ctx)
+    assert is_command_available(catalog["app.agents_retry"], ctx)
+    assert not is_command_available(catalog["app.run_workflow"], ctx)
     assert is_command_available(catalog["app.edit_hooks"], ctx)
     assert is_command_available(catalog["app.edit_spec"], ctx)
 
@@ -136,7 +137,8 @@ def test_remote_rows_hide_local_agent_actions() -> None:
 
     assert is_command_available(catalog["app.kill_agent"], ctx)
     assert is_command_available(catalog["app.edit_hooks"], ctx)
-    assert is_command_available(catalog["app.run_workflow"], ctx)
+    assert is_command_available(catalog["app.agents_retry"], ctx)
+    assert not is_command_available(catalog["app.run_workflow"], ctx)
     assert not is_command_available(catalog["app.edit_spec"], ctx)
     assert not is_command_available(catalog["app.accept_proposal"], ctx)
     for command_id in {
