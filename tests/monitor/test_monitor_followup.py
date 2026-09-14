@@ -31,7 +31,11 @@ from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.procs.runtime import proc_started_path, write_json_atomic
 from sase.running_field import WorkspaceClaim, WorkspaceClaimError
 
-from ._fixtures import make_starter_agent, register_workspace_checkout, write_project_file
+from ._fixtures import (
+    make_starter_agent,
+    register_workspace_checkout,
+    write_project_file,
+)
 
 _SETTLE_TIMEOUT = 2.0
 

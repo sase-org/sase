@@ -53,7 +53,9 @@ def test_cwd_nested_inside_lane_workspace_inherits_claim_and_records_root(
     primary = tmp_path / "primary"
     primary.mkdir()
     workspace_dir = register_workspace_checkout(primary, 10)
-    nested_cwd = Path(workspace_dir) / "sase" / "repos" / "external" / "gh" / "sase-core"
+    nested_cwd = (
+        Path(workspace_dir) / "sase" / "repos" / "external" / "gh" / "sase-core"
+    )
     nested_cwd.mkdir(parents=True)
     project_file = write_project_file(
         "proj",
@@ -147,7 +149,9 @@ def test_cwd_nested_inside_a_different_workspace_records_its_number_without_tran
         assert meta["workspace_num"] == 20
         assert meta["workspace_dir"] == other_workspace_dir
 
-        claims = {claim.workspace_num: claim for claim in get_claimed_workspaces(project_file)}
+        claims = {
+            claim.workspace_num: claim for claim in get_claimed_workspaces(project_file)
+        }
         assert claims[10].pid == os.getpid()
         assert claims[10].workflow == "ace-run"
         assert claims[20].pid == record.pid
