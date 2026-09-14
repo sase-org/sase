@@ -12,6 +12,9 @@ from typing import TYPE_CHECKING
 
 from textual.events import Key
 
+from sase.ace.tui.widgets._argument_syntax_editing import (
+    plan_argument_colon_to_parentheses_edit,
+)
 from sase.ace.tui.widgets._alt_syntax_editing import (
     plan_alt_brace_pair,
     plan_alt_separator,
@@ -131,6 +134,19 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
         offset = self._absolute_offset(self.cursor_location)
         if char == "|":
             plan = plan_alt_separator(text, offset)
+        elif char == "(":
+            plan = _plan_argument_colon_pair_conversion(
+                text,
+                offset,
+                self.cursor_location,
+            )
+            if plan is not None:
+                self._apply_planned_text_edit(plan, remap_dot_capture=True)
+                self._open_auto_reference_completion_after_change(char)
+                return True
+            plan = plan_pair_close_skip(text, offset, char)
+            if plan is None:
+                plan = plan_pair_insert(text, offset, char)
         else:
             plan = plan_pair_close_skip(text, offset, char)
             if plan is None and char == "{":
@@ -176,3 +192,21 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
         self._clear_file_completion()
         self._clear_xprompt_arg_hint()
         self._on_prompt_completion_context_changed()
+
+
+def _plan_argument_colon_pair_conversion(
+    text: str,
+    offset: int,
+    cursor_location: tuple[int, int],
+) -> TextEdit | None:
+    colon_delete = plan_argument_colon_to_parentheses_edit(text, cursor_location)
+    if colon_delete is None or colon_delete.end != offset:
+        return None
+    pair = plan_pair_insert(text, offset, "(")
+    insertion = pair.text if pair is not None else "("
+    return TextEdit(
+        start=colon_delete.start,
+        end=offset,
+        text=insertion,
+        cursor=colon_delete.start + 1,
+    )

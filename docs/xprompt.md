@@ -388,6 +388,14 @@ prompts should use `#name`.
 | `#!name:arg`                  | Standalone workflow reference with one colon-style arg         |
 | `#!name!!` / `#!name??`       | Standalone workflow with an explicit HITL approval override    |
 
+ACE and editor clients that enable standard LSP on-type formatting smooth the
+colon-to-parentheses transition while typing: with the caret immediately after an
+argument-opening colon, typing `(` removes that colon. For example, `%q:` becomes `%q()`
+in ACE, with the cursor between the parentheses, and `#review:` can become `#review()`.
+The rule is syntax-aware; ordinary prose colons, URLs, unknown directives, double-colon
+shorthand, fenced or inline code, disabled xprompt regions, prompt frontmatter, and
+Jinja tags are left alone.
+
 Examples:
 
 ```bash

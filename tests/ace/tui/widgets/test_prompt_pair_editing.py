@@ -6,6 +6,7 @@ import pytest
 from textual.app import App, ComposeResult
 from textual.widgets.text_area import Selection
 
+from sase.ace.testing import PromptPage
 from sase.ace.tui.widgets._paired_text_editing import (
     TextEdit,
     plan_pair_close_skip,
@@ -357,3 +358,140 @@ async def test_typing_opener_pairs_on_second_line() -> None:
         await pilot.press("(")
         assert ta.text == "foo\n()"
         assert ta.cursor_location == (1, 1)
+
+
+async def test_typing_paren_after_directive_colon_removes_colon() -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("Some prompt here. %q:")
+        ta.cursor_location = (0, len("Some prompt here. %q:"))
+
+        await pilot.press("(")
+
+        assert ta.text == "Some prompt here. %q()"
+        assert ta.cursor_location == (0, len("Some prompt here. %q("))
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["%queue:", "%w:", "%wait:", "%m:", "%model:"],
+)
+async def test_typing_paren_after_supported_directive_colon_forms(
+    source: str,
+) -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text(source)
+        ta.cursor_location = (0, len(source))
+
+        await pilot.press("(")
+
+        assert ta.text == source[:-1] + "()"
+        assert ta.cursor_location == (0, len(source))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "#foo:",
+        "#!foo:",
+        "#ns/foo:",
+        "#ns__foo:",
+        "#foo!!:",
+        "#foo??:",
+    ],
+)
+async def test_typing_paren_after_xprompt_colon_forms(source: str) -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text(source)
+        ta.cursor_location = (0, len(source))
+
+        await pilot.press("(")
+
+        assert ta.text == source[:-1] + "()"
+        assert ta.cursor_location == (0, len(source))
+
+
+async def test_typing_paren_after_invocation_colon_preserves_suffix_text() -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#foo:value")
+        ta.cursor_location = (0, len("#foo:"))
+
+        await pilot.press("(")
+
+        assert ta.text == "#foo(value"
+        assert ta.cursor_location == (0, len("#foo("))
+
+
+async def test_typing_paren_after_invocation_colon_pairs_before_whitespace() -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#foo: trailing")
+        ta.cursor_location = (0, len("#foo:"))
+
+        await pilot.press("(")
+
+        assert ta.text == "#foo() trailing"
+        assert ta.cursor_location == (0, len("#foo("))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "Note:",
+        "https://example.test/#foo:",
+        "12:30",
+        "%unknown:",
+        "word%q:",
+        "word#foo:",
+        "%xprompts_enabled:",
+    ],
+)
+async def test_typing_paren_after_non_invocation_colon_keeps_colon(
+    source: str,
+) -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text(source)
+        ta.cursor_location = (0, len(source))
+
+        await pilot.press("(")
+
+        assert ta.text == source + "()"
+
+
+async def test_invocation_colon_conversion_keeps_pair_behaviors() -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("%q:")
+        ta.cursor_location = (0, len("%q:"))
+
+        await pilot.press("(", ")")
+
+        assert ta.text == "%q()"
+        assert ta.cursor_location == (0, len("%q()"))
+
+        ta.cursor_location = (0, len("%q("))
+        await pilot.press("backspace")
+
+        assert ta.text == "%q"
+        assert ta.cursor_location == (0, len("%q"))
+
+
+async def test_invocation_colon_conversion_is_one_undo_checkpoint() -> None:
+    async with PromptPage("%q:", cursor=(0, len("%q:")), mode="insert") as page:
+        await page.press("(")
+        assert page.text == "%q()"
+
+        await page.press("escape", "u")
+
+        assert page.text == "%q:"
