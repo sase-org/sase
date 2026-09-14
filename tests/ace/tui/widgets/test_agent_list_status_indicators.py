@@ -256,6 +256,75 @@ class TestAgentListFleetMarker:
         assert left.plain.startswith("apollo ")
 
 
+class TestAgentListFleetSummaryChrome:
+    def test_healthy_remote_row_renders_no_online_fresh_chrome(self) -> None:
+        agent = make_agent(
+            fleet_origin_alias="apollo",
+            fleet_connection_health="online",
+            fleet_freshness="fresh",
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "online" not in left.plain
+        assert "fresh" not in left.plain
+
+    def test_offline_remote_row_still_renders_health_chrome(self) -> None:
+        agent = make_agent(
+            fleet_origin_alias="apollo",
+            fleet_connection_health="offline",
+            fleet_freshness="fresh",
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "offline" in left.plain
+
+    def test_stale_remote_row_still_renders_freshness_chrome(self) -> None:
+        agent = make_agent(
+            fleet_origin_alias="apollo",
+            fleet_connection_health="online",
+            fleet_freshness="stale",
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "stale" in left.plain
+
+    def test_healthy_remote_row_keeps_bounded_intent_content(self) -> None:
+        agent = make_agent(
+            fleet_origin_alias="apollo",
+            fleet_connection_health="online",
+            fleet_freshness="fresh",
+            fleet_bounded_intent="ship the fix",
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "ship the fix" in left.plain
+
+    def test_was_running_remote_row_renders_last_seen_label(self) -> None:
+        from datetime import datetime
+
+        agent = make_agent(
+            status="WAS RUNNING",
+            fleet_origin_alias="apollo",
+            fleet_connection_health="offline",
+            fleet_freshness="stale",
+            fleet_observed_at_unix=1_800_000_720.0,
+            stop_time=datetime.fromtimestamp(1_800_000_000.0),
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "last seen 12m ago" in left.plain
+
+
 class TestStartingStatusRendering:
     def test_agent_row_renders_starting_status_with_distinct_style(self) -> None:
         agent = make_agent(status="STARTING")

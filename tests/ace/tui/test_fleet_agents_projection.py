@@ -512,6 +512,81 @@ def test_project_fleet_agents_keeps_fresh_chip_for_a_live_fetch() -> None:
     assert projection.fleet_rows[0].fleet_freshness == "fresh"
 
 
+def test_project_fleet_agents_sets_run_start_time_for_active_duration() -> None:
+    """A running remote row must render a real duration, not ``0s``.
+
+    ``leaf_runtime_interval`` needs ``run_start_time`` to compute an active
+    row's elapsed time; without it a live remote row renders no runtime
+    suffix at all.
+    """
+    summary = fleet_summary(status="running", started_at_unix=1_800_000_000.0)
+    response = fleet_host_response(alias="apollo", summaries=(summary,))
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    row = projection.fleet_rows[0]
+    assert row.start_time is not None
+    assert row.run_start_time == row.start_time
+
+
+def test_project_fleet_agents_prefers_owner_human_project_label() -> None:
+    """The human project label wins over the raw portable project id."""
+    summary = fleet_summary(project_name="gh_sase-org__sase", project_label="sase")
+    response = fleet_host_response(alias="apollo", summaries=(summary,))
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    assert projection.fleet_rows[0].project_display_name == "sase"
+
+
+def test_project_fleet_agents_sets_workspace_num() -> None:
+    summary = fleet_summary(status="running", workspace_num=3)
+    response = fleet_host_response(alias="apollo", summaries=(summary,))
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    assert projection.fleet_rows[0].workspace_num == 3
+
+
+def test_project_fleet_agents_remote_clan_members_group_under_one_container() -> None:
+    """Remote rows sharing clan identity already fold under one container.
+
+    Local agents fold same-clan rows into one synthetic container via
+    ``project_clan_tree``; ``normalize_remote_host_nodes`` routes remote
+    rows through the identical shared pass, so this must already have
+    happened by the time ``project_fleet_agents`` returns.
+    """
+    first = fleet_summary(
+        agent_id="agent-a",
+        run_id="run-a",
+        agent_clan="rename-fix",
+        agent_clan_generation="20260910120000",
+        clan_tribe="core",
+        tribe="core",
+    )
+    second = fleet_summary(
+        agent_id="agent-b",
+        run_id="run-b",
+        agent_clan="rename-fix",
+        agent_clan_generation="20260910120000",
+        clan_tribe="core",
+        tribe="core",
+    )
+    response = fleet_host_response(alias="apollo", summaries=(first, second))
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    containers = [row for row in projection.fleet_rows if row.is_clan_container]
+    assert len(containers) == 1
+    assert containers[0].agent_clan == "rename-fix"
+    assert containers[0].agent_clan_generation == "20260910120000"
+    members = [row for row in projection.fleet_rows if not row.is_clan_container]
+    assert len(members) == 2
+    assert all(member.agent_clan == "rename-fix" for member in members)
+    assert all(member.clan_tribe == "core" for member in members)
+    assert all(member.tribe == "core" for member in members)
+
+
 def _remote_family_summaries() -> tuple[dict[str, object], ...]:
     root = fleet_summary(
         agent_id="remote-family",

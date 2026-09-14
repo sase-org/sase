@@ -187,6 +187,14 @@ def _agent_from_summary(
         summary.get("finished_at_unix"),
         lifecycle.get("stopped_at_unix"),
     )
+    # The wire carries one owner-resolved "started" moment (preferring the
+    # actual run start over the launch/queue time; see sase-core
+    # started_at_unix_for_record). Remote rows have no separate queued-vs
+    # -running signal to split it further, so it doubles as both
+    # ``start_time`` and ``run_start_time`` -- the latter is what
+    # ``leaf_runtime_interval`` needs to compute an active row's elapsed
+    # duration instead of rendering ``0s``.
+    run_start_time = start_time
     freshness = _combine_freshness(
         optional_str(
             summary.get("freshness"),
@@ -223,6 +231,7 @@ def _agent_from_summary(
         status=status,
         status_bucket=status_bucket,
         start_time=start_time,
+        run_start_time=run_start_time,
         stop_time=stop_time,
         raw_suffix=raw_suffix_value,
         agent_name=agent_name,
@@ -268,6 +277,11 @@ def _agent_from_summary(
         agent_family_parallel=bool(summary.get("agent_family_parallel")),
         parent_timestamp=parent_timestamp,
         plan_chain_root=bool(summary.get("plan_chain_root")),
+        workspace_num=int_or_none(summary.get("workspace_num")),
+        agent_clan=optional_str(summary.get("agent_clan")),
+        agent_clan_generation=optional_str(summary.get("agent_clan_generation")),
+        clan_tribe=optional_str(summary.get("clan_tribe")),
+        tribe=optional_str(summary.get("tribe")),
         monitor_id=monitor_id,
         monitor_state=optional_str(summary.get("monitor_state")),
         monitor_command=optional_str(summary.get("monitor_command")),
@@ -386,14 +400,29 @@ def _project_display_name(
     labels: Mapping[str, Any],
     logical_locator: Mapping[str, Any],
 ) -> str:
-    return display_token(
-        optional_str(
-            summary.get("project_name"),
-            labels.get("project_label"),
-            _logical_project_id(logical_locator),
-        )
-        or "fleet"
+    project_id = optional_str(
+        summary.get("project_name"),
+        _logical_project_id(logical_locator),
     )
+    owner_label = optional_str(labels.get("project_label"))
+    if owner_label:
+        return display_token(owner_label)
+    # ``labels.project_label`` is a required, always-populated field on the
+    # current wire schema (it falls back to the raw project id on the owner
+    # side already), so this only helps a legacy (schema v1) payload from a
+    # not-yet-upgraded remote host that omits the field entirely.
+    if project_id:
+        local_label = _local_project_display_name(project_id)
+        if local_label and local_label != project_id:
+            return display_token(local_label)
+    return display_token(project_id or "fleet")
+
+
+def _local_project_display_name(project_id: str) -> str | None:
+    """Resolve *project_id* through this viewer's own project registry."""
+    from sase.project_display_names import project_display_name_for
+
+    return project_display_name_for(project_id)
 
 
 def _project_file(
@@ -552,12 +581,17 @@ def _status_bucket_from_wire(value: object) -> str | None:
 
 
 _FRESHNESS_RANK: dict[str, int] = {"fresh": 0, "aging": 1, "stale": 2, "unknown": 3}
-# Owner-side snapshot freshness thresholds (sase-core
-# FLEET_SNAPSHOT_FRESH_SECONDS / FLEET_SNAPSHOT_STALE_SECONDS), reused here
-# for the viewer's own cache-age classification so both sides agree on what
-# "fresh" means.
-_FLEET_VIEWER_FRESH_SECONDS = 5.0
-_FLEET_VIEWER_STALE_SECONDS = 60.0
+# The owner's own snapshot-freshness thresholds (sase-core
+# FLEET_SNAPSHOT_FRESH_SECONDS / FLEET_SNAPSHOT_STALE_SECONDS) classify how
+# old *its* cached copy is. This viewer-side threshold instead classifies
+# how old the federation worker's cached response is by the time this
+# client polls it. The TUI's own auto-refresh cadence (``refresh_interval``,
+# default 10s) is what drives that polling, so a fresh threshold at or below
+# it made every steady-state row "aging" the instant a poll landed more than
+# 5s after the worker's last fetch -- not a real staleness signal. Sizing it
+# above one full poll interval keeps a normally-polled row "fresh".
+_FLEET_VIEWER_FRESH_SECONDS = 15.0
+_FLEET_VIEWER_STALE_SECONDS = 90.0
 
 
 def _combine_freshness(*values: str | None) -> str | None:

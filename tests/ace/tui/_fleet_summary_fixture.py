@@ -48,6 +48,14 @@ def fleet_summary(
     parent_timestamp: str | None = None,
     current_instance: bool | None = None,
     container_projected_concrete_agent: bool = False,
+    project_label: str | None = None,
+    started_at_unix: float | None = None,
+    stopped_at_unix: float | None = None,
+    workspace_num: int | None = None,
+    agent_clan: str | None = None,
+    agent_clan_generation: str | None = None,
+    clan_tribe: str | None = None,
+    tribe: str | None = None,
 ) -> dict[str, Any]:
     """Build one valid resolved remote row summary."""
     del patch_name  # Remote summaries expose project labels, not Patch labels.
@@ -89,7 +97,9 @@ def fleet_summary(
         "family_role": family_role,
         "labels": {
             "schema_version": 1,
-            "project_label": project_name,
+            "project_label": project_label
+            if project_label is not None
+            else project_name,
             "agent_label": agent_name or agent_id,
             "family_label": family_id,
             "owner_label": "bryan",
@@ -129,6 +139,20 @@ def fleet_summary(
     }
     if parent_timestamp is not None:
         summary["parent_timestamp"] = parent_timestamp
+    if started_at_unix is not None:
+        summary["started_at_unix"] = started_at_unix
+    if stopped_at_unix is not None:
+        summary["stopped_at_unix"] = stopped_at_unix
+    if workspace_num is not None:
+        summary["workspace_num"] = workspace_num
+    if agent_clan is not None:
+        summary["agent_clan"] = agent_clan
+    if agent_clan_generation is not None:
+        summary["agent_clan_generation"] = agent_clan_generation
+    if clan_tribe is not None:
+        summary["clan_tribe"] = clan_tribe
+    if tribe is not None:
+        summary["tribe"] = tribe
     if queue_weight is not None:
         summary["queue_weight"] = queue_weight
     if queue_weight_explicit:

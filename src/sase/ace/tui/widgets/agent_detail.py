@@ -327,8 +327,10 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 )
             elif files := agent.all_files:
                 file_panel.set_file_list(files, start_index=0)
-            elif agent.workspace_num is not None:
-                # No saved diff file — try fetching committed diff from workspace
+            elif agent.workspace_num is not None and not agent.fleet_origin_alias:
+                # No saved diff file — try fetching committed diff from
+                # workspace. Remote rows report a workspace number for
+                # presentation only; there is no local workspace to probe.
                 file_panel.update_display(
                     agent, stale_threshold_seconds=stale_threshold_seconds
                 )

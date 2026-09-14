@@ -14,7 +14,7 @@ from rich.text import Text
 from ..agent_completion import WaitDependencyStatusCounts
 from ..agent_count_chip import format_agent_count_chip
 from ..models._agent_clan import ClanStatusCounts, clan_member_counts
-from ..models.agent import Agent, AgentType
+from ..models.agent import Agent, AgentType, format_compact_duration
 from ..models.agent_bead import agent_has_confirmed_bead
 from ..models.agent_family_members import (
     NO_SHELL_LANES,
@@ -61,18 +61,45 @@ def _has_file_change_hint(agent: Agent) -> bool:
     return agent_file_change_hint(agent)
 
 
+_FLEET_HEALTHY_CONNECTION_HEALTH = frozenset({"online"})
+_FLEET_HEALTHY_FRESHNESS = frozenset({"fresh"})
+
+
+def _fleet_last_seen_label(agent: Agent) -> str | None:
+    """Return a "last seen Xm ago" label for a remote row confirmed gone.
+
+    Anchored on the owner's own last observation (``fleet_observed_at_unix``)
+    rather than wall-clock render time, so the label is stable across
+    renders between polls instead of ticking on every redraw, and immune to
+    clock skew between machines.
+    """
+    if agent.status != "WAS RUNNING" or agent.fleet_observed_at_unix is None:
+        return None
+    anchor = agent.stop_time or agent.start_time
+    if anchor is None:
+        return None
+    observed = datetime.fromtimestamp(agent.fleet_observed_at_unix, tz=anchor.tzinfo)
+    elapsed = (observed - anchor).total_seconds()
+    if elapsed < 0:
+        return None
+    return f"last seen {format_compact_duration(elapsed)} ago"
+
+
 def _append_fleet_summary(text: Text, agent: Agent) -> None:
     if not agent.fleet_origin_alias:
         return
-    fields = [
-        field
-        for field in (
-            agent.fleet_connection_health,
-            agent.fleet_freshness,
-            agent.fleet_bounded_intent,
-        )
-        if field
-    ]
+    fields: list[str] = []
+    health = agent.fleet_connection_health
+    if health and health not in _FLEET_HEALTHY_CONNECTION_HEALTH:
+        fields.append(health)
+    freshness = agent.fleet_freshness
+    if freshness and freshness not in _FLEET_HEALTHY_FRESHNESS:
+        fields.append(freshness)
+    last_seen = _fleet_last_seen_label(agent)
+    if last_seen:
+        fields.append(last_seen)
+    if agent.fleet_bounded_intent:
+        fields.append(agent.fleet_bounded_intent)
     if not fields:
         return
     brief = " · ".join(dict.fromkeys(fields))
