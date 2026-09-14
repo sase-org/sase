@@ -3644,6 +3644,45 @@ disk:
 `sase doctor` still honors its absolute floors of 3 GiB for WARN and 1 GiB for ERROR;
 the effective threshold is the larger of the absolute and proportional values.
 
+### managed_tmp
+
+Age horizons and pressure thresholds for the managed SASE temp root (everything under
+`get_sase_managed_tmpdir(...)`). `sase disk reap` and the hourly `managed_tmp_reap`
+housekeeping chop both call the Rust-owned reaper with these values; see
+`core/managed_tmp_reaper.py` for which subdirectory buckets map to which horizon
+category.
+
+```yaml
+managed_tmp:
+  horizons:
+    command_scratch_seconds: 43200
+    handoff_seconds: 259200
+    build_scratch_seconds: 259200
+    run_artifact_seconds: 1209600
+  max_removals: 2000
+  pressure:
+    max_bytes: 17179869184
+    target_bytes: 8589934592
+    min_available_bytes: 34359738368
+    recovery_available_bytes: 51539607552
+    min_age_seconds: 43200
+    min_entry_bytes: 1073741824
+```
+
+| Field                                           | Type | Default       | Minimum | Description                                                                               |
+| ----------------------------------------------- | ---- | ------------- | ------- | ----------------------------------------------------------------------------------------- |
+| `managed_tmp.horizons.command_scratch_seconds`  | int  | `43200`       | `0`     | Age horizon for scratch whose reader is the command that wrote it (editors, wrappers).    |
+| `managed_tmp.horizons.handoff_seconds`          | int  | `259200`      | `0`     | Age horizon for files handed to a child process that may re-read them mid-run.            |
+| `managed_tmp.horizons.build_scratch_seconds`    | int  | `259200`      | `0`     | Age horizon for Cargo and other build scratch created for one launched agent.             |
+| `managed_tmp.horizons.run_artifact_seconds`     | int  | `1209600`     | `0`     | Age horizon for run artifacts the ACE Agents tab reads back long after the run finished.  |
+| `managed_tmp.max_removals`                      | int  | `2000`        | `1`     | Removal budget for one reaper invocation, so a long-neglected root converges over passes. |
+| `managed_tmp.pressure.max_bytes`                | int  | `17179869184` | `0`     | Managed-root size that triggers pressure pruning of aged build scratch. `0` disables it.  |
+| `managed_tmp.pressure.target_bytes`             | int  | `8589934592`  | `0`     | Managed-root size the pressure pass tries to return to.                                   |
+| `managed_tmp.pressure.min_available_bytes`      | int  | `34359738368` | `0`     | Filesystem free-space floor that also triggers pressure pruning. `0` disables it.         |
+| `managed_tmp.pressure.recovery_available_bytes` | int  | `51539607552` | `0`     | Filesystem free-space target used after crossing the low-space floor.                     |
+| `managed_tmp.pressure.min_age_seconds`          | int  | `43200`       | `0`     | Minimum age before pressure can prune a large scratch entry.                              |
+| `managed_tmp.pressure.min_entry_bytes`          | int  | `1073741824`  | `0`     | Small entries below this size do not participate in pressure pruning.                     |
+
 ### markdown
 
 The column width SASE wraps generated Markdown prose at. It governs every Markdown

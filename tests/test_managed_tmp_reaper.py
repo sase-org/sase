@@ -12,6 +12,7 @@ from sase.core.managed_tmp_reaper import (
     BUILD_SCRATCH_HORIZON_SECONDS,
     COMMAND_SCRATCH_HORIZON_SECONDS,
     DEFAULT_HORIZON_SECONDS,
+    HANDOFF_HORIZON_SECONDS,
     MANAGED_TMPDIR_HORIZONS,
     RUN_ARTIFACT_HORIZON_SECONDS,
     reap_managed_tmpdir as _reap_managed_tmpdir,
@@ -630,6 +631,91 @@ def test_the_default_root_follows_the_managed_tmpdir_resolution(
     assert result.root == managed
     assert not stale.exists()
     assert not (tmp_path / "developer-root").exists()
+
+
+def test_muse_prompts_bucket_uses_the_handoff_horizon(tmp_path: Path) -> None:
+    """Regression test: muse-prompts is a handoff bucket, not command scratch.
+
+    A provider re-reads this file mid-run, so the old 12h command-scratch
+    horizon could delete it out from under an in-progress launch.
+    """
+    from sase.core.managed_tmp_reaper import MANAGED_TMPDIR_HORIZONS
+
+    assert MANAGED_TMPDIR_HORIZONS["muse-prompts"] == HANDOFF_HORIZON_SECONDS
+
+    survives = _aged_file(tmp_path, "muse-prompts/prompt.md", age_seconds=13 * HOUR)
+
+    result = reap_managed_tmpdir(tmp_path, now=NOW)
+
+    assert survives.exists()
+    assert result.removed == 0
+
+
+def test_managed_tmp_config_overrides_the_command_scratch_horizon(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sase.config import core as config_core
+
+    monkeypatch.setattr(
+        config_core,
+        "load_merged_config",
+        lambda: {"managed_tmp": {"horizons": {"command_scratch_seconds": HOUR}}},
+    )
+    now_stale = _aged_file(tmp_path, "editors/note.md", age_seconds=2 * HOUR)
+
+    result = reap_managed_tmpdir(tmp_path, now=NOW)
+
+    assert not now_stale.exists()
+    assert result.removed == 1
+
+
+def test_managed_tmp_config_overrides_pressure_thresholds(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sase.config import core as config_core
+
+    monkeypatch.setattr(
+        config_core,
+        "load_merged_config",
+        lambda: {
+            "managed_tmp": {
+                "pressure": {
+                    "max_bytes": 4 * 1024,
+                    "target_bytes": 1024,
+                    "min_age_seconds": 12 * HOUR,
+                    "min_entry_bytes": 2 * 1024,
+                }
+            }
+        },
+    )
+    old_large = _aged_dir(
+        tmp_path, "cargo-targets/run-old", age_seconds=DAY, size_bytes=8 * 1024
+    )
+
+    result = reap_managed_tmpdir(tmp_path, now=NOW)
+
+    assert not old_large.exists()
+    assert result.pressure_removed == 1
+
+
+def test_stale_reap_wire_schema_version_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import sase.core.managed_tmp_reaper as reaper_module
+
+    real_require_rust_binding = reaper_module.require_rust_binding
+
+    def _fake_require_rust_binding(name: str):
+        if name == "managed_tmp_reap_wire_schema_version":
+            return lambda: 999
+        return real_require_rust_binding(name)
+
+    monkeypatch.setattr(
+        reaper_module, "require_rust_binding", _fake_require_rust_binding
+    )
+
+    with pytest.raises(RuntimeError, match="stale"):
+        reap_managed_tmpdir(tmp_path, now=NOW)
 
 
 def _module_string_constants(module: ast.Module) -> dict[str, str]:

@@ -214,6 +214,10 @@ def workspace_rows(
     return tuple(rows)
 
 
+_RUST_DEV_BUILD_PROFILE = "dev-update"
+"""Matches the Justfile's ``SASE_RUST_DEV_PROFILE`` default."""
+
+
 def rust_target_rows(
     *, tree_size_fn: Callable[[Path], int]
 ) -> tuple[DiskFootprintRow, ...]:
@@ -223,7 +227,11 @@ def rust_target_rows(
     rows: list[DiskFootprintRow] = []
     for name in ("uv-tool-lsp", "uv-tool-py"):
         target = core_dir / "target" / name
-        incremental = target / "dev-update" / "incremental"
+        # The Justfile points CARGO_BUILD_BUILD_DIR at <target>/build, which
+        # relocates cargo's intermediate output (incremental/, deps/,
+        # .fingerprint/) out of <target>/<profile>/ and into
+        # <target>/build/<profile>/; only the final artifacts stay there.
+        incremental = target / "build" / _RUST_DEV_BUILD_PROFILE / "incremental"
         incremental_size = tree_size_fn(incremental)
         target_size = max(0, tree_size_fn(target) - incremental_size)
         rows.append(
@@ -240,7 +248,10 @@ def rust_target_rows(
         rows.append(
             DiskFootprintRow(
                 section="rust_targets",
-                name=f"sase-core/target/{name}/dev-update/incremental",
+                name=(
+                    f"sase-core/target/{name}/build/"
+                    f"{_RUST_DEV_BUILD_PROFILE}/incremental"
+                ),
                 path=str(incremental),
                 size_bytes=incremental_size,
                 owner="just rust-dev-install",

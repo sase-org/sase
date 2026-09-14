@@ -4263,6 +4263,93 @@
         }
       }
     },
+    "managed_tmp": {
+      "type": "object",
+      "description": "Retention horizons and pressure thresholds for the managed SASE temp root reaped by `sase disk reap` / the hourly managed_tmp_reap chop.",
+      "additionalProperties": false,
+      "properties": {
+        "horizons": {
+          "type": "object",
+          "description": "Age horizons, by bucket category, for the managed temp root's per-subdirectory buckets.",
+          "additionalProperties": false,
+          "properties": {
+            "build_scratch_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 259200,
+              "description": "Cargo and other build scratch created for one launched agent (build-targets, cargo-targets)."
+            },
+            "command_scratch_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 43200,
+              "description": "Scratch whose reader is the command that wrote it (editors, wrappers, and similar buckets)."
+            },
+            "handoff_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 259200,
+              "description": "Files handed to a child process that may re-read them mid-run (handoff, muse-prompts, and similar buckets)."
+            },
+            "run_artifact_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 1209600,
+              "description": "Artifacts the ACE Agents tab reads back long after the run finished (launch-prompts, workflow-artifacts)."
+            }
+          }
+        },
+        "max_removals": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2000,
+          "description": "Removal budget for one reaper invocation, so a long-neglected root converges across invocations instead of stalling one of them."
+        },
+        "pressure": {
+          "type": "object",
+          "description": "Size- and free-space-triggered pruning of aged build scratch, layered on top of the age horizons above.",
+          "additionalProperties": false,
+          "properties": {
+            "max_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 17179869184,
+              "description": "Managed-root size that triggers pressure pruning of aged build scratch. 0 disables the size trigger."
+            },
+            "target_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 8589934592,
+              "description": "Managed-root size the pressure pass tries to return to."
+            },
+            "min_available_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 34359738368,
+              "description": "Filesystem free-space floor that also triggers pressure pruning. 0 disables the free-space trigger."
+            },
+            "recovery_available_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 51539607552,
+              "description": "Filesystem free-space target used after crossing the low-space floor."
+            },
+            "min_age_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 43200,
+              "description": "Minimum age before pressure can prune a large scratch entry."
+            },
+            "min_entry_bytes": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 1073741824,
+              "description": "Small entries do not participate in pressure pruning."
+            }
+          }
+        }
+      }
+    },
     "tasks": {
       "type": "object",
       "additionalProperties": false,

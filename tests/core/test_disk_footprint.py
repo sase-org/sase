@@ -45,7 +45,13 @@ def test_collect_disk_footprint_attributes_owned_paths_and_strays(
     _write(core / "Cargo.toml", "[workspace]\n")
     _write(core / "target" / "uv-tool-py" / "deps" / "lib", "deps")
     _write(
-        core / "target" / "uv-tool-py" / "dev-update" / "incremental" / "session",
+        core
+        / "target"
+        / "uv-tool-py"
+        / "build"
+        / "dev-update"
+        / "incremental"
+        / "session",
         "incremental",
     )
 

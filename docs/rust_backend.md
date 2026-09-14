@@ -411,7 +411,15 @@ retention policy. The repo-owned exceptions are the two Justfile roots above:
 `../sase-core/target/uv-tool-lsp` for `sase-xprompt-lsp`. Those are shared across
 workspaces on purpose, visible to disk tooling, and safe to prune at the `incremental/`
 layer while preserving `deps/`. Each isolated target also sets `CARGO_BUILD_BUILD_DIR`
-beside it so a host `build.build-dir` default cannot merge those recipe caches.
+beside it so a host `build.build-dir` default cannot merge those recipe caches; that
+setting relocates cargo's intermediate output (`incremental/`, `deps/`, `.fingerprint/`)
+from `<target>/<profile>/` to `<target>/build/<profile>/`, which is where the Justfile
+cleanup and `sase disk` inventory look for it — not the un-isolated
+`<target>/<profile>/` layout an older `sase-core` used.
+`[profile.dev-update] incremental = false` in `sase-core`'s workspace `Cargo.toml` is
+the root fix that covers every entry point, including a bare
+`cargo build --profile dev-update`; `CARGO_INCREMENTAL=0` above is a belt-and-suspenders
+override for checkouts predating that profile change.
 
 ### Required Extension And Cleanup Compatibility Exception
 

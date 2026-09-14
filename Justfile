@@ -987,7 +987,7 @@ rust-dev-install VENV=venv_dir_abs: _venv
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
         "{{ VENV }}/bin/maturin" develop --profile "$profile" && \
     "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/purge_sase_core_rs_extensions" --exclude-newer-than "$marker" && \
-    rm -rf "$py_target_dir/$profile/incremental"
+    rm -rf "$py_target_dir/build/$profile/incremental" "$py_target_dir/$profile/incremental"
     @sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     lsp_target_dir="$sase_core_abs/target/uv-tool-lsp"; \
     profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
@@ -998,7 +998,7 @@ rust-dev-install VENV=venv_dir_abs: _venv
         CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
         cargo build --profile "$profile" -p sase_xprompt_lsp && \
-    rm -rf "$lsp_target_dir/$profile/incremental"
+    rm -rf "$lsp_target_dir/build/$profile/incremental" "$lsp_target_dir/$profile/incremental"
     @dest="{{ VENV }}/bin/sase-xprompt-lsp"; \
     sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \
@@ -1050,7 +1050,7 @@ rust-lsp-install VENV=venv_dir_abs: _venv
         CARGO_NET_RETRY="${CARGO_NET_RETRY:-10}" \
         CARGO_HTTP_MULTIPLEXING="${CARGO_HTTP_MULTIPLEXING:-false}" \
         cargo build --profile "$profile" -p sase_xprompt_lsp && \
-    rm -rf "$lsp_target_dir/$profile/incremental"
+    rm -rf "$lsp_target_dir/build/$profile/incremental" "$lsp_target_dir/$profile/incremental"
     @dest="{{ VENV }}/bin/sase-xprompt-lsp"; \
     sase_core_abs="$(cd "{{ sase_core_dir }}" && pwd -P)"; \
     profile="${SASE_RUST_DEV_PROFILE:-dev-update}"; \

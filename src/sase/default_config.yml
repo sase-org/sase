@@ -92,6 +92,37 @@ disk:
     # Minimum unowned row size named directly in disk-pressure diagnostics.
     top_owner_min_bytes: 1073741824
 
+managed_tmp:
+  # Age horizons for the managed SASE temp root's per-subdirectory buckets;
+  # see core/managed_tmp_reaper.py for the bucket -> category mapping.
+  horizons:
+    # Scratch whose reader is the command that wrote it (editors, wrappers, ...).
+    command_scratch_seconds: 43200
+    # Files handed to a child process that may re-read them mid-run.
+    handoff_seconds: 259200
+    # Cargo and other build scratch created for one launched agent.
+    build_scratch_seconds: 259200
+    # Artifacts the ACE Agents tab reads back long after the run finished.
+    run_artifact_seconds: 1209600
+  # Removal budget for one reaper invocation, so a long-neglected root
+  # converges across invocations instead of stalling one of them.
+  max_removals: 2000
+  pressure:
+    # Managed-root size that triggers pressure pruning of aged build scratch.
+    # 0 disables the size trigger.
+    max_bytes: 17179869184
+    # Managed-root size the pressure pass tries to return to.
+    target_bytes: 8589934592
+    # Filesystem free-space floor that also triggers pressure pruning.
+    # 0 disables the free-space trigger.
+    min_available_bytes: 34359738368
+    # Filesystem free-space target used after crossing the low-space floor.
+    recovery_available_bytes: 51539607552
+    # Minimum age before pressure can prune a large scratch entry.
+    min_age_seconds: 43200
+    # Small entries do not participate in pressure pruning.
+    min_entry_bytes: 1073741824
+
 markdown:
   # Column width SASE wraps generated Markdown prose at: plan files, bead notes
   # and pages, memory shims, generated skills, prompt archives, and the default

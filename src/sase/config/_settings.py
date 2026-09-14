@@ -36,6 +36,17 @@ DEFAULT_ARTIFACT_RETENTION_TRASH_GRACE_DAYS = 14
 DEFAULT_DISK_PRESSURE_ERROR_FREE_PERCENT = 1.0
 DEFAULT_DISK_PRESSURE_TOP_OWNER_MIN_BYTES = 1024 * 1024 * 1024
 DEFAULT_DISK_PRESSURE_WARN_FREE_PERCENT = 5.0
+DEFAULT_MANAGED_TMP_COMMAND_SCRATCH_HORIZON_SECONDS = 12 * 3600
+DEFAULT_MANAGED_TMP_HANDOFF_HORIZON_SECONDS = 3 * 24 * 3600
+DEFAULT_MANAGED_TMP_BUILD_SCRATCH_HORIZON_SECONDS = 3 * 24 * 3600
+DEFAULT_MANAGED_TMP_RUN_ARTIFACT_HORIZON_SECONDS = 14 * 24 * 3600
+DEFAULT_MANAGED_TMP_MAX_REMOVALS = 2000
+DEFAULT_MANAGED_TMP_PRESSURE_MAX_BYTES = 16 * 1024 * 1024 * 1024
+DEFAULT_MANAGED_TMP_PRESSURE_TARGET_BYTES = 8 * 1024 * 1024 * 1024
+DEFAULT_MANAGED_TMP_PRESSURE_MIN_AVAILABLE_BYTES = 32 * 1024 * 1024 * 1024
+DEFAULT_MANAGED_TMP_PRESSURE_RECOVERY_AVAILABLE_BYTES = 48 * 1024 * 1024 * 1024
+DEFAULT_MANAGED_TMP_PRESSURE_MIN_AGE_SECONDS = 12 * 3600
+DEFAULT_MANAGED_TMP_PRESSURE_MIN_ENTRY_BYTES = 1024 * 1024 * 1024
 DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS = 3600
 DEFAULT_PAGER_SYNTAX = "auto"
 DEFAULT_MONITOR_SELECTED_DIAGNOSTICS_BYTES = 8 * 1024
@@ -400,6 +411,143 @@ def get_disk_pressure_warn_free_percent() -> float:
     if type(value) in {int, float} and 0 <= float(value) <= 100:
         return float(value)
     return DEFAULT_DISK_PRESSURE_WARN_FREE_PERCENT
+
+
+def _managed_tmp_config() -> dict[str, Any]:
+    value = _merged_config().get("managed_tmp", {})
+    return value if isinstance(value, dict) else {}
+
+
+def _managed_tmp_horizons_config() -> dict[str, Any]:
+    horizons = _managed_tmp_config().get("horizons", {})
+    return horizons if isinstance(horizons, dict) else {}
+
+
+def _managed_tmp_pressure_config() -> dict[str, Any]:
+    pressure = _managed_tmp_config().get("pressure", {})
+    return pressure if isinstance(pressure, dict) else {}
+
+
+def _managed_tmp_nonnegative_seconds(value: Any, default: float) -> float:
+    if type(value) in {int, float} and value >= 0:
+        return float(value)
+    return default
+
+
+def get_managed_tmp_command_scratch_horizon_seconds() -> float:
+    """Return the age horizon for scratch whose reader is its own command."""
+    return _managed_tmp_nonnegative_seconds(
+        _managed_tmp_horizons_config().get("command_scratch_seconds"),
+        DEFAULT_MANAGED_TMP_COMMAND_SCRATCH_HORIZON_SECONDS,
+    )
+
+
+def get_managed_tmp_handoff_horizon_seconds() -> float:
+    """Return the age horizon for files a launched child process re-reads."""
+    return _managed_tmp_nonnegative_seconds(
+        _managed_tmp_horizons_config().get("handoff_seconds"),
+        DEFAULT_MANAGED_TMP_HANDOFF_HORIZON_SECONDS,
+    )
+
+
+def get_managed_tmp_build_scratch_horizon_seconds() -> float:
+    """Return the age horizon for one launched agent's Cargo/build scratch."""
+    return _managed_tmp_nonnegative_seconds(
+        _managed_tmp_horizons_config().get("build_scratch_seconds"),
+        DEFAULT_MANAGED_TMP_BUILD_SCRATCH_HORIZON_SECONDS,
+    )
+
+
+def get_managed_tmp_run_artifact_horizon_seconds() -> float:
+    """Return the age horizon for runs the ACE Agents tab reads back."""
+    return _managed_tmp_nonnegative_seconds(
+        _managed_tmp_horizons_config().get("run_artifact_seconds"),
+        DEFAULT_MANAGED_TMP_RUN_ARTIFACT_HORIZON_SECONDS,
+    )
+
+
+def get_managed_tmp_max_removals() -> int:
+    """Return the validated per-invocation removal budget."""
+    value = _managed_tmp_config().get(
+        "max_removals",
+        DEFAULT_MANAGED_TMP_MAX_REMOVALS,
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_MANAGED_TMP_MAX_REMOVALS
+
+
+def get_managed_tmp_pressure_max_bytes() -> int | None:
+    """Return the managed-root size that triggers pressure pruning.
+
+    ``0`` disables the size trigger.
+    """
+    value = _managed_tmp_pressure_config().get(
+        "max_bytes",
+        DEFAULT_MANAGED_TMP_PRESSURE_MAX_BYTES,
+    )
+    if type(value) is int and value == 0:
+        return None
+    if type(value) is int and value > 0:
+        return value
+    return DEFAULT_MANAGED_TMP_PRESSURE_MAX_BYTES
+
+
+def get_managed_tmp_pressure_target_bytes() -> int:
+    """Return the managed-root size the pressure pass tries to return to."""
+    value = _managed_tmp_pressure_config().get(
+        "target_bytes",
+        DEFAULT_MANAGED_TMP_PRESSURE_TARGET_BYTES,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_MANAGED_TMP_PRESSURE_TARGET_BYTES
+
+
+def get_managed_tmp_pressure_min_available_bytes() -> int | None:
+    """Return the free-space floor that triggers pressure pruning.
+
+    ``0`` disables the free-space trigger.
+    """
+    value = _managed_tmp_pressure_config().get(
+        "min_available_bytes",
+        DEFAULT_MANAGED_TMP_PRESSURE_MIN_AVAILABLE_BYTES,
+    )
+    if type(value) is int and value == 0:
+        return None
+    if type(value) is int and value > 0:
+        return value
+    return DEFAULT_MANAGED_TMP_PRESSURE_MIN_AVAILABLE_BYTES
+
+
+def get_managed_tmp_pressure_recovery_available_bytes() -> int:
+    """Return the free-space target used after crossing the low-space floor."""
+    value = _managed_tmp_pressure_config().get(
+        "recovery_available_bytes",
+        DEFAULT_MANAGED_TMP_PRESSURE_RECOVERY_AVAILABLE_BYTES,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_MANAGED_TMP_PRESSURE_RECOVERY_AVAILABLE_BYTES
+
+
+def get_managed_tmp_pressure_min_age_seconds() -> float:
+    """Return the minimum age before pressure can prune a large scratch entry."""
+    return _managed_tmp_nonnegative_seconds(
+        _managed_tmp_pressure_config().get("min_age_seconds"),
+        DEFAULT_MANAGED_TMP_PRESSURE_MIN_AGE_SECONDS,
+    )
+
+
+def get_managed_tmp_pressure_min_entry_bytes() -> int:
+    """Return the minimum entry size that participates in pressure pruning."""
+    value = _managed_tmp_pressure_config().get(
+        "min_entry_bytes",
+        DEFAULT_MANAGED_TMP_PRESSURE_MIN_ENTRY_BYTES,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_MANAGED_TMP_PRESSURE_MIN_ENTRY_BYTES
 
 
 def get_gate_shell_reclaim_grace_seconds() -> int:
