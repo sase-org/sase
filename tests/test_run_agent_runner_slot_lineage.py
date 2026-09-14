@@ -311,6 +311,44 @@ def test_fresh_acquire_persists_runner_claim_owner_key(tmp_path: Path) -> None:
     assert meta["runner_claim_owner_key"] == solo.name
 
 
+def test_ownership_is_published_under_the_lock_before_claim(
+    tmp_path: Path,
+) -> None:
+    """``_publish_claim_ownership`` must land before *claim* runs."""
+    solo = artifact(tmp_path, "20260910145010", 101)
+    seen: list[str] = []
+
+    def claim() -> str:
+        meta = json.loads((solo / "agent_meta.json").read_text())
+        owner = meta.get("runner_claim_owner_key")
+        assert isinstance(owner, str) and owner
+        seen.append(owner)
+        return "solo-started"
+
+    with (
+        patch.object(
+            run_agent_wait_slots, "_scan_runner_slot_records", return_value=[]
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(solo),
+            cl_name="cl",
+            timestamp=solo.name,
+            directive_threshold=None,
+            claim=claim,
+        )
+
+    assert result == "solo-started"
+    assert not parked
+    assert seen == [solo.name]
+
+
 def test_capacity_only_dropped_predecessor_does_not_break_persisted_lineage(
     tmp_path: Path,
 ) -> None:

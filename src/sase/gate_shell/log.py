@@ -154,7 +154,30 @@ def _is_real_pending_gate_shell(meta: dict[str, Any]) -> bool:
     )
 
 
+def _gate_shell_process_identity_fields() -> dict[str, Any]:
+    from sase.core.process_identity import process_identity_token
+
+    pid = os.getpid()
+    return {"pid": pid, "process_identity": process_identity_token(pid)}
+
+
+def _write_gate_shell_execution_meta(
+    artifacts_dir: str,
+    meta: dict[str, Any],
+    fields: dict[str, Any],
+) -> None:
+    meta.update(fields)
+    update_meta_fields(artifacts_dir, fields)
+
+
 def _claim_gate_shell_execution_capacity(artifacts_dir: str) -> None:
+    """Acquire runner-slot capacity for this gate, or proceed unclaimed.
+
+    One locked claim attempt is enough: a free slot still transfers
+    atomically so a follow-up coder can inherit it, but a blocked decision
+    must not wait. Gate option commands are short trusted host work; the
+    heavy successor already queues through ``wait_for_runner_slot``.
+    """
     meta = _read_gate_shell_meta(artifacts_dir)
     if not _is_real_pending_gate_shell(meta):
         return
@@ -166,34 +189,23 @@ def _claim_gate_shell_execution_capacity(artifacts_dir: str) -> None:
         str(meta.get("cl_name") or meta.get("patch_name") or meta.get("name") or "")
         or "gate"
     )
-    shell_pid = os.getpid()
     run_started_at = datetime.now(UTC).isoformat()
 
     def claim() -> str:
-        from sase.core.process_identity import process_identity_token
-
-        meta.update(
-            {
-                "pid": shell_pid,
-                "process_identity": process_identity_token(shell_pid),
-                "gate_state": "settling",
-                "run_started_at": run_started_at,
-            }
-        )
-        update_meta_fields(
+        _write_gate_shell_execution_meta(
             artifacts_dir,
+            meta,
             {
-                "pid": shell_pid,
-                "process_identity": meta["process_identity"],
+                **_gate_shell_process_identity_fields(),
                 "gate_state": "settling",
                 "run_started_at": run_started_at,
             },
         )
         return run_started_at
 
-    from sase.axe.run_agent_wait_slots import wait_for_runner_slot
+    from sase.axe.run_agent_wait_slots import try_claim_runner_slot_without_parking
 
-    wait_for_runner_slot(
+    started = try_claim_runner_slot_without_parking(
         artifacts_dir,
         cl_name,
         timestamp,
@@ -204,6 +216,12 @@ def _claim_gate_shell_execution_capacity(artifacts_dir: str) -> None:
         queue_weight_explicit=meta.get("queue_weight_explicit") is True,
         claim=claim,
     )
+    if started is None:
+        _write_gate_shell_execution_meta(
+            artifacts_dir,
+            meta,
+            _gate_shell_process_identity_fields(),
+        )
 
 
 def gate_shell_output_tail(artifacts_dir: str, *, lines: int = 200) -> str:

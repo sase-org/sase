@@ -373,3 +373,120 @@ def test_releasing_monitor_admits_the_parked_waiter(tmp_path: Path) -> None:
     assert second == "started"
     assert not parked
     assert not (waiter / "waiting.json").exists()
+
+
+def test_blocked_claim_without_parking_leaves_no_waiting_marker(
+    tmp_path: Path,
+) -> None:
+    running = artifact(tmp_path, "20260910121000", 100, queue_weight=1.0)
+    blocked = artifact(
+        tmp_path,
+        "20260910121001",
+        101,
+        queue_weight=2.0,
+        queue_weight_explicit=True,
+    )
+    leftover = {
+        "cl_name": "stale",
+        "timestamp": blocked.name,
+        "queue_capacity": 0,
+        "queue_capacity_explicit": False,
+        "slot_requested_at": "2026-09-10T12:10:01+00:00",
+    }
+    (blocked / "waiting.json").write_text(json.dumps(leftover), encoding="utf-8")
+
+    with (
+        patch.object(
+            run_agent_wait_slots,
+            "_scan_runner_slot_records",
+            return_value=[record(running, started=True), record(blocked)],
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=2),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(blocked),
+            cl_name="cl",
+            timestamp=blocked.name,
+            directive_threshold=None,
+            directive_queue_weight=2.0,
+            directive_queue_weight_explicit=True,
+            claim=lambda: "unexpected",
+            park_on_block=False,
+        )
+
+    assert result is None
+    assert not parked
+    assert not (blocked / "waiting.json").exists()
+    meta = json.loads((blocked / "agent_meta.json").read_text())
+    assert "runner_claim_owner_key" not in meta
+
+
+def test_unavailable_limit_without_parking_leaves_no_waiting_marker(
+    tmp_path: Path,
+) -> None:
+    waiter = artifact(tmp_path, "20260910121002", 102)
+
+    with (
+        patch.object(
+            run_agent_wait_slots, "_scan_runner_slot_records", return_value=[]
+        ),
+        patch.object(
+            run_agent_wait_slots,
+            "get_max_running_agents",
+            side_effect=RuntimeError("limit unavailable"),
+        ),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(waiter),
+            cl_name="cl",
+            timestamp=waiter.name,
+            directive_threshold=None,
+            claim=lambda: "unexpected",
+            park_on_block=False,
+        )
+
+    assert result is None
+    assert not parked
+    assert not (waiter / "waiting.json").exists()
+
+
+def test_try_claim_without_parking_still_acquires_when_capacity_is_free(
+    tmp_path: Path,
+) -> None:
+    waiter = artifact(tmp_path, "20260910121003", 103)
+
+    with (
+        patch.object(
+            run_agent_wait_slots, "_scan_runner_slot_records", return_value=[]
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        started = run_agent_wait_slots.try_claim_runner_slot_without_parking(
+            str(waiter),
+            "cl",
+            waiter.name,
+            {"pid": 103},
+            wait_runners=None,
+            claim=lambda: "started",
+        )
+
+    assert started == "started"
+    assert not (waiter / "waiting.json").exists()
+    meta = json.loads((waiter / "agent_meta.json").read_text())
+    assert meta["runner_claim_owner_key"] == waiter.name

@@ -230,6 +230,16 @@ def _continuous_eligibility_start(
     return now.isoformat(), True
 
 
+def _abandon_unclaimed_attempt(artifacts_dir: str) -> tuple[None, bool]:
+    """Drop any waiting marker so the caller can proceed without a claim."""
+    waiting_path = Path(artifacts_dir) / "waiting.json"
+    existed = waiting_path.is_file()
+    remove_waiting_marker(artifacts_dir)
+    if existed:
+        notify_runner_slot_state_changed()
+    return None, False
+
+
 def _park_for_unavailable_limit(
     *,
     artifacts_dir: str,
@@ -447,11 +457,14 @@ def _try_claim_runner_slot(
     directive_queue_weight_explicit: bool = False,
     agent_meta: dict[str, Any] | None = None,
     claim: Callable[[], str],
+    park_on_block: bool = True,
 ) -> tuple[str | None, bool]:
     """Try one check-and-claim under the global lock.
 
     Returns ``(run_started_at, parked)``. ``parked`` is true when this call
-    first published the slot queue marker.
+    first published the slot queue marker. When ``park_on_block`` is false, a
+    blocked or limit-unavailable decision leaves no waiting marker and
+    returns ``(None, False)`` so the caller may proceed unclaimed.
     """
     lock_path = _runner_slot_lock_path()
     lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -477,6 +490,8 @@ def _try_claim_runner_slot(
                 )
                 effective_limit = float(get_max_running_agents())
             except Exception as error:  # noqa: BLE001 - admission fails closed.
+                if not park_on_block:
+                    return _abandon_unclaimed_attempt(artifacts_dir)
                 return _park_for_unavailable_limit(
                     artifacts_dir=artifacts_dir,
                     cl_name=cl_name,
@@ -557,6 +572,8 @@ def _try_claim_runner_slot(
                 notify_runner_slot_state_changed()
                 remove_waiting_marker(artifacts_dir)
                 return run_started_at, False
+            if not park_on_block:
+                return _abandon_unclaimed_attempt(artifacts_dir)
             eligible_since: str | None = None
             entered_deference = False
             deference_window = 0.0
@@ -603,6 +620,39 @@ def _try_claim_runner_slot(
             return None, parked
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def try_claim_runner_slot_without_parking(
+    artifacts_dir: str,
+    cl_name: str,
+    timestamp: str,
+    agent_meta: dict[str, Any],
+    *,
+    wait_runners: int | None,
+    wait_priority: int | None = None,
+    queue_weight: float = _DEFAULT_QUEUE_WEIGHT,
+    queue_weight_explicit: bool = False,
+    claim: Callable[[], str],
+) -> str | None:
+    """One locked claim attempt that never parks.
+
+    Returns the claim timestamp when admitted. Returns ``None`` when blocked
+    so the caller may proceed unclaimed, leaving no waiting marker and no
+    phantom claim.
+    """
+    run_started_at, _parked = _try_claim_runner_slot(
+        artifacts_dir=artifacts_dir,
+        cl_name=cl_name,
+        timestamp=timestamp,
+        directive_threshold=wait_runners,
+        directive_priority=wait_priority,
+        directive_queue_weight=queue_weight,
+        directive_queue_weight_explicit=queue_weight_explicit,
+        agent_meta=agent_meta,
+        claim=claim,
+        park_on_block=False,
+    )
+    return run_started_at
 
 
 def wait_for_runner_slot(

@@ -66,11 +66,8 @@ def test_bind_execution_callbacks_records_the_running_pid(artifacts_dir: str) ->
     assert meta["pid"] == process.pid
 
 
-def test_bind_execution_callbacks_claims_gate_capacity_before_command(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    directory = tmp_path / "member"
+def _pending_gate_dir(tmp_path: Path, *, name: str = "member") -> Path:
+    directory = tmp_path / name
     directory.mkdir()
     (directory / "agent_meta.json").write_text(
         json.dumps(
@@ -88,9 +85,17 @@ def test_bind_execution_callbacks_claims_gate_capacity_before_command(
         ),
         encoding="utf-8",
     )
+    return directory
+
+
+def test_bind_execution_callbacks_claims_gate_capacity_before_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    directory = _pending_gate_dir(tmp_path)
     calls: list[dict[str, object]] = []
 
-    def fake_wait_for_runner_slot(
+    def fake_try_claim(
         artifacts_dir: str,
         cl_name: str,
         timestamp: str,
@@ -118,8 +123,15 @@ def test_bind_execution_callbacks_claims_gate_capacity_before_command(
 
     monkeypatch.setattr(
         run_agent_wait_slots,
+        "try_claim_runner_slot_without_parking",
+        fake_try_claim,
+    )
+    monkeypatch.setattr(
+        run_agent_wait_slots,
         "wait_for_runner_slot",
-        fake_wait_for_runner_slot,
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("gate execution must not wait for a runner slot")
+        ),
     )
 
     callbacks = bind_gate_shell_execution_callbacks(str(directory))
@@ -141,9 +153,180 @@ def test_bind_execution_callbacks_claims_gate_capacity_before_command(
     assert meta["gate_state"] == "settling"
     assert meta["run_started_at"]
     assert isinstance(meta["pid"], int)
+    assert not (directory / "waiting.json").exists()
     assert gate_shell_log_path(str(directory)).read_text(encoding="utf-8") == (
         "$ commands/cleanup\n"
     )
+
+
+def test_bind_execution_callbacks_proceeds_unclaimed_when_capacity_is_full(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    directory = _pending_gate_dir(tmp_path)
+    calls: list[dict[str, object]] = []
+
+    def fake_try_claim(
+        artifacts_dir: str,
+        cl_name: str,
+        timestamp: str,
+        agent_meta: dict[str, object],
+        *,
+        wait_runners: int | None,
+        wait_priority: int | None,
+        queue_weight: float,
+        queue_weight_explicit: bool,
+        claim,
+    ) -> None:
+        assert wait_runners is None
+        assert wait_priority is None
+        assert queue_weight_explicit is False
+        assert callable(claim)
+        calls.append(
+            {
+                "artifacts_dir": artifacts_dir,
+                "cl_name": cl_name,
+                "timestamp": timestamp,
+                "gate_state": agent_meta["gate_state"],
+                "queue_weight": queue_weight,
+            }
+        )
+
+    monkeypatch.setattr(
+        run_agent_wait_slots,
+        "try_claim_runner_slot_without_parking",
+        fake_try_claim,
+    )
+    monkeypatch.setattr(
+        run_agent_wait_slots,
+        "wait_for_runner_slot",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("gate execution must not wait for a runner slot")
+        ),
+    )
+
+    callbacks = bind_gate_shell_execution_callbacks(str(directory))
+    callbacks.on_command_start("option", "cleanup", "Cleanup", ("commands/cleanup",))
+
+    meta = json.loads((directory / "agent_meta.json").read_text(encoding="utf-8"))
+    assert calls == [
+        {
+            "artifacts_dir": str(directory),
+            "cl_name": "lane--gate",
+            "timestamp": "member",
+            "gate_state": "pending",
+            "queue_weight": 2.0,
+        }
+    ]
+    assert meta["gate_state"] == "pending"
+    assert "run_started_at" not in meta
+    assert "runner_claim_owner_key" not in meta
+    assert isinstance(meta["pid"], int)
+    assert not (directory / "waiting.json").exists()
+    assert gate_shell_log_path(str(directory)).read_text(encoding="utf-8") == (
+        "$ commands/cleanup\n"
+    )
+
+
+def test_unclaimed_execution_still_records_the_running_command_pid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    directory = _pending_gate_dir(tmp_path)
+
+    monkeypatch.setattr(
+        run_agent_wait_slots,
+        "try_claim_runner_slot_without_parking",
+        lambda *_args, **_kwargs: None,
+    )
+
+    callbacks = bind_gate_shell_execution_callbacks(str(directory))
+    callbacks.on_command_start("option", "cleanup", "Cleanup", ("commands/cleanup",))
+    process = subprocess.Popen(["true"])
+    try:
+        callbacks.on_process_state(process, True)
+        meta = json.loads((directory / "agent_meta.json").read_text(encoding="utf-8"))
+        assert meta["pid"] == process.pid
+        assert meta["gate_state"] == "pending"
+    finally:
+        process.wait()
+
+
+def _patch_real_claim_scan(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    records: list[object],
+    *,
+    cap: int,
+) -> None:
+    from sase.axe import run_agent_wait_markers
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr(
+        run_agent_wait_slots,
+        "_scan_runner_slot_records",
+        lambda: list(records),
+    )
+    monkeypatch.setattr(
+        run_agent_wait_slots, "is_process_alive", lambda *_a, **_k: True
+    )
+    monkeypatch.setattr(run_agent_wait_slots, "get_max_running_agents", lambda: cap)
+    monkeypatch.setattr(
+        run_agent_wait_markers,
+        "update_agent_artifact_index_for_marker_mutation",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(
+        run_agent_wait_slots,
+        "wait_for_runner_slot",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("gate execution must not wait for a runner slot")
+        ),
+    )
+
+
+def test_bind_execution_callbacks_real_claim_proceeds_unclaimed_at_full_capacity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests._runner_slot_fixtures import artifact, record
+
+    directory = _pending_gate_dir(tmp_path)
+    running = artifact(tmp_path, "20260910120000", 100, queue_weight=1.0)
+    _patch_real_claim_scan(
+        monkeypatch,
+        tmp_path,
+        [record(running, started=True)],
+        cap=1,
+    )
+
+    callbacks = bind_gate_shell_execution_callbacks(str(directory))
+    callbacks.on_command_start("option", "cleanup", "Cleanup", ("commands/cleanup",))
+
+    meta = json.loads((directory / "agent_meta.json").read_text(encoding="utf-8"))
+    assert meta["gate_state"] == "pending"
+    assert "run_started_at" not in meta
+    assert "runner_claim_owner_key" not in meta
+    assert isinstance(meta["pid"], int)
+    assert not (directory / "waiting.json").exists()
+
+
+def test_bind_execution_callbacks_real_claim_publishes_ownership_when_capacity_is_free(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    directory = _pending_gate_dir(tmp_path)
+    _patch_real_claim_scan(monkeypatch, tmp_path, [], cap=2)
+
+    callbacks = bind_gate_shell_execution_callbacks(str(directory))
+    callbacks.on_command_start("option", "cleanup", "Cleanup", ("commands/cleanup",))
+
+    meta = json.loads((directory / "agent_meta.json").read_text(encoding="utf-8"))
+    assert meta["gate_state"] == "settling"
+    assert meta["run_started_at"]
+    assert isinstance(meta.get("runner_claim_owner_key"), str)
+    assert meta["runner_claim_owner_key"]
+    assert not (directory / "waiting.json").exists()
 
 
 def test_gate_shell_output_tail_reads_back_the_newest_lines(artifacts_dir: str) -> None:
