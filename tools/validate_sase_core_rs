@@ -62,6 +62,8 @@ REQUIRED_BINDINGS = (
     "agent_stats_query_activity",
     "agent_cleanup_wire_schema_version",
     "plan_agent_cleanup",
+    "git_object_sharing_wire_schema_version",
+    "plan_git_object_sharing",
     "save_dismissed_agents_index",
     "save_dismissed_bundle",
     "save_dismissed_agent_group",

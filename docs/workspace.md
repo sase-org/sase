@@ -523,13 +523,16 @@ object bytes without changing Git config or objects. Pass one or more workspace 
 to restrict the operation to those registered checkouts. Apply mode skips the primary,
 missing or non-Git paths, RUNNING claims, live occupant records, dirty checkouts, and
 unexpected alternates. It repeats those checks under the project lock before writing the
-SASE-owned alternate, runs a local-only repack, and requires
-`git fsck --connectivity-only` to pass before reporting success.
+SASE-owned alternate while preserving foreign alternate entries, runs a local-only
+repack, and requires `git fsck --connectivity-only` to pass before reporting success.
 
 Set `workspace.share_git_objects: false` to opt out for future materializations. With
 sharing disabled, `sase workspace repair` safely dissociates existing SASE-managed
-borrowers by first copying reachable objects into a local pack, then removing the
-alternate only after connectivity can be proven.
+borrowers by first repointing them to the current primary when needed, copying reachable
+objects into a local pack, then removing only the SASE-owned alternate after
+connectivity can be proven. Repair does not claim or overwrite non-SASE alternate
+entries, including files that contain the primary object directory alongside foreign
+entries.
 
 `sase doctor -C workspace.occupancy_conflicts` is the read-only occupancy check. It
 reads every project's RUNNING field and each checkout's occupant record, then reports

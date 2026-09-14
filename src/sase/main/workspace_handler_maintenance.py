@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import subprocess
 import sys
 import time
 from collections.abc import Callable, Iterable
@@ -43,12 +44,30 @@ class _WorkspaceClaimLike(Protocol):
     workspace_num: int
 
 
+class _AlternateStateLike(Protocol):
+    @property
+    def status(self) -> str: ...
+
+    @property
+    def sase_owned(self) -> bool: ...
+
+    @property
+    def detail(self) -> str: ...
+
+
 @dataclass(frozen=True)
 class _CompactEligibility:
     ok: bool
     reason: str
     before_bytes: int = 0
     alternate_status: str = ""
+
+
+@dataclass(frozen=True)
+class _AlternateRepairEligibility:
+    ok: bool
+    reason: str
+    state: _AlternateStateLike | None = None
 
 
 def claimed_nums(
@@ -173,6 +192,72 @@ def _compact_eligibility(
         before_bytes=before,
         alternate_status=state.status,
     )
+
+
+def _status_failure_detail(status: subprocess.CompletedProcess[str]) -> str:
+    if status.returncode == 0:
+        return ""
+    return (status.stderr or status.stdout or "").strip() or "status failed"
+
+
+def _alternate_repair_eligibility(
+    ctx: ProjectContext,
+    *,
+    workspace_num: int,
+    checkout_dir: str,
+    claimed: set[int],
+) -> _AlternateRepairEligibility:
+    if workspace_num == PRIMARY_WORKSPACE_NUM:
+        return _AlternateRepairEligibility(False, "primary checkout")
+    if workspace_num in claimed:
+        return _AlternateRepairEligibility(False, "live RUNNING claim")
+    if not os.path.isdir(checkout_dir):
+        return _AlternateRepairEligibility(False, "missing checkout")
+    if _has_live_occupant(checkout_dir):
+        return _AlternateRepairEligibility(False, "live occupant")
+    if not is_git_checkout(checkout_dir):
+        return _AlternateRepairEligibility(False, "not a Git checkout")
+
+    try:
+        state = classify_alternate_state(
+            checkout_dir,
+            primary_checkout_dir=ctx.primary_workspace_dir,
+        )
+    except GitObjectSharingError as exc:
+        return _AlternateRepairEligibility(
+            False,
+            f"alternate inspection failed: {exc}",
+        )
+
+    status = status_porcelain(checkout_dir)
+    status_detail = _status_failure_detail(status)
+    if status_detail and not state.sase_owned:
+        return _AlternateRepairEligibility(
+            False,
+            f"could not read git status: {status_detail}",
+            state,
+        )
+    if not status_detail and status.stdout.strip():
+        return _AlternateRepairEligibility(False, "dirty checkout", state)
+
+    return _AlternateRepairEligibility(True, "eligible", state)
+
+
+def _alternate_repair_action(
+    ctx: ProjectContext,
+    state: _AlternateStateLike,
+) -> str | None:
+    if ctx.store.share_git_objects:
+        if state.status in {"stale", "broken"} and state.sase_owned:
+            return "repoint"
+        if state.status == "broken":
+            return "failure"
+        if state.status == "unexpected":
+            return "skip"
+        return None
+    if state.sase_owned and state.status != "absent":
+        return "dissociate"
+    return None
 
 
 def handle_cleanup(
@@ -338,28 +423,37 @@ def handle_repair(
             dropped.append(num)
             continue
 
-        if not is_git_checkout(checkout_dir):
-            continue
-        try:
-            state = classify_alternate_state(
-                checkout_dir,
-                primary_checkout_dir=ctx.primary_workspace_dir,
-            )
-        except GitObjectSharingError as exc:
-            alternate_failures.append((num, str(exc)))
+        eligibility = _alternate_repair_eligibility(
+            ctx,
+            workspace_num=num,
+            checkout_dir=checkout_dir,
+            claimed=claimed,
+        )
+        state = eligibility.state
+        if state is None:
+            if eligibility.reason.startswith("alternate inspection failed"):
+                alternate_failures.append((num, eligibility.reason))
+            elif eligibility.reason != "not a Git checkout":
+                alternate_skips.append((num, eligibility.reason))
             continue
 
-        if ctx.store.share_git_objects:
-            if state.status in {"stale", "broken"} and state.sase_owned:
+        action = _alternate_repair_action(ctx, state)
+        if action == "repoint":
+            if eligibility.ok:
                 repoint.append((num, checkout_dir))
-            elif state.status == "broken":
-                alternate_failures.append((num, state.detail or "broken alternate"))
-            elif state.status == "unexpected":
-                alternate_skips.append(
-                    (num, state.detail or "alternate is not SASE-managed")
-                )
-        elif state.sase_owned and state.status != "absent":
-            dissociate.append((num, checkout_dir))
+            else:
+                alternate_skips.append((num, eligibility.reason))
+        elif action == "dissociate":
+            if eligibility.ok:
+                dissociate.append((num, checkout_dir))
+            else:
+                alternate_skips.append((num, eligibility.reason))
+        elif action == "failure":
+            alternate_failures.append((num, state.detail or "broken alternate"))
+        elif action == "skip":
+            alternate_skips.append(
+                (num, state.detail or "alternate is not SASE-managed")
+            )
 
     if (
         not dropped
@@ -408,21 +502,55 @@ def handle_repair(
 
     failed = bool(alternate_failures)
     for num, checkout_dir in repoint:
-        try:
-            result = repair_shared_checkout(ctx.primary_workspace_dir, checkout_dir)
-        except GitObjectSharingError as exc:
-            print(f"  failed to repair #{num}: {exc}", file=sys.stderr)
-            failed = True
-            continue
+        with patch_lock(ctx.project_file):
+            locked = _alternate_repair_eligibility(
+                ctx,
+                workspace_num=num,
+                checkout_dir=checkout_dir,
+                claimed=get_claimed_nums(ctx.project_file),
+            )
+            action = (
+                None
+                if locked.state is None
+                else _alternate_repair_action(ctx, locked.state)
+            )
+            if not locked.ok or action != "repoint":
+                reason = locked.reason if not locked.ok else "no longer needs repair"
+                print(f"  skipped #{num}: {reason} after locked recheck")
+                continue
+            try:
+                result = repair_shared_checkout(ctx.primary_workspace_dir, checkout_dir)
+            except GitObjectSharingError as exc:
+                print(f"  failed to repair #{num}: {exc}", file=sys.stderr)
+                failed = True
+                continue
         print(f"  repaired #{num}: {result.before_bytes} -> {result.after_bytes} bytes")
 
     for num, checkout_dir in dissociate:
-        try:
-            result = dissociate_checkout(checkout_dir)
-        except GitObjectSharingError as exc:
-            print(f"  failed to dissociate #{num}: {exc}", file=sys.stderr)
-            failed = True
-            continue
+        with patch_lock(ctx.project_file):
+            locked = _alternate_repair_eligibility(
+                ctx,
+                workspace_num=num,
+                checkout_dir=checkout_dir,
+                claimed=get_claimed_nums(ctx.project_file),
+            )
+            action = (
+                None
+                if locked.state is None
+                else _alternate_repair_action(ctx, locked.state)
+            )
+            if not locked.ok or action != "dissociate":
+                reason = (
+                    locked.reason if not locked.ok else "no longer needs dissociation"
+                )
+                print(f"  skipped #{num}: {reason} after locked recheck")
+                continue
+            try:
+                result = dissociate_checkout(ctx.primary_workspace_dir, checkout_dir)
+            except GitObjectSharingError as exc:
+                print(f"  failed to dissociate #{num}: {exc}", file=sys.stderr)
+                failed = True
+                continue
         print(
             f"  dissociated #{num}: {result.before_bytes} -> {result.after_bytes} bytes"
         )

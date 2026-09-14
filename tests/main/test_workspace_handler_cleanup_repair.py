@@ -421,6 +421,41 @@ class TestRepair:
         )
         _git(checkout, "fsck", "--connectivity-only")
 
+    def test_repair_refuses_broken_non_sase_alternate(
+        self,
+        project_layout: tuple[str, str, Path],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        project_name, _, primary = project_layout
+        _init_primary_repo(primary, commits=3)
+        store = WorkspaceStore(
+            str(primary),
+            config={
+                "workspace": {
+                    "root": str(primary.parent / "managed"),
+                    "project_key": "demo-key",
+                }
+            },
+        )
+        checkout = _clone_registered_workspace(primary, store, 10)
+        alternates = git_object_dir(str(checkout)) / "info" / "alternates"
+        alternates.parent.mkdir(parents=True, exist_ok=True)
+        original = f"{primary.parent / 'foreign-missing' / 'objects'}\n"
+        alternates.write_text(original, encoding="utf-8")
+
+        args = make_args(
+            workspace_subcommand="repair",
+            project=project_name,
+            dry_run=False,
+        )
+        with pytest.raises(SystemExit) as exc:
+            handle_workspace_command(args)
+
+        assert exc.value.code == 1
+        err = capsys.readouterr().err
+        assert "failed #10: missing non-SASE alternate object dir" in err
+        assert alternates.read_text(encoding="utf-8") == original
+
     def test_repair_dissociates_when_sharing_disabled(
         self,
         project_layout: tuple[str, str, Path],
@@ -448,6 +483,15 @@ class TestRepair:
         checkout = _clone_registered_workspace(primary, store, 10)
         ensure_sase_alternate(str(primary), str(checkout))
         alternates = git_object_dir(str(checkout)) / "info" / "alternates"
+        missing_objects = primary.parent / "missing-primary" / ".git" / "objects"
+        alternates.write_text(f"{missing_objects}\n", encoding="utf-8")
+        _git(
+            checkout,
+            "config",
+            "--local",
+            "sase.workspaceGitObjectsPrimary",
+            str(missing_objects),
+        )
         assert alternates.exists()
 
         args = make_args(

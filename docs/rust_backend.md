@@ -114,6 +114,10 @@ The intentionally Python-owned host surfaces include:
   boundary owns reusable cleanup planning, compact dismissed-identity writes, artifact
   deletion, workspace-release content rewrites, and Patch-entry kill marking exposed
   through Python helpers in `sase.core.agent_cleanup_*`.
+- Managed-workspace Git subprocesses, project locks, and filesystem mutations stay in
+  Python. Rust owns the deterministic Git object-sharing policy: alternate path
+  resolution, SASE-owned versus foreign alternate classification, and rewrite plans that
+  preserve non-SASE entries.
 - Bead host responsibilities stay in Python where they touch the surrounding
   application: storage-location discovery, SASE workspace/project lookup, VCS prompt
   context for `sase bead work`, xprompt resolution, user confirmation, agent launch,

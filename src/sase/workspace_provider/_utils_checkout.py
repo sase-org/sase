@@ -31,6 +31,7 @@ from sase.workspace_provider.git_objects import (
     GitObjectSharingError,
     configure_primary_for_sharing,
     ensure_sase_alternate,
+    recover_sase_borrower,
 )
 from sase.workspace_provider.store import WorkspacePath, WorkspaceStore
 
@@ -172,6 +173,48 @@ def _heal_reusable_clone_origin(
     )
 
 
+def _recover_existing_borrower_after_status_failure(
+    primary_workspace_dir: str,
+    target_checkout_dir: str,
+    *,
+    share_git_objects: bool,
+) -> bool:
+    """Recover a SASE borrower that failed object lookup during ``git status``."""
+    target = target_checkout_dir.rstrip("/")
+    if not os.path.exists(os.path.join(target, ".git")):
+        return False
+    try:
+        result = recover_sase_borrower(
+            primary_workspace_dir.rstrip("/"),
+            target,
+            share_git_objects=share_git_objects,
+        )
+    except GitObjectSharingError as exc:
+        raise RuntimeError(
+            "existing managed checkout failed git status and SASE "
+            "object-sharing recovery failed; leaving checkout intact: "
+            f"{exc}"
+        ) from exc
+    if result is None:
+        return False
+    check = subprocess.run(
+        ["git", "status"],
+        cwd=target,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=non_interactive_git_env(),
+        stdin=subprocess.DEVNULL,
+    )
+    if check.returncode == 0:
+        return True
+    detail = _command_output(check) or "status failed"
+    raise RuntimeError(
+        "existing managed checkout was recovered from SASE object-sharing "
+        f"state but git status still fails; leaving checkout intact: {detail}"
+    )
+
+
 def ensure_git_clone_at(
     primary_workspace_dir: str,
     workspace_num: int,
@@ -213,8 +256,35 @@ def ensure_git_clone_at(
             capture_output=True,
             text=True,
             check=False,
+            env=non_interactive_git_env(),
+            stdin=subprocess.DEVNULL,
         )
         if result.returncode == 0:
+            if assume_managed_checkout:
+                _heal_reusable_clone_origin(
+                    primary_workspace_dir.rstrip("/"),
+                    target_checkout_dir.rstrip("/"),
+                    assume_managed_checkout=True,
+                )
+            else:
+                _heal_clone_origin_if_needed(
+                    primary_workspace_dir=primary_workspace_dir.rstrip("/"),
+                    target_checkout_dir=target_checkout_dir.rstrip("/"),
+                )
+            if share_git_objects:
+                try:
+                    ensure_sase_alternate(
+                        primary_workspace_dir.rstrip("/"),
+                        target_checkout_dir.rstrip("/"),
+                    )
+                except GitObjectSharingError as exc:
+                    raise RuntimeError(str(exc)) from exc
+            return target_checkout_dir
+        if _recover_existing_borrower_after_status_failure(
+            primary_workspace_dir,
+            target_checkout_dir,
+            share_git_objects=share_git_objects,
+        ):
             if assume_managed_checkout:
                 _heal_reusable_clone_origin(
                     primary_workspace_dir.rstrip("/"),
@@ -285,6 +355,8 @@ def ensure_git_clone_at(
                 capture_output=True,
                 text=True,
                 check=False,
+                env=non_interactive_git_env(),
+                stdin=subprocess.DEVNULL,
             )
             if check.returncode == 0:
                 if assume_managed_checkout:
