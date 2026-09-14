@@ -40,6 +40,7 @@ _RUNTIME_ONLY_BUNDLE_FIELDS = (
             "runner_is_live",
             "is_clan_container",
             "is_imported_family_container",
+            "is_remote_family_container",
             "imported_family_parent_synthetic",
             "tree_parent_key",
             "tree_depth",

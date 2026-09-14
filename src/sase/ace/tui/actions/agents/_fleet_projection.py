@@ -99,19 +99,26 @@ class AgentFleetProjectionMixin:
         )
 
     def _agents_source_for_current_mode(self, local_agents: list[Agent]) -> list[Agent]:
+        from ...models._agent_tree import project_mixed_agent_tree
+
         fleet_rows = self._fleet_rows_with_dispatch_provisionals(  # type: ignore[attr-defined]
             list(getattr(self, "_agents_fleet_rows", []))
         )
-        return [
-            *local_agents,
-            *fleet_rows,
-        ]
+        return project_mixed_agent_tree(local_agents, fleet_rows)
 
     @staticmethod
     def _local_agents_from_mixed(agents: list[Agent]) -> list[Agent]:
         return [
             agent for agent in agents if not getattr(agent, "fleet_origin_alias", None)
         ]
+
+    def _local_base_for_current_projection(self) -> list[Agent]:
+        local_cache = getattr(self, "_agents_local_with_children", None)
+        if local_cache is not None:
+            return list(local_cache)
+        return self._local_agents_from_mixed(
+            list(getattr(self, "_agents_with_children", []))
+        )
 
     def _reproject_agents_from_current_mode(
         self,
@@ -122,15 +129,7 @@ class AgentFleetProjectionMixin:
         if selected_identity is None and 0 <= self.current_idx < len(self._agents):
             selected_identity = self._agents[self.current_idx].identity
         previous_agents = list(getattr(self, "_agents", []))
-        local_cache = getattr(self, "_agents_local_with_children", None)
-        if local_cache is None:
-            local_base = [
-                agent
-                for agent in getattr(self, "_agents_with_children", [])
-                if not getattr(agent, "fleet_origin_alias", None)
-            ]
-        else:
-            local_base = list(local_cache)
+        local_base = self._local_base_for_current_projection()
         self._agents_with_children = self._agents_source_for_current_mode(local_base)
         self._agents = list(self._agents_with_children)
         self._agents_refresh_active_source = source  # type: ignore[attr-defined]

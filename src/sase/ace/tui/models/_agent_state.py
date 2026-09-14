@@ -443,6 +443,7 @@ class AgentState:
     # them without overloading artifact ``parent_timestamp`` relationships.
     is_clan_container: bool = field(default=False, compare=False)
     is_imported_family_container: bool = field(default=False, compare=False)
+    is_remote_family_container: bool = field(default=False, compare=False)
     tree_parent_key: str | None = field(default=None, compare=False)
     tree_depth: int = field(default=0, compare=False)
     clan_tribes: tuple[str, ...] = field(default_factory=tuple, compare=False)
@@ -611,6 +612,14 @@ class AgentState:
         default=None,
         compare=False,
         repr=False,
+    )
+    # Structural fleet-wire facts consumed by remote node synthesis. These
+    # are display/runtime-only and never drive local membership policy.
+    fleet_row_kind: str | None = field(default=None, compare=False)
+    fleet_current_instance: bool = field(default=False, compare=False)
+    fleet_container_projected_concrete_agent: bool = field(
+        default=False,
+        compare=False,
     )
 
     # Internal source marker for dismissed bundles loaded only for revive.

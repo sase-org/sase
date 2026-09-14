@@ -418,6 +418,13 @@ class Agent(AgentState):
                 f"imported-family:{self.agent_family}",
                 self.raw_suffix,
             )
+        if self.is_remote_family_container and self.agent_family:
+            origin = self.fleet_origin_alias or ""
+            return (
+                AgentType.RUNNING,
+                f"remote-family:{origin}:{self.agent_family}",
+                self.raw_suffix,
+            )
         return (self.agent_type, self.cl_name, self.raw_suffix)
 
     @property

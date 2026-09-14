@@ -570,6 +570,18 @@ def project_clan_tree(agents: list[Agent]) -> list[Agent]:
     return projected
 
 
+def project_mixed_agent_tree(
+    local_agents: list[Agent],
+    remote_agents: list[Agent],
+) -> list[Agent]:
+    """Project concatenated local and remote rows through the clan tree.
+
+    Fleet refresh reprojection and query refiltering share this helper so a
+    mixed list always has the same clan-container shape.
+    """
+    return project_clan_tree([*local_agents, *remote_agents])
+
+
 def filter_tree_rows(
     agents: list[Agent],
     predicate: Callable[[Agent], bool],
@@ -641,5 +653,6 @@ __all__ = [
     "presentation_anchor",
     "presentation_anchor_lookup",
     "project_clan_tree",
+    "project_mixed_agent_tree",
     "tree_parent_lookup",
 ]

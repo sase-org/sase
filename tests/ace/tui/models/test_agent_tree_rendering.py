@@ -165,3 +165,63 @@ def test_clan_row_renders_unread_count_in_both_fold_states() -> None:
     for clan_text in (collapsed, expanded):
         assert not clan_text.plain.startswith(" ")
         assert "  " not in clan_text.plain
+
+
+def test_remote_family_container_renders_without_agent_bracket() -> None:
+    from sase.ace.tui.models.fleet_agents import project_fleet_agents
+    from sase.ace.tui.widgets._agent_list_helpers import compute_fold_annotation
+    from tests.ace.tui.fleet_fixture import fleet_host_response, fleet_summary
+
+    root = fleet_summary(
+        agent_id="remote-family",
+        run_id="20260910120000",
+        agent_name="remote-family",
+        family_id="remote-family",
+        family_role="root",
+    )
+    member = fleet_summary(
+        agent_id="remote-family--code",
+        run_id="20260910120100",
+        agent_name="remote-family--code",
+        family_id="remote-family",
+        family_role="member",
+        parent_timestamp="20260910120000",
+    )
+    monitor = fleet_summary(
+        agent_id="remote-family--mon",
+        run_id="20260910120200",
+        agent_name="remote-family--mon",
+        family_id="remote-family",
+        family_role="monitor",
+        row_kind="monitor",
+        parent_timestamp="20260910120000",
+        occupied_runner_slot=False,
+    )
+    rows = list(
+        project_fleet_agents(
+            catalog_response=fleet_host_response(
+                alias="apollo",
+                summaries=(root, member, monitor),
+            )
+        ).fleet_rows
+    )
+    family = next(row for row in rows if row.is_family_container_row)
+    nested = [row for row in rows if row.parent_timestamp == family.raw_suffix]
+    annotation = compute_fold_annotation(
+        family,
+        {family.raw_suffix: (len(nested), 0)},
+        set(),
+    )
+    family_text, _, _ = format_agent_option(
+        family,
+        0,
+        is_selected=False,
+        fold_annotation=annotation,
+    )
+    assert "[agent]" not in family_text.plain
+    assert annotation.startswith(" ×")
+    assert annotation in family_text.plain
+    monitor_row = next(row for row in nested if row.is_monitor)
+    monitor_text, _, _ = format_agent_option(monitor_row, 1, is_selected=False)
+    assert monitor_row.is_family_member_child is True
+    assert "⚙" in monitor_text.plain or monitor_row.is_monitor

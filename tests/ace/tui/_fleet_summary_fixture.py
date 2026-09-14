@@ -40,6 +40,11 @@ def fleet_summary(
     queue_weight_explicit: bool = False,
     queue_weight_invalid: bool = False,
     queue_weight_error: str | None = None,
+    row_kind: str = "agent_shell",
+    family_role: str = "root",
+    parent_timestamp: str | None = None,
+    current_instance: bool | None = None,
+    container_projected_concrete_agent: bool = False,
 ) -> dict[str, Any]:
     """Build one valid resolved remote row summary."""
     del patch_name  # Remote summaries expose project labels, not Patch labels.
@@ -61,7 +66,9 @@ def fleet_summary(
     bucket = _status_bucket(status)
     lifecycle = _lifecycle_for_status(status)
     liveness = _liveness_for_status(status)
-    current_instance = liveness == "alive"
+    derived_current_instance = liveness == "alive"
+    if current_instance is None:
+        current_instance = derived_current_instance
     if occupied_runner_slot is None:
         occupied_runner_slot = current_instance and bucket in {
             "running",
@@ -75,8 +82,8 @@ def fleet_summary(
         "exact_locator": exact,
         "logical_key": logical_key,
         "exact_key": exact_key,
-        "row_kind": "agent_shell",
-        "family_role": "root",
+        "row_kind": row_kind,
+        "family_role": family_role,
         "labels": {
             "schema_version": 1,
             "project_label": project_name,
@@ -115,8 +122,10 @@ def fleet_summary(
         "dismissable": not current_instance,
         "needs_attention": needs_attention,
         "occupied_runner_slot": bool(occupied_runner_slot),
-        "container_projected_concrete_agent": False,
+        "container_projected_concrete_agent": container_projected_concrete_agent,
     }
+    if parent_timestamp is not None:
+        summary["parent_timestamp"] = parent_timestamp
     if queue_weight is not None:
         summary["queue_weight"] = queue_weight
     if queue_weight_explicit:

@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from ._fleet_agents_follow import summary_followed
+from ._fleet_agents_nodes import normalize_remote_host_nodes
 from ._fleet_agents_payload import host_payloads, summary_payloads
 from ._fleet_agents_scalars import (
     datetime_from_unix,
@@ -61,7 +62,6 @@ def rows_from_response(
             host_counts.get("terminal"),
         )
         host_unknown_count = int_or_none(host_counts.get("unknown"))
-        host_rows: list[Agent] = []
         host_summary_pairs: list[tuple[Mapping[str, Any], Agent]] = []
         for summary_index, summary in enumerate(summary_payloads(host)):
             agent = _agent_from_summary(
@@ -86,10 +86,8 @@ def rows_from_response(
             agent.fleet_followed = followed
             if followed_only and not followed:
                 continue
-            host_rows.append(agent)
             host_summary_pairs.append((summary, agent))
-        _resolve_host_parent_lineage(host_summary_pairs)
-        rows.extend(host_rows)
+        rows.extend(normalize_remote_host_nodes(host_summary_pairs))
     return rows
 
 
@@ -126,6 +124,10 @@ def _agent_from_summary(
         summary.get("family_role"),
         summary.get("agent_family_role"),
     )
+    is_proc = row_kind == "proc" or family_role == "proc"
+    is_gate = row_kind == "gate" or family_role == "gate"
+    is_monitor = row_kind == "monitor" or family_role == "monitor"
+    shell_id = exact_key or logical_key
     parent_timestamp = optional_str(summary.get("parent_timestamp"))
     family_name = _agent_family_name(
         summary,
@@ -205,8 +207,17 @@ def _agent_from_summary(
     capabilities = mapping(summary.get("capabilities"))
     if revision is None:
         revision = int_or_none(row_revision.get("revision"))
+    gate_id = optional_str(summary.get("gate_id"))
+    if is_gate and gate_id is None:
+        gate_id = shell_id
+    monitor_id = optional_str(summary.get("monitor_id"))
+    if is_monitor and monitor_id is None:
+        monitor_id = shell_id
+    proc_id = optional_str(summary.get("proc_id")) if is_proc else None
+    if is_proc and proc_id is None:
+        proc_id = shell_id
     agent = Agent(
-        agent_type=AgentType.RUNNING,
+        agent_type=AgentType.PROC_SHELL if is_proc else AgentType.RUNNING,
         cl_name=patch_name,
         project_file=project_file,
         status=status,
@@ -246,27 +257,28 @@ def _agent_from_summary(
         fleet_bounded_intent=bounded_intent,
         fleet_diagnostic=host_diagnostic,
         fleet_attention=dict(attention) if attention else None,
+        fleet_row_kind=row_kind,
+        fleet_current_instance=bool(summary.get("current_instance")),
+        fleet_container_projected_concrete_agent=bool(
+            summary.get("container_projected_concrete_agent")
+        ),
         role_suffix=role_suffix,
         agent_family=family_name,
         agent_family_role=family_role,
         agent_family_parallel=bool(summary.get("agent_family_parallel")),
         parent_timestamp=parent_timestamp,
         plan_chain_root=bool(summary.get("plan_chain_root")),
-        monitor_id=optional_str(summary.get("monitor_id")),
+        monitor_id=monitor_id,
         monitor_state=optional_str(summary.get("monitor_state")),
         monitor_command=optional_str(summary.get("monitor_command")),
         monitor_label=optional_str(summary.get("monitor_label")),
-        gate_id=optional_str(summary.get("gate_id")),
+        gate_id=gate_id,
         gate_kind=optional_str(summary.get("gate_kind")),
         gate_state=optional_str(summary.get("gate_state")),
         gate_label=optional_str(summary.get("gate_label")),
-        proc_id=optional_str(summary.get("proc_id")) if row_kind == "proc" else None,
-        proc_status=optional_str(summary.get("proc_status"))
-        if row_kind == "proc"
-        else None,
-        proc_label=optional_str(summary.get("proc_label"))
-        if row_kind == "proc"
-        else None,
+        proc_id=proc_id,
+        proc_status=optional_str(summary.get("proc_status")) if is_proc else None,
+        proc_label=optional_str(summary.get("proc_label")) if is_proc else None,
         queue_weight=(
             None
             if summary.get("queue_weight_invalid") is True
@@ -277,58 +289,6 @@ def _agent_from_summary(
         queue_weight_error=optional_str(summary.get("queue_weight_error")),
     )
     return agent
-
-
-def _resolve_host_parent_lineage(
-    summary_pairs: list[tuple[Mapping[str, Any], Agent]],
-) -> None:
-    """Map owner-local parent tokens to rendered host-qualified row ids."""
-    by_owner_key: dict[str, str] = {}
-    for summary, agent in summary_pairs:
-        if not agent.raw_suffix:
-            continue
-        for key in _summary_owner_lineage_keys(summary):
-            by_owner_key.setdefault(key, agent.raw_suffix)
-
-    for _summary, agent in summary_pairs:
-        raw_parent = agent.parent_timestamp
-        if not raw_parent:
-            continue
-        resolved = by_owner_key.get(raw_parent)
-        if resolved is None:
-            # Unresolved lineage should not hide a row beneath a parent that
-            # is outside this bounded fleet page. Keeping it top-level
-            # preserves visibility while still carrying family_role/role query
-            # metadata from the summary.
-            agent.parent_timestamp = None
-        else:
-            agent.parent_timestamp = resolved
-
-
-def _summary_owner_lineage_keys(summary: Mapping[str, Any]) -> tuple[str, ...]:
-    logical_locator = mapping(summary.get("logical_locator"))
-    exact_locator = mapping(summary.get("exact_locator"))
-    nested_logical = mapping(exact_locator.get("logical"))
-    keys = (
-        summary.get("raw_suffix"),
-        summary.get("timestamp"),
-        summary.get("agent_timestamp"),
-        summary.get("logical_key"),
-        summary.get("exact_key"),
-        logical_locator.get("agent_id"),
-        nested_logical.get("agent_id"),
-        exact_locator.get("run_id"),
-        exact_locator.get("shell_id"),
-    )
-    seen: set[str] = set()
-    result: list[str] = []
-    for key in keys:
-        value = optional_str(key)
-        if value is None or value in seen:
-            continue
-        seen.add(value)
-        result.append(value)
-    return tuple(result)
 
 
 def _host_alias(host: Mapping[str, Any], host_index: int) -> str:

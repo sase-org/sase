@@ -80,20 +80,25 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         if callable(sync_local_source):
             sync_local_source()
 
-        # Rebuild the pure synthetic clan projection so optimistic status,
-        # tribe, kill, and dismiss mutations cannot leave a stale container.
-        from ...models._agent_tree import project_clan_tree
-
+        # Rebuild the mixed local+remote tree so optimistic status, tribe,
+        # kill, and dismiss mutations cannot leave a stale container. Fleet
+        # refresh reprojection uses the same helper.
         local_source = getattr(self, "_agents_local_with_children", None)
-        source_agents = (
-            list(local_source)
-            if local_source is not None
-            else list(self._agents_with_children)
-        )
+        if local_source is not None:
+            source_agents = list(local_source)
+        else:
+            local_from_mixed = getattr(self, "_local_agents_from_mixed", None)
+            mixed = list(self._agents_with_children)
+            source_agents = (
+                local_from_mixed(mixed) if callable(local_from_mixed) else mixed
+            )
         project_current_mode = getattr(self, "_agents_source_for_current_mode", None)
         if callable(project_current_mode):
-            source_agents = project_current_mode(source_agents)
-        self._agents_with_children = project_clan_tree(source_agents)
+            self._agents_with_children = project_current_mode(source_agents)
+        else:
+            from ...models._agent_tree import project_clan_tree
+
+            self._agents_with_children = project_clan_tree(source_agents)
 
         # Start from the cached unfiltered list (already has dismiss/hide applied)
         if previous_agents is None:

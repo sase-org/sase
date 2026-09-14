@@ -194,3 +194,41 @@ def test_build_agent_tree_by_machine_collapse_cascade_is_per_level() -> None:
 
 def test_banner_label_for_by_machine_status_subgroup_key_is_plain_bucket_name() -> None:
     assert banner_label_for_group_key(("apollo", "Running")) == "Running"
+
+
+def test_build_agent_tree_by_machine_nests_remote_family_under_host() -> None:
+    from sase.ace.tui.models.fleet_agents import project_fleet_agents
+    from tests.ace.tui.fleet_fixture import fleet_host_response, fleet_summary
+
+    root = fleet_summary(
+        agent_id="remote-family",
+        run_id="20260910120000",
+        agent_name="remote-family",
+        family_id="remote-family",
+        family_role="root",
+    )
+    member = fleet_summary(
+        agent_id="remote-family--code",
+        run_id="20260910120100",
+        agent_name="remote-family--code",
+        family_id="remote-family",
+        family_role="member",
+        parent_timestamp="20260910120000",
+    )
+    projection = project_fleet_agents(
+        catalog_response=fleet_host_response(
+            alias="apollo",
+            summaries=(root, member),
+        )
+    )
+    agents = list(projection.fleet_rows)
+    entries = build_agent_tree(agents, mode=GroupingMode.BY_MACHINE, now=_NOW)
+
+    assert _group_keys(entries, level=0) == [("apollo",)]
+    agent_indices = [entry.agent_idx for entry in entries if entry.kind == "agent"]
+    assert len(agent_indices) == 2
+    family = agents[agent_indices[0]]
+    child = agents[agent_indices[1]]
+    assert family.is_family_container_row is True
+    assert family.fleet_origin_alias == "apollo"
+    assert child.parent_timestamp == family.raw_suffix

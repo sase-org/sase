@@ -60,6 +60,7 @@ def _is_foldable_parent(agent: Agent) -> bool:
         return False
     return bool(
         agent.is_clan_container
+        or agent.is_family_container_row
         or agent.tree_depth == 1
         or agent.agent_type == AgentType.WORKFLOW
         or clan_members(agent)
