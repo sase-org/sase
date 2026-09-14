@@ -375,7 +375,7 @@ _KNOWN_SHELL_DONE_WRITERS = frozenset(
         "src/sase/monitor/supervise.py",
         "src/sase/monitor/proc_adapter.py",
         "src/sase/monitor/reconcile.py",
-        "src/sase/monitor/start.py",
+        "src/sase/monitor/start_runtime.py",
         "src/sase/gate_shell/settlement.py",
     }
 )

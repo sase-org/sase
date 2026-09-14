@@ -11,14 +11,17 @@ legacy full O(all-artifacts) meta walk for parity testing.
 import json
 from dataclasses import dataclass
 from collections.abc import Mapping
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from sase.bead.store_locator import closed_bead_ids_for_project
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.paths import sase_projects_dir
+from sase.core.time import get_timezone
 from sase.core.wait_dependency_resolution import (
     KNOWN_DONE_OUTCOMES,
     WaitDependencyIndex,
@@ -26,6 +29,8 @@ from sase.core.wait_dependency_resolution import (
     read_json_dict as _read_json_dict,
 )
 from sase.core.wait_dependency_resolution._types import ArtifactCandidate
+from sase.notifications.models import Notification, normalize_notification_tags
+from sase.notifications.store import upsert_notification
 from sase.scripts._chop_incremental_index import (
     chop_scan_full_walk,
     query_ace_run_index_records,
@@ -33,6 +38,7 @@ from sase.scripts._chop_incremental_index import (
 )
 
 _MAX_TERMINAL_BLOCKER_LOGS = 10
+_TERMINAL_BLOCKED_WAIT_SENDER = "wait_checks"
 
 
 @dataclass(frozen=True)
@@ -209,6 +215,11 @@ def _run(
                 self_artifact_dir=waiting_marker.waiting_path.parent,
             )
             for blocker in terminal_blockers:
+                _upsert_terminal_blocked_wait_notification(
+                    waiting_marker,
+                    data,
+                    blocker,
+                )
                 if blocker.outcome not in KNOWN_DONE_OUTCOMES:
                     unknown_outcome += 1
                     runtime.log(
@@ -338,6 +349,60 @@ def _terminal_blockers(
             )
 
     return tuple(blockers)
+
+
+def _upsert_terminal_blocked_wait_notification(
+    waiting_marker: _WaitingMarker,
+    waiting_data: Mapping[str, Any],
+    blocker: _TerminalBlocker,
+) -> None:
+    waiter_dir = waiting_marker.waiting_path.parent
+    waiter_name = _waiting_agent_label(waiting_data, waiter_dir)
+    timestamp = datetime.now(get_timezone()).isoformat()
+    notification = Notification(
+        id=str(uuid4()),
+        timestamp=timestamp,
+        sender=_TERMINAL_BLOCKED_WAIT_SENDER,
+        icon="!",
+        color="#D14343",
+        notes=[
+            "Wait dependency can never self-resolve",
+            f"Waiter: {waiter_name}",
+            (
+                f"Blocked on {blocker.dependency}: {blocker.artifact_dir} "
+                f"({blocker.outcome})"
+            ),
+            (
+                "Kill and relaunch the waiter, or intentionally clear the wait "
+                "once the dependency state is understood."
+            ),
+        ],
+        files=[str(waiter_dir), blocker.artifact_dir],
+        tags=normalize_notification_tags(["wait", "blocked", "terminal-dependency"]),
+        action_data={
+            "waiter": waiter_name,
+            "waiter_artifact_dir": str(waiter_dir),
+            "dependency": blocker.dependency,
+            "blocking_artifact_dir": blocker.artifact_dir,
+            "blocking_outcome": blocker.outcome,
+        },
+        dedup_key=f"wait_checks:terminal-blocked:{waiter_dir}",
+    )
+    upsert_notification(
+        notification,
+        plus_one_note=(
+            f"Still blocked on {blocker.dependency}: {blocker.artifact_dir} "
+            f"({blocker.outcome})"
+        ),
+        plus_one_timestamp=timestamp,
+    )
+
+
+def _waiting_agent_label(waiting_data: Mapping[str, Any], waiter_dir: Path) -> str:
+    cl_name = waiting_data.get("cl_name")
+    if isinstance(cl_name, str) and cl_name:
+        return cl_name
+    return waiter_dir.name
 
 
 def _artifact_candidate_for_identity(

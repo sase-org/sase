@@ -11,6 +11,7 @@ from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
     dependency_resolution_status,
 )
+from sase.notifications.store import load_notifications
 
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent, run_wait_checks
@@ -402,6 +403,63 @@ def test_unknown_terminal_done_outcome_is_reported(
     assert "Unknown done outcome blocks waiter" in out
     assert str(dependency_dir) in out
     assert "mystery_success" in out
+
+
+def test_terminal_blocked_waiter_upserts_one_notification(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "foo")
+    dependency_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "foo",
+        done=True,
+        outcome="failed",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert not (waiter_dir / "ready.json").exists()
+    notifications = load_notifications()
+    assert len(notifications) == 1
+    notification = notifications[0]
+    assert notification.sender == "wait_checks"
+    assert notification.dedup_key == f"wait_checks:terminal-blocked:{waiter_dir}"
+    assert notification.plus_one_count == 1
+    assert str(waiter_dir) in notification.files
+    assert str(dependency_dir) in notification.files
+    assert notification.action_data["waiter"] == "waiter-cl"
+    assert notification.action_data["dependency"] == "foo"
+    assert notification.action_data["blocking_artifact_dir"] == str(dependency_dir)
+    assert notification.action_data["blocking_outcome"] == "failed"
+    assert any("never self-resolve" in note for note in notification.notes)
+    assert any("Kill and relaunch" in note for note in notification.notes)
+
+
+def test_later_resolved_waiter_does_not_notify(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    waiter_dir = make_waiting_agent(tmp_path, "late-dep")
+
+    run_wait_checks(tmp_path, monkeypatch)
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506020202",
+        "late-dep",
+        done=True,
+        outcome="completed",
+    )
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8")) == {
+        "resolved_deps": ["late-dep"]
+    }
+    assert load_notifications() == []
 
 
 def test_superseded_start_failed_monitor_member_resolves_waiter(
