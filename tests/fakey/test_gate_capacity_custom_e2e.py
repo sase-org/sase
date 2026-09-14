@@ -1,139 +1,43 @@
-"""Real gate-shell lifecycle acceptance for weighted runner-slot capacity.
+"""Real custom gate-shell lifecycle acceptance for runner-slot capacity.
 
 Drives the production gate capacity-claim paths -- not hand-authored gate
 records -- through real locked claim attempts against the shared
-``_RunnerSlotFakeyHarness`` (see ``test_runner_slots_e2e.py``). Gate execution
-uses one non-blocking attempt; follow-up agents still queue through
-``wait_for_runner_slot``. Monitor capacity acceptance lives in the sibling
-``test_monitor_capacity_e2e.py``.
+``_RunnerSlotFakeyHarness`` (see ``test_runner_slots_e2e.py``). Plan gate
+capacity acceptance lives in the sibling ``test_gate_capacity_plan_e2e.py``;
+monitor capacity acceptance lives in ``test_monitor_capacity_e2e.py``.
 """
 
 from __future__ import annotations
 
 import argparse
-from contextlib import redirect_stdout
-import io
 import json
 from pathlib import Path
 import threading
-from unittest.mock import patch
 
 import pytest
 
 from sase.gate_shell.log import bind_gate_shell_execution_callbacks
 from sase.gate_shell.member import create_gate_shell_member
-from sase.gate_shell.settlement import settle_gate_shell
 from sase.gate_shell.store import read_gate_shell_marker
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
 import sase.notification_gates.cli_answer as gate_cli_answer_module
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.model_shell import GateShellSpec
-from sase.notification_gates.paths import RESPONSE_FILENAME, bundle_paths
+from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.registry import adapter_for_kind
 from sase.notification_gates.service import create_gate
-from sase.plan_gate import build_plan_approval_gate_spec
-from sase.plan_shell.create import plan_gate_shell_block
-from tests.plan_validation_helpers import VALID_TALE_PLAN
 
+from tests.fakey._gate_capacity_helpers import (
+    MONITOR_PROJECT,
+    dispatch_gate_answer,
+    make_blocking_gate,
+)
 from tests.fakey._runner_slot_harness import (
     _WAIT_TIMEOUT,
     _RunnerSlotFakeyHarness,
     _wait_for_condition,
 )
-
-_MONITOR_PROJECT = "fakey-slots"
-
-
-def _blocking_gate_command_script(started: Path, release: Path) -> str:
-    """Return a gate-option command script that signals then blocks."""
-    return (
-        "#!/usr/bin/env python3\n"
-        "import json, pathlib, sys, time\n"
-        "json.load(sys.stdin)\n"
-        f"pathlib.Path({str(started)!r}).write_text('1')\n"
-        f"deadline = time.monotonic() + {_WAIT_TIMEOUT}\n"
-        f"while not pathlib.Path({str(release)!r}).exists():\n"
-        "    if time.monotonic() > deadline:\n"
-        "        sys.exit(1)\n"
-        "    time.sleep(0.01)\n"
-        "print(json.dumps({'status': 'ok'}))\n"
-    )
-
-
-def _make_blocking_gate(
-    *,
-    request_id: str,
-    member_name: str,
-    lane: str,
-    started: Path,
-    release: Path,
-    queue_weight: float = 1.0,
-    queue_weight_explicit: bool = False,
-) -> tuple[Path, str]:
-    """Create a real gate bundle plus its gate-shell member.
-
-    The bundle's one option runs a command that blocks until *release*
-    exists, so a test can drive real ``wait_for_runner_slot`` contention
-    around the gate's execution window.
-    """
-    shell_block: dict[str, object] = {
-        "pending_status": "GATE",
-        "settled_status": "GATED",
-    }
-    spec: dict[str, object] = {
-        "schema_version": 3,
-        "request_id": request_id,
-        "kind": "custom",
-        "producer": {"agent": "test"},
-        "payload": {},
-        "presentation": {
-            "icon": "🧪",
-            "title": "Runner-slot capacity acceptance",
-            "notes": ["Exercise real runner-slot capacity contention."],
-        },
-        "query": "run",
-        "primary_branch": ["run"],
-        "options": [
-            {"id": "run", "label": "Run", "command": {"argv": ["commands/run"]}}
-        ],
-        "resources": [
-            {
-                "path": "commands/run",
-                "role": "command",
-                "content": _blocking_gate_command_script(started, release),
-            }
-        ],
-        "shell": shell_block,
-    }
-    gate = create_gate(spec)
-    parsed_shell = GateShellSpec.from_mapping(shell_block, branches=(("run",),))
-    artifacts_dir = create_gate_shell_member(
-        _MONITOR_PROJECT,
-        {
-            "name": member_name,
-            "agent_family": lane,
-            "model": "test",
-            "queue_weight": queue_weight,
-            "queue_weight_explicit": queue_weight_explicit,
-        },
-        lane=lane,
-        suffix="--gate",
-        prev_artifacts_timestamp="20260713090098",
-        workspace_num=None,
-        gate_id=request_id,
-        gate_kind="custom",
-        label="Runner-slot capacity acceptance",
-        reason="wait for reviewer",
-        creator_agent=member_name,
-        timeout_seconds=86_400.0,
-        request_fingerprint=None,
-        shell=parsed_shell,
-    )
-    from sase.axe.run_agent_helpers_artifacts import update_meta_field
-
-    update_meta_field(artifacts_dir, "gate_bundle_path", str(gate.bundle_path))
-    return gate.bundle_path, artifacts_dir
 
 
 def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_double_charge(
@@ -205,7 +109,7 @@ def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_do
     # `%auto` resolves synchronously inside that same call.
     parsed_shell = GateShellSpec.from_mapping(shell_block, branches=(("run",),))
     gate_dir = create_gate_shell_member(
-        _MONITOR_PROJECT,
+        MONITOR_PROJECT,
         {
             "name": "auto--gate",
             "agent_family": "auto",
@@ -238,6 +142,7 @@ def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_do
     # capacity behavior under test through the same private
     # `_start_gate_creation` -> `_resolve_auto_gate` path every kind shares.
     import sase.notification_gates.service as gate_service_module
+    from sase.axe.run_agent_helpers_artifacts import update_meta_field
     from sase.notification_gates.adapters import GateAdapter
     from sase.notification_gates.models import GateSpec
 
@@ -248,8 +153,6 @@ def test_creation_time_auto_resolved_shell_gate_reuses_creators_claim_without_do
     spec = GateSpec.from_mapping(spec_dict)
     paths = bundle_paths(auto_capable_adapter.kind, spec.request_id or "auto-1")
     gate = gate_service_module._start_gate_creation(spec, auto_capable_adapter, paths)
-    from sase.axe.run_agent_helpers_artifacts import update_meta_field
-
     update_meta_field(gate_dir, "gate_bundle_path", str(gate.bundle_path))
 
     assert marker.exists()
@@ -272,7 +175,7 @@ def test_pending_gate_shell_holds_zero_runner_slot_capacity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=2)
-    _bundle_path, gate_dir = _make_blocking_gate(
+    _bundle_path, gate_dir = make_blocking_gate(
         request_id="pending-1",
         member_name="pending--gate",
         lane="pending",
@@ -317,7 +220,7 @@ def test_synchronous_gate_answer_claims_and_releases_runner_slot_capacity_like_a
 
     gate_started = harness.root / "signals" / "answer.started"
     gate_release = harness.root / "signals" / "answer.release"
-    bundle_path, gate_dir = _make_blocking_gate(
+    bundle_path, gate_dir = make_blocking_gate(
         request_id="answer-1",
         member_name="answer--gate",
         lane="answer",
@@ -370,19 +273,6 @@ def test_synchronous_gate_answer_claims_and_releases_runner_slot_capacity_like_a
     harness.join(unrelated)
 
 
-def _dispatch_gate_answer(argv: list[str]) -> tuple[int, dict[str, object]]:
-    parser = argparse.ArgumentParser(prog="sase")
-    register_gate_parser(parser.add_subparsers(dest="command"))
-    args = parser.parse_args(["gate", *argv, "--json"])
-    out = io.StringIO()
-    with redirect_stdout(out):
-        with pytest.raises(SystemExit) as excinfo:
-            handle_gate_command(args)
-    code = int(excinfo.value.code or 0)
-    payload = json.loads(out.getvalue()) if out.getvalue().strip() else {}
-    return code, payload
-
-
 def test_detached_gate_route_reacquires_runner_slot_capacity_through_the_real_cli(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -399,7 +289,7 @@ def test_detached_gate_route_reacquires_runner_slot_capacity_through_the_real_cl
 
     gate_started = harness.root / "signals" / "detached.started"
     gate_release = harness.root / "signals" / "detached.release"
-    _bundle_path, gate_dir = _make_blocking_gate(
+    _bundle_path, gate_dir = make_blocking_gate(
         request_id="detached-1",
         member_name="detached--gate",
         lane="detached",
@@ -409,7 +299,7 @@ def test_detached_gate_route_reacquires_runner_slot_capacity_through_the_real_cl
         queue_weight_explicit=True,
     )
 
-    record = read_gate_shell_marker(_MONITOR_PROJECT, gate_dir)
+    record = read_gate_shell_marker(MONITOR_PROJECT, gate_dir)
     assert record is not None
     monkeypatch.setattr(
         gate_cli_answer_module, "find_gate_shell_by_gate_id", lambda _p, _g: record
@@ -423,7 +313,7 @@ def test_detached_gate_route_reacquires_runner_slot_capacity_through_the_real_cl
 
     monkeypatch.setattr(gate_cli_answer_module, "submit_proc_request", fake_submit)
 
-    code, payload = _dispatch_gate_answer(
+    code, payload = dispatch_gate_answer(
         ["answer", "-i", "detached-1", "-k", "custom", "-o", "run", "--detach"]
     )
     assert code == 0
@@ -511,7 +401,7 @@ def test_gate_cancellation_and_failed_startup_do_not_disturb_an_unrelated_owners
     unrelated_owner_key = harness.agent_meta(unrelated)["runner_claim_owner_key"]
 
     # -- cancellation: a still-pending gate never claimed capacity at all --
-    bundle_a, gate_dir_a = _make_blocking_gate(
+    bundle_a, gate_dir_a = make_blocking_gate(
         request_id="cancel-1",
         member_name="cancel--gate",
         lane="cancel",
@@ -563,7 +453,7 @@ def test_gate_cancellation_and_failed_startup_do_not_disturb_an_unrelated_owners
         {"pending_status": "GATE", "settled_status": "GATED"}, branches=(("run",),)
     )
     gate_dir_b = create_gate_shell_member(
-        _MONITOR_PROJECT,
+        MONITOR_PROJECT,
         {
             "name": "failstart--gate",
             "agent_family": "failstart",
@@ -601,176 +491,3 @@ def test_gate_cancellation_and_failed_startup_do_not_disturb_an_unrelated_owners
 
     harness.release_agent(unrelated)
     harness.join(unrelated)
-
-
-def _make_plan_gate(
-    *,
-    request_id: str,
-    member_name: str,
-    lane: str,
-    plan_file: Path,
-) -> tuple[Path, str]:
-    """Create a real shell-backed tale plan gate plus its gate-shell member."""
-    spec = build_plan_approval_gate_spec(str(plan_file), request_id)
-    spec["shell"] = plan_gate_shell_block("tale")
-    gate = create_gate(spec)
-    parsed_shell = GateShellSpec.from_mapping(
-        spec["shell"],
-        branches=(("approve", "commit"), ("reject",), ("feedback",)),
-        allow_branch_subsets=True,
-    )
-    artifacts_dir = create_gate_shell_member(
-        _MONITOR_PROJECT,
-        {
-            "name": member_name,
-            "agent_family": lane,
-            "model": "test",
-            "queue_weight": 1.0,
-            "queue_weight_explicit": True,
-        },
-        lane=lane,
-        suffix="--gate",
-        prev_artifacts_timestamp="20260713090098",
-        workspace_num=None,
-        gate_id=request_id,
-        gate_kind="plan",
-        label="Plan capacity acceptance",
-        reason="wait for reviewer",
-        creator_agent=member_name,
-        timeout_seconds=86_400.0,
-        request_fingerprint=None,
-        shell=parsed_shell,
-    )
-    from sase.axe.run_agent_helpers_artifacts import update_meta_field
-
-    update_meta_field(artifacts_dir, "gate_bundle_path", str(gate.bundle_path))
-    return gate.bundle_path, artifacts_dir
-
-
-@pytest.mark.parametrize(
-    ("option_ids", "request_id", "lane"),
-    [
-        (("approve", "commit"), "plan-approve-full", "plan-approve"),
-        (("reject",), "plan-reject-full", "plan-reject"),
-    ],
-)
-def test_full_capacity_plan_gate_answers_complete_without_waiting(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    option_ids: tuple[str, ...],
-    request_id: str,
-    lane: str,
-) -> None:
-    """Approve and reject on a shell-backed plan gate must not park at cap."""
-    harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
-    occupant = harness.create_agent(0, name="occupant", queue_weight=1.0)
-    harness.start(occupant)
-    harness.wait_started(occupant)
-
-    plan_file = harness.workspace / f"{request_id}.md"
-    plan_file.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    bundle_path, gate_dir = _make_plan_gate(
-        request_id=request_id,
-        member_name=f"{lane}--gate",
-        lane=lane,
-        plan_file=plan_file,
-    )
-
-    saved = harness.workspace / "sdd" / "plans" / "202609" / plan_file.name
-
-    def archive(*_args: object, **_kwargs: object) -> object:
-        saved.parent.mkdir(parents=True, exist_ok=True)
-        saved.write_text(plan_file.read_text(encoding="utf-8"), encoding="utf-8")
-        from sase._plan_archive_approval import _ApprovedPlanArchive
-
-        return _ApprovedPlanArchive(saved, f"plan:202609/{plan_file.name}")
-
-    with patch(
-        "sase.plan_approval_actions._archive_plan_for_approval",
-        side_effect=archive,
-    ):
-        execute_gate_selection(
-            bundle_path,
-            option_ids,
-            {},
-            source="test",
-            **bind_gate_shell_execution_callbacks(gate_dir).as_kwargs(),
-        )
-
-    assert (bundle_path / RESPONSE_FILENAME).is_file()
-    assert not (Path(gate_dir) / "waiting.json").exists()
-    gate_meta = json.loads((Path(gate_dir) / "agent_meta.json").read_text())
-    assert gate_meta["gate_state"] == "pending"
-    assert "runner_claim_owner_key" not in gate_meta
-    assert isinstance(gate_meta.get("pid"), int)
-
-    record = read_gate_shell_marker(_MONITOR_PROJECT, gate_dir)
-    assert record is not None
-    with patch(
-        "sase.gate_shell.settlement.launch_or_record_followup",
-        lambda *_args, **_kwargs: None,
-    ):
-        settle_gate_shell(record, gate_state="answered", reason="test answer")
-    settled = json.loads((Path(gate_dir) / "agent_meta.json").read_text())
-    assert settled["gate_state"] == "answered"
-    assert not (Path(gate_dir) / "waiting.json").exists()
-
-    harness.release_agent(occupant)
-    harness.join(occupant)
-
-
-def test_successor_after_unclaimed_gate_execution_parks_instead_of_reusing_lineage(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A follow-up after unclaimed gate execution must self-acquire capacity."""
-    from sase.axe.run_agent_markers import write_agent_meta
-
-    harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
-    occupant = harness.create_agent(0, name="occupant", queue_weight=1.0)
-    harness.start(occupant)
-    harness.wait_started(occupant)
-
-    plan_file = harness.workspace / "plan-successor.md"
-    plan_file.write_text(VALID_TALE_PLAN, encoding="utf-8")
-    bundle_path, gate_dir = _make_plan_gate(
-        request_id="plan-successor-full",
-        member_name="plan-successor--gate",
-        lane="plan-successor",
-        plan_file=plan_file,
-    )
-    execute_gate_selection(
-        bundle_path,
-        ["reject"],
-        {},
-        source="test",
-        **bind_gate_shell_execution_callbacks(gate_dir).as_kwargs(),
-    )
-
-    gate_meta = json.loads((Path(gate_dir) / "agent_meta.json").read_text())
-    assert gate_meta["gate_state"] == "pending"
-    assert "runner_claim_owner_key" not in gate_meta
-    assert not (Path(gate_dir) / "waiting.json").exists()
-
-    successor = harness.create_agent(
-        2,
-        name="successor",
-        parent_timestamp=Path(gate_dir).name,
-        agent_family="plan-successor",
-        queue_weight=1.0,
-        queue_weight_explicit=True,
-    )
-    owner = gate_meta.get("runner_claim_owner_key")
-    if isinstance(owner, str) and owner:
-        successor.meta["runner_claim_owner_key"] = owner
-        write_agent_meta(str(successor.artifacts_dir), successor.meta)
-
-    harness.start(successor)
-    harness.wait_parked(successor)
-    harness.assert_parked_not_started(successor)
-
-    harness.release_agent(occupant)
-    harness.join(occupant)
-    harness.wait_started(successor)
-    harness.release_agent(successor)
-    harness.join(successor)

@@ -4,7 +4,8 @@ Drives the production ``start_monitor``/``launch_followup_agent`` paths --
 not hand-authored monitor records -- through real ``wait_for_runner_slot``
 contention against the shared ``_RunnerSlotFakeyHarness`` (see
 ``test_runner_slots_e2e.py``). Gate-shell capacity acceptance lives in the
-sibling ``test_gate_capacity_e2e.py``.
+sibling ``test_gate_capacity_custom_e2e.py`` and
+``test_gate_capacity_plan_e2e.py``.
 """
 
 from __future__ import annotations
