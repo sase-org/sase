@@ -52,7 +52,7 @@ def _patch_live_records(monkeypatch: pytest.MonkeyPatch) -> None:
                 records.append(record)
         return records
 
-    monkeypatch.setattr(store_module, "project_records", live_records)
+    monkeypatch.setattr(store_module, "_project_records", live_records)
 
 
 def test_owner_cleanup_stops_monitor_child_and_suppresses_followup(

@@ -383,7 +383,7 @@ def test_start_monitor_serializes_concurrent_starts_in_one_lane(
                 records.append(record)
         return records
 
-    monkeypatch.setattr(store_module, "project_records", dynamic_project_records)
+    monkeypatch.setattr(store_module, "_project_records", dynamic_project_records)
 
     barrier = threading.Barrier(3)
     records: list[MonitorRecord] = []

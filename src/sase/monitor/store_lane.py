@@ -4,8 +4,7 @@ Resolves a lane name, an explicit agent name, or the calling agent's own
 identity to the artifact record that anchors it. Built on top of
 :mod:`sase.monitor.store`'s artifact-index queries, referenced through the
 ``store`` module itself (never imported by name) so tests that monkeypatch
-``sase.monitor.store.project_records`` (and friends) continue to control what
-these lookups see.
+the store lookup helpers continue to control what these lookups see.
 """
 
 from __future__ import annotations
@@ -97,7 +96,7 @@ def resolve_caller_agent(
     Raises :class:`MonitorLaneError` naming ``-a/--agent`` when none of the
     above resolves.
     """
-    records = store.project_records(project_name)
+    records = store._project_records(project_name)
 
     pinned = _pinned_caller_record(records, caller, artifacts_dir)
     if pinned is not None:
@@ -124,7 +123,7 @@ def resolve_lane(project_name: str, lane: str) -> LaneContext:
     """Resolve *lane* to its newest family member's artifact record."""
     records = [
         record
-        for record in store.project_records(project_name)
+        for record in store._project_records(project_name)
         if _record_in_lane(record, lane)
     ]
     if not records:
@@ -139,7 +138,7 @@ def resolve_exact_agent(project_name: str, agent_name: str) -> LaneContext:
     """Resolve *agent_name* to the newest artifact with that exact name."""
     records = [
         record
-        for record in store.project_records(project_name)
+        for record in store._project_records(project_name)
         if _record_has_name(record, agent_name)
     ]
     if not records:
@@ -192,7 +191,7 @@ def active_monitor_for_lane(
     """Return the not-yet-terminal monitor member for *lane*, if any."""
     procs = _LazyProcSnapshot()
     candidates: list[AgentArtifactRecordWire] = []
-    for record in store.monitor_records(project_name):
+    for record in store._monitor_records(project_name):
         meta = record.agent_meta
         if meta is None or meta.agent_family != lane:
             continue
@@ -223,7 +222,7 @@ def monitor_blocking_start_for_lane(
     """
     procs = _LazyProcSnapshot()
     candidates: list[MonitorRecord] = []
-    for record in store.monitor_records(project_name):
+    for record in store._monitor_records(project_name):
         meta = record.agent_meta
         if meta is None or meta.agent_family != lane:
             continue
@@ -248,7 +247,7 @@ def has_any_monitor(project_name: str, lane: str) -> bool:
     """Return whether *lane* has ever had a monitor member."""
     return any(
         record.agent_meta is not None and record.agent_meta.agent_family == lane
-        for record in store.monitor_records(project_name)
+        for record in store._monitor_records(project_name)
     )
 
 

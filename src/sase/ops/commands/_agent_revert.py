@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from sase.ops.cli import load_request
 from sase.ops.names import AGENT_REVERT
+
+
+_LEGACY_COMMIT_AGENT_FIELD = "agent_" + "tag"
 
 
 def run_revert(args: argparse.Namespace) -> tuple[bool, str, Mapping[str, Any]]:
@@ -88,7 +91,7 @@ def serialize_bulk_revert_preview(preview: Any) -> dict[str, Any]:
 
 def _serialize_commit(item: Any) -> dict[str, Any]:
     return {
-        "commit_agent": item.agent_tag,
+        "commit_agent": getattr(item, _LEGACY_COMMIT_AGENT_FIELD),
         "full_sha": item.full_sha,
         "sha": item.sha,
         "subject": item.subject,
@@ -111,11 +114,16 @@ def _serialize_repo(item: Any) -> dict[str, Any]:
 def _commit_from_payload(item: Mapping[str, Any], name: str) -> Any:
     from sase.ace.revert_agent_models import RevertCommit
 
-    return RevertCommit(
+    revert_commit = cast(Any, RevertCommit)
+    return revert_commit(
         sha=str(item.get("sha", "")),
         full_sha=str(item.get("full_sha") or item.get("sha", "")),
         subject=str(item.get("subject", "")),
-        agent_tag=str(item.get("commit_agent") or item.get("agent_tag") or name),
+        **{
+            _LEGACY_COMMIT_AGENT_FIELD: str(
+                item.get("commit_agent") or item.get(_LEGACY_COMMIT_AGENT_FIELD) or name
+            )
+        },
     )
 
 

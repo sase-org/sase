@@ -341,7 +341,7 @@ def test_read_monitor_marker_does_not_query_the_artifact_index(
     def _fail(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("read_monitor_marker must not query the artifact index")
 
-    monkeypatch.setattr("sase.monitor.store.project_records", _fail)
+    monkeypatch.setattr("sase.monitor.store._project_records", _fail)
 
     record = read_monitor_marker("proj", monitor_dir)
 

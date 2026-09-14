@@ -62,7 +62,7 @@ def _patch_live_records(monkeypatch: pytest.MonkeyPatch) -> None:
                 records.append(record)
         return records
 
-    monkeypatch.setattr(store_module, "project_records", live_records)
+    monkeypatch.setattr(store_module, "_project_records", live_records)
 
 
 def _start(

@@ -132,7 +132,7 @@ def patch_project_records(
             if project_name is None or record.project_name == project_name
         ]
 
-    monkeypatch.setattr(store_module, "project_records", fake)
+    monkeypatch.setattr(store_module, "_project_records", fake)
 
 
 def wait_for_done(
