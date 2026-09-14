@@ -181,7 +181,7 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             "terminal projections without mutating artifact markers."
         ),
     ),
-    "src/sase/monitor/start.py:_read_meta": PathPassingReview(
+    "src/sase/monitor/start_metadata.py:read_start_meta": PathPassingReview(
         exemption=(
             "Read-only monitor-start helper: agent_meta.json is read only to "
             "recover the lane's newest member metadata (or, on teardown, the "

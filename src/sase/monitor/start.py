@@ -5,43 +5,30 @@ transaction, and the teardown each failure point owes -- and re-exports the
 names its callers have always imported from here. The pieces it drives live
 next door: :mod:`sase.monitor.request` (the request and its identity),
 :mod:`sase.monitor.proc_adapter` (the proc-service facade),
-:mod:`sase.monitor.start_claim` (RUNNING-field claim moves), and
-:mod:`sase.monitor.handoff` (giving the lane to the monitor from inside an
-agent).
+:mod:`sase.monitor.start_lane` (lane and workspace resolution),
+:mod:`sase.monitor.start_claim` (RUNNING-field claim moves),
+:mod:`sase.monitor.start_continuation` (continuation-record setup),
+:mod:`sase.monitor.start_runtime` (proc/claim failure helpers), and
+:mod:`sase.monitor.handoff` (giving the lane to the monitor from inside an agent).
 """
 
 from __future__ import annotations
 
-import json
 import os
 import shlex
-from dataclasses import dataclass, replace
-from pathlib import Path
+from dataclasses import replace
 from typing import Any
 
-from sase.axe.agent_meta import write_agent_meta_atomic
-from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
-from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.continuation_capture.rollout import (
     monitor_continuation_protocol_for_new_start,
     monitor_continuation_records_enabled,
 )
-from sase.core.agent_artifact_index_lifecycle import (
-    update_agent_artifact_index_for_marker_mutation,
-)
+from sase.axe.run_agent_helpers_artifacts import update_meta_field
 from sase.logs._bounded import log_file_lock
-from sase.monitor_state import monitor_state_bucket
-from sase.plan_chain import agent_family_base
 from sase.procs.models import ARTIFACTS_LOG_OWNER
 from sase.procs.request import ProcSubmitRequest
-from sase.procs.runtime import proc_started_path, read_json_object
 from sase.procs.service import ProcSubmitError, submit_proc_request
 from sase.procs.spawn import SUPERVISOR_LOG_NAME, DetachedSupervisor
-from sase.running_field import get_claimed_workspaces
-from sase.shells.settlement import stamp_shell_finished_at
-from sase.workspace_provider import resolve_workspace_owner_for_path
-from sase.workspace_provider.utils import parse_workspace_dir
-from sase.workflows.utils import get_project_file_path
 
 from . import naming, store
 from .claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
@@ -58,7 +45,6 @@ from .member import create_monitor_member
 from .models import (
     MonitorAlreadyRunningError,
     MonitorError,
-    MonitorLaneError,
     MonitorRecord,
 )
 from .proc_adapter import (
@@ -78,52 +64,31 @@ from .request import (
     default_label,
     monitor_request_fingerprint,
 )
-from .settlement import finalize_monitor_workflow_state, project_name_from_artifacts_dir
+from .start_continuation import (
+    inherited_route,
+    peek_continuation_parents,
+    persist_monitor_start_intent_after_ack,
+    reject_versioned_start_controls_when_disabled,
+)
 from .start_claim import (
     claim_monitor_workspace,
     undo_monitor_claim,
+)
+from .start_lane import (
+    StartIdentity,
+    resolve_lane_start,
+    resolve_start_identity,
+)
+from .start_runtime import (
+    monitor_claim_error,
+    proc_timeout_seconds,
+    supervisor_pid,
+    teardown_failed_member,
 )
 from .transaction import (
     MONITOR_GO_MARKER,
     monitor_lane_lock_path,
 )
-
-
-@dataclass(frozen=True)
-class _LaneStart:
-    """The lane state a start resolves before it creates anything.
-
-    ``workspace_num`` is the workspace identity for the directory the monitored
-    command runs in. ``transfer_from_pid`` is set only when that identity is the
-    starter runner's own live claim row and should move to the supervisor.
-    """
-
-    project_file: str
-    member_meta: dict[str, Any]
-    durable_lane: str
-    cl_name: str | None
-    prev_timestamp: str
-    workspace_num: int
-    transfer_from_pid: int | None
-    starter_agent: str | None
-
-
-@dataclass(frozen=True)
-class _StartIdentity:
-    """How a start chose its parent artifact and durable family lane.
-
-    ``target`` is the resolved parent's own agent name for an implicit
-    start, or the explicit ``--agent`` / lane string. ``context`` is the
-    already-resolved artifact for an implicit start, reused by
-    ``_resolve_lane_start()`` instead of re-resolving; it is ``None`` for
-    an explicit start, which still resolves via ``store.resolve_lane()``.
-    ``lock_lane`` is the durable family used for the start lock, replay,
-    conflict detection, and request fingerprint.
-    """
-
-    target: str
-    context: store.LaneContext | None
-    lock_lane: str
 
 
 def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
@@ -135,46 +100,28 @@ def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
     its own family -- and the durable family is taken from that artifact.
     An explicit lane still resolves to the newest matching family member.
     """
-    identity = _resolve_start_identity(request)
+    identity = resolve_start_identity(request)
     with log_file_lock(
         monitor_lane_lock_path(request.project_name, identity.lock_lane)
     ):
         return _start_monitor_locked(request, identity)
 
 
-def _resolve_start_identity(request: StartMonitorRequest) -> _StartIdentity:
-    """Return the parent identity and durable lock lane for *request*."""
-    if request.lane:
-        return _StartIdentity(target=request.lane, context=None, lock_lane=request.lane)
-    caller = store.default_caller()
-    if not caller:
-        raise MonitorLaneError(
-            "no lane given and SASE_AGENT_NAME is unset; pass an explicit lane"
-        )
-    ctx = store.resolve_caller_agent(
-        request.project_name, caller, artifacts_dir=store.caller_artifacts_dir()
-    )
-    meta = ctx.record.agent_meta
-    target = meta.name if meta is not None and meta.name else caller
-    lock_lane = store.durable_lane_for_record(ctx.record, fallback=target)
-    return _StartIdentity(target=target, context=ctx, lock_lane=lock_lane)
-
-
 def _start_monitor_locked(
-    request: StartMonitorRequest, identity: _StartIdentity
+    request: StartMonitorRequest, identity: StartIdentity
 ) -> MonitorRecord:
     """Start one monitor while the caller holds the lane start lock."""
     label = request.label or default_label(request.command)
     records_enabled = monitor_continuation_records_enabled()
     continuation_protocol = monitor_continuation_protocol_for_new_start(records_enabled)
     if not records_enabled:
-        _reject_versioned_start_controls_when_disabled(request)
+        reject_versioned_start_controls_when_disabled(request)
         parent_node_ids: list[str] = []
         starter_run_id = None
         starter_artifacts_dir = None
     else:
         parent_node_ids, starter_run_id, starter_artifacts_dir = (
-            _peek_continuation_parents(request, identity)
+            peek_continuation_parents(request, identity)
         )
     request = replace(
         request,
@@ -183,7 +130,7 @@ def _start_monitor_locked(
     )
     frozen_policy: dict[str, Any] | None = None
     if records_enabled:
-        inherited_model, inherited_effort = _inherited_route(starter_artifacts_dir)
+        inherited_model, inherited_effort = inherited_route(starter_artifacts_dir)
         try:
             from sase.monitor.outcome_policy import freeze_start_outcome_policy
 
@@ -211,7 +158,7 @@ def _start_monitor_locked(
     if replayed is not None:
         return replayed
 
-    lane_start = _resolve_lane_start(request, identity)
+    lane_start = resolve_lane_start(request, identity)
     durable_lane = lane_start.durable_lane
     suffix = naming.allocate_monitor_suffix(
         durable_lane,
@@ -283,7 +230,7 @@ def _start_monitor_locked(
                     monitor_id=monitor_id,
                     artifacts_dir=store.caller_artifacts_dir(),
                 )
-            _teardown_failed_member(artifacts_dir, str(exc))
+            teardown_failed_member(artifacts_dir, str(exc))
             raise MonitorError(
                 f"could not persist frozen outcome policy: {exc}"
             ) from exc
@@ -297,10 +244,10 @@ def _start_monitor_locked(
         update_meta_field(artifacts_dir, "pid", supervisor.pid)
 
     def after_ack(proc: Any) -> None:
-        supervisor_pid = _supervisor_pid(proc)
-        if supervisor_pid is None:
+        resolved_supervisor_pid = supervisor_pid(proc)
+        if resolved_supervisor_pid is None:
             raise ProcSubmitError("supervisor did not report a pid")
-        update_meta_field(artifacts_dir, "pid", supervisor_pid)
+        update_meta_field(artifacts_dir, "pid", resolved_supervisor_pid)
         if proc.supervisor_id:
             update_meta_field(
                 artifacts_dir, "monitor_supervisor_identity", proc.supervisor_id
@@ -308,15 +255,15 @@ def _start_monitor_locked(
         claim = claim_monitor_workspace(
             lane_start.project_file,
             lane_start.workspace_num,
-            supervisor_pid=supervisor_pid,
+            supervisor_pid=resolved_supervisor_pid,
             transfer_from_pid=lane_start.transfer_from_pid,
             artifacts_timestamp=member_timestamp,
             cl_name=lane_start.cl_name,
         )
         claim_holder["claim"] = claim
-        claim_holder["pid"] = supervisor_pid
+        claim_holder["pid"] = resolved_supervisor_pid
         if not claim.result.success:
-            claim_error = _monitor_claim_error(
+            claim_error = monitor_claim_error(
                 lane_start.project_file,
                 lane_start.workspace_num,
                 claim.result.error,
@@ -354,10 +301,8 @@ def _start_monitor_locked(
                 shell_kind="proc",
                 request_fingerprint=request_fingerprint,
                 reserved_by=lane_start.starter_agent,
-                timeout_seconds=_proc_timeout_seconds(request.timeout_seconds),
-                idle_timeout_seconds=_proc_timeout_seconds(
-                    request.idle_timeout_seconds
-                ),
+                timeout_seconds=proc_timeout_seconds(request.timeout_seconds),
+                idle_timeout_seconds=proc_timeout_seconds(request.idle_timeout_seconds),
                 log_path=log_path,
                 log_owner=ARTIFACTS_LOG_OWNER,
                 artifacts_dir=artifacts_dir,
@@ -380,16 +325,16 @@ def _start_monitor_locked(
         )
     except ProcSubmitError as exc:
         claim = claim_holder.get("claim")
-        supervisor_pid = claim_holder.get("pid")
+        claimed_supervisor_pid = claim_holder.get("pid")
         if (
             claim is not None
             and claim.result.success
-            and isinstance(supervisor_pid, int)
+            and isinstance(claimed_supervisor_pid, int)
         ):
             undo_monitor_claim(
                 lane_start.project_file,
                 lane_start.workspace_num,
-                supervisor_pid=supervisor_pid,
+                supervisor_pid=claimed_supervisor_pid,
                 starter_claim=claim.starter_claim,
                 cl_name=lane_start.cl_name,
             )
@@ -401,7 +346,7 @@ def _start_monitor_locked(
                 monitor_id=monitor_id,
                 artifacts_dir=store.caller_artifacts_dir(),
             )
-        _teardown_failed_member(artifacts_dir, str(exc))
+        teardown_failed_member(artifacts_dir, str(exc))
         raise MonitorError(str(exc)) from exc
 
     record = MonitorRecord(
@@ -432,7 +377,7 @@ def _start_monitor_locked(
         request_fingerprint=request_fingerprint,
         output_path=str(log_path),
     )
-    _persist_monitor_start_intent_after_ack(
+    persist_monitor_start_intent_after_ack(
         request,
         record,
         lane_start=lane_start,
@@ -441,24 +386,6 @@ def _start_monitor_locked(
         records_enabled=records_enabled,
     )
     return record
-
-
-def _reject_versioned_start_controls_when_disabled(
-    request: StartMonitorRequest,
-) -> None:
-    if not (
-        request.checkpoint_ref
-        or request.checkpoint_document
-        or request.completion_ref
-        or request.outcome_policy
-        or request.policy_digest
-        or request.profile
-    ):
-        return
-    raise MonitorError(
-        "checkpoint, outcome-policy, profile, and host-completion monitor "
-        "controls require feature flag monitor_continuation_records"
-    )
 
 
 def _replayed_lane_monitor(
@@ -498,312 +425,6 @@ def _replayed_lane_monitor(
             requested_command=request.command,
         )
     )
-
-
-def _resolve_lane_start(
-    request: StartMonitorRequest, identity: _StartIdentity
-) -> _LaneStart:
-    """Read the selected parent artifact and decide what the monitor inherits."""
-    lane_ctx = (
-        identity.context
-        if identity.context is not None
-        else store.resolve_lane(request.project_name, identity.target)
-    )
-    selected = lane_ctx.record
-    raw_meta = _read_meta(selected.artifact_dir)
-
-    durable_lane = str(raw_meta.get("agent_family") or "").strip()
-    if not durable_lane:
-        from sase.agent._family_promotion import promote_agent_to_family
-
-        promoted_name = promote_agent_to_family(selected.artifact_dir, identity.target)
-        durable_lane = agent_family_base(promoted_name) or identity.target
-        raw_meta = _read_meta(selected.artifact_dir)
-
-    workspace_dir = raw_meta.get("workspace_dir")
-    raw_lane_workspace_num = raw_meta.get("workspace_num")
-    raw_runner_pid = raw_meta.get("pid")
-    lane_workspace_num = _optional_int(raw_lane_workspace_num)
-    runner_pid = _optional_int(raw_runner_pid)
-    lane_workspace_dir = str(workspace_dir) if workspace_dir else ""
-    cwd_matches_lane = bool(lane_workspace_dir) and (
-        _same_path(request.cwd, lane_workspace_dir)
-        or _path_contains(lane_workspace_dir, request.cwd)
-    )
-
-    resolved_workspace_num, member_workspace_dir = _resolve_monitor_workspace(
-        selected.project_file,
-        request.cwd,
-        cwd_matches_lane=cwd_matches_lane,
-        lane_workspace_num=lane_workspace_num,
-        lane_workspace_dir=lane_workspace_dir,
-    )
-    transfer_from_pid: int | None = None
-    starter_agent: str | None = None
-    if request.transfer_claim_from_pid is not None:
-        transfer_from_pid = request.transfer_claim_from_pid
-    elif (
-        request.inherit_lane_workspace_claim
-        and cwd_matches_lane
-        and resolved_workspace_num != 0
-        and runner_pid is not None
-    ):
-        transfer_from_pid = runner_pid
-        raw_name = raw_meta.get("name")
-        starter_agent = raw_name if isinstance(raw_name, str) and raw_name else None
-
-    member_meta = dict(raw_meta)
-    member_meta["workspace_dir"] = member_workspace_dir
-    member_meta["workspace_num"] = resolved_workspace_num
-
-    cl_name = raw_meta.get("cl_name")
-    return _LaneStart(
-        project_file=selected.project_file,
-        member_meta=member_meta,
-        durable_lane=durable_lane,
-        cl_name=cl_name if isinstance(cl_name, str) else None,
-        prev_timestamp=selected.timestamp,
-        workspace_num=resolved_workspace_num,
-        transfer_from_pid=transfer_from_pid,
-        starter_agent=starter_agent,
-    )
-
-
-def _resolve_monitor_workspace(
-    project_file: str,
-    cwd: str,
-    *,
-    cwd_matches_lane: bool,
-    lane_workspace_num: int | None,
-    lane_workspace_dir: str,
-) -> tuple[int, str]:
-    """Return the workspace number and owning checkout root for the
-    monitor command's cwd.
-
-    A cwd that matches (or is nested within) its lane's own workspace
-    reuses the lane's already-known number and directory without a
-    registry round-trip. Otherwise *cwd* is resolved against the
-    workspace registry by containment, so a cwd nested inside some
-    managed checkout -- not just an exact checkout root -- still resolves
-    to its owning workspace.
-    """
-    if cwd_matches_lane and lane_workspace_num is not None and lane_workspace_num != 0:
-        return lane_workspace_num, lane_workspace_dir
-
-    owner = _lookup_workspace_owner_for_dir(project_file, cwd)
-    if owner is not None:
-        return owner
-
-    if cwd_matches_lane and lane_workspace_num is not None:
-        return lane_workspace_num, cwd
-
-    return 0, cwd
-
-
-def _lookup_workspace_owner_for_dir(
-    project_file: str, directory: str
-) -> tuple[int, str] | None:
-    primary_workspace_dir = parse_workspace_dir(project_file)
-    if not primary_workspace_dir:
-        return None
-    return resolve_workspace_owner_for_path(primary_workspace_dir, directory)
-
-
-def _supervisor_pid(proc: Any) -> int | None:
-    """Return the supervisor pid from the proc row or its start acknowledgement."""
-    if isinstance(proc.pid, int):
-        return proc.pid
-    started = read_json_object(proc_started_path(proc.proc_id))
-    raw = started.get("pid")
-    return raw if isinstance(raw, int) else None
-
-
-def _proc_timeout_seconds(value: float) -> int | None:
-    """Convert a monitor timeout to the integer seconds the proc wire stores."""
-    if value <= 0:
-        return None
-    return max(1, int(round(value)))
-
-
-def _teardown_failed_member(artifacts_dir: str, error: str) -> None:
-    """Mark a half-created monitor member failed rather than phantom-running."""
-    meta = _read_meta(artifacts_dir)
-    meta["monitor_state"] = "failed"
-    meta["monitor_settled"] = True
-    write_agent_meta_atomic(
-        artifacts_dir,
-        meta,
-        index_updater=update_agent_artifact_index_for_marker_mutation,
-    )
-    done_marker: dict[str, Any] = {
-        "outcome": "monitored",
-        "monitor_state": "failed",
-        "error": error,
-        "status_label": meta.get("monitor_stop_status") or DEFAULT_STOP_STATUS,
-        "status_bucket": monitor_state_bucket("failed"),
-    }
-    project_name = project_name_from_artifacts_dir(artifacts_dir)
-    if project_name:
-        done_marker["project_file"] = get_project_file_path(project_name)
-    stamp_shell_finished_at(done_marker)
-    write_done_marker_and_update_index(artifacts_dir, done_marker)
-    finalize_monitor_workflow_state(artifacts_dir)
-
-
-def _same_path(left: str, right: str) -> bool:
-    try:
-        return Path(left).expanduser().resolve() == Path(right).expanduser().resolve()
-    except OSError:
-        return left == right
-
-
-def _path_contains(root: str, path: str) -> bool:
-    try:
-        root_resolved = Path(root).expanduser().resolve()
-        path_resolved = Path(path).expanduser().resolve()
-    except OSError:
-        return False
-    try:
-        path_resolved.relative_to(root_resolved)
-    except ValueError:
-        return False
-    return True
-
-
-def _optional_int(value: object) -> int | None:
-    if value is None:
-        return None
-    if not isinstance(value, int | str):
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        return None
-
-
-def _monitor_claim_error(
-    project_file: str,
-    workspace_num: int,
-    error: str | None,
-) -> str:
-    base = error or f"workspace #{workspace_num} claim rejected"
-    if workspace_num == 0:
-        return base
-
-    conflicts = [
-        claim
-        for claim in get_claimed_workspaces(project_file)
-        if claim.workspace_num == workspace_num
-    ]
-    if not conflicts:
-        return base
-
-    details = "; ".join(
-        f"#{claim.workspace_num} pid {claim.pid} workflow {claim.workflow}"
-        f" cl {claim.cl_name or '(none)'}"
-        for claim in conflicts
-    )
-    return f"{base}; conflicting RUNNING claim: {details}"
-
-
-def _persist_monitor_start_intent_after_ack(
-    request: StartMonitorRequest,
-    record: MonitorRecord,
-    *,
-    lane_start: _LaneStart,
-    request_fingerprint: str,
-    starter_artifacts_dir: str | None,
-    records_enabled: bool,
-) -> None:
-    if not records_enabled:
-        return
-    parent_node_ids = list(request.parent_node_ids) or _continuation_parent_node_ids(
-        lane_start.member_meta
-    )
-    from sase.continuation_capture import persist_monitor_start_intent_best_effort
-
-    persist_monitor_start_intent_best_effort(
-        artifacts_dir=record.artifacts_dir,
-        monitor_id=record.monitor_id,
-        member_agent_name=record.member_agent_name,
-        project_name=record.project_name,
-        command=record.command,
-        cwd=record.cwd,
-        next_action=record.next_action,
-        next_model=record.next_model,
-        next_output=record.next_output,
-        request_fingerprint=request_fingerprint,
-        parent_node_ids=parent_node_ids,
-        starter_agent=lane_start.starter_agent,
-        checkpoint_ref=request.checkpoint_ref,
-        checkpoint_document=request.checkpoint_document,
-        starter_artifacts_dir=starter_artifacts_dir,
-    )
-
-
-def _inherited_route(
-    starter_artifacts_dir: str | None,
-) -> tuple[str | None, str | None]:
-    """Return the selected parent's model and effort, if they can be read."""
-
-    if not starter_artifacts_dir:
-        return None, None
-    try:
-        from sase.monitor.outcome_policy import inherited_route_from_meta
-
-        return inherited_route_from_meta(_read_meta(starter_artifacts_dir))
-    except (OSError, MonitorError):
-        return None, None
-
-
-def _peek_continuation_parents(
-    request: StartMonitorRequest,
-    identity: _StartIdentity,
-) -> tuple[list[str], str | None, str | None]:
-    """Resolve exact parent identities without mutating the selected lane."""
-
-    try:
-        lane_ctx = (
-            identity.context
-            if identity.context is not None
-            else store.resolve_lane(request.project_name, identity.target)
-        )
-    except Exception:
-        return [], None, None
-    artifact_dir = lane_ctx.record.artifact_dir
-    starter_run_id = os.path.basename(str(artifact_dir).rstrip("/")) or None
-    try:
-        meta = _read_meta(artifact_dir)
-    except (OSError, MonitorError):
-        return [], starter_run_id, artifact_dir
-    return _continuation_parent_node_ids(meta), starter_run_id, artifact_dir
-
-
-def _continuation_parent_node_ids(meta: dict[str, Any]) -> list[str]:
-    ids: list[str] = []
-    raw_node_id = meta.get("continuation_node_id")
-    if isinstance(raw_node_id, str) and raw_node_id:
-        ids.append(raw_node_id)
-    raw_parent_ids = meta.get("continuation_parent_node_ids")
-    if isinstance(raw_parent_ids, list):
-        ids.extend(item for item in raw_parent_ids if isinstance(item, str) and item)
-    seen: set[str] = set()
-    result: list[str] = []
-    for node_id in ids:
-        if node_id in seen:
-            continue
-        seen.add(node_id)
-        result.append(node_id)
-    return result
-
-
-def _read_meta(artifacts_dir: str) -> dict[str, Any]:
-    meta_path = os.path.join(artifacts_dir, "agent_meta.json")
-    with open(meta_path, encoding="utf-8") as f:
-        data = json.load(f)
-    if not isinstance(data, dict):
-        raise MonitorError(f"agent_meta.json at {artifacts_dir!r} is not an object")
-    return data
 
 
 __all__ = [
