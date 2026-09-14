@@ -20,6 +20,12 @@ from sase.notification_gates.command_runner import (
     run_owned_command,
     validate_json_instance,
 )
+from sase.notification_gates.decision import (
+    ACCEPTANCE_LOCK_FILENAME,
+    DECISION_RECEIPT_FILENAME,
+    accept_gate_decision,
+)
+from sase.notification_gates.dismissal import settle_gate_notification
 from sase.notification_gates.durability import (
     atomic_write_json,
     file_lock,
@@ -44,7 +50,6 @@ from sase.notification_gates.models import (
     GATE_RESPONSE_SCHEMA_VERSION,
     GateError,
     GateExecutionResult,
-    GateFeedbackMode,
     GateOption,
 )
 from sase.notification_gates.paths import (
@@ -52,16 +57,24 @@ from sase.notification_gates.paths import (
     RESPONSE_FILENAME,
     assert_owned_bundle,
 )
+from sase.notification_gates.selection import (
+    normalize_feedback,
+    options_from_envelope,
+    resolve_selection,
+)
 
 if TYPE_CHECKING:
     from sase.bead.epic_launch import EpicLaunchOrigin
 
 log = logging.getLogger(__name__)
 
-#: Bound on how long ``cancel_gate`` waits for ``.response.lock``. An
-#: approved option command holds that lock for its full runtime, so an
-#: untimed wait here reproduces a cancellation that hangs behind it
-#: indefinitely (bead ``bob-cli-15.2`` note #2).
+#: Bound on how long ``cancel_gate`` waits for ``.acceptance.lock``. That
+#: lock is only ever held briefly (validation plus one small file write),
+#: never for an approved option command's full runtime (bead
+#: ``bob-cli-15.2`` note #2, the original reason for this bound, back when
+#: cancellation shared ``.response.lock`` with execution) -- kept as
+#: defense-in-depth against a slow concurrent accept/cancel rather than as
+#: the load-bearing fix it once was.
 CANCEL_LOCK_TIMEOUT_SECONDS = 5.0
 
 
@@ -114,13 +127,28 @@ def execute_gate_selection(
     bundle_path = assert_owned_bundle(bundle_path)
     response_path = bundle_path / RESPONSE_FILENAME
     cancellation_path = bundle_path / CANCELLATION_FILENAME
+
+    # Durably accept the decision and dismiss its notification under a
+    # short, separate lock before any option command, archive, or launch
+    # work runs below. A conflicting resubmission is rejected here, before
+    # it can run a single option command; an identical one replays the
+    # original receipt. See ``decision.py`` for the full rationale.
+    accept_gate_decision(
+        bundle_path,
+        selected_option_ids,
+        input_data,
+        feedback=feedback,
+        source=source,
+        option_inputs=option_inputs,
+    )
+
     with file_lock(bundle_path / ".response.lock"):
         envelope, adapter = load_and_verify_bundle(bundle_path)
-        options = _options_from_envelope(envelope)
-        selected = _resolve_selection(envelope, options, selected_option_ids)
+        options = options_from_envelope(envelope)
+        selected = resolve_selection(envelope, options, selected_option_ids)
         if response_path.exists():
             existing_response = read_json_object(response_path)
-            _settle_gate_notification(envelope, existing_response, source=source)
+            settle_gate_notification(envelope, existing_response, source=source)
             return GateExecutionResult(
                 response=existing_response,
                 already_completed=True,
@@ -134,7 +162,7 @@ def execute_gate_selection(
 
         normalized_input = {} if input_data is None else input_data
         with recorded_rejection(bundle_path, selected[0].id, source):
-            normalized_feedback = _normalize_feedback(selected, feedback)
+            normalized_feedback = normalize_feedback(selected, feedback)
         with recorded_rejection(bundle_path, selected[0].id, source):
             resolved_inputs = resolve_option_inputs(selected, input_data, option_inputs)
         resolved_inputs = apply_feedback_input(
@@ -254,9 +282,9 @@ def execute_gate_selection(
             atomic_write_json(response_path, response, exclusive=True)
         except FileExistsError:
             existing = read_json_object(response_path)
-            _settle_gate_notification(envelope, existing, source=source)
+            settle_gate_notification(envelope, existing, source=source)
             return GateExecutionResult(response=existing, already_completed=True)
-        _settle_gate_notification(envelope, response, source=source)
+        settle_gate_notification(envelope, response, source=source)
         try:
             adapter.apply_side_effects(
                 bundle_path=bundle_path,
@@ -465,20 +493,35 @@ def cancel_gate(
     source: str = "requester",
     lock_timeout_seconds: float | None = CANCEL_LOCK_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    """Persist a write-once cancellation if the gate has no response.
+    """Persist a write-once cancellation if the gate has no accepted decision.
 
-    ``lock_timeout_seconds`` bounds the wait for ``.response.lock`` so a
-    cancellation can never block behind an approved command's full runtime;
-    it raises :class:`GateError` (code ``lock_timeout``) on expiry instead of
-    hanging. Pass ``None`` to wait indefinitely, matching the old behaviour.
+    Waits on ``.acceptance.lock``, the same short, bounded lock acceptance
+    itself uses -- never ``.response.lock``, which a running option command
+    or archive/launch side effect can hold for its full runtime. A gate
+    whose decision was already durably accepted (``decision_receipt.json``
+    exists, whether or not execution has finished) can no longer be
+    cancelled, matching the plan's requirement that an accepted decision
+    never be silently undone by a late-arriving cancel.
+    ``lock_timeout_seconds`` bounds that wait; it raises :class:`GateError`
+    (code ``lock_timeout``) on expiry instead of hanging. Pass ``None`` to
+    wait indefinitely, matching the old behaviour.
     """
     bundle_path = assert_owned_bundle(bundle_path)
-    with file_lock(bundle_path / ".response.lock", timeout=lock_timeout_seconds):
+    with file_lock(
+        bundle_path / ACCEPTANCE_LOCK_FILENAME, timeout=lock_timeout_seconds
+    ):
         envelope, _adapter = load_and_verify_bundle(bundle_path)
         response_path = bundle_path / RESPONSE_FILENAME
         if response_path.exists():
             raise GateError(
                 "already_answered", str(response_path), "gate already has a response"
+            )
+        receipt_path = bundle_path / DECISION_RECEIPT_FILENAME
+        if receipt_path.exists():
+            raise GateError(
+                "already_answered",
+                str(receipt_path),
+                "gate decision is already accepted",
             )
         path = bundle_path / CANCELLATION_FILENAME
         if path.exists():
@@ -492,113 +535,8 @@ def cancel_gate(
             "cancelled_at_unix": time.time(),
         }
         atomic_write_json(path, cancellation, exclusive=True)
-        _settle_gate_notification(envelope, {}, source=source, action="cancelled")
+        settle_gate_notification(envelope, {}, source=source, action="cancelled")
         return cancellation
-
-
-def _options_from_envelope(envelope: Mapping[str, Any]) -> tuple[GateOption, ...]:
-    from sase.notification_gates.registry import adapter_for_kind
-
-    raw_options = envelope.get("options")
-    assert isinstance(raw_options, list)
-    kind = envelope.get("kind")
-    assert isinstance(kind, str)
-    default_feedback = adapter_for_kind(kind).default_feedback
-    return tuple(
-        GateOption.from_mapping(
-            raw_option,
-            index,
-            default_feedback=default_feedback,
-        )
-        for index, raw_option in enumerate(raw_options)
-    )
-
-
-def _resolve_selection(
-    envelope: Mapping[str, Any],
-    options: tuple[GateOption, ...],
-    selected_option_ids: Sequence[str],
-) -> tuple[GateOption, ...]:
-    if (
-        not isinstance(selected_option_ids, Sequence)
-        or isinstance(selected_option_ids, (str, bytes))
-        or not all(isinstance(option_id, str) for option_id in selected_option_ids)
-    ):
-        raise GateError(
-            "invalid_selection",
-            "selected_option_ids",
-            "selected_option_ids must be an array of strings",
-        )
-    requested = tuple(selected_option_ids)
-    if not requested:
-        raise GateError(
-            "empty_selection",
-            "selected_option_ids",
-            "at least one option must be selected",
-        )
-    if len(set(requested)) != len(requested):
-        raise GateError(
-            "duplicate_option",
-            "selected_option_ids",
-            "selected option ids must be unique",
-        )
-    by_id = {option.id: option for option in options}
-    unknown = sorted(set(requested) - set(by_id))
-    if unknown:
-        raise GateError(
-            "unknown_option",
-            "selected_option_ids",
-            f"option is not present in the request: {', '.join(unknown)}",
-        )
-    raw_branches = envelope.get("branches")
-    assert isinstance(raw_branches, list)
-    selected_set = set(requested)
-    matching = [
-        tuple(str(option_id) for option_id in branch)
-        for branch in raw_branches
-        if isinstance(branch, list) and selected_set <= set(branch)
-    ]
-    if len(matching) != 1:
-        raise GateError(
-            "selection_crosses_branches",
-            "selected_option_ids",
-            "selected options must be a non-empty subset of exactly one branch",
-        )
-    branch = matching[0]
-    return tuple(by_id[option_id] for option_id in branch if option_id in selected_set)
-
-
-def _normalize_feedback(
-    selected: tuple[GateOption, ...], feedback: str | None
-) -> str | None:
-    if feedback is not None and not isinstance(feedback, str):
-        raise GateError(
-            "invalid_feedback", "feedback", "feedback must be a string or null"
-        )
-    ranks: dict[GateFeedbackMode, int] = {
-        "disabled": 0,
-        "optional": 1,
-        "required": 2,
-    }
-    effective = max((option.feedback for option in selected), key=ranks.__getitem__)
-    selected_text = ", ".join(option.id for option in selected)
-    if effective == "disabled":
-        if feedback is not None:
-            raise GateError(
-                "feedback_not_allowed",
-                "feedback",
-                f"selected option(s) do not accept feedback: {selected_text}",
-            )
-        return None
-    normalized = feedback.strip() if isinstance(feedback, str) else None
-    normalized = normalized or None
-    if effective == "required" and normalized is None:
-        raise GateError(
-            "feedback_required",
-            "feedback",
-            f"selected option(s) require feedback: {selected_text}",
-        )
-    return normalized
 
 
 def _bind_output_callback(
@@ -608,47 +546,6 @@ def _bind_output_callback(
         callback("option", option_id, stream, line)
 
     return emit
-
-
-def _settle_gate_notification(
-    envelope: Mapping[str, Any],
-    response: Mapping[str, Any],
-    *,
-    source: str,
-    action: str | None = None,
-) -> None:
-    """Mark one gate's notification handled and dismiss its inbox row.
-
-    Runs for every terminal transition of every gate kind, from every client,
-    so no surface has to remember to dismiss the row itself.
-    """
-    notification_id = envelope.get("notification_id")
-    if not isinstance(notification_id, str) or not notification_id:
-        return
-    from sase.notifications.pending_actions import mark_already_handled
-
-    raw_selected = response.get("selected_option_ids")
-    selected = (
-        [str(option_id) for option_id in raw_selected]
-        if isinstance(raw_selected, list)
-        else []
-    )
-    mark_already_handled(
-        notification_id,
-        source=source,
-        action=action or "+".join(selected) or "resolved",
-    )
-    _dismiss_gate_notification_best_effort(notification_id)
-
-
-def _dismiss_gate_notification_best_effort(notification_id: str) -> None:
-    """Hide a settled gate row without ever failing a persisted response."""
-    try:
-        from sase.notifications.store import mark_dismissed
-
-        mark_dismissed(notification_id)
-    except Exception:
-        log.warning("Failed to dismiss notification for settled gate", exc_info=True)
 
 
 __all__ = ["cancel_gate", "execute_gate_selection"]
