@@ -30,6 +30,7 @@ DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT = 50
 DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN = 20
 DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
 DEFAULT_ARTIFACT_CAPTURE_POOL_MAX_BYTES = 1024 * 1024 * 1024
+DEFAULT_ARTIFACT_RETENTION_EMPTY_SHARD_REMOVAL_BUDGET = 2000
 DEFAULT_ARTIFACT_RETENTION_ENABLED = False
 DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL = 3
 DEFAULT_ARTIFACT_RETENTION_KEEP_RECENT_RUN_MONTHS = 2
@@ -371,6 +372,17 @@ def get_artifact_retention_keep_per_label() -> int:
     if type(value) is int and value >= 0:
         return value
     return DEFAULT_ARTIFACT_RETENTION_KEEP_PER_LABEL
+
+
+def get_artifact_retention_empty_shard_removal_budget() -> int:
+    """Return the max empty ACE-run shard dirs removed per retention apply."""
+    value = _artifact_retention_config().get(
+        "empty_shard_removal_budget",
+        DEFAULT_ARTIFACT_RETENTION_EMPTY_SHARD_REMOVAL_BUDGET,
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_ARTIFACT_RETENTION_EMPTY_SHARD_REMOVAL_BUDGET
 
 
 def get_artifact_retention_keep_recent_run_months() -> int:

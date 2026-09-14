@@ -4445,6 +4445,12 @@
               "default": false,
               "description": "Enable automatic artifact retention after agent finalization. When disabled, retention removes nothing."
             },
+            "empty_shard_removal_budget": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 2000,
+              "description": "Maximum number of empty ace-run month/day/run shard directories removed in one retention apply pass."
+            },
             "keep_per_label": {
               "type": "integer",
               "minimum": 0,

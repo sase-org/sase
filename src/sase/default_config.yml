@@ -161,6 +161,9 @@ artifacts:
     # referenced by a bead, plan, or Patch, and the newest capture of every
     # label are kept regardless of the settings below.
     enabled: false
+    # Maximum number of empty ace-run month/day/run shard directories removed
+    # in one retention apply pass.
+    empty_shard_removal_budget: 2000
     # Automatic captures kept per label; older generations are trashed first.
     # 0 disables the generation predicate.
     keep_per_label: 3
