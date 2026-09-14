@@ -21,10 +21,6 @@ from sase.procs.models import ProcStoreSnapshot
 from sase.monitor import store
 from .models import MonitorLaneError, MonitorRecord, is_monitor_member_record
 from .reconcile import reconcile_dead_supervisor, should_reconcile_dead_supervisor
-from .store import monitor_records as _monitor_records
-from .store import project_records as _project_records
-
-_STORE_QUERY_ANCHORS = (_monitor_records, _project_records)
 
 
 @dataclass(frozen=True)
