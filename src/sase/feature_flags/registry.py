@@ -24,6 +24,7 @@ class FeatureFlag(StrEnum):
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
     agents_unified_query = "agents_unified_query"
+    agent_sudo_requests = "agent_sudo_requests"
     monitor_continuation_records = "monitor_continuation_records"
     provider_drain = "provider_drain"
     queue_capacity_budget = "queue_capacity_budget"
@@ -59,6 +60,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "engine and the FilterBar chrome."
         ),
         bead="sase-zg",
+    ),
+    FeatureFlag.agent_sudo_requests: FeatureFlagDefinition(
+        key=FeatureFlag.agent_sudo_requests,
+        kind="beta",
+        description=(
+            "Gate the typed sudo request workflow while the runner, ACE modal, "
+            "skill guard, and SSH relay phases land."
+        ),
+        bead="sase-111",
     ),
     FeatureFlag.monitor_continuation_records: FeatureFlagDefinition(
         key=FeatureFlag.monitor_continuation_records,

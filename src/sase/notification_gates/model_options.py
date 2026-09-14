@@ -89,6 +89,7 @@ class GateOption:
     icon: str | None = None
     default_selected: bool = True
     feedback: GateFeedbackMode = "disabled"
+    requires_tty: bool = False
     inputs: tuple[GateInputField, ...] = ()
 
     @classmethod
@@ -113,6 +114,7 @@ class GateOption:
                 "icon",
                 "default_selected",
                 "feedback",
+                "requires_tty",
             },
             target,
         )
@@ -131,6 +133,13 @@ class GateOption:
                 "invalid_request",
                 f"{target}.feedback",
                 "feedback must be disabled, optional, or required",
+            )
+        requires_tty = data.get("requires_tty", False)
+        if not isinstance(requires_tty, bool):
+            raise GateError(
+                "invalid_request",
+                f"{target}.requires_tty",
+                "requires_tty must be a boolean",
             )
         inputs = parse_gate_input_fields(data.get("inputs"), target)
         raw_input_schema = data.get("input_schema")
@@ -175,6 +184,7 @@ class GateOption:
             icon=validate_icon(data.get("icon"), f"{target}.icon"),
             default_selected=default_selected,
             feedback=feedback,
+            requires_tty=requires_tty,
             inputs=inputs,
         )
 
@@ -189,6 +199,7 @@ class GateOption:
             "icon": self.icon,
             "default_selected": self.default_selected,
             "feedback": self.feedback,
+            "requires_tty": self.requires_tty,
         }
 
 

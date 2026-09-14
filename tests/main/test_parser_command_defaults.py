@@ -73,6 +73,7 @@ def test_exact_list_subcommands_default_when_group_is_omitted() -> None:
         "sase skill",
         "sase snippet",
         "sase proc",
+        "sase sudo",
         "sase telemetry",
         "sase var",
         "sase stitch",

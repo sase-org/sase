@@ -52,7 +52,7 @@ def handle_gate_show(args: argparse.Namespace) -> NoReturn:
     """Print one gate's declared decision surface."""
     try:
         kind, request_id = _resolve_kind_and_id(args)
-        payload = _show(kind, request_id)
+        payload = show_gate(kind, request_id)
     except GateShellRefError as exc:
         print(f"sase gate show: {exc}", file=sys.stderr)
         sys.exit(EXIT_REF_ERROR)
@@ -68,7 +68,7 @@ def handle_gate_show(args: argparse.Namespace) -> NoReturn:
     if bool(getattr(args, "json", False)):
         emit_json(payload)
     else:
-        _print_human_gate(payload)
+        print_human_gate(payload)
     sys.exit(EXIT_OK)
 
 
@@ -91,6 +91,11 @@ def _resolve_kind_and_id(args: argparse.Namespace) -> tuple[str, str]:
         raise GateCliError("pass a gate-shell reference, or -i/--id plus -k/--kind")
     record = resolve_gate_shell_ref(str(gate_ref), list_gate_shells())
     return record.kind, record.gate_id
+
+
+def show_gate(kind: str, request_id: str) -> dict[str, Any]:
+    """Return the verified, render-ready payload for one gate."""
+    return _show(kind, request_id)
 
 
 def _show(kind: str, request_id: str) -> dict[str, Any]:
@@ -138,6 +143,7 @@ def _option_payload(option: GateOption) -> dict[str, Any]:
         "input_schema": option.input_schema,
         "inputs": [field.to_dict() for field in option.inputs],
         "label": option.label,
+        "requires_tty": option.requires_tty,
     }
 
 
@@ -148,6 +154,11 @@ def _action_payload(operation: GateOperation) -> dict[str, Any]:
 def _shell_payload(envelope: Mapping[str, Any]) -> dict[str, Any] | None:
     shell = envelope.get("shell")
     return dict(shell) if isinstance(shell, Mapping) else None
+
+
+def print_human_gate(payload: Mapping[str, Any]) -> None:
+    """Print the human-readable gate show payload."""
+    _print_human_gate(payload)
 
 
 def _print_human_gate(payload: Mapping[str, Any]) -> None:
@@ -198,6 +209,10 @@ def _print_option(console: Console, option: Mapping[str, Any]) -> None:
     line.append(f" — {option['label']}", style="dim")
     if option["feedback"] != "disabled":
         line.append(f" · feedback {option['feedback']}", style="dim")
+    if option.get("requires_tty"):
+        line.append(" · requires TTY", style="bold yellow")
+    if option.get("requires_tty") and str(option.get("id")) == "approve":
+        line.append(" · use `sase sudo answer <id>`", style="dim")
     if not option["default_selected"]:
         line.append(" · off by default", style="dim")
     console.print(line, soft_wrap=True)

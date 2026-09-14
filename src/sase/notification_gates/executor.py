@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -127,6 +128,11 @@ def execute_gate_selection(
     bundle_path = assert_owned_bundle(bundle_path)
     response_path = bundle_path / RESPONSE_FILENAME
     cancellation_path = bundle_path / CANCELLATION_FILENAME
+    envelope, adapter = load_and_verify_bundle(bundle_path)
+    options = options_from_envelope(envelope)
+    selected = resolve_selection(envelope, options, selected_option_ids)
+    _reject_unavailable_option_transport(adapter.kind, selected, source)
+    _preflight_sudo_approval_inputs(envelope, adapter.kind, selected, option_inputs)
 
     # Durably accept the decision and dismiss its notification under a
     # short, separate lock before any option command, archive, or launch
@@ -486,6 +492,103 @@ def _replayed_results(
     }
 
 
+def _reject_unavailable_option_transport(
+    kind: str, selected: tuple[GateOption, ...], source: str
+) -> None:
+    """Refuse terminal-only decisions before they accept the gate."""
+    tty_options = tuple(option for option in selected if option.requires_tty)
+    if not tty_options:
+        return
+    option_ids = ", ".join(option.id for option in tty_options)
+    if not has_controlling_tty():
+        raise GateError(
+            "tty_required",
+            option_ids,
+            "this gate option requires a controlling TTY; the gate remains pending",
+        )
+    if kind == "sudo" and source != "sudo_cli":
+        raise GateError(
+            "unsupported_sudo_approval",
+            option_ids,
+            "sudo approval must use `sase sudo answer <id>` so the reviewed "
+            "manifest is sealed and executed by the sudo runner",
+        )
+
+
+def _preflight_sudo_approval_inputs(
+    envelope: Mapping[str, Any],
+    kind: str,
+    selected: tuple[GateOption, ...],
+    option_inputs: Mapping[str, object] | None,
+) -> None:
+    """Validate sudo runner receipts before accepting the gate decision."""
+    if kind != "sudo" or all(option.id != "approve" for option in selected):
+        return
+    from sase.sudo.receipt import validate_sudo_receipt
+
+    approve_input = (
+        option_inputs.get("approve") if isinstance(option_inputs, Mapping) else None
+    )
+    receipt = (
+        approve_input.get("receipt") if isinstance(approve_input, Mapping) else None
+    )
+    sudo_payload = _sudo_payload_for_preflight(envelope)
+    manifest = sudo_payload["manifest"]
+    command_ids = [
+        str(item["id"])
+        for item in manifest.get("commands", [])
+        if isinstance(item, Mapping) and "id" in item
+    ]
+    normalized = validate_sudo_receipt(
+        receipt,
+        manifest_sha256=str(sudo_payload["manifest_sha256"]),
+        selected_command_ids=command_ids,
+    )
+    for index, entry in enumerate(normalized.get("ledger", [])):
+        if not isinstance(entry, Mapping):
+            continue
+        status = str(entry.get("status") or "")
+        if status in {"authentication_failed", "cancelled"}:
+            raise GateError(
+                status,
+                f"receipt.ledger[{index}]",
+                "sudo runner did not approve execution; the gate remains pending",
+            )
+
+
+def _sudo_payload_for_preflight(envelope: Mapping[str, Any]) -> Mapping[str, Any]:
+    payload = envelope.get("payload")
+    sudo_payload = payload.get("sudo") if isinstance(payload, Mapping) else None
+    if not isinstance(sudo_payload, Mapping):
+        raise GateError(
+            "invalid_sudo_payload", "payload.sudo", "sudo payload is missing"
+        )
+    manifest = sudo_payload.get("manifest")
+    if not isinstance(manifest, Mapping):
+        raise GateError(
+            "invalid_sudo_payload",
+            "payload.sudo.manifest",
+            "sudo manifest is missing",
+        )
+    if not isinstance(sudo_payload.get("manifest_sha256"), str):
+        raise GateError(
+            "invalid_sudo_payload",
+            "payload.sudo.manifest_sha256",
+            "sudo manifest hash is missing",
+        )
+    return sudo_payload
+
+
+def has_controlling_tty() -> bool:
+    """Return whether this process can open its controlling terminal."""
+    try:
+        fd = os.open("/dev/tty", os.O_RDONLY | getattr(os, "O_CLOEXEC", 0))
+    except OSError:
+        return False
+    os.close(fd)
+    return True
+
+
 def cancel_gate(
     bundle_path: Path,
     *,
@@ -548,4 +651,4 @@ def _bind_output_callback(
     return emit
 
 
-__all__ = ["cancel_gate", "execute_gate_selection"]
+__all__ = ["cancel_gate", "execute_gate_selection", "has_controlling_tty"]

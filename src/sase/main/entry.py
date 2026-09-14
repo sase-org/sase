@@ -492,6 +492,12 @@ def main() -> NoReturn:
 
         handle_snippet_command(args)
 
+    # --- sudo ---
+    if args.command == "sudo":
+        from .sudo_handler import handle_sudo_command
+
+        handle_sudo_command(args)
+
     # --- proc / task ---
     if args.command in {"proc", "task"}:  # legacy command alias
         from .proc_handler import handle_proc_command

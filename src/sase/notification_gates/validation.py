@@ -15,6 +15,7 @@ from sase.notification_gates.kind_validation import (
     validate_plan_spec,
     validate_plugins_required_spec,
     validate_question_spec,
+    validate_sudo_spec,
     validate_task_triage_spec,
 )
 from sase.notification_gates.models import (
@@ -238,6 +239,8 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         validate_bead_stale_cleanup_spec(spec)
     if adapter.kind == "plugins_required":
         validate_plugins_required_spec(spec)
+    if adapter.kind == "sudo":
+        validate_sudo_spec(spec)
     if adapter.kind in {"plan", "epic_plan"}:
         validate_plan_spec(spec, adapter)
     expected_primary = {
@@ -251,6 +254,7 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
         "flag_triage": ("remove",),
         "bead_stale_cleanup": ("close",),
         "plugins_required": ("install",),
+        "sudo": ("approve",),
     }.get(adapter.kind)
     if expected_primary is not None and spec.primary_branch != expected_primary:
         raise GateError(

@@ -448,13 +448,14 @@ def test_gate_adapter_registry_declares_surface_capabilities() -> None:
         kind
         for kind, adapter in adapters.items()
         if adapter.default_feedback == "optional"
-    } == {"bead_stale_cleanup", "custom"}
+    } == {"bead_stale_cleanup", "custom", "sudo"}
     assert {kind for kind, adapter in adapters.items() if adapter.generic_form} == {
         "bead_snooze",
         "bead_stale_cleanup",
         "custom",
         "flag_triage",
         "plugins_required",
+        "sudo",
         "task_triage",
     }
     assert {

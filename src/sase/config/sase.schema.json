@@ -4714,6 +4714,11 @@
           "default": true,
           "deprecated": true
         },
+        "agent_sudo_requests": {
+          "type": "boolean",
+          "description": "Gate the typed sudo request workflow while the runner, ACE modal, skill guard, and SSH relay phases land.",
+          "default": false
+        },
         "agents_unified_query": {
           "type": "boolean",
           "description": "The Agents tab parses, evaluates, and edits its filter with the shared agents-live boolean query profile through the Rust corpus engine and the FilterBar chrome.",

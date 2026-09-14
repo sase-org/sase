@@ -1,0 +1,207 @@
+"""Build the canonical notification-gate request for a sudo request."""
+
+from __future__ import annotations
+
+import os
+import shlex
+from collections.abc import Mapping
+from typing import Any
+
+from sase.notification_gates.models import GATE_REQUEST_SCHEMA_VERSION
+from sase.sudo.commands import sudo_approve_command_script, sudo_deny_command_script
+from sase.sudo.core import DEFAULT_SUDO_CORE, SudoCoreBinding
+from sase.sudo.models import SudoRequest, normalize_sudo_request
+
+APPROVE_OPTION_ID = "approve"
+DENY_OPTION_ID = "deny"
+APPROVE_COMMAND_PATH = "commands/approve"
+DENY_COMMAND_PATH = "commands/deny"
+
+
+def build_sudo_gate_request(
+    value: Mapping[str, Any] | SudoRequest,
+    *,
+    producer: Mapping[str, Any] | None = None,
+    core: SudoCoreBinding = DEFAULT_SUDO_CORE,
+) -> dict[str, Any]:
+    """Return a v3 gate-shell request for one normalized sudo request."""
+    request = value if isinstance(value, SudoRequest) else normalize_sudo_request(value)
+    manifest = _manifest(request)
+    manifest_sha256 = core.manifest_sha256(manifest)
+    risk_badges = core.risk_badges(tuple(manifest["commands"]))
+    title = f"Sudo request: {request.commands[0].argv[0]}"
+    if len(request.commands) > 1:
+        title += f" (+{len(request.commands) - 1})"
+    next_prompt = request.next_prompt
+    return {
+        "schema_version": GATE_REQUEST_SCHEMA_VERSION,
+        "kind": "sudo",
+        "producer": dict(
+            producer or {"agent": os.environ.get("SASE_AGENT_NAME", "agent")}
+        ),
+        "continuation_mode": "gate_shell",
+        "gate_timeout_seconds": float(request.timeout_seconds),
+        "payload": {
+            "sudo": {
+                "request": request.to_dict(),
+                "manifest": manifest,
+                "manifest_sha256": manifest_sha256,
+                "risk_badges": list(risk_badges),
+            }
+        },
+        "presentation": {
+            "icon": "🔒",
+            "title": title,
+            "notes": _notes(request, risk_badges),
+            "tags": ["sudo", "gate"],
+            "preview": "sudo-request.md",
+            "chip": {"glyph": "🔒", "label": "sudo", "color": "#FFAF5F"},
+        },
+        "query": "approve OR deny",
+        "primary_branch": ["approve"],
+        "options": [_approve_option(), _deny_option()],
+        "resources": [
+            {
+                "path": APPROVE_COMMAND_PATH,
+                "role": "command",
+                "content": sudo_approve_command_script(),
+            },
+            {
+                "path": DENY_COMMAND_PATH,
+                "role": "command",
+                "content": sudo_deny_command_script(),
+            },
+            {
+                "path": "sudo-request.md",
+                "role": "preview",
+                "content": _preview(request, manifest_sha256, risk_badges),
+            },
+        ],
+        "shell": {
+            "pending_status": "SUDO",
+            "settled_status": "SUDOED",
+            "accent": "#FFAF5F",
+            "next": {"prompt": next_prompt, "output": ["results"], "fork": "family"},
+            "branches": {
+                "approve": {"status": "SUDOED", "accent": "#00D787"},
+                "deny": {
+                    "status": "DENIED",
+                    "accent": "#FF5F5F",
+                    "prompt": None,
+                },
+            },
+        },
+    }
+
+
+def _manifest(request: SudoRequest) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "reason": request.reason,
+        "commands": [command.to_dict() for command in request.commands],
+        "run_as": request.run_as,
+        "cwd": request.cwd,
+        "env": dict(sorted(request.env.items())),
+        "timeout_seconds": request.timeout_seconds,
+        "stop_policy": request.stop_policy,
+        "output_policy": request.output_policy,
+        "machine": request.machine,
+    }
+
+
+def _approve_option() -> dict[str, Any]:
+    return {
+        "id": APPROVE_OPTION_ID,
+        "label": "Approve with sudo",
+        "icon": "🔒",
+        "command": {"argv": [APPROVE_COMMAND_PATH]},
+        "requires_tty": True,
+        "input_schema": {
+            "type": "object",
+            "required": ["receipt"],
+            "properties": {"receipt": {"type": "object"}},
+            "additionalProperties": False,
+        },
+        "result_schema": {
+            "type": "object",
+            "required": ["status", "receipt", "ledger"],
+            "properties": {
+                "status": {"const": "approved"},
+                "receipt": {"type": "object"},
+                "ledger": {"type": "array"},
+            },
+        },
+    }
+
+
+def _deny_option() -> dict[str, Any]:
+    return {
+        "id": DENY_OPTION_ID,
+        "label": "Deny",
+        "icon": "✕",
+        "command": {"argv": [DENY_COMMAND_PATH]},
+        "default_selected": False,
+        "feedback": "optional",
+        "input_schema": {
+            "type": "object",
+            "properties": {"feedback": {"type": "string"}},
+            "additionalProperties": False,
+        },
+        "result_schema": {
+            "type": "object",
+            "required": ["status"],
+            "properties": {
+                "status": {"const": "denied"},
+                "feedback": {"type": ["string", "null"]},
+            },
+        },
+    }
+
+
+def _notes(request: SudoRequest, risk_badges: tuple[str, ...]) -> list[str]:
+    return [
+        f"Reason: {request.reason}",
+        f"Run as: {request.run_as} in {request.cwd}",
+        "Risk: " + ", ".join(risk_badges),
+        "Commands: " + ", ".join(command.id for command in request.commands),
+    ]
+
+
+def _preview(
+    request: SudoRequest, manifest_sha256: str, risk_badges: tuple[str, ...]
+) -> str:
+    lines = [
+        "# Sudo Request",
+        "",
+        f"Reason: {request.reason}",
+        f"Run as: `{request.run_as}`",
+        f"Working directory: `{request.cwd}`",
+        f"Manifest SHA-256: `{manifest_sha256}`",
+        f"Risk: {', '.join(risk_badges)}",
+        "",
+        "Commands:",
+        "",
+    ]
+    for command in request.commands:
+        lines.extend(
+            [
+                f"## {command.id}",
+                "",
+                "```sh",
+                shlex.join(command.argv),
+                "```",
+                "",
+                f"Executable SHA-256: `{command.executable_sha256}`",
+                "",
+            ]
+        )
+    return "\n".join(lines).rstrip() + "\n"
+
+
+__all__ = [
+    "APPROVE_COMMAND_PATH",
+    "APPROVE_OPTION_ID",
+    "DENY_COMMAND_PATH",
+    "DENY_OPTION_ID",
+    "build_sudo_gate_request",
+]

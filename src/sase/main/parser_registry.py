@@ -69,6 +69,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "skill": ("sase.main.parser_skills", "register_skills_parser"),
     "snippet": ("sase.main.parser_snippet", "register_snippet_parser"),
     "stitch": ("sase.main.parser_stitch", "register_stitch_parser"),
+    "sudo": ("sase.main.parser_sudo", "register_sudo_parser"),
     # Legacy command alias for the proc parser.
     "task": ("sase.main.parser_proc", "register_proc_parser"),
     "telemetry": ("sase.main.parser_telemetry", "register_telemetry_parser"),

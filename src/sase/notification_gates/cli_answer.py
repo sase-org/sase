@@ -157,6 +157,7 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
             feedback=feedback,
         )
     if _effective_detach(args, shell_backed=shell_backed):
+        _reject_detached_tty_options(selected)
         return _submit_detached_answer(
             bundle,
             selected,
@@ -263,6 +264,18 @@ def _effective_detach(args: argparse.Namespace, *, shell_backed: bool) -> bool:
     if bool(getattr(args, "no_detach", False)):
         return False
     return shell_backed
+
+
+def _reject_detached_tty_options(selected: tuple[GateOption, ...]) -> None:
+    ids = [option.id for option in selected if option.requires_tty]
+    if not ids:
+        return
+    raise GateError(
+        "tty_required",
+        ", ".join(ids),
+        "this gate option requires a controlling TTY and cannot be submitted "
+        "through a detached answer proc",
+    )
 
 
 def _submit_detached_answer(
