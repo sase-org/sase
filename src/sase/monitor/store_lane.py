@@ -19,7 +19,7 @@ from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.plan_chain import agent_family_base
 from sase.procs.models import ProcStoreSnapshot
 
-from . import store
+from sase.monitor import store
 from .models import MonitorLaneError, MonitorRecord, is_monitor_member_record
 from .reconcile import reconcile_dead_supervisor, should_reconcile_dead_supervisor
 
