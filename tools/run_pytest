@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import pwd
 import shutil
 import stat
 import subprocess
@@ -188,7 +189,8 @@ PYTEST_TMPDIR_ENV = "SASE_PYTEST_TMPDIR"
 PYTEST_TMP_REDIRECTED_ENV = "SASE_PYTEST_TMP_REDIRECTED"
 # Stay outside repository/workspace-store ancestry without making tmp_path so deep
 # that AF_UNIX socket tests exceed Linux's 108-byte path limit.
-DEFAULT_PYTEST_TMPDIR = Path("/var/tmp") / (
+DEFAULT_PYTEST_TMPDIR_PARENT = Path("/var/tmp")
+DEFAULT_PYTEST_TMPDIR = DEFAULT_PYTEST_TMPDIR_PARENT / (
     "sase-" + hashlib.sha256(os.fsencode(REPO_ROOT)).hexdigest()[:8]
 )
 PYTEST_TMP_REAP_HORIZON_SECONDS = 12 * 60 * 60
@@ -462,6 +464,14 @@ def _is_pytest_run_directory(path: Path) -> bool:
     )
 
 
+def _is_workspace_scratch_root_name(name: str) -> bool:
+    return (
+        len(name) == len("sase-00000000")
+        and name.startswith("sase-")
+        and all(character in "0123456789abcdef" for character in name[5:])
+    )
+
+
 def _stale_scratch_entry_kind(path: Path, cutoff: float) -> str | None:
     try:
         entry_stat = path.stat(follow_symlinks=False)
@@ -539,7 +549,109 @@ def _reap_stale_pytest_runs(
         _remove_stale_scratch_entry(scratch_entry, cutoff)
 
 
+def _is_stale_directory(
+    path: Path,
+    cutoff: float,
+    *,
+    path_stat: os.stat_result | None = None,
+) -> bool:
+    if path_stat is None:
+        try:
+            path_stat = path.stat(follow_symlinks=False)
+        except OSError:
+            return False
+    return (
+        not stat.S_ISLNK(path_stat.st_mode)
+        and stat.S_ISDIR(path_stat.st_mode)
+        and path_stat.st_mtime < cutoff
+    )
+
+
+def _rmdir_if_empty(path: Path) -> None:
+    try:
+        path_stat = path.stat(follow_symlinks=False)
+    except OSError:
+        return
+    if stat.S_ISLNK(path_stat.st_mode) or not stat.S_ISDIR(path_stat.st_mode):
+        return
+    try:
+        path.rmdir()
+    except OSError:
+        pass
+
+
+def _reap_sibling_pytest_tmpdirs(
+    scratch_root: Path,
+    *,
+    tmp_parent: Path | None = None,
+    now: float | None = None,
+    horizon_seconds: float = PYTEST_TMP_REAP_HORIZON_SECONDS,
+) -> None:
+    parent = scratch_root.parent if tmp_parent is None else tmp_parent
+    cutoff = (time.time() if now is None else now) - horizon_seconds
+    try:
+        scratch_root_resolved = scratch_root.resolve()
+    except OSError:
+        scratch_root_resolved = scratch_root
+    try:
+        sibling_roots = list(parent.iterdir())
+    except OSError:
+        return
+
+    current_uid = os.getuid()
+    try:
+        current_user = pwd.getpwuid(current_uid).pw_name
+    except KeyError:
+        current_user = None
+    current_user_root_name = (
+        None if current_user is None else f"pytest-of-{current_user}"
+    )
+
+    for sibling_root in sibling_roots:
+        if not _is_workspace_scratch_root_name(sibling_root.name):
+            continue
+        try:
+            sibling_stat = sibling_root.stat(follow_symlinks=False)
+        except OSError:
+            continue
+        if (
+            sibling_stat.st_uid != current_uid
+            or stat.S_ISLNK(sibling_stat.st_mode)
+            or not stat.S_ISDIR(sibling_stat.st_mode)
+        ):
+            continue
+        try:
+            if sibling_root.resolve() == scratch_root_resolved:
+                continue
+        except OSError:
+            continue
+
+        user_root = (
+            None
+            if current_user_root_name is None
+            else sibling_root / current_user_root_name
+        )
+        user_root_was_stale = (
+            False if user_root is None else _is_stale_directory(user_root, cutoff)
+        )
+        sibling_root_was_stale = _is_stale_directory(
+            sibling_root,
+            cutoff,
+            path_stat=sibling_stat,
+        )
+        _reap_stale_pytest_runs(
+            sibling_root,
+            now=now,
+            horizon_seconds=horizon_seconds,
+        )
+        if user_root is not None and user_root_was_stale:
+            _rmdir_if_empty(user_root)
+        if sibling_root_was_stale:
+            _rmdir_if_empty(sibling_root)
+
+
 def _prepare_pytest_tmpdir() -> Path:
+    using_default_tmpdir = PYTEST_TMPDIR_ENV not in os.environ
     scratch_root = _configured_pytest_tmpdir()
     try:
         scratch_root.mkdir(parents=True, exist_ok=True)
@@ -548,6 +660,8 @@ def _prepare_pytest_tmpdir() -> Path:
             f"cannot prepare {PYTEST_TMPDIR_ENV} directory {scratch_root}: {error}"
         ) from error
     _reap_stale_pytest_runs(scratch_root)
+    if using_default_tmpdir:
+        _reap_sibling_pytest_tmpdirs(scratch_root)
     os.environ["TMPDIR"] = str(scratch_root)
     os.environ[PYTEST_TMP_REDIRECTED_ENV] = "1"
     return scratch_root

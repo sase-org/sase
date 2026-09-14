@@ -190,3 +190,144 @@ def test_reaper_ignores_cleanup_races(
     runner._reap_stale_pytest_runs(tmp_path, now=now)
 
     assert run_directory.is_dir()
+
+
+def _age(path: Path, timestamp: float) -> None:
+    os.utime(path, (timestamp, timestamp), follow_symlinks=False)
+
+
+def _workspace_scratch_root(parent: Path, suffix: str) -> Path:
+    return parent / f"sase-{suffix}"
+
+
+def test_sibling_reaper_removes_stale_runs(tmp_path: Path) -> None:
+    runner = load_run_pytest()
+    now = 100_000.0
+    stale_time = now - runner.PYTEST_TMP_REAP_HORIZON_SECONDS - 1
+    current_root = _workspace_scratch_root(tmp_path, "11111111")
+    sibling_root = _workspace_scratch_root(tmp_path, "22222222")
+    stale_run = sibling_root / "pytest-of-user" / "pytest-1"
+    stale_garbage = sibling_root / "pytest-of-user" / "garbage-deadbeef"
+    current_run = current_root / "pytest-of-user" / "pytest-2"
+    for directory in (stale_run, stale_garbage, current_run):
+        directory.mkdir(parents=True)
+    _age(stale_run, stale_time)
+    _age(stale_garbage, stale_time)
+    _age(current_run, stale_time)
+
+    runner._reap_sibling_pytest_tmpdirs(current_root, tmp_parent=tmp_path, now=now)
+
+    assert not stale_run.exists()
+    assert not stale_garbage.exists()
+    assert current_run.is_dir()
+
+
+def test_sibling_reaper_preserves_fresh_and_locked_runs(tmp_path: Path) -> None:
+    runner = load_run_pytest()
+    now = 100_000.0
+    stale_time = now - runner.PYTEST_TMP_REAP_HORIZON_SECONDS - 1
+    current_root = _workspace_scratch_root(tmp_path, "11111111")
+    sibling_root = _workspace_scratch_root(tmp_path, "22222222")
+    fresh_run = sibling_root / "pytest-of-user" / "pytest-1"
+    locked_run = sibling_root / "pytest-of-user" / "pytest-2"
+    for directory in (fresh_run, locked_run):
+        directory.mkdir(parents=True)
+    fresh_lock = locked_run / ".lock"
+    fresh_lock.touch()
+    _age(fresh_run, now)
+    _age(locked_run, stale_time)
+    _age(fresh_lock, now)
+
+    runner._reap_sibling_pytest_tmpdirs(current_root, tmp_parent=tmp_path, now=now)
+
+    assert fresh_run.is_dir()
+    assert locked_run.is_dir()
+
+
+def test_sibling_reaper_preserves_non_matching_names_and_symlinks(
+    tmp_path: Path,
+) -> None:
+    runner = load_run_pytest()
+    now = 100_000.0
+    stale_time = now - runner.PYTEST_TMP_REAP_HORIZON_SECONDS - 1
+    current_root = _workspace_scratch_root(tmp_path, "11111111")
+    non_matching_root = tmp_path / "sase-nothex"
+    real_sibling_root = tmp_path / "real-symlink-target"
+    symlink_root = _workspace_scratch_root(tmp_path, "33333333")
+    non_matching_run = non_matching_root / "pytest-of-user" / "pytest-1"
+    symlink_run = real_sibling_root / "pytest-of-user" / "pytest-2"
+    for directory in (non_matching_run, symlink_run):
+        directory.mkdir(parents=True)
+        _age(directory, stale_time)
+    symlink_root.symlink_to(real_sibling_root, target_is_directory=True)
+
+    runner._reap_sibling_pytest_tmpdirs(current_root, tmp_parent=tmp_path, now=now)
+
+    assert non_matching_run.is_dir()
+    assert symlink_root.is_symlink()
+    assert symlink_run.is_dir()
+
+
+def test_prepare_pytest_tmpdir_override_disables_sibling_reaping(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner = load_run_pytest()
+    now = 100_000.0
+    stale_time = now - runner.PYTEST_TMP_REAP_HORIZON_SECONDS - 1
+    current_root = _workspace_scratch_root(tmp_path, "11111111")
+    sibling_run = (
+        _workspace_scratch_root(tmp_path, "22222222") / "pytest-of-user" / "pytest-1"
+    )
+    sibling_run.mkdir(parents=True)
+    _age(sibling_run, stale_time)
+    monkeypatch.setenv(runner.PYTEST_TMPDIR_ENV, str(current_root))
+    reap_stale_pytest_runs = runner._reap_stale_pytest_runs
+
+    def _reap_current_root(
+        scratch_root: Path,
+        *,
+        now: float | None = None,
+        horizon_seconds: float = runner.PYTEST_TMP_REAP_HORIZON_SECONDS,
+    ) -> None:
+        reap_stale_pytest_runs(
+            scratch_root,
+            now=100_000.0 if now is None else now,
+            horizon_seconds=horizon_seconds,
+        )
+
+    monkeypatch.setattr(runner, "_reap_stale_pytest_runs", _reap_current_root)
+
+    assert runner._prepare_pytest_tmpdir() == current_root
+    assert sibling_run.is_dir()
+
+
+def test_sibling_reaper_removes_empty_stale_root(tmp_path: Path) -> None:
+    runner = load_run_pytest()
+    now = 100_000.0
+    stale_time = now - runner.PYTEST_TMP_REAP_HORIZON_SECONDS - 1
+    current_root = _workspace_scratch_root(tmp_path, "11111111")
+    sibling_root = _workspace_scratch_root(tmp_path, "22222222")
+    user_root = sibling_root / f"pytest-of-{runner.pwd.getpwuid(os.getuid()).pw_name}"
+    user_root.mkdir(parents=True)
+    _age(user_root, stale_time)
+    _age(sibling_root, stale_time)
+
+    runner._reap_sibling_pytest_tmpdirs(current_root, tmp_parent=tmp_path, now=now)
+
+    assert not sibling_root.exists()
+
+
+def test_sibling_reaper_keeps_empty_fresh_root(tmp_path: Path) -> None:
+    runner = load_run_pytest()
+    now = 100_000.0
+    sibling_root = _workspace_scratch_root(tmp_path, "22222222")
+    sibling_root.mkdir()
+    _age(sibling_root, now)
+
+    runner._reap_sibling_pytest_tmpdirs(
+        _workspace_scratch_root(tmp_path, "11111111"),
+        tmp_parent=tmp_path,
+        now=now,
+    )
+
+    assert sibling_root.is_dir()
