@@ -248,9 +248,10 @@ carry a `here` chip. Group with `o` until the header says **by machine** to rend
 
 - The list loads the bounded remote catalog across enrolled machines and keeps host
   failures visible as diagnostics rather than hiding healthy hosts.
-- Remote rows retain the owner machine's authored capacity and weight as `cN` / `wN`
-  badges and detail fields, including `c0` for a persisted legacy zero-capacity record.
-  They do not contribute to the controller machine's capacity total in the ACE header.
+- Remote rows show the owning machine's authored capacity and weight as `cN` / `wN`
+  badges and `Capacity:` / `Weight:` detail lines, including `c0` for a persisted legacy
+  zero-capacity record. Their load is never added to the ACE header's `C/L` capacity
+  total, which counts only the controller's own runners.
 - Remote stop, retry, fork, bounded content, machine status, launch-outcome checks, and
   pending question/gate actions appear only when the selected row advertises the
   matching capability.

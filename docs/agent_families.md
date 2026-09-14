@@ -338,12 +338,16 @@ target and waits for successors that appear after the wait begins. An exact `--<
 name targets one member. A member attached to an agent already inside a clan inherits
 that clan membership.
 
-A terminal failed monitor or gate shell with no follow-up normally blocks a family-level
-wait. If a strictly newer shell of the same kind exists in that family generation, SASE
-treats the older shell as a superseded failed attempt when resolving the bare family.
-This lets a recovered `--mon` to `--mon-0` or `--gate` to `--gate-0` retry settle the
-family; a gate never supersedes a monitor (or vice versa), and an exact wait on the old
-shell still reports that shell's own outcome.
+A monitor or gate shell that ended unsuccessfully without handing off to a follow-up
+member normally keeps a bare-family wait blocked. Retries are the exception: when the
+same family generation (the newest root plus its attached members) also contains a newer
+shell of the same kind, SASE ignores the older failed shell while resolving the bare
+family name. For example, if `--mon` fails to start and `--mon-0` takes over, the family
+wait follows `--mon-0` and the other members instead of staying blocked on `--mon`. The
+newer shell only replaces the older failure; it still has to finish successfully (or
+hand off) before the family can settle. Kinds never mix: a newer gate does not excuse a
+failed monitor, or vice versa. An exact wait on the old shell's full name still reports
+that shell's own failed outcome.
 
 `#fork:<family>` contributes every known concrete shell — agent, monitor, and gate
 shells alike — in chain order, oldest first, including shells that ended unsuccessfully
