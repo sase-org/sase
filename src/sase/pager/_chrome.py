@@ -13,6 +13,8 @@ from rich.cells import cell_len
 from rich.text import Text
 
 from sase.ace.tui._artifact_tab_model import ARTIFACTS_ACCENTS, ARTIFACTS_ICONS
+from sase.pager._trail_chrome_model import MUTED_STYLE
+from sase.pager._trail_chrome_text import append_path_label
 from sase.pager.document import PagerDocument, PagerSection
 
 #: Pager sections carry the *singular* kind vocabulary their adapters chose
@@ -225,10 +227,10 @@ def subject_line(
 
     left = Text()
     left.append(f"{glyph} ", style=f"bold {accent}")
-    left.append(document.title, style="bold")
+    append_path_label(left, document.title, style="bold", root_style=MUTED_STYLE)
     if section_total > 1 and current_section.title != document.title:
         left.append(" · ", style="dim")
-        left.append(current_section.title)
+        append_path_label(left, current_section.title, style="", root_style=MUTED_STYLE)
 
     right_parts = []
     if section_total > 1:
@@ -262,13 +264,13 @@ def section_rule(
     glyph = _section_icon(section.kind)
     accent = _section_accent(section.kind)
     marker = f"{index}/{total}"
-    label = f"{glyph} {section.title}"
 
     line = Text()
     line.append(f"{_DIVIDER_CHAR}{_DIVIDER_CHAR} ", style="dim")
     line.append(marker, style=f"bold {accent}")
     line.append(f" {_DIVIDER_CHAR} ", style="dim")
-    line.append(label, style=accent)
+    line.append(f"{glyph} ", style=accent)
+    append_path_label(line, section.title, style=accent, root_style=MUTED_STYLE)
     prefix_width = cell_len(line.plain) + 1
     fill = _DIVIDER_CHAR * max(width - prefix_width, 0)
     line.append(f" {fill}", style="dim")

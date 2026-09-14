@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from rich.console import Console
+from rich.text import Span
 
 from sase.pager._chrome import (
     _format_char_count,
@@ -13,6 +14,7 @@ from sase.pager._chrome import (
     section_rule,
     subject_line,
 )
+from sase.pager._trail_chrome_model import MUTED_STYLE
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 
 _CONSOLE = Console(color_system="truecolor")
@@ -223,6 +225,59 @@ def test_subject_line_uses_the_agent_glyph_and_accent() -> None:
     color = line.get_style_at_offset(_CONSOLE, 0).color
     assert color is not None
     assert color.get_truecolor().hex == "#0062ff"
+
+
+def test_subject_line_mutes_an_intact_ws_root_token() -> None:
+    section = _file_section("~ws/acme_3/a.py")
+    document = PagerDocument(
+        sections=(section,), title="~ws/acme_3/a.py", origin=PagerOrigin.FILE
+    )
+
+    line = subject_line(
+        document,
+        section,
+        section_index=1,
+        section_total=1,
+        scroll_percent=0,
+        char_count=10,
+        width=80,
+    )
+
+    start = line.plain.index("~ws/acme_3/a.py")
+    end = start + len("~ws/")
+    assert Span(start, end, MUTED_STYLE) in line.spans
+
+
+def test_subject_line_mutes_the_current_sections_ws_token_when_multi() -> None:
+    first = _file_section("a.py")
+    second = _file_section("~ws/acme_3/b.py")
+    document = PagerDocument(
+        sections=(first, second), title="2 files", origin=PagerOrigin.FILE
+    )
+
+    line = subject_line(
+        document,
+        second,
+        section_index=2,
+        section_total=2,
+        scroll_percent=0,
+        char_count=10,
+        width=80,
+    )
+
+    start = line.plain.index("~ws/acme_3/b.py")
+    end = start + len("~ws/")
+    assert Span(start, end, MUTED_STYLE) in line.spans
+
+
+def test_section_rule_mutes_an_intact_ws_root_token() -> None:
+    section = _file_section("~ws/acme_3/b.py")
+
+    line = section_rule(section, index=2, total=2, width=80)
+
+    start = line.plain.index("~ws/acme_3/b.py")
+    end = start + len("~ws/")
+    assert Span(start, end, MUTED_STYLE) in line.spans
 
 
 def test_section_rule_renders_the_agent_kind() -> None:

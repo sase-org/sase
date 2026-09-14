@@ -14,6 +14,7 @@ from sase.pager.link_context import LinkResolutionContext
 from sase.pager.owner import document_owner_from_path, inherit_owner_context
 from sase.pager.syntax_policy import is_openable_text_path
 from sase.pager.targets import LinkTarget, LinkTargetKind
+from sase.workspace_provider.display import workspace_display_path
 
 _MEDIA_MODES = frozenset({"image", "video", "pdf"})
 
@@ -53,6 +54,7 @@ def link_target_for_existing_path(
             path=path,
             mime=_guess_mime(path),
             context=context,
+            display_title=workspace_display_path(path),
         ),
         edit_path=path,
         edit_line=requested_line,
@@ -76,7 +78,7 @@ def directory_link_target(
         sections=(
             PagerSection(
                 identity=f"file:{path}",
-                title=str(path),
+                title=workspace_display_path(path),
                 kind="file",
                 body=body,
                 subject_ref=f"file:{path}",

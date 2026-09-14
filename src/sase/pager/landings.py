@@ -127,6 +127,7 @@ def binary_card_document(
     kind: str | None = None,
     status: str | None = None,
     context: LinkResolutionContext | None = None,
+    display_title: str | None = None,
 ) -> PagerDocument:
     lines = []
     if kind is not None:
@@ -138,17 +139,18 @@ def binary_card_document(
     lines.append(f"path: {path if path is not None else '-'}")
     body = "\n".join(lines) + "\n"
     link_context = inherit_owner_context(path, context) if path is not None else context
+    shown_title = title if display_title is None else display_title
     return PagerDocument(
         sections=(
             PagerSection(
                 identity=title,
-                title=title,
+                title=shown_title,
                 kind="file",
                 body=body,
                 known_kinds=known_kinds_from_link_context(link_context),
             ),
         ),
-        title=title,
+        title=shown_title,
         origin=PagerOrigin.FILE,
         link_context=link_context,
     )

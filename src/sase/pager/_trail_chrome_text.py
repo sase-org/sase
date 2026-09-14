@@ -6,6 +6,9 @@ from collections.abc import Iterable
 import unicodedata
 
 from rich.cells import cell_len
+from rich.text import Text
+
+from sase.workspace_provider.display import split_workspace_root
 
 _ELLIPSIS = "…"
 
@@ -141,6 +144,20 @@ def _clusters(text: str) -> Iterable[str]:
         current = character
     if current:
         yield current
+
+
+def append_path_label(text: Text, label: str, *, style: str, root_style: str) -> None:
+    """Append *label* to *text*, muting an intact ``~ws/`` root token.
+
+    Truncation that removed part of the root token leaves ``label`` not
+    starting with the token, so it renders plainly with no muted span.
+    """
+    prefix, rest = split_workspace_root(label)
+    if not prefix:
+        text.append(label, style=style)
+        return
+    text.append(prefix, style=root_style)
+    text.append(rest, style=style)
 
 
 def safe_label(value: str) -> str:

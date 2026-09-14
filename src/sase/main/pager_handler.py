@@ -22,6 +22,7 @@ from sase.pager.syntax_policy import (
     classify_source,
     resolve_cli_syntax,
 )
+from sase.workspace_provider.display import workspace_display_path
 
 
 class _PagerInputError(Exception):
@@ -194,7 +195,7 @@ def _media_document(
 
 def _input_document_title(values: Sequence[str]) -> str:
     if len(values) == 1:
-        return values[0]
+        return workspace_display_path(values[0])
     return f"{len(values)} inputs"
 
 

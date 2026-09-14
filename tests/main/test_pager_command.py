@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from argparse import Namespace
 from io import StringIO
+import json
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from sase.main import pager_handler
 from sase.main.parser import create_parser
 from sase.pager.document import PagerDocument, PagerOrigin, PagerSection
 from sase.pager.resolve import LinkTarget, LinkTargetKind
+from sase.workspace_provider.marker import CheckoutMarker
 from tests.main.parser_help_helpers import flat_help, parser_for
 from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
@@ -445,6 +447,31 @@ def test_combined_real_paths_keep_per_section_owner_and_origin(
     assert document.sections[1].link_anchors[0].directory == second.parent.resolve()
     assert document.sections[0].plain_text == "alpha\n"
     assert document.sections[1].plain_text == "beta\n"
+
+
+def test_input_document_title_collapses_a_workspace_path(tmp_path: Path) -> None:
+    checkout = tmp_path / "workspaces" / "acme-org" / "acme" / "acme_3"
+    checkout.mkdir(parents=True)
+    marker_dir = checkout / ".sase"
+    marker_dir.mkdir()
+    marker = CheckoutMarker(
+        project_name="acme",
+        project_key="acme-org/acme",
+        workspace_num=3,
+        primary_workspace_dir=str(tmp_path),
+        registry_path=str(tmp_path / "registry.json"),
+    )
+    (marker_dir / "checkout.json").write_text(
+        json.dumps(marker.to_dict()), encoding="utf-8"
+    )
+    target = checkout / "notes.md"
+    target.write_text("hi\n", encoding="utf-8")
+
+    assert pager_handler._input_document_title([str(target)]) == ("~ws/acme_3/notes.md")
+    assert pager_handler._input_document_title(["bead:sase-1"]) == "bead:sase-1"
+    assert (
+        pager_handler._input_document_title([str(target), "bead:sase-1"]) == "2 inputs"
+    )
 
 
 def test_links_never_is_passed_to_the_app_for_path_input(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+import json
 from pathlib import Path
 
 import pytest
@@ -41,6 +42,7 @@ from sase.pager.document import (
 )
 from sase.pager.link_context import LinkAnchor
 from sase.pager.link_scan import LinkSpanKind
+from sase.workspace_provider.marker import CheckoutMarker
 
 
 @contextmanager
@@ -232,6 +234,35 @@ def test_path_list_adapter_builds_one_file_section_per_path(tmp_path: Path) -> N
         tmp_path.resolve(),
         tmp_path.resolve(),
     ]
+
+
+def test_path_list_adapter_collapses_a_workspace_checkout_into_the_ws_token(
+    tmp_path: Path,
+) -> None:
+    checkout = tmp_path / "workspaces" / "acme-org" / "acme" / "acme_3"
+    checkout.mkdir(parents=True)
+    marker_dir = checkout / ".sase"
+    marker_dir.mkdir()
+    marker = CheckoutMarker(
+        project_name="acme",
+        project_key="acme-org/acme",
+        workspace_num=3,
+        primary_workspace_dir=str(tmp_path),
+        registry_path=str(tmp_path / "registry.json"),
+    )
+    (marker_dir / "checkout.json").write_text(
+        json.dumps(marker.to_dict()), encoding="utf-8"
+    )
+    target = checkout / "docs" / "notes.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("hi\n", encoding="utf-8")
+
+    document = document_from_paths([target])
+
+    section = document.sections[0]
+    assert section.title == "~ws/acme_3/docs/notes.md"
+    assert section.identity == f"file:{target.resolve()}"
+    assert section.subject_ref == f"file:{target.resolve()}"
 
 
 def test_path_list_adapter_freezes_context_known_kinds(

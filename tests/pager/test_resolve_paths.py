@@ -2,14 +2,40 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 
-from sase.pager._resolve_common import file_link_target
+from sase.pager._resolve_common import (
+    directory_link_target,
+    file_link_target,
+    link_target_for_existing_path,
+)
 from sase.pager.resolve import resolve_link, resolve_ref
+from sase.workspace_provider.marker import CheckoutMarker
 
 from ._resolve_helpers import _context, _write
+
+
+def _make_workspace_checkout(
+    tmp_path: Path, *, workspace_num: int = 3, name: str = "acme_3"
+) -> Path:
+    checkout = tmp_path / "workspaces" / "acme-org" / "acme" / name
+    checkout.mkdir(parents=True)
+    marker_dir = checkout / ".sase"
+    marker_dir.mkdir()
+    marker = CheckoutMarker(
+        project_name="acme",
+        project_key="acme-org/acme",
+        workspace_num=workspace_num,
+        primary_workspace_dir=str(tmp_path),
+        registry_path=str(tmp_path / "registry.json"),
+    )
+    (marker_dir / "checkout.json").write_text(
+        json.dumps(marker.to_dict()), encoding="utf-8"
+    )
+    return checkout
 
 
 def test_resolve_ref_finds_a_relative_path_in_a_later_anchor(tmp_path: Path) -> None:
@@ -187,6 +213,43 @@ def test_resolve_ref_parses_markdown_heading_fragment(tmp_path: Path) -> None:
     assert target.edit_path == path.resolve()
     assert target.scroll_line == 3
     assert target.edit_line == 3
+
+
+def test_directory_link_target_shows_the_ws_label_but_keeps_identity_exact(
+    tmp_path: Path,
+) -> None:
+    checkout = _make_workspace_checkout(tmp_path)
+    directory = checkout / "docs"
+    directory.mkdir()
+    (directory / "a.md").write_text("a\n", encoding="utf-8")
+
+    target = directory_link_target(directory)
+
+    assert target is not None
+    section = target.document.sections[0]
+    assert section.title == "~ws/acme_3/docs"
+    assert section.identity == f"file:{directory}"
+    assert section.subject_ref == f"file:{directory}"
+
+
+def test_link_target_for_existing_path_binary_branch_shows_the_ws_label(
+    tmp_path: Path,
+) -> None:
+    checkout = _make_workspace_checkout(tmp_path)
+    target = checkout / "assets" / "blob.bin"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(b"\x00\x01\x02")
+
+    result = link_target_for_existing_path(
+        target, requested_line=None, context=_context(tmp_path)
+    )
+
+    assert result is not None
+    assert result.document is not None
+    section = result.document.sections[0]
+    assert section.title == "~ws/acme_3/assets/blob.bin"
+    assert section.identity == str(target)
+    assert f"path: {target}" in section.plain_text
 
 
 def test_resolve_link_reports_missing_markdown_fragment(tmp_path: Path) -> None:

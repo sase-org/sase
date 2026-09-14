@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from rich.cells import cell_len
+from rich.text import Span
 
 from sase.pager._labels import LabelWindowScope
 from sase.pager._line_mark import LineMark
@@ -12,6 +13,7 @@ from sase.pager._trail_chrome import (
     render_trail_band,
 )
 from sase.pager._trail_chrome_band import _render_compact_trail_row
+from sase.pager._trail_chrome_model import MUTED_STYLE
 from sase.pager._trail_chrome_model import (
     PagerTrailDisplayEntry as _PagerTrailDisplayEntry,
 )
@@ -174,6 +176,40 @@ def test_path_row_counts_omitted_runs_precisely() -> None:
     assert "…2" in row
 
 
+def test_back_crumb_mutes_an_intact_ws_root_token() -> None:
+    snapshot = _snapshot(["~ws/acme_3/a.md", "pager.md"], 1)
+
+    row = _render_trail_path_row(snapshot, width=120)
+
+    start = row.plain.index("~ws/acme_3/a.md")
+    end = start + len("~ws/")
+    assert Span(start, end, MUTED_STYLE) in row.spans
+
+
+def test_current_crumb_has_no_muted_span_for_a_ws_label() -> None:
+    snapshot = _snapshot(["overview", "~ws/acme_3/a.md"], 1)
+
+    row = _render_trail_path_row(snapshot, width=120)
+
+    start = row.plain.index("~ws/acme_3/a.md")
+    end = start + len("~ws/")
+    assert Span(start, end, MUTED_STYLE) not in row.spans
+
+
+def test_truncated_ws_prefix_renders_without_a_muted_span() -> None:
+    snapshot = _snapshot(["~ws/acme_3/very-long-name-here.md", "pager.md"], 1)
+
+    row = _render_trail_path_row(snapshot, width=22)
+
+    assert "~ws/" not in row.plain
+    muted_texts = {
+        row.plain[span.start : span.end]
+        for span in row.spans
+        if span.style == MUTED_STYLE
+    }
+    assert muted_texts <= {" › "}
+
+
 def test_rows_never_exceed_requested_cell_width() -> None:
     snapshot = _snapshot(
         [
@@ -182,10 +218,11 @@ def test_rows_never_exceed_requested_cell_width() -> None:
             "设计-notes.md",
             "combining-e\u0301-title.md",
             "very-long-current-filename-with-suffix.py",
+            "~ws/acme_3/deeply/nested/path/file.py",
             "follow-up",
             "review",
         ],
-        4,
+        5,
     )
 
     for width in range(0, 161):

@@ -13,6 +13,7 @@ from sase.pager._trail_chrome_model import MUTED_STYLE as _MUTED_STYLE
 from sase.pager._trail_chrome_model import PagerTrailDisplayEntry
 from sase.pager._trail_chrome_model import PagerTrailSnapshot
 from sase.pager._trail_chrome_model import STATE_STYLES as _STATE_STYLES
+from sase.pager._trail_chrome_text import append_path_label as _append_path_label
 from sase.pager._trail_chrome_text import fit_label as _fit_label
 
 _ELLIPSIS = "…"
@@ -235,7 +236,7 @@ def _append_crumb(text: Text, entry: PagerTrailDisplayEntry, *, label: str) -> N
 
     style = _STATE_STYLES[entry.state]
     text.append(f"{entry.icon} ", style=f"bold {entry.accent}")
-    text.append(label, style=style)
+    _append_path_label(text, label, style=style, root_style=_MUTED_STYLE)
 
 
 def render_current_only(entry: PagerTrailDisplayEntry, *, width: int) -> Text:

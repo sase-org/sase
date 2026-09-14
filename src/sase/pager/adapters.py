@@ -15,6 +15,7 @@ from sase.pager.link_context import (
 from sase.pager.known_kinds import freeze_known_kinds, known_kinds_from_link_context
 from sase.pager.owner import document_owner_from_path
 from sase.pager.syntax_policy import classify_source
+from sase.workspace_provider.display import workspace_display_path
 
 
 def document_from_paths(
@@ -76,7 +77,7 @@ def path_section(
     Owner/checkout provenance is recovered from the landed path so later
     presses resolve in the file's repository rather than the viewer's cwd.
     """
-    display_path = str(path)
+    display_title = workspace_display_path(path)
     absolute_path = _absolute_path(path, cwd=cwd)
     body = absolute_path.read_text(encoding="utf-8", errors="replace")
     resolved_subject = subject_ref or f"file:{absolute_path}"
@@ -86,7 +87,7 @@ def path_section(
     )
     return PagerSection(
         identity=resolved_subject,
-        title=display_path,
+        title=display_title,
         kind="file",
         body=body,
         subject_ref=resolved_subject,
