@@ -599,7 +599,7 @@ def test_monitor_followup_forwards_recorded_vcs_ref(
 ) -> None:
     del gh_git_workflows
     import sase.monitor.followup as monitor_followup
-    from tests.monitor.test_monitor_followup import (
+    from tests.monitor._followup_fixtures import (
         _SETTLE_TIMEOUT as MONITOR_SETTLE,
         _capture_with_output,
         _fake_result as _monitor_fake_result,
