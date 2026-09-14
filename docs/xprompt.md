@@ -2146,6 +2146,14 @@ agent. Failed, killed, crashed, still-running, malformed, or missing `done.json`
 artifacts do not satisfy the wait; the dependent agent stays parked until a later
 successful run of the same dependency name appears.
 
+For a bare family target, one recovered shell retry can supersede an older terminal
+failure: the replacement must be a strictly newer monitor for a monitor, or gate for a
+gate, in the same family generation. This prevents a failed `--mon` or `--gate` start
+from blocking the family forever after `--mon-0` or `--gate-0` takes over. Different
+shell kinds never supersede one another, and an exact shell-name wait keeps that shell's
+original outcome. See
+[Sequential Agent Families](agent_families.md#sequential-agent-families).
+
 The repeatable `bead=<bead-id>` keyword adds a closure condition from the waiting
 agent's own project bead store. Every named agent/artifact condition and every bead
 condition must resolve before the wait releases; a missing bead, missing store, or read

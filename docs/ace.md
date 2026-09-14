@@ -2161,11 +2161,14 @@ configured value second). Normal agents claim `1.0`; non-default `%queue(weight=
 unavailable, ACE renders an explicit unknown value such as `—/—` instead of deriving a
 fake value from visible rows. Capacity is machine-global and does not change when the
 Agents list is searched, folded, filtered by tribe/project, or focused on remote rows.
-The visible running count and the global queued count remain in the following status
-strip, for example `8.0/10.0 [8 running · 1 queued]`. Capacity pressure is carried by
-the `C/L` prefix, escalating from dim through gold at half the limit, orange at three
-quarters, and red when occupied capacity reaches or exceeds the limit. The running count
-keeps its stable green count style. A nonzero queue count is cornflower blue.
+The header reports capacity for the machine running this ACE session: federated remote
+rows preserve their owner-reported `cN` and `wN` metadata, but never add that weight to
+the controller's `C/L` total. The visible running count and the global queued count
+remain in the following status strip, for example `8.0/10.0 [8 running · 1 queued]`.
+Capacity pressure is carried by the `C/L` prefix, escalating from dim through gold at
+half the limit, orange at three quarters, and red when occupied capacity reaches or
+exceeds the limit. The running count keeps its stable green count style. A nonzero queue
+count is cornflower blue.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with
@@ -2189,25 +2192,27 @@ by-project grouping; cycling only changes the current session.
 and need only runner capacity under their current admission budget. A queued row renders
 as `QUEUED #3/12`; authored capacity renders as a quiet `cN` badge beside the existing
 `wN` weight badge, and turns gold when the launch's budget exceeds the current effective
-global limit. Non-default queue weights render as the same quiet `wN` badge used on
-running rows and queue-ladder entries. **Waiting** holds genuinely blocked but
-self-progressing agents — `WAITING` with a time wait (`%wait(time=5m)`,
-`%wait(time=1430)`), a non-empty `waiting_for` dependency, or a bead wait. A compact
-`WAITING` row summarizes named waits as one sequence of independent tokens: agent counts
-keep the established status glyphs (`✗1 ▶1 ✓1 ?1`), while bead counts keep the canonical
-Beads-tab status glyph (`○` open, `◐` in progress, `●` closed). When a bead status
-matches a present agent bucket, the bead token follows that agent token, for example
-`WAITING ▶1 ◐2` or `WAITING ✓1 ●1`; unmatched bead tokens trail in canonical bead order.
-Zero entries are omitted. When a row waits on exactly one bead and has no agent, name,
-or group wait dependency, ACE shows that bead's ID instead of a count. The ID has no
-prefix until status resolution; afterward it is prefixed by the bead's status glyph (or
-`?` for an unknown status). Multiple or mixed waits keep the counts. Unknown agents and
-unknown beads both render as `?N`; when both are present they appear as adjacent
-independent counts, as in `WAITING ?1 ?2`. These tokens sit directly after `WAITING` and
-before a reserved-tribe `!`, duration, or countdown annotation. They are not the
-trailing gold `◆` linked-bead badge that marks an agent launched by `sase bead work`.
-**Stopped** keeps the strict "you need to act" semantics for plan approval, questions,
-and workflow input.
+global limit. Remote rows use those same badges and capacity/weight detail lines from
+their owner-provided fleet metadata. An explicit legacy zero-capacity record renders
+`c0` and is identified as legacy in the detail pane; new prompts reject `capacity=0`.
+Non-default queue weights render as the same quiet `wN` badge used on running rows and
+queue-ladder entries. **Waiting** holds genuinely blocked but self-progressing agents —
+`WAITING` with a time wait (`%wait(time=5m)`, `%wait(time=1430)`), a non-empty
+`waiting_for` dependency, or a bead wait. A compact `WAITING` row summarizes named waits
+as one sequence of independent tokens: agent counts keep the established status glyphs
+(`✗1 ▶1 ✓1 ?1`), while bead counts keep the canonical Beads-tab status glyph (`○` open,
+`◐` in progress, `●` closed). When a bead status matches a present agent bucket, the
+bead token follows that agent token, for example `WAITING ▶1 ◐2` or `WAITING ✓1 ●1`;
+unmatched bead tokens trail in canonical bead order. Zero entries are omitted. When a
+row waits on exactly one bead and has no agent, name, or group wait dependency, ACE
+shows that bead's ID instead of a count. The ID has no prefix until status resolution;
+afterward it is prefixed by the bead's status glyph (or `?` for an unknown status).
+Multiple or mixed waits keep the counts. Unknown agents and unknown beads both render as
+`?N`; when both are present they appear as adjacent independent counts, as in
+`WAITING ?1 ?2`. These tokens sit directly after `WAITING` and before a reserved-tribe
+`!`, duration, or countdown annotation. They are not the trailing gold `◆` linked-bead
+badge that marks an agent launched by `sase bead work`. **Stopped** keeps the strict
+"you need to act" semantics for plan approval, questions, and workflow input.
 
 ### Agent Row Glyphs
 
