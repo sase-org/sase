@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ._artifact_state import artifact_dir_key
-from ._types import ArtifactCandidate, WaitCandidate
+from ._types import ArtifactCandidate, WAIT_SUCCESS_OUTCOMES, WaitCandidate
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,46 @@ class WaitEntity:
     is_resolved: bool
     is_done: bool
     members: tuple[ArtifactCandidate, ...] = ()
+
+
+def _newest_timestamp_by_shell_kind(
+    candidates: tuple[ArtifactCandidate, ...],
+) -> dict[str, str]:
+    newest: dict[str, str] = {}
+    for candidate in candidates:
+        kind = candidate.shell_member_kind
+        if kind is None:
+            continue
+        current = newest.get(kind)
+        if current is None or candidate.timestamp > current:
+            newest[kind] = candidate.timestamp
+    return newest
+
+
+def _is_superseded_terminal_shell_member(
+    candidate: ArtifactCandidate,
+    *,
+    newest_timestamp_by_shell_kind: dict[str, str],
+) -> bool:
+    """Return whether a newer same-kind shell retry supersedes *candidate*.
+
+    A lane is sequential and only ever has one active monitor/gate at a
+    time, so a newer same-kind shell member in the same generation is by
+    construction a retry that recovered from *candidate*'s terminal
+    failure. Excluding it here keeps a family wait from staying blocked
+    forever on a start-failed shell member the lane already recovered
+    from, while a shell member that is still the newest of its kind (or
+    superseded only by a different kind) keeps blocking as before.
+    """
+    kind = candidate.shell_member_kind
+    if kind is None or not candidate.has_done_marker:
+        return False
+    if candidate.outcome is None or candidate.outcome in WAIT_SUCCESS_OUTCOMES:
+        return False
+    if candidate.shell_followup_agent is not None:
+        return False
+    newest_timestamp = newest_timestamp_by_shell_kind.get(kind)
+    return newest_timestamp is not None and newest_timestamp > candidate.timestamp
 
 
 class WaitDependencyEntityQueries:
@@ -226,10 +266,15 @@ class WaitDependencyEntityQueries:
         names_in_generation = {
             candidate.name for candidate in candidates
         } | extra_present_names
+        newest_timestamp_by_shell_kind = _newest_timestamp_by_shell_kind(candidates)
         return tuple(
             candidate
             for candidate in candidates
             if candidate.shell_followup_agent not in names_in_generation
+            and not _is_superseded_terminal_shell_member(
+                candidate,
+                newest_timestamp_by_shell_kind=newest_timestamp_by_shell_kind,
+            )
         )
 
     @staticmethod

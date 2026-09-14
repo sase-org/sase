@@ -404,6 +404,92 @@ def test_unknown_terminal_done_outcome_is_reported(
     assert "mystery_success" in out
 
 
+def test_superseded_start_failed_monitor_member_resolves_waiter(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Reproduces the sase-zt.6.5.3 incident through the wait_checks chop.
+
+    A land agent's ``%w`` on a family whose newest generation contains a
+    start-failed ``--mon`` (no follow-up) and a later ``--mon-0`` retry that
+    handed off to a completed successor must get its ``ready.json`` written,
+    instead of hanging on the superseded start failure forever.
+    """
+    waiter_dir = make_waiting_agent(tmp_path, "sase-zt.6.5.3")
+    root_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260913170029",
+        "sase-zt.6.5.3--plan",
+        workflow_name="sase-zt.6.5.3",
+        agent_family="sase-zt.6.5.3",
+        role_suffix="--plan",
+        done=True,
+        outcome="completed",
+    )
+    mon_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260913170758",
+        "sase-zt.6.5.3--mon",
+        workflow_name="sase-zt.6.5.3",
+        agent_family="sase-zt.6.5.3",
+        role_suffix="--mon",
+        parent_timestamp=root_dir.name,
+    )
+    (mon_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "outcome": "monitored",
+                "monitor_state": "failed",
+                "error": "could not claim workspace for monitor",
+            }
+        ),
+        encoding="utf-8",
+    )
+    mon_0_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260913171010",
+        "sase-zt.6.5.3--mon-0",
+        workflow_name="sase-zt.6.5.3",
+        agent_family="sase-zt.6.5.3",
+        role_suffix="--mon-0",
+        parent_timestamp=mon_dir.name,
+        extra_meta={
+            "monitor_state": "timeout",
+            "monitor_followup_outcome": "launched",
+            "monitor_followup_agent": "sase-zt.6.5.3--2",
+        },
+    )
+    (mon_0_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "outcome": "monitored",
+                "monitor_state": "timeout",
+                "monitor_followup_outcome": "launched",
+            }
+        ),
+        encoding="utf-8",
+    )
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260913171100",
+        "sase-zt.6.5.3--2",
+        workflow_name="sase-zt.6.5.3",
+        agent_family="sase-zt.6.5.3",
+        role_suffix="--2",
+        parent_timestamp=mon_0_dir.name,
+        done=True,
+        outcome="completed",
+    )
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    ready = json.loads((waiter_dir / "ready.json").read_text(encoding="utf-8"))
+    assert ready == {"resolved_deps": ["sase-zt.6.5.3"]}
+
+
 def test_dependency_launched_after_waiter_eventually_resolves(
     tmp_path: Path, monkeypatch
 ) -> None:

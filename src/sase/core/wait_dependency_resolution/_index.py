@@ -28,6 +28,7 @@ from ._artifact_state import (
     done_outcome_from_data,
     family_base_from_meta,
     shell_followup_handoff_agent,
+    shell_member_kind_for_meta,
 )
 from ._index_queries import WaitDependencyIndexQueries
 from ._json_io import read_json_dict
@@ -302,6 +303,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
             outcome=outcome,
             has_done_marker=has_done_marker,
             shell_followup_agent=shell_followup_handoff_agent(meta, done_data),
+            shell_member_kind=shell_member_kind_for_meta(meta),
         )
         if project_name:
             self.artifacts[(project_name, timestamp)] = artifact

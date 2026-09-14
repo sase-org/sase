@@ -191,6 +191,28 @@ def _is_monitor_member_meta(meta: Mapping[str, Any]) -> bool:
     )
 
 
+def shell_member_kind_for_meta(meta: Mapping[str, Any]) -> str | None:
+    """Classify *meta* as a ``"monitor"`` / ``"gate"`` family-shell member.
+
+    ``agent_family_role`` and ``role_suffix`` are flat fields on every meta
+    shape the index ingests (on-disk ``agent_meta.json``, and the
+    ``asdict(AgentMetaWire)`` snapshots ``add_scan_record`` receives), so
+    monitor classification reads them directly like
+    ``_is_family_shell_member_meta`` does. ``gate_id`` is flat on disk but
+    nested under ``family_shell.id`` on the wire snapshots, so gate
+    classification goes through :func:`_family_shell_field`, which
+    understands both shapes.
+    """
+    if _is_monitor_member_meta(meta):
+        return "monitor"
+    gate_id = _str_or_none(meta.get("gate_id")) or _str_or_none(
+        _family_shell_field(meta, kind="gate", field="id")
+    )
+    if is_real_gate_member(_str_or_none(meta.get(AGENT_FAMILY_ROLE_FIELD)), gate_id):
+        return "gate"
+    return None
+
+
 def _str_or_none(value: object) -> str | None:
     return value if isinstance(value, str) else None
 

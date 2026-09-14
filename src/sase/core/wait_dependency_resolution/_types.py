@@ -51,6 +51,7 @@ class ArtifactCandidate:
     outcome: str | None = None
     has_done_marker: bool = False
     shell_followup_agent: str | None = None
+    shell_member_kind: str | None = None
 
 
 @dataclass(frozen=True)
