@@ -1137,6 +1137,47 @@ submit `selected_option_ids`, feedback, and each selected option's declared inpu
 [Gate inputs](#gate-inputs) below), and the shared executor runs the selected commands
 in query order.
 
+### Fast decision acceptance
+
+Gate answers are split into fast decision acceptance and slower command execution.
+Before a selected option runs its commands, the shared executor writes a durable,
+write-once `decision_receipt.json` under an acceptance lock. The receipt binds the
+request hash, selected option IDs, typed input identities, feedback identity, submitting
+surface, acceptance time, and execution owner. An identical duplicate selection replays
+the accepted decision; a conflicting selection fails before any command runs.
+Cancellation is refused after acceptance, even if the selected command is still blocked
+or a detached proc must be resumed later.
+
+`decision_receipt.json` is the local signal for immediate notification dismissal and
+targeted ACE refresh. `response.json` remains the terminal execution record written only
+after the command set, archive, and successor launch work has completed. Approval labels
+therefore mean the human decision is durable; they do not imply that a commit, archive,
+or next agent has already finished unless the terminal response says so.
+
+Rollout keeps existing bundles readable. Upgrade `sase-core` first so every surface has
+the indexed shell lookup and acceptance policy, then upgrade the SASE Python/ACE/mobile
+clients against that binding, and finally upgrade Telegram so its receiver submits
+answers through the same supervised proc path. In-flight legacy gates still fall back to
+their historical `response.json` path. Telegram receiver adoption requires no config
+edit: the first enabled chop tick re-arms the persistent receiver, `--once` remains the
+diagnostic direct poll path, disabled or credential-less receivers self-terminate, and a
+running receiver can be stopped with `sase proc kill`.
+
+Latency evidence from isolated probes on 2026-09-14:
+
+- Exact shell lookup over 5,002 fixture artifacts had p50 1.317 ms, p95 3.755 ms, and
+  max 13.008 ms across 25 lookups. Index rebuild took 3.554 s off the click path. The
+  target resolved to the owning gate shell rather than a later inherited-code successor.
+- Ten blocked-command acceptance runs wrote `decision_receipt.json` at p50 18.95 ms, p95
+  21.6 ms, and max 22.53 ms. Notification dismissal followed at p50 35.37 ms, p95 44.47
+  ms, and max 46.35 ms, while `response.json` stayed unwritten until the held command
+  was released.
+
+These measurements exercise local durability and notification behavior only. Live
+Telegram callback acknowledgement, message delivery, and keyboard edits remain bounded
+by Bot API round-trip time and rate limits; terminal keyboard cleanup is retried from
+the on-disk tombstone when a remote edit fails.
+
 | Key             | Action                                                                                         |
 | --------------- | ---------------------------------------------------------------------------------------------- |
 | `j` / `k`       | Focus the next / previous branch control                                                       |
