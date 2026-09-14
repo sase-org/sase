@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -14,11 +15,23 @@ from sase.agent.family_attach import (
 )
 from sase.agent.launch_executor import LaunchExecutionContext
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.workspace_provider.registry import record_workspace
+from sase.workspace_provider.store import WorkspaceStore
 from tests._dynamic_agent_family_attach_helpers import (
     _artifact_record,
     _in_batch_sibling,
     _patch_attach_snapshot,
 )
+
+
+def _register_workspace_checkout(primary_dir: Path, workspace_num: int) -> str:
+    """Record a managed checkout in the workspace registry and return its path."""
+    store = WorkspaceStore(str(primary_dir))
+    workspace = store.resolve(workspace_num)
+    checkout = Path(workspace.checkout_dir.rstrip("/"))
+    checkout.mkdir(parents=True, exist_ok=True)
+    record_workspace(store, workspace)
+    return str(checkout)
 
 
 def test_family_attach_absent_parent_error_uses_rust_resolution(
@@ -373,6 +386,44 @@ def test_family_attach_launch_fails_loudly_when_pairing_is_unresolvable(
             ),
             {},
         )
+
+
+def test_family_attach_launch_repairs_a_nested_managed_dir_to_its_owning_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A parent's own meta can record a directory nested inside a managed
+    checkout -- not just the checkout root -- with no ``workspace_num``; the
+    launch must repair via the real registry containment lookup to the
+    owning checkout instead of raising ``FamilyAttachError`` (plan
+    ``202609/monitor_nested_cwd_workspace_resolution.md``)."""
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "managed"))
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    workspace_dir = _register_workspace_checkout(primary, 9)
+    nested = Path(workspace_dir) / "sase" / "repos" / "external" / "gh" / "x"
+    nested.mkdir(parents=True)
+
+    _patch_attach_snapshot(
+        monkeypatch,
+        [_artifact_record(name="foo", workspace_dir=str(nested), workspace_num=None)],
+    )
+
+    with patch(
+        "sase.running_field.get_workspace_directory_for_num",
+        return_value=(str(primary), None),
+    ):
+        context, _ = prepare_family_attach_launch(
+            "%i(reviewer, family=foo)\nReview",
+            LaunchExecutionContext(
+                cl_name="launcher",
+                project_file="/tmp/sase.sase",
+                project_name="sase",
+            ),
+            {},
+        )
+
+    assert context.workspace_dir == workspace_dir
+    assert context.workspace_num == 9
 
 
 def test_family_attach_prefers_in_batch_parent_over_older_persisted_parent(

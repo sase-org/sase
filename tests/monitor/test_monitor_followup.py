@@ -12,6 +12,7 @@ import pytest
 import sase.monitor.followup as followup_module
 import sase.procs.spawn as spawn_module
 import sase.shells.followup as shells_followup_module
+import sase.workspace_provider.store as workspace_store_module
 from sase.agent.launch_types import AgentLaunchResult
 from sase.continuation_capture import (
     persist_monitor_result,
@@ -30,7 +31,7 @@ from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.procs.runtime import proc_started_path, write_json_atomic
 from sase.running_field import WorkspaceClaim, WorkspaceClaimError
 
-from ._fixtures import make_starter_agent, write_project_file
+from ._fixtures import make_starter_agent, register_workspace_checkout, write_project_file
 
 _SETTLE_TIMEOUT = 2.0
 
@@ -523,6 +524,66 @@ def test_launch_followup_agent_repairs_a_meta_workspace_num_mismatch(
     # with the numbered directory.
     assert captured["workspace_dir"] == str(tmp_path)
     assert captured["workspace_num"] == 3
+
+
+def test_launch_followup_agent_repairs_a_nested_managed_dir_to_its_owning_workspace(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A monitor cwd nested inside a managed checkout -- not just the
+    checkout root -- must repair via the real registry containment lookup
+    to that checkout's workspace instead of degrading to workspace #0 (plan
+    ``202609/monitor_nested_cwd_workspace_resolution.md``)."""
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "managed"))
+    # ``_promote_and_start_monitor`` patches the global ``subprocess.Popen``
+    # to a supervisor-argv-only fake; keep the real workspace-registry
+    # lookups below from tripping it via their own ``git remote -v`` probe.
+    monkeypatch.setattr(
+        workspace_store_module, "_list_git_remote_urls", lambda primary_dir: []
+    )
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    workspace_dir = register_workspace_checkout(primary, 7)
+    nested = Path(workspace_dir) / "sase" / "repos" / "external" / "gh" / "x"
+    nested.mkdir(parents=True)
+
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    meta["workspace_num"] = 0
+    meta["workspace_dir"] = str(nested)
+    capture = _capture_with_output(monitor_dir, "hello world\n")
+
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result(workspace_num=7, workspace_dir=workspace_dir)
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+    monkeypatch.setattr(
+        shells_followup_module,
+        "_workspace_dir_for_num",
+        lambda project_name, workspace_num: str(primary),
+    )
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert result.degraded_reason is None
+    # Repaired to the checkout root that owns the nested dir -- never left
+    # squatting in the nested dir itself or degraded to #0.
+    assert captured["workspace_dir"] == workspace_dir
+    assert captured["workspace_num"] == 7
 
 
 def test_launch_followup_agent_falls_back_to_primary_when_meta_pairing_is_unresolvable(

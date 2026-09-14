@@ -70,6 +70,73 @@ def resolve_workspace_num_for_dir(
     return None
 
 
+def _contains(root: str, target: str) -> bool:
+    """Return whether *target* is *root* or lives beneath it."""
+    try:
+        Path(target).relative_to(Path(root))
+    except ValueError:
+        return False
+    return True
+
+
+def resolve_workspace_owner_for_path(
+    primary_workspace_dir: str,
+    directory: str,
+    *,
+    config: Mapping[str, Any] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> tuple[int, str] | None:
+    """Resolve *directory* to the workspace that contains it.
+
+    Like :func:`resolve_workspace_num_for_dir`, but matches by containment
+    instead of exact equality: a directory nested inside a managed
+    checkout resolves to that checkout's workspace, not just the checkout
+    root itself. Consults the project's workspace registry first --
+    authoritative for every managed checkout, including the seeded primary
+    ``#0`` entry -- then falls back to ``WorkspaceStore.resolve(0)`` in
+    case the registry could not be read. The deepest (longest-prefix)
+    containing checkout wins when checkouts nest inside one another.
+    Returns ``(workspace_num, checkout_dir)`` for the owning entry, or
+    ``None`` when *directory* is not inside any managed checkout of this
+    project; the number is never guessed from the directory basename.
+    """
+    if not directory:
+        return None
+
+    target = _normalize_checkout_path(directory)
+    store = WorkspaceStore(primary_workspace_dir, config=config, env=env)
+
+    registry = load_or_init_registry(store)
+    best_num: int | None = None
+    best_checkout: str | None = None
+    best_depth = -1
+    for raw_num, entry in registry.workspaces.items():
+        try:
+            workspace_num = int(raw_num)
+        except (TypeError, ValueError):
+            continue
+        checkout = _normalize_checkout_path(entry.checkout_dir)
+        if not _contains(checkout, target):
+            continue
+        depth = len(Path(checkout).parts)
+        if depth > best_depth:
+            best_depth = depth
+            best_num = workspace_num
+            best_checkout = checkout
+
+    primary_path = store.resolve(PRIMARY_WORKSPACE_NUM)
+    primary_checkout = _normalize_checkout_path(primary_path.checkout_dir)
+    if _contains(primary_checkout, target):
+        depth = len(Path(primary_checkout).parts)
+        if depth > best_depth:
+            best_num = PRIMARY_WORKSPACE_NUM
+            best_checkout = primary_checkout
+
+    if best_num is None or best_checkout is None:
+        return None
+    return best_num, best_checkout
+
+
 def resolve_consistent_workspace_pair(
     primary_workspace_dir: str,
     workspace_dir: str,
@@ -89,10 +156,18 @@ def resolve_consistent_workspace_pair(
     A falsy *workspace_num* (``0`` or ``None``) is self-consistent only when
     *workspace_dir* is the primary checkout; otherwise *workspace_dir* is
     looked up in the project's workspace registry to recover its real
-    number. Returns ``None`` when the pair cannot be made self-consistent
-    -- *workspace_dir* is empty, or names a checkout the registry does not
-    recognize -- leaving the decision of how to handle an unresolvable pair
-    to the caller.
+    number, first by exact match and then -- when *workspace_dir* names a
+    directory nested inside a managed checkout rather than a checkout root
+    -- by containment, in which case the **owning checkout root** is
+    returned in place of the nested directory (callers use the returned
+    directory as the successor launch/workspace directory). A directory
+    nested under the primary checkout repairs to ``(primary_workspace_dir,
+    0)``, preserving the invariant that ``workspace_num == 0`` may only
+    ever pair with the primary checkout. Returns ``None`` when the pair
+    cannot be made self-consistent -- *workspace_dir* is empty, or names a
+    directory the registry does not recognize even by containment --
+    leaving the decision of how to handle an unresolvable pair to the
+    caller.
     """
     if workspace_num:
         return workspace_dir, workspace_num
@@ -108,10 +183,18 @@ def resolve_consistent_workspace_pair(
     )
     if resolved:
         return workspace_dir, resolved
+
+    owner = resolve_workspace_owner_for_path(
+        primary_workspace_dir, workspace_dir, config=config, env=env
+    )
+    if owner is not None:
+        owner_num, owner_checkout_dir = owner
+        return owner_checkout_dir, owner_num
     return None
 
 
 __all__ = [
     "resolve_consistent_workspace_pair",
     "resolve_workspace_num_for_dir",
+    "resolve_workspace_owner_for_path",
 ]

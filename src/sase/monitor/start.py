@@ -39,7 +39,7 @@ from sase.procs.service import ProcSubmitError, submit_proc_request
 from sase.procs.spawn import SUPERVISOR_LOG_NAME, DetachedSupervisor
 from sase.running_field import get_claimed_workspaces
 from sase.shells.settlement import stamp_shell_finished_at
-from sase.workspace_provider import resolve_workspace_num_for_dir
+from sase.workspace_provider import resolve_workspace_owner_for_path
 from sase.workspace_provider.utils import parse_workspace_dir
 from sase.workflows.utils import get_project_file_path
 
@@ -525,15 +525,18 @@ def _resolve_lane_start(
     raw_runner_pid = raw_meta.get("pid")
     lane_workspace_num = _optional_int(raw_lane_workspace_num)
     runner_pid = _optional_int(raw_runner_pid)
-    cwd_matches_lane = bool(workspace_dir) and _same_path(
-        request.cwd, str(workspace_dir)
+    lane_workspace_dir = str(workspace_dir) if workspace_dir else ""
+    cwd_matches_lane = bool(lane_workspace_dir) and (
+        _same_path(request.cwd, lane_workspace_dir)
+        or _path_contains(lane_workspace_dir, request.cwd)
     )
 
-    resolved_workspace_num = _resolve_monitor_workspace_num(
+    resolved_workspace_num, member_workspace_dir = _resolve_monitor_workspace(
         selected.project_file,
         request.cwd,
         cwd_matches_lane=cwd_matches_lane,
         lane_workspace_num=lane_workspace_num,
+        lane_workspace_dir=lane_workspace_dir,
     )
     transfer_from_pid: int | None = None
     starter_agent: str | None = None
@@ -550,7 +553,7 @@ def _resolve_lane_start(
         starter_agent = raw_name if isinstance(raw_name, str) and raw_name else None
 
     member_meta = dict(raw_meta)
-    member_meta["workspace_dir"] = request.cwd
+    member_meta["workspace_dir"] = member_workspace_dir
     member_meta["workspace_num"] = resolved_workspace_num
 
     cl_name = raw_meta.get("cl_name")
@@ -566,32 +569,44 @@ def _resolve_lane_start(
     )
 
 
-def _resolve_monitor_workspace_num(
+def _resolve_monitor_workspace(
     project_file: str,
     cwd: str,
     *,
     cwd_matches_lane: bool,
     lane_workspace_num: int | None,
-) -> int:
-    """Return the workspace number that owns the monitor command's cwd."""
-    if cwd_matches_lane and lane_workspace_num is not None and lane_workspace_num != 0:
-        return lane_workspace_num
+    lane_workspace_dir: str,
+) -> tuple[int, str]:
+    """Return the workspace number and owning checkout root for the
+    monitor command's cwd.
 
-    cwd_workspace_num = _lookup_workspace_num_for_dir(project_file, cwd)
-    if cwd_workspace_num is not None:
-        return cwd_workspace_num
+    A cwd that matches (or is nested within) its lane's own workspace
+    reuses the lane's already-known number and directory without a
+    registry round-trip. Otherwise *cwd* is resolved against the
+    workspace registry by containment, so a cwd nested inside some
+    managed checkout -- not just an exact checkout root -- still resolves
+    to its owning workspace.
+    """
+    if cwd_matches_lane and lane_workspace_num is not None and lane_workspace_num != 0:
+        return lane_workspace_num, lane_workspace_dir
+
+    owner = _lookup_workspace_owner_for_dir(project_file, cwd)
+    if owner is not None:
+        return owner
 
     if cwd_matches_lane and lane_workspace_num is not None:
-        return lane_workspace_num
+        return lane_workspace_num, cwd
 
-    return 0
+    return 0, cwd
 
 
-def _lookup_workspace_num_for_dir(project_file: str, directory: str) -> int | None:
+def _lookup_workspace_owner_for_dir(
+    project_file: str, directory: str
+) -> tuple[int, str] | None:
     primary_workspace_dir = parse_workspace_dir(project_file)
     if not primary_workspace_dir:
         return None
-    return resolve_workspace_num_for_dir(primary_workspace_dir, directory)
+    return resolve_workspace_owner_for_path(primary_workspace_dir, directory)
 
 
 def _supervisor_pid(proc: Any) -> int | None:
@@ -640,6 +655,19 @@ def _same_path(left: str, right: str) -> bool:
         return Path(left).expanduser().resolve() == Path(right).expanduser().resolve()
     except OSError:
         return left == right
+
+
+def _path_contains(root: str, path: str) -> bool:
+    try:
+        root_resolved = Path(root).expanduser().resolve()
+        path_resolved = Path(path).expanduser().resolve()
+    except OSError:
+        return False
+    try:
+        path_resolved.relative_to(root_resolved)
+    except ValueError:
+        return False
+    return True
 
 
 def _optional_int(value: object) -> int | None:

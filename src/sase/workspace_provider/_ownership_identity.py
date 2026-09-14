@@ -25,11 +25,12 @@ from sase.workspace_provider._ownership_types import (
     WorkspaceOwnershipError,
     normalize_path,
     normalize_workspace_num,
-    path_is_within,
 )
-from sase.workspace_provider.lookup import resolve_workspace_num_for_dir
+from sase.workspace_provider.lookup import (
+    resolve_workspace_num_for_dir,
+    resolve_workspace_owner_for_path,
+)
 from sase.workspace_provider.marker import CheckoutMarker, find_marker_from_cwd
-from sase.workspace_provider.registry import load_or_init_registry
 from sase.workspace_provider.store import PRIMARY_WORKSPACE_NUM, WorkspaceStore
 
 
@@ -257,24 +258,11 @@ def _registry_owner_for_path(
     store: WorkspaceStore,
     path: Path,
 ) -> tuple[int | None, Path | None]:
-    registry = load_or_init_registry(store)
-    best_num: int | None = None
-    best_checkout: Path | None = None
-    best_depth = -1
-    for raw_num, entry in registry.workspaces.items():
-        try:
-            workspace_num = normalize_workspace_num(int(raw_num))
-        except (TypeError, ValueError):
-            continue
-        checkout = normalize_path(entry.checkout_dir)
-        if not path_is_within(path, checkout):
-            continue
-        depth = len(checkout.parts)
-        if depth > best_depth:
-            best_depth = depth
-            best_num = workspace_num
-            best_checkout = checkout
-    return best_num, best_checkout
+    resolved = resolve_workspace_owner_for_path(store.primary_workspace_dir, str(path))
+    if resolved is None:
+        return None, None
+    workspace_num, checkout_dir = resolved
+    return normalize_workspace_num(workspace_num), normalize_path(checkout_dir)
 
 
 def marker_for_checkout(checkout: Path) -> CheckoutMarker | None:

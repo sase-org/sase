@@ -48,6 +48,10 @@ _LAZY_EXPORTS = {
         "sase.workspace_provider.lookup",
         "resolve_workspace_num_for_dir",
     ),
+    "resolve_workspace_owner_for_path": (
+        "sase.workspace_provider.lookup",
+        "resolve_workspace_owner_for_path",
+    ),
     "CheckoutMarker": ("sase.workspace_provider.marker", "CheckoutMarker"),
     "find_marker_from_cwd": (
         "sase.workspace_provider.marker",
@@ -259,6 +263,7 @@ __all__ = [
     "resolve_consistent_workspace_pair",
     "resolve_ref",
     "resolve_workspace_num_for_dir",
+    "resolve_workspace_owner_for_path",
     "save_registry",
     "submit_patch",
     "submit_patch",
@@ -325,6 +330,7 @@ if TYPE_CHECKING:
     from .lookup import (
         resolve_consistent_workspace_pair,
         resolve_workspace_num_for_dir,
+        resolve_workspace_owner_for_path,
     )
     from .marker import (
         CheckoutMarker,
