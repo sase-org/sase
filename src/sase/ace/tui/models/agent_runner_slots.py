@@ -73,13 +73,22 @@ def format_capacity_value(value: object, *, minimum_decimal: bool = True) -> str
 
 
 def format_queue_weight_badge_value(value: object) -> str | None:
-    """Return compact badge text for non-default valid queue weights."""
+    """Return compact badge text for non-default valid queue weights.
+
+    A weight of exactly ``0`` (the quiet host-authored zero-weight
+    supervision case, e.g. the epic-launch monitor) never renders a ``w0``
+    badge or other misleading capacity-usage text.
+    """
     weight = _finite_float(value)
-    if weight is None or math.isclose(
-        weight,
-        DEFAULT_QUEUE_WEIGHT,
-        rel_tol=0.0,
-        abs_tol=1.0e-9,
+    if (
+        weight is None
+        or weight <= 0.0
+        or math.isclose(
+            weight,
+            DEFAULT_QUEUE_WEIGHT,
+            rel_tol=0.0,
+            abs_tol=1.0e-9,
+        )
     ):
         return None
     return format_capacity_value(weight, minimum_decimal=False)

@@ -26,6 +26,60 @@ def test_wait_duration_from_waiting_json(tmp_path: Path) -> None:
     assert agent.wait_duration == 600.0
 
 
+def test_explicit_zero_queue_weight_from_agent_meta_is_valid(tmp_path: Path) -> None:
+    """A host-authored explicit zero (e.g. the epic-launch monitor) is a
+    valid, non-invalid weight -- unlike an implicit zero, which stays
+    invalid/fail-closed like any other non-positive weight."""
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "queue_weight": 0, "queue_weight_explicit": True})
+    )
+
+    agent = make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.queue_weight == 0.0
+    assert agent.queue_weight_explicit is True
+    assert agent.queue_weight_invalid is False
+
+
+def test_implicit_zero_queue_weight_from_agent_meta_is_invalid(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps({"pid": 1234, "queue_weight": 0})
+    )
+
+    agent = make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.queue_weight is None
+    assert agent.queue_weight_explicit is False
+    assert agent.queue_weight_invalid is True
+
+
+def test_explicit_zero_queue_weight_from_waiting_json_is_valid(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
+    (tmp_path / "waiting.json").write_text(
+        json.dumps(
+            {
+                "waiting_for": [],
+                "queue_weight": 0.0,
+                "queue_weight_explicit": True,
+                "slot_requested_at": "2026-07-12T12:00:00Z",
+            }
+        )
+    )
+
+    agent = make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.queue_weight == 0.0
+    assert agent.queue_weight_explicit is True
+    assert agent.queue_weight_invalid is False
+
+
 def test_runner_slot_fields_from_waiting_json(tmp_path: Path) -> None:
     (tmp_path / "agent_meta.json").write_text(json.dumps({"pid": 1234}))
     (tmp_path / "waiting.json").write_text(

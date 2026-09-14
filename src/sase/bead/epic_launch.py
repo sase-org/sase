@@ -224,6 +224,7 @@ def start_epic_launch_monitor(
                             stop_status="EPIC CREATED",
                             inherit_lane_workspace_claim=False,
                             transfer_claim_from_pid=lease.claim_pid,
+                            queue_weight_override=0.0,
                         )
                     )
                     transferred = True

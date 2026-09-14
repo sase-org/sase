@@ -11,6 +11,20 @@ from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from ._admission_types import RecordLiveness, finite_positive_float
 
 
+def _is_explicit_zero_weight(value: object) -> bool:
+    """Return whether *value* is a real (non-bool) numeric zero.
+
+    An authored ``queue_weight`` of ``0`` is only ever valid when it is
+    explicit -- a host-authored override such as the epic-launch
+    supervision monitor's quiet zero-weight start -- never an implicit
+    default, which stays invalid/fail-closed like any other non-positive
+    weight.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return float(value) == 0.0
+
+
 def _record_queue_weight(
     record: AgentArtifactRecordWire,
 ) -> tuple[float | None, bool, bool]:
@@ -19,6 +33,10 @@ def _record_queue_weight(
     if waiting is not None:
         if waiting.queue_weight_invalid:
             return None, waiting.queue_weight_explicit, True
+        if waiting.queue_weight_explicit and _is_explicit_zero_weight(
+            waiting.queue_weight
+        ):
+            return 0.0, True, False
         weight = finite_positive_float(waiting.queue_weight)
         if weight is not None:
             return weight, waiting.queue_weight_explicit, False
@@ -30,6 +48,8 @@ def _record_queue_weight(
         return None, False, False
     if meta.queue_weight_invalid:
         return None, meta.queue_weight_explicit, True
+    if meta.queue_weight_explicit and _is_explicit_zero_weight(meta.queue_weight):
+        return 0.0, True, False
     weight = finite_positive_float(meta.queue_weight)
     if weight is not None:
         return weight, meta.queue_weight_explicit, False

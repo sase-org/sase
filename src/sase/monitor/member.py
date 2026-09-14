@@ -51,6 +51,7 @@ def create_monitor_member(
     starter_artifacts_dir: str | None = None,
     parent_node_ids: Sequence[str] = (),
     continuation_protocol: str = MONITOR_CONTINUATION_PROTOCOL_LEGACY,
+    queue_weight_override: float | None = None,
 ) -> str:
     """Create a monitor family member's artifacts directory.
 
@@ -59,6 +60,11 @@ def create_monitor_member(
     lineage, ...) so a later follow-up agent inherits it too, then layers
     on the ``monitor_*`` fields that describe the supervised command
     itself.
+
+    ``queue_weight_override``, when given, replaces the inherited
+    ``queue_weight`` with an explicitly authored value (host epic-launch
+    supervision uses ``0`` so it starts without consuming weighted runner
+    capacity) instead of the parent's own weight.
     """
     monitor_metadata: dict[str, Any] = {
         "monitor_id": monitor_id,
@@ -106,6 +112,9 @@ def create_monitor_member(
         monitor_metadata["continuation_parent_node_ids"] = [
             str(node_id) for node_id in parent_node_ids if str(node_id)
         ]
+    if queue_weight_override is not None:
+        monitor_metadata["queue_weight"] = queue_weight_override
+        monitor_metadata["queue_weight_explicit"] = True
 
     return create_family_shell_member(
         project_name,

@@ -312,6 +312,100 @@ def test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_dela
         dummy_supervisor.wait()
 
 
+def test_epic_launch_shaped_zero_weight_monitor_frees_full_capacity_for_its_workers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A zero-weight epic-launch-shaped monitor never counts against the
+    weighted runner-slot budget: once its planner's own claim is released, a
+    worker requesting the entire cap is admitted immediately -- proving the
+    still-live monitor's own occupied weight is genuinely ``0``, not the
+    positive weight it would otherwise have inherited from its planner.
+    """
+    harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+    write_project_file(_MONITOR_PROJECT, workspace_dir=str(harness.workspace))
+
+    starter = harness.create_agent(
+        0, name="epic--0", agent_family="epic", queue_weight=1.0
+    )
+    starter.meta["workflow_name"] = "epic"
+    write_agent_meta(str(starter.artifacts_dir), starter.meta)
+    harness.start(starter)
+    harness.wait_started(starter)
+
+    patch_project_records(monkeypatch, [str(starter.artifacts_dir)])
+    dummy_supervisor = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"]
+    )
+    monkeypatch.setattr(
+        spawn_module.subprocess, "Popen", _make_bootstrap_popen(dummy_supervisor.pid)
+    )
+
+    try:
+        record = start_monitor(
+            StartMonitorRequest(
+                command="true",
+                reason="epic-launch-shaped zero-weight supervision acceptance",
+                timeout_seconds=30.0,
+                cwd=str(harness.workspace),
+                project_name=_MONITOR_PROJECT,
+                start_status="EPIC APPROVED",
+                stop_status="EPIC CREATED",
+                lane="epic",
+                inherit_lane_workspace_claim=False,
+                queue_weight_override=0.0,
+            )
+        )
+
+        monitor_meta = json.loads(
+            (Path(record.artifacts_dir) / "agent_meta.json").read_text(encoding="utf-8")
+        )
+        assert monitor_meta["queue_weight"] == 0.0
+        assert monitor_meta["queue_weight_explicit"] is True
+
+        # Production kills the starter's runner group as part of a real
+        # handoff; release its fakey process so only the zero-weight monitor
+        # represents live "epic" lineage now.
+        harness.release_agent(starter)
+        harness.join(starter)
+        time.sleep(0.05)  # sase-test-wait: delayed runner admission window
+
+        # The cap is only ever saturated by a real, positive worker weight --
+        # never by the still-live monitor's own presence -- so a worker
+        # requesting the entire cap is admitted immediately.
+        worker = harness.create_agent(1, name="epic-phase-worker", queue_weight=1.0)
+        harness.start(worker)
+        harness.wait_started(worker)
+
+        # A same-weight competitor now finds the cap genuinely saturated by
+        # the worker's own real weight, proving total occupied weight is
+        # still tracked correctly rather than simply ignored.
+        competitor = harness.create_agent(2, name="late-competitor", queue_weight=1.0)
+        harness.start(competitor)
+        harness.wait_parked(competitor)
+
+        harness.release_agent(worker)
+        harness.join(worker)
+        harness.wait_started(competitor)
+        harness.release_agent(competitor)
+        harness.join(competitor)
+
+        settle_proc_shell(
+            record.monitor_id,
+            supervisor_id="test-supervisor",
+            status="success",
+            message="completed",
+            termination_reason="success",
+            exit_code=0,
+        )
+        done = wait_for_done(record.artifacts_dir)
+        assert done["monitor_state"] == "completed"
+    finally:
+        dummy_supervisor.kill()
+        dummy_supervisor.wait()
+
+
 def _assert_weighted_monitor_failure_reclaims_without_disturbing_unrelated_owner(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

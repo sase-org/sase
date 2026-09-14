@@ -64,6 +64,7 @@ class StartMonitorRequest:
     checkpoint_document: dict[str, object] | None = None
     parent_node_ids: tuple[str, ...] = ()
     starter_run_id: str | None = None
+    queue_weight_override: float | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -107,6 +108,7 @@ def monitor_request_fingerprint(
         "policy_digest": request.policy_digest or None,
         "profile": request.profile or None,
         "project_name": request.project_name,
+        "queue_weight_override": request.queue_weight_override,
         "reason": request.reason,
         "start_status": request.start_status,
         "starter_run_id": request.starter_run_id or None,

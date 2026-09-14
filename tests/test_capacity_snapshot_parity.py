@@ -320,6 +320,29 @@ def test_queue_detail_and_badges_match_blockers_from_shared_snapshot() -> None:
     assert format_queue_weight_badge_value(entries["unknown"].requested_weight) is None
 
 
+def test_explicit_zero_weight_monitor_occupies_nothing_across_runtime_and_tui() -> None:
+    """An explicit-zero weight (the epic-launch monitor) is a valid, quiet
+
+    non-occupying record everywhere -- runtime admission, the scan-derived
+    capacity record, and the TUI -- unlike an *implicit* zero, which stays
+    invalid/fail-closed like any other non-positive weight.
+    """
+    zero = _EntitySpec(name="zero-weight-monitor", running=True, weight=0.0)
+    specs = (*_LOCAL_SPECS, zero)
+
+    ground_truth = _ground_truth(specs)
+    assert ground_truth["occupied_capacity"] == 0.75
+    assert ground_truth["occupied_lanes"] == 4
+
+    tui_agents = [_tui_agent(spec) for spec in specs]
+    tui_snapshot = refresh_runner_slot_context(tui_agents, effective_limit=_LIMIT)
+    assert tui_snapshot.occupied_capacity == ground_truth["occupied_capacity"]
+
+    zero_agent = next(a for a in tui_agents if a.cl_name == "zero-weight-monitor")
+    assert zero_agent.runner_occupied_capacity == 0.75
+    assert format_queue_weight_badge_value(zero_agent.queue_weight) is None
+
+
 def test_remote_weight_badge_never_charges_local_snapshot() -> None:
     tui_agents = [_tui_agent(spec) for spec in _LOCAL_SPECS]
     baseline = refresh_runner_slot_context(list(tui_agents), effective_limit=_LIMIT)

@@ -42,11 +42,15 @@ from ..agent import Agent
 _QUEUE_WEIGHT_ERROR = "queue_weight must be a positive finite number"
 
 
-def _coerce_queue_weight(value: object) -> float | None:
+def _coerce_queue_weight(value: object, *, explicit: bool) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     weight = float(value)
-    if not math.isfinite(weight) or weight <= 0:
+    if not math.isfinite(weight):
+        return None
+    if weight == 0.0:
+        return 0.0 if explicit else None
+    if weight <= 0:
         return None
     return weight
 
@@ -54,9 +58,10 @@ def _coerce_queue_weight(value: object) -> float | None:
 def _apply_queue_weight_fields(agent: Agent, data: dict[str, object]) -> None:
     has_weight = "queue_weight" in data
     if has_weight:
-        weight = _coerce_queue_weight(data.get("queue_weight"))
+        explicit = data.get("queue_weight_explicit") is True
+        weight = _coerce_queue_weight(data.get("queue_weight"), explicit=explicit)
         agent.queue_weight = weight
-        agent.queue_weight_explicit = data.get("queue_weight_explicit") is True
+        agent.queue_weight_explicit = explicit
         if weight is None:
             agent.queue_weight_invalid = True
             raw_error = data.get("queue_weight_error")

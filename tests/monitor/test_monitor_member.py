@@ -103,6 +103,85 @@ def test_create_monitor_member_inherits_lineage_and_sets_monitor_fields() -> Non
     assert "monitor_execution_argv" not in meta
 
 
+def test_create_monitor_member_inherits_parent_queue_weight_by_default() -> None:
+    """No override: a general monitor inherits weight/claim like today."""
+    base_meta = {
+        "name": "acme--0",
+        "agent_family": "acme",
+        "queue_weight": 2.0,
+        "queue_weight_explicit": True,
+        "runner_claim_owner_key": "owner-key-123",
+    }
+
+    artifacts_dir = create_monitor_member(
+        "proj",
+        base_meta,
+        lane="acme",
+        suffix="--mon",
+        prev_artifacts_timestamp="20260812120000",
+        workspace_num=0,
+        monitor_id="abc123def456",
+        command="just check-full",
+        cwd="/work/acme",
+        label="just check-full",
+        reason="verify",
+        next_action=None,
+        start_status="MONITORING",
+        stop_status="MONITORED",
+        timeout_seconds=30.0,
+        tail_lines=200,
+        next_output="tail",
+        request_fingerprint="sha256:test",
+    )
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["queue_weight"] == 2.0
+    assert meta["queue_weight_explicit"] is True
+    assert meta["runner_claim_owner_key"] == "owner-key-123"
+
+
+def test_create_monitor_member_queue_weight_override_replaces_inherited_weight() -> (
+    None
+):
+    """An explicit override (epic-launch supervision) wins over inheritance."""
+    base_meta = {
+        "name": "acme--0",
+        "agent_family": "acme",
+        "queue_weight": 3.0,
+        "queue_weight_explicit": True,
+        "runner_claim_owner_key": "owner-key-123",
+    }
+
+    artifacts_dir = create_monitor_member(
+        "proj",
+        base_meta,
+        lane="acme",
+        suffix="--mon",
+        prev_artifacts_timestamp="20260812120000",
+        workspace_num=0,
+        monitor_id="abc123def456",
+        command="sase bead work plan.md --yes-to-all",
+        cwd="/work/acme",
+        label="Epic launch · plan",
+        reason="Launch the approved epic from plan.md",
+        next_action=None,
+        start_status="EPIC APPROVED",
+        stop_status="EPIC CREATED",
+        timeout_seconds=30.0,
+        tail_lines=200,
+        next_output="tail",
+        request_fingerprint="sha256:test",
+        queue_weight_override=0.0,
+    )
+
+    meta = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert meta["queue_weight"] == 0.0
+    assert meta["queue_weight_explicit"] is True
+    # The override is only about weight; the inherited claim lineage is
+    # untouched so the monitor still represents the same live owner.
+    assert meta["runner_claim_owner_key"] == "owner-key-123"
+
+
 def test_create_monitor_member_persists_execution_argv() -> None:
     artifacts_dir = create_monitor_member(
         "proj",

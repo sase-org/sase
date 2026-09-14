@@ -174,6 +174,49 @@ def test_project_fleet_agents_carries_remote_queue_weight_without_local_charge()
     assert capacity.occupied_capacity == 1.0
 
 
+def test_project_fleet_agents_carries_remote_explicit_zero_queue_weight() -> None:
+    """An explicit-zero remote weight (e.g. a remote epic-launch monitor) is
+
+    valid and non-occupying -- unlike an implicit zero, which stays
+    invalid/fail-closed like any other non-positive weight -- and never
+    renders a misleading ``w0`` badge or "Weight: 0" header text.
+    """
+    summary = fleet_summary(
+        agent_id="epic-launch-monitor",
+        agent_name="apollo.epic-launch-monitor",
+        queue_weight=0.0,
+        queue_weight_explicit=True,
+    )
+    response = fleet_host_response(alias="apollo", summaries=(summary,))
+
+    projection = project_fleet_agents(catalog_response=response)
+    row = projection.fleet_rows[0]
+
+    assert row.queue_weight == 0.0
+    assert row.queue_weight_explicit is True
+    assert row.queue_weight_invalid is False
+    text = Text()
+    assert append_agent_queue_badges(text, row) is False
+    assert text.plain == ""
+    header, _ = build_header_text(row, cheap=True)
+    assert "Weight:" not in header.plain
+
+    local = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="local",
+        project_file="/tmp/project/project.sase",
+        status="RUNNING",
+        start_time=None,
+        raw_suffix="20260712120002",
+        artifacts_dir="/tmp/project/artifacts/ace-run/20260712120002",
+        pid=1236,
+        run_start_time=datetime(2026, 7, 12, 12, 0, 0),
+    )
+    capacity = refresh_runner_slot_context([local, row], effective_limit=1)
+    assert capacity.slots_in_use == 1
+    assert capacity.occupied_capacity == 1.0
+
+
 def test_project_fleet_agents_carries_remote_queue_capacity_without_local_charge() -> (
     None
 ):

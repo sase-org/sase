@@ -215,6 +215,7 @@ def _start_monitor_locked(
         starter_artifacts_dir=starter_artifacts_dir if records_enabled else None,
         parent_node_ids=request.parent_node_ids if records_enabled else (),
         continuation_protocol=continuation_protocol,
+        queue_weight_override=request.queue_weight_override,
     )
     log_path = monitor_log_path(artifacts_dir)
     update_meta_field(artifacts_dir, "monitor_output_path", str(log_path))

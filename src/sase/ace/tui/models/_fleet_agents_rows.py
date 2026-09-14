@@ -426,7 +426,11 @@ def _host_diagnostic(host: Mapping[str, Any]) -> str | None:
 
 def _queue_weight(summary: Mapping[str, Any]) -> float | None:
     weight = float_or_none(summary.get("queue_weight"))
-    if weight is None or not math.isfinite(weight) or weight <= 0.0:
+    if weight is None or not math.isfinite(weight):
+        return None
+    if weight == 0.0:
+        return 0.0 if summary.get("queue_weight_explicit") is True else None
+    if weight <= 0.0:
         return None
     return weight
 

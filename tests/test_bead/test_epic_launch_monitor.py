@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import shlex
 from pathlib import Path
@@ -74,6 +75,7 @@ def test_start_epic_launch_monitor_starts_literal_monitor_command(
     assert request.timeout_seconds == 4 * 60 * 60
     assert request.inherit_lane_workspace_claim is False
     assert request.transfer_claim_from_pid == lease.claim_pid
+    assert request.queue_weight_override == 0.0
 
 
 def test_start_epic_launch_monitor_forwards_wait_spec_into_argv(
@@ -264,6 +266,12 @@ def test_start_epic_launch_monitor_falls_back_to_leased_proc_when_lane_missing(
     assert request.session_id is None
     assert sorted(request.tags) == ["epic", "launch"]
     assert submit_via_lease.call_args.args[1] is lease
+    # The leased-workspace proc fallback carries no queue-weight metadata at
+    # all: ordinary procs are outside the agent capacity budget, so
+    # ``ProcSubmitRequest`` has no ``queue_weight*`` field to populate.
+    assert not any(
+        f.name.startswith("queue_weight") for f in dataclasses.fields(request)
+    )
 
 
 def test_start_epic_launch_monitor_fallback_deduplicates_active_resolved_plan(

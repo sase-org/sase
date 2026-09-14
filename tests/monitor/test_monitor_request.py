@@ -33,6 +33,17 @@ def test_fingerprint_changes_when_successor_model_differs() -> None:
     assert inherit == blank
 
 
+def test_fingerprint_changes_when_queue_weight_override_differs() -> None:
+    """A monitor requested at effective weight 0 is a distinct request."""
+    shared = {"lane": "acme", "label": "just check-full"}
+    inherit = monitor_request_fingerprint(_request(), **shared)
+    zero = monitor_request_fingerprint(_request(queue_weight_override=0.0), **shared)
+    two = monitor_request_fingerprint(_request(queue_weight_override=2.0), **shared)
+
+    assert inherit != zero
+    assert zero != two
+
+
 def test_fingerprint_ignores_execution_argv() -> None:
     shared = {"lane": "acme", "label": "just check-full"}
     plain = monitor_request_fingerprint(_request(), **shared)
