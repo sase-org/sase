@@ -325,6 +325,30 @@ def test_environment_delta_names_keys_without_values() -> None:
     assert "SECRET" not in serialized
 
 
+def test_process_snapshot_ignores_harness_git_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    git_env = {
+        "GIT_AUTHOR_EMAIL": "sase-test@example.invalid",
+        "GIT_AUTHOR_NAME": "SASE Test",
+        "GIT_COMMITTER_EMAIL": "sase-test@example.invalid",
+        "GIT_COMMITTER_NAME": "SASE Test",
+        "GIT_CONFIG_COUNT": "1",
+        "GIT_CONFIG_GLOBAL": "/tmp/gitconfig",
+        "GIT_CONFIG_KEY_0": "user.name",
+        "GIT_CONFIG_SYSTEM": "/tmp/gitconfig",
+        "GIT_CONFIG_VALUE_0": "SASE Test",
+    }
+    for key, value in git_env.items():
+        monkeypatch.setenv(key, value)
+
+    snap = capture_process_snapshot()
+
+    assert not any(
+        entry.split("=", maxsplit=1)[0] in git_env for entry in snap.environ.entries
+    )
+
+
 def test_sys_path_append_is_warming_but_rewrite_is_poisoning() -> None:
     before = _snapshot()
     base_path = _global_fingerprint(["/repo", "/repo/src"])
