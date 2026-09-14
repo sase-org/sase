@@ -35,7 +35,7 @@ def is_agent_artifact_dir_name(name: str) -> bool:
     return len(name) == 14 and name.isdigit()
 
 
-def iter_ace_run_month_dirs(workflow_dir: Path) -> tuple[Path, ...]:
+def _iter_ace_run_month_dirs(workflow_dir: Path) -> tuple[Path, ...]:
     """Return existing ACE-run month shard directories under *workflow_dir*."""
     try:
         children = tuple(workflow_dir.iterdir())
@@ -55,7 +55,7 @@ def iter_future_ace_run_month_dirs(
 ) -> Iterator[Path]:
     """Yield existing ace-run month dirs dated after the live month."""
     current_month, _ = live_ace_run_shard_names(now)
-    for month_dir in iter_ace_run_month_dirs(workflow_dir):
+    for month_dir in _iter_ace_run_month_dirs(workflow_dir):
         if month_dir.name > current_month:
             yield month_dir
 
@@ -80,7 +80,7 @@ def iter_startup_ace_run_shard_watch_paths(
 
     month_dirs = [
         month_dir
-        for month_dir in iter_ace_run_month_dirs(workflow_dir)
+        for month_dir in _iter_ace_run_month_dirs(workflow_dir)
         if month_dir.name <= current_month
     ]
     month_dirs.sort(key=lambda path: path.name, reverse=True)
@@ -152,7 +152,6 @@ __all__ = [
     "MAX_STARTUP_ACE_RUN_MONTH_WATCHES",
     "is_ace_run_day_shard_name",
     "is_agent_artifact_dir_name",
-    "iter_ace_run_month_dirs",
     "iter_future_ace_run_month_dirs",
     "iter_startup_ace_run_shard_watch_paths",
     "live_ace_run_shard_names",

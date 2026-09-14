@@ -156,9 +156,9 @@ def apply_ace_run_retention(
         if item.get("outcome") == "removed"
     ]
     skipped = [
-        f"{item['artifact_dir']}: {item.get('detail') or item['outcome']}"
+        f"{item['artifact_dir']}: {_apply_run_skip_detail(item)}"
         for item in result.get("run_items") or ()
-        if item.get("outcome") == "skipped"
+        if item.get("outcome") in {"protected", "skipped"}
     ] + [
         f"{item['path']}: {item.get('detail') or item['outcome']}"
         for item in result.get("shard_items") or ()
@@ -187,6 +187,22 @@ def apply_ace_run_retention(
         skipped=tuple(skipped),
         errors=tuple(errors),
     )
+
+
+def _apply_run_skip_detail(item: dict[str, Any]) -> str:
+    detail = item.get("detail")
+    if detail:
+        return str(detail)
+    if item.get("outcome") != "protected":
+        return str(item.get("outcome") or "skipped")
+    reasons = [
+        str(reason).replace("_", " ")
+        for reason in item.get("reasons") or ()
+        if str(reason)
+    ]
+    if not reasons:
+        return "protected"
+    return "protected: " + ", ".join(reasons)
 
 
 def _run_owner(

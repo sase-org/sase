@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from sase.bead import cli_history
 from sase.bead.model import IssueType
 from sase.bead.project import BeadProject
 from tests.main.parser_cli_helpers import parse_sase_args
+from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 
 def _revision_chain(project_dir: Path) -> str:
@@ -98,6 +100,25 @@ def _run_history(
     args = parse_sase_args(["bead", "history", *argv])
     bead_cli.handle_bead_history(args)
     return capsys.readouterr().out
+
+
+@pytest.fixture
+def unknown_owner_project_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    """Create a bead project as if the host had no git identity."""
+    blank_config = tmp_path / "blank-gitconfig"
+    blank_config.write_text("", encoding="utf-8")
+    for key in tuple(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(blank_config))
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", str(blank_config))
+    with BeadProject.init(tmp_path):
+        pass
+    isolate_bead_store_resolution(monkeypatch, tmp_path)
+    return tmp_path
 
 
 def test_history_parser_contract_and_missing_id_error(
@@ -213,9 +234,10 @@ def test_history_labels_redundant_duplicate_close_in_all_formats(
 
 
 def test_history_full_makes_overwritten_note_revisions_readable(
-    project_dir: Path,
+    unknown_owner_project_dir: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    project_dir = unknown_owner_project_dir
     issue_id = _revision_chain(project_dir)
 
     output = _run_history(

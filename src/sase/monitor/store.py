@@ -370,9 +370,11 @@ def _project_records(
     return list(scan.records)
 
 
-def project_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
+def project_records(
+    project_name: str | None, *, only_monitors: bool = False
+) -> list[AgentArtifactRecordWire]:
     """Return raw artifact records for one project."""
-    return _project_records(project_name)
+    return _project_records(project_name, only_monitors=only_monitors)
 
 
 __all__ = [

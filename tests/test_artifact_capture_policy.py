@@ -463,6 +463,7 @@ def test_capture_config_default_and_schema() -> None:
     assert capture["properties"]["pool_max_bytes"]["default"] == 1073741824
     assert defaults["artifacts"]["retention"] == {
         "enabled": False,
+        "empty_shard_removal_budget": 2000,
         "keep_per_label": 3,
         "keep_recent_run_months": 2,
         "max_age_days": 90,
@@ -471,6 +472,8 @@ def test_capture_config_default_and_schema() -> None:
     retention = schema["properties"]["artifacts"]["properties"]["retention"]
     assert retention["additionalProperties"] is False
     assert retention["properties"]["enabled"]["default"] is False
+    assert retention["properties"]["empty_shard_removal_budget"]["minimum"] == 1
+    assert retention["properties"]["empty_shard_removal_budget"]["default"] == 2000
     assert retention["properties"]["keep_per_label"]["minimum"] == 0
     assert retention["properties"]["keep_per_label"]["default"] == 3
     assert retention["properties"]["keep_recent_run_months"]["minimum"] == 1

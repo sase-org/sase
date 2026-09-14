@@ -1,6 +1,7 @@
 """Pytest configuration for sase tests."""
 
 from collections.abc import Iterator
+import os
 import sys
 from pathlib import Path
 
@@ -63,6 +64,8 @@ pytest_plugins = ["pytester", "tests._config_reader_probe"]
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL: object | None = None
+_TEST_GIT_AUTHOR_NAME = "SASE Test"
+_TEST_GIT_AUTHOR_EMAIL = "sase-test@example.invalid"
 
 _PLAN_CHAIN_GOLDEN_TEST_FILES = frozenset(
     Path(path)
@@ -124,6 +127,46 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 def pytest_collection_finish(session: pytest.Session) -> None:
     """Note collection as suite-gate progress so a hung run is distinguishable."""
     record_lease_progress("collection")
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _configure_test_git_identity(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[None]:
+    """Give every test-created git repository a deterministic commit identity."""
+    config_path = tmp_path_factory.mktemp("git-identity") / "gitconfig"
+    config_path.write_text(
+        "\n".join(
+            (
+                "[user]",
+                f"\tname = {_TEST_GIT_AUTHOR_NAME}",
+                f"\temail = {_TEST_GIT_AUTHOR_EMAIL}",
+                "[commit]",
+                "\tgpgsign = false",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch = pytest.MonkeyPatch()
+    for key in tuple(os.environ):
+        if (
+            key == "GIT_CONFIG_COUNT"
+            or key.startswith("GIT_CONFIG_KEY_")
+            or key.startswith("GIT_CONFIG_VALUE_")
+        ):
+            monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(config_path))
+    monkeypatch.setenv("GIT_CONFIG_SYSTEM", str(config_path))
+    monkeypatch.setenv("GIT_AUTHOR_NAME", _TEST_GIT_AUTHOR_NAME)
+    monkeypatch.setenv("GIT_AUTHOR_EMAIL", _TEST_GIT_AUTHOR_EMAIL)
+    monkeypatch.setenv("GIT_COMMITTER_NAME", _TEST_GIT_AUTHOR_NAME)
+    monkeypatch.setenv("GIT_COMMITTER_EMAIL", _TEST_GIT_AUTHOR_EMAIL)
+    try:
+        yield
+    finally:
+        monkeypatch.undo()
 
 
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:

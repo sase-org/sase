@@ -56,20 +56,6 @@ def plan_continuation_run_retention(
     )
 
 
-def continuation_protected_dirs(
-    artifact_dirs: Sequence[Path | str],
-    *,
-    projects_root: Path | str | None = None,
-) -> frozenset[str]:
-    """Return resolved run dirs the continuation closure currently protects."""
-
-    return frozenset(
-        continuation_reasons_by_dir(
-            plan_continuation_run_retention(artifact_dirs, projects_root=projects_root)
-        )
-    )
-
-
 def continuation_unavailable_sources(plan: Mapping[str, Any]) -> tuple[str, ...]:
     """Return continuation metadata gaps that block retention apply."""
 
@@ -269,7 +255,6 @@ def _normalized_path(path: Path | str) -> str:
 
 __all__ = [
     "CONTINUATION_PORTABLE_LABEL_PREFIX",
-    "continuation_protected_dirs",
     "continuation_reasons_by_dir",
     "continuation_unavailable_sources",
     "plan_continuation_run_retention",

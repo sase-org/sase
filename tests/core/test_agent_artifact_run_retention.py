@@ -268,7 +268,7 @@ def test_plan_degrades_to_continuation_unavailable_on_retention_value_error(
     assert "continuation_unavailable" in reasons_by_path[recent]
 
 
-def test_apply_still_raises_when_continuation_closure_fails(
+def test_apply_refuses_when_continuation_closure_fails(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -289,11 +289,14 @@ def test_apply_still_raises_when_continuation_closure_fails(
         raise ValueError("validation: runs has 11037 entries; maximum is 10000")
 
     monkeypatch.setattr(
-        "sase.core.continuation_retention.plan_continuation_run_retention",
-        _raise,
+        agent_artifact_run_retention, "plan_continuation_run_retention", _raise
     )
 
-    with pytest.raises(ValueError, match="runs has 11037 entries"):
-        apply_ace_run_retention(plan)
+    result = apply_ace_run_retention(plan)
 
     assert old.exists()
+    assert result.removed_runs == 0
+    assert result.errors == (
+        "apply refused: protection sources unavailable: continuation retention: "
+        "validation: runs has 11037 entries; maximum is 10000",
+    )
