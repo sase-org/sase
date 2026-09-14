@@ -134,6 +134,25 @@ def test_sase_new_task_retired_umbrella_routes_to_related_task() -> None:
     ) in flat
 
 
+def test_sase_sudo_skill_teaches_reviewed_request_contract() -> None:
+    """The sudo skill keeps agents on the typed request path."""
+    src = get_sase_package_skills_dir() / "sase_sudo.md"
+    front_matter, body = parse_yaml_front_matter(src.read_text(encoding="utf-8"))
+    flat = collapse_whitespace(body)
+
+    assert front_matter is not None
+    assert front_matter["skill"] is True
+    assert front_matter["name"] == "sase_sudo"
+    assert "reviewed privileged execution" in front_matter["description"]
+    assert "Never ask Bryan for a password" in flat
+    assert "Never run raw `sudo`, `doas`, `pkexec`, `su`" in flat
+    assert "sase sudo request" in body
+    assert '"output_to_agent": "none"' in body
+    assert '"machine": "apollo"' in body
+    assert "Do not fall back to raw sudo" in flat
+    assert "intentionally ends your current turn" in flat
+
+
 @pytest.mark.parametrize("skill_name", ["sase_git_commit"])
 def test_commit_skill_sources_reject_legacy_sase_commit_cli(skill_name: str) -> None:
     """Commit skill sources must not recommend the removed ``sase commit`` CLI."""

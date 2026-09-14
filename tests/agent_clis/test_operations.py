@@ -347,7 +347,7 @@ def test_npm_writability_guard_returns_exact_manual_command() -> None:
         "@openai/codex@latest",
     )
     assert "npm install -g @openai/codex@latest" in entry.skip_reason
-    assert "never uses sudo" in entry.skip_reason
+    assert "never runs sudo without a reviewed request" in entry.skip_reason
     assert status.docs_url in entry.skip_reason
 
 

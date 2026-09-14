@@ -342,7 +342,8 @@ def plan_agent_cli_status(status: AgentCliStatus) -> AgentCliUpdateEntry:
                 None,
                 reason_with_docs(
                     f"npm global root is not writable; run `{command}` manually "
-                    "with an npm setup owned by your user (SASE never uses sudo)",
+                    "with an npm setup owned by your user (SASE never runs sudo "
+                    "without a reviewed request)",
                     docs_url,
                 ),
                 manual_argv=argv,

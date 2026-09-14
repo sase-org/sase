@@ -349,8 +349,8 @@ installed CLI; a bare `sase agent-cli update` with neither is a usage error. Com
 run sequentially and without a shell. `-n/--dry-run` prints the exact command or skip
 reason for each CLI and changes nothing.
 
-SASE only automates updates it can identify safely, and it never uses `sudo` and never
-guesses an update command:
+SASE only automates updates it can identify safely, and it never runs `sudo` without a
+reviewed request and never guesses an update command:
 
 | Install method                   | Behavior                                                                                |
 | -------------------------------- | --------------------------------------------------------------------------------------- |
