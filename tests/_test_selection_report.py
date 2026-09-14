@@ -57,7 +57,7 @@ def budget_line(selection: Selection) -> str:
 
     Printed whether or not `RULE_SERIAL_BUDGET_EXCEEDED` fired: an agent
     looking at a 400-file selection that stayed scoped should be able to read
-    "estimated 180s, budget 232s" and understand why, without re-deriving it
+    "estimated 180s, budget 444s" and understand why, without re-deriving it
     from the manifest.
     """
     budget = selection.options.max_serial_seconds

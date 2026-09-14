@@ -70,7 +70,7 @@ def test_summary_reports_duration_percentiles_and_the_slow_run_tail(
     tmp_path: Path,
 ) -> None:
     store = tmp_path / "store"
-    for minute, duration in enumerate((50.0, 100.0, 150.0, 200.0, 300.0)):
+    for minute, duration in enumerate((50.0, 100.0, 150.0, 200.0, 500.0)):
         write_selection(
             store,
             manifest(
@@ -95,18 +95,18 @@ def test_summary_reports_duration_percentiles_and_the_slow_run_tail(
 
     assert health.median_duration == pytest.approx(150.0)
     assert health.p75_duration == pytest.approx(200.0)
-    assert health.p90_duration == pytest.approx(260.0)
-    assert health.max_duration == pytest.approx(300.0)
+    assert health.p90_duration == pytest.approx(380.0)
+    assert health.max_duration == pytest.approx(500.0)
     assert len(health.slow_runs) == 1
-    assert health.slow_runs[0].duration == pytest.approx(300.0)
+    assert health.slow_runs[0].duration == pytest.approx(500.0)
     assert health.slow_runs[0].selected_count == 1
     assert health.slow_runs[0].rules == ("compensate-narrow-diff",)
 
     report = "\n".join(render_report(health))
     assert "p75 duration:         200.0s" in report
-    assert "p90 duration:         260.0s" in report
-    assert "max duration:         300.0s" in report
-    assert "scoped runs slower than the full lane (232.0s): 1 of 6" in report
+    assert "p90 duration:         380.0s" in report
+    assert "max duration:         500.0s" in report
+    assert "scoped runs slower than the full lane (444.0s): 1 of 6" in report
     assert "1 escalated run(s) not counted here: cost not measured" in report
     assert "1 file(s) selected, rules: compensate-narrow-diff" in report
 
@@ -318,7 +318,7 @@ def test_health_payload_includes_duration_percentiles_and_slow_runs(
         manifest(
             head="aaa",
             selected=("tests/test_a.py",),
-            duration=300.0,
+            duration=500.0,
             rules=("compensate-narrow-diff",),
         ),
     )
@@ -328,13 +328,13 @@ def test_health_payload_includes_duration_percentiles_and_slow_runs(
     )
     round_tripped = json.loads(json.dumps(payload))
 
-    assert round_tripped["max_duration"] == pytest.approx(300.0)
+    assert round_tripped["max_duration"] == pytest.approx(500.0)
     assert round_tripped["full_lane_wall_seconds"] == pytest.approx(
         FULL_LANE_WALL_SECONDS
     )
     assert len(round_tripped["slow_runs"]) == 1
     slow_run = round_tripped["slow_runs"][0]
-    assert slow_run["duration"] == pytest.approx(300.0)
+    assert slow_run["duration"] == pytest.approx(500.0)
     assert slow_run["selected_count"] == 1
     assert slow_run["rules"] == ["compensate-narrow-diff"]
 
@@ -518,7 +518,7 @@ def test_a_slow_gear_run_is_still_slower_than_the_full_lane(tmp_path: Path) -> N
         manifest(
             head="aaa",
             selected=("tests/test_a.py",),
-            duration=300.0,
+            duration=500.0,
             rules=("serial-budget-exceeded",),
             gear=granted_gear(4),
         ),
@@ -527,4 +527,4 @@ def test_a_slow_gear_run_is_still_slower_than_the_full_lane(tmp_path: Path) -> N
     health = summarize(load_records(store), is_ancestor=lambda _a, _b: False)
 
     assert health.slow_runs[0].worker_count == 4
-    assert "300.0s at 4 workers" in "\n".join(render_report(health))
+    assert "500.0s at 4 workers" in "\n".join(render_report(health))

@@ -67,14 +67,16 @@ __all__ = [
 #: point of the metric is host demand avoided, not a re-measured wall time.
 FULL_SUITE_WORKER_SECONDS = 3650.0
 
-#: The governed full lane's measured wall clock: 232s at 28 workers, 26,042
-#: tests, measured on athena at master `5da193482` on 2026-08-06 (see
-#: `plans/202608/scoped_lane_latency.md`). A scoped run slower than this would
-#: have finished sooner on the full lane instead, which is the defect this
-#: module's `slow_runs` exists to surface. Deliberately a constant for the same
-#: reason as `FULL_SUITE_WORKER_SECONDS`: it is a fixed crossover to measure
-#: against, not a re-measured wall time on every report.
-FULL_LANE_WALL_SECONDS = 232.0
+#: The governed full lane's measured wall clock: 444s at 14 workers, 3,841
+#: files, measured from five recent athena `fast` records on 2026-09-14. The
+#: matched health/timing records spanned 435.2s to 493.5s, with a 443.5s
+#: median; this replaced the older 232s/28-worker crossover from 2026-08-06.
+#: A scoped run slower than this would have finished sooner on the full lane
+#: instead, which is the defect this module's `slow_runs` exists to surface.
+#: Deliberately a constant for the same reason as `FULL_SUITE_WORKER_SECONDS`:
+#: it is a fixed crossover to measure against, not a re-measured wall time on
+#: every report.
+FULL_LANE_WALL_SECONDS = 444.0
 
 
 # --------------------------------------------------------------------------

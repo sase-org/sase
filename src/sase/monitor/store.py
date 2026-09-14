@@ -285,6 +285,11 @@ def _monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
     ]
 
 
+def monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
+    """Return raw monitor artifact records for callers that need lane context."""
+    return _monitor_records(project_name)
+
+
 def _reconciliation_monitor_records(
     project_name: str | None,
 ) -> list[AgentArtifactRecordWire]:
@@ -365,10 +370,17 @@ def _project_records(
     return list(scan.records)
 
 
+def project_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
+    """Return raw artifact records for one project."""
+    return _project_records(project_name)
+
+
 __all__ = [
     "MIN_MONITOR_REF_LENGTH",
     "get_monitor",
     "list_monitors",
+    "monitor_records",
+    "project_records",
     "read_monitor_marker",
     "reconcile_dead_supervisors",
     "reconcile_terminal_deliveries",

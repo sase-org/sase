@@ -501,7 +501,7 @@ def select_tests(
         "max_ratio": options.max_ratio,
         # The serial-runtime budget the estimate below was measured against.
         # Recorded on every scoped manifest, including the runs that stayed
-        # scoped: "estimated 180s, budget 232s" is the sentence a reader
+        # scoped: "estimated 180s, budget 444s" is the sentence a reader
         # looking at a 400-file selection needs, and it is only a sentence if
         # both halves are on the record.
         "max_serial_seconds": options.max_serial_seconds,

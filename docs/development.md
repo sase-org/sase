@@ -78,19 +78,21 @@ selection engine itself, or a narrow set of environment-identity inputs — see 
 `core-identity-changed` escalation" below). A selection that survives those rules is
 then costed rather than counted: it escalates when a serial run of it is estimated to
 take longer than `SASE_TEST_SELECTION_MAX_SERIAL_SECONDS` (default: the full lane's
-measured wall clock, 232s), and only where no such estimate is available does the
+measured wall clock, 444s), and only where no such estimate is available does the
 file-count ratio `SASE_TEST_SELECTION_MAX_RATIO` (default `0.25`) decide instead. An
 escalated run falls through to the same governed, fully parallel lane as `just test`.
 
 The runtime budget exists because file count is a 6x-spread proxy for runtime: measured
-on athena on 2026-08-06, eight of 39 scoped runs took longer than the 232s full lane and
-consumed 75% of the lane's total wall clock, and the worst — 494 files, which the ratio
-rated as scoped — ran 1,032.6s where `just check-full` would have finished in ~291s.
-Past the crossover the fast path is the slow path, so the lane stops taking it. Every
-scoped manifest records both halves of the comparison (`max_serial_seconds` and the
-`timings` block), and `tools/select_tests --explain` prints them whether or not the rule
-fired —
-`serial budget: estimated 180s against a 232s budget (within; 96% of the selection covered by the timing table)`.
+on athena on 2026-08-06, eight of 39 scoped runs took longer than the then-232s full
+lane and consumed 75% of the lane's total wall clock, and the worst — 494 files, which
+the ratio rated as scoped — ran 1,032.6s where `just check-full` would have finished in
+~291s. Recalibration on 2026-09-14 found the current governed full lane at 14 workers
+runs in 435-493s, with a 443.5s median across five recent full `fast` records, so the
+default crossover is 444s. Past the crossover the fast path is the slow path, so the
+lane stops taking it. Every scoped manifest records both halves of the comparison
+(`max_serial_seconds` and the `timings` block), and `tools/select_tests --explain`
+prints them whether or not the rule fired —
+`serial budget: estimated 180s against a 444s budget (within; 96% of the selection covered by the timing table)`.
 
 Run `just check-full` — every lint gate, the full suite through `just test-cost`, and
 the [flake-baseline gate](#the-flake-baseline-gate) — before landing an epic's combined
@@ -173,7 +175,8 @@ is sound, it is merely too slow to run serially — so when that rule fires **al
 `tools/run_pytest` asks the suite gate for up to
 `SASE_TEST_SELECTION_SCOPED_WORKER_CEILING` (default `4`) worker tokens and runs the
 selection at whatever width it gets. The 494-file selection that ran 1,032.6s serially
-is ~258s at four workers, against 232s for the whole suite.
+was ~258s at four workers, against the historical 232s full-lane crossover that first
+motivated the gear.
 
 The request is a **single non-blocking attempt** (`WorkerTokenLease.try_acquire`). If
 the tokens are not free right now, the run escalates exactly as it did before — the lane
