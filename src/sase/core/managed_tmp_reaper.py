@@ -40,6 +40,9 @@ from sase.config import (
     DEFAULT_MANAGED_TMP_PRESSURE_MAX_BYTES as DEFAULT_PRESSURE_MAX_BYTES,
 )
 from sase.config import (
+    DEFAULT_MANAGED_TMP_PRESSURE_LOW_FREE_SPACE_MIN_AGE_SECONDS,
+)
+from sase.config import (
     DEFAULT_MANAGED_TMP_PRESSURE_MIN_AGE_SECONDS as DEFAULT_PRESSURE_MIN_AGE_SECONDS,
 )
 from sase.config import (
@@ -62,6 +65,7 @@ from sase.config import (
     get_managed_tmp_command_scratch_horizon_seconds,
     get_managed_tmp_handoff_horizon_seconds,
     get_managed_tmp_max_removals,
+    get_managed_tmp_pressure_low_free_space_min_age_seconds,
     get_managed_tmp_pressure_max_bytes,
     get_managed_tmp_pressure_min_age_seconds,
     get_managed_tmp_pressure_min_available_bytes,
@@ -72,6 +76,10 @@ from sase.config import (
 )
 from sase.core.paths import managed_tmpdir_root
 from sase.core.rust import require_rust_binding
+
+DEFAULT_PRESSURE_LOW_FREE_SPACE_MIN_AGE_SECONDS = (
+    DEFAULT_MANAGED_TMP_PRESSURE_LOW_FREE_SPACE_MIN_AGE_SECONDS
+)
 
 DEFAULT_HORIZON_SECONDS = HANDOFF_HORIZON_SECONDS
 """Horizon for unrecognized subdirectories and stray top-level entries.
@@ -152,6 +160,7 @@ class _ManagedTmpReapResult:
     pressure_root_size_bytes: int
     pressure_available_bytes: int | None
     pressure_recovery_available_bytes: int
+    pressure_effective_min_age_seconds: float | None
 
     def describe(self) -> str:
         """Return a one-line human summary of the largest buckets pruned."""
@@ -198,6 +207,7 @@ def reap_managed_tmpdir(
     pressure_min_available_bytes: int | None = None,
     pressure_recovery_available_bytes: int | None = None,
     pressure_min_age_seconds: float | None = None,
+    pressure_low_free_space_min_age_seconds: float | None = None,
     pressure_min_entry_bytes: int | None = None,
     filesystem_available_bytes: int | None = None,
 ) -> _ManagedTmpReapResult:
@@ -252,6 +262,11 @@ def reap_managed_tmpdir(
         if pressure_min_age_seconds is None
         else pressure_min_age_seconds
     )
+    resolved_pressure_low_free_space_min_age_seconds = (
+        get_managed_tmp_pressure_low_free_space_min_age_seconds()
+        if pressure_low_free_space_min_age_seconds is None
+        else pressure_low_free_space_min_age_seconds
+    )
     resolved_pressure_min_entry_bytes = (
         get_managed_tmp_pressure_min_entry_bytes()
         if pressure_min_entry_bytes is None
@@ -271,6 +286,9 @@ def reap_managed_tmpdir(
         "pressure_min_available_bytes": resolved_pressure_min_available_bytes,
         "pressure_recovery_available_bytes": resolved_pressure_recovery_available_bytes,
         "pressure_min_age_seconds": float(resolved_pressure_min_age_seconds),
+        "pressure_low_free_space_min_age_seconds": float(
+            resolved_pressure_low_free_space_min_age_seconds
+        ),
         "pressure_min_entry_bytes": resolved_pressure_min_entry_bytes,
         "pressure_reap_buckets": sorted(PRESSURE_REAP_BUCKETS),
         "filesystem_available_bytes": filesystem_available_bytes,
@@ -320,6 +338,9 @@ def _result_from_wire(raw: Mapping[str, Any]) -> _ManagedTmpReapResult:
         pressure_root_size_bytes=raw["pressure_root_size_bytes"],
         pressure_available_bytes=raw["pressure_available_bytes"],
         pressure_recovery_available_bytes=raw["pressure_recovery_available_bytes"],
+        pressure_effective_min_age_seconds=raw.get(
+            "pressure_effective_min_age_seconds"
+        ),
     )
 
 
@@ -341,6 +362,7 @@ __all__ = [
     "COMMAND_SCRATCH_HORIZON_SECONDS",
     "DEFAULT_HORIZON_SECONDS",
     "DEFAULT_MAX_REMOVALS",
+    "DEFAULT_PRESSURE_LOW_FREE_SPACE_MIN_AGE_SECONDS",
     "DEFAULT_PRESSURE_MAX_BYTES",
     "DEFAULT_PRESSURE_MIN_AGE_SECONDS",
     "DEFAULT_PRESSURE_MIN_AVAILABLE_BYTES",

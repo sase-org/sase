@@ -410,7 +410,11 @@ Launched agents receive `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and
 `CARGO_BUILD_BUILD_DIR` under SASE's managed temp root for each run. Agent code and ad
 hoc commands should use those exported directories; do not invent a target directory
 under `~/.cache`, `~/Sync`, or `/var/tmp`, because an invented root has no owner and no
-retention policy. The repo-owned exceptions are the two Justfile roots above:
+retention policy. The same Rust-owned managed-temp reaper wire accepts optional
+`pressure_low_free_space_min_age_seconds` and reports
+`pressure_effective_min_age_seconds`; when the configured free-space floor is breached,
+the effective pressure age is the lower of the base pressure age and the low-space age.
+The repo-owned exceptions are the two Justfile roots above:
 `../sase-core/target/uv-tool-py` for `sase_core_rs` and
 `../sase-core/target/uv-tool-lsp` for `sase-xprompt-lsp`. Those are shared across
 workspaces on purpose, visible to disk tooling, and safe to prune at the `incremental/`

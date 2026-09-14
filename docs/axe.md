@@ -489,7 +489,10 @@ subdirectory: command scratch (`editors/`, `wrappers/`, `viewers/`, `commit-mess
 (`launch-prompts/`, `workflow-artifacts/`) after 14 days. Launched agents default
 `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to per-launch
 directories under those managed buckets, so shell scratch and Cargo targets no longer
-fall back to host-global `/tmp`.
+fall back to host-global `/tmp`. A runner also removes its own launch-assigned
+`agent-tmp/` and `cargo-targets/` children at exit when it can prove, through procfs,
+that no live process still references either tree; monitor/gate handoffs and hosts
+without readable procfs leave cleanup to the reaper.
 
 Each run removes at most 2,000 entries by default so a long-neglected root converges
 over several passes instead of stalling one. The reaper also runs a pressure pass when
@@ -498,17 +501,20 @@ free, by default. Under pressure, aged entries of at least 1 GiB in regenerable
 build-output buckets (`cargo-targets/`, plus the legacy `build-targets/`), and
 cargo/core target-shaped top-level residue, are removed largest-first until the root is
 estimated below 8 GiB, available space is estimated back to 48 GiB, or the removal
-budget is reached. All of the horizons, the removal budget, and the pressure thresholds
-in this section are configurable under `managed_tmp` in `sase.yml`; see
-[Configuration](configuration.md#managed_tmp). Generic agent scratch, handoff buckets,
-artifact buckets, unknown buckets, symlinks, and build trees with fresh descendants are
-not early pressure candidates. The chop summary reports `scanned`, `removed`,
-`pressure_removed`, `pressure_reclaimed_bytes`, `pressure_trigger`,
-`pressure_available_bytes`, `pressure_recovery_available_bytes`, `deindexed`, and
-`capped=1` when it hit that budget. Reaped directories are dropped from the agent
-artifact index too, since a workflow launched without an explicit `artifacts_dir` gets
-one under `workflow-artifacts/`. It lives on `housekeeping` rather than an interactive
-path because the first pass over a neglected root walks tens of thousands of entries.
+budget is reached. Pressure pruning normally waits 12 hours, but once the free-space
+floor is breached it uses the lower configured low-space age, 1 hour by default, without
+weakening the fresh-descendant check. All of the horizons, the removal budget, and the
+pressure thresholds in this section are configurable under `managed_tmp` in `sase.yml`;
+see [Configuration](configuration.md#managed_tmp). Generic agent scratch, handoff
+buckets, artifact buckets, unknown buckets, symlinks, and build trees with fresh
+descendants are not early pressure candidates. The chop summary reports `scanned`,
+`removed`, `pressure_removed`, `pressure_reclaimed_bytes`, `pressure_trigger`,
+`pressure_available_bytes`, `pressure_recovery_available_bytes`,
+`pressure_min_age_seconds`, `deindexed`, and `capped=1` when it hit that budget. Reaped
+directories are dropped from the agent artifact index too, since a workflow launched
+without an explicit `artifacts_dir` gets one under `workflow-artifacts/`. It lives on
+`housekeeping` rather than an interactive path because the first pass over a neglected
+root walks tens of thousands of entries.
 
 The `proc_runtime_sweep` chop bounds `~/.sase/procs/runtime`. Proc-row retention deletes
 runtime directories for rows it actually pruned in the same operation as log cleanup.

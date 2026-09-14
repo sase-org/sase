@@ -23,6 +23,7 @@ from sase.axe.chop_agents import (
 from sase.linked_repos import LinkedRepoResolution
 from sase.core.agent_identity_facade import AgentOwnerIdentity
 from sase.running_field import ClaimResult
+from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
 from sase.xprompt.used_xprompts import SASE_LAUNCH_SWARM_XPROMPTS
 
 
@@ -107,6 +108,7 @@ def test_managed_agent_scratch_env_roots_cargo_target_under_managed_tmp(
 
     scratch_key = "proj-ws3-260101_120000"
     cargo_target = tmp_path / "tmp" / "cargo-targets" / scratch_key
+    assert env[SASE_LAUNCH_SCRATCH_KEY_ENV] == scratch_key
     assert env["CARGO_TARGET_DIR"] == str(cargo_target)
     assert env["CARGO_BUILD_BUILD_DIR"] == str(cargo_target / "build")
     assert env["CARGO_INCREMENTAL"] == "0"
@@ -277,6 +279,7 @@ def test_spawn_agent_subprocess_routes_default_build_scratch_to_managed_tmp(
     env = mock_spawn.call_args.kwargs["env"]
     scratch_key = "proj-ws3-260101_120000"
     cargo_target = tmp_path / "tmp" / "cargo-targets" / scratch_key
+    assert env[SASE_LAUNCH_SCRATCH_KEY_ENV] == scratch_key
     assert env["TMPDIR"] == str(tmp_path / "tmp" / "agent-tmp" / scratch_key)
     assert env["TMP"] == env["TMPDIR"]
     assert env["TEMP"] == env["TMPDIR"]
@@ -306,6 +309,7 @@ def test_spawn_agent_subprocess_preserves_explicit_build_scratch_env(
         monkeypatch=monkeypatch,
         mock_spawn=mock_spawn,
         extra_env={
+            SASE_LAUNCH_SCRATCH_KEY_ENV: "spoofed",
             "TMPDIR": str(explicit_tmp),
             "TMP": str(explicit_tmp),
             "TEMP": str(explicit_tmp),
@@ -314,6 +318,7 @@ def test_spawn_agent_subprocess_preserves_explicit_build_scratch_env(
     )
 
     env = mock_spawn.call_args.kwargs["env"]
+    assert env[SASE_LAUNCH_SCRATCH_KEY_ENV] == "proj-ws3-260101_120000"
     assert env["TMPDIR"] == str(explicit_tmp)
     assert env["TMP"] == str(explicit_tmp)
     assert env["TEMP"] == str(explicit_tmp)

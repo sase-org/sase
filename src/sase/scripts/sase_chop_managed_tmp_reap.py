@@ -20,6 +20,12 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     pressure_recovery_available_bytes = (
         result.pressure_recovery_available_bytes if result.pressure_trigger else None
     )
+    pressure_min_age_seconds = (
+        int(result.pressure_effective_min_age_seconds)
+        if result.pressure_trigger
+        and result.pressure_effective_min_age_seconds is not None
+        else None
+    )
     if result.removed:
         runtime.log(result.describe(), "cyan")
     return runtime.emit_summary(
@@ -32,6 +38,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "pressure_trigger": result.pressure_trigger,
             "pressure_available_bytes": pressure_available_bytes,
             "pressure_recovery_available_bytes": pressure_recovery_available_bytes,
+            "pressure_min_age_seconds": pressure_min_age_seconds,
             "deindexed": result.deindexed,
             "capped": int(result.capped),
         },

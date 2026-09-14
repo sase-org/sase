@@ -49,6 +49,7 @@ DEFAULT_MANAGED_TMP_PRESSURE_TARGET_BYTES = 8 * 1024 * 1024 * 1024
 DEFAULT_MANAGED_TMP_PRESSURE_MIN_AVAILABLE_BYTES = 32 * 1024 * 1024 * 1024
 DEFAULT_MANAGED_TMP_PRESSURE_RECOVERY_AVAILABLE_BYTES = 48 * 1024 * 1024 * 1024
 DEFAULT_MANAGED_TMP_PRESSURE_MIN_AGE_SECONDS = 12 * 3600
+DEFAULT_MANAGED_TMP_PRESSURE_LOW_FREE_SPACE_MIN_AGE_SECONDS = 3600
 DEFAULT_MANAGED_TMP_PRESSURE_MIN_ENTRY_BYTES = 1024 * 1024 * 1024
 DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS = 3600
 DEFAULT_PAGER_SYNTAX = "auto"
@@ -580,6 +581,14 @@ def get_managed_tmp_pressure_min_age_seconds() -> float:
     return _managed_tmp_nonnegative_seconds(
         _managed_tmp_pressure_config().get("min_age_seconds"),
         DEFAULT_MANAGED_TMP_PRESSURE_MIN_AGE_SECONDS,
+    )
+
+
+def get_managed_tmp_pressure_low_free_space_min_age_seconds() -> float:
+    """Return the emergency pressure age used after crossing the free-space floor."""
+    return _managed_tmp_nonnegative_seconds(
+        _managed_tmp_pressure_config().get("low_free_space_min_age_seconds"),
+        DEFAULT_MANAGED_TMP_PRESSURE_LOW_FREE_SPACE_MIN_AGE_SECONDS,
     )
 
 

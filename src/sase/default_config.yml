@@ -125,6 +125,8 @@ managed_tmp:
     recovery_available_bytes: 51539607552
     # Minimum age before pressure can prune a large scratch entry.
     min_age_seconds: 43200
+    # Emergency minimum age when the free-space floor is breached.
+    low_free_space_min_age_seconds: 3600
     # Small entries do not participate in pressure pruning.
     min_entry_bytes: 1073741824
 
@@ -1257,12 +1259,13 @@ axe:
 
             Removes old children from managed-temp buckets using workload-specific age limits, without following
             symlinks or deleting the stable bucket directories. Launched agents default TMPDIR/TMP/TEMP,
-            CARGO_TARGET_DIR, and CARGO_BUILD_BUILD_DIR into managed buckets. The reaper can also prune aged large
-            build output early
-            when the managed root exceeds its size target or the filesystem falls below the free-space floor, while
-            preserving generic agent scratch, handoff data, unknown buckets, and build trees with fresh descendants.
-            Each pass removes at most 2,000 entries and de-indexes deleted agent-artifact directories, so a neglected
-            root converges without blocking interactive commands.
+            CARGO_TARGET_DIR, and CARGO_BUILD_BUILD_DIR into managed buckets, and runners remove their own
+            launch-assigned scratch at exit when no live process still uses it. The reaper can also prune aged large
+            build output early when the managed root exceeds its size target or the filesystem falls below the
+            free-space floor; pressure pruning waits for the configured minimum age (12h by default), or 1h once the
+            free-space floor is breached, while preserving generic agent scratch, handoff data, unknown buckets, and
+            build trees with fresh descendants. Each pass removes at most 2,000 entries and de-indexes deleted
+            agent-artifact directories, so a neglected root converges without blocking interactive commands.
         - name: proc_runtime_sweep
           script: sase_chop_proc_runtime_sweep
           description: |-

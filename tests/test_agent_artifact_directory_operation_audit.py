@@ -78,6 +78,12 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "None of these touch the tracked marker layer."
         ),
     ),
+    "src/sase/axe/run_agent_runner_scratch.py:_cleanup_launch_scratch": DirOpReview(
+        exemption=(
+            "Removes only liveness-checked per-launch managed scratch directories "
+            "under cargo-targets/ and agent-tmp/, not agent artifact directories."
+        ),
+    ),
     "src/sase/llm_provider/_plan_utils.py:move_plan_to_sase": DirOpReview(
         exemption=(
             "Moves a submitted scratch plan file into the machine-local "

@@ -51,6 +51,7 @@ from sase.axe.run_agent_runner_setup import (
     expand_deferred_launch_xprompts,
 )
 from sase.axe.run_agent_runner_signals import is_user_kill_exit, system_exit_code
+from sase.axe.run_agent_runner_scratch import cleanup_launch_scratch
 from sase.axe.run_agent_runner_state import RunnerRunState
 from sase.axe.runner_artifacts import all_steps_hidden
 from sase.axe.runner_reporting import write_error_report
@@ -297,19 +298,22 @@ def main() -> None:
         _record_completion(state)
 
     finally:
-        finalize_runner_shutdown(
-            context=state.shutdown_context(),
-            state=state.shutdown_state(),
-            deps=RunnerShutdownDeps(
-                update_artifact_index=update_agent_artifact_index_for_marker_mutation,
-                was_killed=was_killed,
-                all_steps_hidden=all_steps_hidden,
-                write_error_report=write_error_report,
-                write_error_done_marker=write_error_done_marker,
-                send_completion_notification=send_completion_notification,
-                auto_dismiss_completed_agent=auto_dismiss_completed_agent,
-            ),
-        )
+        try:
+            finalize_runner_shutdown(
+                context=state.shutdown_context(),
+                state=state.shutdown_state(),
+                deps=RunnerShutdownDeps(
+                    update_artifact_index=update_agent_artifact_index_for_marker_mutation,
+                    was_killed=was_killed,
+                    all_steps_hidden=all_steps_hidden,
+                    write_error_report=write_error_report,
+                    write_error_done_marker=write_error_done_marker,
+                    send_completion_notification=send_completion_notification,
+                    auto_dismiss_completed_agent=auto_dismiss_completed_agent,
+                ),
+            )
+        finally:
+            cleanup_launch_scratch(exec_outcome=state.exec_outcome)
 
     sys.exit(0 if state.success else 1)
 

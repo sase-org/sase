@@ -3676,22 +3676,24 @@ managed_tmp:
     min_available_bytes: 34359738368
     recovery_available_bytes: 51539607552
     min_age_seconds: 43200
+    low_free_space_min_age_seconds: 3600
     min_entry_bytes: 1073741824
 ```
 
-| Field                                           | Type | Default       | Minimum | Description                                                                               |
-| ----------------------------------------------- | ---- | ------------- | ------- | ----------------------------------------------------------------------------------------- |
-| `managed_tmp.horizons.command_scratch_seconds`  | int  | `43200`       | `0`     | Age horizon for scratch whose reader is the command that wrote it (editors, wrappers).    |
-| `managed_tmp.horizons.handoff_seconds`          | int  | `259200`      | `0`     | Age horizon for files handed to a child process that may re-read them mid-run.            |
-| `managed_tmp.horizons.build_scratch_seconds`    | int  | `259200`      | `0`     | Age horizon for Cargo and other build scratch created for one launched agent.             |
-| `managed_tmp.horizons.run_artifact_seconds`     | int  | `1209600`     | `0`     | Age horizon for run artifacts the ACE Agents tab reads back long after the run finished.  |
-| `managed_tmp.max_removals`                      | int  | `2000`        | `1`     | Removal budget for one reaper invocation, so a long-neglected root converges over passes. |
-| `managed_tmp.pressure.max_bytes`                | int  | `17179869184` | `0`     | Managed-root size that triggers pressure pruning of aged build scratch. `0` disables it.  |
-| `managed_tmp.pressure.target_bytes`             | int  | `8589934592`  | `0`     | Managed-root size the pressure pass tries to return to.                                   |
-| `managed_tmp.pressure.min_available_bytes`      | int  | `34359738368` | `0`     | Filesystem free-space floor that also triggers pressure pruning. `0` disables it.         |
-| `managed_tmp.pressure.recovery_available_bytes` | int  | `51539607552` | `0`     | Filesystem free-space target used after crossing the low-space floor.                     |
-| `managed_tmp.pressure.min_age_seconds`          | int  | `43200`       | `0`     | Minimum age before pressure can prune a large scratch entry.                              |
-| `managed_tmp.pressure.min_entry_bytes`          | int  | `1073741824`  | `0`     | Small entries below this size do not participate in pressure pruning.                     |
+| Field                                                 | Type | Default       | Minimum | Description                                                                                   |
+| ----------------------------------------------------- | ---- | ------------- | ------- | --------------------------------------------------------------------------------------------- |
+| `managed_tmp.horizons.command_scratch_seconds`        | int  | `43200`       | `0`     | Age horizon for scratch whose reader is the command that wrote it (editors, wrappers).        |
+| `managed_tmp.horizons.handoff_seconds`                | int  | `259200`      | `0`     | Age horizon for files handed to a child process that may re-read them mid-run.                |
+| `managed_tmp.horizons.build_scratch_seconds`          | int  | `259200`      | `0`     | Age horizon for Cargo and other build scratch created for one launched agent.                 |
+| `managed_tmp.horizons.run_artifact_seconds`           | int  | `1209600`     | `0`     | Age horizon for run artifacts the ACE Agents tab reads back long after the run finished.      |
+| `managed_tmp.max_removals`                            | int  | `2000`        | `1`     | Removal budget for one reaper invocation, so a long-neglected root converges over passes.     |
+| `managed_tmp.pressure.max_bytes`                      | int  | `17179869184` | `0`     | Managed-root size that triggers pressure pruning of aged build scratch. `0` disables it.      |
+| `managed_tmp.pressure.target_bytes`                   | int  | `8589934592`  | `0`     | Managed-root size the pressure pass tries to return to.                                       |
+| `managed_tmp.pressure.min_available_bytes`            | int  | `34359738368` | `0`     | Filesystem free-space floor that also triggers pressure pruning. `0` disables it.             |
+| `managed_tmp.pressure.recovery_available_bytes`       | int  | `51539607552` | `0`     | Filesystem free-space target used after crossing the low-space floor.                         |
+| `managed_tmp.pressure.min_age_seconds`                | int  | `43200`       | `0`     | Minimum age before pressure can prune a large scratch entry.                                  |
+| `managed_tmp.pressure.low_free_space_min_age_seconds` | int  | `3600`        | `0`     | Emergency minimum age used instead when the free-space floor is breached, if lower than base. |
+| `managed_tmp.pressure.min_entry_bytes`                | int  | `1073741824`  | `0`     | Small entries below this size do not participate in pressure pruning.                         |
 
 ### markdown
 

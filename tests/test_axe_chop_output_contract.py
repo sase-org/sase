@@ -431,6 +431,39 @@ def test_managed_tmp_reap_emits_action_summary(
     }
 
 
+def test_managed_tmp_reap_reports_pressure_min_age(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_managed_tmp_reap")
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        script,
+        "reap_managed_tmpdir",
+        lambda: SimpleNamespace(
+            scanned=3,
+            removed=1,
+            removed_by_subdir={"cargo-targets": 1},
+            pressure_removed=1,
+            pressure_reclaimed_bytes=4096,
+            pressure_trigger="free_space",
+            pressure_available_bytes=8 * 1024,
+            pressure_recovery_available_bytes=16 * 1024,
+            pressure_effective_min_age_seconds=3600.0,
+            deindexed=0,
+            capped=False,
+            describe=lambda: "reclaimed 1 entries under managed",
+        ),
+    )
+
+    run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
+
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "ok"
+    assert result["counters"]["pressure_min_age_seconds"] == 3600.0
+
+
 _COUNTERS_ZERO = {
     "answered": 0,
     "errors": 0,

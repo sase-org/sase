@@ -4352,6 +4352,12 @@
               "default": 43200,
               "description": "Minimum age before pressure can prune a large scratch entry."
             },
+            "low_free_space_min_age_seconds": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 3600,
+              "description": "Emergency minimum age before pressure can prune a large scratch entry once the free-space floor is breached."
+            },
             "min_entry_bytes": {
               "type": "integer",
               "minimum": 0,

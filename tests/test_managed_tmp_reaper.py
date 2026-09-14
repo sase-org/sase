@@ -366,10 +366,10 @@ def test_pressure_reaping_catches_large_top_level_target_residue(
 def test_pressure_reaping_uses_low_free_space_below_root_ceiling(
     tmp_path: Path,
 ) -> None:
-    old_large = _aged_dir(
+    recent_large = _aged_dir(
         tmp_path,
-        "cargo-targets/run-old",
-        age_seconds=DAY,
+        "cargo-targets/run-recent",
+        age_seconds=2 * HOUR,
         size_bytes=8 * 1024,
     )
 
@@ -385,11 +385,102 @@ def test_pressure_reaping_uses_low_free_space_below_root_ceiling(
         filesystem_available_bytes=8 * 1024,
     )
 
-    assert not old_large.exists()
+    assert not recent_large.exists()
     assert result.pressure_removed == 1
     assert result.pressure_trigger == "free_space"
     assert result.pressure_available_bytes == 8 * 1024
     assert result.pressure_recovery_available_bytes == 16 * 1024
+    assert result.pressure_effective_min_age_seconds == HOUR
+
+
+def test_pressure_reaping_uses_low_free_space_age_when_size_also_triggers(
+    tmp_path: Path,
+) -> None:
+    recent_large = _aged_dir(
+        tmp_path,
+        "cargo-targets/run-recent",
+        age_seconds=2 * HOUR,
+        size_bytes=8 * 1024,
+    )
+
+    result = reap_managed_tmpdir(
+        tmp_path,
+        now=NOW,
+        pressure_max_bytes=4 * 1024,
+        pressure_target_bytes=1024,
+        pressure_min_available_bytes=10 * 1024,
+        pressure_recovery_available_bytes=16 * 1024,
+        pressure_min_age_seconds=12 * HOUR,
+        pressure_min_entry_bytes=2 * 1024,
+        filesystem_available_bytes=8 * 1024,
+    )
+
+    assert not recent_large.exists()
+    assert result.pressure_removed == 1
+    assert result.pressure_trigger == "size_and_free_space"
+    assert result.pressure_effective_min_age_seconds == HOUR
+
+
+def test_pressure_reaping_keeps_recent_targets_when_free_space_is_ample(
+    tmp_path: Path,
+) -> None:
+    recent_large = _aged_dir(
+        tmp_path,
+        "cargo-targets/run-recent",
+        age_seconds=2 * HOUR,
+        size_bytes=8 * 1024,
+    )
+
+    result = reap_managed_tmpdir(
+        tmp_path,
+        now=NOW,
+        pressure_max_bytes=4 * 1024,
+        pressure_target_bytes=1024,
+        pressure_min_available_bytes=10 * 1024,
+        pressure_recovery_available_bytes=16 * 1024,
+        pressure_min_age_seconds=12 * HOUR,
+        pressure_min_entry_bytes=2 * 1024,
+        filesystem_available_bytes=64 * 1024,
+    )
+
+    assert recent_large.exists()
+    assert result.pressure_removed == 0
+    assert result.pressure_trigger == "size"
+    assert result.pressure_effective_min_age_seconds == 12 * HOUR
+
+
+def test_low_free_space_pressure_age_still_protects_fresh_descendant(
+    tmp_path: Path,
+) -> None:
+    target = _aged_dir(
+        tmp_path,
+        "cargo-targets/run-live",
+        age_seconds=2 * HOUR,
+        size_bytes=8 * 1024,
+    )
+    fresh_child = target / "deps" / "lib.rmeta"
+    fresh_child.parent.mkdir(parents=True, exist_ok=True)
+    fresh_child.write_text("fresh", encoding="utf-8")
+    fresh_stamp = NOW - (0.5 * HOUR)
+    os.utime(fresh_child, (fresh_stamp, fresh_stamp))
+
+    result = reap_managed_tmpdir(
+        tmp_path,
+        now=NOW,
+        pressure_max_bytes=4 * 1024,
+        pressure_target_bytes=1024,
+        pressure_min_available_bytes=10 * 1024,
+        pressure_recovery_available_bytes=16 * 1024,
+        pressure_min_age_seconds=12 * HOUR,
+        pressure_min_entry_bytes=2 * 1024,
+        filesystem_available_bytes=8 * 1024,
+    )
+
+    assert target.exists()
+    assert fresh_child.exists()
+    assert result.pressure_removed == 0
+    assert result.pressure_trigger == "size_and_free_space"
+    assert result.pressure_effective_min_age_seconds == HOUR
 
 
 def test_pressure_reaping_stops_at_free_space_recovery_threshold(
@@ -696,6 +787,47 @@ def test_managed_tmp_config_overrides_pressure_thresholds(
 
     assert not old_large.exists()
     assert result.pressure_removed == 1
+
+
+def test_managed_tmp_config_overrides_low_free_space_pressure_age(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from sase.config import core as config_core
+
+    monkeypatch.setattr(
+        config_core,
+        "load_merged_config",
+        lambda: {
+            "managed_tmp": {
+                "pressure": {
+                    "max_bytes": 4 * 1024,
+                    "target_bytes": 1024,
+                    "min_available_bytes": 10 * 1024,
+                    "recovery_available_bytes": 16 * 1024,
+                    "min_age_seconds": 12 * HOUR,
+                    "low_free_space_min_age_seconds": 4 * HOUR,
+                    "min_entry_bytes": 2 * 1024,
+                }
+            }
+        },
+    )
+    recent_large = _aged_dir(
+        tmp_path,
+        "cargo-targets/run-recent",
+        age_seconds=3 * HOUR,
+        size_bytes=8 * 1024,
+    )
+
+    result = reap_managed_tmpdir(
+        tmp_path,
+        now=NOW,
+        filesystem_available_bytes=8 * 1024,
+    )
+
+    assert recent_large.exists()
+    assert result.pressure_removed == 0
+    assert result.pressure_trigger == "size_and_free_space"
+    assert result.pressure_effective_min_age_seconds == 4 * HOUR
 
 
 def test_stale_reap_wire_schema_version_raises(

@@ -7,6 +7,7 @@ from functools import lru_cache
 
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.paths import sase_projects_dir
+from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
 
 log = logging.getLogger(__name__)
 
@@ -148,6 +149,7 @@ def _managed_agent_scratch_env(
     tmpdir = get_sase_managed_tmpdir("agent-tmp", scratch_key)
     cargo_target_dir = get_sase_managed_tmpdir("cargo-targets", scratch_key)
     return {
+        SASE_LAUNCH_SCRATCH_KEY_ENV: scratch_key,
         "TMPDIR": tmpdir,
         "TMP": tmpdir,
         "TEMP": tmpdir,
@@ -346,13 +348,12 @@ def spawn_agent_subprocess(
         _remove_inherited_swarm_xprompts_env(subprocess_env)
         _remove_inherited_model_alias_overrides(subprocess_env, extra_env)
         _remove_inherited_linked_repo_env(subprocess_env)
-        subprocess_env.update(
-            _managed_agent_scratch_env(
-                safe_name=prepared.safe_name,
-                workspace_num=workspace_num,
-                timestamp=timestamp,
-            )
+        managed_scratch_env = _managed_agent_scratch_env(
+            safe_name=prepared.safe_name,
+            workspace_num=workspace_num,
+            timestamp=timestamp,
         )
+        subprocess_env.update(managed_scratch_env)
         subprocess_env.update(prepared.env_delta)
         if chop_launch_env is not None:
             # Continuations do not repeat the original proposal's extra_env, so
@@ -367,6 +368,9 @@ def spawn_agent_subprocess(
             # is not lost if the launch wire omitted blank values.
             subprocess_env.update(extra_env)
         _apply_launch_cargo_env(subprocess_env, extra_env=extra_env)
+        subprocess_env[SASE_LAUNCH_SCRATCH_KEY_ENV] = managed_scratch_env[
+            SASE_LAUNCH_SCRATCH_KEY_ENV
+        ]
         from sase.sdd.env import set_sdd_dir_env
 
         set_sdd_dir_env(

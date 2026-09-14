@@ -120,6 +120,24 @@ def test_missing_prompt_records_failed_done_and_finalizes(
     agent_kills.labels.assert_called_once_with(reason="error")
 
 
+def test_finalize_failure_still_runs_scratch_cleanup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(RUNNER_CODE_REFRESHED_ENV, raising=False)
+    with ExitStack() as stack:
+        _, _, finalize, _ = _runner_patches(stack, tmp_path=tmp_path)
+        finalize.side_effect = RuntimeError("finalize failed")
+        cleanup = stack.enter_context(
+            patch.object(run_agent_runner, "cleanup_launch_scratch")
+        )
+
+        with pytest.raises(RuntimeError, match="finalize failed"):
+            run_agent_runner.main()
+
+    cleanup.assert_called_once()
+
+
 def test_preprocessing_failure_records_failed_done_and_finalizes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
