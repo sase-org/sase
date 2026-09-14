@@ -2063,6 +2063,12 @@ Once an epic bead exists, the shared launch path:
    agent (live owners are terminated). This also covers owners that hold the name only
    as a `workflow_name`. If the forced-reuse cleanup cannot complete (a wipe fails or a
    name is still reserved afterward), the command aborts before mutating any bead state.
+   A waiting phase, land, or task worker is not considered reusable merely because a
+   signal was sent: SASE records explicit kill intent, waits for the old process group
+   to stop, escalates when needed, and only then removes artifacts, releases workspaces,
+   preclaims beads, or launches the replacement. If two waiting shells share the same
+   selected name, every matching shell must be confirmed stopped before the new shell
+   can reuse that name; an unresolved or still-running duplicate blocks the launch.
    `--dry-run` performs no cleanup; it only warns which live agents a real launch would
    force-reuse.
 

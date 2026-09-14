@@ -170,6 +170,83 @@ def test_cleanup_verify_wipes_failed_owner_with_dead_retry_assignee(
     assert wiped == [(owner,)]
 
 
+def test_cleanup_verify_keeps_duplicate_waiting_shells_concrete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    home = tmp_path / "home"
+    name = "sase-x7.4"
+    monkeypatch.setattr(Path, "home", lambda: home)
+    first = write_bead_agent_meta(
+        home,
+        name,
+        artifact_suffix="bead-older",
+        bead_id=name,
+        waiting=True,
+    )
+    second = write_bead_agent_meta(
+        home,
+        name,
+        artifact_suffix="bead-newer",
+        bead_id=name,
+        waiting=True,
+    )
+    rebuild_name_registry()
+    selection = select_bead_work_launch(slots=(_slot(name),), bead_assignees={})
+
+    destructive_dirs = {
+        target.artifacts_dir for target in selection.destructive_targets
+    }
+    assert destructive_dirs == {str(first), str(second)}
+
+    wiped: list[tuple[str, ...]] = []
+    monkeypatch.setattr(
+        "sase.bead.cli_work_cleanup_apply.wipe_force_reuse_owners",
+        lambda names, **_kwargs: wiped.append(tuple(names)),
+    )
+    prepare_selected_bead_work_force_reuse(
+        _force_reuse_query((name,)),
+        selection=selection,
+        bead_assignees={},
+    )
+
+    assert wiped == [(name,)]
+
+
+def test_cleanup_preview_blocks_running_duplicate_behind_waiting_owner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agent.names import claim_registered_name
+
+    home = tmp_path / "home"
+    name = "sase-x7.4"
+    monkeypatch.setattr(Path, "home", lambda: home)
+    waiting = write_bead_agent_meta(
+        home,
+        name,
+        artifact_suffix="bead-waiting",
+        bead_id=name,
+        waiting=True,
+    )
+    running = write_bead_agent_meta(
+        home,
+        name,
+        artifact_suffix="bead-running",
+        bead_id=name,
+    )
+    rebuild_name_registry()
+    claim_registered_name(name, waiting, replace_existing=True)
+
+    selection = select_bead_work_launch(slots=(_slot(name),), bead_assignees={})
+
+    assert selection.blocked_targets
+    assert selection.launch_names == frozenset()
+    assert any(
+        target.artifacts_dir == str(running)
+        and "running duplicate owner" in target.detail
+        for target in selection.blocked_targets
+    )
+
+
 def test_cleanup_verify_aborts_when_retry_descendant_goes_live(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
-import signal
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -14,12 +13,18 @@ from sase.agent.names._common import is_process_alive
 from sase.agent.names._registry import rebuild_name_registry
 from sase.agent.names._wipe_payload import read_json_object
 from sase.agent.names._wipe_plan import WipePlan
+from sase.agent.user_kill import request_user_kill
 from sase.core.agent_artifact_index_lifecycle import (
     delete_agent_artifact_index_artifacts,
     sync_dismissed_agent_artifact_index,
     update_agent_artifact_index_for_marker_mutation,
 )
+from sase.core.force_reuse_stop_barrier import decide_force_reuse_stop_barrier
 from sase.core.paths import sase_home
+
+_FORCE_REUSE_STOP_GRACE_SECONDS = 1.0
+_FORCE_REUSE_SIGKILL_CONFIRM_SECONDS = 0.25
+_FORCE_REUSE_STOP_POLL_INTERVAL_SECONDS = 0.05
 
 
 @dataclass(frozen=True)
@@ -33,9 +38,31 @@ class _WipeExecution:
     errors: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class _LiveArtifactTarget:
+    path: Path
+    name: str
+    pid: int
+    meta: dict[str, object]
+
+
 def execute_wipe_plan(plan: WipePlan) -> _WipeExecution:
     errors: list[str] = []
-    killed = _terminate_live_artifacts(plan, errors)
+    killed, stop_errors = _terminate_live_artifacts(plan)
+    errors.extend(stop_errors)
+    if errors:
+        return _WipeExecution(
+            artifact_dirs_removed=set(),
+            bundle_paths_removed=set(),
+            registry_names_removed=set(),
+            dismissed_index_entries_removed=0,
+            notifications_dismissed=0,
+            killed_processes=killed,
+            errors=tuple(errors),
+        )
+
+    for path in sorted(plan.artifact_dirs):
+        _release_artifact_workspace(path)
     removed_artifacts = _remove_artifact_dirs(plan.artifact_dirs, errors)
     delete_agent_artifact_index_artifacts(removed_artifacts)
     removed_bundles = _remove_bundle_paths(plan.bundle_paths, plan.suffixes, errors)
@@ -70,34 +97,135 @@ def execute_wipe_plan(plan: WipePlan) -> _WipeExecution:
     )
 
 
-def _terminate_live_artifacts(plan: WipePlan, errors: list[str]) -> int:
-    killed = 0
-    for path in sorted(plan.artifact_dirs):
-        if _terminate_artifact_process(path, errors):
-            killed += 1
-        _release_artifact_workspace(path)
-    return killed
+def _terminate_live_artifacts(plan: WipePlan) -> tuple[int, tuple[str, ...]]:
+    targets = tuple(
+        target
+        for path in sorted(plan.artifact_dirs)
+        if (target := _live_artifact_target(path)) is not None
+    )
+    if not targets:
+        return 0, ()
+
+    observations = _stop_live_artifact_targets(targets)
+    killed = sum(
+        1
+        for observation in observations
+        if observation.get("was_live") is True
+        and observation.get("alive_after_stop") is False
+    )
+    try:
+        decision = decide_force_reuse_stop_barrier(observations)
+    except Exception as exc:  # noqa: BLE001 - fail closed on stale bindings
+        return killed, (
+            "forced reuse cleanup could not verify process stops through "
+            f"sase_core_rs: {exc}",
+        )
+    if decision.get("proceed") is True:
+        return killed, ()
+    raw_errors = decision.get("errors")
+    if isinstance(raw_errors, list):
+        errors = tuple(str(error) for error in raw_errors if str(error))
+    else:
+        errors = ()
+    if errors:
+        return killed, errors
+    return killed, ("forced reuse cleanup did not verify every process stop",)
 
 
-def _terminate_artifact_process(path: Path, errors: list[str]) -> bool:
+def _live_artifact_target(path: Path) -> _LiveArtifactTarget | None:
     if (path / "done.json").exists():
-        return False
+        return None
     meta = read_json_object(path / "agent_meta.json") or {}
     if not is_process_alive(meta, path):
-        return False
+        return None
     pid = meta.get("pid")
     if not isinstance(pid, int):
-        return False
+        return None
+    raw_name = meta.get("name") or meta.get("workflow_name") or path.name
+    name = raw_name if isinstance(raw_name, str) and raw_name else path.name
+    return _LiveArtifactTarget(path=path, name=name, pid=pid, meta=meta)
+
+
+def _stop_live_artifact_targets(
+    targets: tuple[_LiveArtifactTarget, ...],
+) -> tuple[dict[str, object], ...]:
+    deadline = time.monotonic() + _FORCE_REUSE_STOP_GRACE_SECONDS
+    initial_results: dict[Path, tuple[str, str | None]] = {}
+    for target in targets:
+        initial_results[target.path] = _request_target_stop(target, wait=False)
+
+    while time.monotonic() < deadline and any(
+        _target_still_alive(target) for target in targets
+    ):
+        time.sleep(_FORCE_REUSE_STOP_POLL_INTERVAL_SECONDS)
+
+    observations: list[dict[str, object]] = []
+    for target in targets:
+        status, detail = initial_results[target.path]
+        alive = _target_still_alive(target)
+        if alive and status not in {"permission_denied", "identity_mismatch", "error"}:
+            status, detail = _request_target_stop(target, wait=True, grace_seconds=0.0)
+            alive = _wait_until_target_state(
+                target,
+                alive=False,
+                timeout_seconds=_FORCE_REUSE_SIGKILL_CONFIRM_SECONDS,
+            )
+        observations.append(
+            {
+                "name": target.name,
+                "artifacts_dir": str(target.path),
+                "pid": target.pid,
+                "was_live": True,
+                "stop_status": status,
+                "alive_after_stop": alive,
+                "detail": detail,
+            }
+        )
+    return tuple(observations)
+
+
+def _request_target_stop(
+    target: _LiveArtifactTarget,
+    *,
+    wait: bool,
+    grace_seconds: float | None = None,
+) -> tuple[str, str | None]:
     try:
-        os.killpg(pid, signal.SIGTERM)
-        return True
-    except ProcessLookupError:
-        return False
-    except PermissionError as exc:
-        errors.append(f"permission denied killing pid {pid}: {exc}")
-    except OSError as exc:
-        errors.append(f"failed killing pid {pid}: {exc}")
-    return False
+        result = request_user_kill(
+            target.pid,
+            artifacts_dir=target.path,
+            source="force_reuse_cleanup",
+            reason=f"forced reuse cleanup for {target.name}",
+            wait=wait,
+            grace_seconds=(
+                _FORCE_REUSE_STOP_GRACE_SECONDS
+                if grace_seconds is None
+                else grace_seconds
+            ),
+            poll_interval=_FORCE_REUSE_STOP_POLL_INTERVAL_SECONDS,
+        )
+    except Exception as exc:  # noqa: BLE001 - reported through the barrier
+        return "error", str(exc)
+    return result.status, result.error
+
+
+def _wait_until_target_state(
+    target: _LiveArtifactTarget,
+    *,
+    alive: bool,
+    timeout_seconds: float,
+) -> bool:
+    deadline = time.monotonic() + max(timeout_seconds, 0.0)
+    observed = _target_still_alive(target)
+    while observed is not alive and time.monotonic() < deadline:
+        time.sleep(_FORCE_REUSE_STOP_POLL_INTERVAL_SECONDS)
+        observed = _target_still_alive(target)
+    return observed
+
+
+def _target_still_alive(target: _LiveArtifactTarget) -> bool:
+    meta = read_json_object(target.path / "agent_meta.json") or target.meta
+    return is_process_alive(meta, target.path)
 
 
 def _release_artifact_workspace(path: Path) -> None:

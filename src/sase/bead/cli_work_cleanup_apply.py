@@ -151,8 +151,16 @@ def revalidate_bead_work_launch_selection(
     return current
 
 
-def _target_stability_key(target: CleanupTarget) -> tuple[str, str, str]:
-    return (target.slot_id, target.name, target.expected_bead_id)
+def _target_stability_key(
+    target: CleanupTarget,
+) -> tuple[str, str, str, str, str]:
+    return (
+        target.slot_id,
+        target.name,
+        target.expected_bead_id,
+        target.artifacts_dir,
+        target.generation,
+    )
 
 
 def _verify_cleanup_target_still_selected(

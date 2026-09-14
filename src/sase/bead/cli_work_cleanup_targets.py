@@ -191,8 +191,8 @@ def classify_slot_owner(
             view=view,
         )
 
-    record = _record_for_owner(owner, view)
-    if record is None:
+    records = _concrete_records_for_owner(slot.owner_name, owner, view)
+    if not records:
         return (
             classify_stale_registry_owner(
                 slot,
@@ -201,16 +201,76 @@ def classify_slot_owner(
                 view=view,
             ),
         )
-    return (
-        classify_artifact_record(
-            slot,
-            record,
-            owner_name=slot.owner_name,
-            bead_assignees=bead_assignees,
-            membership="registry",
-            view=view,
-        ),
-    )
+
+    owner_key = _owner_artifact_key(owner)
+    targets: list[CleanupTarget] = []
+    for record in records:
+        artifact_key = _normalized_path_key(getattr(record, "artifact_dir", ""))
+        try:
+            target = classify_artifact_record(
+                slot,
+                record,
+                owner_name=slot.owner_name,
+                bead_assignees=bead_assignees,
+                membership="registry",
+                view=view,
+            )
+        except ForcedReuseCleanupError as exc:
+            targets.append(
+                _blocked_target(
+                    slot,
+                    owner_name=slot.owner_name,
+                    detail=str(exc),
+                    artifacts_dir=str(getattr(record, "artifact_dir", "")),
+                    generation=str(getattr(record, "timestamp", "")),
+                )
+            )
+            continue
+        if target.preserved and artifact_key != owner_key:
+            targets.append(
+                _blocked_target(
+                    slot,
+                    owner_name=slot.owner_name,
+                    detail=(
+                        f"running duplicate owner for bead {slot.expected_bead_id} "
+                        f"at {getattr(record, 'artifact_dir', '')} prevents "
+                        "broad forced reuse cleanup"
+                    ),
+                    artifacts_dir=target.artifacts_dir,
+                    generation=target.generation,
+                )
+            )
+            continue
+        targets.append(target)
+
+    if any(target.blocked for target in targets):
+        return tuple(targets)
+    if any(target.preserved for target in targets):
+        return tuple(target for target in targets if target.preserved)
+    return tuple(targets)
+
+
+def _concrete_records_for_owner(
+    owner_name: str,
+    owner: dict[str, object],
+    view: _AgentOwnerView,
+) -> tuple[AgentArtifactRecordWire, ...]:
+    records_by_key: dict[str, AgentArtifactRecordWire] = {}
+    owner_record = _record_for_owner(owner, view)
+    if owner_record is not None:
+        records_by_key[
+            _normalized_path_key(getattr(owner_record, "artifact_dir", ""))
+        ] = owner_record
+    for record in view.records_for_agent_name(owner_name):
+        records_by_key[_normalized_path_key(getattr(record, "artifact_dir", ""))] = (
+            record
+        )
+    return tuple(records_by_key[key] for key in sorted(records_by_key))
+
+
+def _owner_artifact_key(owner: dict[str, object]) -> str:
+    artifacts_dir = owner.get("artifacts_dir")
+    return _normalized_path_key(artifacts_dir) if isinstance(artifacts_dir, str) else ""
 
 
 def _record_for_owner(

@@ -129,6 +129,7 @@ def write_bead_agent_meta(
     home: Path,
     name: str,
     *,
+    artifact_suffix: str | None = None,
     bead_id: str | None = None,
     done: bool = False,
     waiting: bool = False,
@@ -146,7 +147,7 @@ def write_bead_agent_meta(
         / "proj"
         / "artifacts"
         / "ace-run"
-        / f"bead-{name.replace('/', '-')}"
+        / (artifact_suffix or f"bead-{name.replace('/', '-')}")
     )
     artifact_dir.mkdir(parents=True)
     meta: dict[str, Any] = {
