@@ -20,6 +20,7 @@ from ._remote_lifecycle import AgentRemoteLifecycleMixin
 from ._killing import AgentKillingMixin
 from ._loading import AgentLoadingMixin
 from ._marking import AgentMarkingMixin
+from ._metadata_pager import AgentMetadataPagerMixin
 from ._metadata_search import AgentMetadataSearchMixin
 from ._navigation_order import AgentNavigationOrderMixin
 from ._notifications import AgentNotificationMixin
@@ -59,6 +60,7 @@ TabName = Literal["artifacts", "agents", "axe"]
 
 
 class AgentsMixinCore(
+    AgentMetadataPagerMixin,
     AgentMetadataSearchMixin,
     AgentApproveMixin,
     AgentFoldPersistenceMixin,

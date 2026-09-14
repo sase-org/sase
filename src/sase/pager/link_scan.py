@@ -48,6 +48,7 @@ class PagerOrigin(StrEnum):
     FILE = "file"
     DIFF = "diff"
     RESEARCH = "research"
+    AGENT = "agent"
 
 
 class LinkSpanKind(StrEnum):
@@ -168,4 +169,7 @@ _BARE_TOKEN_RECOGNIZERS: Mapping[
 ] = {
     PagerOrigin.BEAD: _BARE_BEAD_ID_RE.finditer,
     PagerOrigin.DIFF: _BARE_SHORT_SHA_RE.finditer,
+    # Agent metadata documents treat bare bead ids exactly like bead
+    # documents (the BEAD section's own id is a bare token in its heading).
+    PagerOrigin.AGENT: _BARE_BEAD_ID_RE.finditer,
 }

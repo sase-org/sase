@@ -287,6 +287,9 @@ class KeybindingBindingsMixin:
                 )
             return bindings
 
+        if not getattr(agent, "fleet_origin_alias", None):
+            bindings.append((self._kd("view_agent_metadata"), "metadata"))
+
         if getattr(agent, "is_monitor", False):
             # A monitor has no LLM process to kill; ``x`` only stops the
             # supervised command while it is still running, and otherwise

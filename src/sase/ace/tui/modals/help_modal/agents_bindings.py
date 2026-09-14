@@ -122,6 +122,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.edit_spec), "Edit chat(s) / open remote content"),
                 (d(a.edit_panel), "Edit panel content in editor"),
                 (d(a.view_files), "Hint files/tools/commits/clans"),
+                (d(a.view_agent_metadata), "Open metadata in pager"),
                 ("p (commit view)", "Toggle attached local plan / commit"),
                 (
                     f"{d(a.toggle_thinking)} / {d(a.toggle_thinking_reverse)}",

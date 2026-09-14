@@ -626,6 +626,10 @@ ace:
       jump_to_agent_patch: "enter"
       edit_panel: "E"
       show_agent_run_log: "V"
+      # Tab-disjoint with show_agent_run_log: Agents uses V to open the
+      # metadata panel in the pager; other tabs keep V for the Agent Run
+      # Log modal.
+      view_agent_metadata: "V"
       open_artifact_files: "a"
       # Thinking panel
       toggle_thinking: "right_square_bracket"

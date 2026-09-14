@@ -65,12 +65,12 @@ _LOCAL_AGENT_ROW_ACTIONS = frozenset(
         "open_tmux",
         "rename_cl",
         "agents_retry",
-        "show_agent_run_log",
         "start_agent_from_patch",
         "start_sibling_mode",
         "start_tmux_mode",
         "toggle_agent_unread",
         "toggle_attempt_view",
+        "view_agent_metadata",
     }
 )
 
@@ -115,6 +115,14 @@ def check_app_action(
                 selected_agent_remote
                 and getattr(selected_agent, "fleet_dispatch_operation_key", None)
             )
+    if action == "show_agent_run_log" and app.current_tab == "agents":
+        return False
+    if action == "view_agent_metadata":
+        return (
+            app.current_tab == "agents"
+            and selected_agent is not None
+            and not selected_agent_remote
+        )
     if action == "agents_refresh":
         return app.current_tab == "agents"
     if action == "refresh" and app.current_tab == "agents":

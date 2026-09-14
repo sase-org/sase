@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 
 from rich.rule import Rule
 from textual.app import ComposeResult
@@ -83,7 +83,15 @@ class PagerScreen(
         attached_handlers: Mapping[str, AttachedTargetHandler] | None = None,
         resolve_ref_fn: ResolveRef | None = None,
         syntax_enabled: bool = True,
+        refresh_document_fn: Callable[[], PagerDocument | None] | None = None,
     ) -> None:
+        """Host one `PagerDocument`.
+
+        ``refresh_document_fn``, when given, is invoked from a worker thread
+        by ``r`` to re-snapshot a live source (e.g. a running agent) instead
+        of merely recomposing the frozen document; it must be thread-safe. A
+        ``None`` return or a raised exception keeps the current document.
+        """
         super().__init__()
         self.document = document
         self.links_enabled = links_enabled
@@ -92,6 +100,8 @@ class PagerScreen(
             {} if attached_handlers is None else attached_handlers
         )
         self._resolve_ref = resolve_ref if resolve_ref_fn is None else resolve_ref_fn
+        self._refresh_document_fn = refresh_document_fn
+        self._refresh_in_flight = False
         self._body: ComposedBody | None = None
         self._body_width: int | None = None
         self._label_layer: PagerLabelLayer | None = None

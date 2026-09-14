@@ -310,6 +310,13 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("agent run log",),
     ),
     (
+        "view_agent_metadata",
+        "View agent metadata in pager",
+        "Agents",
+        AGENTS_ONLY,
+        ("metadata", "metadata panel", "pager"),
+    ),
+    (
         "toggle_attempt_view",
         "Toggle attempt view",
         "Agents",

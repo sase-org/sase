@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from textual.widgets import Static
@@ -10,12 +11,14 @@ from sase.pager._gutter import gutter_width, logical_line_count
 from sase.pager._labels import (
     LabelWindowScope,
     PAGER_LABEL_TWO_KEY_CAPACITY,
+    PagerLabel,
     PagerLabelLayer,
     build_label_layer,
 )
 from sase.pager._layout import ComposedBody, compose_body, current_section_index
 from sase.pager._screen_widgets import PagerBodyScroll
-from sase.pager.document import PagerSection
+from sase.pager.app import PendingAction
+from sase.pager.document import PagerDocument, PagerSection
 
 
 class PagerBodyMixin:
@@ -25,6 +28,11 @@ class PagerBodyMixin:
     _body_width: int | None
     _label_layer: PagerLabelLayer | None
     _label_window_scope: LabelWindowScope | None
+    _label_pending_prefix: str
+    _last_activated_label: PagerLabel | None
+    _pending_action: PendingAction
+    _refresh_document_fn: Callable[[], PagerDocument | None] | None
+    _refresh_in_flight: bool
 
     def action_scroll_down(self: Any) -> None:
         self._body_scroll().scroll_relative(y=1, animate=False)
@@ -66,11 +74,73 @@ class PagerBodyMixin:
         self._goto_section(-1)
 
     def action_refresh(self: Any) -> None:
+        refresh_document_fn = self._refresh_document_fn
+        if refresh_document_fn is None:
+            self._dangling_refs.clear()
+            self._resolve_generation += 1
+            self._clear_goto_state()
+            self._body_width = None
+            self._ensure_body()
+            self._after_scroll()
+            return
+        if self._refresh_in_flight:
+            return
+        self._refresh_in_flight = True
+
+        def do_refresh() -> None:
+            try:
+                try:
+                    document = refresh_document_fn()
+                except Exception:
+                    document = None
+                self.app.call_from_thread(self._apply_refreshed_document, document)
+            finally:
+                self._refresh_in_flight = False
+
+        self.run_worker(do_refresh, thread=True)
+
+    def _apply_refreshed_document(self: Any, document: PagerDocument | None) -> None:
+        """Swap in a freshly re-snapshotted document, or keep the current one.
+
+        Called on the UI thread from :meth:`action_refresh`'s worker. A
+        ``None`` document means the provider found nothing to refresh (the
+        row disappeared) or raised; the current document is kept either way,
+        with a brief footer status standing in for the usual full recompose.
+        """
+        if document is None:
+            self._set_footer_status("Refresh failed — keeping current document")
+            return
+
+        previous_identity = None
+        if self.document.sections:
+            previous_identity = self.document.sections[
+                self._current_section_index()
+            ].identity
+
+        self.document = document
         self._dangling_refs.clear()
         self._resolve_generation += 1
         self._clear_goto_state()
+        self._search.exit(restore_scroll=False, refresh=False)
+        self._label_pending_prefix = ""
+        self._pending_action = "follow"
+        self._last_activated_label = None
+        self._body = None
         self._body_width = None
+        self._label_layer = None
         self._ensure_body()
+
+        target_row = 0
+        body = self._body
+        if previous_identity is not None and body is not None:
+            for index, section in enumerate(self.document.sections):
+                if section.identity == previous_identity:
+                    target_row = body.section_offsets[index]
+                    break
+        scroll = self._body_scroll()
+        clamped = max(0, min(target_row, scroll.max_scroll_y))
+        scroll.scroll_to(y=clamped, animate=False, immediate=True)
+        self._set_footer_status(None)
         self._after_scroll()
 
     def _goto_section(self: Any, direction: int) -> None:

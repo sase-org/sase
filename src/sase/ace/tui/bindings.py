@@ -271,6 +271,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # Jump to Patch from agent (agents tab)
     Binding("enter", "jump_to_agent_patch", "Go to Patch", show=False),
     Binding("V", "show_agent_run_log", "Agent Run Log", show=False),
+    Binding("V", "view_agent_metadata", "Agent Metadata", show=False),
     Binding("ctrl+l", "dismiss_toasts", "Dismiss Toasts", show=False),
 ]
 

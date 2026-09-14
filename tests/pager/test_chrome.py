@@ -38,11 +38,22 @@ def _file_section(title: str = "artifact_links.py") -> PagerSection:
     )
 
 
+def _agent_section(title: str = "IDENTITY") -> PagerSection:
+    return PagerSection(
+        identity="agent-identity",
+        title=title,
+        kind="agent",
+        body="Name: worker\n",
+    )
+
+
 def test_section_icon_and_accent_use_the_artifacts_tables() -> None:
     assert _section_icon("bead") == "◈"
     assert _section_icon("file") == "▤"
+    assert _section_icon("agent") == "⬡"
     assert _section_accent("bead") == "#D787FF"
     assert _section_accent("file") == "#FFAF5F"
+    assert _section_accent("agent") == "#0062FF"
 
 
 def test_section_icon_and_accent_fall_back_for_unknown_kinds() -> None:
@@ -190,6 +201,37 @@ def test_subject_line_drops_the_syntax_hint_before_the_subject_at_narrow_width()
 
     assert "· py" not in with_hint.plain
     assert with_hint.plain == without_hint.plain
+
+
+def test_subject_line_uses_the_agent_glyph_and_accent() -> None:
+    section = _agent_section()
+    document = PagerDocument(
+        sections=(section,), title="worker", origin=PagerOrigin.AGENT
+    )
+
+    line = subject_line(
+        document,
+        section,
+        section_index=1,
+        section_total=1,
+        scroll_percent=0,
+        char_count=13,
+        width=80,
+    )
+
+    assert "⬡" in line.plain
+    color = line.get_style_at_offset(_CONSOLE, 0).color
+    assert color is not None
+    assert color.get_truecolor().hex == "#0062ff"
+
+
+def test_section_rule_renders_the_agent_kind() -> None:
+    section = _agent_section("MODEL")
+
+    line = section_rule(section, index=2, total=7, width=80)
+
+    assert line.plain.startswith("━━ 2/7 ━ ⬡ MODEL")
+    assert len(line.plain) == 80
 
 
 def test_section_rule_shape_matches_the_design_doc() -> None:

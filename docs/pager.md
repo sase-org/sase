@@ -107,7 +107,7 @@ without highlighting. Unknown types can still be forced with an explicit lexer.
 | `/`, `n`, `N`          | Search; repeat forward / backward                                     |
 | `Backspace` / `Ctrl+O` | Follow the pager trail backward; an empty back trail closes the pager |
 | `Ctrl+I`               | Follow the pager trail forward                                        |
-| `r`                    | Reload the current content                                            |
+| `r`                    | Reload the current content, or re-snapshot it for a live source       |
 | `y<label>`             | Copy a painted artifact reference or resolved file path               |
 | `yy`                   | Copy the current section's reference or path, when one is available   |
 | `E<label>`             | Open a painted file-backed target in `$EDITOR`                        |
@@ -170,3 +170,23 @@ current document and trail unchanged.
 Reload and retry never clone, reset, or clean a workspace. Each press searches once on a
 background worker; diagnostics travel with that result, so the UI does not run a second
 Git search to build a toast.
+
+## Live refresh
+
+A host embedding the pager (such as `sase ace`'s Agents-tab metadata document, opened
+with `V`) may wire a refresh provider instead of leaving `r` to recompose the frozen
+document. The provider re-snapshots the live source — a still-running agent's status,
+timestamps, and paths — on a background thread and returns a fresh document. `r` swaps
+it in, keeping the current section by identity when possible and clamping scroll to the
+new content's bounds. A provider that returns nothing (the source is gone) or raises
+leaves the current document and trail untouched, with a brief footer status standing in
+for the usual recompose. Without a wired provider, `r` keeps its plain reload behavior.
+
+## Document origins
+
+A document's origin seeds which bare-token link rules apply, since a bare token's
+meaning depends on where it came from: `bead` and `agent` documents recognize a bare
+bead id (`sase-uk.7`) as a bead link, and `diff` documents recognize a bare short SHA as
+a commit link. `file` and `research` documents apply no bare-token rules. The Agents-tab
+metadata pager uses the `agent` origin so a bead id mentioned in its BEAD section links
+exactly as it would in a bead document.

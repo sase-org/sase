@@ -166,6 +166,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("cycle_grouping_mode", "Cycle Grouping", False),
     ("cycle_grouping_mode_reverse", "Cycle Grouping Rev", False),
     ("show_agent_run_log", "Agent Run Log", False),
+    ("view_agent_metadata", "Agent Metadata", False),
     ("open_command_palette", "Command Palette", False),
     ("dismiss_toasts", "Dismiss Toasts", False),
 ]

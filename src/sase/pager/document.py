@@ -159,7 +159,7 @@ def target_resolution_ref(target: PagerTargetSpan, origin: PagerOrigin) -> str |
         return target.text
     if target.kind == LinkSpanKind.BARE_TOKEN.value:
         token = target.target if isinstance(target.target, str) else target.text
-        if origin is PagerOrigin.BEAD:
+        if origin in (PagerOrigin.BEAD, PagerOrigin.AGENT):
             return f"bead:{token}"
         if origin is PagerOrigin.DIFF:
             return f"commit:{token}"

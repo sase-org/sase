@@ -149,6 +149,7 @@ class AppKeymaps:
     jump_to_agent_patch: str
     edit_panel: str
     show_agent_run_log: str
+    view_agent_metadata: str
     open_artifact_files: str
     toggle_attempt_view: str
     toggle_agent_unread: str

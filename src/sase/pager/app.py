@@ -59,6 +59,7 @@ class SasePager(App[PagerExit]):
         attached_handlers: Mapping[str, AttachedTargetHandler] | None = None,
         resolve_ref_fn: ResolveRef | None = None,
         syntax_session: PagerSyntaxSession | None = None,
+        refresh_document_fn: Callable[[], PagerDocument | None] | None = None,
     ) -> None:
         super().__init__()
         self.document = document
@@ -70,6 +71,7 @@ class SasePager(App[PagerExit]):
             {} if attached_handlers is None else attached_handlers
         )
         self._resolve_ref_fn = resolve_ref_fn
+        self._refresh_document_fn = refresh_document_fn
 
     def on_mount(self) -> None:
         from sase.pager.screen import PagerScreen
@@ -83,6 +85,7 @@ class SasePager(App[PagerExit]):
                 attached_handlers=self._attached_handlers,
                 resolve_ref_fn=self._resolve_ref_fn,
                 syntax_enabled=self.syntax_enabled,
+                refresh_document_fn=self._refresh_document_fn,
             ),
             callback=self.exit,
         )

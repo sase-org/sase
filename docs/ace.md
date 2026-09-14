@@ -1230,7 +1230,7 @@ somewhere stale.
 | `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                          |
 | `v`                 | View files (hint mode; annotates clan/family containers in place)                                              |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                              |
-| `V`                 | Open the Agent Run Log modal for the focused agent                                                             |
+| `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                             |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                |
 | `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`      |
 | `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)        |
@@ -4679,6 +4679,15 @@ dismissal-prefixed candidates so it anchors on a live, visible agent.
 
 The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about
 the selected agent:
+
+Pressing `V` on any local Agents-tab row (running or done) opens that same agent's
+metadata full-screen in the [pager](pager.md) instead, as a sectioned document —
+IDENTITY, MODEL, WORKSPACE, TIMELINE, CONTENT, SASE CONTEXT, and BEAD (skipping any that
+would be empty) — with `/` search, `;` goto, `Ctrl+N`/`Ctrl+P` section jumps, and `y`
+copy, on top of the panel's own `Ctrl+J`/`Ctrl+K` navigation. `r` inside the pager
+re-snapshots the agent, which matters for a still-running one. `V` is unavailable for
+remote fleet rows and when no agent is selected; other tabs keep `V` bound to the Agent
+Run Log modal.
 
 `Ctrl+J` and `Ctrl+K` cycle forward and backward through the rendered titled sections in
 this pane, with the true top of the metadata document as a waypoint before the first

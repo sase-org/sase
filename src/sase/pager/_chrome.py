@@ -23,6 +23,7 @@ from sase.pager.document import PagerDocument, PagerSection
 _SECTION_KIND_TAB: Mapping[str, str] = {
     "bead": "beads",
     "file": "files",
+    "agent": "agents",
 }
 _DEFAULT_SECTION_ICON = "◆"
 _DEFAULT_SECTION_ACCENT = "#AFAFAF"
