@@ -30,7 +30,7 @@ from sase.procs.request import ProcSubmitRequest
 from sase.procs.service import ProcSubmitError, submit_proc_request
 from sase.procs.spawn import SUPERVISOR_LOG_NAME, DetachedSupervisor
 
-from . import naming, store
+from . import naming, store_lane
 from .claims import MONITOR_WORKSPACE_CLAIM_WORKFLOW
 from .diagnostics import diagnostics_dir
 from .followup_prompt import DEFAULT_NEXT_OUTPUT, NEXT_OUTPUT_CHOICES
@@ -162,7 +162,9 @@ def _start_monitor_locked(
     durable_lane = lane_start.durable_lane
     suffix = naming.allocate_monitor_suffix(
         durable_lane,
-        has_existing_monitor=store.has_any_monitor(request.project_name, durable_lane),
+        has_existing_monitor=store_lane.has_any_monitor(
+            request.project_name, durable_lane
+        ),
     )
     monitor_id = naming.new_monitor_id()
     bound_completion_ref: str | None = None
@@ -170,7 +172,7 @@ def _start_monitor_locked(
         from sase.finalizers.declaration import FinalizerDeclarationError
         from sase.finalizers.prepare import bind_prepared_completion
 
-        starter_artifacts = store.caller_artifacts_dir()
+        starter_artifacts = store_lane.caller_artifacts_dir()
         try:
             bind_prepared_completion(
                 request.completion_ref,
@@ -228,7 +230,7 @@ def _start_monitor_locked(
                 rollback_prepared_completion(
                     bound_completion_ref,
                     monitor_id=monitor_id,
-                    artifacts_dir=store.caller_artifacts_dir(),
+                    artifacts_dir=store_lane.caller_artifacts_dir(),
                 )
             teardown_failed_member(artifacts_dir, str(exc))
             raise MonitorError(
@@ -344,7 +346,7 @@ def _start_monitor_locked(
             rollback_prepared_completion(
                 bound_completion_ref,
                 monitor_id=monitor_id,
-                artifacts_dir=store.caller_artifacts_dir(),
+                artifacts_dir=store_lane.caller_artifacts_dir(),
             )
         teardown_failed_member(artifacts_dir, str(exc))
         raise MonitorError(str(exc)) from exc
@@ -400,7 +402,9 @@ def _replayed_lane_monitor(
     the lane is clear for a new one -- including a lost monitor from some
     *other* request, which a new start is allowed to supersede.
     """
-    existing_record = store.monitor_blocking_start_for_lane(request.project_name, lane)
+    existing_record = store_lane.monitor_blocking_start_for_lane(
+        request.project_name, lane
+    )
     if existing_record is None:
         return None
 

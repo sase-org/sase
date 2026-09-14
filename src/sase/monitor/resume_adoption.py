@@ -348,7 +348,7 @@ def collect_receiver_proofs(
 
 def _try_resolve_agent(project_name: str, identity: str) -> Any | None:
     try:
-        from .store import resolve_exact_agent
+        from .store_lane import resolve_exact_agent
 
         return resolve_exact_agent(project_name, identity)
     except Exception:

@@ -9,16 +9,14 @@ from pathlib import Path
 import pytest
 
 from sase.monitor.models import MonitorLaneError
-from sase.monitor.store import (
+from sase.monitor.store import get_monitor, list_monitors, read_monitor_marker
+from sase.monitor.store_lane import (
     active_monitor_for_lane,
     caller_artifacts_dir,
     default_caller,
     durable_lane_for_record,
-    get_monitor,
     has_any_monitor,
-    list_monitors,
     monitor_blocking_start_for_lane,
-    read_monitor_marker,
     resolve_caller_agent,
     resolve_exact_agent,
     resolve_lane,
@@ -343,7 +341,7 @@ def test_read_monitor_marker_does_not_query_the_artifact_index(
     def _fail(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("read_monitor_marker must not query the artifact index")
 
-    monkeypatch.setattr("sase.monitor.store._project_records", _fail)
+    monkeypatch.setattr("sase.monitor.store.project_records", _fail)
 
     record = read_monitor_marker("proj", monitor_dir)
 

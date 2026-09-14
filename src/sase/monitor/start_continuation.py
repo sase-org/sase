@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from . import store
+from . import store_lane
 from .models import MonitorError, MonitorRecord
 from .request import StartMonitorRequest
 from .start_lane import LaneStart, StartIdentity
@@ -90,7 +90,7 @@ def peek_continuation_parents(
         lane_ctx = (
             identity.context
             if identity.context is not None
-            else store.resolve_lane(request.project_name, identity.target)
+            else store_lane.resolve_lane(request.project_name, identity.target)
         )
     except Exception:
         return [], None, None

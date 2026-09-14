@@ -10,7 +10,7 @@ from sase.plan_chain import agent_family_base
 from sase.workspace_provider import resolve_workspace_owner_for_path
 from sase.workspace_provider.utils import parse_workspace_dir
 
-from . import store
+from . import store_lane
 from .models import MonitorLaneError
 from .request import StartMonitorRequest
 from .start_metadata import read_start_meta
@@ -43,13 +43,13 @@ class StartIdentity:
     start, or the explicit ``--agent`` / lane string. ``context`` is the
     already-resolved artifact for an implicit start, reused by
     ``resolve_lane_start()`` instead of re-resolving; it is ``None`` for
-    an explicit start, which still resolves via ``store.resolve_lane()``.
+    an explicit start, which still resolves via ``store_lane.resolve_lane()``.
     ``lock_lane`` is the durable family used for the start lock, replay,
     conflict detection, and request fingerprint.
     """
 
     target: str
-    context: store.LaneContext | None
+    context: store_lane.LaneContext | None
     lock_lane: str
 
 
@@ -57,17 +57,17 @@ def resolve_start_identity(request: StartMonitorRequest) -> StartIdentity:
     """Return the parent identity and durable lock lane for *request*."""
     if request.lane:
         return StartIdentity(target=request.lane, context=None, lock_lane=request.lane)
-    caller = store.default_caller()
+    caller = store_lane.default_caller()
     if not caller:
         raise MonitorLaneError(
             "no lane given and SASE_AGENT_NAME is unset; pass an explicit lane"
         )
-    ctx = store.resolve_caller_agent(
-        request.project_name, caller, artifacts_dir=store.caller_artifacts_dir()
+    ctx = store_lane.resolve_caller_agent(
+        request.project_name, caller, artifacts_dir=store_lane.caller_artifacts_dir()
     )
     meta = ctx.record.agent_meta
     target = meta.name if meta is not None and meta.name else caller
-    lock_lane = store.durable_lane_for_record(ctx.record, fallback=target)
+    lock_lane = store_lane.durable_lane_for_record(ctx.record, fallback=target)
     return StartIdentity(target=target, context=ctx, lock_lane=lock_lane)
 
 
@@ -78,7 +78,7 @@ def resolve_lane_start(
     lane_ctx = (
         identity.context
         if identity.context is not None
-        else store.resolve_lane(request.project_name, identity.target)
+        else store_lane.resolve_lane(request.project_name, identity.target)
     )
     selected = lane_ctx.record
     raw_meta = read_start_meta(selected.artifact_dir)

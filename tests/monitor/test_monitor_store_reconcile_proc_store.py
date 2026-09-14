@@ -8,11 +8,10 @@ from typing import Any
 
 import pytest
 
-from sase.monitor.store import (
+from sase.monitor.store import list_monitors, reconcile_dead_supervisors
+from sase.monitor.store_lane import (
     active_monitor_for_lane,
-    list_monitors,
     monitor_blocking_start_for_lane,
-    reconcile_dead_supervisors,
 )
 
 from ._fixtures import DEAD_PID, make_starter_agent, patch_project_records

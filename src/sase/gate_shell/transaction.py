@@ -253,7 +253,7 @@ def _resolve_project_name() -> str:
 
 def _resolve_creator(project_name: str) -> _CreatorContext:
     from sase.agent._family_promotion import promote_agent_to_family
-    import sase.monitor.store as monitor_store
+    import sase.monitor.store_lane as monitor_store
 
     caller = monitor_store.default_caller() or os.environ.get("SASE_AGENT_NAME")
     artifacts_dir = monitor_store.caller_artifacts_dir()

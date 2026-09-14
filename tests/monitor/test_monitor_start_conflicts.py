@@ -37,7 +37,7 @@ def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.monitor import store as store_module
+    from sase.monitor import store_lane as store_module
     import sase.monitor.start as start_module
 
     existing = MonitorRecord(
@@ -89,7 +89,7 @@ def test_start_monitor_returns_the_existing_record_for_a_duplicate_command(
 def test_start_monitor_rejects_same_command_with_changed_request(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.monitor import store as store_module
+    from sase.monitor import store_lane as store_module
     import sase.monitor.start as start_module
 
     existing = MonitorRecord(
@@ -142,7 +142,7 @@ def test_start_monitor_rejects_same_command_with_different_next_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A different successor model is a new request, not an idempotent replay."""
-    from sase.monitor import store as store_module
+    from sase.monitor import store_lane as store_module
 
     shared = {
         "command": "just check-full",
@@ -199,7 +199,7 @@ def test_start_monitor_rejects_same_command_with_different_next_model(
 def test_start_monitor_rejects_identical_replay_of_lost_monitor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.monitor import store as store_module
+    from sase.monitor import store_lane as store_module
     import sase.monitor.start as start_module
 
     existing = MonitorRecord(
@@ -251,7 +251,7 @@ def test_start_monitor_rejects_identical_replay_of_lost_monitor(
 def test_start_monitor_rejects_a_second_concurrent_monitor(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.monitor import store as store_module
+    from sase.monitor import store_lane as store_module
     import sase.monitor.start as start_module
 
     existing = MonitorRecord(
@@ -383,7 +383,7 @@ def test_start_monitor_serializes_concurrent_starts_in_one_lane(
                 records.append(record)
         return records
 
-    monkeypatch.setattr(store_module, "_project_records", dynamic_project_records)
+    monkeypatch.setattr(store_module, "project_records", dynamic_project_records)
 
     barrier = threading.Barrier(3)
     records: list[MonitorRecord] = []
