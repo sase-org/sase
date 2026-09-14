@@ -294,7 +294,7 @@ class TestAgentListFleetSummaryChrome:
 
         assert "stale" in left.plain
 
-    def test_healthy_remote_row_keeps_bounded_intent_content(self) -> None:
+    def test_healthy_remote_catalog_row_omits_bounded_intent_content(self) -> None:
         agent = make_agent(
             fleet_origin_alias="apollo",
             fleet_connection_health="online",
@@ -305,7 +305,21 @@ class TestAgentListFleetSummaryChrome:
 
         left, _, _ = format_agent_option(agent, 0, is_selected=False)
 
-        assert "ship the fix" in left.plain
+        assert "ship the fix" not in left.plain
+
+    def test_dispatch_provisional_row_keeps_bounded_intent_content(self) -> None:
+        agent = make_agent(
+            fleet_origin_alias="apollo",
+            fleet_connection_health="submission pending",
+            fleet_freshness="submitted",
+            fleet_bounded_intent="owner pending",
+            fleet_dispatch_status="submitted",
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "owner pending" in left.plain
 
     def test_was_running_remote_row_renders_last_seen_label(self) -> None:
         from datetime import datetime

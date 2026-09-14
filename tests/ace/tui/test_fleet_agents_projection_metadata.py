@@ -178,6 +178,7 @@ def test_project_fleet_agents_remote_clan_members_group_under_one_container() ->
     assert len(containers) == 1
     assert containers[0].agent_clan == "rename-fix"
     assert containers[0].agent_clan_generation == "20260910120000"
+    assert containers[0].fleet_origin_alias == "apollo"
     members = [row for row in projection.fleet_rows if not row.is_clan_container]
     assert len(members) == 2
     assert all(member.agent_clan == "rename-fix" for member in members)

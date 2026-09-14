@@ -65,6 +65,11 @@ _FLEET_HEALTHY_CONNECTION_HEALTH = frozenset({"online"})
 _FLEET_HEALTHY_FRESHNESS = frozenset({"fresh"})
 
 
+def _fleet_bounded_intent_list_visible(agent: Agent) -> bool:
+    """Whether a remote row's intent belongs in the compact list row."""
+    return bool(agent.fleet_dispatch_status)
+
+
 def _fleet_last_seen_label(agent: Agent) -> str | None:
     """Return a "last seen Xm ago" label for a remote row confirmed gone.
 
@@ -98,7 +103,7 @@ def _append_fleet_summary(text: Text, agent: Agent) -> None:
     last_seen = _fleet_last_seen_label(agent)
     if last_seen:
         fields.append(last_seen)
-    if agent.fleet_bounded_intent:
+    if agent.fleet_bounded_intent and _fleet_bounded_intent_list_visible(agent):
         fields.append(agent.fleet_bounded_intent)
     if not fields:
         return

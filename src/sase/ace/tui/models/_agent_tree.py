@@ -418,6 +418,8 @@ def _container_for_clan(
     stops = [row.stop_time for row in runtime_members if row.stop_time is not None]
     source_machine = _common_source_machine(runtime_members)
     imported_owner = _common_imported_source_owner(runtime_members)
+    fleet_origin_alias = _common_fleet_origin_alias(runtime_members)
+    fleet_origin_installation_id = _common_fleet_origin_installation_id(runtime_members)
 
     container = Agent(
         agent_type=AgentType.RUNNING,
@@ -440,6 +442,8 @@ def _container_for_clan(
         tribe=tribes[0] if len(tribes) == 1 else None,
         source_machine=source_machine,
         imported_source_owner=imported_owner,
+        fleet_origin_alias=fleet_origin_alias,
+        fleet_origin_installation_id=fleet_origin_installation_id,
     )
     container.runtime_children.extend(runtime_members)
     apply_clan_container_status(container, runtime_members, fallback="RUNNING")
@@ -467,6 +471,24 @@ def _common_imported_source_owner(rows: list[Agent]) -> AgentOwnerIdentity | Non
     owners = {row.imported_source_owner for row in rows if row.imported_source_owner}
     if len(owners) == 1:
         return next(iter(owners))
+    return None
+
+
+def _common_fleet_origin_alias(rows: list[Agent]) -> str | None:
+    aliases = {row.fleet_origin_alias for row in rows if row.fleet_origin_alias}
+    if len(aliases) == 1:
+        return next(iter(aliases))
+    return None
+
+
+def _common_fleet_origin_installation_id(rows: list[Agent]) -> str | None:
+    installation_ids = {
+        row.fleet_origin_installation_id
+        for row in rows
+        if row.fleet_origin_installation_id
+    }
+    if len(installation_ids) == 1:
+        return next(iter(installation_ids))
     return None
 
 

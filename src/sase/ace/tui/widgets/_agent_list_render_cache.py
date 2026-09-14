@@ -337,7 +337,7 @@ def agent_render_key(
         agent.fleet_observed_at_unix,
         _freeze_jsonish(agent.fleet_capabilities),
         _freeze_jsonish(agent.fleet_content),
-        agent.fleet_bounded_intent,
+        agent.fleet_bounded_intent if agent.fleet_dispatch_status else None,
         agent.fleet_diagnostic,
         _freeze_jsonish(agent.fleet_dispatch_operation_key),
         agent.fleet_dispatch_status,

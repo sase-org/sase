@@ -88,7 +88,7 @@ def read_gate_shell_marker(
 
 def list_gate_shells(*, project: str | None = None) -> list[GateShellRecord]:
     """Return every gate-shell record, newest first."""
-    return _gate_shells_from_records(_project_records(project))
+    return _gate_shells_from_records(project_records(project))
 
 
 @dataclass(frozen=True)
@@ -114,7 +114,7 @@ class GateShellSnapshot:
 def load_gate_shell_snapshot(*, project: str | None = None) -> GateShellSnapshot:
     """Read the artifact index once for gate-shell and family-member lookups."""
     taken_at = time.time()
-    records = _project_records(project)
+    records = project_records(project)
     members: dict[tuple[str, str], list[AgentArtifactRecordWire]] = {}
     for record in records:
         meta = record.agent_meta
@@ -264,12 +264,12 @@ def _gate_shells_from_records(
 def _gate_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
     return [
         record
-        for record in _project_records(project_name)
+        for record in project_records(project_name)
         if is_gate_shell_member_record(record)
     ]
 
 
-def _project_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
+def project_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
     projects_root = sase_projects_dir()
     options = AgentArtifactScanOptionsWire(
         only_workflow_dirs=("ace-run",),
@@ -306,6 +306,7 @@ __all__ = [
     "has_any_gate_shell",
     "list_gate_shells",
     "load_gate_shell_snapshot",
+    "project_records",
     "read_gate_shell_marker",
     "resolve_gate_shell_ref",
 ]

@@ -74,7 +74,7 @@ def test_fallback_scan_records_duration_and_fallback_counter(
         lambda: tmp_path / "agent_artifact_index.sqlite",
     )
     wire = _gate_wire("/tmp/proj/artifacts/ace-run/20260812120000")
-    monkeypatch.setattr(gate_store, "_project_records", lambda project_name: [wire])
+    monkeypatch.setattr(gate_store, "project_records", lambda project_name: [wire])
 
     record = gate_store.find_gate_shell_by_gate_id("proj", "gate-1")
 

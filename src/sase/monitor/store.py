@@ -91,7 +91,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
 
 def get_monitor(project_name: str, artifacts_dir: str) -> MonitorRecord | None:
     """Return the current record for one monitor member's artifacts dir."""
-    for record in _monitor_records(project_name):
+    for record in monitor_records(project_name):
         if record.artifact_dir == artifacts_dir:
             converted = _monitor_record_from_wire(record)
             if converted is None:
@@ -161,9 +161,9 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
     reconcile_proc_shells()
     snapshot = read_proc_snapshot()
     reconcile_dead_supervisors(project=project, snapshot=snapshot)
-    wire_records = list(_monitor_records(project))
+    wire_records = list(monitor_records(project))
     if reconcile_terminal_deliveries(project=project, records=wire_records):
-        wire_records = list(_monitor_records(project))
+        wire_records = list(monitor_records(project))
     records = [
         _with_proc_projection(converted, snapshot=snapshot)
         for converted in (_monitor_record_from_wire(record) for record in wire_records)
@@ -183,7 +183,7 @@ def reconcile_terminal_deliveries(
     from .resume import reconcile_terminal_delivery
 
     reconciled: list[MonitorRecord] = []
-    source_records = records if records is not None else _monitor_records(project)
+    source_records = records if records is not None else monitor_records(project)
     for record in (_monitor_record_from_wire(item) for item in source_records):
         if record is None or not record.is_terminal:
             continue
@@ -277,17 +277,13 @@ def _monitor_record_from_wire(
         return None
 
 
-def _monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
-    return [
-        record
-        for record in _project_records(project_name, only_monitors=True)
-        if is_monitor_member_record(record)
-    ]
-
-
 def monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
     """Return raw monitor artifact records for lane-scoped callers."""
-    return _monitor_records(project_name)
+    return [
+        record
+        for record in project_records(project_name, only_monitors=True)
+        if is_monitor_member_record(record)
+    ]
 
 
 def _reconciliation_monitor_records(
@@ -345,9 +341,10 @@ def _reconciliation_project_records(
     return list(scan.records)
 
 
-def _project_records(
+def project_records(
     project_name: str | None, *, only_monitors: bool = False
 ) -> list[AgentArtifactRecordWire]:
+    """Return raw artifact records, optionally restricted to monitor members."""
     projects_root = sase_projects_dir()
     options = _scan_options(project_name)
     query = AgentArtifactIndexQueryWire(
@@ -368,15 +365,6 @@ def _project_records(
             pass
     scan = scan_agent_artifacts(projects_root, options)
     return list(scan.records)
-
-
-def project_records(
-    project_name: str | None,
-    *,
-    only_monitors: bool = False,
-) -> list[AgentArtifactRecordWire]:
-    """Return raw artifact records, optionally restricted to monitor members."""
-    return _project_records(project_name, only_monitors=only_monitors)
 
 
 __all__ = [

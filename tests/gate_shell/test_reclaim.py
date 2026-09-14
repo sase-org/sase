@@ -203,14 +203,14 @@ def _serve_index(
 ) -> list[str | None]:
     """Serve *artifacts_dirs* as the artifact index, recording each full read."""
     patch_gate_shell_project_records(monkeypatch, artifacts_dirs)
-    serve = store_mod._project_records
+    serve = store_mod.project_records
     reads: list[str | None] = []
 
     def read(project_name: str | None) -> list[AgentArtifactRecordWire]:
         reads.append(project_name)
         return serve(project_name)
 
-    monkeypatch.setattr(store_mod, "_project_records", read)
+    monkeypatch.setattr(store_mod, "project_records", read)
     return reads
 
 

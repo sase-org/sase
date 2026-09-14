@@ -2,9 +2,9 @@
 
 Resolves a lane name, an explicit agent name, or the calling agent's own
 identity to the artifact record that anchors it. Built on top of
-:mod:`sase.monitor.store`'s artifact-index queries, referenced through the
-``store`` module itself (never imported by name) so tests that monkeypatch
-the store lookup helpers continue to control what these lookups see.
+:mod:`sase.monitor.store`'s public artifact-index query helpers, referenced
+through the ``store`` module itself so tests that monkeypatch the store lookup
+helpers continue to control what these lookups see.
 """
 
 from __future__ import annotations

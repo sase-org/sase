@@ -149,7 +149,7 @@ def test_list_gate_shells_orders_tied_timestamps_deterministically(
 
     monkeypatch.setattr(
         gate_store,
-        "_project_records",
+        "project_records",
         lambda project_name: [
             wire("/tmp/proj/artifacts/ace-run/20260812120000-a"),
             wire("/tmp/proj/artifacts/ace-run/20260812120000-b"),
@@ -209,7 +209,7 @@ def test_find_gate_shell_by_gate_id_uses_indexed_lookup_when_index_exists(
         return wire
 
     monkeypatch.setattr(gate_store, "_rust_find_gate_shell_by_gate_id", fake_lookup)
-    monkeypatch.setattr(gate_store, "_project_records", _fail)
+    monkeypatch.setattr(gate_store, "project_records", _fail)
 
     record = gate_store.find_gate_shell_by_gate_id("proj", "gate-1")
     assert record is not None
@@ -229,7 +229,7 @@ def test_find_gate_shell_by_gate_id_indexed_miss_is_authoritative(
     monkeypatch.setattr(
         gate_store, "_rust_find_gate_shell_by_gate_id", lambda *a, **k: None
     )
-    monkeypatch.setattr(gate_store, "_project_records", _fail)
+    monkeypatch.setattr(gate_store, "project_records", _fail)
 
     assert gate_store.find_gate_shell_by_gate_id("proj", "no-such-gate") is None
 
@@ -249,7 +249,7 @@ def test_find_gate_shell_by_gate_id_falls_back_when_index_unusable(
 
     monkeypatch.setattr(gate_store, "_rust_find_gate_shell_by_gate_id", broken_lookup)
     wire = _gate_wire("/tmp/proj/artifacts/ace-run/20260812120000")
-    monkeypatch.setattr(gate_store, "_project_records", lambda project_name: [wire])
+    monkeypatch.setattr(gate_store, "project_records", lambda project_name: [wire])
 
     record = gate_store.find_gate_shell_by_gate_id("proj", "gate-1")
     assert record is not None
@@ -267,6 +267,6 @@ def test_find_gate_shell_by_gate_id_skips_indexed_lookup_when_index_missing(
         lambda: tmp_path / "agent_artifact_index.sqlite",
     )
     monkeypatch.setattr(gate_store, "_rust_find_gate_shell_by_gate_id", _fail)
-    monkeypatch.setattr(gate_store, "_project_records", lambda project_name: [])
+    monkeypatch.setattr(gate_store, "project_records", lambda project_name: [])
 
     assert gate_store.find_gate_shell_by_gate_id("proj", "gate-1") is None
