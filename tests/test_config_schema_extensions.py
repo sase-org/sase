@@ -286,6 +286,33 @@ def test_config_schema_accepts_disk_pressure_thresholds() -> None:
     )
 
 
+def test_config_schema_accepts_proc_runtime_retention_settings() -> None:
+    Draft7Validator(schema()).validate(
+        {
+            "procs": {
+                "history_limit": 25,
+                "runtime_orphan_horizon_seconds": 86400,
+                "runtime_orphan_max_removals": 500,
+            }
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"procs": {"runtime_orphan_horizon_seconds": -1}},
+        {"procs": {"runtime_orphan_max_removals": 0}},
+        {"procs": {"unknown": True}},
+    ],
+)
+def test_config_schema_rejects_invalid_proc_runtime_retention(
+    payload: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        Draft7Validator(schema()).validate(payload)
+
+
 @pytest.mark.parametrize(
     "payload",
     [

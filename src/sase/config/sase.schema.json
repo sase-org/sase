@@ -4226,6 +4226,18 @@
           "minimum": 1,
           "default": 100,
           "description": "Maximum number of finished procs kept in ~/.sase/procs. Running procs are never pruned. Lower values trim history sooner; the oldest finished procs (and their logs) are removed first."
+        },
+        "runtime_orphan_horizon_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 259200,
+          "description": "Age horizon before the hourly proc runtime owner may remove rowless runtime directories. Runtime directories for pruned rows are removed immediately."
+        },
+        "runtime_orphan_max_removals": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2000,
+          "description": "Maximum historical rowless proc runtime directories removed in one owner pass."
         }
       }
     },

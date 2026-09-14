@@ -3613,12 +3613,16 @@ is still honored as a deprecated alias.
 ```yaml
 procs:
   history_limit: 100
+  runtime_orphan_horizon_seconds: 259200
+  runtime_orphan_max_removals: 2000
 ```
 
-| Field                 | Type | Default | Minimum | Description                                 |
-| --------------------- | ---- | ------- | ------- | ------------------------------------------- |
-| `procs.history_limit` | int  | `100`   | `1`     | Number of finished procs to preserve.       |
-| `tasks.history_limit` | int  | `100`   | `1`     | Deprecated alias for `procs.history_limit`. |
+| Field                                  | Type | Default  | Minimum | Description                                                                                    |
+| -------------------------------------- | ---- | -------- | ------- | ---------------------------------------------------------------------------------------------- |
+| `procs.history_limit`                  | int  | `100`    | `1`     | Number of finished procs to preserve.                                                          |
+| `procs.runtime_orphan_horizon_seconds` | int  | `259200` | `0`     | Age before the hourly proc runtime owner may remove rowless runtime directories.               |
+| `procs.runtime_orphan_max_removals`    | int  | `2000`   | `1`     | Maximum historical rowless proc runtime directories removed in one pass.                       |
+| `tasks.history_limit`                  | int  | `100`    | `1`     | Deprecated alias for `procs.history_limit`; use `procs.*` for proc runtime retention settings. |
 
 ### disk
 

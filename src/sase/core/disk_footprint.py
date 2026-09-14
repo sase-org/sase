@@ -37,7 +37,7 @@ from sase.core.paths import managed_tmpdir_root, sase_home, sase_projects_dir
 from sase.core.time import local_now
 from sase.procs.paths import procs_dir
 from sase.procs.runtime import sweep_orphan_proc_runtime_dirs
-from sase.procs.store import prune_procs, read_proc_snapshot
+from sase.procs.store import prune_procs
 from sase.workspace_provider.inventory import collect_workspace_inventory
 
 _DiskFootprintRow = DiskFootprintRow
@@ -52,7 +52,6 @@ _is_repo_checkout = _inventory.is_repo_checkout
 _iter_children = iter_children
 _managed_tmp_reap_step = _reap.managed_tmp_reap_step
 _managed_tmp_rows = _inventory.managed_tmp_rows
-_orphan_proc_runtime_summary = _reap.orphan_proc_runtime_summary
 _proc_runtime_reap_step = _reap.proc_runtime_reap_step
 _resolve_sase_core_dir = _inventory.resolve_sase_core_dir
 _resolve_soft = resolve_soft
@@ -157,19 +156,14 @@ def _sync_reap_patchables() -> None:
     )
     _reap.local_now = local_now
     _reap.reap_managed_tmpdir = reap_managed_tmpdir
-    _reap.procs_dir = procs_dir
     _reap.prune_procs = prune_procs
-    _reap.read_proc_snapshot = read_proc_snapshot
     _reap.sweep_orphan_proc_runtime_dirs = sweep_orphan_proc_runtime_dirs
     _reap.collect_workspace_inventory = collect_workspace_inventory
-    _reap.tree_size = _tree_size
-    _reap.iter_children = _iter_children
     _reap.managed_tmp_reap_step = _managed_tmp_reap_step
     _reap.proc_runtime_reap_step = _proc_runtime_reap_step
     _reap.artifact_run_reap_step = _artifact_run_reap_step
     _reap.workspace_compact_steps = _workspace_compact_steps
     _reap.workspace_project_keys = _workspace_project_keys
-    _reap.orphan_proc_runtime_summary = _orphan_proc_runtime_summary
 
 
 __all__ = [

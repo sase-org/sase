@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import time
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from .paths import procs_dir
+from sase.config import (
+    get_proc_runtime_orphan_horizon_seconds,
+    get_proc_runtime_orphan_max_removals,
+)
+from sase.core.rust import require_rust_binding
+
+from .paths import PROC_STORE_FILENAME, procs_dir
 
 _PROC_GO_MARKER = ".proc_go"
 _PROC_STARTED_MARKER = ".proc_started"
@@ -23,6 +29,79 @@ _LAUNCH_BARRIER_TIMEOUT_SECONDS = 30.0
 _START_ACK_TIMEOUT_SECONDS = 20.0
 _LAUNCH_BARRIER_TIMEOUT_ENV = "SASE_PROC_LAUNCH_BARRIER_TIMEOUT_SECONDS"
 _START_ACK_TIMEOUT_ENV = "SASE_PROC_START_ACK_TIMEOUT_SECONDS"
+PROC_RUNTIME_RETENTION_WIRE_SCHEMA_VERSION = 1
+
+
+@dataclass(frozen=True)
+class _ProcRuntimeRetentionEntry:
+    """One runtime-retention decision returned by the Rust owner."""
+
+    proc_id: str
+    path: str
+    status: str
+    reason: str
+    size_bytes: int
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> _ProcRuntimeRetentionEntry:
+        return cls(
+            proc_id=str(data.get("proc_id") or ""),
+            path=str(data.get("path") or ""),
+            status=str(data.get("status") or ""),
+            reason=str(data.get("reason") or ""),
+            size_bytes=int(data.get("size_bytes") or 0),
+        )
+
+
+@dataclass(frozen=True)
+class _ProcRuntimeRetentionResult:
+    """Structured outcome from one proc runtime retention owner pass."""
+
+    runtime_root: Path
+    apply: bool
+    scanned: int
+    selected: int
+    removed: int
+    skipped: int
+    errors: int
+    reclaimable_bytes: int
+    reclaimed_bytes: int
+    capped: bool
+    entries: tuple[_ProcRuntimeRetentionEntry, ...] = field(default_factory=tuple)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> _ProcRuntimeRetentionResult:
+        return cls(
+            runtime_root=Path(str(data.get("runtime_root") or "")),
+            apply=bool(data.get("apply", False)),
+            scanned=int(data.get("scanned") or 0),
+            selected=int(data.get("selected") or 0),
+            removed=int(data.get("removed") or 0),
+            skipped=int(data.get("skipped") or 0),
+            errors=int(data.get("errors") or 0),
+            reclaimable_bytes=int(data.get("reclaimable_bytes") or 0),
+            reclaimed_bytes=int(data.get("reclaimed_bytes") or 0),
+            capped=bool(data.get("capped", False)),
+            entries=tuple(
+                _ProcRuntimeRetentionEntry.from_dict(entry)
+                for entry in data.get("entries") or ()
+                if isinstance(entry, dict)
+            ),
+        )
+
+    def describe(self) -> str:
+        """Return a concise human summary for chops and disk-owner output."""
+        if not self.selected:
+            return f"nothing eligible under {self.runtime_root}"
+        verb = "removed" if self.apply else "would remove"
+        suffix = " (removal budget reached)" if self.capped else ""
+        errors = f"; errors={self.errors}" if self.errors else ""
+        return (
+            f"{verb} {self.removed if self.apply else self.selected} proc runtime "
+            f"dir(s) under {self.runtime_root}; scanned={self.scanned}, "
+            f"reclaimable={self.reclaimable_bytes}, reclaimed={self.reclaimed_bytes}"
+            f"{errors}{suffix}"
+        )
 
 
 def proc_runtime_dir(proc_id: str) -> Path:
@@ -31,34 +110,100 @@ def proc_runtime_dir(proc_id: str) -> Path:
 
 
 def delete_proc_runtime_dirs(
-    proc_ids: Iterable[str], *, runtime_root: Path | None = None
-) -> None:
+    proc_ids: Iterable[str],
+    *,
+    runtime_root: Path | None = None,
+    store_path: Path | str | None = None,
+) -> _ProcRuntimeRetentionResult:
     """Delete runtime sidecar directories for pruned proc rows."""
     root = runtime_root if runtime_root is not None else procs_dir() / "runtime"
-    for proc_id in proc_ids:
-        try:
-            _validate_proc_id_for_path(proc_id)
-        except ValueError:
-            continue
-        shutil.rmtree(root / proc_id, ignore_errors=True)
+    return _apply_runtime_retention(
+        runtime_root=root,
+        store_path=_store_path_for_runtime_root(root, store_path),
+        pruned_proc_ids=tuple(str(proc_id) for proc_id in proc_ids),
+        sweep_orphans=False,
+        apply=True,
+    )
 
 
 def sweep_orphan_proc_runtime_dirs(
-    retained_proc_ids: Iterable[str], *, runtime_root: Path | None = None
-) -> None:
+    retained_proc_ids: Iterable[str] = (),
+    *,
+    runtime_root: Path | None = None,
+    store_path: Path | str | None = None,
+    now: float | None = None,
+    orphan_horizon_seconds: float | None = None,
+    max_orphan_removals: int | None = None,
+    apply: bool = True,
+) -> _ProcRuntimeRetentionResult:
     """Delete proc runtime directories whose durable proc rows are gone."""
+    del retained_proc_ids
     root = runtime_root if runtime_root is not None else procs_dir() / "runtime"
-    try:
-        entries = list(root.iterdir())
-    except FileNotFoundError:
-        return
-    retained = set(retained_proc_ids)
-    for entry in entries:
-        if entry.name in retained:
-            continue
-        if not entry.is_dir() or entry.is_symlink():
-            continue
-        shutil.rmtree(entry, ignore_errors=True)
+    return _apply_runtime_retention(
+        runtime_root=root,
+        store_path=_store_path_for_runtime_root(root, store_path),
+        pruned_proc_ids=(),
+        sweep_orphans=True,
+        now=now,
+        orphan_horizon_seconds=orphan_horizon_seconds,
+        max_orphan_removals=max_orphan_removals,
+        apply=apply,
+    )
+
+
+def _apply_runtime_retention(
+    *,
+    runtime_root: Path,
+    store_path: Path,
+    pruned_proc_ids: tuple[str, ...],
+    sweep_orphans: bool,
+    now: float | None = None,
+    orphan_horizon_seconds: float | None = None,
+    max_orphan_removals: int | None = None,
+    apply: bool,
+) -> _ProcRuntimeRetentionResult:
+    _require_runtime_retention_wire_schema()
+    binding = require_rust_binding("apply_proc_runtime_retention")
+    request = {
+        "schema_version": PROC_RUNTIME_RETENTION_WIRE_SCHEMA_VERSION,
+        "store_path": str(store_path),
+        "runtime_root": str(runtime_root),
+        "now_epoch_seconds": time.time() if now is None else float(now),
+        "orphan_horizon_seconds": float(
+            get_proc_runtime_orphan_horizon_seconds()
+            if orphan_horizon_seconds is None
+            else orphan_horizon_seconds
+        ),
+        "max_orphan_removals": (
+            get_proc_runtime_orphan_max_removals()
+            if max_orphan_removals is None
+            else int(max_orphan_removals)
+        ),
+        "apply": apply,
+        "pruned_proc_ids": list(pruned_proc_ids),
+        "sweep_orphans": sweep_orphans,
+    }
+    payload = binding(request)
+    return _ProcRuntimeRetentionResult.from_dict(payload)
+
+
+def _require_runtime_retention_wire_schema() -> None:
+    binding = require_rust_binding("proc_runtime_retention_wire_schema_version")
+    actual = int(binding())
+    if actual != PROC_RUNTIME_RETENTION_WIRE_SCHEMA_VERSION:
+        raise RuntimeError(
+            "sase_core_rs proc runtime retention wire schema "
+            f"{actual} is incompatible with Python schema "
+            f"{PROC_RUNTIME_RETENTION_WIRE_SCHEMA_VERSION}"
+        )
+
+
+def _store_path_for_runtime_root(
+    runtime_root: Path, store_path: Path | str | None
+) -> Path:
+    if store_path is not None:
+        return Path(store_path)
+    return runtime_root.parent / PROC_STORE_FILENAME
 
 
 def proc_go_path(proc_id: str) -> Path:
@@ -130,21 +275,10 @@ def _env_seconds(name: str, default: float) -> float:
         return default
 
 
-def _validate_proc_id_for_path(proc_id: str) -> None:
-    if (
-        not proc_id
-        or proc_id in {".", ".."}
-        or Path(proc_id).name != proc_id
-        or "/" in proc_id
-        or "\\" in proc_id
-        or "\x00" in proc_id
-    ):
-        raise ValueError(f"invalid proc id for runtime path: {proc_id!r}")
-
-
 __all__ = [
     "launch_barrier_timeout_seconds",
     "delete_proc_runtime_dirs",
+    "PROC_RUNTIME_RETENTION_WIRE_SCHEMA_VERSION",
     "proc_go_path",
     "proc_operation_request_path",
     "proc_operation_result_path",

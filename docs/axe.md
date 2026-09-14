@@ -456,6 +456,7 @@ Periodic maintenance:
 | `error_digest`               | Send error notification digests (creates `ViewErrorReport` notification action) |
 | `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                 |
 | `managed_tmp_reap`           | Prune stale scratch under the managed SASE temp root                            |
+| `proc_runtime_sweep`         | Prune stale rowless proc runtime directories                                    |
 | `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                        |
 | `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
 | `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair renamed refs       |
@@ -508,6 +509,14 @@ not early pressure candidates. The chop summary reports `scanned`, `removed`,
 artifact index too, since a workflow launched without an explicit `artifacts_dir` gets
 one under `workflow-artifacts/`. It lives on `housekeeping` rather than an interactive
 path because the first pass over a neglected root walks tens of thousands of entries.
+
+The `proc_runtime_sweep` chop bounds `~/.sase/procs/runtime`. Proc-row retention deletes
+runtime directories for rows it actually pruned in the same operation as log cleanup.
+This hourly sweep handles historical rowless runtime directories separately: it removes
+only canonical proc-id directories that are direct, non-symlink children of the runtime
+root, older than the configured `procs.runtime_orphan_horizon_seconds`, absent from the
+proc store after a locked re-read, and within `procs.runtime_orphan_max_removals`.
+Fresh, invalidly named, symlinked, active, or otherwise retained entries are preserved.
 
 The `disk_pressure` chop checks SASE's proportional free-space threshold on the
 filesystem that holds `~/.sase`. When the volume falls below

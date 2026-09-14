@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from sase.core.disk_footprint import collect_disk_footprint
+from sase.core.disk_footprint import collect_disk_footprint, run_disk_reap
+from sase.core.disk_footprint_models import DiskReapStep
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,30 @@ class _ProjectInfo:
 @dataclass(frozen=True)
 class _Inventory:
     projects: tuple[_ProjectInfo, ...]
+
+
+@dataclass(frozen=True)
+class _ProcRuntimeRetentionStub:
+    runtime_root: Path
+    apply: bool
+    scanned: int
+    selected: int
+    removed: int
+    skipped: int
+    errors: int
+    reclaimable_bytes: int
+    reclaimed_bytes: int
+    capped: bool
+
+    def describe(self) -> str:
+        suffix = " (removal budget reached)" if self.capped else ""
+        verb = "removed" if self.apply else "would remove"
+        return (
+            f"{verb} {self.removed if self.apply else self.selected} proc runtime "
+            f"dir(s) under {self.runtime_root}; scanned={self.scanned}, "
+            f"reclaimable={self.reclaimable_bytes}, reclaimed={self.reclaimed_bytes}"
+            f"{suffix}"
+        )
 
 
 def _write(path: Path, text: str = "x") -> None:
@@ -93,3 +118,46 @@ def test_collect_disk_footprint_attributes_owned_paths_and_strays(
     assert rows_by_path[stray].status == "unowned"
     assert repo_target not in rows_by_path
     assert all(row.owner and row.horizon for row in report.rows)
+
+
+def test_disk_reap_proc_preview_uses_runtime_owner(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.core.disk_footprint._managed_tmp_reap_step",
+        lambda *, apply: DiskReapStep(
+            owner="managed_tmp_reaper",
+            mode="dry_run" if not apply else "apply",
+            summary="tmp",
+        ),
+    )
+
+    def fake_sweep(**kwargs):
+        assert kwargs["apply"] is False
+        return _ProcRuntimeRetentionStub(
+            runtime_root=Path("/tmp/runtime"),
+            apply=False,
+            scanned=12,
+            selected=3,
+            removed=0,
+            skipped=9,
+            errors=0,
+            reclaimable_bytes=1234,
+            reclaimed_bytes=0,
+            capped=True,
+        )
+
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.sweep_orphan_proc_runtime_dirs",
+        fake_sweep,
+    )
+
+    result = run_disk_reap(
+        apply=False,
+        include_artifact_runs=False,
+        include_workspace_compact=False,
+    )
+
+    proc_step = next(
+        step for step in result.steps if step.owner == "proc_runtime_sweep"
+    )
+    assert proc_step.reclaimed_bytes == 1234
+    assert "would remove 3 proc runtime dir(s)" in proc_step.summary

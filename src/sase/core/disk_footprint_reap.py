@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import subprocess
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 
 from sase.config import get_artifact_retention_keep_recent_run_months
 from sase.core.agent_artifact_run_retention import (
@@ -13,12 +13,10 @@ from sase.core.agent_artifact_run_retention import (
     plan_ace_run_retention,
 )
 from sase.core.disk_footprint_models import DiskReapResult, DiskReapStep
-from sase.core.disk_footprint_utils import iter_children, tree_size
 from sase.core.managed_tmp_reaper import reap_managed_tmpdir
 from sase.core.time import local_now
-from sase.procs.paths import procs_dir
 from sase.procs.runtime import sweep_orphan_proc_runtime_dirs
-from sase.procs.store import prune_procs, read_proc_snapshot
+from sase.procs.store import prune_procs
 from sase.workspace_provider.inventory import collect_workspace_inventory
 
 
@@ -67,24 +65,41 @@ def managed_tmp_reap_step(*, apply: bool) -> DiskReapStep:
 
 
 def proc_runtime_reap_step(*, apply: bool) -> DiskReapStep:
-    snapshot = read_proc_snapshot()
-    retained = tuple(proc.proc_id for proc in snapshot.procs)
-    orphan_count, orphan_bytes = orphan_proc_runtime_summary(retained)
+    try:
+        preview = sweep_orphan_proc_runtime_dirs(apply=False)
+    except Exception as exc:  # noqa: BLE001 - one owner must not crash the group.
+        return DiskReapStep(
+            owner="proc_runtime_sweep",
+            mode="blocked",
+            summary=f"could not inspect proc runtime owner: {exc}",
+            command=("sase", "disk", "reap", "--apply"),
+            exit_code=1,
+        )
     if not apply:
         return DiskReapStep(
             owner="proc_runtime_sweep",
             mode="dry_run",
-            summary=f"would sweep {orphan_count} rowless runtime dir(s)",
-            reclaimed_bytes=orphan_bytes,
+            summary=preview.describe(),
+            reclaimed_bytes=preview.reclaimable_bytes,
         )
-    prune_procs()
-    sweep_orphan_proc_runtime_dirs(retained)
+    try:
+        prune_procs()
+        result = sweep_orphan_proc_runtime_dirs(apply=True)
+    except Exception as exc:  # noqa: BLE001 - report owner failure as a step.
+        return DiskReapStep(
+            owner="proc_runtime_sweep",
+            mode="error",
+            summary=f"proc runtime sweep failed: {exc}",
+            command=("sase", "disk", "reap", "--apply"),
+            exit_code=1,
+        )
     return DiskReapStep(
         owner="proc_runtime_sweep",
         mode="apply",
-        summary=f"swept rowless runtime dirs after proc retention ({orphan_count} before)",
-        reclaimed_bytes=orphan_bytes,
-        changed=orphan_count > 0,
+        summary=result.describe(),
+        reclaimed_bytes=result.reclaimed_bytes,
+        changed=bool(result.removed),
+        exit_code=1 if result.errors else None,
     )
 
 
@@ -217,25 +232,9 @@ def workspace_project_keys() -> tuple[str, ...]:
     return tuple(project.project_key for project in inventory.projects)
 
 
-def orphan_proc_runtime_summary(retained_proc_ids: Iterable[str]) -> tuple[int, int]:
-    retained = set(retained_proc_ids)
-    root = procs_dir() / "runtime"
-    count = 0
-    size = 0
-    for entry in iter_children(root):
-        if entry.name in retained:
-            continue
-        if not entry.is_dir() or entry.is_symlink():
-            continue
-        count += 1
-        size += tree_size(entry)
-    return count, size
-
-
 __all__ = [
     "artifact_run_reap_step",
     "managed_tmp_reap_step",
-    "orphan_proc_runtime_summary",
     "proc_runtime_reap_step",
     "run_disk_reap",
     "workspace_compact_steps",

@@ -339,6 +339,7 @@ def test_all_builtin_chop_modules_use_the_registry() -> None:
         "orphan_cleanup",
         "pending_checks_poll",
         "plugins_required",
+        "proc_runtime_sweep",
         "pr_submitted_checks",
         "refresh_docs",
         "stale_running_cleanup",

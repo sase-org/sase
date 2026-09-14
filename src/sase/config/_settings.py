@@ -24,6 +24,8 @@ DEFAULT_MAX_AGENT_PIPE_CHAIN = 8
 DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP = 3
 DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
 DEFAULT_PROC_HISTORY_LIMIT = 100
+DEFAULT_PROC_RUNTIME_ORPHAN_HORIZON_SECONDS = 3 * 24 * 3600
+DEFAULT_PROC_RUNTIME_ORPHAN_MAX_REMOVALS = 2000
 DEFAULT_ARTIFACT_CAPTURE_MAX_STORED_PER_AGENT = 50
 DEFAULT_ARTIFACT_CAPTURE_MAX_HISTORY_SCAN = 20
 DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024
@@ -157,6 +159,36 @@ def get_proc_history_limit() -> int:
     if type(value) is int and value >= 1:
         return value
     return DEFAULT_PROC_HISTORY_LIMIT
+
+
+def _procs_config() -> dict[str, Any]:
+    value = _merged_config().get("procs", {})
+    if isinstance(value, dict):
+        return value
+    tasks = _merged_config().get("tasks", {})
+    return tasks if isinstance(tasks, dict) else {}
+
+
+def get_proc_runtime_orphan_horizon_seconds() -> float:
+    """Return the age horizon for rowless proc runtime directories."""
+    value = _procs_config().get(
+        "runtime_orphan_horizon_seconds",
+        DEFAULT_PROC_RUNTIME_ORPHAN_HORIZON_SECONDS,
+    )
+    if type(value) in {int, float} and value >= 0:
+        return float(value)
+    return float(DEFAULT_PROC_RUNTIME_ORPHAN_HORIZON_SECONDS)
+
+
+def get_proc_runtime_orphan_max_removals() -> int:
+    """Return the per-pass budget for historical proc runtime orphans."""
+    value = _procs_config().get(
+        "runtime_orphan_max_removals",
+        DEFAULT_PROC_RUNTIME_ORPHAN_MAX_REMOVALS,
+    )
+    if type(value) is int and value >= 1:
+        return value
+    return DEFAULT_PROC_RUNTIME_ORPHAN_MAX_REMOVALS
 
 
 # Legacy accessor alias; retire after every caller moves to the proc spelling.

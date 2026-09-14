@@ -26,7 +26,7 @@ from .models import (
     ProcUpdateOutcome,
 )
 from .paths import proc_store_path
-from .runtime import delete_proc_runtime_dirs, sweep_orphan_proc_runtime_dirs
+from .runtime import delete_proc_runtime_dirs
 
 
 class ProcStoreLockTimeoutError(TimeoutError):
@@ -109,7 +109,6 @@ def append_proc(
         outcome.pruned_proc_ids,
         path=path,
     )
-    _sweep_orphan_proc_runtime_dirs(outcome.snapshot, path=path)
     return outcome
 
 
@@ -135,7 +134,6 @@ def reserve_proc(
         outcome.pruned_proc_ids,
         path=path,
     )
-    _sweep_orphan_proc_runtime_dirs(outcome.snapshot, path=path)
     return outcome
 
 
@@ -241,7 +239,6 @@ def prune_procs(
         outcome.pruned_proc_ids,
         path=path,
     )
-    _sweep_orphan_proc_runtime_dirs(outcome.snapshot, path=path)
     return outcome
 
 
@@ -253,16 +250,9 @@ def _delete_pruned_proc_state(
 ) -> None:
     delete_proc_logs(pruned_log_proc_ids)
     delete_proc_runtime_dirs(
-        pruned_proc_ids, runtime_root=_runtime_root_for_store(path)
-    )
-
-
-def _sweep_orphan_proc_runtime_dirs(
-    snapshot: ProcStoreSnapshot, *, path: Path | str | None
-) -> None:
-    sweep_orphan_proc_runtime_dirs(
-        (proc.proc_id for proc in snapshot.procs),
+        pruned_proc_ids,
         runtime_root=_runtime_root_for_store(path),
+        store_path=Path(path or proc_store_path()),
     )
 
 

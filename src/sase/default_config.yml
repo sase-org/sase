@@ -82,6 +82,11 @@ procs:
   # Maximum number of finished procs kept in ~/.sase/procs. Running procs are
   # never pruned.
   history_limit: 100
+  # Rowless proc runtime directories are historical orphans. Fresh entries are
+  # preserved to avoid racing launch/reservation handoff; hourly housekeeping
+  # converges old orphans within this age horizon and per-pass budget.
+  runtime_orphan_horizon_seconds: 259200
+  runtime_orphan_max_removals: 2000
 
 disk:
   pressure:
@@ -1255,6 +1260,16 @@ axe:
             preserving generic agent scratch, handoff data, unknown buckets, and build trees with fresh descendants.
             Each pass removes at most 2,000 entries and de-indexes deleted agent-artifact directories, so a neglected
             root converges without blocking interactive commands.
+        - name: proc_runtime_sweep
+          script: sase_chop_proc_runtime_sweep
+          description: |-
+            Prune stale rowless proc runtime directories
+
+            Removes only canonical proc runtime directories that no longer have a durable proc row, are older than
+            the configured proc runtime orphan horizon, and are direct non-symlink children of ~/.sase/procs/runtime.
+            The Rust owner rechecks the proc store under its lock before deletion so concurrent reservations are
+            preserved. Runtime directories for proc rows actually pruned by retention are deleted immediately by the
+            proc store path; this chop handles historical orphans over a bounded per-pass budget.
         - name: disk_pressure
           script: sase_chop_disk_pressure
           timeout: "5m"
