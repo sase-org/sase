@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.actions.agents._metadata_pager import AgentMetadataPagerMixin
@@ -74,9 +75,13 @@ async def test_v_on_a_running_agent_pushes_a_metadata_document(_mock: object) ->
     "sase.ace.tui.actions.agents._metadata_pager_document.build_detail_header_summary",
     return_value=DetailHeaderSummary(),
 )
-async def test_v_on_a_done_agent_shows_response_path(_mock: object) -> None:
+async def test_v_on_a_done_agent_shows_response_path_and_body(
+    _mock: object, tmp_path: Path
+) -> None:
     agent = make_agent(status="DONE")
-    agent.response_path = "/tmp/response.md"
+    response = tmp_path / "response.md"
+    response.write_text("The actual agent reply.")
+    agent.response_path = str(response)
     app = _FakeApp(agent)
 
     await _run_action(app)
@@ -84,7 +89,9 @@ async def test_v_on_a_done_agent_shows_response_path(_mock: object) -> None:
     screen = app.pushed_screens[0]
     content = next(s for s in screen.document.sections if s.title == "CONTENT")
     assert "Response:" in content.plain_text
-    assert "/tmp/response.md" in content.plain_text
+    assert str(response) in content.plain_text
+    reply = next(s for s in screen.document.sections if s.title == "AGENT REPLY")
+    assert reply.plain_text == "The actual agent reply."
 
 
 async def test_v_is_a_no_op_for_remote_fleet_rows() -> None:

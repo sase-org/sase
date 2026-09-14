@@ -173,14 +173,27 @@ Git search to build a toast.
 
 ## Live refresh
 
+In the Agents tab, `V` opens the selected agent's metadata and conversation together.
+After the metadata, **AGENT XPROMPT** shows the original input, **AGENT PROMPT** shows
+the expanded prompt, and **AGENT REPLY** shows the available conversation. Each is a
+separate section with line numbers, Markdown syntax colors, searchable text, and
+followable links. Use `Ctrl+N` / `Ctrl+P` to move between sections. Family and clan
+conversations identify each member in the section title and preserve member order.
+
+Content uses the same loaders as the detail panel, including live replies, saved
+responses, and chat fallback. A missing prompt does not hide an available reply. Missing
+content gets a quiet placeholder; unreadable content gets a retry message. Press `r` to
+pick up new prompts or replies while keeping your current section.
+
 A host embedding the pager (such as `sase ace`'s Agents-tab metadata document, opened
 with `V`) may wire a refresh provider instead of leaving `r` to recompose the frozen
 document. The provider re-snapshots the live source — a still-running agent's status,
-timestamps, and paths — on a background thread and returns a fresh document. `r` swaps
-it in, keeping the current section by identity when possible and clamping scroll to the
-new content's bounds. A provider that returns nothing (the source is gone) or raises
-leaves the current document and trail untouched, with a brief footer status standing in
-for the usual recompose. Without a wired provider, `r` keeps its plain reload behavior.
+timestamps, paths, and conversation — on a background thread and returns a fresh
+document. `r` swaps it in, keeping the current section by identity when possible and
+clamping scroll to the new content's bounds. A provider that returns nothing (the source
+is gone) or raises leaves the current document and trail untouched, with a brief footer
+status standing in for the usual recompose. Without a wired provider, `r` keeps its
+plain reload behavior.
 
 ## Document origins
 

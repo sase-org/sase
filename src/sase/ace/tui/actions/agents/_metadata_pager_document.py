@@ -35,6 +35,7 @@ from ...widgets.prompt_panel._agent_display_header_summary import (
 from ...widgets.prompt_panel._agent_display_state import DetailHeaderSummary
 from ...widgets.prompt_panel._agent_plan_section import ResponsivePlanSection
 from ...widgets.prompt_panel._helpers import project_display_label
+from ._metadata_pager_conversation import build_agent_conversation_sections
 
 _LABEL_STYLE = "bold #87D7FF"
 _AGENT_KIND = "agent"
@@ -291,6 +292,7 @@ def build_agent_metadata_document(
             _content_section(agent),
             _sase_context_section(agent, summary),
             _bead_section(summary),
+            *build_agent_conversation_sections(agent),
         )
         if section is not None
     )
