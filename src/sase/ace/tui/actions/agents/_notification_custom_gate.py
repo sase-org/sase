@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import re
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -144,6 +146,11 @@ def _load_custom_gate_modal_data(notification: Notification) -> CustomGateModalD
         gate_title=None if summary is None else summary.title,
         actions=load_gate_actions(bundle.root, dict(envelope)),
         chip=gate_chip_from_action_data(notification.action_data),
+        password_warning=_custom_gate_password_warning_requested(
+            envelope,
+            preview_text,
+            gate,
+        ),
     )
 
 
@@ -174,4 +181,80 @@ def _read_text_preview(path: Path | None) -> str | None:
     return (value + suffix).decode("utf-8", errors="replace")
 
 
-__all__ = ["handle_custom_gate"]
+_PASSWORD_TARGET_RE = re.compile(r"\b(?:sudo|root|system|admin(?:istrator)?)\b", re.I)
+_PASSWORD_WORD_RE = re.compile(r"\b(?:password|passwd|passphrase)\b", re.I)
+_PASSWORD_REQUEST_RE = re.compile(
+    r"\b(?:ask(?:s|ed|ing)?|enter|input|paste|prompt(?:s|ed|ing)?|"
+    r"provide|share|submit|supply|type)\b",
+    re.I,
+)
+_PASSWORD_NEGATION_RE = re.compile(
+    r"\b(?:do not|don't|never|no need to|without)\b.{0,120}"
+    r"\b(?:password|passwd|passphrase)\b",
+    re.I,
+)
+
+
+def _custom_gate_password_warning_requested(
+    envelope: Mapping[str, object],
+    preview_text: str | None,
+    gate: object,
+) -> bool:
+    """Return whether custom-gate text appears to ask for a sudo password."""
+    kind = envelope.get("kind")
+    if kind != "custom":
+        return False
+    return any(
+        _looks_like_password_request(text)
+        for text in _password_warning_texts(
+            envelope,
+            preview_text,
+            gate,
+        )
+    )
+
+
+def _password_warning_texts(
+    envelope: Mapping[str, object],
+    preview_text: str | None,
+    gate: object,
+) -> Iterable[str]:
+    query = envelope.get("query")
+    if isinstance(query, str):
+        yield query
+    presentation = envelope.get("presentation")
+    if isinstance(presentation, Mapping):
+        title = presentation.get("title")
+        if isinstance(title, str):
+            yield title
+        notes = presentation.get("notes")
+        if isinstance(notes, list):
+            for note in notes:
+                if isinstance(note, str):
+                    yield note
+    options = getattr(gate, "options", ())
+    for option in options:
+        label = getattr(option, "label", None)
+        if isinstance(label, str):
+            yield label
+    if preview_text:
+        yield preview_text
+
+
+def _looks_like_password_request(text: str) -> bool:
+    chunks = re.split(r"[\n.;!?]+", text)
+    for chunk in chunks:
+        if _PASSWORD_NEGATION_RE.search(chunk):
+            continue
+        if (
+            _PASSWORD_TARGET_RE.search(chunk)
+            and _PASSWORD_WORD_RE.search(chunk)
+            and _PASSWORD_REQUEST_RE.search(chunk)
+        ):
+            return True
+    return False
+
+
+__all__ = [
+    "handle_custom_gate",
+]

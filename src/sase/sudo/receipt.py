@@ -9,7 +9,15 @@ from sase.notification_gates.models import GateError
 from sase.sudo.models import contains_credential_shape
 
 _TERMINAL_LEDGER_STATUSES = frozenset(
-    {"ran", "command_failed", "skipped", "authentication_failed", "cancelled"}
+    {
+        "ran",
+        "command_failed",
+        "skipped",
+        "authentication_failed",
+        "cancelled",
+        "canceled",
+        "timeout",
+    }
 )
 
 

@@ -12,7 +12,10 @@ from rich.text import Text
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
-from sase.ace.tui.widgets.prompt_panel._agent_gate_section import build_gate_phase
+from sase.ace.tui.widgets.prompt_panel._agent_gate_section import (
+    build_gate_phase,
+    build_gate_section,
+)
 
 
 def _console_lines(rendered: object, *, width: int = 120) -> list[str]:
@@ -26,6 +29,9 @@ def _gate_agent(
     *,
     status: str = "APPROVE",
     gate_state: str = "pending",
+    gate_kind: str = "approval",
+    gate_start_status: str = "APPROVE",
+    gate_stop_status: str = "APPROVED",
     output: str | None = None,
     output_truncated: bool = False,
 ) -> Agent:
@@ -50,10 +56,10 @@ def _gate_agent(
         agent_family_role="gate",
         role_suffix="--gate",
         gate_id="g123abc456def",
-        gate_kind="approval",
+        gate_kind=gate_kind,
         gate_state=gate_state,
-        gate_start_status="APPROVE",
-        gate_stop_status="APPROVED",
+        gate_start_status=gate_start_status,
+        gate_stop_status=gate_stop_status,
         gate_accent="#0BCDEC",
         gate_label="Approve deploy",
         gate_reason="Release needs confirmation",
@@ -145,3 +151,38 @@ def test_gate_phase_text_flattens_family_phase(tmp_path: Path) -> None:
     assert "answered" in text
     assert "Output:" in text
     assert "selected approve" in text
+
+
+def test_sudo_gate_phase_and_section_use_typed_status_labels(tmp_path: Path) -> None:
+    agent = _gate_agent(
+        tmp_path,
+        status="SUDO",
+        gate_kind="sudo",
+        gate_start_status="SUDO",
+        gate_stop_status="SUDOED",
+    )
+
+    phase_text = _gate_phase_text(agent).plain
+    section_text = "".join(
+        part.plain if hasattr(part, "plain") else str(part)
+        for part in build_gate_section(agent)
+    )
+
+    assert "SUDO" in phase_text
+    assert "GATE" not in phase_text
+    assert "SUDO" in section_text
+
+
+def test_sudo_gate_answered_phase_uses_settled_label(tmp_path: Path) -> None:
+    agent = _gate_agent(
+        tmp_path,
+        status="SUDOED",
+        gate_state="answered",
+        gate_kind="sudo",
+        gate_start_status="SUDO",
+        gate_stop_status="SUDOED",
+    )
+
+    text = _gate_phase_text(agent).plain
+
+    assert "SUDOED" in text

@@ -1730,7 +1730,8 @@ WorkflowHITLModal {
 
 /* Branch-driven gate review workbench */
 PlanApprovalModal,
-CustomGateModal {
+CustomGateModal,
+SudoRequestModal {
     align: center middle;
 }
 
@@ -1747,6 +1748,10 @@ CustomGateModal {
 
 CustomGateModal > #custom-gate-container {
     border: double $accent;
+}
+
+SudoRequestModal > #sudo-request-container {
+    border: double #FFAF5F;
 }
 
 .gate-review-header {
@@ -1785,9 +1790,38 @@ CustomGateModal > #custom-gate-container {
 }
 
 CustomGateModal #custom-gate-notes,
-CustomGateModal #custom-gate-attachments {
+CustomGateModal #custom-gate-attachments,
+SudoRequestModal #sudo-request-context {
     height: auto;
     margin-bottom: 1;
+}
+
+CustomGateModal #custom-gate-password-warning {
+    height: auto;
+    margin-bottom: 1;
+    padding: 0 1;
+    border: heavy #FF5F5F;
+    background: #2A1111;
+}
+
+SudoRequestModal #sudo-command-list {
+    height: auto;
+    max-height: 12;
+    border: solid $secondary;
+}
+
+SudoRequestModal #sudo-deny-feedback {
+    height: 3;
+    margin-bottom: 1;
+}
+
+SudoRequestModal #sudo-request-buttons {
+    height: auto;
+    align-horizontal: right;
+}
+
+SudoRequestModal #sudo-request-buttons Button {
+    margin-left: 1;
 }
 
 .gate-review-document {

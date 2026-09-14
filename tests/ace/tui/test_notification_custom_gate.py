@@ -9,6 +9,7 @@ from typing import Any, cast
 import pytest
 
 from sase.ace.tui.actions.agents._notification_custom_gate import (
+    _custom_gate_password_warning_requested,
     _load_custom_gate_modal_data,
     handle_custom_gate,
 )
@@ -31,12 +32,14 @@ from sase.ace.tui.modals.notification_modal_constants import (
     ACTION_BADGES,
     notification_icon,
 )
+from sase.feature_flags import override_flags
 from sase.notification_gates.presentation import GateChip
 from sase.notification_gates.service import create_gate
 from sase.ops.names import GATE_ANSWER
 from sase.bead.task_gate import create_task_triage_gate
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
+from sase.sudo.gate import build_sudo_gate_request
 from sase.xprompt import HITLResult
 
 
@@ -150,6 +153,20 @@ def _spec(*, kind: str = "custom") -> dict[str, object]:
     }
 
 
+def _sudo_request() -> dict[str, object]:
+    executable = "/usr/bin/true"
+    return {
+        "reason": "Refresh root-owned cache",
+        "commands": [{"id": "refresh", "argv": [executable]}],
+        "run_as": "root",
+        "cwd": "/tmp",
+        "env": {},
+        "timeout_seconds": 30,
+        "stop_policy": "terminate",
+        "output_policy": "bounded",
+    }
+
+
 class _TrackedSubmissionApp:
     def __init__(self) -> None:
         self.notifications: list[tuple[str, str]] = []
@@ -252,6 +269,46 @@ def test_custom_gate_loader_carries_declared_origin_agent(
     data = _load_custom_gate_modal_data(notification)
 
     assert data.origin_agent == "claude_coder"
+
+
+def test_custom_gate_loader_warns_for_agent_authored_password_request(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = _spec()
+    presentation = cast(dict[str, object], spec["presentation"])
+    spec["presentation"] = {
+        **presentation,
+        "notes": ["Please enter the sudo password in this gate."],
+    }
+    create_gate(spec)
+    notification = load_notifications()[0]
+
+    data = _load_custom_gate_modal_data(notification)
+
+    assert data.password_warning is True
+    assert (
+        _custom_gate_password_warning_requested({}, data.preview_text, data.gate)
+        is False
+    )
+
+
+def test_custom_gate_password_warning_ignores_negated_password_note(
+    gate_home: Path,
+) -> None:
+    del gate_home
+    spec = _spec()
+    presentation = cast(dict[str, object], spec["presentation"])
+    spec["presentation"] = {
+        **presentation,
+        "notes": ["This uses sudo but never asks for a password."],
+    }
+    create_gate(spec)
+    notification = load_notifications()[0]
+
+    data = _load_custom_gate_modal_data(notification)
+
+    assert data.password_warning is False
 
 
 def test_task_triage_loader_uses_generic_branch_modal_data(
@@ -487,6 +544,40 @@ def test_notification_flow_dispatches_custom_gate(
     app._show_notification_modal()
 
     assert dispatched == [notification]
+    assert app.pending_reads == 1
+    assert app.refresh_count == 1
+
+
+def test_notification_flow_dispatches_sudo_before_generic_gate(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    with override_flags(agent_sudo_requests=True):
+        create_gate(build_sudo_gate_request(_sudo_request()))
+    notification = load_notifications()[0]
+    app = _NotificationFlowApp(notification)
+    sudo_dispatched: list[Any] = []
+    custom_dispatched: list[Any] = []
+    marked_read: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_actions.handle_sudo_request",
+        lambda _app, selected: sudo_dispatched.append(selected),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_actions.handle_custom_gate",
+        lambda _app, selected: custom_dispatched.append(selected),
+    )
+    monkeypatch.setattr(
+        "sase.notifications.mark_read",
+        lambda notification_id: marked_read.append(notification_id),
+    )
+
+    app._show_notification_modal()
+
+    assert sudo_dispatched == [notification]
+    assert custom_dispatched == []
+    assert marked_read == []
     assert app.pending_reads == 1
     assert app.refresh_count == 1
 

@@ -177,3 +177,21 @@ async def test_declared_origin_agent_renders_filed_by_above_context() -> None:
             if isinstance(widget, Static) and widget.render().plain == "Context"
         )
         assert siblings.index(origin) < context_index
+
+
+async def test_password_warning_renders_exact_system_password_warning() -> None:
+    modal = CustomGateModal(
+        data(
+            options=(option("proceed"),),
+            branches=(("proceed",),),
+            password_warning=True,
+        )
+    )
+
+    async with GateTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        warning = modal.query_one("#custom-gate-password-warning", Static)
+        assert "Never enter your system password here" in warning.render().plain
+        assert warning.has_class("gate-review-password-warning")

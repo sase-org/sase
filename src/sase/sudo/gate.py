@@ -118,15 +118,29 @@ def _approve_option() -> dict[str, Any]:
         "requires_tty": True,
         "input_schema": {
             "type": "object",
-            "required": ["receipt"],
-            "properties": {"receipt": {"type": "object"}},
+            "required": ["command_ids", "receipt"],
+            "properties": {
+                "command_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 1,
+                    "uniqueItems": True,
+                },
+                "receipt": {"type": "object"},
+            },
             "additionalProperties": False,
         },
         "result_schema": {
             "type": "object",
-            "required": ["status", "receipt", "ledger"],
+            "required": ["status", "command_ids", "receipt", "ledger"],
             "properties": {
                 "status": {"const": "approved"},
+                "command_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 1,
+                    "uniqueItems": True,
+                },
                 "receipt": {"type": "object"},
                 "ledger": {"type": "array"},
             },

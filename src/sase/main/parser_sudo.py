@@ -32,15 +32,25 @@ def _register_answer(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "examples:\n"
-            "  sase sudo answer sudo-123 --approve\n"
+            "  sase sudo answer sudo-123 --run\n"
+            "  sase sudo answer sudo-123 --run --command refresh\n"
             "  sase sudo answer sudo-123 --deny --feedback 'not needed'\n"
-            "  sase sudo answer sudo-123 --json --approve"
+            "  sase sudo answer sudo-123 --json --run"
         ),
     )
     parser.add_argument("gate_ref", metavar="ID", help="Sudo gate id or shell ref")
     choice = parser.add_mutually_exclusive_group()
-    choice.add_argument("-a", "--approve", action="store_true", help="Approve")
+    choice.add_argument("-a", "--approve", action="store_true", help="Approve and run")
     choice.add_argument("-d", "--deny", action="store_true", help="Deny")
+    choice.add_argument("-u", "--run", action="store_true", help="Authenticate and run")
+    parser.add_argument(
+        "-c",
+        "--command",
+        action="append",
+        default=None,
+        metavar="ID",
+        help="Reviewed command id to run; repeat to select a subset",
+    )
     parser.add_argument("-f", "--feedback", default=None, help="Reviewer note")
     parser.add_argument("-j", "--json", action="store_true", help="Emit JSON")
     retry = parser.add_mutually_exclusive_group()

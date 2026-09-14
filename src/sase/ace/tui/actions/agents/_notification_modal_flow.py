@@ -153,6 +153,7 @@ class AgentNotificationModalMixin:
             handle_open_launch_control,
             handle_plan_approval,
             handle_remote_attention_notification,
+            handle_sudo_request,
             handle_tmux,
             handle_user_question,
             handle_view_error_report,
@@ -202,6 +203,8 @@ class AgentNotificationModalMixin:
                 handle_launch_approval(self, result)
             elif result.action == REMOTE_ATTENTION_NOTIFICATION_ACTION:
                 handle_remote_attention_notification(self, result)
+            elif result.action == "SudoRequest":
+                handle_sudo_request(self, result)
             elif gate_adapter is not None and gate_adapter.generic_form:
                 handle_custom_gate(self, result)
             elif result.action == "ViewErrorReport":

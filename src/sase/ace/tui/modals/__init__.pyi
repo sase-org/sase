@@ -112,6 +112,11 @@ from .custom_gate_modal import CustomGateModal as CustomGateModal
 from .custom_gate_modal import CustomGateModalData as CustomGateModalData
 from .custom_gate_modal import CustomGateModalResult as CustomGateModalResult
 from .custom_model_input_modal import CustomModelInputModal as CustomModelInputModal
+from .sudo_request_modal import SudoCommandReviewData as SudoCommandReviewData
+from .sudo_request_modal import SudoRequestModal as SudoRequestModal
+from .sudo_request_modal import SudoRequestModalData as SudoRequestModalData
+from .sudo_request_modal import SudoRequestModalResult as SudoRequestModalResult
+from .sudo_request_modal import sudo_request_expires_at as sudo_request_expires_at
 from .disabled_provider_launch_modal import (
     DisabledProviderLaunchDecision as DisabledProviderLaunchDecision,
 )

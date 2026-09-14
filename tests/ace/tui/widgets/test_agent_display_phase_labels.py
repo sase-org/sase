@@ -67,6 +67,32 @@ class TestGetPhaseLabel:
         )
         assert get_phase_label(agent) == "GATE"
 
+    def test_sudo_gate_pending_uses_typed_status_label(self) -> None:
+        agent = make_agent(
+            role_suffix="--gate",
+            agent_family_role="gate",
+            gate_id="sudo-123",
+            gate_kind="sudo",
+            gate_state="pending",
+            gate_start_status="SUDO",
+            gate_stop_status="SUDOED",
+            status="SUDO",
+        )
+        assert get_phase_label(agent) == "SUDO"
+
+    def test_sudo_gate_answered_uses_typed_settled_status_label(self) -> None:
+        agent = make_agent(
+            role_suffix="--gate",
+            agent_family_role="gate",
+            gate_id="sudo-123",
+            gate_kind="sudo",
+            gate_state="answered",
+            gate_start_status="SUDO",
+            gate_stop_status="SUDOED",
+            status="SUDOED",
+        )
+        assert get_phase_label(agent) == "SUDOED"
+
     def test_feedback_round_2(self) -> None:
         agent = make_agent(role_suffix=".2")
         assert get_phase_label(agent) == "AGENT (plan round 2)"

@@ -23923,12 +23923,13 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "3bae1b506fcb0a36",
+            "description_digest": "17d4f233c2275d19",
             "hidden": false,
             "mutex_groups": [
               [
                 "approve",
-                "deny"
+                "deny",
+                "run"
               ],
               [
                 "resume",
@@ -23972,6 +23973,30 @@
                   "--deny"
                 ],
                 "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "run",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-u",
+                  "--run"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "command",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-c",
+                  "--command"
+                ],
+                "takes_value": true
               },
               {
                 "choices": null,

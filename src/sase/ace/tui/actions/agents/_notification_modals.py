@@ -15,6 +15,7 @@ from ._notification_hitl_modal import handle_hitl as handle_hitl
 from ._notification_launch_approval import (
     handle_launch_approval as handle_launch_approval,
 )
+from ._notification_sudo import handle_sudo_request as handle_sudo_request
 from ._notification_modal_responses import write_workflow_action_response
 from ._notification_plan_background import (
     add_saved_plan_to_response as _add_saved_plan_to_response,

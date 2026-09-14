@@ -92,8 +92,16 @@ def _validate_structure(spec: GateSpec) -> None:
     expected_approve_input = stamp_schema_dialect(
         {
             "type": "object",
-            "required": ["receipt"],
-            "properties": {"receipt": {"type": "object"}},
+            "required": ["command_ids", "receipt"],
+            "properties": {
+                "command_ids": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "minItems": 1,
+                    "uniqueItems": True,
+                },
+                "receipt": {"type": "object"},
+            },
             "additionalProperties": False,
         }
     )

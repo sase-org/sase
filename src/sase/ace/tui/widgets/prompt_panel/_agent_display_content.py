@@ -9,6 +9,8 @@ from rich.text import Text
 
 from sase.agent.artifact_files_cache import get_global_cache
 from sase.core.time import get_timezone, to_local
+from sase.gate_shell.state import gate_state_is_terminal
+from sase.gate_shell.status import effective_gate_status, gate_status_pair
 from sase.plan_chain import (
     PLAN_CHAIN_CODER_SUFFIX,
     PLAN_CHAIN_COMMIT_SUFFIX,
@@ -76,7 +78,7 @@ def get_phase_label(agent: Agent) -> str:
     if role == "monitor":
         return MONITOR_PHASE_LABEL
     if role == "gate":
-        return GATE_PHASE_LABEL
+        return _gate_role_label(agent)
     if role == "plan":
         return _agent_role_label("plan")
     if suffix in _PHASE_SUFFIX_TOKENS:
@@ -88,6 +90,31 @@ def get_phase_label(agent: Agent) -> str:
     if feedback_round is not None:
         return _agent_role_label(f"plan round {feedback_round}")
     return _agent_role_label(agent_family_suffix_token(agent.role_suffix))
+
+
+def _gate_role_label(agent: Agent) -> str:
+    if not _is_sudo_gate(agent):
+        return GATE_PHASE_LABEL
+    pair = gate_status_pair(agent.gate_start_status, agent.gate_stop_status)
+    return effective_gate_status(
+        pair,
+        gate_state=agent.gate_state,
+        settled=_gate_status_is_settled(agent, pair.stop),
+    )
+
+
+def _is_sudo_gate(agent: Agent) -> bool:
+    return (
+        agent.gate_kind == "sudo"
+        or agent.gate_start_status == "SUDO"
+        or agent.gate_stop_status == "SUDOED"
+    )
+
+
+def _gate_status_is_settled(agent: Agent, stop_status: str) -> bool:
+    if gate_state_is_terminal(agent.gate_state):
+        return True
+    return agent.status.casefold() == stop_status.casefold()
 
 
 def render_attempt_divider(

@@ -80,6 +80,7 @@ def data(
     notes: tuple[str, ...] | None = None,
     gate_title: str | None = None,
     chip: GateChip | None = None,
+    password_warning: bool = False,
 ) -> CustomGateModalData:
     return CustomGateModalData(
         request_id="custom-ace",
@@ -100,6 +101,7 @@ def data(
         origin_agent=origin_agent,
         gate_title=gate_title,
         chip=chip,
+        password_warning=password_warning,
     )
 
 

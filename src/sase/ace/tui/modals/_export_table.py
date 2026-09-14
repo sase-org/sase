@@ -302,6 +302,10 @@ _LAZY_EXPORTS = {
     "SchemaObjectFormModel": (".schema_object_form", "SchemaObjectFormModel"),
     "SelectionItem": (".project_selection_types", "SelectionItem"),
     "SnoozeDurationModal": (".snooze_duration_modal", "SnoozeDurationModal"),
+    "SudoCommandReviewData": (".sudo_request_modal", "SudoCommandReviewData"),
+    "SudoRequestModal": (".sudo_request_modal", "SudoRequestModal"),
+    "SudoRequestModalData": (".sudo_request_modal", "SudoRequestModalData"),
+    "SudoRequestModalResult": (".sudo_request_modal", "SudoRequestModalResult"),
     "SnippetNameModal": (".snippet_name_modal", "SnippetNameModal"),
     "SnippetNameResult": (".snippet_name_modal", "SnippetNameResult"),
     "SnippetSaveConfirmModal": (
@@ -393,6 +397,7 @@ _LAZY_EXPORTS = {
         ".config_transaction_preview",
         "render_transaction_preview",
     ),
+    "sudo_request_expires_at": (".sudo_request_modal", "sudo_request_expires_at"),
     "stable_chop_name": (".axe_add_modals", "stable_chop_name"),
     "validate_axe_new_entry_identity": (
         ".axe_add_modals",

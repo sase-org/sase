@@ -71,6 +71,7 @@ class CustomGateModalData:
     gate_title: str | None = None
     actions: GateActionsData = GateActionsData()
     chip: GateChip | None = None
+    password_warning: bool = False
 
 
 @dataclass(frozen=True)
@@ -171,6 +172,12 @@ class CustomGateModal(
                 self._origin_text(self._data.origin_agent),
                 id="custom-gate-origin",
                 classes="gate-review-origin",
+            )
+        if self._data.password_warning:
+            yield Static(
+                self._password_warning_text(),
+                id="custom-gate-password-warning",
+                classes="gate-review-password-warning",
             )
         yield Static("Context", classes="gate-review-section-title")
         yield Static(self._notes(), id="custom-gate-notes")
@@ -301,6 +308,15 @@ class CustomGateModal(
             if index:
                 text.append("\n")
             text.append(note)
+        return text
+
+    def _password_warning_text(self) -> Text:
+        text = Text()
+        text.append("Never enter your system password here", style="bold #FF5F5F")
+        text.append(
+            ". This custom gate is agent-authored; use the trusted sudo terminal prompt.",
+            style="#FFAF5F",
+        )
         return text
 
     def _attachment_summary(self) -> Text:

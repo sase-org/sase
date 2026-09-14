@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import argparse
 import copy
+import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from sase.feature_flags import override_flags
+from sase.gate_shell.models import GateShellRecord
 from sase.main.parser_sudo import register_sudo_parser
 from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
 from sase.notification_gates.durability import read_json_object
@@ -18,7 +21,10 @@ from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import GateError
 from sase.notification_gates.service import create_gate
 from sase.sudo.cli import handle_sudo_command
+from sase.sudo.cli import _shell_payload as sudo_shell_payload
 from sase.sudo.gate import APPROVE_OPTION_ID, DENY_OPTION_ID, build_sudo_gate_request
+from sase.sudo.lease import _sudo_auth_state_path, sudo_auth_lease
+from sase.sudo.manifest import selected_sudo_manifest
 from sase.sudo.models import normalize_sudo_request
 
 
@@ -35,6 +41,18 @@ def _request() -> dict[str, Any]:
         "stop_policy": "terminate",
         "output_policy": "bounded",
     }
+
+
+def _multi_command_request() -> dict[str, Any]:
+    executable = shutil.which("true")
+    assert executable is not None
+    request = _request()
+    request["commands"] = [
+        {"id": "alpha", "argv": [executable, "--alpha"]},
+        {"id": "beta", "argv": [executable, "--beta"]},
+        {"id": "gamma", "argv": [executable, "--gamma"]},
+    ]
+    return request
 
 
 def _runner_receipt(envelope: dict[str, Any]) -> dict[str, Any]:
@@ -74,6 +92,95 @@ def test_sudo_gate_contains_tty_approve_and_headless_deny(
     assert request["presentation"]["chip"]["label"] == "sudo"
     assert request["shell"]["pending_status"] == "SUDO"
     assert request["shell"]["settled_status"] == "SUDOED"
+
+
+def test_sudo_manifest_subset_rehashes_in_reviewed_order() -> None:
+    spec = build_sudo_gate_request(_multi_command_request())
+    sudo_payload = spec["payload"]["sudo"]
+    manifest = sudo_payload["manifest"]
+
+    subset, command_ids, manifest_sha256 = selected_sudo_manifest(
+        manifest,
+        ("gamma", "alpha"),
+    )
+
+    assert command_ids == ("alpha", "gamma")
+    assert [command["id"] for command in subset["commands"]] == ["alpha", "gamma"]
+    assert manifest_sha256 != sudo_payload["manifest_sha256"]
+
+
+def test_sudo_auth_lease_writes_and_releases_non_secret_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+
+    with sudo_auth_lease(
+        request_id="sudo-one",
+        run_as="root",
+        cwd="/tmp",
+        command_ids=("alpha", "beta"),
+    ):
+        state = read_json_object(_sudo_auth_state_path())
+        assert state["request_id"] == "sudo-one"
+        assert state["run_as"] == "root"
+        assert state["cwd"] == "/tmp"
+        assert state["command_count"] == 2
+        assert "command_ids" not in state
+
+    assert not _sudo_auth_state_path().exists()
+
+
+def test_sudo_auth_lease_rejects_concurrent_handoff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+
+    with sudo_auth_lease(
+        request_id="sudo-one",
+        run_as="root",
+        cwd="/tmp",
+        command_ids=("alpha",),
+    ):
+        with pytest.raises(GateError) as excinfo:
+            with sudo_auth_lease(
+                request_id="sudo-two",
+                run_as="root",
+                cwd="/tmp",
+                command_ids=("beta",),
+            ):
+                pass
+
+    assert excinfo.value.code == "auth_lease_busy"
+    assert "sudo-one" in str(excinfo.value)
+
+
+def test_sudo_shell_payload_uses_typed_status_label() -> None:
+    row = GateShellRecord(
+        gate_id="sudo-1",
+        member_agent_name="agent--gate",
+        lane="agent",
+        project_name="sase",
+        artifacts_dir="/tmp/agent",
+        timestamp="2026-09-14T00:00:00+00:00",
+        kind="sudo",
+        gate_state="pending",
+        start_status="SUDO",
+        stop_status="SUDOED",
+        accent="#FFAF5F",
+        label="sudo",
+        reason="refresh metadata",
+        creator_agent=None,
+        bundle_path=None,
+        notification_id=None,
+        timeout_seconds=30.0,
+        request_fingerprint=None,
+        workspace_policy="inherit",
+    )
+
+    assert sudo_shell_payload(row)["status"] == "SUDO"
+    assert sudo_shell_payload(replace(row, gate_state="answered"))["status"] == "SUDOED"
 
 
 def test_sudo_approval_requires_controlling_tty_before_accepting_decision(
@@ -198,7 +305,7 @@ def test_sudo_runner_auth_failure_leaves_gate_answerable(
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.sudo.cli.run_sudo_runner",
-        lambda _payload: {"status": "authentication_failed"},
+        lambda _payload, **_kwargs: {"status": "authentication_failed"},
     )
 
     with override_flags(agent_sudo_requests=True):
@@ -206,6 +313,97 @@ def test_sudo_runner_auth_failure_leaves_gate_answerable(
             handle_sudo_command(args)
 
     assert excinfo.value.code == "authentication_failed"
+    assert not gate.response_path.exists()
+    assert not (gate.bundle_path / DECISION_RECEIPT_FILENAME).exists()
+
+
+def test_sudo_answer_runs_reviewed_command_subset(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del gate_home
+    with override_flags(agent_sudo_requests=True):
+        gate = create_gate(build_sudo_gate_request(_multi_command_request()))
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(
+        [
+            "sudo",
+            "answer",
+            gate.request_id,
+            "--run",
+            "--command",
+            "gamma",
+            "--command",
+            "alpha",
+            "--json",
+        ]
+    )
+    monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
+    monkeypatch.setattr(
+        "sase.notification_gates.executor.has_controlling_tty",
+        lambda: True,
+    )
+    captured_runner_payload: dict[str, Any] = {}
+
+    def fake_runner(payload: dict[str, Any], **_kwargs: Any) -> dict[str, Any]:
+        captured_runner_payload.update(payload)
+        return {
+            "manifest_sha256": payload["manifest_sha256"],
+            "ledger": [
+                {"id": command["id"], "status": "ran"}
+                for command in payload["manifest"]["commands"]
+            ],
+        }
+
+    monkeypatch.setattr("sase.sudo.cli.run_sudo_runner", fake_runner)
+
+    with override_flags(agent_sudo_requests=True):
+        assert handle_sudo_command(args) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["selected_option_ids"] == [APPROVE_OPTION_ID]
+    assert output["selected_command_ids"] == ["alpha", "gamma"]
+    assert [
+        command["id"] for command in captured_runner_payload["manifest"]["commands"]
+    ] == [
+        "alpha",
+        "gamma",
+    ]
+    response = read_json_object(gate.response_path)
+    [approve_result] = response["option_results"]
+    assert approve_result["result"]["command_ids"] == ["alpha", "gamma"]
+    assert (
+        approve_result["result"]["receipt"]["manifest_sha256"]
+        == captured_runner_payload["manifest_sha256"]
+    )
+
+
+def test_sudo_answer_json_auth_failure_reports_pending_gate(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del gate_home
+    with override_flags(agent_sudo_requests=True):
+        gate = create_gate(build_sudo_gate_request(_request()))
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["sudo", "answer", gate.request_id, "--run", "--json"])
+    monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
+    monkeypatch.setattr(
+        "sase.sudo.cli.run_sudo_runner",
+        lambda _payload, **_kwargs: {"status": "authentication_failed"},
+    )
+
+    with override_flags(agent_sudo_requests=True):
+        assert handle_sudo_command(args) == 2
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "pending"
+    assert output["settled"] is False
+    assert output["outcome"] == "authentication_failed"
     assert not gate.response_path.exists()
     assert not (gate.bundle_path / DECISION_RECEIPT_FILENAME).exists()
 
@@ -227,9 +425,37 @@ def test_sudo_command_resource_requires_runner_receipt(
             gate.bundle_path,
             [APPROVE_OPTION_ID],
             source="sudo_cli",
-            option_inputs={APPROVE_OPTION_ID: {"receipt": {}}},
+            option_inputs={
+                APPROVE_OPTION_ID: {"command_ids": ["refresh"], "receipt": {}}
+            },
         )
 
     assert excinfo.value.code == "receipt_hash_mismatch"
+    assert not gate.response_path.exists()
+    assert not (gate.bundle_path / DECISION_RECEIPT_FILENAME).exists()
+
+
+def test_sudo_approval_requires_command_ids_before_accepting_decision(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    with override_flags(agent_sudo_requests=True):
+        gate = create_gate(build_sudo_gate_request(_request()))
+    receipt = _runner_receipt(read_json_object(gate.request_path))
+    monkeypatch.setattr(
+        "sase.notification_gates.executor.has_controlling_tty",
+        lambda: True,
+    )
+
+    with pytest.raises(GateError) as excinfo:
+        execute_gate_selection(
+            gate.bundle_path,
+            [APPROVE_OPTION_ID],
+            source="sudo_cli",
+            option_inputs={APPROVE_OPTION_ID: {"receipt": receipt}},
+        )
+
+    assert excinfo.value.code == "invalid_sudo_selection"
     assert not gate.response_path.exists()
     assert not (gate.bundle_path / DECISION_RECEIPT_FILENAME).exists()

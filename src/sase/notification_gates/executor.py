@@ -525,6 +525,7 @@ def _preflight_sudo_approval_inputs(
     if kind != "sudo" or all(option.id != "approve" for option in selected):
         return
     from sase.sudo.receipt import validate_sudo_receipt
+    from sase.sudo.manifest import selected_sudo_manifest
 
     approve_input = (
         option_inputs.get("approve") if isinstance(option_inputs, Mapping) else None
@@ -532,23 +533,31 @@ def _preflight_sudo_approval_inputs(
     receipt = (
         approve_input.get("receipt") if isinstance(approve_input, Mapping) else None
     )
+    command_ids_value = (
+        approve_input.get("command_ids") if isinstance(approve_input, Mapping) else None
+    )
+    if not isinstance(command_ids_value, list) or not command_ids_value:
+        raise GateError(
+            "invalid_sudo_selection",
+            "option_inputs.approve.command_ids",
+            "sudo approve requires reviewed command ids",
+        )
     sudo_payload = _sudo_payload_for_preflight(envelope)
     manifest = sudo_payload["manifest"]
-    command_ids = [
-        str(item["id"])
-        for item in manifest.get("commands", [])
-        if isinstance(item, Mapping) and "id" in item
-    ]
+    _subset, command_ids, manifest_sha256 = selected_sudo_manifest(
+        manifest,
+        command_ids_value,
+    )
     normalized = validate_sudo_receipt(
         receipt,
-        manifest_sha256=str(sudo_payload["manifest_sha256"]),
+        manifest_sha256=manifest_sha256,
         selected_command_ids=command_ids,
     )
     for index, entry in enumerate(normalized.get("ledger", [])):
         if not isinstance(entry, Mapping):
             continue
         status = str(entry.get("status") or "")
-        if status in {"authentication_failed", "cancelled"}:
+        if status in {"authentication_failed", "cancelled", "canceled", "timeout"}:
             raise GateError(
                 status,
                 f"receipt.ledger[{index}]",

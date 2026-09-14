@@ -128,6 +128,7 @@ def _data(
     preview: bool = True,
     frontmatter: bool = False,
     actions: GateActionsData = _NO_ACTIONS,
+    password_warning: bool = False,
 ) -> CustomGateModalData:
     preview_text = (
         "# Production deployment\n\n"
@@ -166,6 +167,7 @@ def _data(
         ),
         gate_title="Approve production deployment",
         actions=actions,
+        password_warning=password_warning,
     )
 
 
@@ -373,4 +375,26 @@ async def test_custom_gate_draft_banner_png_snapshot(
         ),
         snapshot_name="custom_gate_draft_banner_120x40",
         title="ACE custom gate unaccepted draft banner",
+    )
+
+
+async def test_custom_gate_password_warning_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    options = (
+        _option("continue", "Continue without credentials", icon="!"),
+        _option("cancel", "Cancel request", icon="x"),
+    )
+    await _snapshot_modal(
+        ace_png_visual,
+        monkeypatch,
+        data=_data(
+            options=options,
+            branches=(("continue",), ("cancel",)),
+            password_warning=True,
+            preview=False,
+        ),
+        snapshot_name="custom_gate_password_warning_120x40",
+        title="ACE custom gate system password warning",
     )

@@ -18,6 +18,7 @@ from sase.gate_shell.state import (
     GATE_FAILURE_GLYPH_COLOR,
     GATE_GLYPH,
     GATE_SETTLED_GLYPH_COLOR,
+    gate_state_is_terminal,
 )
 from sase.gate_shell.status import (
     effective_gate_status,
@@ -74,7 +75,7 @@ def _status_pair_text(agent: Agent) -> Text:
     effective = effective_gate_status(
         pair,
         gate_state=agent.gate_state,
-        settled=False,
+        settled=gate_state_is_terminal(agent.gate_state),
     )
     text = Text()
     if pair.start == pair.stop:
@@ -245,7 +246,7 @@ def build_gate_section(
     heading = Text(end="")
     append_fold_section_heading(
         heading,
-        GATE_PHASE_LABEL,
+        get_phase_label(agent),
         section_id=GATE_SECTION_ID,
         level=level,
         scale=scale,

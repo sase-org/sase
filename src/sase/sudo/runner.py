@@ -10,15 +10,21 @@ from typing import Any
 from sase.notification_gates.models import GateError
 
 
-def run_sudo_runner(manifest: Mapping[str, Any]) -> dict[str, Any]:
+def run_sudo_runner(
+    manifest: Mapping[str, Any],
+    *,
+    timeout_seconds: float | None = None,
+) -> dict[str, Any]:
     """Invoke the installed runner with the reviewed manifest."""
     try:
         completed = subprocess.run(
             ["sase_sudo_runner"],
             input=json.dumps(dict(manifest), sort_keys=True) + "\n",
-            capture_output=True,
             check=False,
+            stderr=None,
+            stdout=subprocess.PIPE,
             text=True,
+            timeout=timeout_seconds,
         )
     except FileNotFoundError as exc:
         raise GateError(
@@ -26,8 +32,20 @@ def run_sudo_runner(manifest: Mapping[str, Any]) -> dict[str, Any]:
             "sase_sudo_runner",
             "sase_sudo_runner is not installed or not on PATH",
         ) from exc
+    except subprocess.TimeoutExpired as exc:
+        raise GateError(
+            "timeout",
+            "sase_sudo_runner",
+            "sudo runner timed out; the gate remains pending",
+        ) from exc
+    except KeyboardInterrupt as exc:
+        raise GateError(
+            "cancelled",
+            "sase_sudo_runner",
+            "sudo authentication was cancelled; the gate remains pending",
+        ) from exc
     if completed.returncode != 0:
-        message = completed.stderr.strip() or f"runner exited {completed.returncode}"
+        message = f"runner exited {completed.returncode}; the gate remains pending"
         raise GateError("runner_failed", "sase_sudo_runner", message)
     try:
         value = json.loads(completed.stdout)

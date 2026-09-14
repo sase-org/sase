@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from sase.gate_shell.models import GateShellRefError, GateShellRecord
+from sase.gate_shell.status import effective_gate_status, gate_status_pair
 from sase.gate_shell.settlement import settle_gate_shell
 from sase.gate_shell.store import (
     find_gate_shell_by_gate_id,
@@ -27,6 +28,8 @@ from sase.notification_gates.executor import execute_gate_selection, has_control
 from sase.notification_gates.models import GateError
 from sase.sudo.feature import require_sudo_requests_enabled
 from sase.sudo.gate import APPROVE_OPTION_ID, DENY_OPTION_ID, build_sudo_gate_request
+from sase.sudo.lease import sudo_auth_lease
+from sase.sudo.manifest import selected_sudo_manifest
 from sase.sudo.receipt import validate_sudo_receipt
 from sase.sudo.runner import run_sudo_runner
 
@@ -80,12 +83,23 @@ def _answer(args: argparse.Namespace) -> int:
     gate_id = _resolve_sudo_gate_id(str(args.gate_ref))
     decision = _decision(args)
     retry = _retry(args)
-    if decision == "deny":
-        payload = _deny(gate_id, feedback=getattr(args, "feedback", None), retry=retry)
-    else:
-        payload = _approve(
-            gate_id, feedback=getattr(args, "feedback", None), retry=retry
-        )
+    try:
+        if decision == "deny":
+            payload = _deny(
+                gate_id, feedback=getattr(args, "feedback", None), retry=retry
+            )
+        else:
+            payload = _approve(
+                gate_id,
+                command_ids=tuple(getattr(args, "command", None) or ()),
+                feedback=getattr(args, "feedback", None),
+                retry=retry,
+            )
+    except GateError as exc:
+        if not bool(getattr(args, "json", False)):
+            raise
+        emit_json(_error_payload(gate_id, exc))
+        return _error_exit_code(exc)
     if bool(getattr(args, "json", False)):
         emit_json(payload)
     else:
@@ -96,6 +110,7 @@ def _answer(args: argparse.Namespace) -> int:
 def _approve(
     gate_id: str,
     *,
+    command_ids: tuple[str, ...],
     feedback: str | None,
     retry: Literal["resume", "restart"] | None,
 ) -> dict[str, Any]:
@@ -107,24 +122,29 @@ def _approve(
         )
     bundle = resolve_gate_cli_bundle("sudo", gate_id)
     sudo_payload = _sudo_payload(bundle.envelope)
-    manifest = dict(sudo_payload["manifest"])
-    receipt = run_sudo_runner(
-        {
-            "request_id": gate_id,
-            "manifest": manifest,
-            "manifest_sha256": sudo_payload["manifest_sha256"],
-        }
+    manifest, selected_command_ids, manifest_sha256 = selected_sudo_manifest(
+        dict(sudo_payload["manifest"]),
+        command_ids,
     )
+    with sudo_auth_lease(
+        request_id=gate_id,
+        run_as=str(manifest.get("run_as") or "root"),
+        cwd=str(manifest.get("cwd") or ""),
+        command_ids=selected_command_ids,
+    ):
+        receipt = run_sudo_runner(
+            {
+                "request_id": gate_id,
+                "manifest": manifest,
+                "manifest_sha256": manifest_sha256,
+            },
+            timeout_seconds=_runner_timeout_seconds(manifest),
+        )
     _reject_non_terminal_auth(receipt)
-    command_ids = [
-        str(item["id"])
-        for item in manifest.get("commands", [])
-        if isinstance(item, Mapping)
-    ]
     normalized_receipt = validate_sudo_receipt(
         receipt,
-        manifest_sha256=str(sudo_payload["manifest_sha256"]),
-        selected_command_ids=command_ids,
+        manifest_sha256=manifest_sha256,
+        selected_command_ids=selected_command_ids,
     )
     execution = execute_gate_selection(
         bundle.root,
@@ -132,10 +152,20 @@ def _approve(
         feedback=feedback,
         source="sudo_cli",
         retry=retry,
-        option_inputs={APPROVE_OPTION_ID: {"receipt": normalized_receipt}},
+        option_inputs={
+            APPROVE_OPTION_ID: {
+                "command_ids": list(selected_command_ids),
+                "receipt": normalized_receipt,
+            }
+        },
     )
     _settle_shell(gate_id, retry=retry)
-    return _answer_payload(bundle.kind, gate_id, execution.response)
+    return _answer_payload(
+        bundle.kind,
+        gate_id,
+        execution.response,
+        selected_command_ids=selected_command_ids,
+    )
 
 
 def _deny(
@@ -185,9 +215,9 @@ def _show(args: argparse.Namespace) -> int:
     return 0
 
 
-def _decision(args: argparse.Namespace) -> Literal["approve", "deny"]:
-    if bool(getattr(args, "approve", False)):
-        return "approve"
+def _decision(args: argparse.Namespace) -> Literal["run", "deny"]:
+    if bool(getattr(args, "approve", False)) or bool(getattr(args, "run", False)):
+        return "run"
     if bool(getattr(args, "deny", False)):
         return "deny"
     if not has_controlling_tty():
@@ -197,7 +227,7 @@ def _decision(args: argparse.Namespace) -> Literal["approve", "deny"]:
             "choose --approve or --deny when not running interactively",
         )
     answer = input("Approve sudo request? [y/N] ").strip().lower()
-    return "approve" if answer in {"y", "yes"} else "deny"
+    return "run" if answer in {"y", "yes"} else "deny"
 
 
 def _retry(args: argparse.Namespace) -> Literal["resume", "restart"] | None:
@@ -210,7 +240,7 @@ def _retry(args: argparse.Namespace) -> Literal["resume", "restart"] | None:
 
 def _reject_non_terminal_auth(receipt: Mapping[str, Any]) -> None:
     status = str(receipt.get("status") or "")
-    if status in {"authentication_failed", "cancelled"}:
+    if status in {"authentication_failed", "cancelled", "canceled", "timeout"}:
         raise GateError(
             status,
             "sase_sudo_runner",
@@ -222,7 +252,12 @@ def _reject_non_terminal_auth(receipt: Mapping[str, Any]) -> None:
             if not isinstance(entry, Mapping):
                 continue
             entry_status = str(entry.get("status") or "")
-            if entry_status in {"authentication_failed", "cancelled"}:
+            if entry_status in {
+                "authentication_failed",
+                "cancelled",
+                "canceled",
+                "timeout",
+            }:
                 raise GateError(
                     entry_status,
                     f"sase_sudo_runner.ledger[{index}]",
@@ -270,15 +305,78 @@ def _settle_shell(gate_id: str, *, retry: Literal["resume", "restart"] | None) -
 
 
 def _answer_payload(
-    kind: str, gate_id: str, response: Mapping[str, Any]
+    kind: str,
+    gate_id: str,
+    response: Mapping[str, Any],
+    *,
+    selected_command_ids: tuple[str, ...] = (),
 ) -> dict[str, Any]:
+    option_results = response.get("option_results", [])
     return {
         "kind": kind,
         "request_id": gate_id,
         "selected_option_ids": list(response.get("selected_option_ids", [])),
-        "option_results": response.get("option_results", []),
+        "selected_command_ids": list(selected_command_ids),
+        "option_results": option_results,
+        "outcome": _response_outcome(option_results),
         "status": "answered",
     }
+
+
+def _error_payload(gate_id: str, exc: GateError) -> dict[str, Any]:
+    return {
+        "request_id": gate_id,
+        "status": "pending",
+        "settled": False,
+        "outcome": _error_outcome(exc.code),
+        "code": exc.code,
+        "target": exc.target,
+        "message": str(exc),
+    }
+
+
+def _response_outcome(option_results: object) -> str:
+    if isinstance(option_results, list):
+        for option in option_results:
+            if not isinstance(option, Mapping):
+                continue
+            result = option.get("result")
+            if not isinstance(result, Mapping):
+                continue
+            ledger = result.get("ledger")
+            if isinstance(ledger, list):
+                for entry in ledger:
+                    if (
+                        isinstance(entry, Mapping)
+                        and entry.get("status") == "command_failed"
+                    ):
+                        return "command_failed"
+    return "completed"
+
+
+def _error_outcome(code: str) -> str:
+    if code == "authentication_failed":
+        return "authentication_failed"
+    if code in {"cancelled", "canceled"}:
+        return "cancellation"
+    if code == "timeout":
+        return "timeout"
+    if code in {"auth_lease_busy", "lock_timeout"}:
+        return "lock_contention"
+    if code == "tty_required":
+        return "missing_tty"
+    return "runner_error"
+
+
+def _error_exit_code(exc: GateError) -> int:
+    return 2 if _error_outcome(exc.code) != "runner_error" else 1
+
+
+def _runner_timeout_seconds(manifest: Mapping[str, Any]) -> float | None:
+    value = manifest.get("timeout_seconds")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return max(1.0, float(value)) + 30.0
 
 
 def _shell_payload(row: GateShellRecord) -> dict[str, Any]:
@@ -287,9 +385,18 @@ def _shell_payload(row: GateShellRecord) -> dict[str, Any]:
         "member_agent_name": row.member_agent_name,
         "project_name": row.project_name,
         "state": row.gate_state,
-        "status": row.status_bucket,
+        "status": _shell_status_label(row),
         "reason": row.reason,
     }
+
+
+def _shell_status_label(row: GateShellRecord) -> str:
+    pair = gate_status_pair(row.start_status, row.stop_status)
+    return effective_gate_status(
+        pair,
+        gate_state=row.gate_state,
+        settled=row.is_terminal,
+    )
 
 
 def _print_answer(payload: Mapping[str, Any]) -> None:
@@ -308,7 +415,7 @@ def _print_list(rows: list[GateShellRecord]) -> None:
         table.add_row(
             row.gate_id,
             row.gate_state,
-            row.status_bucket,
+            _shell_status_label(row),
             row.member_agent_name,
             row.reason,
         )
