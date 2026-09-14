@@ -83,6 +83,8 @@ def _print_disk_report(report: DiskFootprintReport) -> None:
         f"; stray scan visited {report.stray_scan_visited} dirs"
         f"{' (truncated)' if report.stray_scan_truncated else ''}[/dim]"
     )
+    for diagnostic in report.scan_diagnostics:
+        console.print(f"[yellow]partial scan: {diagnostic}[/yellow]")
 
 
 def _print_reap_result(result: DiskReapResult) -> None:

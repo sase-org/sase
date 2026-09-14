@@ -351,14 +351,15 @@ def test_capture_config_accessors_validate_values(
 
 
 @pytest.mark.parametrize(
-    ("config", "enabled", "keep", "months", "age", "grace"),
+    ("config", "enabled", "keep", "months", "age", "grace", "empty_shards"),
     [
-        ({}, False, 3, 2, 90, 14),
+        ({}, False, 3, 2, 90, 14, 2000),
         (
             {
                 "artifacts": {
                     "retention": {
                         "enabled": True,
+                        "empty_shard_removal_budget": 42,
                         "keep_per_label": 7,
                         "keep_recent_run_months": 4,
                         "max_age_days": 30,
@@ -371,12 +372,14 @@ def test_capture_config_accessors_validate_values(
             4,
             30,
             3,
+            42,
         ),
         (
             {
                 "artifacts": {
                     "retention": {
                         "enabled": "yes",
+                        "empty_shard_removal_budget": 0,
                         "keep_per_label": -1,
                         "keep_recent_run_months": 0,
                         "max_age_days": True,
@@ -389,11 +392,13 @@ def test_capture_config_accessors_validate_values(
             2,
             90,
             14,
+            2000,
         ),
         (
             {
                 "artifacts": {
                     "retention": {
+                        "empty_shard_removal_budget": 1,
                         "keep_per_label": 0,
                         "keep_recent_run_months": 1,
                         "max_age_days": 0,
@@ -406,8 +411,9 @@ def test_capture_config_accessors_validate_values(
             1,
             0,
             0,
+            1,
         ),
-        ({"artifacts": {"retention": "invalid"}}, False, 3, 2, 90, 14),
+        ({"artifacts": {"retention": "invalid"}}, False, 3, 2, 90, 14, 2000),
     ],
 )
 def test_retention_config_accessors_validate_values(
@@ -418,6 +424,7 @@ def test_retention_config_accessors_validate_values(
     months: int,
     age: int,
     grace: int,
+    empty_shards: int,
 ) -> None:
     monkeypatch.setattr(config_core, "load_merged_config", lambda: config)
 
@@ -426,6 +433,9 @@ def test_retention_config_accessors_validate_values(
     assert config_core.get_artifact_retention_keep_recent_run_months() == months
     assert config_core.get_artifact_retention_max_age_days() == age
     assert config_core.get_artifact_retention_trash_grace_days() == grace
+    assert (
+        config_core.get_artifact_retention_empty_shard_removal_budget() == empty_shards
+    )
 
 
 def test_capture_config_default_and_schema() -> None:

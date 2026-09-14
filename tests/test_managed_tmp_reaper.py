@@ -483,6 +483,22 @@ def test_low_free_space_pressure_age_still_protects_fresh_descendant(
     assert result.pressure_effective_min_age_seconds == HOUR
 
 
+def test_dry_run_reports_selected_entries_without_removing_them(
+    tmp_path: Path,
+) -> None:
+    stale = _aged_file(tmp_path, "editors/note.md", age_seconds=13 * HOUR)
+
+    result = reap_managed_tmpdir(tmp_path, now=NOW, apply=False)
+
+    assert stale.exists()
+    assert not result.apply
+    assert result.selected == 1
+    assert result.removed == 0
+    assert result.selected_by_subdir == {"editors": 1}
+    assert result.removed_by_subdir == {}
+    assert result.describe() == (f"would reclaim 1 entries under {tmp_path}: editors=1")
+
+
 def test_pressure_reaping_stops_at_free_space_recovery_threshold(
     tmp_path: Path,
 ) -> None:

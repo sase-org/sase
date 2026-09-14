@@ -79,7 +79,7 @@ def collect_disk_footprint(
     return _inventory.collect_disk_footprint(
         include_strays=include_strays,
         home=home,
-        tree_size_fn=tree_size_fn or _tree_size,
+        tree_size_fn=tree_size_fn,
         workspace_inventory_fn=workspace_inventory_fn or collect_workspace_inventory,
         now=now,
     )
@@ -109,6 +109,9 @@ def run_disk_reap(
     include_artifact_runs: bool = True,
     project: str | None = None,
     include_workspace_compact: bool = True,
+    filesystem_available_bytes: int | None = None,
+    managed_tmp_pressure_min_available_bytes: int | None = None,
+    managed_tmp_pressure_recovery_available_bytes: int | None = None,
     subprocess_run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> DiskReapResult:
     """Preview or invoke each owner reaper without inventing deletion policy."""
@@ -119,6 +122,11 @@ def run_disk_reap(
         include_artifact_runs=include_artifact_runs,
         project=project,
         include_workspace_compact=include_workspace_compact,
+        filesystem_available_bytes=filesystem_available_bytes,
+        managed_tmp_pressure_min_available_bytes=managed_tmp_pressure_min_available_bytes,
+        managed_tmp_pressure_recovery_available_bytes=(
+            managed_tmp_pressure_recovery_available_bytes
+        ),
         subprocess_run=subprocess_run,
     )
 

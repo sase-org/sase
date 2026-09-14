@@ -13,6 +13,7 @@ from sase.config import (
     get_disk_pressure_warn_free_percent,
 )
 from sase.config.core import load_merged_config
+from sase.core.disk_pressure import classify_disk_pressure
 from sase.diagnostics import CheckStatus, DiagnosticCheck
 from sase.workspace_provider.store import WorkspaceStore
 
@@ -165,43 +166,58 @@ def _disk_target(
 
     free_bytes = int(usage.free)
     total_bytes = int(usage.total)
-    status = _free_space_status(
-        free_bytes,
-        total_bytes=total_bytes,
-        thresholds=thresholds,
-    )
-    problem = None
-    if status == "ERROR":
-        problem = _threshold_problem(
-            label,
-            "error",
-            free_bytes=free_bytes,
-            total_bytes=total_bytes,
-            thresholds=thresholds,
+    observation = {
+        "label": label,
+        "role": role,
+        "path": str(expanded),
+        "measurement_path": str(measured_path),
+        "total_bytes": total_bytes,
+        "used_bytes": int(usage.used),
+        "free_bytes": free_bytes,
+    }
+    try:
+        classified = classify_disk_pressure(
+            (observation,),
+            warn_free_percent=thresholds["warn_percent"],
+            error_free_percent=thresholds["error_percent"],
+            top_owner_limit=0,
         )
-    elif status == "WARN":
-        problem = _threshold_problem(
-            label,
-            "warn",
-            free_bytes=free_bytes,
-            total_bytes=total_bytes,
-            thresholds=thresholds,
-        )
+        pressure_row = classified["observations"][0]
+    except Exception as exc:  # noqa: BLE001 - doctor reports stale/missing bindings.
+        return {
+            "label": label,
+            "role": role,
+            "path": str(expanded),
+            "measurement_path": str(measured_path),
+            "status": "ERROR",
+            "problem": f"disk pressure classifier failed: {type(exc).__name__}: {exc}",
+            "total_bytes": total_bytes,
+            "used_bytes": int(usage.used),
+            "free_bytes": free_bytes,
+            "free_gib": round(free_bytes / _GIB, 2),
+            "free_percent": _free_percent(free_bytes, total_bytes),
+            "error_threshold_bytes_effective": _DISK_ERROR_FREE_BYTES,
+            "warn_threshold_bytes_effective": _DISK_WARN_FREE_BYTES,
+        }
 
     return {
         "label": label,
         "role": role,
         "path": str(expanded),
         "measurement_path": str(measured_path),
-        "status": status,
-        "problem": problem,
+        "status": pressure_row["status"],
+        "problem": pressure_row.get("problem"),
         "total_bytes": total_bytes,
         "used_bytes": int(usage.used),
         "free_bytes": free_bytes,
         "free_gib": round(free_bytes / _GIB, 2),
-        "free_percent": _free_percent(free_bytes, total_bytes),
-        "error_threshold_bytes_effective": int(thresholds["error_bytes"]),
-        "warn_threshold_bytes_effective": int(thresholds["warn_bytes"]),
+        "free_percent": pressure_row["free_percent"],
+        "error_threshold_bytes_effective": int(
+            pressure_row["error_threshold_bytes_effective"]
+        ),
+        "warn_threshold_bytes_effective": int(
+            pressure_row["warn_threshold_bytes_effective"]
+        ),
     }
 
 
@@ -216,39 +232,6 @@ def _disk_thresholds() -> dict[str, float]:
         "error_bytes": float(_DISK_ERROR_FREE_BYTES),
         "warn_bytes": float(_DISK_WARN_FREE_BYTES),
     }
-
-
-def _effective_threshold_bytes(
-    total_bytes: int,
-    *,
-    absolute_bytes: float,
-    percent: float,
-) -> int:
-    proportional = int(total_bytes * (percent / 100.0))
-    return max(int(absolute_bytes), proportional)
-
-
-def _free_space_status(
-    free_bytes: int,
-    *,
-    total_bytes: int,
-    thresholds: dict[str, float],
-) -> CheckStatus:
-    error_bytes = _effective_threshold_bytes(
-        total_bytes,
-        absolute_bytes=thresholds["error_bytes"],
-        percent=thresholds["error_percent"],
-    )
-    warn_bytes = _effective_threshold_bytes(
-        total_bytes,
-        absolute_bytes=thresholds["warn_bytes"],
-        percent=thresholds["warn_percent"],
-    )
-    if free_bytes < error_bytes:
-        return "ERROR"
-    if free_bytes < warn_bytes:
-        return "WARN"
-    return "OK"
 
 
 def _aggregate_disk_status(rows: tuple[dict[str, Any], ...]) -> CheckStatus:
@@ -315,33 +298,6 @@ def _disk_next_steps() -> tuple[str, ...]:
             "Live workspaces can consume hundreds of MB to over 1 GB after checkout and `.venv` creation."
         )
     return tuple(steps)
-
-
-def _threshold_problem(
-    label: str,
-    severity: str,
-    *,
-    free_bytes: int,
-    total_bytes: int,
-    thresholds: dict[str, float],
-) -> str:
-    if severity == "error":
-        percent = thresholds["error_percent"]
-        absolute = _DISK_ERROR_FREE_BYTES
-    else:
-        percent = thresholds["warn_percent"]
-        absolute = _DISK_WARN_FREE_BYTES
-    effective = _effective_threshold_bytes(
-        total_bytes,
-        absolute_bytes=absolute,
-        percent=percent,
-    )
-    basis = f"{percent:g}%" if effective > absolute else f"{absolute // _GIB} GB"
-    return (
-        f"{label} has less than {basis} free "
-        f"({_format_bytes(free_bytes)} available, "
-        f"{_free_percent(free_bytes, total_bytes):.1f}% of volume)"
-    )
 
 
 def _free_percent(free_bytes: int, total_bytes: int) -> float:

@@ -13,6 +13,7 @@ from typing import Any
 from sase.config import get_artifact_retention_keep_recent_run_months
 from sase.core.disk_footprint_models import DiskFootprintReport, DiskFootprintRow
 from sase.core.disk_footprint_utils import (
+    BoundedTreeSizer,
     format_horizon_seconds,
     is_relative_to,
     iter_children,
@@ -39,23 +40,30 @@ def collect_disk_footprint(
     *,
     include_strays: bool = True,
     home: Path | None = None,
-    tree_size_fn: Callable[[Path], int] = lambda path: tree_size(path),
+    tree_size_fn: Callable[[Path], int] | None = None,
     workspace_inventory_fn: Callable[..., Any] = collect_workspace_inventory,
     now: datetime | None = None,
 ) -> DiskFootprintReport:
     """Collect SASE-owned and SASE-shaped disk usage rows."""
 
     rows: list[DiskFootprintRow] = []
+    size_fn: Callable[[Path], int]
+    if tree_size_fn is None:
+        bounded_sizer = BoundedTreeSizer()
+        size_fn = bounded_sizer.size
+    else:
+        bounded_sizer = None
+        size_fn = tree_size_fn
     generated = (now or local_now()).isoformat()
-    rows.extend(managed_tmp_rows(tree_size_fn=tree_size_fn))
-    rows.extend(sase_state_rows(tree_size_fn=tree_size_fn))
+    rows.extend(managed_tmp_rows(tree_size_fn=size_fn))
+    rows.extend(sase_state_rows(tree_size_fn=size_fn))
     rows.extend(
         workspace_rows(
-            tree_size_fn=tree_size_fn,
+            tree_size_fn=size_fn,
             workspace_inventory_fn=workspace_inventory_fn,
         )
     )
-    core_targets = rust_target_rows(tree_size_fn=tree_size_fn)
+    core_targets = rust_target_rows(tree_size_fn=size_fn)
     rows.extend(core_targets)
 
     stray_truncated = False
@@ -69,7 +77,7 @@ def collect_disk_footprint(
         strays, stray_visited, stray_truncated = cargo_stray_rows(
             home or Path.home(),
             excludes=excludes,
-            tree_size_fn=tree_size_fn,
+            tree_size_fn=size_fn,
         )
         rows.extend(strays)
 
@@ -79,6 +87,7 @@ def collect_disk_footprint(
         generated_at=generated,
         stray_scan_truncated=stray_truncated,
         stray_scan_visited=stray_visited,
+        scan_diagnostics=tuple(bounded_sizer.diagnostics) if bounded_sizer else (),
     )
 
 

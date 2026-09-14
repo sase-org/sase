@@ -183,10 +183,13 @@ def test_managed_tmp_reap_emits_noop_summary(
     assert result["counters"] == {
         "capped": 0,
         "deindexed": 0,
+        "pressure_reclaimable_bytes": 0,
         "pressure_reclaimed_bytes": 0,
         "pressure_removed": 0,
+        "pressure_selected": 0,
         "removed": 0,
         "scanned": 0,
+        "selected": 0,
         "subdirs": 0,
     }
 
@@ -423,10 +426,13 @@ def test_managed_tmp_reap_emits_action_summary(
     assert result["counters"] == {
         "capped": 0,
         "deindexed": 0,
+        "pressure_reclaimable_bytes": 0,
         "pressure_reclaimed_bytes": 0,
         "pressure_removed": 0,
+        "pressure_selected": 0,
         "removed": 1,
         "scanned": 1,
+        "selected": 1,
         "subdirs": 1,
     }
 
@@ -443,9 +449,12 @@ def test_managed_tmp_reap_reports_pressure_min_age(
         "reap_managed_tmpdir",
         lambda: SimpleNamespace(
             scanned=3,
+            selected=1,
             removed=1,
             removed_by_subdir={"cargo-targets": 1},
+            pressure_selected=1,
             pressure_removed=1,
+            pressure_reclaimable_bytes=4096,
             pressure_reclaimed_bytes=4096,
             pressure_trigger="free_space",
             pressure_available_bytes=8 * 1024,

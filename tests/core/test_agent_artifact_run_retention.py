@@ -11,7 +11,6 @@ import pytest
 from sase._repo_inventory_models import RepoInventory, RepoRecord
 from sase.bead.model import Status
 import sase.core.agent_artifact_run_protection as protection
-import sase.core.agent_artifact_run_retention as agent_artifact_run_retention
 from sase.core.agent_artifact_run_retention import (
     AceRunProtectionSnapshot,
     AceRunRetentionPolicy,
@@ -242,8 +241,7 @@ def test_plan_degrades_to_continuation_unavailable_on_retention_value_error(
         raise ValueError("validation: runs has 11037 entries; maximum is 10000")
 
     monkeypatch.setattr(
-        agent_artifact_run_retention,
-        "plan_continuation_run_retention",
+        "sase.core.continuation_retention.plan_continuation_run_retention",
         _raise,
     )
 
@@ -289,7 +287,8 @@ def test_apply_refuses_when_continuation_closure_fails(
         raise ValueError("validation: runs has 11037 entries; maximum is 10000")
 
     monkeypatch.setattr(
-        agent_artifact_run_retention, "plan_continuation_run_retention", _raise
+        "sase.core.continuation_retention.plan_continuation_run_retention",
+        _raise,
     )
 
     result = apply_ace_run_retention(plan)

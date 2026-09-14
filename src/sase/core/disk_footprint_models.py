@@ -30,6 +30,7 @@ class DiskFootprintReport:
     generated_at: str
     stray_scan_truncated: bool = False
     stray_scan_visited: int = 0
+    scan_diagnostics: tuple[str, ...] = ()
 
     @property
     def total_bytes(self) -> int:
@@ -41,6 +42,7 @@ class DiskFootprintReport:
             "rows": [row.to_json_dict() for row in self.rows],
             "stray_scan_truncated": self.stray_scan_truncated,
             "stray_scan_visited": self.stray_scan_visited,
+            "scan_diagnostics": list(self.scan_diagnostics),
             "total_bytes": self.total_bytes,
         }
 

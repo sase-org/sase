@@ -140,7 +140,7 @@ passes an explicit ``horizons`` override.
 PRESSURE_REAP_BUCKETS = frozenset({"build-targets", "cargo-targets"})
 """Build-output buckets whose aged large children may be pruned under pressure."""
 
-MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION = 1
+MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION = 2
 """Must match ``sase_core::managed_tmp::MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION``."""
 
 
@@ -149,12 +149,17 @@ class _ManagedTmpReapResult:
     """What one reaper invocation looked at and reclaimed."""
 
     root: Path
+    apply: bool
     scanned: int
+    selected: int
     removed: int
+    selected_by_subdir: Mapping[str, int]
     removed_by_subdir: Mapping[str, int]
     deindexed: int
     capped: bool
+    pressure_selected: int
     pressure_removed: int
+    pressure_reclaimable_bytes: int
     pressure_reclaimed_bytes: int
     pressure_trigger: str | None
     pressure_root_size_bytes: int
@@ -164,22 +169,31 @@ class _ManagedTmpReapResult:
 
     def describe(self) -> str:
         """Return a one-line human summary of the largest buckets pruned."""
-        if not self.removed:
+        count = self.removed if self.apply else self.selected
+        if not count:
             return f"nothing stale under {self.root}"
         busiest = sorted(
-            self.removed_by_subdir.items(), key=lambda item: (-item[1], item[0])
+            (self.removed_by_subdir if self.apply else self.selected_by_subdir).items(),
+            key=lambda item: (-item[1], item[0]),
         )
         detail = ", ".join(f"{name}={count}" for name, count in busiest)
         if self.deindexed:
             detail += f"; {self.deindexed} artifact-index rows dropped"
-        if self.pressure_removed:
+        pressure_count = self.pressure_removed if self.apply else self.pressure_selected
+        if pressure_count:
             trigger = f" via {self.pressure_trigger}" if self.pressure_trigger else ""
+            pressure_bytes = (
+                self.pressure_reclaimed_bytes
+                if self.apply
+                else self.pressure_reclaimable_bytes
+            )
             detail += (
-                f"; pressure={self.pressure_removed}"
-                f" ({_format_bytes(self.pressure_reclaimed_bytes)}{trigger})"
+                f"; pressure={pressure_count}"
+                f" ({_format_bytes(pressure_bytes)}{trigger})"
             )
         suffix = " (removal budget reached)" if self.capped else ""
-        return f"reclaimed {self.removed} entries under {self.root}: {detail}{suffix}"
+        verb = "reclaimed" if self.apply else "would reclaim"
+        return f"{verb} {count} entries under {self.root}: {detail}{suffix}"
 
 
 def _default_horizons() -> dict[str, float]:
@@ -210,6 +224,7 @@ def reap_managed_tmpdir(
     pressure_low_free_space_min_age_seconds: float | None = None,
     pressure_min_entry_bytes: int | None = None,
     filesystem_available_bytes: int | None = None,
+    apply: bool = True,
 ) -> _ManagedTmpReapResult:
     """Prune stale entries under the managed SASE temp *root* through Rust.
 
@@ -277,6 +292,7 @@ def reap_managed_tmpdir(
     request = {
         "schema_version": MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION,
         "root": str(reap_root),
+        "apply": apply,
         "now_epoch_seconds": float(clock),
         "horizons": {name: float(value) for name, value in resolved_horizons.items()},
         "default_horizon_seconds": float(resolved_default_horizon),
@@ -327,12 +343,17 @@ def _result_from_wire(raw: Mapping[str, Any]) -> _ManagedTmpReapResult:
 
     return _ManagedTmpReapResult(
         root=Path(raw["root"]),
+        apply=bool(raw["apply"]),
         scanned=raw["scanned"],
+        selected=raw["selected"],
         removed=raw["removed"],
+        selected_by_subdir=dict(raw["selected_by_subdir"]),
         removed_by_subdir=dict(raw["removed_by_subdir"]),
         deindexed=deindexed,
         capped=raw["capped"],
+        pressure_selected=raw["pressure_selected"],
         pressure_removed=raw["pressure_removed"],
+        pressure_reclaimable_bytes=raw["pressure_reclaimable_bytes"],
         pressure_reclaimed_bytes=raw["pressure_reclaimed_bytes"],
         pressure_trigger=raw["pressure_trigger"],
         pressure_root_size_bytes=raw["pressure_root_size_bytes"],

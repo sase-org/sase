@@ -26,12 +26,24 @@ def run_disk_reap(
     include_artifact_runs: bool = True,
     project: str | None = None,
     include_workspace_compact: bool = True,
+    filesystem_available_bytes: int | None = None,
+    managed_tmp_pressure_min_available_bytes: int | None = None,
+    managed_tmp_pressure_recovery_available_bytes: int | None = None,
     subprocess_run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> DiskReapResult:
     """Preview or invoke each owner reaper without inventing deletion policy."""
 
     steps: list[DiskReapStep] = []
-    steps.append(managed_tmp_reap_step(apply=apply))
+    steps.append(
+        managed_tmp_reap_step(
+            apply=apply,
+            filesystem_available_bytes=filesystem_available_bytes,
+            pressure_min_available_bytes=managed_tmp_pressure_min_available_bytes,
+            pressure_recovery_available_bytes=(
+                managed_tmp_pressure_recovery_available_bytes
+            ),
+        )
+    )
     steps.append(proc_runtime_reap_step(apply=apply))
     if include_artifact_runs:
         steps.append(artifact_run_reap_step(apply=apply, project=project))
@@ -46,21 +58,29 @@ def run_disk_reap(
     return DiskReapResult(apply=apply, project=project, steps=tuple(steps))
 
 
-def managed_tmp_reap_step(*, apply: bool) -> DiskReapStep:
-    if not apply:
-        return DiskReapStep(
-            owner="managed_tmp_reaper",
-            mode="dry_run",
-            summary="would invoke managed temp reaper; it owns age and pressure policy",
-            command=("sase", "axe", "chop", "run", "managed_tmp_reap"),
-        )
-    result = reap_managed_tmpdir()
+def managed_tmp_reap_step(
+    *,
+    apply: bool,
+    filesystem_available_bytes: int | None = None,
+    pressure_min_available_bytes: int | None = None,
+    pressure_recovery_available_bytes: int | None = None,
+) -> DiskReapStep:
+    result = reap_managed_tmpdir(
+        apply=apply,
+        filesystem_available_bytes=filesystem_available_bytes,
+        pressure_min_available_bytes=pressure_min_available_bytes,
+        pressure_recovery_available_bytes=pressure_recovery_available_bytes,
+    )
     return DiskReapStep(
         owner="managed_tmp_reaper",
-        mode="apply",
+        mode="apply" if apply else "dry_run",
         summary=result.describe(),
-        reclaimed_bytes=result.pressure_reclaimed_bytes,
-        changed=bool(result.removed),
+        reclaimed_bytes=(
+            result.pressure_reclaimed_bytes
+            if apply
+            else result.pressure_reclaimable_bytes
+        ),
+        changed=apply and bool(result.removed),
     )
 
 

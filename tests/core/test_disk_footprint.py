@@ -123,7 +123,7 @@ def test_collect_disk_footprint_attributes_owned_paths_and_strays(
 def test_disk_reap_proc_preview_uses_runtime_owner(monkeypatch) -> None:
     monkeypatch.setattr(
         "sase.core.disk_footprint._managed_tmp_reap_step",
-        lambda *, apply: DiskReapStep(
+        lambda *, apply, **_kwargs: DiskReapStep(
             owner="managed_tmp_reaper",
             mode="dry_run" if not apply else "apply",
             summary="tmp",

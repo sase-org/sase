@@ -31,9 +31,12 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     return runtime.emit_summary(
         {
             "scanned": result.scanned,
+            "selected": result.selected,
             "removed": result.removed,
             "subdirs": len(result.removed_by_subdir),
+            "pressure_selected": result.pressure_selected,
             "pressure_removed": result.pressure_removed,
+            "pressure_reclaimable_bytes": result.pressure_reclaimable_bytes,
             "pressure_reclaimed_bytes": result.pressure_reclaimed_bytes,
             "pressure_trigger": result.pressure_trigger,
             "pressure_available_bytes": pressure_available_bytes,

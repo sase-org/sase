@@ -53,11 +53,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
-from sase.core.continuation_retention import (
-    continuation_reasons_by_dir,
-    continuation_unavailable_sources,
-    plan_continuation_run_retention,
-)
+from sase.core import continuation_retention
 from sase.core.paths import is_valid_sase_project_name
 from sase.core.rust import require_rust_binding
 
@@ -191,18 +187,17 @@ def apply_ace_run_retention(
 
 def _apply_run_skip_detail(item: dict[str, Any]) -> str:
     detail = item.get("detail")
-    if detail:
-        return str(detail)
-    if item.get("outcome") != "protected":
-        return str(item.get("outcome") or "skipped")
+    outcome = str(item.get("outcome") or "skipped")
+    if outcome != "protected":
+        return str(detail or outcome)
     reasons = [
         str(reason).replace("_", " ")
         for reason in item.get("reasons") or ()
         if str(reason)
     ]
-    if not reasons:
-        return "protected"
-    return "protected: " + ", ".join(reasons)
+    if reasons:
+        return "protected by " + ", ".join(reasons)
+    return str(detail or "protected")
 
 
 def _run_owner(
@@ -396,15 +391,19 @@ def _collect_candidates(
     continuation_reasons: dict[str, tuple[str, ...]] = {}
     continuation_unavailable = False
     try:
-        continuation_plan = plan_continuation_run_retention(
+        continuation_plan = continuation_retention.plan_continuation_run_retention(
             all_dirs, projects_root=projects_root
         )
     except ValueError as exc:
         unavailable.add(f"continuation retention: {exc}")
         continuation_unavailable = True
     else:
-        continuation_reasons = continuation_reasons_by_dir(continuation_plan)
-        unavailable.update(continuation_unavailable_sources(continuation_plan))
+        continuation_reasons = continuation_retention.continuation_reasons_by_dir(
+            continuation_plan
+        )
+        unavailable.update(
+            continuation_retention.continuation_unavailable_sources(continuation_plan)
+        )
 
     candidates: list[dict[str, Any]] = []
     size_by_dir: dict[str, int] = {}

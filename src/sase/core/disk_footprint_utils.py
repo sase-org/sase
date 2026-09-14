@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import stat
 import subprocess
+import time
+from dataclasses import dataclass, field
 from pathlib import Path
 
 
@@ -20,6 +22,30 @@ def tree_size(path: Path) -> int:
     if measured is not None:
         return measured
     return tree_size_walk(path)
+
+
+@dataclass
+class BoundedTreeSizer:
+    """Measure trees without letting fallback walks hang inventory."""
+
+    max_nodes: int = 50_000
+    max_seconds: float = 5.0
+    diagnostics: list[str] = field(default_factory=list)
+
+    def size(self, path: Path) -> int:
+        measured = du_size(path)
+        if measured is not None:
+            return measured
+        size, visited, truncated = _tree_size_walk_bounded(
+            path,
+            max_nodes=self.max_nodes,
+            max_seconds=self.max_seconds,
+        )
+        reason = "truncated" if truncated else "du unavailable"
+        self.diagnostics.append(
+            f"{path}: fallback walk {reason}; visited={visited}; bytes={size}"
+        )
+        return size
 
 
 def du_size(path: Path) -> int | None:
@@ -56,6 +82,38 @@ def tree_size_walk(path: Path) -> int:
     if not stat.S_ISDIR(entry_stat.st_mode):
         return 0
     return sum(tree_size_walk(child) for child in iter_children(path))
+
+
+def _tree_size_walk_bounded(
+    path: Path,
+    *,
+    max_nodes: int,
+    max_seconds: float,
+) -> tuple[int, int, bool]:
+    deadline = time.monotonic() + max_seconds
+    total = 0
+    visited = 0
+    truncated = False
+    stack = [path]
+    while stack:
+        if visited >= max_nodes or time.monotonic() >= deadline:
+            truncated = True
+            break
+        current = stack.pop()
+        visited += 1
+        try:
+            entry_stat = current.stat(follow_symlinks=False)
+        except OSError:
+            continue
+        if stat.S_ISLNK(entry_stat.st_mode):
+            continue
+        if stat.S_ISREG(entry_stat.st_mode):
+            total += int(entry_stat.st_size)
+            continue
+        if not stat.S_ISDIR(entry_stat.st_mode):
+            continue
+        stack.extend(iter_children(current))
+    return total, visited, truncated
 
 
 def format_horizon_seconds(seconds: float) -> str:
@@ -95,6 +153,7 @@ __all__ = [
     "is_relative_to",
     "iter_children",
     "resolve_soft",
+    "BoundedTreeSizer",
     "tree_size",
     "tree_size_walk",
 ]
