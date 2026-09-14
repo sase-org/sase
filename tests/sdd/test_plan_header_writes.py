@@ -6,12 +6,21 @@ from pathlib import Path
 
 import pytest
 
+from sase.sdd.associations import (
+    PlanAgentAssociation,
+    PlanAssociations,
+    PlanCommitAssociation,
+)
 from sase.sdd.plan_header_block import (
+    PlanHeaderEntry,
+    PlanHeaderSection,
     PlanHeaderSectionKind,
     parse_plan_header_block,
+    render_plan_header_block,
 )
 from sase.sdd.plan_header_writes import (
     project_plan_header_sections,
+    refresh_association_sections,
     refresh_bead_plan_section,
 )
 from sase.sdd.store import SddStore
@@ -37,6 +46,22 @@ class _Resolver:
 def _document(frontmatter: str, header: str = "") -> str:
     separator = "\n" if header else ""
     return f"---\ntier: tale\n{frontmatter}---\n\n{header}{separator}# Plan\n"
+
+
+def _entries(document: str, kind: PlanHeaderSectionKind) -> tuple[PlanHeaderEntry, ...]:
+    parsed = parse_plan_header_block(document)
+    section = next(section for section in parsed.sections if section.kind is kind)
+    return section.entries
+
+
+def _commit(sha: str, subject: str, order: int = 1) -> PlanCommitAssociation:
+    return PlanCommitAssociation(
+        label=sha[:7],
+        target=f"https://example.test/commit/{sha}",
+        trailing_text=subject,
+        sort_key=(order, sha),
+        sha=sha,
+    )
 
 
 @pytest.mark.parametrize(
@@ -239,3 +264,142 @@ def test_project_plan_header_sections_installs_supplied_prompt_path(
     assert link.kind is PlanHeaderSectionKind.PROMPT
     assert link.label == "prompts/202607/child.md"
     assert link.target == _PROMPT_URL
+
+
+def test_refresh_association_sections_empty_derived_keeps_existing_text() -> None:
+    header = render_plan_header_block(
+        (
+            PlanHeaderSection(
+                kind=PlanHeaderSectionKind.AGENTS,
+                entries=(
+                    PlanHeaderEntry(label="zeta.agent"),
+                    PlanHeaderEntry(label="alpha.agent"),
+                ),
+            ),
+            PlanHeaderSection(
+                kind=PlanHeaderSectionKind.COMMITS,
+                entries=(
+                    PlanHeaderEntry(
+                        label="bbbbbbb",
+                        target="https://example.test/commit/" + "b" * 40,
+                        trailing_text="outside view",
+                    ),
+                ),
+            ),
+        )
+    )
+    document = _document("", header)
+
+    assert refresh_association_sections(document, PlanAssociations()) == document
+
+
+def test_refresh_association_sections_merges_and_prefers_derived_metadata() -> None:
+    shared_sha = "b" * 40
+    local_sha = "a" * 40
+    header = render_plan_header_block(
+        (
+            PlanHeaderSection(
+                kind=PlanHeaderSectionKind.AGENTS,
+                entries=(
+                    PlanHeaderEntry(
+                        label="stale.agent",
+                        target="https://example.test/stale",
+                    ),
+                    PlanHeaderEntry(
+                        label="shared.agent",
+                        target="https://example.test/old-agent",
+                    ),
+                ),
+            ),
+            PlanHeaderSection(
+                kind=PlanHeaderSectionKind.COMMITS,
+                entries=(
+                    PlanHeaderEntry(
+                        label=shared_sha[:7],
+                        target=f"https://example.test/old/commit/{shared_sha}",
+                        trailing_text="old subject",
+                    ),
+                    PlanHeaderEntry(
+                        label="ccccccc",
+                        trailing_text="retained from another writer",
+                    ),
+                ),
+            ),
+        )
+    )
+    document = _document("", header)
+    associations = PlanAssociations(
+        agents=(
+            PlanAgentAssociation(
+                "shared.agent",
+                "https://example.test/new-agent",
+                "shared.agent",
+                "fresh run",
+            ),
+            PlanAgentAssociation("local.agent", None, "local.agent"),
+        ),
+        commits=(
+            _commit(shared_sha, "new subject", order=2),
+            _commit(local_sha, "local subject", order=1),
+        ),
+    )
+
+    updated = refresh_association_sections(document, associations)
+
+    agents = _entries(updated, PlanHeaderSectionKind.AGENTS)
+    assert [entry.label for entry in agents] == [
+        "local.agent",
+        "shared.agent",
+        "stale.agent",
+    ]
+    assert agents[1].target == "https://example.test/new-agent"
+    assert agents[1].trailing_text == "fresh run"
+
+    commits = _entries(updated, PlanHeaderSectionKind.COMMITS)
+    assert [entry.label for entry in commits] == [
+        local_sha[:7],
+        shared_sha[:7],
+        "ccccccc",
+    ]
+    assert commits[1].target == f"https://example.test/commit/{shared_sha}"
+    assert commits[1].trailing_text == "new subject"
+    assert refresh_association_sections(updated, associations) == updated
+
+
+def test_refresh_association_sections_two_writer_order_converges() -> None:
+    document = _document("")
+    first_sha = "1" * 40
+    second_sha = "2" * 40
+    first = PlanAssociations(
+        agents=(PlanAgentAssociation("first.agent", None, "first.agent"),),
+        commits=(_commit(first_sha, "feat: first", order=1),),
+    )
+    second = PlanAssociations(
+        agents=(PlanAgentAssociation("second.agent", None, "second.agent"),),
+        commits=(_commit(second_sha, "feat: second", order=2),),
+    )
+
+    first_then_second = refresh_association_sections(
+        refresh_association_sections(document, first),
+        second,
+    )
+    second_then_first = refresh_association_sections(
+        refresh_association_sections(document, second),
+        first,
+    )
+
+    assert first_then_second == second_then_first
+    assert [
+        entry.label
+        for entry in _entries(first_then_second, PlanHeaderSectionKind.AGENTS)
+    ] == [
+        "first.agent",
+        "second.agent",
+    ]
+    assert [
+        entry.label
+        for entry in _entries(first_then_second, PlanHeaderSectionKind.COMMITS)
+    ] == [
+        first_sha[:7],
+        second_sha[:7],
+    ]

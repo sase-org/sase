@@ -19,17 +19,40 @@ def test_committed_plan_header_refresh_is_idempotent(
         PlanCommitAssociation,
     )
     from sase.sdd.plan_header_block import (
+        PlanHeaderEntry,
+        PlanHeaderSection,
         PlanHeaderSectionKind,
         parse_plan_header_block,
+        render_plan_header_block,
     )
     from sase.sdd.store import SddStore
 
     plans_root = tmp_path / "plans-sidecar"
     plan = plans_root / "202607" / "child.md"
     plan.parent.mkdir(parents=True)
+    remote_sha = "f" * 40
+    existing_header = render_plan_header_block(
+        (
+            PlanHeaderSection(
+                kind=PlanHeaderSectionKind.AGENTS,
+                entries=(PlanHeaderEntry(label="remote.agent"),),
+            ),
+            PlanHeaderSection(
+                kind=PlanHeaderSectionKind.COMMITS,
+                entries=(
+                    PlanHeaderEntry(
+                        label=remote_sha[:7],
+                        target=f"https://example.test/commit/{remote_sha}",
+                        trailing_text="fix: remote",
+                    ),
+                ),
+            ),
+        )
+    )
     plan.write_text(
         "---\ntier: tale\n---\n\n"
-        "- **PROMPT:** [202607/prompts/child.md](prompts/child.md)\n\n"
+        "- **PROMPT:** [202607/prompts/child.md](prompts/child.md)\n"
+        f"{existing_header}\n\n"
         "# Child\n",
         encoding="utf-8",
     )
@@ -38,21 +61,22 @@ def test_committed_plan_header_refresh_is_idempotent(
         sdd_dir=plans_root,
         repo_root=plans_root,
     )
+    local_sha = "a" * 40
     associations = PlanAssociations(
         agents=(
             PlanAgentAssociation(
-                label="owner.host.agent",
+                label="local.agent",
                 target="https://example.test/agent",
-                sort_key="owner.host.agent",
+                sort_key="local.agent",
             ),
         ),
         commits=(
             PlanCommitAssociation(
-                label="abcdef0",
-                target="https://example.test/commit/abcdef012345",
+                label=local_sha[:7],
+                target=f"https://example.test/commit/{local_sha}",
                 trailing_text="feat: child",
-                sort_key=(1, "abcdef012345"),
-                sha="abcdef012345",
+                sort_key=(1, local_sha),
+                sha=local_sha,
             ),
         ),
     )
@@ -120,6 +144,14 @@ def test_committed_plan_header_refresh_is_idempotent(
     assert parsed.sections[0].target == (
         "https://example.test/agents/prompts/202607/child.md"
     )
+    assert [entry.label for entry in parsed.sections[1].entries] == [
+        "local.agent",
+        "remote.agent",
+    ]
+    assert [entry.label for entry in parsed.sections[2].entries] == [
+        local_sha[:7],
+        remote_sha[:7],
+    ]
 
 
 def test_committed_plan_header_refresh_swallows_failures(

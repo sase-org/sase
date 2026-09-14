@@ -15,8 +15,11 @@ from sase.sdd.associations import (
     PlanCommitAssociation,
 )
 from sase.sdd.plan_header_block import (
+    PlanHeaderEntry,
+    PlanHeaderSection,
     PlanHeaderSectionKind,
     parse_plan_header_block,
+    render_plan_header_block,
 )
 from sase.sdd.plan_links_refresh import refresh_plan_links
 from sase.sdd.store import SddStore
@@ -45,6 +48,16 @@ def _write_plan(
         encoding="utf-8",
     )
     return path
+
+
+def _commit(sha: str, subject: str, order: int = 1) -> PlanCommitAssociation:
+    return PlanCommitAssociation(
+        label=sha[:7],
+        target=f"https://example.test/commit/{sha}",
+        trailing_text=subject,
+        sort_key=(order, sha),
+        sha=sha,
+    )
 
 
 @contextmanager
@@ -277,3 +290,150 @@ def test_refresh_retargets_existing_prompt_section_to_agents_sidecar(
     assert prompt.kind is PlanHeaderSectionKind.PROMPT
     assert prompt.label == "prompts/202607/child.md"
     assert prompt.target == "https://example.test/agents/prompts/202607/child.md"
+
+
+def test_refresh_plan_links_empty_local_view_does_not_drop_existing_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "plans"
+    store = _store(root)
+    plan = _write_plan(root, "child")
+    header = render_plan_header_block(
+        (
+            PlanHeaderSection(
+                kind=PlanHeaderSectionKind.AGENTS,
+                entries=(PlanHeaderEntry(label="remote.agent"),),
+            ),
+            PlanHeaderSection(
+                kind=PlanHeaderSectionKind.COMMITS,
+                entries=(
+                    PlanHeaderEntry(
+                        label="bbbbbbb",
+                        target="https://example.test/commit/" + "b" * 40,
+                        trailing_text="outside view",
+                    ),
+                ),
+            ),
+        )
+    )
+    plan.write_text(
+        plan.read_text(encoding="utf-8").replace("# child\n", f"{header}\n# child\n"),
+        encoding="utf-8",
+    )
+    before = plan.read_text(encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.store_git_write_lock",
+        _acquired_lock,
+    )
+
+    report = refresh_plan_links(
+        store,
+        primary_root=tmp_path,
+        association_index=PlanAssociationIndex(MappingProxyType({})),
+        write=True,
+    )
+
+    assert report.ok
+    assert report.actions == ()
+    assert report.changed_files == ()
+    assert plan.read_text(encoding="utf-8") == before
+
+
+def test_refresh_plan_links_two_writer_provenance_order_converges(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = tmp_path / "plans"
+    store = _store(root)
+    plan = _write_plan(root, "child")
+    original = plan.read_text(encoding="utf-8")
+    first_sha = "1" * 40
+    second_sha = "2" * 40
+    first = PlanAssociationIndex(
+        MappingProxyType(
+            {
+                "plan:202607/child.md": PlanAssociations(
+                    agents=(PlanAgentAssociation("first.agent", None, "first.agent"),),
+                    commits=(_commit(first_sha, "feat: first", order=1),),
+                )
+            }
+        )
+    )
+    second = PlanAssociationIndex(
+        MappingProxyType(
+            {
+                "plan:202607/child.md": PlanAssociations(
+                    agents=(
+                        PlanAgentAssociation("second.agent", None, "second.agent"),
+                    ),
+                    commits=(_commit(second_sha, "feat: second", order=2),),
+                )
+            }
+        )
+    )
+    monkeypatch.setattr(
+        "sase.sdd._git_contention.store_git_write_lock",
+        _acquired_lock,
+    )
+    monkeypatch.setattr(
+        "sase.file_references.format_markdown_files_with_prettier",
+        lambda _paths: True,
+    )
+    monkeypatch.setattr(
+        "sase.sdd.files.commit_sdd_store_files",
+        lambda *_args, **_kwargs: True,
+    )
+
+    first_report = refresh_plan_links(
+        store,
+        primary_root=tmp_path,
+        association_index=first,
+        write=True,
+    )
+    second_report = refresh_plan_links(
+        store,
+        primary_root=tmp_path,
+        association_index=second,
+        write=True,
+    )
+    first_then_second = plan.read_text(encoding="utf-8")
+    plan.write_text(original, encoding="utf-8")
+    reverse_first_report = refresh_plan_links(
+        store,
+        primary_root=tmp_path,
+        association_index=second,
+        write=True,
+    )
+    reverse_second_report = refresh_plan_links(
+        store,
+        primary_root=tmp_path,
+        association_index=first,
+        write=True,
+    )
+    second_then_first = plan.read_text(encoding="utf-8")
+
+    assert first_report.ok
+    assert second_report.ok
+    assert reverse_first_report.ok
+    assert reverse_second_report.ok
+    assert first_then_second == second_then_first
+    parsed = parse_plan_header_block(first_then_second)
+    agents = next(
+        section
+        for section in parsed.sections
+        if section.kind is PlanHeaderSectionKind.AGENTS
+    )
+    commits = next(
+        section
+        for section in parsed.sections
+        if section.kind is PlanHeaderSectionKind.COMMITS
+    )
+    assert [entry.label for entry in agents.entries] == [
+        "first.agent",
+        "second.agent",
+    ]
+    assert [entry.label for entry in commits.entries] == [
+        first_sha[:7],
+        second_sha[:7],
+    ]

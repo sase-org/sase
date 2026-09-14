@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 from typing import TYPE_CHECKING
 
 from sase.sdd.plan_header_block import (
@@ -25,6 +26,9 @@ _LEGACY_PLAN_MARKERS = (
     "sase/repos/plans/",
     "sdd/plans/",
     "plans/",
+)
+_FULL_COMMIT_SHA_RE = re.compile(
+    r"(?<![0-9a-fA-F])([0-9a-fA-F]{40}|[0-9a-fA-F]{64})(?![0-9a-fA-F])"
 )
 
 
@@ -248,31 +252,123 @@ def refresh_association_sections(
     document: str,
     associations: PlanAssociations,
 ) -> str:
-    """Replace the derived ``AGENTS`` and ``COMMITS`` sections."""
+    """Merge derived ``AGENTS`` and ``COMMITS`` entries into existing sections."""
 
-    updated = _refresh_list_section(
-        document,
-        PlanHeaderSectionKind.AGENTS,
-        tuple(
-            PlanHeaderEntry(
-                label=agent.label,
-                target=agent.target,
-                trailing_text=agent.trailing_text,
-            )
-            for agent in associations.agents
-        ),
+    parsed = parse_plan_header_block(document)
+    updated = document
+    derived_agents = tuple(
+        PlanHeaderEntry(
+            label=agent.label,
+            target=agent.target,
+            trailing_text=agent.trailing_text,
+        )
+        for agent in associations.agents
     )
-    return _refresh_list_section(
-        updated,
-        PlanHeaderSectionKind.COMMITS,
-        tuple(
-            PlanHeaderEntry(
-                label=commit.label,
-                target=commit.target,
-                trailing_text=commit.trailing_text,
-            )
-            for commit in associations.commits
-        ),
+    if derived_agents:
+        updated = _refresh_list_section(
+            updated,
+            PlanHeaderSectionKind.AGENTS,
+            _merge_agent_entries(
+                _entries_for_section(parsed.sections, PlanHeaderSectionKind.AGENTS),
+                derived_agents,
+            ),
+        )
+
+    derived_commits = tuple(
+        PlanHeaderEntry(
+            label=commit.label,
+            target=commit.target,
+            trailing_text=commit.trailing_text,
+        )
+        for commit in associations.commits
+    )
+    if derived_commits:
+        updated = _refresh_list_section(
+            updated,
+            PlanHeaderSectionKind.COMMITS,
+            _merge_commit_entries(
+                _entries_for_section(parsed.sections, PlanHeaderSectionKind.COMMITS),
+                derived_commits,
+            ),
+        )
+    return updated
+
+
+def _entries_for_section(
+    sections: tuple[PlanHeaderSection, ...],
+    kind: PlanHeaderSectionKind,
+) -> tuple[PlanHeaderEntry, ...]:
+    section = next((section for section in sections if section.kind is kind), None)
+    if section is None:
+        return ()
+    return section.entries
+
+
+def _merge_agent_entries(
+    existing: tuple[PlanHeaderEntry, ...],
+    derived: tuple[PlanHeaderEntry, ...],
+) -> tuple[PlanHeaderEntry, ...]:
+    merged = {entry.label: entry for entry in existing}
+    for entry in derived:
+        merged[entry.label] = entry
+    return tuple(merged[label] for label in sorted(merged))
+
+
+def _merge_commit_entries(
+    existing: tuple[PlanHeaderEntry, ...],
+    derived: tuple[PlanHeaderEntry, ...],
+) -> tuple[PlanHeaderEntry, ...]:
+    merged: dict[str, PlanHeaderEntry] = {}
+    aliases: dict[str, str] = {}
+    for entry in existing:
+        _install_commit_entry(merged, aliases, entry)
+    for entry in derived:
+        _install_commit_entry(merged, aliases, entry)
+    return tuple(
+        entry
+        for _key, entry in sorted(
+            merged.items(),
+            key=lambda item: _commit_entry_sort_key(item[0], item[1]),
+        )
+    )
+
+
+def _install_commit_entry(
+    merged: dict[str, PlanHeaderEntry],
+    aliases: dict[str, str],
+    entry: PlanHeaderEntry,
+) -> None:
+    key = _commit_entry_key(entry)
+    label_alias = _commit_label_alias(entry)
+    old_key = aliases.get(label_alias)
+    if old_key is not None and old_key != key:
+        merged.pop(old_key, None)
+    merged[key] = entry
+    aliases[label_alias] = key
+
+
+def _commit_entry_key(entry: PlanHeaderEntry) -> str:
+    if entry.target is not None:
+        match = _FULL_COMMIT_SHA_RE.search(entry.target)
+        if match is not None:
+            return f"sha:{match.group(1).casefold()}"
+    return _commit_label_alias(entry)
+
+
+def _commit_label_alias(entry: PlanHeaderEntry) -> str:
+    return f"label:{entry.label.casefold()}"
+
+
+def _commit_entry_sort_key(
+    key: str,
+    entry: PlanHeaderEntry,
+) -> tuple[str, str, str, str]:
+    _kind, _separator, identity = key.partition(":")
+    return (
+        identity,
+        entry.label.casefold(),
+        entry.target or "",
+        entry.trailing_text or "",
     )
 
 
