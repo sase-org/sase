@@ -1,11 +1,11 @@
 """Structural markers for continuation-budget protected/reducible prompt spans.
 
-``continuation_budget.py`` must decide which parts of a fully expanded prompt
-are safe to omit under context pressure. Guessing from Markdown headings is
-unsound: authored or untrusted content can legitimately contain a heading
-string like ``## Selected diagnostics`` without being the render-generated
-section of that name, and treating it as reducible would silently delete
-whatever protected content follows.
+``continuation_budget_projection.py`` must decide which parts of a fully
+expanded prompt are safe to omit under context pressure. Guessing from
+Markdown headings is unsound: authored or untrusted content can legitimately
+contain a heading string like ``## Selected diagnostics`` without being the
+render-generated section of that name, and treating it as reducible would
+silently delete whatever protected content follows.
 
 Renderers that emit a genuinely reducible section (``followup_prompt.py``,
 ``result_projection.py``, continuation replay's ``_render.py``) wrap it with

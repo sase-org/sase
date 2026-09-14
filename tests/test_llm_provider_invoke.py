@@ -426,14 +426,14 @@ def test_monitor_continuation_budget_never_drops_authored_selected_diagnostics_h
 def test_continuation_budget_uses_provider_transport_default(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from sase.llm_provider import continuation_budget as budget_module
+    from sase.llm_provider import continuation_budget_request as budget_request_module
 
     monkeypatch.setattr(
         "sase.llm_provider.config.get_llm_provider_config",
         lambda: {"continuation_budget": {}},
     )
 
-    request = budget_module._budget_request(
+    request = budget_request_module.budget_request(
         "small prompt",
         {},
         provider_name="agy",
