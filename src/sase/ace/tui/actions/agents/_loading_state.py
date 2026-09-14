@@ -34,6 +34,8 @@ if TYPE_CHECKING:
     from ...models.fold_state import FoldStateManager
     from ...models.fold_state import FoldLevel
     from ...util.nav_gate import NavigationGate
+    from ._loading_disk_support import ExternalDismissalMergeResult
+    from sase.current_project import CurrentProject
 
 AgentIdentity = tuple[Any, str, str | None]
 ArtifactIndexMaintenanceRequest = tuple[
@@ -248,6 +250,67 @@ class AgentLoadingStateMixin:
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None,
     ) -> PreparedApplySnapshot:
+        raise NotImplementedError
+
+    def _apply_loaded_agents(
+        self,
+        all_agents: list[Agent],
+        dismissed_from_loader: list[Agent],
+        on_agents_tab: bool,
+        selected_identity: tuple[AgentType, str, str | None] | None,
+        load_state: AgentLoadState | None = None,
+        effective_runner_limit: int | None = None,
+        dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
+    ) -> None:
+        raise NotImplementedError
+
+    def _should_seed_agent_search_query(self) -> bool:
+        raise NotImplementedError
+
+    def _maybe_seed_agent_search_query(self, current: CurrentProject | None) -> bool:
+        raise NotImplementedError
+
+    def _merge_external_dismissals(self) -> None:
+        raise NotImplementedError
+
+    def _external_dismissal_merge_result(
+        self,
+        dismissed_snapshot: set[tuple[AgentType, str, str | None]],
+    ) -> ExternalDismissalMergeResult | None:
+        raise NotImplementedError
+
+    def _apply_external_dismissal_merge(
+        self, result: ExternalDismissalMergeResult | None
+    ) -> None:
+        raise NotImplementedError
+
+    async def _prepare_agent_content_search_index_async(
+        self,
+        agents: list[Agent],
+    ) -> AgentContentSearchIndex | None:
+        raise NotImplementedError
+
+    def _schedule_loader_cleanup(
+        self,
+        dismissed_snapshot: set[tuple[AgentType, str, str | None]],
+        dismissed_from_loader: list[Agent],
+        *,
+        source: str,
+        load_kind: str,
+    ) -> None:
+        raise NotImplementedError
+
+    def _schedule_monitor_reconcile(self, *, source: str) -> None:
+        raise NotImplementedError
+
+    def _record_slow_loader_stages(
+        self,
+        *,
+        source: str,
+        load_kind: str,
+        stages: dict[str, float],
+        **fields: Any,
+    ) -> None:
         raise NotImplementedError
 
     async def _load_agents_async(
