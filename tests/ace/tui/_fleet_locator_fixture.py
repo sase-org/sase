@@ -14,6 +14,18 @@ def fleet_installation_id(hex_char: str = "a") -> str:
     return f"sase_inst_v1_{hex_char * 64}"
 
 
+def fleet_contract_schema_version() -> int:
+    """Return the core's current fleet-contract schema version.
+
+    A host's bare ``installation_id`` is re-derived by the core into an
+    ``OriginLocatorWire`` stamped with this version, then compared for
+    equality against the origin embedded in each raw summary fixture. A
+    hardcoded literal here would go stale every time the core's schema
+    version advances and the two origins would stop matching.
+    """
+    return require_rust_binding("fleet_contract_schema_version")()
+
+
 def fleet_logical_locator(
     *,
     installation_id: str | None = None,
@@ -28,7 +40,7 @@ def fleet_logical_locator(
         "project": {
             "schema_version": 1,
             "origin": {
-                "schema_version": 1,
+                "schema_version": fleet_contract_schema_version(),
                 "installation_id": origin_id,
             },
             "project_id": project_id,

@@ -6,6 +6,7 @@ from sase.ace.tui.actions.agents._fleet_follow import followed_logical_keys
 from sase.ace.tui.models.fleet_agents import followed_batch_family_promotions
 from sase.dispatch.follow_store import FollowStoreSnapshot
 from tests.ace.tui.fleet_fixture import (
+    fleet_contract_schema_version,
     fleet_follow_snapshot,
     fleet_host_response,
     fleet_installation_id,
@@ -41,17 +42,41 @@ def test_followed_logical_keys_reads_active_records_only() -> None:
     assert followed_logical_keys(None) == ()
 
 
+def _canonical_locator(
+    installation_id: str,
+    *,
+    agent_id: str,
+    family_id: str | None,
+) -> dict[str, object]:
+    """Return the locator shape promotion output always carries.
+
+    ``followed_batch_family_promotions`` canonicalizes every locator it
+    sends to the core through ``_locator_wire``, which fixes each nested
+    ``schema_version`` at 1 regardless of the fleet contract's evolving
+    schema version; the promoted ``from``/``to`` fields echo that same
+    fixed shape back unchanged.
+    """
+    return {
+        "schema_version": 1,
+        "project": {
+            "schema_version": 1,
+            "origin": {
+                "schema_version": 1,
+                "installation_id": installation_id,
+            },
+            "project_id": "sase-main",
+        },
+        "agent_id": agent_id,
+        "family_id": family_id,
+    }
+
+
 def test_followed_batch_family_promotions_promote_explicit_singleton() -> None:
     installation_id = fleet_installation_id("d")
     singleton = fleet_logical_locator(
         installation_id=installation_id,
         agent_id="worker",
         family_id=None,
-    )
-    family = fleet_logical_locator(
-        installation_id=installation_id,
-        agent_id="worker",
-        family_id="family-1",
     )
     response = fleet_host_response(
         installation_id=installation_id,
@@ -68,9 +93,13 @@ def test_followed_batch_family_promotions_promote_explicit_singleton() -> None:
         response,
     ) == (
         {
-            "schema_version": 1,
-            "from": singleton,
-            "to": family,
+            "schema_version": fleet_contract_schema_version(),
+            "from": _canonical_locator(
+                installation_id, agent_id="worker", family_id=None
+            ),
+            "to": _canonical_locator(
+                installation_id, agent_id="worker", family_id="family-1"
+            ),
         },
     )
 

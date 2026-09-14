@@ -10,6 +10,7 @@ from tests.ace.tui._fleet_facade_fixture import (
     fleet_follow_snapshot,
 )
 from tests.ace.tui._fleet_locator_fixture import (
+    fleet_contract_schema_version,
     fleet_exact_key,
     fleet_exact_locator,
     fleet_installation_id,
@@ -36,6 +37,7 @@ __all__ = [
     "fleet_catalog_snapshot_id",
     "fleet_config",
     "fleet_config_for_hosts",
+    "fleet_contract_schema_version",
     "fleet_counts",
     "fleet_exact_key",
     "fleet_exact_locator",

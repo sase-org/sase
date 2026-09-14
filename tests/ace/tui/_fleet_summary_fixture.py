@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from tests.ace.tui._fleet_locator_fixture import (
+    fleet_contract_schema_version,
     fleet_exact_key,
     fleet_exact_locator,
     fleet_installation_id,
@@ -40,6 +41,8 @@ def fleet_summary(
     queue_weight_explicit: bool = False,
     queue_weight_invalid: bool = False,
     queue_weight_error: str | None = None,
+    queue_capacity: int | None = None,
+    queue_capacity_explicit: bool = False,
     row_kind: str = "agent_shell",
     family_role: str = "root",
     parent_timestamp: str | None = None,
@@ -105,7 +108,7 @@ def fleet_summary(
         "connection_health": _connection_health(connection_health),
         "freshness": _freshness(freshness),
         "capabilities": {
-            "schema_version": 1,
+            "schema_version": fleet_contract_schema_version(),
             "resource": ["content.read", "stop"],
             "host": [],
             "protocol": ["fleet.v1"],
@@ -134,6 +137,10 @@ def fleet_summary(
         summary["queue_weight_invalid"] = True
     if queue_weight_error is not None:
         summary["queue_weight_error"] = queue_weight_error
+    if queue_capacity is not None:
+        summary["queue_capacity"] = queue_capacity
+    if queue_capacity_explicit:
+        summary["queue_capacity_explicit"] = True
     return summary
 
 

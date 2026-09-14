@@ -288,6 +288,10 @@ def _agent_from_summary(
         queue_weight_invalid=summary.get("queue_weight_invalid") is True,
         queue_weight_error=optional_str(summary.get("queue_weight_error")),
     )
+    agent.set_queue_capacity(
+        int_or_none(summary.get("queue_capacity")),
+        explicit=summary.get("queue_capacity_explicit") is True,
+    )
     return agent
 
 

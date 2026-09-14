@@ -212,9 +212,17 @@ def configured_host_count(response: Mapping[str, Any] | None) -> int:
 
 
 def _is_normalized_response(response: Mapping[str, Any]) -> bool:
+    """Whether *response* is already core-normalized output, not raw input.
+
+    ``count_hosts`` and ``configured_host_count`` only ever appear on the
+    core's ``FleetNormalizedReadResponseWire`` output; raw federation input
+    never carries them (the raw contract only allows ``configured_hosts``).
+    That structural signal, unlike the response's ``schema_version`` (which
+    tracks the evolving summary contract, not a fixed envelope version), does
+    not go stale as the core's fleet-contract schema version advances.
+    """
     return (
-        response.get("schema_version") == 1
-        and isinstance(response.get("hosts"), Sequence)
+        isinstance(response.get("hosts"), Sequence)
         and isinstance(response.get("count_hosts"), Sequence)
         and "configured_host_count" in response
     )

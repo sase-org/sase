@@ -21,7 +21,18 @@ def _known_installation_id(hex_char: str) -> str:
 
 
 def _origin(installation_id: str) -> dict[str, Any]:
-    return {"schema_version": 1, "installation_id": installation_id}
+    """Build an ``OriginLocatorWire`` dict matching the core's current schema.
+
+    A count-host's explicit ``origin`` is compared for equality against the
+    origin embedded in its summaries, which the real projector always stamps
+    with the core's current fleet-contract schema version. A hardcoded
+    literal here would go stale (and stop matching) whenever that version
+    advances.
+    """
+    return {
+        "schema_version": _binding("fleet_contract_schema_version")(),
+        "installation_id": installation_id,
+    }
 
 
 def _logical_locator(
