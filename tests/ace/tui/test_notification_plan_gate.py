@@ -29,6 +29,7 @@ from sase.notification_gates import paths
 from sase.notification_gates.service import create_gate
 from sase.notifications import pending_actions
 from sase.notifications.store import load_notifications
+from sase.ops.names import GATE_ANSWER
 from sase.plan_gate import build_plan_approval_gate_spec
 from tests._plan_gate_fixtures import (  # noqa: F401
     plan_host_archive_stub,
@@ -83,6 +84,29 @@ class _TrackedPlanApp:
         self.completion = args[1]()
         kwargs["on_complete"](self.completion)
         return SimpleNamespace(proc_id="plan-gate-task")
+
+
+class _DurablePlanApp:
+    def __init__(self) -> None:
+        self.submitted: list[tuple[tuple[object, ...], dict[str, Any]]] = []
+        self.notifications: list[tuple[str, str]] = []
+        self.refresh_count = 0
+
+    def notify(
+        self,
+        message: str,
+        *,
+        severity: str = "information",
+        **_kwargs: object,
+    ) -> None:
+        self.notifications.append((message, severity))
+
+    def _refresh_notification_count(self) -> None:
+        self.refresh_count += 1
+
+    def _submit_durable_proc(self, *args: object, **kwargs: Any) -> object:
+        self.submitted.append((args, kwargs))
+        return SimpleNamespace(proc_id="durable-plan-gate-task")
 
 
 class _PlanModalApp(App[None]):
@@ -289,6 +313,48 @@ def test_neutral_plan_submission_executes_actual_modal_choice(
     assert [item["id"] for item in response["option_results"]] == expected_option_ids
     assert app.notifications == []
     assert app.refresh_count == 1
+
+
+def test_neutral_plan_submission_uses_durable_gate_answer(
+    gate_home: Path,
+) -> None:
+    plan = gate_home / "durable-tale.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    gate = create_gate(build_plan_approval_gate_spec(plan, "tui-durable-tale"))
+    [notification] = load_notifications()
+    result = plan_approval_result_for_choice(
+        "tale",
+        coder_prompt="ship it",
+        wait_spec="sase-zr.6",
+    )
+    app = _DurablePlanApp()
+
+    submitted = submit_neutral_plan_response(app, notification, None, result)
+
+    assert submitted is True
+    [(args, kwargs)] = app.submitted
+    assert args == (
+        [
+            "sase",
+            "gate",
+            "answer",
+            "--id",
+            notification.action_data["request_id"],
+            "--kind",
+            notification.action_data["request_kind"],
+            "--no-detach",
+            "--json",
+        ],
+    )
+    assert kwargs["operation"] == GATE_ANSWER
+    request = kwargs["request"]
+    assert request["option_ids"] == ["approve", "commit"]
+    assert request["source"] == "tui"
+    assert request["input_data"] == {
+        "coder_prompt": "ship it",
+        "wait": "sase-zr.6",
+    }
+    assert not gate.response_path.exists()
 
 
 def test_neutral_tale_submission_merges_shared_and_per_option_inputs(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -13,6 +14,7 @@ from sase.ace.tui.actions.agents._notification_navigation import (
     find_agent_for_notification,
 )
 from sase.ace.tui.actions.agents._notification_utils import (
+    prepare_disappeared_plan_notification_refresh,
     request_notification_agents_refresh,
 )
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -129,6 +131,82 @@ class TestDisappearedReviewRefresh:
         assert saw_new is False
         assert scheduled == []
         assert broad_refreshes == [("notification", True)]
+
+    def test_disappeared_accepted_shell_gate_schedules_exact_delta(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from sase.notification_gates import paths
+        from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
+
+        monkeypatch.setattr(paths, "INTERACTION_REQUESTS_DIR", tmp_path / "requests")
+        bundle = paths.bundle_paths("custom", "custom-accepted")
+        bundle.root.mkdir(parents=True)
+        bundle.request.write_text(
+            '{"request_id":"custom-accepted","kind":"custom","shell":{}}\n',
+            encoding="utf-8",
+        )
+        (bundle.root / DECISION_RECEIPT_FILENAME).write_text(
+            '{"selected_option_ids":["approve"]}\n',
+            encoding="utf-8",
+        )
+        artifacts_dir = tmp_path / "artifacts"
+        artifacts_dir.mkdir()
+        monkeypatch.setattr(
+            "sase.gate_shell.store.find_gate_shell_by_gate_id",
+            lambda _project, gate_id: (
+                SimpleNamespace(artifacts_dir=str(artifacts_dir))
+                if gate_id == "custom-accepted"
+                else None
+            ),
+        )
+        notification = _make(
+            id="accepted-custom",
+            action="CustomGate",
+            action_data={
+                "request_id": "custom-accepted",
+                "request_kind": "custom",
+            },
+        )
+
+        dirs, broad = prepare_disappeared_plan_notification_refresh(
+            _FakeApp(),
+            [notification],
+            [],
+        )
+
+        assert dirs == (artifacts_dir,)
+        assert broad is False
+
+    def test_disappeared_unaccepted_shell_gate_does_not_refresh(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from sase.notification_gates import paths
+
+        monkeypatch.setattr(paths, "INTERACTION_REQUESTS_DIR", tmp_path / "requests")
+        bundle = paths.bundle_paths("custom", "custom-pending")
+        bundle.root.mkdir(parents=True)
+        bundle.request.write_text(
+            '{"request_id":"custom-pending","kind":"custom","shell":{}}\n',
+            encoding="utf-8",
+        )
+        notification = _make(
+            id="pending-custom",
+            action="CustomGate",
+            action_data={"request_id": "custom-pending", "request_kind": "custom"},
+        )
+
+        dirs, broad = prepare_disappeared_plan_notification_refresh(
+            _FakeApp(),
+            [notification],
+            [],
+        )
+
+        assert dirs == ()
+        assert broad is False
 
 
 class TestNotificationAgentTargeting:

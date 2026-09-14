@@ -286,7 +286,7 @@ def _monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
 
 
 def monitor_records(project_name: str | None) -> list[AgentArtifactRecordWire]:
-    """Return raw monitor artifact records for callers that need lane context."""
+    """Return raw monitor artifact records for lane-scoped callers."""
     return _monitor_records(project_name)
 
 
@@ -371,9 +371,11 @@ def _project_records(
 
 
 def project_records(
-    project_name: str | None, *, only_monitors: bool = False
+    project_name: str | None,
+    *,
+    only_monitors: bool = False,
 ) -> list[AgentArtifactRecordWire]:
-    """Return raw artifact records for one project."""
+    """Return raw artifact records, optionally restricted to monitor members."""
     return _project_records(project_name, only_monitors=only_monitors)
 
 

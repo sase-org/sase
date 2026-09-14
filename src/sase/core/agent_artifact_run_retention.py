@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.config import get_artifact_retention_empty_shard_removal_budget
+from sase.core import continuation_retention
 from sase.core.agent_artifact_index_lifecycle_mutations import (
     delete_agent_artifact_index_artifacts,
 )
@@ -53,7 +54,6 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
-from sase.core import continuation_retention
 from sase.core.paths import is_valid_sase_project_name
 from sase.core.rust import require_rust_binding
 
@@ -151,10 +151,18 @@ def apply_ace_run_retention(
         for item in result.get("run_items") or ()
         if item.get("outcome") == "removed"
     ]
+    planned_selected_dirs = {
+        _normalized_path(item.artifact_dir) for item in plan.selected
+    }
     skipped = [
         f"{item['artifact_dir']}: {_apply_run_skip_detail(item)}"
         for item in result.get("run_items") or ()
-        if item.get("outcome") in {"protected", "skipped"}
+        if item.get("outcome") == "skipped"
+        or (
+            item.get("outcome") == "protected"
+            and _normalized_path(str(item.get("artifact_dir") or ""))
+            in planned_selected_dirs
+        )
     ] + [
         f"{item['path']}: {item.get('detail') or item['outcome']}"
         for item in result.get("shard_items") or ()

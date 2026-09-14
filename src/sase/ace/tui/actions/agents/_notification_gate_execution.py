@@ -81,7 +81,14 @@ def submit_gate_execution_task(
 
     task = submit(
         sase_argv(
-            "gate", "answer", "--id", request_id, "--kind", request_kind, "--json"
+            "gate",
+            "answer",
+            "--id",
+            request_id,
+            "--kind",
+            request_kind,
+            "--no-detach",
+            "--json",
         ),
         operation=GATE_ANSWER,
         request=durable_request_payload(
@@ -94,6 +101,7 @@ def submit_gate_execution_task(
                 else dict(submission.option_inputs)
             ),
             retry=submission.retry,
+            source="tui",
         ),
         request_fingerprint=durable_fingerprint(
             GATE_ANSWER,
@@ -101,6 +109,7 @@ def submit_gate_execution_task(
             request_id,
             ",".join(submission.selected_option_ids),
             submission.retry or "",
+            "tui",
         ),
         concurrency_keys=(f"notification-gate:{notification.id}",),
         label=f"Gate response: {', '.join(submission.selected_option_ids)}",
@@ -111,6 +120,14 @@ def submit_gate_execution_task(
         reload_on_complete=False,
         notify_on_complete=False,
     )
+    if task is not None:
+        from ._notification_utils import schedule_gate_decision_receipt_refresh
+
+        schedule_gate_decision_receipt_refresh(
+            app,
+            notification=notification,
+            bundle_path=bundle_path,
+        )
     return task is not None
 
 

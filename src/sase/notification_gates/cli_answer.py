@@ -141,6 +141,7 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
     feedback = (
         feedback if isinstance(feedback, str) else getattr(args, "feedback", None)
     )
+    source = _request_source(request.payload) or "cli"
     selected_ids = [option.id for option in selected]
 
     # A shell-backed gate is defined by the envelope's ``shell`` block (the
@@ -181,7 +182,7 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
         [option.id for option in selected],
         input_data,
         feedback=feedback,
-        source="cli",
+        source=source,
         retry=retry,
         option_inputs=option_inputs,
         **execution_kwargs,
@@ -355,6 +356,14 @@ def _request_option_inputs(payload: Mapping[str, Any]) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         raise GateCliError("operation request option_inputs must be an object")
     return {str(key): value for key, value in raw.items()}
+
+
+def _request_source(payload: Mapping[str, Any]) -> str | None:
+    raw = payload.get("source")
+    if not isinstance(raw, str):
+        return None
+    source = raw.strip()
+    return source or None
 
 
 def _resolve_selection(

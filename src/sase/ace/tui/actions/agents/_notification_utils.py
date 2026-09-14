@@ -203,12 +203,103 @@ def request_notification_agents_refresh(
     _call_schedule_agents_refresh(app)
 
 
+def _request_gate_decision_refresh(
+    app: Any,
+    *,
+    notification: Notification,
+    agent: Agent | None = None,
+    allow_broad_fallback: bool = True,
+) -> None:
+    """Refresh ACE surfaces after a gate decision becomes durable."""
+    schedule_snapshot = getattr(app, "_schedule_notification_snapshot_refresh", None)
+    if callable(schedule_snapshot):
+        schedule_snapshot()
+    else:
+        refresh_count = getattr(app, "_refresh_notification_count", None)
+        if callable(refresh_count):
+            refresh_count()
+    request_notification_agents_refresh(
+        app,
+        agent=agent,
+        notification=notification,
+        allow_broad_fallback=allow_broad_fallback,
+    )
+
+
+def schedule_gate_decision_receipt_refresh(
+    app: Any,
+    *,
+    notification: Notification,
+    bundle_path: Path,
+    agent: Agent | None = None,
+    timeout_seconds: float = 5.0,
+) -> None:
+    """Watch one submitted gate for its fast decision receipt, then refresh."""
+    from ...util.pump_tasks import spawn_pump_free_task
+
+    key = (notification.id, str(bundle_path))
+    active = getattr(app, "_gate_decision_refresh_keys", None)
+    if active is None:
+        active = set()
+        app._gate_decision_refresh_keys = active
+    if key in active:
+        return
+
+    async def _watch() -> None:
+        import asyncio
+        import time
+
+        receipt_seen = False
+        deadline = time.monotonic() + timeout_seconds
+        try:
+            while time.monotonic() <= deadline:
+                receipt_seen = await asyncio.to_thread(
+                    _gate_decision_is_visible,
+                    bundle_path,
+                )
+                if receipt_seen:
+                    break
+                await asyncio.sleep(0.05)
+            if receipt_seen:
+                _request_gate_decision_refresh(
+                    app,
+                    notification=notification,
+                    agent=agent,
+                    allow_broad_fallback=False,
+                )
+        finally:
+            active.discard(key)
+
+    task = spawn_pump_free_task(
+        app,
+        _watch(),
+        name=f"gate-decision-refresh:{notification.id}",
+        registry_attr="_gate_decision_refresh_tasks",
+    )
+    if task is not None:
+        active.add(key)
+
+
+def _gate_decision_is_visible(bundle_path: Path) -> bool:
+    from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
+    from sase.notification_gates.paths import CANCELLATION_FILENAME, RESPONSE_FILENAME
+
+    return any(
+        (bundle_path / filename).exists()
+        for filename in (
+            DECISION_RECEIPT_FILENAME,
+            RESPONSE_FILENAME,
+            CANCELLATION_FILENAME,
+        )
+    )
+
+
 def prepare_disappeared_plan_notification_refresh(
     app: Any,
     previous_notifications: list[Notification],
     current_notifications: list[Notification],
 ) -> tuple[tuple[Path, ...], bool]:
-    """Resolve disappeared plan-review rows to a bounded refresh request.
+    """Resolve disappeared gate-review rows to a bounded refresh request.
 
     This helper may call ``Agent.get_artifacts_dir()``, which can inspect the
     filesystem. Polling therefore invokes it on the same worker thread that
@@ -216,26 +307,75 @@ def prepare_disappeared_plan_notification_refresh(
     Textual thread.
 
     Returns ``(artifact_dirs, needs_broad_fallback)``. Duplicate notifications
-    for one artifact are coalesced, and unrelated notification removals are
-    ignored.
+    for one artifact are coalesced. Plan approvals preserve their historical
+    row-targeting behavior; other shell-backed gates refresh only after a
+    durable decision/terminal marker is visible.
     """
     current_ids = {notification.id for notification in current_notifications}
     artifact_dirs: set[Path] = set()
     needs_broad_fallback = False
     for notification in previous_notifications:
-        if (
-            notification.dismissed
-            or notification.id in current_ids
-            or notification.action not in {"PlanApproval", "EpicApproval"}
-        ):
+        if notification.dismissed or notification.id in current_ids:
             continue
-        agent = _resolve_notification_agent(app, notification)
-        artifact_dir = _agent_artifact_dir(agent) if agent is not None else None
-        if artifact_dir is None:
+        if notification.action in {"PlanApproval", "EpicApproval"}:
+            agent = _resolve_notification_agent(app, notification)
+            artifact_dir = _agent_artifact_dir(agent) if agent is not None else None
+            if artifact_dir is None:
+                needs_broad_fallback = True
+                continue
+            artifact_dirs.add(artifact_dir)
+            continue
+
+        artifact_dir, needs_fallback = _accepted_gate_shell_artifact_dir(notification)
+        if artifact_dir is not None:
+            artifact_dirs.add(artifact_dir)
+        elif needs_fallback:
             needs_broad_fallback = True
-            continue
-        artifact_dirs.add(artifact_dir)
     return tuple(sorted(artifact_dirs, key=str)), needs_broad_fallback
+
+
+def _accepted_gate_shell_artifact_dir(
+    notification: Notification,
+) -> tuple[Path | None, bool]:
+    """Return an exact shell artifact dir for an accepted generic gate."""
+    try:
+        from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
+        from sase.notification_gates.durability import read_json_object
+        from sase.notification_gates.paths import resolve_notification_bundle
+        from sase.notification_gates.registry import adapter_for_action
+
+        if adapter_for_action(notification.action) is None:
+            return None, False
+        bundle = resolve_notification_bundle(notification)
+        if bundle is None or bundle.legacy:
+            return None, False
+        if not any(
+            path.exists()
+            for path in (
+                bundle.root / DECISION_RECEIPT_FILENAME,
+                bundle.response,
+                bundle.cancellation,
+            )
+        ):
+            return None, False
+        envelope = read_json_object(bundle.request)
+        if not isinstance(envelope.get("shell"), dict):
+            return None, False
+        gate_id = str(
+            envelope.get("request_id")
+            or notification.action_data.get("request_id")
+            or ""
+        )
+        if not gate_id:
+            return None, True
+        from sase.gate_shell.store import find_gate_shell_by_gate_id
+
+        record = find_gate_shell_by_gate_id(None, gate_id)
+        if record is None or not getattr(record, "artifacts_dir", None):
+            return None, True
+        return Path(str(record.artifacts_dir)), False
+    except Exception:
+        return None, True
 
 
 def apply_disappeared_plan_notification_refresh(

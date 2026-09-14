@@ -361,6 +361,10 @@ def test_rust_dev_install_disables_cargo_incremental_cache() -> None:
         )
         == 1
     )
+    assert output.count('"$py_target_dir/$profile/incremental"') == 1
+    assert output.count('"$py_target_dir/build/$profile/incremental"') == 1
+    assert output.count('"$lsp_target_dir/$profile/incremental"') == 1
+    assert output.count('"$lsp_target_dir/build/$profile/incremental"') == 1
 
 
 def test_rust_dev_install_isolates_cargo_build_dir_with_target() -> None:

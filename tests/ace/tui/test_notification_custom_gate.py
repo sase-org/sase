@@ -372,6 +372,7 @@ def test_custom_gate_submission_uses_durable_task_toast_and_refresh(
             notification.action_data["request_id"],
             "--kind",
             notification.action_data["request_kind"],
+            "--no-detach",
             "--json",
         ],
     )
@@ -381,6 +382,7 @@ def test_custom_gate_submission_uses_durable_task_toast_and_refresh(
     assert request["option_ids"] == ["approve"]
     assert request["feedback"] == "Reviewed"
     assert request["input_data"] == {}
+    assert request["source"] == "tui"
     assert app.notifications == [("Gate answered with approve", "information")]
     assert app.refresh_count == 1
 
