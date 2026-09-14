@@ -271,23 +271,34 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
         ["unit-3"],
     ]
 
-    explicit_zero_plan = plan_typed_launch_units(
+    explicit_one_plan = plan_typed_launch_units(
         expand_prompt_for_typed_launch(
             "#research_swarm("
             "prompt='weighted queue acceptance', "
-            "runners=0, priority=0, wait='upstream'"
+            "runners=1, priority=0, wait='upstream'"
             ")"
         ),
         selected_project="sase",
     )
-    assert len(explicit_zero_plan.units) == 4
-    for unit in explicit_zero_plan.units:
+    assert len(explicit_one_plan.units) == 4
+    for unit in explicit_one_plan.units:
         assert unit.payload.queue_weight == pytest.approx(0.25)
         assert unit.payload.queue_weight_explicit is True
-        assert unit.payload.wait_runners == 0
+        assert unit.payload.wait_runners == 1
         assert unit.payload.wait_priority == 0
-    assert [wait.name for wait in explicit_zero_plan.units[0].waits] == ["upstream"]
-    assert [wait.name for wait in explicit_zero_plan.units[1].waits] == ["upstream"]
+    assert [wait.name for wait in explicit_one_plan.units[0].waits] == ["upstream"]
+    assert [wait.name for wait in explicit_one_plan.units[1].waits] == ["upstream"]
+
+    # An authored capacity=0 is preserved through swarm expansion rather than
+    # treated as omission, and core rejects it as an invalid launch budget
+    # (mirrors the plugin's own extract_prompt_directives-level assertion).
+    with pytest.raises(ValueError, match="at least 1"):
+        plan_typed_launch_units(
+            expand_prompt_for_typed_launch(
+                "#research_swarm(prompt='weighted queue acceptance', runners=0)"
+            ),
+            selected_project="sase",
+        )
 
     harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
     agents = [
