@@ -1,0 +1,238 @@
+"""Output-contract tests for the error-digest and managed-tmp-reap chops."""
+
+from __future__ import annotations
+
+import importlib
+import json
+import os
+import time
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
+
+from sase.chops.builtin import run_builtin_chop
+
+from tests._axe_chop_output_contract_helpers import (
+    _isolate_chop_result_file,  # noqa: F401 (registers the result-file isolation fixture)
+    _write_context,
+)
+
+
+def test_error_digest_emits_noop_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_error_digest")
+
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["sase_chop_error_digest", "--context", str(context_path)],
+    )
+    monkeypatch.setattr(script, "read_errors", lambda: [])
+    monkeypatch.setattr(script, "read_last_error_digest_ts", lambda: None)
+    notify = Mock()
+    monkeypatch.setattr(script, "notify_axe_error_digest", notify)
+
+    script.main()
+
+    notify.assert_not_called()
+    out = capsys.readouterr().out
+    assert "error_digest:" in out
+    assert "errors_total=0" in out
+    assert "recent=0" in out
+    assert "notified=0" in out
+    assert "reason=no_recent_errors" in out
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["schema_version"] == 1
+    assert result["status"] == "no_op"
+    assert result["reason"] == "no_recent_errors"
+    assert result["counters"] == {
+        "errors_total": 0,
+        "notified": 0,
+        "recent": 0,
+    }
+
+
+def test_error_digest_emits_action_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_error_digest")
+
+    errors = [
+        {"timestamp": "2099-05-12T10:00:00-04:00", "message": "older"},
+        {"timestamp": "2099-05-12T10:05:00-04:00", "message": "newer"},
+    ]
+    written: list[str] = []
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["sase_chop_error_digest", "--context", str(context_path)],
+    )
+    monkeypatch.setattr(script, "read_errors", lambda: errors)
+    monkeypatch.setattr(
+        script,
+        "read_last_error_digest_ts",
+        lambda: "2026-05-12T09:00:00-04:00",
+    )
+    notify = Mock()
+    monkeypatch.setattr(script, "notify_axe_error_digest", notify)
+    monkeypatch.setattr(script, "write_last_error_digest_ts", written.append)
+
+    script.main()
+
+    notify.assert_called_once_with(errors)
+    assert written == ["2099-05-12T10:05:00-04:00"]
+    out = capsys.readouterr().out
+    assert "error_digest:" in out
+    assert "errors_total=2" in out
+    assert "recent=2" in out
+    assert "notified=2" in out
+    assert "newest=2099-05-12T10:05:00-04:00" in out
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "ok"
+    assert result["reason"] is None
+    assert result["counters"] == {
+        "errors_total": 2,
+        "notified": 2,
+        "recent": 2,
+    }
+
+
+def _pin_reap_free_space(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep real host free space from leaking pressure counters into the contract."""
+    from sase.core import managed_tmp_reaper
+
+    monkeypatch.setattr(
+        "sase.scripts.sase_chop_managed_tmp_reap.reap_managed_tmpdir",
+        lambda: managed_tmp_reaper.reap_managed_tmpdir(
+            filesystem_available_bytes=64 * 1024**3
+        ),
+    )
+
+
+def test_managed_tmp_reap_emits_noop_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    importlib.import_module("sase.scripts.sase_chop_managed_tmp_reap")
+
+    managed_root = tmp_path / "managed"
+    managed_root.mkdir()
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        "sase.core.managed_tmp_reaper.managed_tmpdir_root", lambda: managed_root
+    )
+    _pin_reap_free_space(monkeypatch)
+
+    run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
+
+    out = capsys.readouterr().out
+    assert "managed_tmp_reap:" in out
+    assert "removed=0" in out
+    assert "reason=nothing_stale" in out
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "no_op"
+    assert result["reason"] == "nothing_stale"
+    assert result["counters"] == {
+        "capped": 0,
+        "deindexed": 0,
+        "pressure_reclaimable_bytes": 0,
+        "pressure_reclaimed_bytes": 0,
+        "pressure_removed": 0,
+        "pressure_selected": 0,
+        "removed": 0,
+        "scanned": 0,
+        "selected": 0,
+        "subdirs": 0,
+    }
+
+
+def test_managed_tmp_reap_emits_action_summary(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    importlib.import_module("sase.scripts.sase_chop_managed_tmp_reap")
+
+    managed_root = tmp_path / "managed"
+    stale = managed_root / "editors" / "note.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_text("scratch", encoding="utf-8")
+    ancient = time.time() - 400 * 24 * 3600
+    os.utime(stale, (ancient, ancient))
+
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        "sase.core.managed_tmp_reaper.managed_tmpdir_root", lambda: managed_root
+    )
+    _pin_reap_free_space(monkeypatch)
+
+    run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
+
+    assert not stale.exists()
+    out = capsys.readouterr().out
+    assert "reclaimed 1 entries" in out
+    assert "removed=1" in out
+    assert "subdirs=1" in out
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "ok"
+    assert result["reason"] is None
+    assert result["counters"] == {
+        "capped": 0,
+        "deindexed": 0,
+        "pressure_reclaimable_bytes": 0,
+        "pressure_reclaimed_bytes": 0,
+        "pressure_removed": 0,
+        "pressure_selected": 0,
+        "removed": 1,
+        "scanned": 1,
+        "selected": 1,
+        "subdirs": 1,
+    }
+
+
+def test_managed_tmp_reap_reports_pressure_min_age(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_managed_tmp_reap")
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    monkeypatch.setattr(
+        script,
+        "reap_managed_tmpdir",
+        lambda: SimpleNamespace(
+            scanned=3,
+            selected=1,
+            removed=1,
+            removed_by_subdir={"cargo-targets": 1},
+            pressure_selected=1,
+            pressure_removed=1,
+            pressure_reclaimable_bytes=4096,
+            pressure_reclaimed_bytes=4096,
+            pressure_trigger="free_space",
+            pressure_available_bytes=8 * 1024,
+            pressure_recovery_available_bytes=16 * 1024,
+            pressure_effective_min_age_seconds=3600.0,
+            deindexed=0,
+            capped=False,
+            describe=lambda: "reclaimed 1 entries under managed",
+        ),
+    )
+
+    run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
+
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "ok"
+    assert result["counters"]["pressure_min_age_seconds"] == 3600.0
