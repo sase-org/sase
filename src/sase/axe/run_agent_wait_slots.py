@@ -27,22 +27,22 @@ from sase.axe.run_agent_wait_markers import (
     write_waiting_marker,
 )
 from sase.axe.run_agent_wait_slot_candidate import (
-    _abandon_unclaimed_attempt,
-    _candidate_blocker_codes,
-    _candidate_scan_queue_weight_error,
-    _decision_blocker_message,
-    _enrich_candidate_from_records,
-    _park_for_unavailable_limit,
-    _publish_claim_ownership,
-    _require_candidate_decision,
+    abandon_unclaimed_attempt,
+    candidate_blocker_codes,
+    candidate_scan_queue_weight_error,
+    decision_blocker_message,
+    enrich_candidate_from_records,
+    park_for_unavailable_limit,
+    publish_claim_ownership,
+    require_candidate_decision,
 )
 from sase.axe.run_agent_wait_slot_poll import advance_runner_slot_poll
 from sase.axe.run_agent_wait_slot_state import (
-    _RunnerSlotAdmissionError,
-    _continuous_eligibility_start,
-    _marker_priority_state,
-    _marker_queue_weight_state,
-    _marker_runner_condition_state,
+    RunnerSlotAdmissionError,
+    continuous_eligibility_start,
+    marker_priority_state,
+    marker_queue_weight_state,
+    marker_runner_condition_state,
 )
 from sase.axe.runner_idle_memory import (
     IDLE_TRIM_INTERVAL_SECONDS,
@@ -159,11 +159,11 @@ def _try_claim_runner_slot(
         try:
             waiting_path = Path(artifacts_dir) / "waiting.json"
             waiting_data = read_json_dict(waiting_path)
-            priority, priority_explicit = _marker_priority_state(
+            priority, priority_explicit = marker_priority_state(
                 waiting_data,
                 directive_priority,
             )
-            queue_weight, queue_weight_explicit = _marker_queue_weight_state(
+            queue_weight, queue_weight_explicit = marker_queue_weight_state(
                 waiting_data,
                 directive_queue_weight,
                 directive_queue_weight_explicit,
@@ -171,14 +171,14 @@ def _try_claim_runner_slot(
             queue_capacity: int | None = None
             queue_capacity_explicit = False
             try:
-                queue_capacity, queue_capacity_explicit = (
-                    _marker_runner_condition_state(waiting_data, directive_threshold)
+                queue_capacity, queue_capacity_explicit = marker_runner_condition_state(
+                    waiting_data, directive_threshold
                 )
                 effective_limit = float(get_max_running_agents())
             except Exception as error:  # noqa: BLE001 - admission fails closed.
                 if not park_on_block:
-                    return _abandon_unclaimed_attempt(artifacts_dir)
-                return _park_for_unavailable_limit(
+                    return abandon_unclaimed_attempt(artifacts_dir)
+                return park_for_unavailable_limit(
                     artifacts_dir=artifacts_dir,
                     cl_name=cl_name,
                     timestamp=timestamp,
@@ -217,13 +217,13 @@ def _try_claim_runner_slot(
                 ),
             )
             records = _scan_runner_slot_records()
-            queue_weight_error = _candidate_scan_queue_weight_error(
+            queue_weight_error = candidate_scan_queue_weight_error(
                 records,
                 artifacts_dir,
             )
             if queue_weight_error is not None:
                 raise queue_weight_error
-            candidate = _enrich_candidate_from_records(candidate, records)
+            candidate = enrich_candidate_from_records(candidate, records)
             is_live = _record_liveness_probe()
             now = datetime.now(UTC)
             snapshot = runner_capacity_snapshot(
@@ -243,11 +243,11 @@ def _try_claim_runner_slot(
                 ),
                 candidate=candidate,
             )
-            decision = _require_candidate_decision(snapshot, artifacts_dir)
+            decision = require_candidate_decision(snapshot, artifacts_dir)
             if decision["decision"] == "invalid":
-                raise _RunnerSlotAdmissionError(_decision_blocker_message(decision))
+                raise RunnerSlotAdmissionError(decision_blocker_message(decision))
             if decision["decision"] in ("reuse_existing_claim", "acquire_capacity"):
-                _publish_claim_ownership(
+                publish_claim_ownership(
                     artifacts_dir=artifacts_dir,
                     agent_meta=agent_meta,
                     queue_weight=float(decision["effective_weight"]),
@@ -259,18 +259,18 @@ def _try_claim_runner_slot(
                 remove_waiting_marker(artifacts_dir)
                 return run_started_at, False
             if not park_on_block:
-                return _abandon_unclaimed_attempt(artifacts_dir)
+                return abandon_unclaimed_attempt(artifacts_dir)
             eligible_since: str | None = None
             entered_deference = False
             deference_window = 0.0
-            blocker_codes = _candidate_blocker_codes(decision.get("blockers"))
+            blocker_codes = candidate_blocker_codes(decision.get("blockers"))
             if "deference-window" in blocker_codes:
                 deference_window = deference_window_seconds(
                     priority,
                     seconds_per_step=get_runner_slot_deference_seconds_per_step(),
                     max_seconds=get_runner_slot_deference_max_seconds(),
                 )
-                eligible_since, entered_deference = _continuous_eligibility_start(
+                eligible_since, entered_deference = continuous_eligibility_start(
                     marker_eligible_since,
                     now,
                 )

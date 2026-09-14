@@ -163,7 +163,7 @@ def test_cancel_gate_dismisses_notification(gate_home: Path) -> None:
     assert load_notifications() == []
 
 
-def test_cancel_gate_times_out_instead_of_blocking_behind_a_running_command(
+def test_cancel_gate_does_not_block_behind_a_running_command_response_lock(
     gate_home: Path,
 ) -> None:
     created = create_gate(gate_spec(request_id="cancel-lock-timeout"))
@@ -182,14 +182,15 @@ def test_cancel_gate_times_out_instead_of_blocking_behind_a_running_command(
         assert holder_ready.wait(timeout=5)
 
         started = time.monotonic()
-        with pytest.raises(GateError) as excinfo:
-            cancel_gate(created.bundle_path, source="test", lock_timeout_seconds=0.2)
+        cancellation = cancel_gate(
+            created.bundle_path, source="test", lock_timeout_seconds=0.2
+        )
         elapsed = time.monotonic() - started
     finally:
         release_holder.set()
         holder.join(timeout=5)
 
-    assert excinfo.value.code == "lock_timeout"
+    assert cancellation["source"] == "test"
     assert elapsed < 2.0
 
 

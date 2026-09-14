@@ -438,3 +438,45 @@ tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_
 tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_preserved_batch_predecessor_context_rebinds_refreshed_wait
 tests/test_check_sase_core_rs_bindings_tool.py::test_dev_extension_exposes_every_collected_name
 tests/test_xprompt_directive_contract.py::test_runtime_directive_vocabulary_matches_core_contract
+#
+# sase-zt.6.5.4.3 landing reconciliation: current collectable nodes promoted by
+# selection-health from historical full-run records and routed to filed owners by
+# sase-zt.6.5.land. These raw entries preserve owner debt; the fixed-at entry
+# below retires only pre-fix incomplete-history evidence.
+# sase-j7: agent-search and machines-pane process-global state flake debt.
+tests/ace/tui/actions/test_agent_search_history_split.py::test_async_bounded_agents_search_load_rejects_stale_query
+tests/ace/tui/test_machines_pane.py::test_status_check_is_user_triggered_and_records_observation
+# sase-xe.16.11.7.14.6: fleet refresh/counts historical gate debt.
+tests/ace/tui/test_agents_fleet_refresh_laziness.py::test_fleet_catalog_refresh_requests_legal_pages_and_logical_keys
+tests/test_fleet_contract_counts_sase_core_rs.py::test_count_contract_deduplicates_current_instances_and_buckets
+# sase-xe.16: remote gateway bootstrap historical gate debt.
+tests/dispatch/test_machine_bootstrap_real_gateway.py::test_bootstrap_issue_enroll_hello_round_trip_through_real_gateway
+# sase-n4: provider-drain relaunch historical gate debt.
+tests/fakey/test_provider_drain_e2e.py::test_provider_drain_e2e_flag_on_relaunches_stranded_agent
+# sase-z4.6.5.4.6: weighted-capacity research package historical gate debt.
+tests/fakey/test_runner_slots_e2e.py::test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit
+# sase-yz: usage-probe collector historical gate debt.
+tests/llm_provider/test_codex_usage_probe.py::test_registered_hook_runs_through_isolated_probe
+# sase-yy.8.6: artifact-link health historical gate debt.
+tests/main/test_artifact_cli_link_health.py::test_inspect_fix_repairs_historical_research_rename
+# sase-kp: monitor settlement/resume historical gate debt.
+tests/monitor/test_monitor_proc_settlement.py::test_settle_monitor_artifacts_leaves_stopped_at_unpersisted
+tests/monitor/test_monitor_resume.py::test_checkpoint_resume_preserves_concurrent_acknowledgment
+# sase-lk: monitor-supervisor timeout-file full-lane flake debt.
+tests/monitor/test_monitor_supervise_timeout.py::test_run_supervisor_escalates_term_ignoring_chatty_child
+tests/monitor/test_monitor_supervise_timeout.py::test_run_supervisor_times_out_after_child_closes_stdio
+tests/monitor/test_monitor_supervise_timeout.py::test_run_supervisor_times_out_after_partial_line
+# sase-n1: post-fix dirty-record artifact-audit historical debt.
+tests/test_agent_artifact_directory_operation_audit.py::test_artifact_directory_operation_sites_are_reviewed
+tests/test_agent_artifact_directory_operation_audit.py::test_reviewed_dir_operation_sites_declare_coverage
+# sase-u1: config-schema public-schema full-lane flake debt.
+tests/test_config_schema.py::test_default_config_matches_public_schema
+# sase-10f: scratch tmpdir inner-pytest timeout under saturated full lane.
+tests/test_scratch_tmpdir_leak_regression.py::test_prepare_pytest_tmpdir_leak_does_not_break_a_later_scratch_read
+# sase-zu.8.5: incomplete-history evidence is pre-fix by commit ancestry, but
+# later-recorded stale-tree records still exceed the timestamp-only fixed-at
+# gate until they age out.
+tests/test_agent_loader_incomplete_history_dedup.py::test_incomplete_load_after_complete_history_keeps_non_workflow_suffix_guard
+# sase-zu.8.5: fixed by ef254fd6dc "test(perf): complete agent load tiering
+# measured acceptance" (committed 2026-09-13T21:21:40Z).
+# fixed-at: 2026-09-13T21:21:40Z tests/test_agent_loader_incomplete_history_dedup.py::test_incomplete_load_after_complete_history_keeps_non_workflow_suffix_guard

@@ -227,7 +227,7 @@ def test_invalid_ancestor_weight_fails_closed_for_inherited_successor(
             "update_agent_artifact_index_for_marker_mutation",
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
-        pytest.raises(run_agent_wait_slots._RunnerSlotAdmissionError),
+        pytest.raises(run_agent_wait_slots.RunnerSlotAdmissionError),
     ):
         run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(successor),
@@ -270,7 +270,7 @@ def test_malformed_candidate_decision_fails_closed(tmp_path: Path) -> None:
             "sase.core.runner_slots._admission_snapshot._core_runner_capacity_snapshot",
             side_effect=broken_snapshot,
         ),
-        pytest.raises(run_agent_wait_slots._RunnerSlotAdmissionError, match="decision"),
+        pytest.raises(run_agent_wait_slots.RunnerSlotAdmissionError, match="decision"),
     ):
         run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(waiter),
@@ -314,7 +314,7 @@ def test_fresh_acquire_persists_runner_claim_owner_key(tmp_path: Path) -> None:
 def test_ownership_is_published_under_the_lock_before_claim(
     tmp_path: Path,
 ) -> None:
-    """``_publish_claim_ownership`` must land before *claim* runs."""
+    """``publish_claim_ownership`` must land before *claim* runs."""
     solo = artifact(tmp_path, "20260910145010", 101)
     seen: list[str] = []
 

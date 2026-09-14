@@ -17,6 +17,7 @@ import json
 import threading
 import time
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -50,7 +51,17 @@ def _two_branch_spec(*, request_id: str) -> dict[str, object]:
     spec = custom_gate_spec(request_id=request_id)
     spec["query"] = "proceed OR audit"
     spec["primary_branch"] = ["proceed"]
+    spec["options"] = [
+        option
+        for option in cast("list[dict[str, object]]", spec["options"])
+        if option["id"] in {"proceed", "audit"}
+    ]
     spec["groups"] = []
+    spec["resources"] = [
+        resource
+        for resource in cast("list[dict[str, object]]", spec["resources"])
+        if resource.get("path") in {"commands/proceed", "commands/audit"}
+    ]
     return spec
 
 
@@ -88,7 +99,7 @@ def test_decision_accepted_and_dismissed_while_option_command_still_blocked(
         deadline = time.monotonic() + 5
         while not started.exists():
             assert time.monotonic() < deadline, "option command never started"
-            time.sleep(0.01)
+            time.sleep(0.01)  # sase-test-wait: poll option-command start sentinel
 
         # The command is now parked, waiting on the release sentinel. Nothing
         # about execution has finished.
@@ -98,7 +109,7 @@ def test_decision_accepted_and_dismissed_while_option_command_still_blocked(
         deadline = time.monotonic() + 5
         while not receipt_path.is_file():
             assert time.monotonic() < deadline, "decision receipt never appeared"
-            time.sleep(0.01)
+            time.sleep(0.01)  # sase-test-wait: poll durable receipt write
         receipt = json.loads(receipt_path.read_text())
         assert receipt["selected_option_ids"] == ["accept"]
 
@@ -108,7 +119,7 @@ def test_decision_accepted_and_dismissed_while_option_command_still_blocked(
             if notification.dismissed:
                 break
             assert time.monotonic() < deadline, "notification was never dismissed"
-            time.sleep(0.01)
+            time.sleep(0.01)  # sase-test-wait: poll notification dismissal state
     finally:
         release.touch()
         thread.join(timeout=5)

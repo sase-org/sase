@@ -47,7 +47,7 @@ def test_invalid_waiting_marker_queue_weight_fails_closed(
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
         pytest.raises(
-            run_agent_wait_slots._RunnerSlotAdmissionError,
+            run_agent_wait_slots.RunnerSlotAdmissionError,
             match="Invalid queue_weight in waiting marker",
         ),
     ):
@@ -86,7 +86,7 @@ def test_invalid_scanned_agent_meta_queue_weight_fails_closed(
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
         pytest.raises(
-            run_agent_wait_slots._RunnerSlotAdmissionError,
+            run_agent_wait_slots.RunnerSlotAdmissionError,
             match="Invalid queue_weight in agent metadata",
         ),
     ):

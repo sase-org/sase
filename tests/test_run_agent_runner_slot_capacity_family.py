@@ -161,7 +161,7 @@ def test_conflicting_active_family_weight_fails_clearly(tmp_path: Path) -> None:
             "update_agent_artifact_index_for_marker_mutation",
         ),
         patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
-        pytest.raises(run_agent_wait_slots._RunnerSlotAdmissionError) as exc_info,
+        pytest.raises(run_agent_wait_slots.RunnerSlotAdmissionError) as exc_info,
     ):
         run_agent_wait_slots._try_claim_runner_slot(
             artifacts_dir=str(child),

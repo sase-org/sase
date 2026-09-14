@@ -5,20 +5,21 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
-from sase.pager import PagerDocument, PagerScreen
+from sase.pager.document import PagerDocument
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.syntax_policy import pager_syntax_session_from_config
 
 from ...util.trace import tui_trace
-from ..hints._files import _resolve_ref_from_link_index
-from ..hints._link_context_capture import CapturedLinkContext, link_context_from_capture
 from ._metadata_pager_document import build_agent_metadata_document
 
 if TYPE_CHECKING:
+    from ..hints._link_context_capture import CapturedLinkContext
     from ...models.agent import Agent
 
 
 def _capture_agent_link_context(agent: Agent) -> CapturedLinkContext:
+    from ..hints._link_context_capture import CapturedLinkContext
+
     workspace_dir = getattr(agent, "workspace_dir", None)
     return CapturedLinkContext(
         source="agent",
@@ -33,6 +34,8 @@ def _build_document(
     captured_link_context: CapturedLinkContext,
 ) -> PagerDocument:
     """Resolve the link context and build the document off the event loop."""
+    from ..hints._link_context_capture import link_context_from_capture
+
     link_context: LinkResolutionContext | None = link_context_from_capture(
         captured_link_context
     )
@@ -44,6 +47,17 @@ def _find_agent_by_identity(app: Any, identity: tuple[object, ...]) -> Agent | N
         if tuple(agent.identity) == identity:
             return agent
     return None
+
+
+def _resolve_ref_from_app_link_index(
+    app: Any,
+    ref: str,
+    *,
+    context: LinkResolutionContext | None = None,
+) -> Any:
+    from ..hints._files import resolve_ref_from_link_index
+
+    return resolve_ref_from_link_index(app, ref, context=context)
 
 
 class AgentMetadataPagerMixin:
@@ -78,6 +92,8 @@ class AgentMetadataPagerMixin:
         agent_identity: tuple[object, ...],
         captured_link_context: CapturedLinkContext,
     ) -> None:
+        from sase.pager.screen import PagerScreen
+
         document = await asyncio.to_thread(
             _build_document, agent, captured_link_context
         )
@@ -96,8 +112,8 @@ class AgentMetadataPagerMixin:
         screen = PagerScreen(
             document,
             links_enabled=True,
-            resolve_ref_fn=lambda ref, *, context=None: _resolve_ref_from_link_index(
-                self, ref, context=context
+            resolve_ref_fn=lambda ref, *, context=None: (
+                _resolve_ref_from_app_link_index(self, ref, context=context)
             ),
             syntax_enabled=session.syntax_enabled,
             refresh_document_fn=refresh_document_fn,

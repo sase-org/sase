@@ -87,7 +87,7 @@ GATE_DECISION_WIRE_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
-class GateDecisionAcceptance:
+class _GateDecisionAcceptance:
     """The durable receipt for one gate, plus whether this call minted it."""
 
     receipt: Mapping[str, Any]
@@ -102,7 +102,7 @@ def accept_gate_decision(
     feedback: str | None = None,
     source: str = "host",
     option_inputs: Mapping[str, object] | None = None,
-) -> GateDecisionAcceptance | None:
+) -> _GateDecisionAcceptance | None:
     """Durably accept one gate decision and dismiss its notification, fast.
 
     Returns ``None`` when the gate already has a published ``response.json``:
@@ -224,7 +224,7 @@ def accept_gate_decision(
         )
         _touch_gate_shell_refresh_pulse(envelope, str(envelope["request_id"]))
 
-        return GateDecisionAcceptance(
+        return _GateDecisionAcceptance(
             receipt=receipt, already_accepted=already_accepted
         )
 
@@ -255,6 +255,5 @@ def _touch_gate_shell_refresh_pulse(envelope: Mapping[str, Any], gate_id: str) -
 __all__ = [
     "ACCEPTANCE_LOCK_FILENAME",
     "DECISION_RECEIPT_FILENAME",
-    "GateDecisionAcceptance",
     "accept_gate_decision",
 ]

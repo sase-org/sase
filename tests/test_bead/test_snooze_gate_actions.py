@@ -16,6 +16,7 @@ from sase.bead.snooze_gate import (
     BEAD_SNOOZE_COMMAND_PATHS,
     translate_bead_snooze_response,
 )
+from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import GateError
 from sase.notification_gates.service import create_gate
@@ -182,10 +183,10 @@ def test_bead_snooze_resnooze_accepts_a_preset_and_records_the_note_as_the_reaso
     assert resolved == (reference + timedelta(hours=4)).replace(microsecond=0)
 
 
-def test_bead_snooze_rejects_an_unparsable_duration_and_leaves_the_gate_pending(
+def test_bead_snooze_rejects_an_unparsable_duration_after_acceptance_records_error(
     gate_home: Path,
 ) -> None:
-    """The property the deleted host-side feedback check existed to provide."""
+    """The command failure is diagnosed after the decision is durably accepted."""
     del gate_home
     gate = create_gate(bead_snooze_spec(request_id="bead-snooze-typo"))
 
@@ -198,8 +199,11 @@ def test_bead_snooze_rejects_an_unparsable_duration_and_leaves_the_gate_pending(
     recorded = json.loads(error.read_text(encoding="utf-8"))
     assert recorded["option_id"] == "snooze"
     assert "accepted forms" in recorded["stderr"]
-    [notification] = load_notifications()
-    assert notification.snooze_until == WAKE_TIME
+    assert (gate.bundle_path / DECISION_RECEIPT_FILENAME).is_file()
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.snooze_until is None
+    assert notification.dismissed is True
+    assert load_notifications() == []
 
 
 @pytest.mark.parametrize(

@@ -214,8 +214,8 @@ def test_usage_indicator_defaults_and_overrides(
         "weekly:claude-fable-5"
     ] == {"kind": "always"}
     assert _projected_window_keys() == (
-        "session-low",
         "weekly",
+        "session-low",
         "weekly:claude-fable-5",
     )
 
@@ -250,7 +250,7 @@ def test_usage_indicator_defaults_and_overrides(
     [
         pytest.param(
             {"llm_provider": {"usage_metrics": {"indicator": {"providers": {}}}}},
-            ("session-low", "weekly", "weekly:claude-fable-5"),
+            ("weekly", "session-low", "weekly:claude-fable-5"),
             id="empty-provider-map-keeps-bundled-exact-window",
         ),
         pytest.param(
@@ -267,7 +267,7 @@ def test_usage_indicator_defaults_and_overrides(
                     }
                 }
             },
-            ("session-low", "weekly"),
+            ("weekly", "session-low"),
             id="exact-key-never-wins",
         ),
         pytest.param(
@@ -288,7 +288,7 @@ def test_usage_indicator_defaults_and_overrides(
                     }
                 }
             },
-            ("session-low", "weekly"),
+            ("weekly", "session-low"),
             id="exact-key-threshold-restores-generic-boundary",
         ),
         pytest.param(
@@ -299,7 +299,7 @@ def test_usage_indicator_defaults_and_overrides(
                     }
                 }
             },
-            ("session-low", "weekly", "weekly:claude-fable-5"),
+            ("weekly", "session-low", "weekly:claude-fable-5"),
             id="unrelated-provider-override-keeps-claude-defaults",
         ),
         pytest.param(
@@ -336,7 +336,7 @@ def test_usage_indicator_bundled_fable_default_does_not_synthesize_missing_windo
 
     keys = _projected_window_keys(_claude_indicator_snapshot(include_fable=False))
 
-    assert keys == ("session-low", "weekly")
+    assert keys == ("weekly", "session-low")
 
 
 def test_usage_indicator_settings_are_cached_by_config_token(

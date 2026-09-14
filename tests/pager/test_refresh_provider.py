@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
+
 from textual.widgets import Static
 
 from sase.pager.app import SasePager
@@ -86,9 +89,13 @@ async def test_r_keeps_the_current_document_when_the_provider_raises() -> None:
 
 async def test_r_coalesces_overlapping_refresh_requests() -> None:
     calls: list[int] = []
+    started = threading.Event()
+    release = threading.Event()
 
     def refresh() -> PagerDocument:
         calls.append(1)
+        started.set()
+        release.wait(timeout=5)
         return _document(f"snapshot {len(calls)}\n", identity="sec")
 
     app = SasePager(_document("first\n", identity="sec"), refresh_document_fn=refresh)
@@ -96,8 +103,12 @@ async def test_r_coalesces_overlapping_refresh_requests() -> None:
         screen = pager_screen(app)
         await pilot.pause()
 
-        await pilot.press("r")
-        await pilot.press("r")
+        try:
+            await pilot.press("r")
+            assert await asyncio.to_thread(started.wait, 5)
+            await pilot.press("r")
+        finally:
+            release.set()
         await pilot.pause(0.2)
         await pilot.pause(0.2)
 

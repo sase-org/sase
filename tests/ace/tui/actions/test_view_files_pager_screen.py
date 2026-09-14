@@ -9,7 +9,7 @@ from textual.containers import VerticalScroll
 
 from sase.ace.tui.actions.hints._files import (
     _COMMIT_TARGET_KIND,
-    _resolve_ref_from_link_index,
+    resolve_ref_from_link_index,
 )
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.pager import PagerExit, PagerScreen
@@ -225,7 +225,7 @@ def test_link_index_backed_pager_resolver_prefers_indexed_file_target(
         lambda value, **_kwargs: (_ for _ in ()).throw(AssertionError(value)),
     )
 
-    resolution = _resolve_ref_from_link_index(_App(), ref, context=None)
+    resolution = resolve_ref_from_link_index(_App(), ref, context=None)
     target = resolution.target
 
     assert target is not None
@@ -269,7 +269,7 @@ def test_link_index_backed_pager_resolver_forwards_context(
         spy,
     )
 
-    resolution = _resolve_ref_from_link_index(_App(), ref, context=context)
+    resolution = resolve_ref_from_link_index(_App(), ref, context=context)
 
     assert resolution.target is not None
     assert seen == [context]
@@ -298,7 +298,7 @@ def test_link_index_backed_pager_resolver_applies_location(
         lambda value, **_kwargs: (_ for _ in ()).throw(AssertionError(value)),
     )
 
-    resolution = _resolve_ref_from_link_index(_App(), ref, context=None)
+    resolution = resolve_ref_from_link_index(_App(), ref, context=None)
     target = resolution.target
 
     assert target is not None
@@ -338,7 +338,7 @@ def test_link_index_backed_pager_resolver_falls_back_for_unknown_ref(
     )
 
     assert (
-        _resolve_ref_from_link_index(_App(), "bead:unknown", context=context).target
+        resolve_ref_from_link_index(_App(), "bead:unknown", context=context).target
         is fallback
     )
     assert calls == [("bead:unknown", context)]

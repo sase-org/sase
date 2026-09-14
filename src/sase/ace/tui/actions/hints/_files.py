@@ -168,7 +168,7 @@ def _handle_commit_attached_target(
     screen.app.push_screen(CommitViewModal((spec,)))
 
 
-def _resolve_ref_from_link_index(
+def resolve_ref_from_link_index(
     app: object,
     ref: str,
     *,
@@ -445,8 +445,8 @@ class FileViewingMixin(HintMixinBase):
             screen = PagerScreen(
                 document,
                 attached_handlers=handlers,
-                resolve_ref_fn=lambda ref, *, context=None: (
-                    _resolve_ref_from_link_index(self, ref, context=context)
+                resolve_ref_fn=lambda ref, *, context=None: resolve_ref_from_link_index(
+                    self, ref, context=context
                 ),
                 syntax_enabled=session.syntax_enabled,
             )

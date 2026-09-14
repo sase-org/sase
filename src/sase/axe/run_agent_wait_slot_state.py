@@ -13,20 +13,18 @@ from typing import Any
 from sase.core.runner_slots import DEFAULT_WAIT_PRIORITY
 
 
-class _RunnerSlotAdmissionError(RuntimeError):
+class RunnerSlotAdmissionError(RuntimeError):
     """Raised when a serial continuation requests an incompatible live claim."""
 
 
-def _invalid_queue_weight_error(
-    source: str, value: object
-) -> _RunnerSlotAdmissionError:
-    return _RunnerSlotAdmissionError(
+def invalid_queue_weight_error(source: str, value: object) -> RunnerSlotAdmissionError:
+    return RunnerSlotAdmissionError(
         f"Invalid queue_weight in {source}: expected a positive finite number, "
         f"got {value!r}."
     )
 
 
-def _marker_runner_condition_state(
+def marker_runner_condition_state(
     waiting_data: dict[str, Any] | None,
     directive_threshold: int | None,
 ) -> tuple[int | None, bool]:
@@ -59,7 +57,7 @@ def _legacy_marker_priority_explicit(waiting_data: dict[str, Any]) -> bool:
     )
 
 
-def _marker_priority_state(
+def marker_priority_state(
     waiting_data: dict[str, Any] | None,
     directive_priority: int | None,
 ) -> tuple[int, bool]:
@@ -75,7 +73,7 @@ def _marker_priority_state(
     return DEFAULT_WAIT_PRIORITY, False
 
 
-def _valid_queue_weight(value: object) -> float | None:
+def valid_queue_weight(value: object) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     weight = float(value)
@@ -84,32 +82,32 @@ def _valid_queue_weight(value: object) -> float | None:
     return weight
 
 
-def _marker_queue_weight_state(
+def marker_queue_weight_state(
     waiting_data: dict[str, Any] | None,
     directive_weight: float,
     directive_explicit: bool,
 ) -> tuple[float, bool]:
     if waiting_data is not None and "slot_requested_at" in waiting_data:
         if waiting_data.get("queue_weight_invalid") is True:
-            raise _invalid_queue_weight_error(
+            raise invalid_queue_weight_error(
                 "waiting marker",
                 waiting_data.get("queue_weight"),
             )
         if "queue_weight" in waiting_data:
-            marker_weight = _valid_queue_weight(waiting_data.get("queue_weight"))
+            marker_weight = valid_queue_weight(waiting_data.get("queue_weight"))
             if marker_weight is None:
-                raise _invalid_queue_weight_error(
+                raise invalid_queue_weight_error(
                     "waiting marker",
                     waiting_data.get("queue_weight"),
                 )
             return marker_weight, waiting_data.get("queue_weight_explicit") is True
-    weight = _valid_queue_weight(directive_weight)
+    weight = valid_queue_weight(directive_weight)
     if weight is None:
-        raise _invalid_queue_weight_error("agent metadata", directive_weight)
+        raise invalid_queue_weight_error("agent metadata", directive_weight)
     return weight, directive_explicit
 
 
-def _continuous_eligibility_start(
+def continuous_eligibility_start(
     eligible_since: object,
     now: datetime,
 ) -> tuple[str, bool]:

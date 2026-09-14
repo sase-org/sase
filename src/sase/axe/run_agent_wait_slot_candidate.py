@@ -17,15 +17,15 @@ from sase.axe.run_agent_wait_markers import (
     write_waiting_marker,
 )
 from sase.axe.run_agent_wait_slot_state import (
-    _RunnerSlotAdmissionError,
-    _invalid_queue_weight_error,
-    _valid_queue_weight,
+    RunnerSlotAdmissionError,
+    invalid_queue_weight_error,
+    valid_queue_weight,
 )
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.runner_slots import notify_runner_slot_state_changed
 
 
-def _abandon_unclaimed_attempt(artifacts_dir: str) -> tuple[None, bool]:
+def abandon_unclaimed_attempt(artifacts_dir: str) -> tuple[None, bool]:
     """Drop any waiting marker so the caller can proceed without a claim."""
     waiting_path = Path(artifacts_dir) / "waiting.json"
     existed = waiting_path.is_file()
@@ -35,7 +35,7 @@ def _abandon_unclaimed_attempt(artifacts_dir: str) -> tuple[None, bool]:
     return None, False
 
 
-def _park_for_unavailable_limit(
+def park_for_unavailable_limit(
     *,
     artifacts_dir: str,
     cl_name: str,
@@ -80,7 +80,7 @@ def _park_for_unavailable_limit(
     return None, parked
 
 
-def _candidate_blocker_codes(blockers: object) -> set[str]:
+def candidate_blocker_codes(blockers: object) -> set[str]:
     if not isinstance(blockers, list):
         return set()
     return {
@@ -90,7 +90,7 @@ def _candidate_blocker_codes(blockers: object) -> set[str]:
     }
 
 
-def _decision_blocker_message(decision: Mapping[str, Any]) -> str:
+def decision_blocker_message(decision: Mapping[str, Any]) -> str:
     messages = [
         str(blocker.get("message"))
         for blocker in decision.get("blockers", [])
@@ -106,7 +106,7 @@ _VALID_CANDIDATE_DECISIONS = frozenset(
 )
 
 
-def _require_candidate_decision(
+def require_candidate_decision(
     snapshot: dict[str, Any],
     artifacts_dir: str,
 ) -> dict[str, Any]:
@@ -127,7 +127,7 @@ def _require_candidate_decision(
         or not isinstance(decision.get("effective_weight"), (int, float))
         or isinstance(decision.get("effective_weight"), bool)
     ):
-        raise _RunnerSlotAdmissionError(
+        raise RunnerSlotAdmissionError(
             "Runner capacity returned no usable candidate decision for "
             f"{artifacts_dir}; refusing to admit or park without an "
             "authoritative decision."
@@ -135,7 +135,7 @@ def _require_candidate_decision(
     return decision
 
 
-def _enrich_candidate_from_records(
+def enrich_candidate_from_records(
     candidate: dict[str, Any],
     records: list[AgentArtifactRecordWire],
 ) -> dict[str, Any]:
@@ -171,25 +171,25 @@ def _enrich_candidate_from_records(
     return candidate
 
 
-def _candidate_scan_queue_weight_error(
+def candidate_scan_queue_weight_error(
     records: list[AgentArtifactRecordWire],
     artifacts_dir: str,
-) -> _RunnerSlotAdmissionError | None:
+) -> RunnerSlotAdmissionError | None:
     for record in records:
         if record.artifact_dir != artifacts_dir:
             continue
         waiting = record.waiting
         if waiting is not None:
             if waiting.queue_weight_invalid:
-                return _invalid_queue_weight_error(
+                return invalid_queue_weight_error(
                     "waiting marker",
                     waiting.queue_weight,
                 )
             if (
                 waiting.queue_weight is not None
-                and _valid_queue_weight(waiting.queue_weight) is None
+                and valid_queue_weight(waiting.queue_weight) is None
             ):
-                return _invalid_queue_weight_error(
+                return invalid_queue_weight_error(
                     "waiting marker",
                     waiting.queue_weight,
                 )
@@ -197,17 +197,17 @@ def _candidate_scan_queue_weight_error(
         if meta is None:
             return None
         if meta.queue_weight_invalid:
-            return _invalid_queue_weight_error("agent metadata", meta.queue_weight)
+            return invalid_queue_weight_error("agent metadata", meta.queue_weight)
         if (
             meta.queue_weight is not None
-            and _valid_queue_weight(meta.queue_weight) is None
+            and valid_queue_weight(meta.queue_weight) is None
         ):
-            return _invalid_queue_weight_error("agent metadata", meta.queue_weight)
+            return invalid_queue_weight_error("agent metadata", meta.queue_weight)
         return None
     return None
 
 
-def _publish_claim_ownership(
+def publish_claim_ownership(
     *,
     artifacts_dir: str,
     agent_meta: dict[str, Any] | None,

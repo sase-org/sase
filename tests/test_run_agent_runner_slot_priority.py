@@ -309,18 +309,18 @@ def test_parked_priority_edit_overrides_original_directive(tmp_path: Path) -> No
 
 
 def test_marker_priority_resolution_rejects_boolean_and_invalid_values() -> None:
-    assert run_agent_wait_slots._marker_priority_state(None, None) == (10, False)
-    assert run_agent_wait_slots._marker_priority_state(
+    assert run_agent_wait_slots.marker_priority_state(None, None) == (10, False)
+    assert run_agent_wait_slots.marker_priority_state(
         {"slot_requested_at": "now"}, 3
     ) == (
         3,
         True,
     )
-    assert run_agent_wait_slots._marker_priority_state(
+    assert run_agent_wait_slots.marker_priority_state(
         {"slot_requested_at": "now", "wait_priority": True},
         None,
     ) == (10, False)
-    assert run_agent_wait_slots._marker_priority_state(
+    assert run_agent_wait_slots.marker_priority_state(
         {"slot_requested_at": "now", "wait_priority": -1},
         4,
     ) == (4, True)
@@ -331,17 +331,17 @@ def test_marker_priority_resolution_tracks_explicit_legacy_markers() -> None:
         "slot_requested_at": "now",
         "wait_priority": 10,
     }
-    assert run_agent_wait_slots._marker_priority_state(legacy_default, None) == (
+    assert run_agent_wait_slots.marker_priority_state(legacy_default, None) == (
         10,
         False,
     )
-    assert run_agent_wait_slots._marker_priority_state(legacy_default, 3) == (3, True)
+    assert run_agent_wait_slots.marker_priority_state(legacy_default, 3) == (3, True)
 
     legacy_non_default = {
         "slot_requested_at": "now",
         "wait_priority": 20,
     }
-    assert run_agent_wait_slots._marker_priority_state(legacy_non_default, 3) == (
+    assert run_agent_wait_slots.marker_priority_state(legacy_non_default, 3) == (
         20,
         True,
     )
@@ -351,7 +351,7 @@ def test_marker_priority_resolution_tracks_explicit_legacy_markers() -> None:
         "wait_priority": 10,
         "wait_priority_explicit": True,
     }
-    assert run_agent_wait_slots._marker_priority_state(explicit_default, 3) == (
+    assert run_agent_wait_slots.marker_priority_state(explicit_default, 3) == (
         10,
         True,
     )
@@ -361,7 +361,7 @@ def test_marker_priority_resolution_tracks_explicit_legacy_markers() -> None:
         "wait_priority": 20,
         "wait_priority_explicit": False,
     }
-    assert run_agent_wait_slots._marker_priority_state(implicit_non_default, 3) == (
+    assert run_agent_wait_slots.marker_priority_state(implicit_non_default, 3) == (
         3,
         True,
     )

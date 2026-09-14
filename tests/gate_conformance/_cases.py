@@ -514,7 +514,7 @@ def _partial_attempt(tmp: Path) -> ConformanceCase:
         prior=(Submission(selected=("first", "second")),),
         submission=Submission(selected=("first", "second")),
         answered=False,
-        expected_error_text=("partially executed",),
+        expected_error_text=("partially executed", "already handled"),
     )
 
 
