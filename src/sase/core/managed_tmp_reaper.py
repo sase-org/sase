@@ -135,9 +135,6 @@ PRESSURE_REAP_BUCKETS = frozenset({"build-targets", "cargo-targets"})
 MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION = 1
 """Must match ``sase_core::managed_tmp::MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION``."""
 
-_REAP_WIRE_SCHEMA_VERSION_BINDING = "managed_tmp_reap_wire_schema_version"
-_REAP_BINDING = "reap_managed_tmpdir"
-
 
 @dataclass(frozen=True)
 class _ManagedTmpReapResult:
@@ -278,13 +275,13 @@ def reap_managed_tmpdir(
         "pressure_reap_buckets": sorted(PRESSURE_REAP_BUCKETS),
         "filesystem_available_bytes": filesystem_available_bytes,
     }
-    binding = require_rust_binding(_REAP_BINDING)
+    binding = require_rust_binding("reap_managed_tmpdir")
     raw = binding(request)
     return _result_from_wire(raw)
 
 
 def _require_reap_wire_schema() -> None:
-    binding = require_rust_binding(_REAP_WIRE_SCHEMA_VERSION_BINDING)
+    binding = require_rust_binding("managed_tmp_reap_wire_schema_version")
     version = int(binding())
     if version != MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION:
         raise RuntimeError(

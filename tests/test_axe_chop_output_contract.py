@@ -143,6 +143,18 @@ def test_error_digest_emits_action_summary(
     }
 
 
+def _pin_reap_free_space(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep real host free space from leaking pressure counters into the contract."""
+    from sase.core import managed_tmp_reaper
+
+    monkeypatch.setattr(
+        "sase.scripts.sase_chop_managed_tmp_reap.reap_managed_tmpdir",
+        lambda: managed_tmp_reaper.reap_managed_tmpdir(
+            filesystem_available_bytes=64 * 1024**3
+        ),
+    )
+
+
 def test_managed_tmp_reap_emits_noop_summary(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -157,6 +169,7 @@ def test_managed_tmp_reap_emits_noop_summary(
     monkeypatch.setattr(
         "sase.core.managed_tmp_reaper.managed_tmpdir_root", lambda: managed_root
     )
+    _pin_reap_free_space(monkeypatch)
 
     run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
 
@@ -395,6 +408,7 @@ def test_managed_tmp_reap_emits_action_summary(
     monkeypatch.setattr(
         "sase.core.managed_tmp_reaper.managed_tmpdir_root", lambda: managed_root
     )
+    _pin_reap_free_space(monkeypatch)
 
     run_builtin_chop("managed_tmp_reap", ["--context", str(context_path)])
 
