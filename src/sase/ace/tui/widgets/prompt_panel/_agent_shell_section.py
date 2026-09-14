@@ -166,6 +166,28 @@ def _lane_prefix_width(gutter_width: int) -> int:
     return cell_len(SHELL_FIELD_LABEL) + gutter_width + cell_len(_SHELL_LANE_SEPARATOR)
 
 
+def _squeeze_safe_gutter_width(
+    gutter_width: int,
+    *,
+    own_label_width: int,
+    total_width: int,
+) -> int:
+    """Return a gutter width that keeps ``SHELL_FIELD_LABEL`` legible.
+
+    ``gutter_width`` is shared across every lane (agent, monitor, gate) so
+    their ``·`` separators stay column-aligned. Rich's ``Table.grid`` cannot
+    honor a fixed-width, ``no_wrap`` column past the render's total
+    available width: when the shared gutter leaves no room even for the
+    label at its natural size, Rich falls back to shrinking every column
+    (including the label) evenly, mangling it into an ellipsis. Drop back to
+    this lane's own label width in that case — misaligned separators read
+    better than a truncated ``Shells:`` prefix.
+    """
+    if _lane_prefix_width(gutter_width) + 1 <= total_width:
+        return gutter_width
+    return own_label_width
+
+
 def _normalized_command(command: str | None) -> str:
     return "" if command is None else command.strip()
 
@@ -460,10 +482,15 @@ class ResponsiveShellSection:
             value = lane.value.copy()
             value.overflow = "fold"
             value.no_wrap = False
+            row_gutter_width = _squeeze_safe_gutter_width(
+                gutter_width,
+                own_label_width=cell_len(lane.label),
+                total_width=options.max_width,
+            )
             table = Table.grid(padding=0)
             table.add_column(width=cell_len(SHELL_FIELD_LABEL), no_wrap=True)
             table.add_column(
-                width=gutter_width + cell_len(_SHELL_LANE_SEPARATOR),
+                width=row_gutter_width + cell_len(_SHELL_LANE_SEPARATOR),
                 no_wrap=True,
             )
             table.add_column(overflow="fold")
@@ -474,7 +501,7 @@ class ResponsiveShellSection:
             )
             gutter_text = Text()
             gutter_text.append(lane.label, style=_SHELL_LANE_LABEL_STYLE)
-            gutter_text.append(" " * (gutter_width - cell_len(lane.label)))
+            gutter_text.append(" " * (row_gutter_width - cell_len(lane.label)))
             gutter_text.append(
                 _SHELL_LANE_SEPARATOR,
                 style=_SHELL_LANE_SEPARATOR_STYLE,
