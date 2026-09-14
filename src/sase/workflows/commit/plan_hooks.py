@@ -19,6 +19,27 @@ from sase.workflows.commit.plan_paths import (
 if TYPE_CHECKING:
     from sase.sdd.store import SddStore
 
+_TERMINAL_PLAN_STATUSES = frozenset({"archived", "done"})
+
+
+def _plan_status_from_content(content: str) -> str | None:
+    from sase.sdd.frontmatter import parse_frontmatter
+
+    frontmatter, _body, had_frontmatter = parse_frontmatter(content)
+    if had_frontmatter:
+        value = frontmatter.get("status")
+    else:
+        match = re.search(r"^status:\s*([^\s#]+)", content, re.MULTILINE)
+        value = match.group(1) if match else None
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower()
+    return normalized or None
+
+
+def _is_terminal_plan_content(content: str) -> bool:
+    return _plan_status_from_content(content) in _TERMINAL_PLAN_STATUSES
+
 
 def _extract_yyyymm_from_plan(plan_path: str) -> str | None:
     """Extract YYYYMM from a plan file's ``create_time`` frontmatter field.
@@ -192,6 +213,8 @@ def handle_sase_plan(payload: dict, cwd: str) -> None:
         else _extract_yyyymm_from_plan(plan_path) or get_yyyymm()
     )
     plan_content = Path(plan_path).read_text(encoding="utf-8")
+    if _is_terminal_plan_content(plan_content):
+        return
 
     if should_copy:
         dest = os.path.join(

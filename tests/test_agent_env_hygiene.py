@@ -5,6 +5,7 @@ from sase.agent.env_hygiene import (
     scrub_chop_context_env,
 )
 from sase.agent.launch_spawn import _remove_inherited_agent_identity_env
+from sase.agent.launch_spawn import _remove_inherited_sase_plan_env
 
 
 def test_scrub_agent_identity_env_removes_complete_identity_family() -> None:
@@ -57,4 +58,19 @@ def test_followup_spawn_keeps_bead_association_env() -> None:
     assert env == {
         "SASE_PHASE_BEAD_ID": "sase-7z.5",
         "SASE_EPIC_BEAD_ID": "sase-7z",
+    }
+
+
+def test_launch_spawn_drops_ambient_sase_plan_env() -> None:
+    env = {
+        "SASE_PLAN": "sdd/plans/202607/done.md",
+        "SASE_PLANNER": "keep",
+        "OTHER": "keep",
+    }
+
+    _remove_inherited_sase_plan_env(env)
+
+    assert env == {
+        "SASE_PLANNER": "keep",
+        "OTHER": "keep",
     }

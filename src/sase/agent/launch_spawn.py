@@ -72,6 +72,11 @@ def _remove_inherited_swarm_xprompts_env(env: dict[str, str]) -> None:
     env.pop(SASE_LAUNCH_SWARM_XPROMPTS, None)
 
 
+def _remove_inherited_sase_plan_env(env: dict[str, str]) -> None:
+    """Drop ambient plan attribution unless this launch supplies it explicitly."""
+    env.pop("SASE_PLAN", None)
+
+
 def _remove_inherited_model_alias_overrides(
     env: dict[str, str],
     extra_env: dict[str, str] | None,
@@ -346,6 +351,7 @@ def spawn_agent_subprocess(
         _remove_inherited_proc_operation_env(subprocess_env)
         _remove_inherited_multi_agent_prompt_env(subprocess_env)
         _remove_inherited_swarm_xprompts_env(subprocess_env)
+        _remove_inherited_sase_plan_env(subprocess_env)
         _remove_inherited_model_alias_overrides(subprocess_env, extra_env)
         _remove_inherited_linked_repo_env(subprocess_env)
         managed_scratch_env = _managed_agent_scratch_env(

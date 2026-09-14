@@ -135,6 +135,36 @@ class TestHandleSasePlanRouting:
         assert message == "Complete SDD plan for my_plan"
         assert mock_commit.call_args.kwargs == {"paths": [str(plan_file)]}
 
+    def test_stale_done_plan_env_is_ignored_after_completion(
+        self, tmp_path: Path
+    ) -> None:
+        """A leaked SASE_PLAN does not keep tagging later unrelated commits."""
+        code_repo = tmp_path / "linked-repo"
+        _init_git_repo(code_repo)
+
+        owning_store = tmp_path / "host-plans"
+        _init_git_repo(owning_store)
+        plan_file = owning_store / "202607" / "my_plan.md"
+        plan_file.parent.mkdir()
+        plan_file.write_text(
+            "---\ntier: tale\nstatus: wip\n---\n# Plan\n",
+            encoding="utf-8",
+        )
+        first_payload: dict = {"message": "feat: plan work"}
+        second_payload: dict = {"message": "docs: unrelated"}
+
+        with (
+            patch.dict("os.environ", {"SASE_PLAN": str(plan_file)}),
+            patch("sase.sdd.files.commit_sdd_store_files") as mock_commit,
+        ):
+            handle_sase_plan(first_payload, str(code_repo))
+            handle_sase_plan(second_payload, str(code_repo))
+
+        assert first_payload["message"].endswith("SASE_PLAN=202607/my_plan.md")
+        assert "status: done" in plan_file.read_text(encoding="utf-8")
+        assert second_payload == {"message": "docs: unrelated"}
+        mock_commit.assert_called_once()
+
     def test_linked_repo_commit_links_flat_github_plan_in_owning_sidecar(
         self, tmp_path: Path
     ) -> None:
