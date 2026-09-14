@@ -47,15 +47,15 @@ def collect_disk_footprint(
 
     rows: list[DiskFootprintRow] = []
     generated = (now or local_now()).isoformat()
-    rows.extend(_managed_tmp_rows(tree_size_fn=tree_size_fn))
-    rows.extend(_sase_state_rows(tree_size_fn=tree_size_fn))
+    rows.extend(managed_tmp_rows(tree_size_fn=tree_size_fn))
+    rows.extend(sase_state_rows(tree_size_fn=tree_size_fn))
     rows.extend(
-        _workspace_rows(
+        workspace_rows(
             tree_size_fn=tree_size_fn,
             workspace_inventory_fn=workspace_inventory_fn,
         )
     )
-    core_targets = _rust_target_rows(tree_size_fn=tree_size_fn)
+    core_targets = rust_target_rows(tree_size_fn=tree_size_fn)
     rows.extend(core_targets)
 
     stray_truncated = False
@@ -66,7 +66,7 @@ def collect_disk_footprint(
             for row in rows
             if row.status == "owned" and row.path and Path(row.path).is_absolute()
         ]
-        strays, stray_visited, stray_truncated = _cargo_stray_rows(
+        strays, stray_visited, stray_truncated = cargo_stray_rows(
             home or Path.home(),
             excludes=excludes,
             tree_size_fn=tree_size_fn,
@@ -100,7 +100,7 @@ def largest_unowned_rows(
     return tuple(rows[: max(0, limit)])
 
 
-def _managed_tmp_rows(
+def managed_tmp_rows(
     *, tree_size_fn: Callable[[Path], int]
 ) -> tuple[DiskFootprintRow, ...]:
     root = managed_tmpdir_root()
@@ -138,7 +138,7 @@ def _managed_tmp_rows(
     return tuple(rows)
 
 
-def _sase_state_rows(
+def sase_state_rows(
     *, tree_size_fn: Callable[[Path], int]
 ) -> tuple[DiskFootprintRow, ...]:
     rows = [
@@ -183,7 +183,7 @@ def _sase_state_rows(
     return tuple(rows)
 
 
-def _workspace_rows(
+def workspace_rows(
     *,
     tree_size_fn: Callable[[Path], int],
     workspace_inventory_fn: Callable[..., Any],
@@ -214,10 +214,10 @@ def _workspace_rows(
     return tuple(rows)
 
 
-def _rust_target_rows(
+def rust_target_rows(
     *, tree_size_fn: Callable[[Path], int]
 ) -> tuple[DiskFootprintRow, ...]:
-    core_dir = _resolve_sase_core_dir()
+    core_dir = resolve_sase_core_dir()
     if core_dir is None:
         return ()
     rows: list[DiskFootprintRow] = []
@@ -251,7 +251,7 @@ def _rust_target_rows(
     return tuple(rows)
 
 
-def _cargo_stray_rows(
+def cargo_stray_rows(
     home: Path,
     *,
     excludes: Sequence[Path],
@@ -284,9 +284,9 @@ def _cargo_stray_rows(
         resolved = resolve_soft(path)
         if any(is_relative_to(resolved, excluded) for excluded in resolved_excludes):
             continue
-        if path != root and _is_repo_checkout(path):
+        if path != root and is_repo_checkout(path):
             continue
-        if path != root and _is_cargo_target_root(path):
+        if path != root and is_cargo_target_root(path):
             rows.append(
                 DiskFootprintRow(
                     section="strays",
@@ -314,7 +314,7 @@ def _cargo_stray_rows(
     return tuple(rows), visited, truncated
 
 
-def _resolve_sase_core_dir() -> Path | None:
+def resolve_sase_core_dir() -> Path | None:
     candidates: list[Path] = []
     for name in (
         "SASE_CORE_DIR",
@@ -339,24 +339,24 @@ def _resolve_sase_core_dir() -> Path | None:
     return None
 
 
-def _is_cargo_target_root(path: Path) -> bool:
+def is_cargo_target_root(path: Path) -> bool:
     return (path / ".rustc_info.json").is_file() or (path / "CACHEDIR.TAG").is_file()
 
 
-def _is_repo_checkout(path: Path) -> bool:
+def is_repo_checkout(path: Path) -> bool:
     return (path / ".git").exists()
 
 
 __all__ = [
+    "cargo_stray_rows",
     "collect_disk_footprint",
+    "is_cargo_target_root",
+    "is_repo_checkout",
     "largest_unowned_rows",
+    "managed_tmp_rows",
+    "resolve_sase_core_dir",
+    "rust_target_rows",
+    "sase_state_rows",
+    "workspace_rows",
     "_GIB",
-    "_cargo_stray_rows",
-    "_is_cargo_target_root",
-    "_is_repo_checkout",
-    "_managed_tmp_rows",
-    "_resolve_sase_core_dir",
-    "_rust_target_rows",
-    "_sase_state_rows",
-    "_workspace_rows",
 ]

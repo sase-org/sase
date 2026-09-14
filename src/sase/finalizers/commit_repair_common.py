@@ -8,11 +8,11 @@ _ARTIFACT_LABEL_RE = re.compile(r"[^A-Za-z0-9._-]+")
 _MAX_STREAM_CHARS = 4000
 
 
-def _artifact_label(label: str) -> str:
+def artifact_label(label: str) -> str:
     return _ARTIFACT_LABEL_RE.sub("_", label).strip("._") or "stitch"
 
 
-def _bound_stream(text: str) -> str:
+def bound_stream(text: str) -> str:
     if len(text) <= _MAX_STREAM_CHARS:
         return text
     omitted = len(text) - _MAX_STREAM_CHARS
@@ -20,6 +20,6 @@ def _bound_stream(text: str) -> str:
 
 
 __all__ = [
-    "_artifact_label",
-    "_bound_stream",
+    "artifact_label",
+    "bound_stream",
 ]

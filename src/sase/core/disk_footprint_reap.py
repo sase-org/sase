@@ -33,13 +33,13 @@ def run_disk_reap(
     """Preview or invoke each owner reaper without inventing deletion policy."""
 
     steps: list[DiskReapStep] = []
-    steps.append(_managed_tmp_reap_step(apply=apply))
-    steps.append(_proc_runtime_reap_step(apply=apply))
+    steps.append(managed_tmp_reap_step(apply=apply))
+    steps.append(proc_runtime_reap_step(apply=apply))
     if include_artifact_runs:
-        steps.append(_artifact_run_reap_step(apply=apply, project=project))
+        steps.append(artifact_run_reap_step(apply=apply, project=project))
     if include_workspace_compact:
         steps.extend(
-            _workspace_compact_steps(
+            workspace_compact_steps(
                 apply=apply,
                 project=project,
                 subprocess_run=subprocess_run,
@@ -48,7 +48,7 @@ def run_disk_reap(
     return DiskReapResult(apply=apply, project=project, steps=tuple(steps))
 
 
-def _managed_tmp_reap_step(*, apply: bool) -> DiskReapStep:
+def managed_tmp_reap_step(*, apply: bool) -> DiskReapStep:
     if not apply:
         return DiskReapStep(
             owner="managed_tmp_reaper",
@@ -66,10 +66,10 @@ def _managed_tmp_reap_step(*, apply: bool) -> DiskReapStep:
     )
 
 
-def _proc_runtime_reap_step(*, apply: bool) -> DiskReapStep:
+def proc_runtime_reap_step(*, apply: bool) -> DiskReapStep:
     snapshot = read_proc_snapshot()
     retained = tuple(proc.proc_id for proc in snapshot.procs)
-    orphan_count, orphan_bytes = _orphan_proc_runtime_summary(retained)
+    orphan_count, orphan_bytes = orphan_proc_runtime_summary(retained)
     if not apply:
         return DiskReapStep(
             owner="proc_runtime_sweep",
@@ -88,7 +88,7 @@ def _proc_runtime_reap_step(*, apply: bool) -> DiskReapStep:
     )
 
 
-def _artifact_run_reap_step(*, apply: bool, project: str | None) -> DiskReapStep:
+def artifact_run_reap_step(*, apply: bool, project: str | None) -> DiskReapStep:
     policy = AceRunRetentionPolicy(
         now=local_now(),
         keep_recent_months=get_artifact_retention_keep_recent_run_months(),
@@ -150,13 +150,13 @@ def _artifact_run_reap_step(*, apply: bool, project: str | None) -> DiskReapStep
     )
 
 
-def _workspace_compact_steps(
+def workspace_compact_steps(
     *,
     apply: bool,
     project: str | None,
     subprocess_run: Callable[..., subprocess.CompletedProcess[str]],
 ) -> tuple[DiskReapStep, ...]:
-    projects = (project,) if project else _workspace_project_keys()
+    projects = (project,) if project else workspace_project_keys()
     steps: list[DiskReapStep] = []
     for project_key in projects:
         command = [
@@ -209,7 +209,7 @@ def _workspace_compact_steps(
     return tuple(steps)
 
 
-def _workspace_project_keys() -> tuple[str, ...]:
+def workspace_project_keys() -> tuple[str, ...]:
     try:
         inventory = collect_workspace_inventory(include_disabled=False)
     except Exception:
@@ -217,7 +217,7 @@ def _workspace_project_keys() -> tuple[str, ...]:
     return tuple(project.project_key for project in inventory.projects)
 
 
-def _orphan_proc_runtime_summary(retained_proc_ids: Iterable[str]) -> tuple[int, int]:
+def orphan_proc_runtime_summary(retained_proc_ids: Iterable[str]) -> tuple[int, int]:
     retained = set(retained_proc_ids)
     root = procs_dir() / "runtime"
     count = 0
@@ -233,11 +233,11 @@ def _orphan_proc_runtime_summary(retained_proc_ids: Iterable[str]) -> tuple[int,
 
 
 __all__ = [
+    "artifact_run_reap_step",
+    "managed_tmp_reap_step",
+    "orphan_proc_runtime_summary",
+    "proc_runtime_reap_step",
     "run_disk_reap",
-    "_artifact_run_reap_step",
-    "_managed_tmp_reap_step",
-    "_orphan_proc_runtime_summary",
-    "_proc_runtime_reap_step",
-    "_workspace_compact_steps",
-    "_workspace_project_keys",
+    "workspace_compact_steps",
+    "workspace_project_keys",
 ]

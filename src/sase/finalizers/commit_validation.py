@@ -201,7 +201,7 @@ def _normalize_fingerprints(
     return normalized
 
 
-def unexpected_remaining_paths(
+def _unexpected_remaining_paths(
     repo_path: str,
     protected: Sequence[str],
     *,
@@ -225,8 +225,8 @@ def resolve_protected_baseline_paths(
 def resolve_unexpected_remaining_paths(
     repo_path: str, protected: Sequence[str]
 ) -> list[str]:
-    """``unexpected_remaining_paths`` bound to the real git changed-files source."""
-    return unexpected_remaining_paths(
+    """``_unexpected_remaining_paths`` bound to the real git changed-files source."""
+    return _unexpected_remaining_paths(
         repo_path,
         protected,
         get_changed_files=git_changed_files,

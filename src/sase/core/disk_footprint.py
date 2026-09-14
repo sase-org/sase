@@ -43,27 +43,27 @@ from sase.workspace_provider.inventory import collect_workspace_inventory
 _DiskFootprintRow = DiskFootprintRow
 _DiskReapStep = DiskReapStep
 _GIB = _inventory._GIB
-_cargo_stray_rows = _inventory._cargo_stray_rows
-_du_size = _utils._du_size
+_cargo_stray_rows = _inventory.cargo_stray_rows
+_du_size = _utils.du_size
 _format_horizon_seconds = format_horizon_seconds
-_is_cargo_target_root = _inventory._is_cargo_target_root
+_is_cargo_target_root = _inventory.is_cargo_target_root
 _is_relative_to = is_relative_to
-_is_repo_checkout = _inventory._is_repo_checkout
+_is_repo_checkout = _inventory.is_repo_checkout
 _iter_children = iter_children
-_managed_tmp_reap_step = _reap._managed_tmp_reap_step
-_managed_tmp_rows = _inventory._managed_tmp_rows
-_orphan_proc_runtime_summary = _reap._orphan_proc_runtime_summary
-_proc_runtime_reap_step = _reap._proc_runtime_reap_step
-_resolve_sase_core_dir = _inventory._resolve_sase_core_dir
+_managed_tmp_reap_step = _reap.managed_tmp_reap_step
+_managed_tmp_rows = _inventory.managed_tmp_rows
+_orphan_proc_runtime_summary = _reap.orphan_proc_runtime_summary
+_proc_runtime_reap_step = _reap.proc_runtime_reap_step
+_resolve_sase_core_dir = _inventory.resolve_sase_core_dir
 _resolve_soft = resolve_soft
-_rust_target_rows = _inventory._rust_target_rows
-_sase_state_rows = _inventory._sase_state_rows
+_rust_target_rows = _inventory.rust_target_rows
+_sase_state_rows = _inventory.sase_state_rows
 _tree_size = tree_size
-_tree_size_walk = _utils._tree_size_walk
-_workspace_compact_steps = _reap._workspace_compact_steps
-_workspace_project_keys = _reap._workspace_project_keys
-_workspace_rows = _inventory._workspace_rows
-_artifact_run_reap_step = _reap._artifact_run_reap_step
+_tree_size_walk = _utils.tree_size_walk
+_workspace_compact_steps = _reap.workspace_compact_steps
+_workspace_project_keys = _reap.workspace_project_keys
+_workspace_rows = _inventory.workspace_rows
+_artifact_run_reap_step = _reap.artifact_run_reap_step
 
 
 def collect_disk_footprint(
@@ -139,12 +139,12 @@ def _sync_inventory_patchables() -> None:
     _inventory.format_horizon_seconds = _format_horizon_seconds
     _inventory.resolve_soft = _resolve_soft
     _inventory.is_relative_to = _is_relative_to
-    _inventory._managed_tmp_rows = _managed_tmp_rows
-    _inventory._sase_state_rows = _sase_state_rows
-    _inventory._workspace_rows = _workspace_rows
-    _inventory._rust_target_rows = _rust_target_rows
-    _inventory._cargo_stray_rows = _cargo_stray_rows
-    _inventory._resolve_sase_core_dir = _resolve_sase_core_dir
+    _inventory.managed_tmp_rows = _managed_tmp_rows
+    _inventory.sase_state_rows = _sase_state_rows
+    _inventory.workspace_rows = _workspace_rows
+    _inventory.rust_target_rows = _rust_target_rows
+    _inventory.cargo_stray_rows = _cargo_stray_rows
+    _inventory.resolve_sase_core_dir = _resolve_sase_core_dir
 
 
 def _sync_reap_patchables() -> None:
@@ -164,12 +164,12 @@ def _sync_reap_patchables() -> None:
     _reap.collect_workspace_inventory = collect_workspace_inventory
     _reap.tree_size = _tree_size
     _reap.iter_children = _iter_children
-    _reap._managed_tmp_reap_step = _managed_tmp_reap_step
-    _reap._proc_runtime_reap_step = _proc_runtime_reap_step
-    _reap._artifact_run_reap_step = _artifact_run_reap_step
-    _reap._workspace_compact_steps = _workspace_compact_steps
-    _reap._workspace_project_keys = _workspace_project_keys
-    _reap._orphan_proc_runtime_summary = _orphan_proc_runtime_summary
+    _reap.managed_tmp_reap_step = _managed_tmp_reap_step
+    _reap.proc_runtime_reap_step = _proc_runtime_reap_step
+    _reap.artifact_run_reap_step = _artifact_run_reap_step
+    _reap.workspace_compact_steps = _workspace_compact_steps
+    _reap.workspace_project_keys = _workspace_project_keys
+    _reap.orphan_proc_runtime_summary = _orphan_proc_runtime_summary
 
 
 __all__ = [

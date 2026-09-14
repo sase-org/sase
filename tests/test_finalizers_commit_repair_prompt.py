@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from sase.finalizers.commit_repair import _artifact_label, _run_conflict_repair_turn
+from sase.finalizers.commit_repair import artifact_label, run_conflict_repair_turn
 from sase.finalizers.owned_turn import SASE_FINALIZER_OWNED_TURN_ENV
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 from sase.llm_provider.types import InvokeResult
@@ -22,7 +22,7 @@ def _capture_conflict_repair_prompt(
     provider.invoke.return_value = InvokeResult(content="resolved")
     artifacts_dir = tmp_path / "artifacts"
 
-    _run_conflict_repair_turn(
+    run_conflict_repair_turn(
         provider=provider,
         invoke_result=InvokeResult(content="initial"),
         model_tier="large",
@@ -36,7 +36,7 @@ def _capture_conflict_repair_prompt(
     prompt = provider.invoke.call_args.args[0]
     artifact_dir = artifacts_dir / "finalizers" / "commit"
     saved_prompt = (
-        artifact_dir / f"conflict_repair_prompt.{_artifact_label(repo.name)}.md"
+        artifact_dir / f"conflict_repair_prompt.{artifact_label(repo.name)}.md"
     ).read_text(encoding="utf-8")
     assert saved_prompt == prompt
     assert not (artifact_dir / "conflict_repair_prompt.md").exists()
@@ -151,7 +151,7 @@ def test_conflict_repair_marks_finalizer_owned_turn_and_restores_on_exception(
     provider.invoke.side_effect = _fail
 
     with pytest.raises(RuntimeError, match="provider failed"):
-        _run_conflict_repair_turn(
+        run_conflict_repair_turn(
             provider=provider,
             invoke_result=InvokeResult(content="initial"),
             model_tier="large",

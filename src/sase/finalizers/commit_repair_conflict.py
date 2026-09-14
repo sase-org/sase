@@ -12,7 +12,7 @@ from sase.core.finalizer_wire import (
     FinalizerOutcomeEvidenceWire,
 )
 from sase.finalizers.artifacts import instance_artifact_dir, write_text_artifact
-from sase.finalizers.commit_repair_common import _artifact_label
+from sase.finalizers.commit_repair_common import artifact_label
 from sase.finalizers.commit_repair_markers import (
     load_commit_results,
     marker_evidence,
@@ -46,7 +46,7 @@ _GitHeadCommitId = Callable[[str], str]
 
 
 @dataclass(frozen=True)
-class _ConflictRepairResult:
+class ConflictRepairResult:
     """Outcome from one conflict repair and resume attempt."""
 
     invoke_result: InvokeResult
@@ -71,7 +71,7 @@ def resolve_commit_conflict(
     bead_action: str | None = None,
     git_changed_files_fn: _GitChangedFiles = git_changed_files,
     git_head_commit_id_fn: _GitHeadCommitId = git_head_commit_id,
-) -> _ConflictRepairResult:
+) -> ConflictRepairResult:
     """Run the one-shot conflict-repair turn and resume the same stitch."""
 
     if _conflict_repair_spent(context.artifacts_dir, repo):
@@ -86,7 +86,7 @@ def resolve_commit_conflict(
             ),
             invoke_result=invoke_result,
         )
-    current_result = _run_conflict_repair_turn(
+    current_result = run_conflict_repair_turn(
         provider=provider,
         invoke_result=invoke_result,
         model_tier=model_tier,
@@ -109,7 +109,7 @@ def resolve_commit_conflict(
             FinalizerOutcomeEvidenceWire(kind="conflict_repair", value="success")
         )
         evidence.extend(marker_evidence(repaired_markers[-1]))
-        return _ConflictRepairResult(invoke_result=current_result)
+        return ConflictRepairResult(invoke_result=current_result)
     resumed = _call_resume_runner(
         resume_runner,
         repo,
@@ -178,7 +178,7 @@ def resolve_commit_conflict(
         evidence.append(
             FinalizerOutcomeEvidenceWire(kind="conflict_repair", value="success")
         )
-        return _ConflictRepairResult(invoke_result=current_result)
+        return ConflictRepairResult(invoke_result=current_result)
     if _repo_is_settled_after_repair(
         repo,
         provider=provider,
@@ -194,7 +194,7 @@ def resolve_commit_conflict(
                 kind="head_sha", value=git_head_commit_id_fn(repo.path)
             )
         )
-        return _ConflictRepairResult(
+        return ConflictRepairResult(
             invoke_result=current_result,
             resolved_without_commit=True,
         )
@@ -268,7 +268,7 @@ def _callable_accepts_keyword(fn: Callable[..., Any], name: str) -> bool:
 
 
 def _conflict_repair_filename(stem: str, repo: DirtyRepo) -> str:
-    return f"{stem}.{_artifact_label(repo.name)}.md"
+    return f"{stem}.{artifact_label(repo.name)}.md"
 
 
 def _conflict_repair_spent(artifacts_dir: str | None, repo: DirtyRepo) -> bool:
@@ -280,7 +280,7 @@ def _conflict_repair_spent(artifacts_dir: str | None, repo: DirtyRepo) -> bool:
     ).is_file()
 
 
-def _run_conflict_repair_turn(
+def run_conflict_repair_turn(
     *,
     provider: Any,
     invoke_result: InvokeResult,
@@ -372,7 +372,7 @@ def _run_conflict_repair_turn(
 
 
 __all__ = [
-    "_ConflictRepairResult",
-    "_run_conflict_repair_turn",
+    "ConflictRepairResult",
+    "run_conflict_repair_turn",
     "resolve_commit_conflict",
 ]

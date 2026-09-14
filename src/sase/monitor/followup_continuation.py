@@ -54,7 +54,7 @@ def load_frozen_monitor_intent(
     ref = clean_str(meta.get("continuation_intent_ref"))
     if not ref:
         return None
-    payload = read_continuation_json_ref(artifacts_dir, ref)
+    payload = _read_continuation_json_ref(artifacts_dir, ref)
     if payload is None:
         return None
     if not isinstance(payload, dict):
@@ -62,7 +62,7 @@ def load_frozen_monitor_intent(
     return payload
 
 
-def read_continuation_json_ref(
+def _read_continuation_json_ref(
     artifacts_dir: str,
     ref: str,
 ) -> dict[str, Any] | None:
@@ -114,7 +114,7 @@ def load_checkpoint_body(
     if not checkpoint_ref:
         return None
     try:
-        return read_continuation_json_ref(artifacts_dir, checkpoint_ref)
+        return _read_continuation_json_ref(artifacts_dir, checkpoint_ref)
     except ValueError:
         return None
 
@@ -157,5 +157,4 @@ __all__ = [
     "load_frozen_monitor_result",
     "next_action_from_intent",
     "next_model_from_intent",
-    "read_continuation_json_ref",
 ]

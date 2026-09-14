@@ -12,10 +12,10 @@ from sase.core.finalizer_wire import (
     FinalizerOutcomeEvidenceWire,
 )
 from sase.finalizers.bounded_subprocess import run_bounded_subprocess
-from sase.finalizers.commit_repair_common import _artifact_label
+from sase.finalizers.commit_repair_common import artifact_label
 from sase.finalizers.commit_repair_conflict import (
-    _ConflictRepairResult,
-    _run_conflict_repair_turn,
+    ConflictRepairResult,
+    run_conflict_repair_turn,
 )
 from sase.finalizers.commit_repair_markers import (
     load_commit_results,
@@ -94,7 +94,7 @@ def resolve_commit_conflict(
     before_markers: Sequence[Mapping[str, Any]],
     attempt_id: int,
     bead_action: str | None = None,
-) -> _ConflictRepairResult:
+) -> ConflictRepairResult:
     """Run the one-shot conflict-repair turn and resume the same stitch."""
 
     return _conflict_repair.resolve_commit_conflict(

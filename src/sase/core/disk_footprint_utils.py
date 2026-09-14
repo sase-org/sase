@@ -16,13 +16,13 @@ def iter_children(directory: Path) -> list[Path]:
 
 
 def tree_size(path: Path) -> int:
-    measured = _du_size(path)
+    measured = du_size(path)
     if measured is not None:
         return measured
-    return _tree_size_walk(path)
+    return tree_size_walk(path)
 
 
-def _du_size(path: Path) -> int | None:
+def du_size(path: Path) -> int | None:
     if not path.exists():
         return 0
     try:
@@ -44,7 +44,7 @@ def _du_size(path: Path) -> int | None:
         return None
 
 
-def _tree_size_walk(path: Path) -> int:
+def tree_size_walk(path: Path) -> int:
     try:
         entry_stat = path.stat(follow_symlinks=False)
     except OSError:
@@ -55,7 +55,7 @@ def _tree_size_walk(path: Path) -> int:
         return int(entry_stat.st_size)
     if not stat.S_ISDIR(entry_stat.st_mode):
         return 0
-    return sum(_tree_size_walk(child) for child in iter_children(path))
+    return sum(tree_size_walk(child) for child in iter_children(path))
 
 
 def format_horizon_seconds(seconds: float) -> str:
@@ -89,10 +89,12 @@ def is_relative_to(path: Path, base: Path) -> bool:
 
 
 __all__ = [
+    "du_size",
     "format_bytes",
     "format_horizon_seconds",
     "is_relative_to",
     "iter_children",
     "resolve_soft",
     "tree_size",
+    "tree_size_walk",
 ]

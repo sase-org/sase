@@ -22,7 +22,7 @@ from sase.finalizers.bounded_subprocess import (
     HARD_MAX_SUBPROCESS_TIMEOUT_SECONDS,
     run_bounded_subprocess,
 )
-from sase.finalizers.commit_repair_common import _artifact_label, _bound_stream
+from sase.finalizers.commit_repair_common import artifact_label, bound_stream
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
     StitchCommandResult,
@@ -112,7 +112,7 @@ def record_stitch_artifacts(
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance_id)
     if artifact_dir is None:
         return
-    safe_label = _artifact_label(label)
+    safe_label = artifact_label(label)
     prefix = f"attempt-{attempt}.{safe_label}"
     try:
         write_text_artifact(
@@ -171,9 +171,9 @@ def stitch_failure_message(repo: DirtyRepo, result: StitchCommandResult) -> str:
     stdout = result.stdout.strip()
     stderr = result.stderr.strip()
     if stdout:
-        parts.append(f"stdout: {_bound_stream(stdout)}")
+        parts.append(f"stdout: {bound_stream(stdout)}")
     if stderr:
-        parts.append(f"stderr: {_bound_stream(stderr)}")
+        parts.append(f"stderr: {bound_stream(stderr)}")
     if not parts:
         return (
             f"sase stitch create failed for {repo.name} with exit {result.returncode}"
@@ -205,12 +205,12 @@ def stitch_bounds_failure_message(
         parts.append(_hook_context_summary(hook))
         hook_tail = hook_output_tail_from_metadata(hook)
         if hook_tail:
-            parts.append("hook output tail: " + _bound_stream(hook_tail))
+            parts.append("hook output tail: " + bound_stream(hook_tail))
     else:
         parts.append("last stage unknown; no matching commit-hook record was found")
         tail = _commit_hook_tail_from_result(result)
         if tail:
-            parts.append("stitch output tail: " + _bound_stream(tail))
+            parts.append("stitch output tail: " + bound_stream(tail))
     return "; ".join(parts)
 
 
@@ -309,7 +309,7 @@ def load_latest_stitch_attempt(
     artifact_dir = instance_artifact_dir(context.artifacts_dir, instance_id)
     if artifact_dir is None:
         return None
-    safe_label = _artifact_label(label)
+    safe_label = artifact_label(label)
     pattern = re.compile(rf"^attempt-(\d+)\.{re.escape(safe_label)}\.inputs\.json$")
     best_attempt = -1
     best_path: Path | None = None

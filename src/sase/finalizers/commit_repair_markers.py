@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.finalizer_wire import FinalizerOutcomeEvidenceWire
-from sase.finalizers.commit_repair_common import _bound_stream
+from sase.finalizers.commit_repair_common import bound_stream
 from sase.llm_provider.commit_finalizer_git import normalize_path
 from sase.llm_provider.commit_finalizer_types import DirtyRepo
 
@@ -88,7 +88,7 @@ def marker_evidence(
         evidence.append(
             FinalizerOutcomeEvidenceWire(
                 kind="dispatch_error",
-                value=_bound_stream(dispatch_error),
+                value=bound_stream(dispatch_error),
             )
         )
     return evidence
