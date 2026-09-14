@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
+from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
 
@@ -134,6 +137,69 @@ def test_first_refresh_promotes_all_slot_waiters_and_clan_aggregate() -> None:
     assert second == first
     assert projected[0].status == "QUEUED"
     assert (implicit.status, explicit.status) == ("QUEUED", "QUEUED")
+
+
+@pytest.mark.parametrize("effective_limit", [None, 10])
+def test_first_refresh_promotes_sequential_family_root_from_slot_waiter(
+    effective_limit: int | None,
+) -> None:
+    root = _agent("root", status="DONE", pid=None)
+    child = _agent(
+        "code",
+        status="WAITING",
+        start_time=datetime(2026, 7, 12, 12, 1),
+        parent_timestamp="root",
+        wait_runners=0,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+    rows = [root, child]
+    _apply_status_overrides(rows)
+
+    if effective_limit is None:
+        first = refresh_runner_slot_context(rows)
+    else:
+        first = refresh_runner_slot_context(rows, effective_limit=effective_limit)
+
+    assert child.status == "QUEUED"
+    assert child.runner_slot_queue_position == 1
+    assert child.runner_slot_queue_size == 1
+    assert root.status == "QUEUED"
+    assert root.wait_display_source is child
+
+    if effective_limit is None:
+        second = refresh_runner_slot_context(rows)
+    else:
+        second = refresh_runner_slot_context(rows, effective_limit=effective_limit)
+
+    assert second == first
+    assert (root.status, child.status) == ("QUEUED", "QUEUED")
+    assert child.runner_slot_queue_position == 1
+    assert child.runner_slot_queue_size == 1
+
+
+@pytest.mark.parametrize("effective_limit", [None, 10])
+def test_refresh_keeps_sequential_family_root_waiting_for_non_slot_waiter(
+    effective_limit: int | None,
+) -> None:
+    root = _agent("root", status="DONE", pid=None)
+    child = _agent(
+        "code",
+        status="WAITING",
+        start_time=datetime(2026, 7, 12, 12, 1),
+        parent_timestamp="root",
+    )
+    rows = [root, child]
+    _apply_status_overrides(rows)
+
+    if effective_limit is None:
+        snapshot = refresh_runner_slot_context(rows)
+    else:
+        snapshot = refresh_runner_slot_context(rows, effective_limit=effective_limit)
+
+    assert len(snapshot.queue) == 0
+    assert (root.status, child.status) == ("WAITING", "WAITING")
+    assert child.runner_slot_queue_position is None
+    assert child.runner_slot_queue_size is None
 
 
 def _testing_clan_rows():

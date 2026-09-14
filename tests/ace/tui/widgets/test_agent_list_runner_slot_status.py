@@ -46,6 +46,21 @@ class TestRunnerSlotWaitRendering:
         assert "10/10 runners" not in header.plain
         assert "completed-dependency" not in header.plain
 
+    def test_queued_wait_display_source_renders_admission_rank(self) -> None:
+        source = make_agent(
+            cl_name="code",
+            status="QUEUED",
+            runner_slot_queue_position=1,
+            runner_slot_queue_size=2,
+        )
+        root = make_agent(status="QUEUED")
+        root.wait_display_source = source
+
+        left, _, _ = format_agent_option(root, 0, is_selected=False)
+
+        assert "test_cl (QUEUED #1/2)" in left.plain
+        assert _styles_covering(left, "#1/2") == {"#5F87FF"}
+
     def test_explicit_capacity_and_priority_render_on_queued_row(self) -> None:
         agent = make_agent(
             status="QUEUED",

@@ -208,9 +208,13 @@ def _refresh_runner_slot_context_fallback(
                 ),
             )
         else:
+            slot_queued = id(agent) in queue_positions
+            if not slot_queued:
+                source = agent.wait_display_source
+                slot_queued = source is not None and id(source) in queue_positions
             agent.status = runner_slot_display_status(
                 agent.status,
-                slot_queued=_is_live_slot_waiter(agent),
+                slot_queued=slot_queued,
             )
 
     return RunnerCapacitySnapshot(
@@ -326,9 +330,13 @@ def _apply_runner_capacity_snapshot(
                 ),
             )
         else:
+            slot_queued = id(agent) in queue_positions
+            if not slot_queued:
+                source = agent.wait_display_source
+                slot_queued = source is not None and id(source) in queue_positions
             agent.status = runner_slot_display_status(
                 agent.status,
-                slot_queued=id(agent) in queue_positions,
+                slot_queued=slot_queued,
             )
 
     return RunnerCapacitySnapshot(

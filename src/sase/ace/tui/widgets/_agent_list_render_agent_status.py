@@ -102,14 +102,14 @@ def append_agent_row_status(
         text.append(display_status, style="bold #00AFAF")  # Deep turquoise
     elif agent.status == QUEUED_STATUS:
         text.append(display_status, style=f"bold {QUEUED_STATUS_COLOR}")
-        position = agent.runner_slot_queue_position
-        queue_size = agent.runner_slot_queue_size
+        wait_agent = wait_display_agent(agent)
+        position = wait_agent.runner_slot_queue_position
+        queue_size = wait_agent.runner_slot_queue_size
         if position is not None:
             queue_label = f" #{position}"
             if queue_size is not None:
                 queue_label += f"/{queue_size}"
             text.append(queue_label, style=QUEUED_STATUS_COLOR)
-        wait_agent = wait_display_agent(agent)
         slot_label = ""
         if (
             not queue_capacity_budget_display_enabled()
