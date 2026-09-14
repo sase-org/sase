@@ -78,7 +78,7 @@ def patch_dirty(
         lambda _path: {"src/app.py": ("M", "content")},
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.git_changed_files",
+        "sase.finalizers.commit_validation.git_changed_files",
         lambda path: (
             ["src/app.py"] if any(item.path == path for item in dirty["repos"]) else []
         ),

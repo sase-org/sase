@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
-import inspect
-from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
@@ -36,15 +34,8 @@ from sase.finalizers.commit_checkpoint_recovery import (
 )
 from sase.finalizers.commit_repair import (
     load_commit_results as _load_commit_results,
-    marker_evidence as _marker_evidence,
-    marker_is_unpushed as _marker_is_unpushed,
-    marker_matches_repo as _marker_matches_repo,
-    new_commit_markers as _new_commit_markers,
-    record_stitch_artifacts as _record_stitch_artifacts,
     run_stitch_create,
     run_stitch_resume,
-    stitch_bounds_failure_message as _stitch_bounds_failure_message,
-    stitch_failure_message as _stitch_failure_message,
 )
 from sase.finalizers.commit_types import (
     BuiltinCommitExecution,
@@ -56,15 +47,18 @@ from sase.finalizers.commit_types import (
     failed_result as _failed_result,
     success_result as _success_result,
 )
+from sase.finalizers.commit_unpushed_resume import (
+    resume_unpushed_already_clean_repos as _resume_unpushed_already_clean_repos,
+)
 from sase.finalizers.commit_validation import (
-    protected_baseline_paths,
-    protected_baseline_record,
+    protected_baseline_record as _protected_baseline_record,
     raise_if_unpublished_machine_state as _raise_if_unpublished_machine_state,
     reject_discarded_dirty_work as _reject_discarded_dirty_work,
-    unexpected_remaining_paths,
+    resolve_protected_baseline_paths as _protected_baseline_paths,
+    resolve_unexpected_remaining_paths as _unexpected_remaining_paths,
 )
 from sase.finalizers.executor import FinalizerExecutionContext
-from sase.finalizers.ledger import FinalizerBudgetError, InstanceLedger
+from sase.finalizers.ledger import InstanceLedger
 from sase.finalizers.reconciliation import (
     pre_reconciliation_dirty_state,
     pre_reconciliation_fingerprints,
@@ -72,226 +66,12 @@ from sase.finalizers.reconciliation import (
     reject_unproven_reconciliation_transition,
 )
 from sase.llm_provider.commit_finalizer_artifacts import artifact_root
-from sase.llm_provider.commit_finalizer_baseline import FinalizerBaselineRecord
 from sase.llm_provider.commit_finalizer_config import resolve_finalizer_project_dir
-from sase.llm_provider.commit_finalizer_git import git_changed_files
 from sase.llm_provider.commit_finalizer_prompting import failure_message
 from sase.llm_provider.commit_finalizer_types import DirtyRepo, DirtyState
 from sase.llm_provider.types import InvokeResult, LLMInvocationOptions, ModelTier
 
 _COMMIT_PROVIDER_REF = "builtin@commit"
-
-
-def _unpushed_markers_for_repo(
-    markers: Sequence[Mapping[str, Any]],
-    repo: DirtyRepo,
-) -> list[dict[str, Any]]:
-    return [
-        dict(marker)
-        for marker in markers
-        if _marker_is_unpushed(marker) and _marker_matches_repo(marker, repo)
-    ]
-
-
-def _consume_unpushed_resume_attempt(
-    ledger: InstanceLedger | None,
-    instance_id: str,
-    current_result: InvokeResult,
-) -> int:
-    try:
-        return ledger.consume_before_execute() if ledger is not None else 1
-    except FinalizerBudgetError as exc:
-        raise BuiltinCommitFinalizerError(
-            str(exc),
-            result=_failed_result(
-                instance_id,
-                "attempt_budget_exhausted",
-                str(exc),
-                attempts=[
-                    FinalizerAttemptWire(
-                        attempt=_peek_attempt(ledger),
-                        status="failed",
-                        diagnostic_code="attempt_budget_exhausted",
-                    )
-                ],
-            ),
-            invoke_result=current_result,
-        ) from exc
-
-
-def _unpushed_resume_failure_message(
-    repo: DirtyRepo,
-    marker: Mapping[str, Any],
-    result: StitchCommandResult,
-) -> str:
-    sha = marker.get("commit_sha")
-    commit = sha[:12] if isinstance(sha, str) and sha else "HEAD"
-    return (
-        f"commit {commit} already exists locally for {repo.name}; "
-        "sase stitch create --resume could not push it. "
-        + _stitch_failure_message(repo, result)
-    )
-
-
-def _resume_unpushed_already_clean_repos(
-    repos: Sequence[DirtyRepo],
-    *,
-    decisions: Mapping[str, Mapping[str, Any]],
-    artifacts: Path | None,
-    context: FinalizerExecutionContext,
-    instance_id: str,
-    resume_runner: ResumeRunner,
-    ledger: InstanceLedger | None,
-    current_result: InvokeResult,
-) -> tuple[int | None, list[FinalizerAttemptWire], list[FinalizerOutcomeEvidenceWire]]:
-    markers = _load_commit_results(artifacts)
-    work = [
-        (repo, repo_markers[-1])
-        for repo in repos
-        if (repo_markers := _unpushed_markers_for_repo(markers, repo))
-    ]
-    if not work:
-        return (None, [], [])
-
-    attempt_id = _consume_unpushed_resume_attempt(ledger, instance_id, current_result)
-    attempts = [FinalizerAttemptWire(attempt=attempt_id, status="failed")]
-    evidence: list[FinalizerOutcomeEvidenceWire] = []
-
-    for repo, marker in work:
-        bead_action = _decision_bead_action(
-            decisions.get(_repository_decision_id(repo), {})
-        )
-        evidence.append(
-            FinalizerOutcomeEvidenceWire(
-                kind="unpushed_commit_resume",
-                value=repo.name,
-            )
-        )
-        evidence.extend(_marker_evidence(marker))
-        before_markers = _load_commit_results(artifacts)
-        resumed = _call_resume_runner(
-            resume_runner,
-            repo,
-            context,
-            bead_action=bead_action,
-        )
-        _record_stitch_artifacts(
-            context,
-            instance_id,
-            attempt_id,
-            resumed,
-            label=f"{repo.name}-unpushed-resume",
-            inputs={
-                "resume_unpushed": True,
-                "repo_path": repo.path,
-                "commit_sha": marker.get("commit_sha"),
-                "result": marker.get("result"),
-            },
-        )
-        if resumed.timed_out or resumed.stdout_truncated or resumed.stderr_truncated:
-            code = "stitch_timeout" if resumed.timed_out else "stitch_output_cap"
-            message_text = _stitch_bounds_failure_message(
-                repo,
-                resumed,
-                code,
-                artifacts=artifacts,
-                resume=True,
-            )
-            attempts[0] = FinalizerAttemptWire(
-                attempt=attempt_id,
-                status="failed",
-                diagnostic_code=code,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=_failed_result(
-                    instance_id,
-                    code,
-                    message_text,
-                    attempts=attempts,
-                    evidence=evidence,
-                ),
-                invoke_result=current_result,
-            )
-        if resumed.returncode != 0:
-            message_text = _unpushed_resume_failure_message(repo, marker, resumed)
-            attempts[0] = FinalizerAttemptWire(
-                attempt=attempt_id,
-                status="failed",
-                diagnostic_code="stitch_failed",
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=_failed_result(
-                    instance_id,
-                    "stitch_failed",
-                    message_text,
-                    attempts=attempts,
-                    evidence=evidence,
-                ),
-                invoke_result=current_result,
-            )
-        resumed_markers = [
-            item
-            for item in _new_commit_markers(
-                before_markers,
-                _load_commit_results(artifacts),
-            )
-            if _marker_matches_repo(item, repo)
-        ]
-        if resumed_markers:
-            evidence.extend(_marker_evidence(resumed_markers[-1]))
-        else:
-            latest = _latest_marker_for_repo(_load_commit_results(artifacts), repo)
-            if latest is not None:
-                evidence.extend(_marker_evidence(latest))
-
-    attempts[0] = FinalizerAttemptWire(attempt=attempt_id, status="success")
-    return (attempt_id, attempts, evidence)
-
-
-def _latest_marker_for_repo(
-    markers: Sequence[Mapping[str, Any]],
-    repo: DirtyRepo,
-) -> Mapping[str, Any] | None:
-    for marker in reversed(markers):
-        if _marker_matches_repo(marker, repo):
-            return marker
-    return None
-
-
-def _decision_bead_action(decision: Mapping[str, Any]) -> str | None:
-    value = decision.get("bead_action")
-    return value if value in {"close", "keep"} else None
-
-
-def _call_resume_runner(
-    resume_runner: ResumeRunner,
-    repo: DirtyRepo,
-    context: FinalizerExecutionContext,
-    *,
-    bead_action: str | None,
-) -> StitchCommandResult:
-    if _callable_accepts_keyword(resume_runner, "bead_action"):
-        runner = cast(Callable[..., StitchCommandResult], resume_runner)
-        return runner(repo, context, bead_action=bead_action)
-    return resume_runner(repo, context)
-
-
-def _callable_accepts_keyword(fn: Callable[..., Any], name: str) -> bool:
-    try:
-        signature = inspect.signature(fn)
-    except (TypeError, ValueError):
-        return False
-    for param in signature.parameters.values():
-        if param.kind is inspect.Parameter.VAR_KEYWORD:
-            return True
-        if param.name == name and param.kind in {
-            inspect.Parameter.KEYWORD_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        }:
-            return True
-    return False
 
 
 def execute_commit_finalizer(
@@ -685,30 +465,6 @@ def _context_for_accepted_assigned_bead(
             else None
         ),
     )
-
-
-def _protected_baseline_paths(
-    artifacts: Path | None, repo_path: str
-) -> tuple[str, ...]:
-    return protected_baseline_paths(
-        artifacts,
-        repo_path,
-        get_changed_files=git_changed_files,
-    )
-
-
-def _unexpected_remaining_paths(repo_path: str, protected: Sequence[str]) -> list[str]:
-    return unexpected_remaining_paths(
-        repo_path,
-        protected,
-        get_changed_files=git_changed_files,
-    )
-
-
-def _protected_baseline_record(
-    artifacts: Path | None, repo_path: str
-) -> FinalizerBaselineRecord | None:
-    return protected_baseline_record(artifacts, repo_path)
 
 
 __all__ = [

@@ -35,6 +35,7 @@ from sase.llm_provider.commit_finalizer_baseline import (
 from sase.llm_provider.commit_finalizer_git import (
     discarded_dirty_work_evidence,
     discarded_dirty_work_message,
+    git_changed_files,
     normalize_path,
     split_pre_existing_changed_files,
 )
@@ -208,6 +209,28 @@ def unexpected_remaining_paths(
 ) -> list[str]:
     protected_set = set(protected)
     return [path for path in get_changed_files(repo_path) if path not in protected_set]
+
+
+def resolve_protected_baseline_paths(
+    artifacts: Path | None, repo_path: str
+) -> tuple[str, ...]:
+    """``protected_baseline_paths`` bound to the real git changed-files source."""
+    return protected_baseline_paths(
+        artifacts,
+        repo_path,
+        get_changed_files=git_changed_files,
+    )
+
+
+def resolve_unexpected_remaining_paths(
+    repo_path: str, protected: Sequence[str]
+) -> list[str]:
+    """``unexpected_remaining_paths`` bound to the real git changed-files source."""
+    return unexpected_remaining_paths(
+        repo_path,
+        protected,
+        get_changed_files=git_changed_files,
+    )
 
 
 def _marker_commit_sha(marker: Mapping[str, Any]) -> str | None:

@@ -105,7 +105,7 @@ def patch_commit_state(
         lambda _path: {"src/app.py": ("M", "content")},
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.git_changed_files",
+        "sase.finalizers.commit_validation.git_changed_files",
         lambda _path: ["src/app.py"] if dirty["value"] else [],
     )
     monkeypatch.setattr(
@@ -134,7 +134,7 @@ def patch_multi_repo_state(
         lambda path: fingerprints_for(path, dirty["repos"]),
     )
     monkeypatch.setattr(
-        "sase.finalizers.commit.git_changed_files",
+        "sase.finalizers.commit_validation.git_changed_files",
         lambda path: changed_files_for(path, dirty["repos"]),
     )
     monkeypatch.setattr(
