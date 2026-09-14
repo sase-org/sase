@@ -72,6 +72,7 @@ from .start_continuation import (
 )
 from .start_claim import (
     claim_monitor_workspace,
+    preflight_monitor_workspace_claim,
     undo_monitor_claim,
 )
 from .start_lane import (
@@ -159,6 +160,24 @@ def _start_monitor_locked(
         return replayed
 
     lane_start = resolve_lane_start(request, identity)
+    preflight = preflight_monitor_workspace_claim(
+        lane_start.project_file,
+        lane_start.workspace_num,
+        transfer_from_pid=lane_start.transfer_from_pid,
+        cl_name=lane_start.cl_name,
+    )
+    if preflight.error is not None:
+        claim_error = monitor_claim_error(
+            lane_start.project_file,
+            lane_start.workspace_num,
+            preflight.error,
+        )
+        raise MonitorError(f"could not claim workspace for monitor: {claim_error}")
+    if preflight.transfer_from_pid != lane_start.transfer_from_pid:
+        lane_start = replace(
+            lane_start,
+            transfer_from_pid=preflight.transfer_from_pid,
+        )
     durable_lane = lane_start.durable_lane
     suffix = naming.allocate_monitor_suffix(
         durable_lane,

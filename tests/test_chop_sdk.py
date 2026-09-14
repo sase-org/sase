@@ -291,18 +291,22 @@ def test_common_arguments_and_debug_logging_honor_verbose_env(
 def test_builtin_registry_derives_result_from_existing_summary(tmp_path: Path) -> None:
     name = "sdk_registry_test"
 
-    @builtin_chop(name)
-    def _run(runtime: BuiltinChopRuntime) -> None:
-        runtime.log(f"{name}: inspected=3 changed=0 reason=no_changes")
+    try:
 
-    result_path = tmp_path / "result.json"
-    context_path = _context(tmp_path, result_file=result_path)
-    run_builtin_chop(name, ["--context", str(context_path)])
+        @builtin_chop(name)
+        def _run(runtime: BuiltinChopRuntime) -> None:
+            runtime.log(f"{name}: inspected=3 changed=0 reason=no_changes")
 
-    result = json.loads(result_path.read_text(encoding="utf-8"))
-    assert result["status"] == "no_op"
-    assert result["counters"] == {"changed": 0, "inspected": 3}
-    assert result["reason"] == "no_changes"
+        result_path = tmp_path / "result.json"
+        context_path = _context(tmp_path, result_file=result_path)
+        run_builtin_chop(name, ["--context", str(context_path)])
+
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        assert result["status"] == "no_op"
+        assert result["counters"] == {"changed": 0, "inspected": 3}
+        assert result["reason"] == "no_changes"
+    finally:
+        builtin_registry._BUILTIN_CHOPS.pop(name, None)
 
 
 def test_hook_builtin_uses_shared_runner_and_emits_noop_result(tmp_path: Path) -> None:

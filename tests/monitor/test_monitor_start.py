@@ -38,6 +38,7 @@ from sase.running_field import (
 )
 
 from ._fixtures import (
+    DEAD_PID,
     make_starter_agent,
     patch_project_records,
     register_workspace_checkout,
@@ -368,6 +369,61 @@ def test_start_monitor_without_metadata_workspace_num_claims_the_cwd_checkout(
         meta = json.loads((Path(record.artifacts_dir) / "agent_meta.json").read_text())
         assert meta["workspace_num"] == 10
         assert meta["workspace_dir"] == workspace_dir
+    finally:
+        if record.pid is not None:
+            try:
+                os.kill(record.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        wait_for_done(record.artifacts_dir, timeout=10.0)
+
+
+def test_start_monitor_adopts_dead_lane_claim_when_parent_pid_is_stale(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "managed"))
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    workspace_dir = register_workspace_checkout(primary, 10)
+    project_file = write_project_file(
+        "proj",
+        workspace_dir=str(primary),
+        running_claims=[WorkspaceClaim(10, "ace-run", "acme", pid=DEAD_PID)],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=workspace_dir,
+        workspace_num=10,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+
+    record = start_monitor(
+        StartMonitorRequest(
+            command="sleep 30",
+            reason="verify stale lane claim adoption",
+            timeout_seconds=30.0,
+            cwd=workspace_dir,
+            project_name="proj",
+            start_status="MONITORING",
+            stop_status="MONITORED",
+            lane="acme",
+        )
+    )
+
+    try:
+        assert record.pid is not None
+        claims = get_claimed_workspaces(project_file)
+        assert len(claims) == 1
+        assert claims[0].workspace_num == 10
+        assert claims[0].pid == record.pid
+        assert claims[0].workflow == MONITOR_WORKSPACE_CLAIM_WORKFLOW
+        assert claims[0].cl_name == "acme"
     finally:
         if record.pid is not None:
             try:

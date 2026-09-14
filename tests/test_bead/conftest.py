@@ -6,17 +6,42 @@ import sqlite3
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from sase.bead import db
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
+from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.workflow_models import Workflow
 from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
 
 
 FIXED_BEAD_NOW = datetime(2026, 8, 1, 12, 0, 0)
+
+
+def cli_work_xprompt_catalog(
+    *, land_content: str = "%q(w=2.0)\nLand the epic."
+) -> dict[str, XPrompt]:
+    bead_input = [InputArg(name="bead_id", type=InputType.WORD)]
+    return {
+        "bd/work_phase_bead": XPrompt(
+            name="bd/work_phase_bead",
+            content="Work phase {{ bead_id }}.",
+            inputs=bead_input,
+        ),
+        "bd/work_task": XPrompt(
+            name="bd/work_task",
+            content="Work task {{ bead_id }}.",
+            inputs=bead_input,
+        ),
+        "bd/land_epic": XPrompt(
+            name="bd/land_epic",
+            content=land_content,
+            inputs=bead_input,
+        ),
+    }
 
 
 @pytest.fixture(autouse=True)
@@ -132,6 +157,26 @@ def fake_cli_work_xprompts(monkeypatch: pytest.MonkeyPatch) -> None:
     work_phase = Workflow(name="bd/work_phase_bead")
     work_task = Workflow(name="bd/work_task")
     land_epic = Workflow(name="bd/land_epic")
+    from sase.xprompt.processor import process_xprompt_references
+
+    catalog = cli_work_xprompt_catalog()
+
+    def process_with_cli_work_catalog(
+        prompt: str,
+        *args: Any,
+        extra_xprompts: dict[str, XPrompt] | None = None,
+        **kwargs: Any,
+    ) -> str:
+        extras = dict(catalog)
+        if extra_xprompts:
+            extras.update(extra_xprompts)
+        return process_xprompt_references(
+            prompt,
+            *args,
+            extra_xprompts=extras,
+            **kwargs,
+        )
+
     monkeypatch.setattr(
         "sase.bead.xprompts.resolve_work_phase_xprompt",
         lambda project=None: work_phase,
@@ -143,4 +188,8 @@ def fake_cli_work_xprompts(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "sase.bead.xprompts.resolve_land_epic_xprompt",
         lambda project=None: land_epic,
+    )
+    monkeypatch.setattr(
+        "sase.bead.work_queue_capacity.process_xprompt_references",
+        process_with_cli_work_catalog,
     )

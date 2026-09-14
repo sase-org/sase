@@ -13,7 +13,7 @@ from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
 from sase.bead.model import Status
 from sase.bead.project import BeadProject
 from sase.feature_flags import override_flags
-from sase.xprompt.models import InputArg, InputType, XPrompt
+from sase.xprompt.models import XPrompt
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.bead.work import (
     EPIC_CLAN_SUMMARY_SCRIPT,
@@ -27,6 +27,7 @@ from sase.bead.work import (
 )
 from sase.xprompt.directives import extract_prompt_directives
 
+from .conftest import cli_work_xprompt_catalog
 from .cli_work_helpers import (
     FakeLaunchResult,
     bead_wait_lines,
@@ -260,20 +261,38 @@ def test_work_launch_capacity_1_floors_land_segment(
 
 
 def _patch_land_xprompt(monkeypatch: pytest.MonkeyPatch, content: str) -> None:
+    from sase.xprompt.processor import process_xprompt_references
     from sase.xprompt.loader import get_all_xprompts
 
     original = get_all_xprompts
+    catalog = cli_work_xprompt_catalog(land_content=content)
 
     def patched(project: str | None = None) -> dict[str, XPrompt]:
         catalog = dict(original(project=project))
-        catalog["bd/land_epic"] = XPrompt(
-            name="bd/land_epic",
-            content=content,
-            inputs=[InputArg(name="bead_id", type=InputType.WORD)],
-        )
+        catalog.update(cli_work_xprompt_catalog(land_content=content))
         return catalog
 
+    def process_with_patched_land(
+        prompt: str,
+        *args: Any,
+        extra_xprompts: dict[str, XPrompt] | None = None,
+        **kwargs: Any,
+    ) -> str:
+        extras = dict(catalog)
+        if extra_xprompts:
+            extras.update(extra_xprompts)
+        return process_xprompt_references(
+            prompt,
+            *args,
+            extra_xprompts=extras,
+            **kwargs,
+        )
+
     monkeypatch.setattr("sase.xprompt.processor.get_all_xprompts", patched)
+    monkeypatch.setattr(
+        "sase.bead.work_queue_capacity.process_xprompt_references",
+        process_with_patched_land,
+    )
 
 
 @pytest.mark.parametrize("budget_enabled", [True, False])

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -92,9 +93,10 @@ def test_start_monitor_claim_failure_does_not_run_the_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     sentinel = tmp_path / "command-ran"
+    live_holder = subprocess.Popen(["sleep", "30"])
     write_project_file(
         "proj",
-        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=123456)],
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=live_holder.pid)],
     )
     starter_dir = make_starter_agent(
         "proj",
@@ -120,8 +122,16 @@ def test_start_monitor_claim_failure_does_not_run_the_command(
         lane="acme",
     )
 
-    with pytest.raises(MonitorError, match="could not claim workspace"):
-        start_monitor(request)
+    try:
+        with pytest.raises(MonitorError, match="could not claim workspace"):
+            start_monitor(request)
+    finally:
+        live_holder.terminate()
+        try:
+            live_holder.wait(timeout=5.0)
+        except subprocess.TimeoutExpired:
+            live_holder.kill()
+            live_holder.wait(timeout=5.0)
 
     assert not sentinel.exists()
     artifacts_root = sase_projects_dir() / "proj" / "artifacts" / "ace-run"
@@ -130,13 +140,7 @@ def test_start_monitor_claim_failure_does_not_run_the_command(
         for p in artifacts_root.glob("*/*/*/agent_meta.json")
         if p.parent != Path(starter_dir)
     ]
-    assert len(member_dirs) == 1
-    meta = json.loads((member_dirs[0] / "agent_meta.json").read_text())
-    assert meta["monitor_state"] == "failed"
-    assert meta["monitor_settled"] is True
-    assert "monitor_pgid" not in meta
-    done = json.loads((member_dirs[0] / "done.json").read_text())
-    assert done["monitor_state"] == "failed"
+    assert member_dirs == []
 
 
 def test_start_monitor_submit_failure_does_not_arm_next_action_intent(

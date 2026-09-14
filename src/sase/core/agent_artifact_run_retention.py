@@ -70,6 +70,19 @@ _SCAN_OPTIONS = AgentArtifactScanOptionsWire(
 )
 
 
+def _plan_continuation_run_retention(
+    artifact_dirs: Sequence[Path | str],
+    *,
+    projects_root: Path | str | None = None,
+) -> dict[str, Any]:
+    return continuation_retention.plan_continuation_run_retention(
+        artifact_dirs, projects_root=projects_root
+    )
+
+
+plan_continuation_run_retention = _plan_continuation_run_retention
+
+
 def plan_ace_run_retention(
     policy: AceRunRetentionPolicy,
     protections: AceRunProtectionSnapshot | None = None,
@@ -399,7 +412,7 @@ def _collect_candidates(
     continuation_reasons: dict[str, tuple[str, ...]] = {}
     continuation_unavailable = False
     try:
-        continuation_plan = continuation_retention.plan_continuation_run_retention(
+        continuation_plan = plan_continuation_run_retention(
             all_dirs, projects_root=projects_root
         )
     except ValueError as exc:

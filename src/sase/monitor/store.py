@@ -342,7 +342,9 @@ def _reconciliation_project_records(
 
 
 def project_records(
-    project_name: str | None, *, only_monitors: bool = False
+    project_name: str | None,
+    *,
+    only_monitors: bool = False,
 ) -> list[AgentArtifactRecordWire]:
     """Return raw artifact records, optionally restricted to monitor members."""
     projects_root = sase_projects_dir()

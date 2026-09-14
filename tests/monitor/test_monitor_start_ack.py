@@ -18,12 +18,15 @@ import threading
 import time
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
 from sase.core.paths import sase_projects_dir
+from sase.logs.workspace_claim_ledger import read_ledger_records
 from sase.monitor.models import MonitorError, MonitorRecord
 from sase.monitor.start import StartMonitorRequest, start_monitor
+from sase.monitor.start_claim import undo_monitor_claim
 from sase.procs.runtime import proc_started_path, start_ack_timeout_seconds
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 
@@ -378,6 +381,37 @@ def test_start_monitor_releases_a_fresh_numbered_claim_when_the_supervisor_never
     assert meta["workspace_num"] == 12
     assert meta["workspace_dir"] == workspace_dir
     assert meta["monitor_state"] == "failed"
+
+
+def test_undo_monitor_claim_records_noop_release_truthfully(
+    tmp_path: Path,
+) -> None:
+    project_file = write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(12, "ace-run", "acme", pid=os.getpid())],
+    )
+    ledger_file = str(tmp_path / "workspace_claims.jsonl")
+
+    with patch("sase.logs.workspace_claim_ledger.LEDGER_FILE", ledger_file):
+        undo_monitor_claim(
+            project_file,
+            12,
+            supervisor_pid=4_242_424,
+            starter_claim=None,
+            cl_name="acme",
+        )
+        records = read_ledger_records(ledger_file=ledger_file)
+
+    assert [
+        (claim.workspace_num, claim.workflow, claim.cl_name, claim.pid)
+        for claim in get_claimed_workspaces(project_file)
+    ] == [(12, "ace-run", "acme", os.getpid())]
+    assert len(records) == 1
+    record = records[0]
+    assert record["operation"] == "release"
+    assert record["success"] is False
+    assert record["before"] == record["after"]
+    assert "no RUNNING claim" in (record["error"] or "")
 
 
 def test_start_monitor_kills_a_supervisor_that_never_writes_the_ack_marker(
