@@ -1,0 +1,390 @@
+"""Expected occurrence declarations for the rendered-link corpus documents."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from sase.pager.link_scan import LinkSpanKind
+
+from tests.pager._rendered_link_fixtures import (
+    CONTROLLER,
+    CYCLING_URL,
+    DESIGN_LINE_TARGET,
+    EXACT_URL,
+    LINE_TARGET,
+    Outcome,
+    PLAN_CYCLING,
+    PLAN_LINE_TARGET,
+    PLAN_PREVIOUS,
+    PLAN_SPACED,
+    PREVIOUS_URL,
+    ROUTER,
+    ROUTER_TESTS,
+)
+from tests.pager._rendered_link_tree import RenderedLinkCorpus
+
+
+@dataclass(frozen=True, slots=True)
+class ExpectedOccurrence:
+    """One independently declared rendered target the scanner must not omit."""
+
+    display: str
+    kind: str
+    resolution_ref: str | None
+    outcome: Outcome
+    body_contains: tuple[str, ...] = ()
+    copy_text: str | None = None
+    edit_path: str | None = None
+    identity_contains: str | None = None
+    unavailable_contains: str | None = None
+    owner_checkout: str | None = None
+    line: int | None = None
+    column: int | None = None
+    end_line: int | None = None
+
+
+def screenshot_expected(corpus: RenderedLinkCorpus) -> tuple[ExpectedOccurrence, ...]:
+    """Independently declared targets for the screenshot plan body."""
+    return (
+        ExpectedOccurrence(
+            display=ROUTER,
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=ROUTER,
+            outcome="document",
+            body_contains=("struct Router {}",),
+            copy_text=str(corpus.router),
+            identity_contains=str(corpus.router),
+            owner_checkout=str(corpus.capture),
+        ),
+        ExpectedOccurrence(
+            display=CONTROLLER,
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=CONTROLLER,
+            outcome="document",
+            body_contains=("struct Controller {}",),
+            copy_text=str(corpus.controller),
+            identity_contains=str(corpus.controller),
+        ),
+        ExpectedOccurrence(
+            display=ROUTER_TESTS,
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=ROUTER_TESTS,
+            outcome="document",
+            body_contains=("struct RouterTests {}",),
+            copy_text=str(corpus.router_tests),
+            identity_contains=str(corpus.router_tests),
+        ),
+        ExpectedOccurrence(
+            display="[plan:202609/capture_line_edge_cycling.md][2]",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=PLAN_CYCLING,
+            outcome="document",
+            body_contains=("See Sources/BobMacCapture/CaptureKeyCommandRouter.swift",),
+            copy_text=PLAN_CYCLING,
+            identity_contains=PLAN_CYCLING,
+        ),
+        ExpectedOccurrence(
+            display="[plan:202609/capture_ctrl_u_previous_line.md][3]",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=PLAN_PREVIOUS,
+            outcome="document",
+            body_contains=("# previous line",),
+            copy_text=PLAN_PREVIOUS,
+            identity_contains=PLAN_PREVIOUS,
+        ),
+        ExpectedOccurrence(
+            display=CYCLING_URL,
+            kind=LinkSpanKind.URL.value,
+            resolution_ref=None,
+            outcome="url_copy",
+            copy_text=CYCLING_URL,
+        ),
+        ExpectedOccurrence(
+            display=PREVIOUS_URL,
+            kind=LinkSpanKind.URL.value,
+            resolution_ref=None,
+            outcome="url_copy",
+            copy_text=PREVIOUS_URL,
+        ),
+    )
+
+
+def kitchen_expected(corpus: RenderedLinkCorpus) -> tuple[ExpectedOccurrence, ...]:
+    """Independently declared targets for the kitchen-sink document."""
+    return (
+        ExpectedOccurrence(
+            display='@plan:"spaced plan.md"#L3',
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=PLAN_SPACED,
+            outcome="document",
+            body_contains=("line3 target",),
+            copy_text="plan:spaced plan.md#L3",
+            edit_path=str(corpus.spaced_plan),
+            identity_contains="plan:spaced plan.md",
+            line=3,
+        ),
+        ExpectedOccurrence(
+            display="bead:sase-zz.n0",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref="bead:sase-zz.n0",
+            outcome="unavailable",
+            unavailable_contains="no local bead store",
+        ),
+        ExpectedOccurrence(
+            display="@bead:sase-zz.n0",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref="bead:sase-zz.n0",
+            outcome="unavailable",
+            unavailable_contains="no local bead store",
+        ),
+        ExpectedOccurrence(
+            display="patch:fixture-patch",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref="patch:fixture-patch",
+            outcome="unavailable",
+            unavailable_contains="could not be resolved",
+        ),
+        ExpectedOccurrence(
+            display="@patch:fixture-patch",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref="patch:fixture-patch",
+            outcome="unavailable",
+            unavailable_contains="could not be resolved",
+        ),
+        ExpectedOccurrence(
+            display="agent:alice.athena.fixture",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref="agent:alice.athena.fixture",
+            outcome="unavailable",
+            unavailable_contains="could not be resolved",
+        ),
+        ExpectedOccurrence(
+            display="stitch:deadbee1deadbee1",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref="stitch:deadbee1deadbee1",
+            outcome="unavailable",
+            unavailable_contains="no commit matching",
+        ),
+        ExpectedOccurrence(
+            display="file:explicit:0123456789abcdef01234567",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref="file:explicit:0123456789abcdef01234567",
+            outcome="unavailable",
+            unavailable_contains="could not be resolved",
+        ),
+        ExpectedOccurrence(
+            display="[not the path](src/lined.swift:4:2)",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref="src/lined.swift:4:2",
+            outcome="document",
+            body_contains=("four",),
+            copy_text=f"{corpus.lined}:4:2",
+            edit_path=str(corpus.lined),
+            identity_contains=str(corpus.lined),
+            line=4,
+            column=2,
+        ),
+        ExpectedOccurrence(
+            display="@src/naïve.md",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref="src/naïve.md",
+            outcome="document",
+            body_contains=("naive notes",),
+            copy_text=str(corpus.naive),
+            edit_path=str(corpus.naive),
+            identity_contains=str(corpus.naive),
+        ),
+        ExpectedOccurrence(
+            display="docs/café.md:12",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref="docs/café.md:12",
+            outcome="document",
+            body_contains=("cafe 12",),
+            copy_text=f"{corpus.cafe}:12",
+            edit_path=str(corpus.cafe),
+            identity_contains=str(corpus.cafe),
+            line=12,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}:12",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}:12",
+            outcome="document",
+            body_contains=("source line 12",),
+            copy_text=f"{corpus.line_targets}:12",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}:12:5",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}:12:5",
+            outcome="document",
+            body_contains=("source line 12",),
+            copy_text=f"{corpus.line_targets}:12:5",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+            column=5,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}:12-40",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}:12-40",
+            outcome="document",
+            body_contains=("source line 40",),
+            copy_text=f"{corpus.line_targets}:12",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+            end_line=40,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}#L12",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}#L12",
+            outcome="document",
+            body_contains=("source line 12",),
+            copy_text=f"{corpus.line_targets}:12",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}#L12-L40",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}#L12-L40",
+            outcome="document",
+            body_contains=("source line 40",),
+            copy_text=f"{corpus.line_targets}:12",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+            end_line=40,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}#L12C5",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}#L12C5",
+            outcome="document",
+            body_contains=("source line 12",),
+            copy_text=f"{corpus.line_targets}:12:5",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=12,
+            column=5,
+        ),
+        ExpectedOccurrence(
+            display=f"[range dest]({LINE_TARGET}:27-44)",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}:27-44",
+            outcome="document",
+            body_contains=("source line 44",),
+            copy_text=f"{corpus.line_targets}:27",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=27,
+            end_line=44,
+        ),
+        ExpectedOccurrence(
+            display=f"[column dest]({LINE_TARGET}#L27C3)",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}#L27C3",
+            outcome="document",
+            body_contains=("source line 27",),
+            copy_text=f"{corpus.line_targets}:27:3",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=27,
+            column=3,
+        ),
+        ExpectedOccurrence(
+            display=f"{PLAN_LINE_TARGET}:12",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=f"{PLAN_LINE_TARGET}:12",
+            outcome="document",
+            body_contains=("plan line 12",),
+            copy_text=f"{PLAN_LINE_TARGET}:12",
+            edit_path=str(corpus.line_plan),
+            identity_contains=PLAN_LINE_TARGET,
+            line=12,
+        ),
+        ExpectedOccurrence(
+            display=f"@{PLAN_LINE_TARGET}:12-20",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=f"{PLAN_LINE_TARGET}:12-20",
+            outcome="document",
+            body_contains=("plan line 20",),
+            copy_text=f"{PLAN_LINE_TARGET}:12-20",
+            edit_path=str(corpus.line_plan),
+            identity_contains=PLAN_LINE_TARGET,
+            line=12,
+            end_line=20,
+        ),
+        ExpectedOccurrence(
+            display=f"{PLAN_LINE_TARGET}#L3C2",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=f"{PLAN_LINE_TARGET}#L3C2",
+            outcome="document",
+            body_contains=("plan line 3",),
+            copy_text=f"{PLAN_LINE_TARGET}#L3C2",
+            edit_path=str(corpus.line_plan),
+            identity_contains=PLAN_LINE_TARGET,
+            line=3,
+            column=2,
+        ),
+        ExpectedOccurrence(
+            display=f"{DESIGN_LINE_TARGET}:40",
+            kind=LinkSpanKind.ARTIFACT_REF.value,
+            resolution_ref=f"{DESIGN_LINE_TARGET}:40",
+            outcome="document",
+            body_contains=("design line 40",),
+            copy_text=f"{DESIGN_LINE_TARGET}:40",
+            edit_path=str(corpus.design_doc),
+            identity_contains=DESIGN_LINE_TARGET,
+            line=40,
+        ),
+        ExpectedOccurrence(
+            display=f"{LINE_TARGET}:9999",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref=f"{LINE_TARGET}:9999",
+            outcome="document",
+            body_contains=("source line 60",),
+            copy_text=f"{corpus.line_targets}:9999",
+            edit_path=str(corpus.line_targets),
+            identity_contains=str(corpus.line_targets),
+            line=9999,
+        ),
+        ExpectedOccurrence(
+            display="./docs/assets",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref="./docs/assets",
+            outcome="document",
+            body_contains=("dot.png", "readme.txt"),
+            copy_text=str(corpus.assets),
+            edit_path=str(corpus.assets),
+            identity_contains=str(corpus.assets),
+        ),
+        ExpectedOccurrence(
+            display="docs/assets/dot.png",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref="docs/assets/dot.png",
+            outcome="media",
+            copy_text=str(corpus.media),
+        ),
+        ExpectedOccurrence(
+            display="Sources/DoesNotExist.swift",
+            kind=LinkSpanKind.FILE_PATH.value,
+            resolution_ref="Sources/DoesNotExist.swift",
+            outcome="unavailable",
+            unavailable_contains="not found",
+        ),
+        ExpectedOccurrence(
+            display=EXACT_URL,
+            kind=LinkSpanKind.URL.value,
+            resolution_ref=None,
+            outcome="url_copy",
+            copy_text=EXACT_URL,
+        ),
+    )
