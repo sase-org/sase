@@ -561,6 +561,14 @@ class AgentState:
     fleet_freshness: str | None = field(default=None, compare=False)
     fleet_connection_health: str | None = field(default=None, compare=False)
     fleet_observed_at_unix: float | None = field(default=None, compare=False)
+    # Raw host-envelope status ("ok"/"invalid") and freshness error code
+    # (e.g. "invalid_envelope"), distinct from the per-row
+    # ``fleet_connection_health`` vocabulary above. Every row from the same
+    # host carries the same values, so any row can anchor a host-level
+    # error surface even when the host's own count fields are unset.
+    fleet_host_status: str | None = field(default=None, compare=False)
+    fleet_host_feed_error: str | None = field(default=None, compare=False)
+    fleet_host_cache_age_seconds: float | None = field(default=None, compare=False)
     # Authoritative counts for this row's origin host, sourced from the
     # host's own `authoritative_counts` envelope rather than a client-side
     # recount of loaded rows. Every row from the same host carries the same

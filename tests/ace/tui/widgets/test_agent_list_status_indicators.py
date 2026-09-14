@@ -321,6 +321,19 @@ class TestAgentListFleetSummaryChrome:
 
         assert "owner pending" in left.plain
 
+    def test_invalid_feed_row_renders_feed_invalid_chrome(self) -> None:
+        agent = make_agent(
+            fleet_origin_alias="apollo",
+            fleet_host_status="invalid",
+            fleet_connection_health="online",
+            fleet_freshness="fresh",
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "feed invalid" in left.plain
+
     def test_was_running_remote_row_renders_last_seen_label(self) -> None:
         from datetime import datetime
 

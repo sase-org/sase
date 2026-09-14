@@ -296,6 +296,10 @@ def _append_fleet_fields(text: Text, agent: Agent) -> None:
         text.append("Remote: ", style="bold #87D7FF")
         text.append(" · ".join(dict.fromkeys(fields)), style="#87D7D7")
         text.append("\n")
+    if agent.fleet_diagnostic:
+        text.append("Feed error: ", style="bold #FF8700")
+        text.append(agent.fleet_diagnostic, style="#FFAF5F")
+        text.append("\n")
     _append_remote_action_fields(text, agent)
 
 

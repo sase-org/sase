@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from ._fleet_agents_follow import summary_followed
@@ -46,6 +47,11 @@ def rows_from_response(
             host.get("freshness") if isinstance(host.get("freshness"), str) else None,
             host.get("status"),
         )
+        host_status_raw = optional_str(host.get("status"))
+        host_feed_error = optional_str(host_freshness_wire.get("error"))
+        host_cache_age_seconds = (
+            float_or_none(host.get("age_seconds")) if host.get("cached") else None
+        )
         viewer_freshness = _viewer_observed_freshness(host)
         observed_at = float_or_none(
             host.get("observed_at_unix"),
@@ -62,6 +68,7 @@ def rows_from_response(
             host_counts.get("terminal"),
         )
         host_unknown_count = int_or_none(host_counts.get("unknown"))
+        host_diagnostic_text = _host_diagnostic(host, host_freshness_wire)
         host_summary_pairs: list[tuple[Mapping[str, Any], Agent]] = []
         for summary_index, summary in enumerate(summary_payloads(host)):
             agent = _agent_from_summary(
@@ -70,8 +77,11 @@ def rows_from_response(
                 origin_installation_id=origin_installation_id,
                 host_freshness=host_freshness,
                 viewer_freshness=viewer_freshness,
-                host_health=optional_str(host.get("status")),
-                host_diagnostic=_host_diagnostic(host),
+                host_health=host_status_raw,
+                host_diagnostic=host_diagnostic_text,
+                host_status_raw=host_status_raw,
+                host_feed_error=host_feed_error,
+                host_cache_age_seconds=host_cache_age_seconds,
                 observed_at_unix=observed_at,
                 host_running_count=host_running_count,
                 host_total_count=host_total_count,
@@ -91,6 +101,49 @@ def rows_from_response(
     return rows
 
 
+@dataclass(frozen=True)
+class HostFeedIssue:
+    """A remote host whose latest snapshot is invalid or feed-errored.
+
+    Computed independently of :func:`rows_from_response` because an invalid
+    host normalizes to zero summaries -- there is no ``Agent`` row left to
+    anchor an error state to, so callers that only ever look at rows would
+    never learn the host's feed failed at all.
+    """
+
+    alias: str
+    status: str | None
+    error: str | None
+    cache_age_seconds: float | None
+    diagnostic: str | None
+
+
+def host_feed_issues(response: Mapping[str, Any] | None) -> tuple[HostFeedIssue, ...]:
+    """Return hosts whose latest snapshot reports an invalid or errored feed."""
+    if response is None or response.get("disabled"):
+        return ()
+    issues: list[HostFeedIssue] = []
+    for host_index, host in enumerate(host_payloads(response)):
+        status = optional_str(host.get("status"))
+        freshness_wire = mapping(host.get("freshness"))
+        error = optional_str(freshness_wire.get("error"))
+        if status != "invalid" and not error:
+            continue
+        cache_age_seconds = (
+            float_or_none(host.get("age_seconds")) if host.get("cached") else None
+        )
+        issues.append(
+            HostFeedIssue(
+                alias=_host_alias(host, host_index),
+                status=status,
+                error=error,
+                cache_age_seconds=cache_age_seconds,
+                diagnostic=_host_diagnostic(host, freshness_wire),
+            )
+        )
+    return tuple(issues)
+
+
 def _agent_from_summary(
     summary: Mapping[str, Any],
     *,
@@ -100,6 +153,9 @@ def _agent_from_summary(
     viewer_freshness: str | None,
     host_health: str | None,
     host_diagnostic: str | None,
+    host_status_raw: str | None,
+    host_feed_error: str | None,
+    host_cache_age_seconds: float | None,
     observed_at_unix: float | None,
     host_running_count: int | None,
     host_total_count: int | None,
@@ -255,6 +311,9 @@ def _agent_from_summary(
         fleet_freshness=freshness,
         fleet_connection_health=health,
         fleet_observed_at_unix=observed_at_unix,
+        fleet_host_status=host_status_raw,
+        fleet_host_feed_error=host_feed_error,
+        fleet_host_cache_age_seconds=host_cache_age_seconds,
         fleet_host_running_count=host_running_count,
         fleet_host_total_count=host_total_count,
         fleet_host_waiting_count=host_waiting_count,
@@ -440,17 +499,23 @@ def _logical_project_id(logical_locator: Mapping[str, Any]) -> str | None:
     return optional_str(project)
 
 
-def _host_diagnostic(host: Mapping[str, Any]) -> str | None:
+def _host_diagnostic(
+    host: Mapping[str, Any],
+    freshness_wire: Mapping[str, Any],
+) -> str | None:
     diagnostics = host.get("diagnostics")
-    if not isinstance(diagnostics, list):
-        return None
-    for item in diagnostics:
-        if not isinstance(item, Mapping):
-            continue
-        message = optional_str(item.get("message"), item.get("code"))
-        if message:
-            return message
-    return None
+    if isinstance(diagnostics, list):
+        for item in diagnostics:
+            if not isinstance(item, Mapping):
+                continue
+            message = optional_str(item.get("message"), item.get("code"))
+            if message:
+                return message
+    # A rejected envelope (e.g. ``invalid_federation_host``) often carries
+    # no per-host diagnostics entry at all -- its only explanation is the
+    # freshness error code -- so fall back to that rather than surfacing
+    # nothing.
+    return optional_str(freshness_wire.get("error"))
 
 
 def _queue_weight(summary: Mapping[str, Any]) -> float | None:

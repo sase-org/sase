@@ -446,6 +446,38 @@ def test_compute_banner_summary_by_machine_l0_shows_explicit_unknown_count() -> 
     assert "1 unknown" in banner_summary_text(summary)
 
 
+def test_compute_banner_summary_by_machine_l0_flags_invalid_feed() -> None:
+    """An invalid host feed never renders as a bare healthy count."""
+    agent = _agent(cl_name="a", status="RUNNING")
+    agent.fleet_origin_alias = "apollo"
+    agent.fleet_host_total_count = 2
+    agent.fleet_host_running_count = 2
+    agent.fleet_host_status = "invalid"
+    group = GroupRow(level=0, group_key=("apollo",), agent_indices=(0,))
+
+    summary = compute_banner_summary(group, [agent], mode=GroupingMode.BY_MACHINE)
+    text = banner_summary_text(summary)
+
+    assert "feed invalid" in text
+
+
+def test_compute_banner_summary_by_machine_l0_flags_stale_cache() -> None:
+    """A stale cached host shows its cache age, not bare healthy counts."""
+    agent = _agent(cl_name="a", status="RUNNING")
+    agent.fleet_origin_alias = "apollo"
+    agent.fleet_host_total_count = 2
+    agent.fleet_host_running_count = 2
+    agent.fleet_freshness = "stale"
+    agent.fleet_host_cache_age_seconds = 18_000.0
+    group = GroupRow(level=0, group_key=("apollo",), agent_indices=(0,))
+
+    summary = compute_banner_summary(group, [agent], mode=GroupingMode.BY_MACHINE)
+    text = banner_summary_text(summary)
+
+    assert "stale" in text
+    assert "cached 5h ago" in text
+
+
 # --- Snap-to-ancestor helper ---
 
 

@@ -25,6 +25,7 @@ from tests.ace.tui._fleet_response_fixture import (
     fleet_fault_diagnostic,
     fleet_host_payload,
     fleet_host_response,
+    fleet_invalid_host_response,
     fleet_multi_host_response,
 )
 from tests.ace.tui._fleet_summary_fixture import fleet_summary
@@ -46,6 +47,7 @@ __all__ = [
     "fleet_host_payload",
     "fleet_host_response",
     "fleet_installation_id",
+    "fleet_invalid_host_response",
     "fleet_logical_key",
     "fleet_logical_locator",
     "fleet_multi_host_response",

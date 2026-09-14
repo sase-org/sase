@@ -22,7 +22,7 @@ from ._fleet_agents_payload import (
     response_is_partial,
 )
 from ._fleet_agents_promotion import followed_batch_family_promotions
-from ._fleet_agents_rows import rows_from_response
+from ._fleet_agents_rows import HostFeedIssue, host_feed_issues, rows_from_response
 from .agent import Agent
 
 
@@ -36,6 +36,7 @@ class FleetRowsProjection:
     configured_host_count: int = 0
     partial: bool = False
     counts: dict[str, Any] = field(default_factory=dict)
+    host_feed_issues: tuple[HostFeedIssue, ...] = ()
 
 
 def project_fleet_agents(
@@ -104,6 +105,15 @@ def project_fleet_agents(
     attention_partial = bool(
         attention_response is not None and attention_response.get("partial")
     )
+    host_issues = tuple(
+        dict.fromkeys(
+            (
+                *host_feed_issues(summary_normalized),
+                *host_feed_issues(catalog_normalized),
+                *host_feed_issues(followed_normalized),
+            )
+        )
+    )
     return FleetRowsProjection(
         focus_rows=focus_rows,
         fleet_rows=fleet_rows,
@@ -119,14 +129,17 @@ def project_fleet_agents(
         )
         or attention_partial,
         counts=counts,
+        host_feed_issues=host_issues,
     )
 
 
 __all__ = [
     "FleetRowsProjection",
+    "HostFeedIssue",
     "catalog_next_cursor",
     "catalog_next_cursors_by_host",
     "followed_batch_family_promotions",
+    "host_feed_issues",
     "merge_catalog_pages",
     "project_fleet_agents",
 ]

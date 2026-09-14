@@ -9,6 +9,7 @@ from textual.widgets import Static
 from ...models.fleet_agents import FleetRowsProjection
 from ._fleet_common import (
     agent_counts_as_active,
+    host_feed_issue_text,
     local_machine_label,
     unified_attention_count,
     unified_diagnostic_text,
@@ -68,6 +69,9 @@ class AgentFleetHeaderMixin:
             parts.append(diagnostic_text)
         elif projection.partial:
             parts.append("partial")
+        host_issue_text = host_feed_issue_text(projection)
+        if host_issue_text:
+            parts.append(host_issue_text)
         return " · ".join(parts)
 
 

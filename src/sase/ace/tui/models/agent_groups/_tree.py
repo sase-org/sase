@@ -8,7 +8,7 @@ from datetime import datetime
 from sase.core.time import local_now
 from sase.project_display_names import humanize_cl_name
 
-from ..agent import Agent
+from ..agent import Agent, format_compact_duration
 from .._agent_clan import sase_agent_status_counts
 from .._agent_tree import (
     agent_is_tree_child,
@@ -70,6 +70,11 @@ class _BannerSummary:
     # failed, and done rows are known non-running states.
     unknown: int = 0
     authoritative: bool = False
+    # Ready-to-render suffix for a degraded remote-machine feed (e.g.
+    # ``"feed invalid"`` or ``"stale · cached 5h ago"``). Set only for an
+    # authoritative BY_MACHINE banner whose host reports an invalid or
+    # stale-cached snapshot; see ``_host_feed_status_label``.
+    status_label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -546,7 +551,28 @@ def _authoritative_machine_summary(roots: list[Agent]) -> _BannerSummary | None:
             done=agent.fleet_host_done_count or 0,
             unknown=agent.fleet_host_unknown_count or 0,
             authoritative=True,
+            status_label=_host_feed_status_label(agent),
         )
+    return None
+
+
+def _host_feed_status_label(agent: Agent) -> str | None:
+    """Honest feed-health suffix for a remote-machine banner.
+
+    Every row from the same host carries the same
+    ``fleet_host_status``/``fleet_freshness``/``fleet_host_cache_age_seconds``
+    values (see ``_fleet_agents_rows``), so the representative row this
+    banner sourced its counts from also tells the whole host's feed health
+    -- a healthy count must never be shown next to a feed that is actually
+    invalid or serving a stale cache.
+    """
+    if agent.fleet_host_status == "invalid" or agent.fleet_host_feed_error:
+        return "feed invalid"
+    if agent.fleet_freshness == "stale":
+        if agent.fleet_host_cache_age_seconds is not None:
+            age = format_compact_duration(agent.fleet_host_cache_age_seconds)
+            return f"stale · cached {age} ago"
+        return "stale"
     return None
 
 
@@ -603,13 +629,15 @@ def banner_summary_text(summary: _BannerSummary) -> str:
             parts.append(f"{summary.done} done")
         if summary.unknown:
             parts.append(f"{summary.unknown} unknown")
-        return " · ".join(parts)
-    if summary.running:
-        parts.append(f"{summary.running} running")
-    if summary.failed:
-        parts.append(f"{summary.failed} failed")
-    if summary.awaiting:
-        parts.append(f"{summary.awaiting} awaiting")
+    else:
+        if summary.running:
+            parts.append(f"{summary.running} running")
+        if summary.failed:
+            parts.append(f"{summary.failed} failed")
+        if summary.awaiting:
+            parts.append(f"{summary.awaiting} awaiting")
+    if summary.status_label:
+        parts.append(summary.status_label)
     return " · ".join(parts)
 
 

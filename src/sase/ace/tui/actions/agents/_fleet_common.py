@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from sase.config import get_machine_name
 
+from ...models.agent import format_compact_duration
 from ...models.fleet_agents import FleetRowsProjection
 
 if TYPE_CHECKING:
@@ -116,12 +117,34 @@ def unified_diagnostic_text(projection: FleetRowsProjection) -> str:
     return f"{issue_count} machine {suffix}"
 
 
+def host_feed_issue_text(projection: FleetRowsProjection) -> str:
+    """Compact host/machine-level feed-error summary for the status line.
+
+    A host normalized to ``invalid_federation_host`` carries zero summaries,
+    so it never appears as a row or a BY_MACHINE banner; this is the only
+    place its feed error is guaranteed to surface.
+    """
+    issues = projection.host_feed_issues
+    if not issues:
+        return ""
+    if len(issues) == 1:
+        issue = issues[0]
+        label = issue.status or "error"
+        if issue.cache_age_seconds is not None:
+            age = format_compact_duration(issue.cache_age_seconds)
+            return f"{issue.alias}: feed {label} (cached {age} ago)"
+        return f"{issue.alias}: feed {label}"
+    count = len(issues)
+    return f"{count} machines with feed errors"
+
+
 __all__ = [
     "_AGENTS_SUBTABS",
     "_FLEET_CATALOG_MAX_PAGES",
     "_FLEET_CATALOG_PAGE_LIMIT",
     "agent_counts_as_active",
     "fleet_public_override",
+    "host_feed_issue_text",
     "local_machine_label",
     "unified_attention_count",
     "unified_diagnostic_text",

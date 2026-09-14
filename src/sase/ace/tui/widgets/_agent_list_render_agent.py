@@ -94,6 +94,8 @@ def _append_fleet_summary(text: Text, agent: Agent) -> None:
     if not agent.fleet_origin_alias:
         return
     fields: list[str] = []
+    if agent.fleet_host_status == "invalid" or agent.fleet_host_feed_error:
+        fields.append("feed invalid")
     health = agent.fleet_connection_health
     if health and health not in _FLEET_HEALTHY_CONNECTION_HEALTH:
         fields.append(health)

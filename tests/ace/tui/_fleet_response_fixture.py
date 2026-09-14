@@ -138,6 +138,54 @@ def fleet_multi_host_response(
     return response
 
 
+def fleet_invalid_host_response(
+    *,
+    alias: str = "apollo",
+    error: str = "invalid_envelope",
+    cached: bool = False,
+    age_seconds: float | None = None,
+    diagnostics: Iterable[Mapping[str, Any]] = (),
+    configured_hosts: int = 1,
+    operation: str = "summary",
+) -> dict[str, Any]:
+    """Build an already-normalized response for one invalid federation host.
+
+    Mirrors the real ``invalid_federation_host`` shape sase-core produces
+    when a host's envelope fails validation: ``status: "invalid"``, zero
+    summaries, and a ``freshness.error`` code. Built directly in
+    already-normalized form (recognized by ``count_hosts`` +
+    ``configured_host_count``) because there is no raw wire input this
+    fixture module can feed through the real Rust normalizer to reliably
+    reproduce that rejection.
+    """
+    host: dict[str, Any] = {
+        "schema_version": 1,
+        "alias": alias,
+        "status": "invalid",
+        "cached": cached,
+        "age_seconds": age_seconds,
+        "observed_at_unix": None,
+        "summaries": [],
+        "freshness": {
+            "schema_version": 1,
+            "freshness": "unknown",
+            "partial": False,
+            "refreshed_at_unix": None,
+            "error": error,
+        },
+        "diagnostics": [
+            _diagnostic(diagnostic, operation=operation) for diagnostic in diagnostics
+        ],
+    }
+    return {
+        "schema_version": 1,
+        "operation": operation,
+        "configured_host_count": configured_hosts,
+        "hosts": [host],
+        "count_hosts": [],
+    }
+
+
 def fleet_fault_diagnostic(
     *,
     alias: str,
