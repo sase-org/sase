@@ -453,8 +453,13 @@ tests/test_fleet_contract_counts_sase_core_rs.py::test_count_contract_deduplicat
 tests/dispatch/test_machine_bootstrap_real_gateway.py::test_bootstrap_issue_enroll_hello_round_trip_through_real_gateway
 # sase-n4: provider-drain relaunch historical gate debt.
 tests/fakey/test_provider_drain_e2e.py::test_provider_drain_e2e_flag_on_relaunches_stranded_agent
-# sase-z4.6.5.4.6: weighted-capacity research package historical gate debt.
-tests/fakey/test_runner_slots_e2e.py::test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit
+# sase-z4.6.5.4.6: fixed by 1690400b2 "fix(capacity): ratchet published core
+# floor and fix stale zero-capacity fakey assertion" (committed
+# 2026-09-14T01:41:24Z). All recorded failures predate it and were
+# deterministic plugin-dependent failures (retired %wait(priority=...) syntax,
+# then the stale runners=0 assertion), not flakes; the node passes repeatedly
+# against the repaired research plugin.
+# fixed-at: 2026-09-14T01:41:24Z tests/fakey/test_runner_slots_e2e.py::test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit
 # sase-yz: usage-probe collector historical gate debt.
 tests/llm_provider/test_codex_usage_probe.py::test_registered_hook_runs_through_isolated_probe
 # sase-yy.8.6: artifact-link health historical gate debt.
