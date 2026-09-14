@@ -314,6 +314,15 @@ def _merge_agent_entries(
     return tuple(merged[label] for label in sorted(merged))
 
 
+def merge_plan_header_agent_entries(
+    existing: tuple[PlanHeaderEntry, ...],
+    derived: tuple[PlanHeaderEntry, ...],
+) -> tuple[PlanHeaderEntry, ...]:
+    """Merge generated ``AGENTS`` entries with refresh semantics."""
+
+    return _merge_agent_entries(existing, derived)
+
+
 def _merge_commit_entries(
     existing: tuple[PlanHeaderEntry, ...],
     derived: tuple[PlanHeaderEntry, ...],
@@ -331,6 +340,15 @@ def _merge_commit_entries(
             key=lambda item: _commit_entry_sort_key(item[0], item[1]),
         )
     )
+
+
+def merge_plan_header_commit_entries(
+    existing: tuple[PlanHeaderEntry, ...],
+    derived: tuple[PlanHeaderEntry, ...],
+) -> tuple[PlanHeaderEntry, ...]:
+    """Merge generated ``COMMITS`` entries with refresh semantics."""
+
+    return _merge_commit_entries(existing, derived)
 
 
 def _install_commit_entry(
@@ -475,6 +493,8 @@ def _relative_parent_target(
 
 
 __all__ = [
+    "merge_plan_header_agent_entries",
+    "merge_plan_header_commit_entries",
     "project_plan_header_sections",
     "refresh_association_sections",
     "refresh_bead_plan_section",

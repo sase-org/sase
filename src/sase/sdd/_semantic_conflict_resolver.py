@@ -28,6 +28,10 @@ from sase.sdd._artifact_link_markdown_conflict_resolver import (
     is_artifact_link_markdown_conflict_path,
     resolve_artifact_link_markdown_conflicts,
 )
+from sase.sdd._plan_header_conflict_resolver import (
+    is_plan_header_conflict_path,
+    resolve_plan_header_conflicts,
+)
 
 
 @dataclass(frozen=True)
@@ -73,6 +77,7 @@ def _resolve_semantic_conflicts(
     bead_conflicts: list[str] = []
     link_conflicts: list[str] = []
     link_markdown_conflicts: list[str] = []
+    plan_header_conflicts: list[str] = []
     unclaimed: list[str] = []
     for path in conflicted:
         if bead_prefix is not None and is_bead_path(path, bead_prefix):
@@ -81,13 +86,19 @@ def _resolve_semantic_conflicts(
             link_conflicts.append(path)
         elif is_artifact_link_markdown_conflict_path(repo_root, path):
             link_markdown_conflicts.append(path)
+        elif is_plan_header_conflict_path(repo_root, path):
+            plan_header_conflicts.append(path)
         else:
             unclaimed.append(path)
 
     if unclaimed:
         prefix = (
             "non-bead conflicts remain: "
-            if not link_conflicts and not link_markdown_conflicts
+            if (
+                not link_conflicts
+                and not link_markdown_conflicts
+                and not plan_header_conflicts
+            )
             else "non-semantic conflicts remain: "
         )
         return _SemanticConflictResolution(False, prefix + ", ".join(unclaimed))
@@ -132,6 +143,20 @@ def _resolve_semantic_conflicts(
                 bead_relocations,
             )
         resolved.extend(markdown_result.resolved_files)
+
+    if plan_header_conflicts:
+        plan_header_result = resolve_plan_header_conflicts(
+            repo_root,
+            tuple(plan_header_conflicts),
+        )
+        if not plan_header_result.ok:
+            return _SemanticConflictResolution(
+                False,
+                plan_header_result.message,
+                tuple(sorted(dict.fromkeys(resolved))),
+                bead_relocations,
+            )
+        resolved.extend(plan_header_result.resolved_files)
 
     message = "resolved semantic conflicts: " + ", ".join(
         sorted(dict.fromkeys(resolved))

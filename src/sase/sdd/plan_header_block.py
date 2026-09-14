@@ -114,6 +114,26 @@ def render_plan_header_block(sections: tuple[PlanHeaderSection, ...]) -> str:
     return str(binding([_section_payload(section) for section in sections]))
 
 
+def replace_plan_header_block(
+    document: str,
+    sections: tuple[PlanHeaderSection, ...],
+    *,
+    remove_legacy: bool = True,
+    allow_resolved_mixed: bool = False,
+) -> str:
+    """Replace the complete plan-header block."""
+    _require_schema_version()
+    binding = require_rust_binding("sdd_plan_header_block_replace")
+    return str(
+        binding(
+            document,
+            [_section_payload(section) for section in sections],
+            remove_legacy,
+            allow_resolved_mixed,
+        )
+    )
+
+
 def upsert_plan_header_section(
     document: str,
     section: PlanHeaderSection,
@@ -224,6 +244,7 @@ __all__ = [
     "PlanHeaderSectionKind",
     "parse_plan_header_block",
     "remove_plan_header_section",
+    "replace_plan_header_block",
     "render_plan_header_block",
     "upsert_plan_header_section",
 ]
