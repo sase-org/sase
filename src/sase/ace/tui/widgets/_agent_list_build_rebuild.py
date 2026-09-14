@@ -80,14 +80,14 @@ def _agent_wait_status_maps_for_build(
     return agent_wait_status_maps_for_app(app) or collect_agent_wait_status_maps(agents)
 
 
-def _agent_row_chrome_mode(
-    agents: list[Agent],
-    grouping_mode: GroupingMode,
-) -> tuple[bool, bool]:
-    """Return ``(show_machine_chip, show_fleet_badge)`` for agent rows."""
-    if grouping_mode is GroupingMode.BY_MACHINE:
-        return False, False
-    return any(getattr(agent, "fleet_origin_alias", None) for agent in agents), False
+def _agent_row_chrome_mode(agents: list[Agent]) -> bool:
+    """Return whether machine chips are enabled for this list.
+
+    Chips turn on whenever any loaded row has a fleet origin, including
+    under ``BY_MACHINE`` group headers. Local rows and indented member
+    shells still render none; only rows with ``fleet_origin_alias`` do.
+    """
+    return any(getattr(agent, "fleet_origin_alias", None) for agent in agents)
 
 
 def build_list(
@@ -145,10 +145,7 @@ def build_list(
             fully_expanded_parents = local_fully_expanded
 
     widget._grouping_mode = grouping_mode
-    show_machine_chip, show_fleet_badge = _agent_row_chrome_mode(
-        agents,
-        grouping_mode,
-    )
+    show_machine_chip = _agent_row_chrome_mode(agents)
     tree: list[TreeEntry] = build_agent_tree(
         agents, fold_registry=fold_registry, mode=grouping_mode, now=now
     )
@@ -229,7 +226,6 @@ def build_list(
             has_unresolvable_wait_target=has_unresolvable_wait,
             unread_agent_ids=unread,
             show_machine_chip=show_machine_chip,
-            show_fleet_badge=show_fleet_badge,
         )
         agent_parts[i] = (left, suffix, option_id)
         widget._row_render_ctx[i] = {
@@ -247,7 +243,6 @@ def build_list(
             "wait_dependency_counts": wait_counts,
             "has_unresolvable_wait_target": has_unresolvable_wait,
             "show_machine_chip": show_machine_chip,
-            "show_fleet_badge": show_fleet_badge,
         }
         widget._row_tier_styles[i] = tier_styles
         max_left = max(max_left, left.cell_len)

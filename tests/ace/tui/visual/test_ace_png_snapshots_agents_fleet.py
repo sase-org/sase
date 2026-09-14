@@ -20,6 +20,7 @@ from tests.ace.tui.fleet_fixture import (
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    assert_page_svg_styled_text_absent,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     agents,
@@ -168,6 +169,7 @@ async def test_agents_fleet_followed_partial_offline_png_snapshot(
         assert facade.calls[:2] == ["summary", "catalog"]
         assert_page_svg_contains(page, "apollo")
         assert_page_svg_contains(page, "mac")
+        assert_page_svg_styled_text_absent(page, "here visual-plan")
         assert_page_svg_contains(page, "2 machines")
         assert_page_svg_contains(page, "offline")
         assert_page_svg_contains(page, "stale")
@@ -198,6 +200,7 @@ async def test_agents_fleet_keyboard_focus_and_narrow_png_snapshot(
         assert page.app.current_agents_subtab == "focus"
         assert_page_svg_contains(page, "apollo")
         assert_page_svg_contains(page, "mac")
+        assert_page_svg_styled_text_absent(page, "here visual-plan")
         ace_png_visual.assert_page_png(
             page,
             "agents_fleet_keyboard_focus_narrow_82x28",

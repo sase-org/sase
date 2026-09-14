@@ -360,10 +360,10 @@ def test_render_key_changes_when_fleet_visible_metadata_changes() -> None:
     assert k1 != k2
 
 
-def test_render_key_changes_when_fleet_row_chrome_mode_changes() -> None:
+def test_render_key_changes_when_machine_chip_mode_changes() -> None:
     a = _agent()
     a.fleet_origin_alias = "apollo"
-    legacy_key = agent_render_key(
+    hidden_key = agent_render_key(
         a,
         0,
         is_selected=False,
@@ -373,9 +373,8 @@ def test_render_key_changes_when_fleet_row_chrome_mode_changes() -> None:
         hint_char=None,
         now=None,
         show_machine_chip=False,
-        show_fleet_badge=True,
     )
-    unified_key = agent_render_key(
+    shown_key = agent_render_key(
         a,
         0,
         is_selected=False,
@@ -385,7 +384,6 @@ def test_render_key_changes_when_fleet_row_chrome_mode_changes() -> None:
         hint_char=None,
         now=None,
         show_machine_chip=True,
-        show_fleet_badge=False,
     )
 
-    assert legacy_key != unified_key
+    assert hidden_key != shown_key

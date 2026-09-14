@@ -12,7 +12,7 @@ from sase.ace.tui.widgets._agent_list_styling import (
 )
 from sase.ace.tui.widgets.agent_list import AgentList
 
-from ._agent_list_grouping_helpers import make_agent
+from ._agent_list_grouping_helpers import BR, make_agent
 
 
 def test_l0_banner_carries_no_tier_gutter() -> None:
@@ -205,3 +205,44 @@ def test_by_machine_agent_row_carries_machine_and_status_gutters() -> None:
     options = list(widget._options)
     agent_plain = options[2].prompt.plain  # type: ignore[union-attr]
     assert agent_plain.startswith("│  │  ")
+
+
+def _agent_row_plains(widget: AgentList) -> dict[int, str]:
+    return {
+        entry[0]: option.prompt.plain  # type: ignore[union-attr]
+        for entry, option in zip(widget._row_entries, widget._options, strict=True)
+        if entry != BR
+    }
+
+
+def test_mixed_list_local_rows_never_carry_here_chip() -> None:
+    widget = AgentList()
+    local = make_agent(cl_name="local-fix", status="RUNNING")
+    remote = make_agent(cl_name="remote-fix", status="RUNNING")
+    remote.fleet_origin_alias = "apollo"
+    widget.update_list([local, remote], current_idx=0)
+    plains = _agent_row_plains(widget)
+    assert "here " not in plains[0]
+    assert "apollo " in plains[1]
+
+
+def test_by_machine_mixed_list_keeps_remote_host_chip() -> None:
+    widget = AgentList()
+    local = make_agent(cl_name="local-fix", status="RUNNING")
+    remote = make_agent(cl_name="remote-fix", status="RUNNING")
+    remote.fleet_origin_alias = "apollo"
+    widget.update_list(
+        [local, remote],
+        current_idx=0,
+        grouping_mode=GroupingMode.BY_MACHINE,
+    )
+    plains = _agent_row_plains(widget)
+    banner_plains = [
+        option.prompt.plain  # type: ignore[union-attr]
+        for entry, option in zip(widget._row_entries, widget._options, strict=True)
+        if entry == BR
+    ]
+    assert "here " not in plains[0]
+    assert "apollo " in plains[1]
+    assert any("here" in plain for plain in banner_plains)
+    assert any("apollo" in plain for plain in banner_plains)

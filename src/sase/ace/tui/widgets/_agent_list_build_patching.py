@@ -12,6 +12,10 @@ from ..models.agent_nodes import is_agents_tab_agent_node
 from ._agent_list_rendering import assemble_padded_option, cached_format_agent_option
 from ._agent_list_styling import _BANNER_ROW
 
+# Gap (2) plus the ✏️ live-hint glyph. Machine chips can consume the
+# ``_MIN_BANNER_WIDTH`` slack that used to absorb this badge-only growth.
+_LIVE_HINT_PATCH_SLACK = 4
+
 
 # ``widget`` is the :class:`AgentList` instance.  Importing the class
 # would create a circular import (``agent_list`` already imports the
@@ -215,11 +219,13 @@ def patch_row(
         has_unresolvable_wait_target=ctx.get("has_unresolvable_wait_target", False),
         unread_agent_ids=effective_unread,
         show_machine_chip=bool(ctx.get("show_machine_chip", False)),
-        show_fleet_badge=bool(ctx.get("show_fleet_badge", False)),
     )
 
     gap = 2 if suffix.cell_len else 0
-    if left.cell_len + gap + suffix.cell_len > widget._target_width:
+    if (
+        left.cell_len + gap + suffix.cell_len
+        > widget._target_width + _LIVE_HINT_PATCH_SLACK
+    ):
         return False
 
     new_option = assemble_padded_option(

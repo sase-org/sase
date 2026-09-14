@@ -1144,11 +1144,11 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 ### Machines
 
 When at least one remote machine is enrolled, the Agents tab shows local and remote rows
-in one list. Machine identity appears as a short row chip such as `here`, `apollo`, or
-`mac`; grouping by machine suppresses repeated chips under an unambiguous machine
-header. The header reports the local machine, active rows, pending attention when known,
-enrolled-machine count, and any partial or unavailable-machine state. An entirely local
-setup keeps the compact local view and exposes the machine connection route.
+in one list. Remote agent, family, and clan nodes carry a short host-alias chip such as
+`apollo` or `mac`; local rows never carry a `here` chip, including under a by-machine
+group header. The header reports the local machine, active rows, pending attention when
+known, enrolled-machine count, and any partial or unavailable-machine state. An entirely
+local setup keeps the compact local view and exposes the machine connection route.
 
 Remote rows use the same visible operations where the owner advertises support: machine
 status, retry, bounded remote content, pending question/gate handling, stop, and fork.

@@ -200,7 +200,6 @@ def agent_render_key(
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     shell_lanes: ShellLaneCounts | None = None,
     show_machine_chip: bool = False,
-    show_fleet_badge: bool = False,
 ) -> tuple[Any, ...]:
     """Build the cache key for a single agent row.
 
@@ -256,7 +255,6 @@ def agent_render_key(
         node_unread,
         hint_char,
         show_machine_chip,
-        show_fleet_badge,
         tribe_label,
         panel_tribe,
         tribe_color_fingerprint,

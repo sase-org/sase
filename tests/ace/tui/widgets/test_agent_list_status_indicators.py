@@ -164,7 +164,7 @@ class TestAgentListFleetMarker:
         assert "☆apollo" not in unfollowed_left.plain
         assert followed_left.plain == unfollowed_left.plain
 
-    def test_unified_rows_use_machine_chips_for_local_and_remote(self) -> None:
+    def test_unified_rows_chip_remote_nodes_never_local(self) -> None:
         local = make_agent(llm_provider=None)
         remote = make_agent(
             fleet_origin_alias="apollo",
@@ -177,17 +177,15 @@ class TestAgentListFleetMarker:
             0,
             is_selected=False,
             show_machine_chip=True,
-            show_fleet_badge=False,
         )
         remote_left, _, _ = format_agent_option(
             remote,
             1,
             is_selected=False,
             show_machine_chip=True,
-            show_fleet_badge=False,
         )
 
-        assert local_left.plain.startswith("here ")
+        assert "here " not in local_left.plain
         assert remote_left.plain.startswith("apollo ")
         assert "★apollo" not in remote_left.plain
 
@@ -203,10 +201,59 @@ class TestAgentListFleetMarker:
             0,
             is_selected=False,
             show_machine_chip=False,
-            show_fleet_badge=False,
         )
 
         assert "apollo" not in remote_left.plain
+
+    def test_family_container_keeps_host_chip_member_shell_does_not(self) -> None:
+        child = make_agent(
+            parent_timestamp="20260509-100000",
+            fleet_origin_alias="apollo",
+            llm_provider=None,
+            raw_suffix="20260509-100200",
+        )
+        root = make_agent(
+            plan_chain_root=True,
+            agent_family_role="root",
+            fleet_origin_alias="apollo",
+            llm_provider=None,
+            raw_suffix="20260509-100000",
+        )
+        root.followup_agents = [child]
+        assert root.is_family_container_row is True
+
+        root_left, _, _ = format_agent_option(
+            root,
+            0,
+            is_selected=False,
+            show_machine_chip=True,
+        )
+        child_left, _, _ = format_agent_option(
+            child,
+            1,
+            is_selected=False,
+            show_machine_chip=True,
+        )
+
+        assert "apollo " in root_left.plain
+        assert "apollo " not in child_left.plain
+
+    def test_clan_container_keeps_host_chip(self) -> None:
+        clan = make_agent(
+            is_clan_container=True,
+            agent_clan="map",
+            fleet_origin_alias="apollo",
+            llm_provider=None,
+        )
+
+        left, _, _ = format_agent_option(
+            clan,
+            0,
+            is_selected=False,
+            show_machine_chip=True,
+        )
+
+        assert left.plain.startswith("apollo ")
 
 
 class TestStartingStatusRendering:

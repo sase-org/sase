@@ -105,7 +105,6 @@ def format_agent_option(
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     shell_lanes: ShellLaneCounts | None = None,
     show_machine_chip: bool = False,
-    show_fleet_badge: bool = False,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
     text = append_agent_row_prefix(
@@ -118,7 +117,6 @@ def format_agent_option(
         tribe_colors=tribe_colors,
         tier_styles=tier_styles,
         show_machine_chip=show_machine_chip,
-        show_fleet_badge=show_fleet_badge,
     )
     append_agent_row_status(
         text,
@@ -299,7 +297,6 @@ def cached_format_agent_option(
     has_unresolvable_wait_target: bool = False,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     show_machine_chip: bool = False,
-    show_fleet_badge: bool = False,
 ) -> tuple[Text, Text, str]:
     """Memoized wrapper for :func:`format_agent_option`.
 
@@ -341,7 +338,6 @@ def cached_format_agent_option(
         unread_agent_ids=unread_agent_ids,
         shell_lanes=lanes,
         show_machine_chip=show_machine_chip,
-        show_fleet_badge=show_fleet_badge,
     )
     hit = cache.get_agent(key)
     if hit is not None:
@@ -368,7 +364,6 @@ def cached_format_agent_option(
         unread_agent_ids=unread_agent_ids,
         shell_lanes=lanes,
         show_machine_chip=show_machine_chip,
-        show_fleet_badge=show_fleet_badge,
     )
     cache.put_agent(key, parts)
     return parts

@@ -52,19 +52,27 @@ def _should_render_reverted_badge(agent: Agent) -> bool:
     return agent.reverted and not agent_is_tree_child(agent)
 
 
-def _append_fleet_badge(text: Text, agent: Agent) -> None:
-    alias = agent.fleet_origin_alias
-    if not alias:
-        return
-    glyph = "★" if agent.fleet_followed else "☆"
-    style = "bold #5FD7FF" if agent.fleet_followed else "#5FAFD7"
-    text.append(f"{glyph}{alias} ", style=style)
+def _is_indented_member_shell(agent: Agent) -> bool:
+    """Return whether *agent* is a shell nested under an already-chipped node.
+
+    Family and clan containers still carry a host chip even when they nest
+    under another container. Member shells (family children, workflow
+    steps, monitors, gates, procs) do not repeat the parent's chip.
+    """
+    if agent.is_clan_container or agent.is_family_container_row:
+        return False
+    if not agent_is_tree_child(agent):
+        return False
+    return (
+        agent.is_child_row or agent.is_monitor or agent.is_gate or agent.is_proc_shell
+    )
 
 
 def _append_machine_chip(text: Text, agent: Agent) -> None:
-    alias = agent.fleet_origin_alias or "here"
-    style = "bold #5FD7FF" if agent.fleet_origin_alias else "bold #87D75F"
-    text.append(f"{alias} ", style=style)
+    alias = agent.fleet_origin_alias
+    if not alias or _is_indented_member_shell(agent):
+        return
+    text.append(f"{alias} ", style="bold #5FD7FF")
 
 
 def _monitor_glyph_style(agent: Agent) -> str:
@@ -141,7 +149,6 @@ def append_agent_row_prefix(
     tribe_colors: Mapping[str, str] | None = None,
     tier_styles: tuple[str, ...] = (),
     show_machine_chip: bool = False,
-    show_fleet_badge: bool = False,
 ) -> Text:
     """Build the left-side chrome that precedes the status parenthetical."""
     text = render_tier_gutter(tier_styles)
@@ -207,8 +214,6 @@ def append_agent_row_prefix(
 
     if show_machine_chip:
         _append_machine_chip(text, agent)
-    elif show_fleet_badge:
-        _append_fleet_badge(text, agent)
 
     # Agent type indicator with color
     dt = agent.get_display_type(is_expanded=is_expanded)

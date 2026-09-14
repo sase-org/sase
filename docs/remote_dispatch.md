@@ -241,10 +241,10 @@ bounded authenticated hello only for the selected remote. Its connect, repair, r
 and remove actions show persistent CLI guidance rather than mutating immediately;
 `Enter` returns to Agents with a `machine:<alias>` filter.
 
-Once a machine is enrolled, the Agents tab shows local and remote rows in one list with
-machine chips such as `here`, `apollo`, or `mac`. Group with `o` until the header says
-**by machine** to render `here` first, then remote aliases, each split into status
-subgroups.
+Once a machine is enrolled, the Agents tab shows local and remote rows in one list.
+Remote agent nodes carry a host-alias chip such as `apollo` or `mac`; local rows never
+carry a `here` chip. Group with `o` until the header says **by machine** to render the
+`here` machine banner first, then remote aliases, each split into status subgroups.
 
 - The list loads the bounded remote catalog across enrolled machines and keeps host
   failures visible as diagnostics rather than hiding healthy hosts.
