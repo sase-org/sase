@@ -52,11 +52,12 @@ class PagerOrigin(StrEnum):
 
 
 class LinkSpanKind(StrEnum):
-    """The scanner's four precedence-ordered span kinds, highest first."""
+    """The scanner's precedence-ordered span kinds, highest first."""
 
     ARTIFACT_REF = "artifact_ref"
     URL = "url"
     FILE_PATH = "file_path"
+    XPROMPT_SKILL = "xprompt_skill"
     BARE_TOKEN = "bare_token"
 
 

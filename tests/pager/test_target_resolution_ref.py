@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from sase.pager.document import PagerOrigin, PagerTargetSpan, target_resolution_ref
+from sase.artifact_ref_models import ArtifactRefDocumentTarget, ArtifactRefSpan
+from sase.pager.document import (
+    PagerOrigin,
+    PagerTargetSpan,
+    target_action_destination,
+    target_resolution_ref,
+)
 from sase.pager.link_scan import LinkSpanKind
 
 from ._resolve_helpers import _span
@@ -46,3 +52,57 @@ def test_target_resolution_ref_uses_semantic_scanned_target() -> None:
     )
 
     assert target_resolution_ref(span, PagerOrigin.FILE) == "plan:a b.md"
+
+
+def test_xprompt_skill_target_uses_hash_reference_for_resolution_and_copy() -> None:
+    semantic = ArtifactRefDocumentTarget(
+        schema_version=2,
+        target_kind="xprompt_skill",
+        text="[plan](#skill/sase_plan)",
+        target="skill/sase_plan",
+        well_formed=True,
+        source_span=ArtifactRefSpan(0, 24),
+        candidate_span=ArtifactRefSpan(0, 24),
+        target_span=ArtifactRefSpan(7, 23),
+        label_span=ArtifactRefSpan(1, 5),
+        destination_span=ArtifactRefSpan(7, 23),
+        markdown_destination="#skill/sase_plan",
+    )
+    span = PagerTargetSpan(
+        kind=LinkSpanKind.XPROMPT_SKILL.value,
+        target="skill/sase_plan",
+        start=0,
+        end=24,
+        text="[plan](#skill/sase_plan)",
+        source="scanned",
+        semantic_target=semantic,
+    )
+
+    assert target_resolution_ref(span, PagerOrigin.FILE) == "#skill/sase_plan"
+    assert target_action_destination(span, PagerOrigin.FILE) == "#skill/sase_plan"
+
+
+def test_explicit_at_file_path_keeps_at_marker_as_action_destination() -> None:
+    semantic = ArtifactRefDocumentTarget(
+        schema_version=2,
+        target_kind="file_path",
+        text="@/sase_plan",
+        target="/sase_plan",
+        well_formed=True,
+        source_span=ArtifactRefSpan(0, 11),
+        candidate_span=ArtifactRefSpan(0, 11),
+        target_span=ArtifactRefSpan(1, 11),
+        label_span=None,
+        destination_span=None,
+    )
+    span = PagerTargetSpan(
+        kind=LinkSpanKind.FILE_PATH.value,
+        target="/sase_plan",
+        start=0,
+        end=11,
+        text="@/sase_plan",
+        source="scanned",
+        semantic_target=semantic,
+    )
+
+    assert target_action_destination(span, PagerOrigin.FILE) == "@/sase_plan"

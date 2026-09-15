@@ -153,6 +153,18 @@ a leading `@`, a decoded path (quotes and prompt sigils stripped), a URL, or a
 caller-attached object. Painting uses the original character span; `@` and quoting are
 syntax, not path bytes.
 
+Xprompt skill sources are followable without expanding or invoking the skill.
+`#skill/sase_plan`, `#project/skill/name`, and the `__` namespace shorthand such as
+`#skill__sase_plan` open the canonical Markdown source. Markdown links use their
+destination, so `[plan](#skill/sase_plan)` follows the skill while
+`[#skill/sase_plan](https://example.test)` stays a URL. A single-segment slash token
+such as `/sase_plan` falls back to the matching skill source only after no real absolute
+path owns that spelling; existing `/tmp`, `/etc`, `/name`, multi-segment paths such as
+`/usr/bin/python`, explicit `@/name` paths, `~/name`, `./name`, and `file:` targets keep
+path or artifact semantics. If the same slash spelling names multiple eligible skill
+sources, the toast lists qualified `#.../skill/...` alternatives. Copy keeps the
+authored skill destination, while `E<label>` opens the canonical source file.
+
 Resolution uses the document's owning project and already-available repositories, not
 the viewer's current directory. A same-named file in an unrelated checkout is not a hit.
 Distinct repositories that each contain the path produce an ambiguity page with

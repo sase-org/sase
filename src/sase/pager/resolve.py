@@ -23,6 +23,11 @@ from sase.pager._resolve_file_paths import (
     resolve_file_path_target,
 )
 from sase.pager._resolve_location import apply_link_location
+from sase.pager._resolve_skills import (
+    is_skill_lookup_candidate,
+    is_slash_skill_candidate,
+    resolve_xprompt_skill_link,
+)
 from sase.pager.beads import bead_link_resolution
 from sase.pager.link_context import LinkResolutionContext
 from sase.pager.targets import LinkResolution, LinkTarget, LinkTargetKind
@@ -58,12 +63,28 @@ def resolve_link(
     stripped = ref.strip()
     if not stripped:
         return LinkResolution()
+    if is_skill_lookup_candidate(stripped) and not is_slash_skill_candidate(stripped):
+        return resolve_xprompt_skill_link(stripped, context=context)
     split = split_link_location(stripped)
     base = split.base
     try:
         parsed = parse_artifact_ref(base)
     except (ImportError, RuntimeError, ValueError):
-        return resolve_file_path_link(stripped, context=context)
+        file_resolution = resolve_file_path_link(stripped, context=context)
+        if file_resolution.target is not None or not is_slash_skill_candidate(base):
+            return file_resolution
+        skill_resolution = resolve_xprompt_skill_link(base, context=context)
+        if skill_resolution.target is not None:
+            return skill_resolution
+        if skill_resolution.unresolved_message and file_resolution.unresolved_message:
+            return LinkResolution(
+                unresolved_message=(
+                    f"{file_resolution.unresolved_message}; "
+                    f"{skill_resolution.unresolved_message}"
+                ),
+                retryable=file_resolution.retryable or skill_resolution.retryable,
+            )
+        return file_resolution
     if parsed.kind_type == "bead":
         return _apply_location(
             bead_link_resolution(parsed, context=context),

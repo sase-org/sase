@@ -105,7 +105,7 @@ class ArtifactRefDocumentTarget:
             raw, record="artifact-reference document target"
         )
         target_kind = str(raw["target_kind"])
-        if target_kind not in {"artifact_ref", "url", "file_path"}:
+        if target_kind not in {"artifact_ref", "url", "file_path", "xprompt_skill"}:
             raise RuntimeError(
                 "sase_core_rs returned an unknown artifact-reference document "
                 f"target kind: {target_kind}"

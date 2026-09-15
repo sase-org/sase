@@ -6,8 +6,17 @@ from pathlib import Path
 
 import pytest
 
+from sase.core.xprompt_skill_definition_facade import (
+    XpromptSkillDefinitionResolution,
+)
+from sase.pager import _resolve_skills
 from sase.pager.link_scan import LinkSpanKind
-from sase.pager.resolve import LinkTargetKind, copy_text_for_target, resolve_ref
+from sase.pager.resolve import (
+    LinkTargetKind,
+    copy_text_for_target,
+    resolve_link,
+    resolve_ref,
+)
 
 from ._resolve_helpers import _context, _write
 
@@ -106,3 +115,115 @@ def test_copy_text_for_target_returns_artifact_refs_unchanged() -> None:
         copy_text_for_target("bead:sase-uk.5", LinkSpanKind.ARTIFACT_REF.value)
         == "bead:sase-uk.5"
     )
+
+
+def test_resolve_ref_opens_explicit_xprompt_skill_source(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _write(tmp_path / "skills" / "sase_plan.md", "skill source\n")
+    calls: list[tuple[str, str | None, Path | None]] = []
+
+    def fake_resolve(
+        reference: str,
+        *,
+        project: str | None = None,
+        root_dir: Path | None = None,
+    ) -> XpromptSkillDefinitionResolution:
+        calls.append((reference, project, root_dir))
+        return XpromptSkillDefinitionResolution(
+            schema_version=1,
+            status="success",
+            authored_reference=reference,
+            canonical_reference="skill/sase_plan",
+            skill_name="sase_plan",
+            definition_path=str(source),
+        )
+
+    monkeypatch.setattr(
+        _resolve_skills,
+        "resolve_xprompt_skill_definition",
+        fake_resolve,
+    )
+
+    target = resolve_ref("#skill/sase_plan", context=_context(tmp_path))
+
+    assert target is not None
+    assert target.document is not None
+    assert target.document.sections[0].plain_text == "skill source\n"
+    assert target.edit_path == source
+    assert calls == [("#skill/sase_plan", None, tmp_path)]
+
+
+def test_resolve_ref_uses_skill_fallback_only_after_missing_slash_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = _write(tmp_path / "skills" / "sase_plan.md", "skill source\n")
+
+    def fake_resolve(
+        reference: str,
+        *,
+        project: str | None = None,
+        root_dir: Path | None = None,
+    ) -> XpromptSkillDefinitionResolution:
+        assert reference == "/sase_plan"
+        return XpromptSkillDefinitionResolution(
+            schema_version=1,
+            status="success",
+            authored_reference=reference,
+            canonical_reference="skill/sase_plan",
+            skill_name="sase_plan",
+            definition_path=str(source),
+        )
+
+    monkeypatch.setattr(
+        _resolve_skills,
+        "resolve_xprompt_skill_definition",
+        fake_resolve,
+    )
+
+    target = resolve_ref("/sase_plan", context=_context(tmp_path))
+
+    assert target is not None
+    assert target.document is not None
+    assert target.document.sections[0].plain_text == "skill source\n"
+
+
+def test_existing_absolute_path_wins_over_same_named_skill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real_path = _write(tmp_path / "sase_plan", "real path\n")
+
+    def fail_resolve(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("skill lookup should not run for an existing path")
+
+    monkeypatch.setattr(
+        _resolve_skills,
+        "resolve_xprompt_skill_definition",
+        fail_resolve,
+    )
+
+    target = resolve_ref(str(real_path), context=_context(tmp_path))
+
+    assert target is not None
+    assert target.document is not None
+    assert f"reference: {real_path}" in target.document.sections[0].plain_text
+    assert target.edit_path == real_path
+
+
+def test_explicit_at_slash_path_does_not_enter_skill_lookup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail_resolve(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("explicit @/ path should stay a file path")
+
+    monkeypatch.setattr(
+        _resolve_skills,
+        "resolve_xprompt_skill_definition",
+        fail_resolve,
+    )
+
+    resolution = resolve_link("@/sase_plan", context=_context(tmp_path))
+
+    assert resolution.target is None
+    assert resolution.unresolved_message is not None
+    assert "@/sase_plan not found" in resolution.unresolved_message

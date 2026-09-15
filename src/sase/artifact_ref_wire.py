@@ -9,7 +9,7 @@ from typing import Any, Literal, cast
 ARTIFACT_REF_WIRE_SCHEMA_VERSION = 5
 ARTIFACT_REF_CONTEXT_WIRE_SCHEMA_VERSION = 2
 ARTIFACT_REF_PATH_FILTER_WIRE_SCHEMA_VERSION = 1
-ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION = 1
+ARTIFACT_REF_DOCUMENT_SCAN_WIRE_SCHEMA_VERSION = 2
 ARTIFACT_REF_TARGET_RESOLUTION_WIRE_SCHEMA_VERSION = 1
 ARTIFACT_REF_LINK_LOCATION_WIRE_SCHEMA_VERSION = 1
 
@@ -38,7 +38,9 @@ ArtifactRefResolutionStatus = Literal[
     "filtered",
     "denied",
 ]
-ArtifactRefDocumentTargetKind = Literal["artifact_ref", "url", "file_path"]
+ArtifactRefDocumentTargetKind = Literal[
+    "artifact_ref", "url", "file_path", "xprompt_skill"
+]
 ArtifactRefTargetFailureCategory = Literal[
     "missing_checkout",
     "unavailable_revision",

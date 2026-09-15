@@ -130,6 +130,8 @@ def _candidate_texts(text: str) -> tuple[str, ...]:
     add(text)
     add(text.rstrip("."))
     for variant in tuple(variants):
+        if variant.startswith("@") and len(variant) > 1:
+            add(variant[1:])
         for prefix in _DIFF_PREFIXES:
             if variant.startswith(prefix) and len(variant) > len(prefix):
                 add(variant[len(prefix) :])
