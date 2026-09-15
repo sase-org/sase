@@ -68,6 +68,7 @@ def claimed_view(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> _ReadView:
         )
     )
     monkeypatch.setattr(cli_query, "get_read_view", lambda: _read_view(view))
+    monkeypatch.setattr(cli_query, "_show_read_view", lambda: _read_view(view))
     return view
 
 
