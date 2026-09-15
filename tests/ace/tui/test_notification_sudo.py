@@ -14,10 +14,11 @@ from textual.app import SuspendNotSupported
 from sase.ace.tui.actions.agents._notification_sudo import (
     _load_sudo_request_modal_data,
     _run_sudo_terminal_handoff,
+    _sudo_cli_message,
     handle_sudo_request,
 )
 from sase.ace.tui.modals import SudoRequestModalData, SudoRequestModalResult
-from sase.feature_flags import override_flags
+from sase.feature_flags import SASE_FEATURE_FLAGS_ENV, override_flags
 from sase.notification_gates.service import create_gate
 from sase.notifications import Notification
 from sase.notifications.store import load_notifications
@@ -161,6 +162,8 @@ async def test_sudo_run_uses_terminal_handoff_not_durable_proc(
     result = SudoRequestModalResult(action="run", command_ids=("refresh",))
     app = _SudoActionApp(result)
     run_calls: list[tuple[list[str], dict[str, object]]] = []
+    monkeypatch.setenv(SASE_FEATURE_FLAGS_ENV, '{"agent_sudo_requests":false}')
+    monkeypatch.setenv("SASE_SUDO_HANDOFF_TEST_ENV", "preserved")
 
     def fake_run(
         argv: list[str],
@@ -183,26 +186,25 @@ async def test_sudo_run_uses_terminal_handoff_not_durable_proc(
     [task] = app._sudo_request_open_tasks
     await task
 
-    assert run_calls == [
-        (
-            [
-                "sase",
-                "sudo",
-                "answer",
-                notification.action_data["request_id"],
-                "--run",
-                "--json",
-                "--command",
-                "refresh",
-            ],
-            {
-                "check": False,
-                "stdout": subprocess.PIPE,
-                "stderr": None,
-                "text": True,
-            },
-        )
+    assert run_calls[0][0] == [
+        "sase",
+        "sudo",
+        "answer",
+        notification.action_data["request_id"],
+        "--run",
+        "--json",
+        "--command",
+        "refresh",
     ]
+    kwargs = run_calls[0][1]
+    assert kwargs["check"] is False
+    assert kwargs["stdout"] is subprocess.PIPE
+    assert kwargs["stderr"] is None
+    assert kwargs["text"] is True
+    env = kwargs["env"]
+    assert isinstance(env, dict)
+    assert SASE_FEATURE_FLAGS_ENV not in env
+    assert env["SASE_SUDO_HANDOFF_TEST_ENV"] == "preserved"
     assert app.durable_calls == []
     assert app.suspend_recorder.enters == 1
     assert app.suspend_recorder.exits == 1
@@ -280,6 +282,24 @@ def test_sudo_terminal_handoff_reports_auth_failure_and_keeps_gate_pending(
         ("Sudo authentication failed; gate remains pending", "warning")
     ]
     assert app.refresh_count == 1
+
+
+def test_sudo_cli_message_reports_feature_disabled_detail() -> None:
+    message = _sudo_cli_message(
+        1,
+        {
+            "status": "pending",
+            "outcome": "runner_error",
+            "code": "feature_disabled",
+            "message": "sudo requests are behind the agent_sudo_requests beta flag",
+        },
+    )
+
+    assert message.text == (
+        "Sudo handoff failed: "
+        "sudo requests are behind the agent_sudo_requests beta flag"
+    )
+    assert message.severity == "error"
 
 
 def test_sudo_terminal_handoff_handles_unsupported_suspend(

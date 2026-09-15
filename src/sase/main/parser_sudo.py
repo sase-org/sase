@@ -49,6 +49,7 @@ def _register_answer(subparsers: argparse._SubParsersAction) -> None:
         "--command",
         action="append",
         default=None,
+        dest="sudo_command",
         metavar="ID",
         help="Reviewed command id to run; repeat to select a subset",
     )

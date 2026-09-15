@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
@@ -13,6 +15,7 @@ from typing import Any
 from sase.notification_gates.models import GateError
 
 
+_RUNNER_COMMAND = "sase_sudo_runner"
 _RUNNER_EXIT_CODES = {
     10: "authentication_failed",
     11: "cancelled",
@@ -55,10 +58,11 @@ def run_sudo_runner_file(
     timeout_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Invoke the installed runner against a sealed manifest file."""
+    runner = _resolve_runner_executable()
     try:
         completed = subprocess.run(
             [
-                "sase_sudo_runner",
+                runner,
                 "--manifest",
                 str(manifest_path),
                 "--expected-sha256",
@@ -71,11 +75,7 @@ def run_sudo_runner_file(
             timeout=timeout_seconds,
         )
     except FileNotFoundError as exc:
-        raise GateError(
-            "runner_unavailable",
-            "sase_sudo_runner",
-            "sase_sudo_runner is not installed or not on PATH",
-        ) from exc
+        raise _runner_unavailable_error() from exc
     except subprocess.TimeoutExpired as exc:
         raise GateError(
             "timeout",
@@ -120,6 +120,28 @@ def _runner_json(stdout: str) -> dict[str, Any] | None:
             "runner ledger must be an object",
         )
     return value
+
+
+def _resolve_runner_executable() -> str:
+    venv_runner = Path(sys.executable).parent / _RUNNER_COMMAND
+    if venv_runner.is_file():
+        return str(venv_runner)
+    path_runner = shutil.which(_RUNNER_COMMAND)
+    if path_runner:
+        return path_runner
+    raise _runner_unavailable_error()
+
+
+def _runner_unavailable_error() -> GateError:
+    venv_runner = Path(sys.executable).parent / _RUNNER_COMMAND
+    return GateError(
+        "runner_unavailable",
+        _RUNNER_COMMAND,
+        (
+            f"{_RUNNER_COMMAND} was not found at {venv_runner} "
+            f"or by looking up {_RUNNER_COMMAND!r} on PATH"
+        ),
+    )
 
 
 __all__ = ["run_sudo_runner", "run_sudo_runner_file"]

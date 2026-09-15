@@ -38,18 +38,24 @@ from sase.sudo.ssh import run_remote_sudo
 
 def handle_sudo_command(args: argparse.Namespace) -> int:
     """Dispatch one parsed sudo command."""
-    require_sudo_requests_enabled("sudo")
     subcommand = getattr(args, "sudo_subcommand", None)
     if subcommand == "answer":
         return _answer(args)
-    if subcommand == "exec":
-        return _exec(args)
-    if subcommand == "list":
-        return _list(args)
-    if subcommand == "request":
-        return _request(args)
-    if subcommand == "show":
-        return _show(args)
+    try:
+        require_sudo_requests_enabled("sudo")
+        if subcommand == "exec":
+            return _exec(args)
+        if subcommand == "list":
+            return _list(args)
+        if subcommand == "request":
+            return _request(args)
+        if subcommand == "show":
+            return _show(args)
+    except GateError as exc:
+        if bool(getattr(args, "json", False)) and subcommand in {"list", "show"}:
+            emit_json(_error_payload(_raw_request_ref(args), exc))
+            return _error_exit_code(exc)
+        raise
     print("Usage: sase sudo {answer,exec,list,request,show}", file=sys.stderr)
     return 1
 
@@ -121,10 +127,13 @@ def _request(args: argparse.Namespace) -> int:
 
 
 def _answer(args: argparse.Namespace) -> int:
-    gate_id = _resolve_sudo_gate_id(str(args.gate_ref))
-    decision = _decision(args)
-    retry = _retry(args)
+    raw_ref = str(args.gate_ref)
+    gate_id = raw_ref
     try:
+        require_sudo_requests_enabled("sudo")
+        gate_id = _resolve_sudo_gate_id(raw_ref)
+        decision = _decision(args)
+        retry = _retry(args)
         if decision == "deny":
             payload = _deny(
                 gate_id, feedback=getattr(args, "feedback", None), retry=retry
@@ -132,7 +141,7 @@ def _answer(args: argparse.Namespace) -> int:
         else:
             payload = _approve(
                 gate_id,
-                command_ids=tuple(getattr(args, "command", None) or ()),
+                command_ids=_selected_command_ids(args),
                 feedback=getattr(args, "feedback", None),
                 retry=retry,
             )
@@ -146,6 +155,21 @@ def _answer(args: argparse.Namespace) -> int:
     else:
         _print_answer(payload)
     return 0
+
+
+def _raw_request_ref(args: argparse.Namespace) -> str:
+    ref = getattr(args, "gate_ref", None)
+    if ref is not None:
+        return str(ref)
+    return "sudo"
+
+
+def _selected_command_ids(args: argparse.Namespace) -> tuple[str, ...]:
+    value = getattr(args, "sudo_command", None)
+    if value is None:
+        legacy_value = getattr(args, "command", None)
+        value = legacy_value if isinstance(legacy_value, list) else None
+    return tuple(value or ())
 
 
 def _approve(

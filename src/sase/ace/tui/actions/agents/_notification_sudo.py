@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -12,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from textual.app import SuspendNotSupported
 
 from sase.ace.tui.actions._durable_ops import sase_argv
+from sase.feature_flags import SASE_FEATURE_FLAGS_ENV
 from sase.sudo.gate import DENY_OPTION_ID
 
 from ._notification_gate_execution import GateSubmission, submit_gate_execution_task
@@ -156,6 +158,9 @@ def _run_sudo_terminal_handoff(
     from ...util.external_tool import suspend_for_external_tool
 
     argv = _sudo_answer_argv(data.request_id, result.command_ids)
+    env = {
+        key: value for key, value in os.environ.items() if key != SASE_FEATURE_FLAGS_ENV
+    }
     completed: subprocess.CompletedProcess[str] | None = None
     try:
         with suspend_for_external_tool(
@@ -168,6 +173,7 @@ def _run_sudo_terminal_handoff(
             completed = subprocess.run(
                 argv,
                 check=False,
+                env=env,
                 stdout=subprocess.PIPE,
                 stderr=None,
                 text=True,
