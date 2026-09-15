@@ -158,15 +158,17 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         except TaskTypeCreateError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
+    invocation_cwd = Path.cwd().resolve()
     design = ""
     resolved_plan_file: Path | None = None
     if plan_path:
         plan_file = Path(plan_path)
+        if not plan_file.is_absolute():
+            plan_file = invocation_cwd / plan_file
         if not plan_file.exists():
             print(f"Error: plan file not found: {plan_path}", file=sys.stderr)
             sys.exit(1)
         resolved_plan_file = plan_file.resolve()
-        design = storage_plan_path(resolved_plan_file)
 
     from sase.bead.attribution import plan_proposed_by, resolve_bead_creator
 
@@ -199,6 +201,9 @@ def handle_bead_create(args: argparse.Namespace) -> None:
             print(f"Error: {message}", file=sys.stderr)
             sys.exit(1)
         parent_id = bead_context.resolved_ids[0]
+
+    if resolved_plan_file is not None:
+        design = storage_plan_path(resolved_plan_file, bead_context=bead_context)
 
     prefix_repair: tuple[str, str] | None = None
     if bead_context is not None:

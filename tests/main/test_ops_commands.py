@@ -534,6 +534,10 @@ def test_bead_apply_status_success_and_failure(
     monkeypatch.setattr(
         "sase.bead.cli_common.bead_store_mutation", lambda *_a, **_k: _Mutation()
     )
+    monkeypatch.setattr(
+        "sase.bead.cli_common.resolve_bead_operation_context",
+        lambda targets, **_kwargs: SimpleNamespace(resolved_ids=tuple(targets)),
+    )
     result_path = tmp_path / "bead.json"
     args = create_parser().parse_args(
         ["bead", "apply-status", "sase-ab", "closed", "-R", str(result_path)]

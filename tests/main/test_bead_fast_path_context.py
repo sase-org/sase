@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from sase.bead.model import IssueType
+from sase.bead.project import BeadProject
 from sase.main.bead_fast_path import (
     _BEADS_DIRNAME,
     _BEADS_DIRNAME_NON_VC,
@@ -168,13 +170,16 @@ def test_fast_path_routes_write_commands_for_non_vc_store(
     tmp_path: Path, monkeypatch
 ) -> None:
     primary = tmp_path / "workspaces" / "sase"
-    (primary / ".sase" / "sdd" / "beads").mkdir(parents=True)
+    with BeadProject.init(primary / ".sase" / "sdd", beads_dirname="beads") as project:
+        issue = project.create(
+            "Non-VC update", IssueType.TASK, task_type="bug", size="small"
+        )
     _write_project_file(tmp_path, "sase", primary)
     monkeypatch.setenv("HOME", str(tmp_path))
     _set_sdd_policy(monkeypatch, "local")
     monkeypatch.chdir(primary)
 
-    context = _resolve_fast_path_context(["update", "sase-1", "--status", "closed"])
+    context = _resolve_fast_path_context(["update", issue.id, "--status", "closed"])
 
     assert context is not None
     assert context.write_beads_dir == primary / ".sase" / "sdd" / "beads"

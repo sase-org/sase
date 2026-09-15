@@ -107,6 +107,37 @@ def test_fast_path_routes_regex_search_through_rust_executor(
     assert calls == [["search", "x", "--regex"]]
 
 
+def test_fast_path_routing_failure_is_terminal_before_rust(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    caller = tmp_path / "outside"
+    caller.mkdir()
+    monkeypatch.chdir(caller)
+    monkeypatch.setattr(
+        "sase.bead.operation_context.enabled_project_store_snapshots",
+        lambda: (),
+    )
+
+    def fail_binding(_name: str) -> object:
+        raise AssertionError("routing failure must not reach Rust executor")
+
+    def fail_guard(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("routing failure must not reach write guard")
+
+    monkeypatch.setattr("sase.core.rust.require_rust_binding", fail_binding)
+    monkeypatch.setattr(
+        "sase.core.state_write_guard.assert_bead_store_write_sandboxed",
+        fail_guard,
+    )
+
+    assert try_handle_bead_fast_path(["update", "missing-1", "--status", "closed"]) == 1
+
+    assert "issue not found: missing-1" in capsys.readouterr().err
+    assert not (caller / "sdd" / "beads").exists()
+
+
 def test_fast_path_guards_mutations_but_not_reads(tmp_path: Path, monkeypatch) -> None:
     read_dir = tmp_path / "production" / "beads"
     context = bead_fast_path._FastPathContext(
@@ -217,10 +248,15 @@ def test_fast_path_refuses_unsafe_resolved_location_before_rust(
     tmp_path: Path, monkeypatch
 ) -> None:
     from sase.bead.cli_common import _BeadsLocation
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
 
     unsafe_root = tmp_path / "production"
     unsafe_beads_dir = unsafe_root / "sdd/beads"
-    unsafe_beads_dir.mkdir(parents=True)
+    with BeadProject.init(unsafe_root) as project:
+        issue = project.create(
+            "Unsafe remove", IssueType.TASK, task_type="bug", size="small"
+        )
     sandbox = tmp_path / "sandbox"
     sandbox.mkdir()
 
@@ -241,7 +277,7 @@ def test_fast_path_refuses_unsafe_resolved_location_before_rust(
     monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(sandbox))
 
     with pytest.raises(RuntimeError) as exc_info:
-        try_handle_bead_fast_path(["rm", "beads-1"])
+        try_handle_bead_fast_path(["rm", issue.id])
 
     message = str(exc_info.value)
     assert "fast-path rm" in message
@@ -252,12 +288,18 @@ def test_fast_path_refuses_unsafe_resolved_location_before_rust(
 def test_fast_path_refuses_mutation_from_plain_checkout_sidecar_record(
     tmp_path: Path,
     monkeypatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    from sase.bead.model import IssueType
+    from sase.bead.project import BeadProject
     from sase.sdd.store import write_sdd_store_record
 
     checkout = tmp_path / "checkout"
     beads_dir = checkout / "sase" / "repos" / "plans" / "beads"
-    beads_dir.mkdir(parents=True)
+    with BeadProject.init(beads_dir.parent, beads_dirname="beads") as project:
+        issue = project.create(
+            "Read-only remove", IssueType.TASK, task_type="bug", size="small"
+        )
     write_sdd_store_record(
         checkout,
         {
@@ -288,8 +330,8 @@ def test_fast_path_refuses_mutation_from_plain_checkout_sidecar_record(
 
     monkeypatch.setattr("sase.core.rust.require_rust_binding", fail_binding)
 
-    with pytest.raises(RuntimeError, match="available for reads only"):
-        try_handle_bead_fast_path(["rm", "beads-1"])
+    assert try_handle_bead_fast_path(["rm", issue.id]) == 1
+    assert "available for reads only" in capsys.readouterr().err
 
 
 def test_fast_path_defers_list_to_argparse(monkeypatch) -> None:

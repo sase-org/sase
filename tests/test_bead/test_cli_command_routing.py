@@ -71,6 +71,44 @@ def test_create_phase_with_foreign_parent_uses_parent_store(
     assert not (caller / "sdd" / "beads").exists()
 
 
+def test_create_plan_with_foreign_parent_stores_owner_plan_reference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "outside"
+    caller.mkdir()
+    plan = owner / "sdd" / "plans" / "202609" / "child.md"
+    plan.parent.mkdir(parents=True)
+    plan.write_text("# Child plan\n", encoding="utf-8")
+    epic = _seed_issue(owner, "Foreign epic", IssueType.PLAN, tier=BeadTier.EPIC)
+    _route_only_enabled_owner(monkeypatch, owner, epic.id)
+    monkeypatch.chdir(caller)
+
+    args = create_parser().parse_args(
+        [
+            "bead",
+            "create",
+            "-t",
+            "Foreign child plan",
+            "-T",
+            f"plan(../owner/sdd/plans/202609/child.md,{epic.id})",
+            "--tier",
+            "plan",
+        ]
+    )
+    bead_cli.handle_bead_create(args)
+
+    with BeadProject(owner) as project:
+        children = [
+            issue
+            for issue in project.list_issues()
+            if issue.parent_id == epic.id and issue.issue_type is IssueType.PLAN
+        ]
+    assert [issue.design for issue in children] == ["plan:202609/child.md"]
+    assert not (caller / "sdd" / "beads").exists()
+
+
 def test_dep_add_rejects_mixed_foreign_stores_before_mutation(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -163,6 +201,28 @@ def test_apply_status_foreign_full_id_updates_owner_store(
     assert payload == {"bead_id": issue.id, "status": "in_progress"}
     with BeadProject(owner) as project:
         assert project.show(issue.id).status is Status.IN_PROGRESS
+
+
+def test_apply_status_missing_full_id_does_not_retry_caller_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    caller = tmp_path / "outside"
+    caller.mkdir()
+    monkeypatch.chdir(caller)
+    monkeypatch.setattr(
+        "sase.bead.operation_context.enabled_project_store_snapshots",
+        lambda: (),
+    )
+
+    success, message, payload = _run_apply_status(
+        argparse.Namespace(bead_id="missing-1", status="closed")
+    )
+
+    assert success is False
+    assert message == "issue not found: missing-1"
+    assert payload == {"bead_id": "missing-1", "status": "closed"}
+    assert not (caller / "sdd" / "beads").exists()
 
 
 def _seed_issue(

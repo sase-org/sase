@@ -8,11 +8,15 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
+from sase.bead.cli_location import BeadsLocation
+from sase.bead.operation_context import BeadOperationContext
+from sase.bead.project import BEADS_DIRNAME_NON_VC
 from sase.main import bead_fast_path
 from sase.main.bead_fast_path import (
     _mutation_commit_message,
     try_handle_bead_fast_path,
 )
+from sase.sdd.store import SddStore
 
 
 def test_fast_path_rm_uses_rust_on_sidecar_layout(
@@ -122,6 +126,35 @@ def test_unchanged_fast_path_mutation_skips_auto_commit(
     auto_commit.assert_not_called()
 
 
+def test_routed_fast_path_commit_failure_reports_unpublished(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    context = _routed_separate_repo_context(tmp_path)
+    auto_commit = MagicMock(return_value=False)
+    monkeypatch.setattr(
+        "sase.bead.cli_common.auto_commit_bead_store",
+        auto_commit,
+    )
+
+    assert (
+        bead_fast_path._apply_mutation_side_effects(
+            context.write_beads_dir,
+            {
+                "operation": "update",
+                "changed": True,
+                "issue_ids": ["owner-1"],
+            },
+            bead_context=context,
+        )
+        is False
+    )
+
+    auto_commit.assert_called_once()
+    assert "could not be committed for publication" in capsys.readouterr().err
+
+
 def test_warm_sidecar_fast_mutation_commits_without_network_git(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
@@ -222,6 +255,27 @@ def test_warm_sidecar_fast_mutation_commits_without_network_git(
         text=True,
     ).stdout.strip()
     assert subject == f"chore(beads): update {issue.id}"
+
+
+def _routed_separate_repo_context(tmp_path: Path) -> BeadOperationContext:
+    sdd_dir = tmp_path / "owner-sdd"
+    store = SddStore(
+        storage="separate_repo",
+        sdd_dir=sdd_dir,
+        repo_root=sdd_dir,
+    )
+    return BeadOperationContext(
+        invocation_cwd=tmp_path / "caller",
+        location=BeadsLocation(
+            root=sdd_dir,
+            beads_dirname=BEADS_DIRNAME_NON_VC,
+            storage="separate_repo",
+            store=store,
+        ),
+        project_key="owner",
+        project_label="owner",
+        primary_workspace=tmp_path / "owner",
+    )
 
 
 def test_execute_bead_cli_materializes_when_the_fast_path_context_defers(

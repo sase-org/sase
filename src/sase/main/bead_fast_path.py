@@ -214,15 +214,9 @@ def _resolve_fast_path_context(
                 materialize=materialize,
             )
         except BeadOperationRoutingError:
-            bead_context = local_operation_context(
-                cwd=cwd,
-                materialize=materialize,
-                require_existing=not materialize,
-            )
-            if bead_context is None:
-                if terminal_errors:
-                    raise
-                return None
+            if terminal_errors:
+                raise
+            return None
     else:
         bead_context = local_operation_context(
             cwd=cwd,
@@ -499,8 +493,16 @@ def _apply_mutation_side_effects(
     if mutation_summary.get("changed") is False:
         return True
     committed_message: str | None = None
+    commit_description: str | None = None
+    publication_required = False
     try:
-        from sase.bead.cli_common import auto_commit_bead_store
+        from sase.bead.cli_common import (
+            auto_commit_bead_store,
+            emit_routed_bead_publication_failure,
+            routed_bead_context_requires_publication,
+        )
+
+        publication_required = routed_bead_context_requires_publication(bead_context)
 
         if operation == "close":
             message = close_mutation_commit_message(
@@ -517,12 +519,23 @@ def _apply_mutation_side_effects(
             )
         else:
             message = mutation_commit_message(operation, issue_ids)
+        commit_description = message
         commit_kwargs: dict[str, Any] = {}
         if bead_context is not None:
             commit_kwargs["bead_context"] = bead_context
         if message and auto_commit_bead_store(message, **commit_kwargs):
             committed_message = message
-    except Exception:
+        elif message and publication_required:
+            emit_routed_bead_publication_failure(message, bead_context=bead_context)
+            return False
+    except Exception as exc:
+        if publication_required:
+            emit_routed_bead_publication_failure(
+                commit_description,
+                bead_context=bead_context,
+                cause=exc,
+            )
+            return False
         return True
 
     if committed_message is None:

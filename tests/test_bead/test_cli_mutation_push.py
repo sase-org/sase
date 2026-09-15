@@ -9,9 +9,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.bead import cli as bead_cli
-from sase.bead.cli_common import _push_committed_bead_store, bead_store_mutation
+from sase.bead.cli_common import (
+    BeadPublicationError,
+    _push_committed_bead_store,
+    bead_store_mutation,
+)
 from sase.bead.cli_location import BeadsLocation
 from sase.bead.model import IssueType
+from sase.bead.operation_context import BeadOperationContext
 from sase.bead.project import BEADS_DIRNAME, BEADS_DIRNAME_NON_VC, BEADS_DIRNAME_ROOT
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
@@ -176,6 +181,24 @@ def test_bead_store_mutation_routes_explicit_cwd_to_commit_and_push(
     push.assert_called_once_with(cwd=project_dir)
 
 
+def test_bead_store_mutation_routed_sidecar_commit_failure_raises(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    context = _routed_separate_repo_context(tmp_path)
+
+    with pytest.raises(BeadPublicationError):
+        with bead_store_mutation(
+            lambda *_a, **_k: False, bead_context=context
+        ) as mutation:
+            issue = mutation.project.create(
+                "Foreign task", IssueType.TASK, task_type="bug", size="small"
+            )
+            mutation.commit(f"chore(beads): create {issue.id}")
+
+    assert "could not be committed for publication" in capsys.readouterr().err
+
+
 def test_handle_bead_close_no_push_commits_without_push(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -277,3 +300,26 @@ def test_close_parser_accepts_no_push_short_and_long_options() -> None:
     assert short_args.no_push is True
     assert long_args.no_push is True
     assert default_args.no_push is False
+
+
+def _routed_separate_repo_context(tmp_path: Path) -> BeadOperationContext:
+    sdd_dir = tmp_path / "owner-sdd"
+    with BeadProject.init(sdd_dir, beads_dirname=BEADS_DIRNAME_NON_VC):
+        pass
+    store = SddStore(
+        storage="separate_repo",
+        sdd_dir=sdd_dir,
+        repo_root=sdd_dir,
+    )
+    return BeadOperationContext(
+        invocation_cwd=tmp_path / "caller",
+        location=BeadsLocation(
+            root=sdd_dir,
+            beads_dirname=BEADS_DIRNAME_NON_VC,
+            storage="separate_repo",
+            store=store,
+        ),
+        project_key="owner",
+        project_label="owner",
+        primary_workspace=tmp_path / "owner",
+    )

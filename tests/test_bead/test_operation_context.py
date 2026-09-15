@@ -45,6 +45,29 @@ def test_resolve_context_routes_foreign_full_id_to_owner(
     assert context.resolved_ids == (issue_id,)
 
 
+def test_resolve_context_keeps_local_full_id_without_registry_lookup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = tmp_path / "owner"
+    issue_id = _seed_task(owner, "Local target")
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+
+    def fail_registry() -> tuple[BeadStoreSnapshot, ...]:
+        raise AssertionError("local full-ID hit must not read enabled projects")
+
+    monkeypatch.setattr(
+        "sase.bead.operation_context.enabled_project_store_snapshots",
+        fail_registry,
+    )
+
+    context = resolve_operation_context_for_targets([issue_id], cwd=owner)
+
+    assert context.write_beads_dir == owner / "sdd" / "beads"
+    assert context.project_key is None
+    assert context.resolved_ids == (issue_id,)
+
+
 def test_resolve_context_rejects_mixed_store_batch_before_write(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -68,6 +91,28 @@ def test_resolve_context_rejects_mixed_store_batch_before_write(
         resolve_operation_context_for_targets(
             [first_id, second_id],
             cwd=caller,
+            for_write=True,
+        )
+
+
+def test_resolve_context_rejects_local_and_foreign_store_batch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local = tmp_path / "local"
+    foreign = tmp_path / "foreign"
+    local_id = _seed_task(local, "Local target")
+    foreign_id = _seed_task(foreign, "Foreign target")
+    isolate_bead_store_resolution(monkeypatch, local, project_name="local")
+    monkeypatch.setattr(
+        "sase.bead.operation_context.enabled_project_store_snapshots",
+        lambda: (_snapshot("foreign", foreign, foreign_id),),
+    )
+
+    with pytest.raises(BeadOperationRoutingError, match="multiple stores"):
+        resolve_operation_context_for_targets(
+            [local_id, foreign_id],
+            cwd=local,
             for_write=True,
         )
 

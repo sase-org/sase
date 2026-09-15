@@ -55,8 +55,11 @@ def _run_apply_status(
             exit_on_error=False,
         )
     except RuntimeError as exc:
-        if not str(exc).startswith("issue not found: "):
-            raise
+        return (
+            False,
+            str(exc),
+            {"bead_id": bead_id, "status": args.status},
+        )
     else:
         bead_id = bead_context.resolved_ids[0]
 

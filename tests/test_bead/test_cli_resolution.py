@@ -15,6 +15,7 @@ from sase.bead.cli_common import (
     auto_commit_bead_store,
     get_project,
     get_read_view,
+    normalize_workspace_path,
     resolve_beads_location,
     resolved_beads_location_is_usable,
     storage_plan_path,
@@ -124,6 +125,50 @@ def test_find_beads_location_split_sidecar_uses_repository_root(
     assert root == beads
     assert beads_dirname == BEADS_DIRNAME_ROOT
     assert storage_plan_path(plan) == "plan:202607/root_store.md"
+
+
+def test_normalize_workspace_path_keeps_different_sibling_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "project"
+    other = tmp_path / "other"
+    primary.mkdir()
+    other_plan = other / "sdd" / "plans" / "202609" / "other.md"
+    other_plan.parent.mkdir(parents=True)
+    _write_checkout_marker(primary, primary, workspace_num=1, project_name="project")
+    _write_checkout_marker(other, other, workspace_num=1, project_name="other")
+    monkeypatch.setattr(
+        "sase.bead.workspace.resolve_primary_workspace",
+        lambda: primary,
+    )
+
+    assert normalize_workspace_path(other_plan) == other_plan
+
+
+def test_normalize_workspace_path_rewrites_same_owner_numbered_workspace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    primary = tmp_path / "project"
+    workspace_2 = tmp_path / "project_2"
+    sibling_plan = workspace_2 / "sdd" / "plans" / "202609" / "child.md"
+    sibling_plan.parent.mkdir(parents=True)
+    _write_checkout_marker(primary, primary, workspace_num=1, project_name="project")
+    _write_checkout_marker(
+        workspace_2,
+        primary,
+        workspace_num=2,
+        project_name="project",
+    )
+    monkeypatch.setattr(
+        "sase.bead.workspace.resolve_primary_workspace",
+        lambda: primary,
+    )
+
+    assert normalize_workspace_path(sibling_plan) == (
+        primary / "sdd" / "plans" / "202609" / "child.md"
+    )
 
 
 def test_find_beads_location_in_tree_prefers_current_checkout(

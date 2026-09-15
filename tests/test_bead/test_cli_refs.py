@@ -111,7 +111,7 @@ def test_ref_add_reports_a_missing_issue_without_crashing(
         bead_cli.handle_bead_ref(args)
 
     assert excinfo.value.code == 1
-    assert "Issue not found: sase-nope" in capsys.readouterr().err
+    assert "issue not found: sase-nope" in capsys.readouterr().err
 
 
 def test_ref_add_exits_when_the_rust_core_declines(

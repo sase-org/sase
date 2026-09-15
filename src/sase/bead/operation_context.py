@@ -124,18 +124,17 @@ def resolve_operation_context_for_targets(
         materialize=materialize,
     )
     local_descriptor = _descriptor_for_location(local_location, project_key=None)
-    snapshots = _candidate_snapshots_for_targets(targets, local_descriptor)
-    outcome = route_bead_targets(
-        list(targets),
-        local_store=local_descriptor,
-        candidate_stores=[snapshot.descriptor() for snapshot in snapshots],
+    routes, batch_error = _route_targets_local_first(
+        targets,
+        local_descriptor=local_descriptor,
         require_single_store=require_single_store,
     )
-    if outcome.batch_error is not None:
-        raise BeadOperationRoutingError(outcome.batch_error.message)
+    if batch_error is not None:
+        raise BeadOperationRoutingError(batch_error.message)
 
     routed_targets: list[_RoutedBeadTarget] = []
-    for route in outcome.routes:
+    selected_store_key: str | None = None
+    for route in routes:
         if route.error is not None:
             if route.error.kind == "not_found":
                 raise BeadOperationRoutingError(
@@ -151,6 +150,14 @@ def resolve_operation_context_for_targets(
                 route=route,
             )
         )
+        if require_single_store:
+            route_store_key = route.store.store_key
+            if selected_store_key is None:
+                selected_store_key = route_store_key
+            elif route_store_key != selected_store_key:
+                raise BeadOperationRoutingError(
+                    "multiple stores match the requested bead targets"
+                )
 
     if not routed_targets:
         context = local_operation_context(
@@ -267,16 +274,60 @@ def _descriptor_for_location(
 
 
 def _candidate_snapshots_for_targets(
-    targets: Sequence[str],
     local_descriptor: BeadTargetStoreDescriptor | None,
 ) -> tuple[BeadStoreSnapshot, ...]:
-    if not any(_looks_like_full_bead_id(target) for target in targets):
-        return ()
     snapshots = enabled_project_store_snapshots()
     if local_descriptor is None:
         return snapshots
     local_key = local_descriptor.store_key
     return tuple(snapshot for snapshot in snapshots if snapshot.store_key != local_key)
+
+
+def _route_targets_local_first(
+    targets: Sequence[str],
+    *,
+    local_descriptor: BeadTargetStoreDescriptor | None,
+    require_single_store: bool,
+) -> tuple[tuple[BeadTargetRoute, ...], Any | None]:
+    local_outcome = route_bead_targets(
+        list(targets),
+        local_store=local_descriptor,
+        candidate_stores=(),
+        require_single_store=require_single_store,
+    )
+    if local_outcome.batch_error is not None:
+        return local_outcome.routes, local_outcome.batch_error
+
+    fallback_indexes = tuple(
+        index
+        for index, route in enumerate(local_outcome.routes)
+        if _looks_like_full_bead_id(route.requested_id)
+        and route.error is not None
+        and route.error.kind == "not_found"
+    )
+    if not fallback_indexes:
+        return local_outcome.routes, None
+
+    snapshots = _candidate_snapshots_for_targets(local_descriptor)
+    if not snapshots:
+        return local_outcome.routes, None
+
+    fallback_targets = [
+        local_outcome.routes[index].requested_id for index in fallback_indexes
+    ]
+    fallback_outcome = route_bead_targets(
+        fallback_targets,
+        local_store=local_descriptor,
+        candidate_stores=[snapshot.descriptor() for snapshot in snapshots],
+        require_single_store=require_single_store,
+    )
+    if fallback_outcome.batch_error is not None:
+        return fallback_outcome.routes, fallback_outcome.batch_error
+
+    combined_routes = list(local_outcome.routes)
+    for index, route in zip(fallback_indexes, fallback_outcome.routes, strict=True):
+        combined_routes[index] = route
+    return tuple(combined_routes), None
 
 
 def _location_for_store_route(

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
+import json
 import logging
 import sys
 from pathlib import Path
@@ -303,7 +304,23 @@ def bead_store_mutation(
                     commit_kwargs["operation_context"] = operation_context
                 if routed_bead_context is not None:
                     commit_kwargs["bead_context"] = routed_bead_context
-                committed = auto_commit(mutation.commit_message, **commit_kwargs)
+                try:
+                    committed = auto_commit(mutation.commit_message, **commit_kwargs)
+                except Exception as exc:
+                    if routed_bead_context_requires_publication(routed_bead_context):
+                        raise emit_routed_bead_publication_failure(
+                            mutation.commit_message,
+                            bead_context=routed_bead_context,
+                            cause=exc,
+                        ) from exc
+                    raise
+                if not committed and routed_bead_context_requires_publication(
+                    routed_bead_context
+                ):
+                    raise emit_routed_bead_publication_failure(
+                        mutation.commit_message,
+                        bead_context=routed_bead_context,
+                    )
     if committed and not no_push:
         push_kwargs: dict[str, Any] = {}
         if cwd is not None:
@@ -327,6 +344,44 @@ def _routed_bead_context(
     if bead_context is None or bead_context.project_key is None:
         return None
     return bead_context
+
+
+def routed_bead_context_requires_publication(
+    bead_context: BeadOperationContext | None,
+) -> bool:
+    """Return whether a routed mutation must prove commit/publication success."""
+    if bead_context is None or bead_context.project_key is None:
+        return False
+    location = bead_context.location
+    return not location.is_in_tree and not location.read_only
+
+
+def emit_routed_bead_publication_failure(
+    description: str | None,
+    *,
+    bead_context: BeadOperationContext | None = None,
+    cause: BaseException | None = None,
+) -> BeadPublicationError:
+    """Print and return the publication error for a failed routed commit."""
+    beads_dir = None if bead_context is None else bead_context.beads_dir
+    project = None if bead_context is None else bead_context.project_label
+    operation = description or "bead mutation"
+    location = "the routed bead store" if beads_dir is None else str(beads_dir)
+    owner = "" if project is None else f" for project {project!r}"
+    lines = [
+        (
+            f"routed bead mutation {operation!r}{owner} changed {location}, "
+            "but the change could not be committed for publication"
+        ),
+        "Resolve the SDD bead-store commit/publish problem and rerun the command.",
+    ]
+    if cause is None:
+        lines.append("The auto-commit hook reported that no commit was created.")
+    else:
+        lines.append(f"Commit failure: {cause}")
+    diagnostic = "\n".join(lines)
+    print(diagnostic, file=sys.stderr)
+    return BeadPublicationError(lines[0], diagnostic=diagnostic)
 
 
 def _require_published_bead_mutation(
@@ -466,18 +521,27 @@ def normalize_workspace_path(resolved: Path) -> Path:
         return resolved  # not in a sibling workspace
 
     parts = rel_to_parent.parts
-    if len(parts) > 1:
+    if len(parts) > 1 and _same_owner_workspace(primary.parent / parts[0], primary):
         return primary / Path(*parts[1:])
     return resolved
 
 
-def storage_plan_path(resolved: Path) -> str:
+def storage_plan_path(
+    resolved: Path,
+    *,
+    bead_context: BeadOperationContext | None = None,
+) -> str:
     """Return the plan path representation to persist on a bead.
 
     Plans below a known SDD or local-archive plans root use canonical
     ``plan:`` references. External paths keep the legacy relative/absolute
     fallback after workspace-prefix normalization.
     """
+    if bead_context is not None:
+        contextual = _storage_plan_path_for_context(resolved, bead_context)
+        if contextual is not None:
+            return contextual
+
     canonical = _canonical_storage_plan_path(resolved)
     if canonical is not None:
         return canonical
@@ -491,6 +555,61 @@ def storage_plan_path(resolved: Path) -> str:
             continue
 
     return str(normalized)
+
+
+def _same_owner_workspace(candidate: Path, primary: Path) -> bool:
+    if candidate == primary:
+        return True
+    marker = candidate / ".sase" / "checkout.json"
+    try:
+        payload = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        payload = {}
+    if isinstance(payload, dict):
+        marker_primary = payload.get("primary_workspace_dir")
+        if marker_primary is not None:
+            try:
+                return Path(str(marker_primary)).expanduser().resolve() == primary
+            except OSError:
+                return False
+
+    prefix = f"{primary.name}_"
+    if candidate.parent == primary.parent and candidate.name.startswith(prefix):
+        return candidate.name.removeprefix(prefix).isdigit()
+    return False
+
+
+def _storage_plan_path_for_context(
+    resolved: Path,
+    bead_context: BeadOperationContext,
+) -> str | None:
+    try:
+        from sase.sdd.plan_refs import plan_ref_for_store
+
+        store = bead_context.location.store
+        if store is None:
+            store = _store_for_location(bead_context.location)
+        workspace_dir = bead_context.primary_workspace or bead_context.location.root
+        return plan_ref_for_store(resolved, store, workspace_dir=workspace_dir)
+    except (AttributeError, ImportError, RuntimeError, ValueError):
+        return None
+
+
+def _store_for_location(location: BeadsLocation) -> Any:
+    from sase.sdd.store import SddStore
+
+    if location.beads_dirname == BEADS_DIRNAME:
+        return SddStore(
+            storage="in_tree",
+            sdd_dir=location.root / "sdd",
+            repo_root=location.root,
+        )
+    storage: Any = location.storage or "local"
+    return SddStore(
+        storage=storage,
+        sdd_dir=location.root,
+        repo_root=location.root,
+    )
 
 
 def _canonical_storage_plan_path(resolved: Path) -> str | None:
