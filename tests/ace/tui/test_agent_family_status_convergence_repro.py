@@ -15,6 +15,9 @@ from sase.ace.tui.actions.agents._loading_apply import AgentLoadingApplyMixin
 from sase.ace.tui.actions.agents._loading_compute import (
     prepare_loaded_agents_worker_boundary,
 )
+from sase.ace.tui.actions.agents._notification_utils import (
+    request_notification_agents_refresh,
+)
 from sase.ace.tui.actions.event_refresh._auto_refresh import EventAutoRefreshMixin
 from sase.ace.tui.actions.event_refresh._surface_tokens import probe_surface_tokens
 from sase.ace.tui.data_providers import AgentsViewport
@@ -27,6 +30,7 @@ from sase.core.agent_scan_facade import (
 )
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+from sase.notifications import Notification
 
 from ._event_handlers_dirty_flags_helpers import _FakeApp
 
@@ -385,6 +389,68 @@ def test_enqueue_agent_artifact_delta_paths_keeps_exact_dirs_under_fallback(
 
     assert app._dirty_agent_artifact_fallback_reason == "unknown_watcher_path"
     assert app._dirty_agent_artifact_dirs == (marker.parent,)
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec(RUST_EXTENSION_MODULE_NAME) is None,
+    reason="sase_core_rs is required for the artifact-index incident replay",
+)
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "sase-117.3 notification targeting reaches the exact family chain; "
+        "sase-117.2 still owns the merge/apply pin that keeps the root stale"
+    ),
+)
+def test_settlement_notification_exact_delta_converges_before_index_upsert(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A settlement notification refreshes the monitor family chain exactly."""
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    tree = _build_incident_tree(sase_home)
+    rebuild_agent_artifact_index(
+        default_agent_artifact_index_path(),
+        tree.projects_root,
+        AgentArtifactScanOptionsWire(),
+    )
+
+    app = _PreparedApplyHarness()
+    scheduled: list[tuple[Path, ...]] = []
+    app._schedule_agent_artifact_delta_refresh = (  # type: ignore[attr-defined]
+        lambda dirs, *, source: scheduled.append(tuple(dirs))
+    )
+
+    with patch("sase.ace.agent_tribes.load_agent_tribes", return_value={}):
+        initial = _load_bounded_agents("startup")
+        _apply_result(app, initial, source="startup")
+        assert _statuses_for_suffix(app, _ROOT_TS) == ("EPIC APPROVED",)
+        assert _statuses_for_suffix(app, _MONITOR_TS) == ("EPIC APPROVED",)
+
+        _settle_monitor(tree)
+        request_notification_agents_refresh(
+            app,
+            notifications=[
+                Notification(
+                    id="settled-monitor",
+                    timestamp="2026-09-15T13:05:37+00:00",
+                    sender="monitor-settlement",
+                    action=None,
+                    action_data={
+                        "cl_name": "0l4--mon",
+                        "raw_suffix": _MONITOR_TS,
+                        "family_root_suffix": _ROOT_TS,
+                    },
+                )
+            ],
+        )
+
+        assert scheduled == [(tree.monitor_dir, tree.gate_dir, tree.root_dir)]
+        notification_delta = _load_exact_delta("notification", list(scheduled[0]))
+        _apply_result(app, notification_delta, source="notification")
+        assert _statuses_for_suffix(app, _ROOT_TS) == ("EPIC CREATED",)
+        assert _statuses_for_suffix(app, _MONITOR_TS) == ("EPIC CREATED",)
 
 
 @pytest.mark.skipif(

@@ -535,6 +535,97 @@ class TestNotificationAgentTargeting:
         assert scheduled == [((artifacts_dir,), "notification")]
         assert broad == []
 
+    def test_settlement_notification_schedules_family_chain_exact_delta(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        app = _FakeApp()
+        root_dir = tmp_path / "root"
+        gate_dir = tmp_path / "gate"
+        monitor_dir = tmp_path / "monitor"
+        for path in (root_dir, gate_dir, monitor_dir):
+            path.mkdir()
+        root = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="0l4",
+            project_file="/tmp/test.sase",
+            status="EPIC APPROVED",
+            start_time=datetime(2026, 9, 15, 13, 0, 0),
+            raw_suffix="20260915130000",
+            artifacts_dir=str(root_dir),
+        )
+        gate = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="0l4--gate",
+            project_file="/tmp/test.sase",
+            status="EPIC APPROVED",
+            start_time=datetime(2026, 9, 15, 13, 3, 0),
+            raw_suffix="20260915130300",
+            parent_timestamp=root.raw_suffix,
+            artifacts_dir=str(gate_dir),
+        )
+        monitor = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="0l4--mon",
+            project_file="/tmp/test.sase",
+            status="EPIC CREATED",
+            start_time=datetime(2026, 9, 15, 13, 5, 30),
+            raw_suffix="20260915130530",
+            parent_timestamp=gate.raw_suffix,
+            artifacts_dir=str(monitor_dir),
+        )
+        app._agents_with_children = [root, gate, monitor]  # type: ignore[attr-defined]
+        notification = _make(
+            sender="epic-launch",
+            action=None,
+            action_data={
+                "cl_name": monitor.cl_name,
+                "raw_suffix": monitor.raw_suffix or "",
+                "family_root_suffix": root.raw_suffix or "",
+            },
+        )
+        scheduled, broad = self._install_capture(app)
+
+        request_notification_agents_refresh(app, notifications=[notification])
+
+        assert scheduled == [((monitor_dir, gate_dir, root_dir), "notification")]
+        assert broad == []
+
+    def test_scheduled_poll_settlement_exact_delta_runs_off_agents_tab(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        app = _FakeApp()
+        app.current_tab = "axe"  # type: ignore[attr-defined]
+        artifacts_dir = tmp_path / "monitor"
+        artifacts_dir.mkdir()
+        monitor = Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="0l4--mon",
+            project_file="/tmp/test.sase",
+            status="EPIC CREATED",
+            start_time=datetime(2026, 9, 15, 13, 5, 30),
+            raw_suffix="20260915130530",
+            artifacts_dir=str(artifacts_dir),
+        )
+        app._agents_with_children = [monitor]  # type: ignore[attr-defined]
+        notification = _make(
+            sender="monitor-settlement",
+            action=None,
+            action_data={
+                "cl_name": monitor.cl_name,
+                "raw_suffix": monitor.raw_suffix or "",
+                "family_root_suffix": monitor.raw_suffix or "",
+            },
+        )
+        scheduled, broad = self._install_capture(app)
+
+        with _patch_snapshot([notification]):
+            asyncio.run(app._run_scheduled_notification_poll(source="watcher"))
+
+        assert scheduled == [((artifacts_dir,), "notification")]
+        assert broad == []
+
     def test_scheduled_poll_broad_fallback_is_tab_gated(self) -> None:
         app = _FakeApp()
         app.current_tab = "axe"  # type: ignore[attr-defined]

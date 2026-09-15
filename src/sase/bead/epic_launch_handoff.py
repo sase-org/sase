@@ -205,6 +205,28 @@ def send_completion_payload(payload: CompletionNotificationPayload) -> None:
     notify_workflow_complete(**payload.to_dict())
 
 
+def settlement_notification_action_data(
+    artifacts_dir: str | Path | None,
+    *,
+    cl_name: str | None,
+    action_data: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Return agent identity fields for settlement-triggered notifications."""
+    data = dict(action_data or {})
+    if cl_name:
+        data.setdefault("cl_name", cl_name)
+    raw_suffix = data.get("raw_suffix") or _artifact_timestamp(artifacts_dir)
+    if raw_suffix:
+        data.setdefault("raw_suffix", raw_suffix)
+    root_suffix = (
+        data.get("family_root_suffix") or data.get("agent_root_timestamp") or raw_suffix
+    )
+    if root_suffix:
+        data.setdefault("family_root_suffix", root_suffix)
+        data.setdefault("agent_root_timestamp", root_suffix)
+    return data
+
+
 def fold_epic_launch_outcome(
     deferred: _DeferredCompletion,
     *,
@@ -239,6 +261,11 @@ def fold_epic_launch_outcome(
         success=success,
         notes=notes,
         action="JumpToAgent",
+        action_data=settlement_notification_action_data(
+            deferred.artifacts_dir,
+            cl_name=payload.cl_name,
+            action_data=payload.action_data,
+        ),
         tags=tags,
     )
 
@@ -438,8 +465,26 @@ def _unknown_outcome_payload(
             f"Resume with: {shlex.join(argv)}",
         ],
         action="JumpToAgent",
+        action_data=settlement_notification_action_data(
+            deferred.artifacts_dir,
+            cl_name=deferred.payload.cl_name,
+            action_data=deferred.payload.action_data,
+        ),
         tags=tags,
     )
+
+
+def _artifact_timestamp(artifacts_dir: str | Path | None) -> str | None:
+    if artifacts_dir is None:
+        return None
+    try:
+        info = parse_agent_artifact_path(artifacts_dir)
+    except Exception:
+        info = None
+    if info is not None and info.timestamp:
+        return info.timestamp
+    name = Path(artifacts_dir).expanduser().name
+    return name or None
 
 
 def _utc_now() -> str:
@@ -462,4 +507,5 @@ __all__ = [
     "flush_orphaned_deferrals",
     "fold_epic_launch_outcome",
     "send_completion_payload",
+    "settlement_notification_action_data",
 ]

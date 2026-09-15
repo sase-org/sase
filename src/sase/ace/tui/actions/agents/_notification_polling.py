@@ -10,7 +10,7 @@ from ._notification_plan_reconciliation import (
     prepare_plan_notification_reconciliation,
 )
 from ._notification_utils import (
-    is_active_agent_completion_notification,
+    is_active_agent_refresh_notification,
     apply_disappeared_plan_notification_refresh,
     prepare_disappeared_plan_notification_refresh,
     unread_notification_buckets,
@@ -200,7 +200,7 @@ class AgentNotificationPollingMixin:
         self._once_new_completion_notifications = [  # type: ignore[attr-defined]
             notification
             for notification in new_non_resurface_notifications
-            if is_active_agent_completion_notification(notification)
+            if is_active_agent_refresh_notification(notification)
         ]
         return bool(new_non_resurface_notifications)
 

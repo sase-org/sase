@@ -14,6 +14,13 @@ if TYPE_CHECKING:
 
 
 TabName = Literal["artifacts", "agents", "axe"]
+_SETTLEMENT_NOTIFICATION_SENDERS = frozenset({"epic-launch", "monitor-settlement"})
+_FAMILY_ROOT_SUFFIX_KEYS = (
+    "family_root_suffix",
+    "family_root_raw_suffix",
+    "agent_root_timestamp",
+    "root_raw_suffix",
+)
 
 
 def loaded_real_agent_roster(owner: Any) -> tuple[Agent, ...]:
@@ -121,29 +128,69 @@ def _completion_notification_delta_dirs(
         snapshot = getattr(app, "_notification_snapshot_cache", None)
         cached = getattr(snapshot, "notifications", None)
         notifications = cached if isinstance(cached, list) else []
-    completion_keys = active_completion_agent_keys(list(notifications))
-    if not completion_keys:
+    notification_list = list(notifications)
+    completion_keys = active_completion_agent_keys(notification_list)
+    settlement_notifications = [
+        notification
+        for notification in notification_list
+        if _is_active_agent_settlement_notification(notification)
+    ]
+    if not completion_keys and not settlement_notifications:
         return []
 
     artifact_dirs: list[Path] = []
     seen: set[str] = set()
     resolved_keys: set[tuple[str, str | None]] = set()
-    for agent in loaded_real_agent_roster(app):
+    resolved_suffixes: set[str] = set()
+    roster = loaded_real_agent_roster(app)
+    agents_by_suffix: dict[str, Agent] = {}
+    for agent in roster:
+        suffix = _normalized_suffix(agent.raw_suffix)
+        if suffix and suffix not in agents_by_suffix:
+            agents_by_suffix[suffix] = agent
+
+    def add_artifact_dir(path: Path | None) -> bool:
+        if path is None:
+            return False
+        key = str(path)
+        if key in seen:
+            return False
+        seen.add(key)
+        artifact_dirs.append(path)
+        return True
+
+    def add_agent_artifact_dir(agent: Agent) -> bool:
+        return add_artifact_dir(_agent_artifact_dir(agent))
+
+    for agent in roster:
         agent_key = (agent.cl_name, agent.raw_suffix)
         cl_only = (agent.cl_name, None)
         matched = {key for key in (agent_key, cl_only) if key in completion_keys}
         if not matched:
             continue
-        artifact_dir = _agent_artifact_dir(agent)
-        if artifact_dir is None:
-            continue
-        key = str(artifact_dir)
-        if key in seen:
-            resolved_keys.update(matched)
-            continue
-        seen.add(key)
-        artifact_dirs.append(artifact_dir)
+        if add_agent_artifact_dir(agent):
+            suffix = _normalized_suffix(agent.raw_suffix)
+            if suffix:
+                resolved_suffixes.add(suffix)
         resolved_keys.update(matched)
+
+    settlement_suffixes: set[str] = set()
+    for notification in settlement_notifications:
+        raw_suffix = _notification_raw_suffix(notification)
+        if raw_suffix is None:
+            continue
+        root_suffix = _notification_family_root_suffix(notification)
+        settlement_suffixes.add(raw_suffix)
+        if root_suffix is not None:
+            settlement_suffixes.add(root_suffix)
+        resolved_suffixes.update(
+            _add_loaded_family_chain_artifact_dirs(
+                agents_by_suffix,
+                raw_suffix=raw_suffix,
+                root_suffix=root_suffix,
+                add_agent_artifact_dir=add_agent_artifact_dir,
+            )
+        )
 
     unresolved_suffixes = {
         raw_suffix
@@ -152,6 +199,7 @@ def _completion_notification_delta_dirs(
         and (cl_name, raw_suffix) not in resolved_keys
         and (cl_name, None) not in resolved_keys
     }
+    unresolved_suffixes.update(settlement_suffixes - resolved_suffixes)
     if unresolved_suffixes:
         from ...models.agent_loader import (
             artifact_dirs_for_normalized_timestamps,
@@ -161,12 +209,58 @@ def _completion_notification_delta_dirs(
         for extra in artifact_dirs_for_normalized_timestamps(
             normalize_timestamps(unresolved_suffixes)
         ):
-            dir_key = str(extra)
-            if dir_key in seen:
-                continue
-            seen.add(dir_key)
-            artifact_dirs.append(extra)
+            add_artifact_dir(extra)
     return artifact_dirs
+
+
+def _add_loaded_family_chain_artifact_dirs(
+    agents_by_suffix: dict[str, Agent],
+    *,
+    raw_suffix: str,
+    root_suffix: str | None,
+    add_agent_artifact_dir: Callable[[Agent], bool],
+) -> set[str]:
+    """Add the loaded settled shell and ancestor family dirs, returning suffixes."""
+    resolved: set[str] = set()
+    current_suffix: str | None = raw_suffix
+    visited: set[str] = set()
+    while current_suffix and current_suffix not in visited:
+        visited.add(current_suffix)
+        agent = agents_by_suffix.get(current_suffix)
+        if agent is None:
+            break
+        add_agent_artifact_dir(agent)
+        resolved.add(current_suffix)
+        if root_suffix is not None and current_suffix == root_suffix:
+            break
+        current_suffix = _normalized_suffix(getattr(agent, "parent_timestamp", None))
+
+    if root_suffix is not None and root_suffix not in resolved:
+        root_agent = agents_by_suffix.get(root_suffix)
+        if root_agent is not None:
+            add_agent_artifact_dir(root_agent)
+            resolved.add(root_suffix)
+    return resolved
+
+
+def _notification_raw_suffix(notification: Notification) -> str | None:
+    return _normalized_suffix(notification.action_data.get("raw_suffix"))
+
+
+def _notification_family_root_suffix(notification: Notification) -> str | None:
+    for key in _FAMILY_ROOT_SUFFIX_KEYS:
+        suffix = _normalized_suffix(notification.action_data.get(key))
+        if suffix:
+            return suffix
+    return None
+
+
+def _normalized_suffix(value: object) -> str | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    from ...models._timestamps import normalize_to_14_digit
+
+    return normalize_to_14_digit(value.strip())
 
 
 def request_notification_agents_refresh(
@@ -433,7 +527,7 @@ def active_completion_agent_keys(
     """
     keys: set[tuple[str, str | None]] = set()
     for n in notifications:
-        if not is_active_agent_completion_notification(n):
+        if not _is_active_agent_completion_notification(n):
             continue
         cl_name = n.action_data.get("cl_name")
         if not cl_name:
@@ -443,13 +537,30 @@ def active_completion_agent_keys(
     return keys
 
 
-def is_active_agent_completion_notification(notification: Notification) -> bool:
+def _is_active_agent_completion_notification(notification: Notification) -> bool:
     """Return True for active agent completion notifications."""
     if notification.sender != "user-agent":
         return False
     if notification.action not in ("JumpToAgent", "ViewErrorReport"):
         return False
     return not notification.dismissed
+
+
+def _is_active_agent_settlement_notification(notification: Notification) -> bool:
+    """Return True for active settlement notifications with row identity."""
+    if notification.dismissed:
+        return False
+    if notification.sender not in _SETTLEMENT_NOTIFICATION_SENDERS:
+        return False
+    data = notification.action_data
+    return bool(data.get("cl_name") and _notification_raw_suffix(notification))
+
+
+def is_active_agent_refresh_notification(notification: Notification) -> bool:
+    """Return True when a new notification can drive an exact Agents refresh."""
+    return _is_active_agent_completion_notification(
+        notification
+    ) or _is_active_agent_settlement_notification(notification)
 
 
 def agent_completion_notification_matches_agent(
@@ -459,7 +570,7 @@ def agent_completion_notification_matches_agent(
     raw_suffix: str | None,
 ) -> bool:
     """Return True when *notification* targets the supplied agent key."""
-    if not is_active_agent_completion_notification(notification):
+    if not _is_active_agent_completion_notification(notification):
         return False
     notification_cl_name = notification.action_data.get("cl_name")
     if not notification_cl_name or notification_cl_name != cl_name:

@@ -206,6 +206,8 @@ def test_finish_claims_pending_and_sends_one_folded_completion(tmp_path: Path) -
     assert kwargs["cl_name"] == "demo-cl"
     assert kwargs["action"] == "JumpToAgent"
     assert kwargs["action_data"]["raw_suffix"] == artifacts.name
+    assert kwargs["action_data"]["family_root_suffix"] == artifacts.name
+    assert kwargs["action_data"]["agent_root_timestamp"] == artifacts.name
     assert kwargs["notes"][0] == _payload().notes[0]
     assert "Epic sase-64 launched from epic.md" in kwargs["notes"]
     assert f"Plan: {archived}" in kwargs["notes"]
@@ -238,6 +240,12 @@ def test_finish_marks_early_settle_then_runner_sends_without_refolding(
 
     assert notify.call_count == 2
     assert notify.call_args_list[0].args[:3] == ("epic-launch", "demo-cl", True)
+    assert notify.call_args_list[0].kwargs["action_data"] == {
+        "cl_name": "demo-cl",
+        "raw_suffix": artifacts.name,
+        "family_root_suffix": artifacts.name,
+        "agent_root_timestamp": artifacts.name,
+    }
     completion = notify.call_args_list[1].kwargs
     assert completion["sender"] == "user-agent"
     assert all("Epic sase-64" not in note for note in completion["notes"])

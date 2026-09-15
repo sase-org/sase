@@ -481,6 +481,7 @@ def finish_epic_launch(
             claim_epic_completion,
             fold_epic_launch_outcome,
             send_completion_payload,
+            settlement_notification_action_data,
         )
         from sase.notifications.senders import notify_workflow_complete
 
@@ -537,6 +538,10 @@ def finish_epic_launch(
             cl_name,
             success,
             notes,
+            action_data=settlement_notification_action_data(
+                artifacts_dir,
+                cl_name=cl_name,
+            ),
             tags=["epic", "launch"],
         )
     except Exception:
