@@ -23,6 +23,11 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import probe_surface_tok
 from sase.ace.tui.data_providers import AgentsViewport
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.bead.epic_launch_handoff import (
+    CompletionNotificationPayload,
+    defer_epic_completion_until_monitor_settlement,
+    publish_deferred_monitor_completion,
+)
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     rebuild_agent_artifact_index,
@@ -30,7 +35,7 @@ from sase.core.agent_scan_facade import (
 )
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
-from sase.notifications import Notification
+from sase.notifications import Notification, load_notifications
 
 from ._event_handlers_dirty_flags_helpers import _FakeApp
 
@@ -142,6 +147,7 @@ def _build_incident_tree(sase_home: Path) -> _IncidentTree:
         root_dir / "agent_meta.json",
         {
             "name": "0l4",
+            "cl_name": "0l4",
             "agent_family": "0l4",
             "agent_family_role": "root",
             "plan_chain_root": True,
@@ -167,6 +173,7 @@ def _build_incident_tree(sase_home: Path) -> _IncidentTree:
         gate_dir / "agent_meta.json",
         {
             "name": "0l4--gate",
+            "cl_name": "0l4--gate",
             "agent_family": "0l4",
             "agent_family_role": "gate",
             "role_suffix": "--gate",
@@ -193,6 +200,7 @@ def _build_incident_tree(sase_home: Path) -> _IncidentTree:
         monitor_dir / "agent_meta.json",
         {
             "name": "0l4--mon",
+            "cl_name": "0l4--mon",
             "agent_family": "0l4",
             "agent_family_role": "monitor",
             "role_suffix": "--mon",
@@ -237,6 +245,7 @@ def _settle_monitor(tree: _IncidentTree) -> None:
         tree.monitor_dir / "agent_meta.json",
         {
             "name": "0l4--mon",
+            "cl_name": "0l4--mon",
             "agent_family": "0l4",
             "agent_family_role": "monitor",
             "role_suffix": "--mon",
@@ -271,6 +280,46 @@ def _settle_monitor(tree: _IncidentTree) -> None:
         "settled\n",
         encoding="utf-8",
     )
+
+
+def _defer_production_completion(tree: _IncidentTree) -> None:
+    payload = CompletionNotificationPayload(
+        sender="user-agent",
+        cl_name="0l4",
+        success=True,
+        notes=["planner completed"],
+        action="JumpToAgent",
+        action_data={
+            "cl_name": "0l4",
+            "raw_suffix": _ROOT_TS,
+        },
+        extra_files=[],
+        silent=False,
+        tags=["done"],
+    )
+    assert defer_epic_completion_until_monitor_settlement(
+        tree.root_dir,
+        tree.monitor_dir,
+        payload,
+    )
+
+
+def _publish_production_completion(tree: _IncidentTree) -> Notification:
+    assert publish_deferred_monitor_completion(
+        tree.monitor_dir,
+        outcome={"status": "success"},
+    )
+    notifications = load_notifications()
+    assert len(notifications) == 1
+    notification = notifications[0]
+    assert notification.sender == "user-agent"
+    assert notification.action == "JumpToAgent"
+    assert notification.tags == ["done"]
+    assert notification.action_data["cl_name"] == "0l4--mon"
+    assert notification.action_data["raw_suffix"] == _MONITOR_TS
+    assert notification.action_data["family_root_suffix"] == _ROOT_TS
+    assert notification.action_data["agent_root_timestamp"] == _ROOT_TS
+    return notification
 
 
 def _load_bounded_agents(source: str) -> Any:
@@ -394,7 +443,7 @@ def test_settlement_notification_exact_delta_converges_before_index_upsert(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A settlement notification refreshes the monitor family chain exactly."""
+    """The production completion notification refreshes the family chain exactly."""
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     tree = _build_incident_tree(sase_home)
@@ -416,23 +465,16 @@ def test_settlement_notification_exact_delta_converges_before_index_upsert(
         assert _statuses_for_suffix(app, _ROOT_TS) == ("EPIC APPROVED",)
         assert _statuses_for_suffix(app, _MONITOR_TS) == ("EPIC APPROVED",)
 
+        _defer_production_completion(tree)
+        assert load_notifications() == []
         _settle_monitor(tree)
-        request_notification_agents_refresh(
-            app,
-            notifications=[
-                Notification(
-                    id="settled-monitor",
-                    timestamp="2026-09-15T13:05:37+00:00",
-                    sender="monitor-settlement",
-                    action=None,
-                    action_data={
-                        "cl_name": "0l4--mon",
-                        "raw_suffix": _MONITOR_TS,
-                        "family_root_suffix": _ROOT_TS,
-                    },
-                )
-            ],
+        assert (tree.monitor_dir / "done.json").exists()
+        monitor_meta = json.loads(
+            (tree.monitor_dir / "agent_meta.json").read_text(encoding="utf-8")
         )
+        assert monitor_meta["monitor_settled"] is True
+        notification = _publish_production_completion(tree)
+        request_notification_agents_refresh(app, notifications=[notification])
 
         assert scheduled == [(tree.monitor_dir, tree.gate_dir, tree.root_dir)]
         notification_delta = _load_exact_delta("notification", list(scheduled[0]))

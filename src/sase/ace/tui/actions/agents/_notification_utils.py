@@ -550,10 +550,16 @@ def _is_active_agent_settlement_notification(notification: Notification) -> bool
     """Return True for active settlement notifications with row identity."""
     if notification.dismissed:
         return False
-    if notification.sender not in _SETTLEMENT_NOTIFICATION_SENDERS:
-        return False
     data = notification.action_data
-    return bool(data.get("cl_name") and _notification_raw_suffix(notification))
+    raw_suffix = _notification_raw_suffix(notification)
+    if not data.get("cl_name") or raw_suffix is None:
+        return False
+    if notification.sender in _SETTLEMENT_NOTIFICATION_SENDERS:
+        return True
+    if not _is_active_agent_completion_notification(notification):
+        return False
+    root_suffix = _notification_family_root_suffix(notification)
+    return root_suffix is not None and root_suffix != raw_suffix
 
 
 def is_active_agent_refresh_notification(notification: Notification) -> bool:
