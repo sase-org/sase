@@ -36,6 +36,37 @@ def plan_argument_colon_to_parentheses_edit(
     return TextEdit(start=start, end=end, text="", cursor=start)
 
 
+def plan_argument_double_colon_to_parentheses_edit(
+    text: str,
+    cursor_location: tuple[int, int],
+) -> TextEdit | None:
+    """Return the shared double-colon delimiter relocation edit."""
+    position = _editor_position(text, cursor_location)
+    if position is None:
+        return None
+    binding = require_rust_binding("argument_double_colon_to_parentheses_edit")
+    payload: Any = binding(text, position)
+    if not isinstance(payload, dict):
+        return None
+    edit_range = editor_range_to_offsets(
+        text,
+        payload.get("range"),
+        allow_empty=False,
+    )
+    if edit_range is None:
+        return None
+    start, end = edit_range
+    delimiter = text[start:end]
+    new_text = payload.get("new_text")
+    if (
+        not delimiter.startswith("::")
+        or delimiter[2:] != " " * len(delimiter[2:])
+        or new_text != "()" + delimiter
+    ):
+        return None
+    return TextEdit(start=start, end=end, text=new_text, cursor=start + 1)
+
+
 def _editor_position(
     text: str,
     location: tuple[int, int],
@@ -52,4 +83,7 @@ def _editor_position(
     return {"line": row, "character": utf16_character(line[:col])}
 
 
-__all__ = ["plan_argument_colon_to_parentheses_edit"]
+__all__ = [
+    "plan_argument_colon_to_parentheses_edit",
+    "plan_argument_double_colon_to_parentheses_edit",
+]

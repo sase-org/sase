@@ -5500,6 +5500,14 @@ before token characters, when text is selected (the typed character replaces the
 selection literally), for contractions or possessives, and for repeated quotes/backticks
 needed to type Markdown fences or code spans.
 
+When `(` is typed immediately after an xprompt or supported directive argument
+delimiter, the prompt input normalizes the shorthand in one keyboard edit. A single
+colon is removed (`#review:` -> `#review()`), while `::` followed only by ASCII spaces
+is moved after a complete pair (`#review:: body` -> `#review():: body`) with the caret
+inside the parentheses. The double-colon form preserves the exact spaces and suffix
+text; tabs, newlines, nonbreaking spaces, existing argument lists, selected text, and
+literal regions keep ordinary insertion behavior.
+
 INSERT-mode `Ctrl+J` and prompt NORMAL-mode `o` / `O` continue a containing
 space-indented `- ` bullet using that bullet's indentation. Prompt NORMAL-mode `J` is
 the inverse operation: when it folds the next line into a nonblank current line, it

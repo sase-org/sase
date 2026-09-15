@@ -396,6 +396,13 @@ in sase's TUI, with the cursor between the parentheses, and `#review:` can becom
 double-colon shorthand, fenced or inline code, disabled xprompt regions, prompt
 frontmatter, and Jinja tags are left alone.
 
+For double-colon text shorthand, typing `(` immediately after the `::` and any ASCII
+spaces moves the delimiter after a new argument pair instead: `#review:: ` becomes
+`#review():: ` with the caret inside `()`, and `#review:: body` becomes
+`#review():: body`. The authored spaces and suffix text are preserved exactly, and tabs,
+newlines, nonbreaking spaces, existing argument lists, and literal regions keep ordinary
+insertion behavior.
+
 Examples:
 
 ```bash

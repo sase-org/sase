@@ -77,6 +77,13 @@ The xprompt language server is focused on prompt and xprompt editing:
 | Semantic highlighting | Highlights the kind, payload, and supported fragment of known artifact references, plus glossary phrases, outside prompt literal zones using standard LSP semantic tokens.                                                                                                                                                                                                                                                                             |
 | Definition            | Jumps from xprompt and slash-skill references to real source files when the catalog provides a resolvable path, including the backing note for `#memory/<stem>`.                                                                                                                                                                                                                                                                                       |
 
+When a client enables LSP on-type formatting for `(`, the server shares the prompt
+input's argument shorthand edits. Typing `(` after an argument-opening `:` removes that
+colon; typing it after `::` plus zero or more ASCII spaces inserts `()` before the
+delimiter and leaves the caret inside the pair, for example `#review:: body` becomes
+`#review():: body`. The edits preserve authored spacing and suffix text, and the
+syntax/literal-region exclusions match the TUI prompt input.
+
 Snippet completions come from the same registry sase's TUI uses: xprompts with `snippet`
 front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on trigger
 collisions. The server asks the host helper bridge for that authoritative registry and

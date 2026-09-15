@@ -14,6 +14,7 @@ from textual.events import Key
 
 from sase.ace.tui.widgets._argument_syntax_editing import (
     plan_argument_colon_to_parentheses_edit,
+    plan_argument_double_colon_to_parentheses_edit,
 )
 from sase.ace.tui.widgets._alt_syntax_editing import (
     plan_alt_brace_pair,
@@ -135,6 +136,14 @@ class PromptTextAreaKeyPairingMixin(_MixinBase):
         if char == "|":
             plan = plan_alt_separator(text, offset)
         elif char == "(":
+            plan = plan_argument_double_colon_to_parentheses_edit(
+                text,
+                self.cursor_location,
+            )
+            if plan is not None and plan.end == offset:
+                self._apply_planned_text_edit(plan, remap_dot_capture=True)
+                self._open_auto_reference_completion_after_change(char)
+                return True
             plan = _plan_argument_colon_pair_conversion(
                 text,
                 offset,

@@ -495,3 +495,110 @@ async def test_invocation_colon_conversion_is_one_undo_checkpoint() -> None:
         await page.press("escape", "u")
 
         assert page.text == "%q:"
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("#foo::", "#foo()::"),
+        ("#foo:: ", "#foo():: "),
+        ("#foo::   ", "#foo()::   "),
+        ("#foo:: body", "#foo():: body"),
+        ("#foo::   body", "#foo()::   body"),
+        ("#!ns/foo:: ", "#!ns/foo():: "),
+        ("%proc:: ", "%proc():: "),
+        ("%clan:: ", "%clan():: "),
+        ("%c:: ", "%c():: "),
+    ],
+)
+async def test_typing_paren_after_double_colon_forms(
+    source: str,
+    expected: str,
+) -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        cursor = source.find("body")
+        if cursor < 0:
+            cursor = len(source)
+        ta.load_text(source)
+        ta.cursor_location = (0, cursor)
+
+        await pilot.press("(")
+
+        assert ta.text == expected
+        assert ta.cursor_location == (0, expected.find("(") + 1)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "%q:: ",
+        "%model:: ",
+        "%if:: ",
+        "%xprompts_enabled:: ",
+        "%unknown:: ",
+        "#foo::\t",
+        "#foo::\u00a0",
+        "#foo:::",
+        "#foo(args):: ",
+    ],
+)
+async def test_typing_paren_after_ineligible_double_colon_keeps_literal_pair(
+    source: str,
+) -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text(source)
+        ta.cursor_location = (0, len(source))
+
+        await pilot.press("(")
+
+        assert ta.text == source + "()"
+
+
+async def test_double_colon_conversion_continues_typing_inside_pair() -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#foo:: ")
+        ta.cursor_location = (0, len("#foo:: "))
+
+        await pilot.press("(", "f", "o", "o", "=", "b", "a", "r")
+
+        assert ta.text == "#foo(foo=bar):: "
+        assert ta.cursor_location == (0, len("#foo(foo=bar"))
+
+
+async def test_double_colon_conversion_keeps_pair_behaviors() -> None:
+    app = PairEditTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#foo:: ")
+        ta.cursor_location = (0, len("#foo:: "))
+
+        await pilot.press("(", ")")
+
+        assert ta.text == "#foo():: "
+        assert ta.cursor_location == (0, len("#foo()"))
+
+        ta.cursor_location = (0, len("#foo("))
+        await pilot.press("backspace")
+
+        assert ta.text == "#foo:: "
+        assert ta.cursor_location == (0, len("#foo"))
+
+
+async def test_double_colon_conversion_is_one_undo_checkpoint() -> None:
+    async with PromptPage(
+        "#foo:: ",
+        cursor=(0, len("#foo:: ")),
+        mode="insert",
+    ) as page:
+        await page.press("(")
+        assert page.text == "#foo():: "
+
+        await page.press("escape", "u")
+
+        assert page.text == "#foo:: "
