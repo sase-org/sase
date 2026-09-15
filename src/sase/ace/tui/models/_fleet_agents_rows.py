@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import Any
 
 from ._fleet_agents_follow import summary_followed
+from ._fleet_agents_hosts import (
+    HostFeedIssue,
+    combine_freshness,
+    host_alias,
+    host_diagnostic,
+    host_feed_issues,
+    viewer_observed_freshness,
+)
+from ._fleet_agents_identity import (
+    agent_family_name,
+    agent_name,
+    patch_name,
+    project_display_name,
+    project_file,
+    role_suffix_from_name,
+)
 from ._fleet_agents_nodes import normalize_remote_host_nodes
 from ._fleet_agents_payload import host_payloads, summary_payloads
 from ._fleet_agents_scalars import (
     datetime_from_unix,
-    display_token,
     float_or_none,
     int_or_none,
     locator_id,
@@ -20,7 +33,14 @@ from ._fleet_agents_scalars import (
     optional_str,
     raw_suffix,
 )
+from ._fleet_agents_status import (
+    queue_weight,
+    status_bucket_from_wire,
+    status_from_summary,
+)
 from .agent import Agent, AgentType
+
+__all__ = ["HostFeedIssue", "host_feed_issues", "rows_from_response"]
 
 
 def rows_from_response(
@@ -35,7 +55,7 @@ def rows_from_response(
         return []
     rows: list[Agent] = []
     for host_index, host in enumerate(host_payloads(response)):
-        host_alias = _host_alias(host, host_index)
+        host_alias_value = host_alias(host, host_index)
         origin = mapping(host.get("origin"))
         origin_installation_id = optional_str(
             origin.get("installation_id"),
@@ -52,7 +72,7 @@ def rows_from_response(
         host_cache_age_seconds = (
             float_or_none(host.get("age_seconds")) if host.get("cached") else None
         )
-        viewer_freshness = _viewer_observed_freshness(host)
+        viewer_freshness = viewer_observed_freshness(host)
         observed_at = float_or_none(
             host.get("observed_at_unix"),
             host.get("observed_at"),
@@ -68,12 +88,12 @@ def rows_from_response(
             host_counts.get("terminal"),
         )
         host_unknown_count = int_or_none(host_counts.get("unknown"))
-        host_diagnostic_text = _host_diagnostic(host, host_freshness_wire)
+        host_diagnostic_text = host_diagnostic(host, host_freshness_wire)
         host_summary_pairs: list[tuple[Mapping[str, Any], Agent]] = []
         for summary_index, summary in enumerate(summary_payloads(host)):
             agent = _agent_from_summary(
                 summary,
-                host_alias=host_alias,
+                host_alias=host_alias_value,
                 origin_installation_id=origin_installation_id,
                 host_freshness=host_freshness,
                 viewer_freshness=viewer_freshness,
@@ -99,49 +119,6 @@ def rows_from_response(
             host_summary_pairs.append((summary, agent))
         rows.extend(normalize_remote_host_nodes(host_summary_pairs))
     return rows
-
-
-@dataclass(frozen=True)
-class HostFeedIssue:
-    """A remote host whose latest snapshot is invalid or feed-errored.
-
-    Computed independently of :func:`rows_from_response` because an invalid
-    host normalizes to zero summaries -- there is no ``Agent`` row left to
-    anchor an error state to, so callers that only ever look at rows would
-    never learn the host's feed failed at all.
-    """
-
-    alias: str
-    status: str | None
-    error: str | None
-    cache_age_seconds: float | None
-    diagnostic: str | None
-
-
-def host_feed_issues(response: Mapping[str, Any] | None) -> tuple[HostFeedIssue, ...]:
-    """Return hosts whose latest snapshot reports an invalid or errored feed."""
-    if response is None or response.get("disabled"):
-        return ()
-    issues: list[HostFeedIssue] = []
-    for host_index, host in enumerate(host_payloads(response)):
-        status = optional_str(host.get("status"))
-        freshness_wire = mapping(host.get("freshness"))
-        error = optional_str(freshness_wire.get("error"))
-        if status != "invalid" and not error:
-            continue
-        cache_age_seconds = (
-            float_or_none(host.get("age_seconds")) if host.get("cached") else None
-        )
-        issues.append(
-            HostFeedIssue(
-                alias=_host_alias(host, host_index),
-                status=status,
-                error=error,
-                cache_age_seconds=cache_age_seconds,
-                diagnostic=_host_diagnostic(host, freshness_wire),
-            )
-        )
-    return tuple(issues)
 
 
 def _agent_from_summary(
@@ -185,14 +162,14 @@ def _agent_from_summary(
     is_monitor = row_kind == "monitor" or family_role == "monitor"
     shell_id = exact_key or logical_key
     parent_timestamp = optional_str(summary.get("parent_timestamp"))
-    family_name = _agent_family_name(
+    family_name = agent_family_name(
         summary,
         labels,
         logical_locator,
         family_role=family_role,
         parent_timestamp=parent_timestamp,
     )
-    agent_name = _agent_name(
+    agent_name_value = agent_name(
         summary,
         labels,
         logical_locator,
@@ -201,18 +178,18 @@ def _agent_from_summary(
         exact_key,
         summary_index,
     )
-    role_suffix = optional_str(summary.get("role_suffix")) or _role_suffix_from_name(
-        agent_name,
+    role_suffix = optional_str(summary.get("role_suffix")) or role_suffix_from_name(
+        agent_name_value,
         family_role,
     )
-    patch_name = _patch_name(
+    patch_name_value = patch_name(
         summary,
         labels,
         logical_locator,
-        agent_name,
+        agent_name_value,
     )
-    project_display_name = _project_display_name(summary, labels, logical_locator)
-    project_file = _project_file(logical_locator, project_display_name)
+    project_display_name_value = project_display_name(summary, labels, logical_locator)
+    project_file_value = project_file(logical_locator, project_display_name_value)
     raw_suffix_value = raw_suffix(
         host_alias,
         exact_key or logical_key or locator_id(exact_locator or logical_locator),
@@ -220,7 +197,7 @@ def _agent_from_summary(
     )
     attention = attention_by_logical_key.get(logical_key) if logical_key else None
     liveness_token = summary.get("liveness")
-    status = _status_from_summary(
+    status = status_from_summary(
         summary,
         lifecycle,
         liveness,
@@ -228,7 +205,7 @@ def _agent_from_summary(
         lifecycle_token=summary.get("lifecycle"),
         liveness_token=liveness_token,
     )
-    status_bucket = _status_bucket_from_wire(summary.get("status_bucket"))
+    status_bucket = status_bucket_from_wire(summary.get("status_bucket"))
     revision = int_or_none(
         summary.get("revision"),
         row_revision.get("revision"),
@@ -253,7 +230,7 @@ def _agent_from_summary(
     # ``leaf_runtime_interval`` needs to compute an active row's elapsed
     # duration instead of rendering ``0s``.
     run_start_time = start_time
-    freshness = _combine_freshness(
+    freshness = combine_freshness(
         optional_str(
             summary.get("freshness"),
             host_freshness,
@@ -284,15 +261,15 @@ def _agent_from_summary(
         proc_id = shell_id
     agent = Agent(
         agent_type=AgentType.PROC_SHELL if is_proc else AgentType.RUNNING,
-        cl_name=patch_name,
-        project_file=project_file,
+        cl_name=patch_name_value,
+        project_file=project_file_value,
         status=status,
         status_bucket=status_bucket,
         start_time=start_time,
         run_start_time=run_start_time,
         stop_time=stop_time,
         raw_suffix=raw_suffix_value,
-        agent_name=agent_name,
+        agent_name=agent_name_value,
         model=optional_str(summary.get("model")),
         llm_provider=optional_str(
             summary.get("provider"),
@@ -301,7 +278,7 @@ def _agent_from_summary(
         reasoning_effort=optional_str(
             summary.get("reasoning_effort"),
         ),
-        project_display_name=project_display_name,
+        project_display_name=project_display_name_value,
         fleet_origin_alias=host_alias,
         fleet_origin_installation_id=origin_installation_id,
         fleet_logical_locator=dict(logical_locator) if logical_locator else None,
@@ -357,7 +334,7 @@ def _agent_from_summary(
         queue_weight=(
             None
             if summary.get("queue_weight_invalid") is True
-            else _queue_weight(summary)
+            else queue_weight(summary)
         ),
         queue_weight_explicit=summary.get("queue_weight_explicit") is True,
         queue_weight_invalid=summary.get("queue_weight_invalid") is True,
@@ -368,343 +345,3 @@ def _agent_from_summary(
         explicit=summary.get("queue_capacity_explicit") is True,
     )
     return agent
-
-
-def _host_alias(host: Mapping[str, Any], host_index: int) -> str:
-    origin = mapping(host.get("origin"))
-    alias = optional_str(
-        host.get("alias"),
-        origin.get("alias"),
-        origin.get("name"),
-        host.get("installation_id"),
-        origin.get("installation_id"),
-        host.get("origin_installation_id"),
-    )
-    if alias:
-        return display_token(alias)
-    return f"remote-{host_index + 1}"
-
-
-def _agent_family_name(
-    summary: Mapping[str, Any],
-    labels: Mapping[str, Any],
-    logical_locator: Mapping[str, Any],
-    *,
-    family_role: str | None,
-    parent_timestamp: str | None,
-) -> str | None:
-    explicit = optional_str(summary.get("agent_family"))
-    if explicit is not None:
-        return explicit
-    if family_role == "root" and parent_timestamp is None:
-        return None
-    return optional_str(labels.get("family_label"), logical_locator.get("family_id"))
-
-
-def _agent_name(
-    summary: Mapping[str, Any],
-    labels: Mapping[str, Any],
-    logical_locator: Mapping[str, Any],
-    exact_locator: Mapping[str, Any],
-    logical_key: str | None,
-    exact_key: str | None,
-    summary_index: int,
-) -> str:
-    name = optional_str(
-        labels.get("agent_label"),
-        summary.get("agent_label"),
-        summary.get("agent_name"),
-        summary.get("name"),
-    )
-    if name:
-        return name
-    logical_from_exact = mapping(exact_locator.get("logical"))
-    locator_agent_id = optional_str(
-        logical_locator.get("agent_id"),
-        logical_from_exact.get("agent_id"),
-    )
-    if locator_agent_id:
-        return display_token(locator_agent_id)
-    key = logical_key or exact_key
-    if key:
-        return key.rsplit("/", 1)[-1].rsplit(":", 1)[-1] or key
-    return f"remote-agent-{summary_index + 1}"
-
-
-def _role_suffix_from_name(
-    agent_name: str | None, family_role: str | None
-) -> str | None:
-    if family_role in {None, "root", "historical_shell"} or not agent_name:
-        return None
-    for separator in ("--", "."):
-        if separator not in agent_name:
-            continue
-        base, suffix = agent_name.rsplit(separator, 1)
-        if base and suffix and not any(character.isspace() for character in suffix):
-            return f"{separator}{suffix}"
-    return None
-
-
-def _patch_name(
-    summary: Mapping[str, Any],
-    labels: Mapping[str, Any],
-    logical_locator: Mapping[str, Any],
-    agent_name: str,
-) -> str:
-    project = logical_locator.get("project")
-    project_id = project.get("project_id") if isinstance(project, Mapping) else project
-    patch = optional_str(
-        project_id,
-        summary.get("patch"),
-        summary.get("patch_name"),
-        logical_locator.get("patch"),
-        logical_locator.get("patch_name"),
-        summary.get("project_name"),
-        labels.get("project_label"),
-    )
-    return display_token(patch or agent_name)
-
-
-def _project_display_name(
-    summary: Mapping[str, Any],
-    labels: Mapping[str, Any],
-    logical_locator: Mapping[str, Any],
-) -> str:
-    project_id = optional_str(
-        summary.get("project_name"),
-        _logical_project_id(logical_locator),
-    )
-    owner_label = optional_str(labels.get("project_label"))
-    if owner_label:
-        return display_token(owner_label)
-    # ``labels.project_label`` is a required, always-populated field on the
-    # current wire schema (it falls back to the raw project id on the owner
-    # side already), so this only helps a legacy (schema v1) payload from a
-    # not-yet-upgraded remote host that omits the field entirely.
-    if project_id:
-        local_label = _local_project_display_name(project_id)
-        if local_label and local_label != project_id:
-            return display_token(local_label)
-    return display_token(project_id or "fleet")
-
-
-def _local_project_display_name(project_id: str) -> str | None:
-    """Resolve *project_id* through this viewer's own project registry."""
-    from sase.project_display_names import project_display_name_for
-
-    return project_display_name_for(project_id)
-
-
-def _project_file(
-    logical_locator: Mapping[str, Any],
-    project_display_name: str,
-) -> str:
-    project_id = _logical_project_id(logical_locator) or project_display_name
-    return f"/fleet/{display_token(project_id)}/project.yml"
-
-
-def _logical_project_id(logical_locator: Mapping[str, Any]) -> str | None:
-    project = logical_locator.get("project")
-    if isinstance(project, Mapping):
-        return optional_str(project.get("project_id"))
-    return optional_str(project)
-
-
-def _host_diagnostic(
-    host: Mapping[str, Any],
-    freshness_wire: Mapping[str, Any],
-) -> str | None:
-    diagnostics = host.get("diagnostics")
-    if isinstance(diagnostics, list):
-        for item in diagnostics:
-            if not isinstance(item, Mapping):
-                continue
-            message = optional_str(item.get("message"), item.get("code"))
-            if message:
-                return message
-    # A rejected envelope (e.g. ``invalid_federation_host``) often carries
-    # no per-host diagnostics entry at all -- its only explanation is the
-    # freshness error code -- so fall back to that rather than surfacing
-    # nothing.
-    return optional_str(freshness_wire.get("error"))
-
-
-def _queue_weight(summary: Mapping[str, Any]) -> float | None:
-    weight = float_or_none(summary.get("queue_weight"))
-    if weight is None or not math.isfinite(weight):
-        return None
-    if weight == 0.0:
-        return 0.0 if summary.get("queue_weight_explicit") is True else None
-    if weight <= 0.0:
-        return None
-    return weight
-
-
-def _status_from_summary(
-    summary: Mapping[str, Any],
-    lifecycle: Mapping[str, Any],
-    liveness: Mapping[str, Any],
-    attention: Mapping[str, Any] | None = None,
-    *,
-    lifecycle_token: object = None,
-    liveness_token: object = None,
-) -> str:
-    # A correlated, still-pending attention entry is the most specific
-    # signal available: it distinguishes a question from a gate the way a
-    # bare lifecycle/needs_attention flag never can.
-    if attention is not None and attention.get("state") == "pending":
-        kind = attention.get("kind")
-        if kind == "question":
-            return "QUESTION"
-        if kind == "gate":
-            return "WAITING INPUT"
-    value = optional_str(
-        summary.get("status"),
-        lifecycle_token if isinstance(lifecycle_token, str) else None,
-        lifecycle.get("display_status"),
-        lifecycle.get("status"),
-        lifecycle.get("state"),
-        liveness_token if isinstance(liveness_token, str) else None,
-        liveness.get("status"),
-        liveness.get("state"),
-    )
-    dead = _liveness_stops(liveness_token, liveness)
-    if not value:
-        return "WAS RUNNING" if dead else "RUNNING"
-    normalized = value.casefold().replace("-", "_").replace(" ", "_")
-    status_map = {
-        "active": "RUNNING",
-        "alive": "RUNNING",
-        "running": "RUNNING",
-        "started": "RUNNING",
-        "queued": "QUEUED",
-        "pending": "QUEUED",
-        "waiting": "WAITING",
-        "waiting_input": "WAITING INPUT",
-        "needs_input": "WAITING INPUT",
-        "blocked": "WAITING INPUT",
-        # No row-scoped attention entry has arrived; fall back to the generic
-        # remote-blocked status the owner's lifecycle/needs_attention signal
-        # implies.
-        "asking": "WAITING INPUT",
-        "failed": "FAILED",
-        "error": "FAILED",
-        "done": "DONE",
-        "complete": "DONE",
-        "completed": "DONE",
-        "terminal": "DONE",
-        "stopped": "STOPPED",
-        "cancelled": "STOPPED",
-        "canceled": "STOPPED",
-        "starting": "STARTING",
-    }
-    if normalized not in status_map and bool(summary.get("needs_attention")):
-        return "WAITING INPUT"
-    resolved = status_map.get(normalized, value.upper())
-    # Owner-resolved liveness overrides a stale RUNNING/STARTING claim: the
-    # process is confirmed gone, so the row presents "was running" instead
-    # of fabricating an active state. Never demote other statuses (a real
-    # completion, failure, or pending-input pause stays as reported).
-    if dead and resolved in {"RUNNING", "STARTING"}:
-        return "WAS RUNNING"
-    return resolved
-
-
-_LIVENESS_STOPPED_VALUES = frozenset({"dead", "not_process"})
-
-
-def _liveness_stops(liveness_token: object, liveness: Mapping[str, Any]) -> bool:
-    """Whether owner-resolved liveness definitively rules out an active row.
-
-    Mirrors sase-core's ``bucket_for_lifecycle`` liveness_stops predicate:
-    only a definitively Dead/NotProcess liveness may demote a row. Alive or
-    genuinely Unknown liveness never hides a potentially live agent.
-    """
-    value = optional_str(
-        liveness_token if isinstance(liveness_token, str) else None,
-        liveness.get("liveness"),
-        liveness.get("status"),
-        liveness.get("state"),
-    )
-    if not value:
-        return False
-    return value.casefold() in _LIVENESS_STOPPED_VALUES
-
-
-_FLEET_STATUS_BUCKET_WIRE_MAP: dict[str, str] = {
-    "stopped": "Stopped",
-    "failed": "Failed",
-    "starting": "Starting",
-    "running": "Running",
-    "queued": "Queued",
-    "waiting": "Waiting",
-    "done": "Done",
-}
-
-
-def _status_bucket_from_wire(value: object) -> str | None:
-    """Map the wire's liveness-aware ``status_bucket`` to a display bucket.
-
-    The wire enum is a deliberate 1:1 mirror of
-    ``sase.agent.status_buckets.AGENT_STATUS_BUCKETS``, so setting
-    ``Agent.status_bucket`` from it overrides the local text-derived bucket
-    fallback everywhere that already consults ``agent_status_bucket()``
-    (banners, folding, filters) with the owner's liveness-aware bucket.
-    """
-    if not isinstance(value, str):
-        return None
-    return _FLEET_STATUS_BUCKET_WIRE_MAP.get(value.casefold())
-
-
-_FRESHNESS_RANK: dict[str, int] = {"fresh": 0, "aging": 1, "stale": 2, "unknown": 3}
-# The owner's own snapshot-freshness thresholds (sase-core
-# FLEET_SNAPSHOT_FRESH_SECONDS / FLEET_SNAPSHOT_STALE_SECONDS) classify how
-# old *its* cached copy is. This viewer-side threshold instead classifies
-# how old the federation worker's cached response is by the time this
-# client polls it. The TUI's own auto-refresh cadence (``refresh_interval``,
-# default 10s) is what drives that polling, so a fresh threshold at or below
-# it made every steady-state row "aging" the instant a poll landed more than
-# 5s after the worker's last fetch -- not a real staleness signal. Sizing it
-# above one full poll interval keeps a normally-polled row "fresh".
-_FLEET_VIEWER_FRESH_SECONDS = 15.0
-_FLEET_VIEWER_STALE_SECONDS = 90.0
-
-
-def _combine_freshness(*values: str | None) -> str | None:
-    """Return the least-fresh of the given freshness labels.
-
-    A row must never look fresher than the worst signal available: an
-    honestly-stamped owner freshness can still be undercut by a viewer-side
-    cache serving an aged copy of that same payload.
-    """
-    ranked = [value for value in values if value in _FRESHNESS_RANK]
-    if not ranked:
-        for value in values:
-            if value:
-                return value
-        return None
-    return max(ranked, key=lambda value: _FRESHNESS_RANK[value])
-
-
-def _viewer_observed_freshness(host: Mapping[str, Any]) -> str | None:
-    """Classify the viewer's own cache age for *host*, or ``None`` when live.
-
-    ``cached`` marks a response the federation worker served from its local
-    cache rather than a live fetch; ``age_seconds`` is how long ago that
-    cached copy was fetched. A live (non-cached) response carries no viewer
-    cache age to fold in.
-    """
-    if not bool(host.get("cached")):
-        return None
-    age_seconds = float_or_none(host.get("age_seconds"))
-    from sase.dispatch.counts import classify_cache_freshness
-
-    decision = classify_cache_freshness(
-        {
-            "schema_version": 1,
-            "viewer_monotonic_elapsed_seconds": age_seconds,
-            "fresh_threshold_seconds": _FLEET_VIEWER_FRESH_SECONDS,
-            "stale_threshold_seconds": _FLEET_VIEWER_STALE_SECONDS,
-        }
-    )
-    return optional_str(decision.get("freshness"))
