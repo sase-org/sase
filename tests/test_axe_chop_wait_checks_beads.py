@@ -24,6 +24,7 @@ from sase.core.wait_dependency_resolution import (
 
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent, run_wait_checks
+from tests.test_bead.resolution_test_helpers import bead_store_snapshot
 
 
 def _seed_wait_bead_store(base: Path) -> tuple[Path, str, str]:
@@ -43,6 +44,21 @@ def _point_waits_at_bead_store(
         bead_store_locator,
         "canonical_beads_dir_for_project",
         lambda _project: root / "sdd/beads",
+    )
+
+
+def _point_waits_at_bead_stores(
+    monkeypatch: pytest.MonkeyPatch,
+    mapping: dict[str, Path],
+) -> None:
+    def beads_dir_for(project: str) -> Path | None:
+        root = mapping.get(project)
+        return None if root is None else root / "sdd/beads"
+
+    monkeypatch.setattr(
+        bead_store_locator,
+        "canonical_beads_dir_for_project",
+        beads_dir_for,
     )
 
 
@@ -119,6 +135,39 @@ def test_wait_checks_resolves_closed_bead_only_wait(
 
     assert json.loads((waiter_dir / "ready.json").read_text()) == {"resolved_deps": []}
     assert f"waited on: beads: {closed_bead}" in capsys.readouterr().out
+
+
+def test_wait_checks_routes_full_bead_wait_to_owner_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_root = tmp_path / "local"
+    with BeadProject.init(local_root):
+        pass
+    owner_root, _, closed_bead = _seed_wait_bead_store(tmp_path / "owner")
+    _point_waits_at_bead_stores(
+        monkeypatch,
+        {
+            "proj": local_root,
+            "owner": owner_root,
+        },
+    )
+    monkeypatch.setattr(
+        "sase.bead.wait_status.enabled_project_store_snapshots",
+        lambda: (bead_store_snapshot("owner", owner_root, closed_bead),),
+    )
+    hints: list[str | None] = []
+    monkeypatch.setattr(
+        wait_checks_module,
+        "mark_bead_wait_sync_hint",
+        lambda project: hints.append(project),
+    )
+    waiter_dir = make_waiting_agent(tmp_path, wait_for_beads=[closed_bead])
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    assert json.loads((waiter_dir / "ready.json").read_text()) == {"resolved_deps": []}
+    assert hints == ["owner"]
 
 
 @pytest.mark.parametrize("bead_kind", ["open", "missing"])

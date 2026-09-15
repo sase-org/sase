@@ -55,6 +55,7 @@ from sase.sdd.store import SddStore
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.bead.operation_context import BeadOperationContext
     from sase.xprompt.directive_edit import PromptWaitDirective
 
 
@@ -109,15 +110,6 @@ def work_from_plan_file(
         )
 
     with ExitStack() as stack:
-        if not dry_run:
-            with timer.stage("plan_launch_lock"):
-                stack.enter_context(
-                    _epic_plan_launch_lock(
-                        _epic_launch_lock_anchor(),
-                        plan_file=source_path,
-                    )
-                )
-
         plan = validation.plan
         phase_ids = tuple(phase.id for phase in plan.phases)
         waves = _preview_waves(plan)
@@ -130,9 +122,35 @@ def work_from_plan_file(
                 f"{dependency_count} dependency edges"
             )
 
+        from sase.bead.epic_from_plan import (
+            preview_parented_epic_id,
+            require_epic_parent,
+            selected_epic_parent_id,
+        )
+
+        parent_id = selected_epic_parent_id(plan.parent_bead, parent)
+        parent_bead_context = _resolve_parent_bead_context(
+            parent_id,
+            source_path=source_path,
+            dry_run=dry_run,
+            no_push=no_push,
+            parent=parent,
+            capacity=capacity,
+        )
+        if not dry_run:
+            with timer.stage("plan_launch_lock"):
+                stack.enter_context(
+                    _epic_plan_launch_lock(
+                        _plan_file_launch_lock_anchor(parent_bead_context),
+                        plan_file=source_path,
+                    )
+                )
         try:
             with timer.stage("store_context"):
-                location, store, workspace_dir = _resolve_context(dry_run=dry_run)
+                location, store, workspace_dir = _resolve_plan_file_context(
+                    dry_run=dry_run,
+                    bead_context=parent_bead_context,
+                )
                 if dry_run:
                     _require_plan_store_health(store)
                 archive_destination = plan_archive_destination(
@@ -145,6 +163,7 @@ def work_from_plan_file(
                 f"could not resolve the SDD and bead stores: {exc}",
                 source_path,
                 no_push=no_push,
+                parent_override=parent,
                 capacity=capacity,
             ) from exc
         if render:
@@ -153,13 +172,6 @@ def work_from_plan_file(
                 f"{store.storage} · beads at {location.beads_dir}"
             )
 
-        from sase.bead.epic_from_plan import (
-            preview_parented_epic_id,
-            require_epic_parent,
-            selected_epic_parent_id,
-        )
-
-        parent_id = selected_epic_parent_id(plan.parent_bead, parent)
         preview_epic_id: str | None = None
         if dry_run and parent_id is not None:
             try:
@@ -269,6 +281,7 @@ def work_from_plan_file(
             waves=waves,
             parent_id=parent_id,
             parent=parent,
+            bead_context=parent_bead_context,
             yes=yes,
             yes_to_all=yes_to_all,
             no_push=no_push,
@@ -292,6 +305,7 @@ def _work_from_plan_file_locked(
     waves: tuple[tuple[str, ...], ...],
     parent_id: str | None,
     parent: str | None,
+    bead_context: BeadOperationContext | None,
     yes: bool,
     yes_to_all: bool,
     no_push: bool,
@@ -411,6 +425,7 @@ def _work_from_plan_file_locked(
                 archived_path=archived_path,
                 epic_id=linked_issue.id,
                 authored_phase_ids=phase_ids,
+                bead_context=bead_context,
                 yes=yes,
                 yes_to_all=yes_to_all,
                 no_push=no_push,
@@ -490,6 +505,7 @@ def _work_from_plan_file_locked(
             timer=timer,
             extra_waits=extra_waits,
             capacity=capacity,
+            bead_context=bead_context,
         )
         result = _normalize_epic_launch_result(
             raw_result,
@@ -595,6 +611,7 @@ def _resume_linked_epic(
     archived_path: Path,
     epic_id: str,
     authored_phase_ids: tuple[str, ...],
+    bead_context: BeadOperationContext | None,
     yes: bool,
     yes_to_all: bool,
     no_push: bool,
@@ -621,6 +638,7 @@ def _resume_linked_epic(
         timer=timer,
         extra_waits=extra_waits,
         capacity=capacity,
+        bead_context=bead_context,
     )
 
 
@@ -662,6 +680,76 @@ def _checkpoint_and_publish_graph(
         destination = "remote" if published else "shared authoritative store"
         Console().print(f"[green]✓[/green] Graph published {epic_id} · {destination}")
     return published
+
+
+def _resolve_plan_file_context(
+    *,
+    dry_run: bool,
+    bead_context: BeadOperationContext | None,
+) -> tuple[Any, SddStore, Path]:
+    if bead_context is None:
+        return _resolve_context(dry_run=dry_run)
+    return _resolve_context(dry_run=dry_run, bead_context=bead_context)
+
+
+def _plan_file_launch_lock_anchor(
+    bead_context: BeadOperationContext | None,
+) -> Path:
+    if bead_context is None:
+        return _epic_launch_lock_anchor()
+    location = bead_context.location
+    store = location.store
+    workspace_dir = (
+        location.root
+        if store is None or store.is_in_tree
+        else bead_context.primary_workspace or bead_context.invocation_cwd
+    )
+    return _epic_launch_lock_anchor(workspace_dir)
+
+
+def _resolve_parent_bead_context(
+    parent_id: str | None,
+    *,
+    source_path: Path,
+    dry_run: bool,
+    no_push: bool,
+    parent: str | None,
+    capacity: int | None,
+) -> BeadOperationContext | None:
+    if parent_id is None:
+        return None
+    from sase.bead.operation_context import (
+        BeadOperationRoutingError,
+        resolve_operation_context_for_targets,
+    )
+
+    try:
+        return resolve_operation_context_for_targets(
+            [parent_id],
+            for_write=not dry_run,
+            materialize=not dry_run,
+        )
+    except BeadOperationRoutingError as exc:
+        message = str(exc)
+        missing = "not found" in message.casefold()
+        detail = (
+            f"epic plan {source_path} names parent bead {parent_id!r}, but that "
+            "bead is missing from the active store and enabled project stores; "
+            "restore the parent bead, choose another with --parent <bead-id>, "
+            "or force a top-level epic with --parent top-level"
+            if missing
+            else (
+                f"epic plan {source_path} names parent bead {parent_id!r}, but "
+                f"that bead could not be resolved: {message}"
+            )
+        )
+        raise _error_with_resume(
+            detail,
+            source_path,
+            no_push=no_push,
+            parent_override=parent,
+            capacity=capacity,
+        ) from exc
 
 
 __all__ = [

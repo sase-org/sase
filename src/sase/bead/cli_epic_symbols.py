@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 import sys
+from typing import Any
 
-from sase.bead.cli_common import get_read_view
 from sase.bead.cli_dep_render import ANSI_BOLD_BLUE, resolve_color, styled
 from sase.bead.epic_symbols import (
     discover_justfile,
@@ -18,16 +19,14 @@ from sase.bead.epic_symbols import (
 def handle_bead_epic_symbols(args: argparse.Namespace) -> None:
     """List Justfile ``--epic-symbol`` entries, optionally scoped to one bead."""
     start = None
-    justfile = discover_justfile(start)
-    entries = load_epic_symbol_entries(start)
     target_id = getattr(args, "id", None)
     if target_id:
-        with get_read_view() as view:
-            try:
-                target_id = view.resolve_id(target_id)
-            except KeyError:
-                print(f"Error: issue not found: {target_id}", file=sys.stderr)
-                sys.exit(1)
+        context = _resolve_symbol_bead_context(target_id)
+        target_id = context.resolved_ids[0] if context.resolved_ids else target_id
+        start = _symbol_scan_start(context)
+    justfile = discover_justfile(start)
+    entries = load_epic_symbol_entries(start)
+    if target_id:
         entries = entries_for_beads(entries, [target_id])
 
     fmt = getattr(args, "format", "compact")
@@ -61,3 +60,24 @@ def handle_bead_epic_symbols(args: argparse.Namespace) -> None:
     for entry in entries:
         bead = styled(entry.bead_id, ANSI_BOLD_BLUE, use_color)
         print(f'--epic-symbol "{bead}({entry.symbol})"')
+
+
+def _resolve_symbol_bead_context(target_id: str) -> Any:
+    from sase.bead.operation_context import (
+        BeadOperationRoutingError,
+        resolve_operation_context_for_targets,
+    )
+
+    try:
+        return resolve_operation_context_for_targets([target_id])
+    except BeadOperationRoutingError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _symbol_scan_start(context: Any) -> Path | None:
+    project_key = getattr(context, "project_key", None)
+    primary = getattr(context, "primary_workspace", None)
+    if not project_key or primary is None:
+        return None
+    return Path(primary)

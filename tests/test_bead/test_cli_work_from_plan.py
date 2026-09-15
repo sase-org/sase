@@ -21,6 +21,10 @@ from tests.test_bead.cli_work_from_plan_helpers import (
     epic_plan_with_parent,
     write_plan_update,
 )
+from tests.test_bead.resolution_test_helpers import (
+    bead_store_snapshot,
+    isolate_bead_store_resolution,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -378,3 +382,36 @@ def test_plan_file_parent_dry_run_previews_id_and_missing_parent_has_remedy(
             render=False,
         )
     assert "missing from the active store" in str(excinfo.value)
+
+
+def test_plan_file_parent_override_foreign_full_id_previews_in_owner_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "caller"
+    caller.mkdir()
+    with BeadProject.init(owner) as project:
+        root = project.create("Root epic", IssueType.PLAN, tier=BeadTier.EPIC)
+        phase = project.create("Owner phase", IssueType.PHASE, parent_id=root.id)
+    source = caller / "child_epic.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    monkeypatch.chdir(caller)
+    monkeypatch.setattr(
+        "sase.bead.operation_context.enabled_project_store_snapshots",
+        lambda: (bead_store_snapshot("owner", owner, root.id, phase.id),),
+    )
+
+    result = work_from_plan_file(
+        str(source),
+        dry_run=True,
+        yes=False,
+        no_push=False,
+        parent=phase.id,
+        render=False,
+    )
+
+    assert result.parent_id == phase.id
+    assert result.preview_epic_id == f"{phase.id}.1"
+    assert result.archived_plan_path.is_relative_to(owner / "sdd" / "plans")

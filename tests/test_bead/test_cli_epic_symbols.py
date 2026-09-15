@@ -13,6 +13,10 @@ from sase.bead.project import BeadProject
 from sase.main import bead_fast_path
 from sase.main.bead_fast_path import try_handle_bead_fast_path
 from sase.main.parser import create_parser
+from tests.test_bead.resolution_test_helpers import (
+    bead_store_snapshot,
+    isolate_bead_store_resolution,
+)
 
 
 def test_epic_symbols_parser_accepts_optional_id_and_format() -> None:
@@ -73,6 +77,51 @@ def test_epic_symbols_lists_only_the_requested_bead_tree(
     assert f'--epic-symbol "{phase.id}(RankedPlaceholder)"' in output
     assert "sase-other" not in output
     assert "Justfile:" in output
+
+
+def test_epic_symbols_foreign_full_id_scans_owner_justfile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "caller"
+    caller.mkdir()
+    with BeadProject.init(owner) as project:
+        epic = project.create("Ranking", IssueType.PLAN, tier=BeadTier.EPIC)
+        phase = project.create("Scoring", IssueType.PHASE, parent_id=epic.id)
+    owner.joinpath("Justfile").write_text(
+        "\n".join(
+            [
+                f'--epic-symbol "{epic.id}(OwnerIndex)"',
+                f'--epic-symbol "{phase.id}(OwnerPlaceholder)"',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    caller.joinpath("Justfile").write_text(
+        f'--epic-symbol "{epic.id}(CallerDecoy)"\n',
+        encoding="utf-8",
+    )
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    monkeypatch.chdir(caller)
+    monkeypatch.setattr(
+        "sase.bead.operation_context.enabled_project_store_snapshots",
+        lambda: (bead_store_snapshot("owner", owner, epic.id, phase.id),),
+    )
+
+    bead_cli.handle_bead_epic_symbols(
+        create_parser().parse_args(
+            ["bead", "epic-symbols", epic.id, "--color", "never"]
+        )
+    )
+
+    output = capsys.readouterr().out
+    assert f"Justfile: {owner / 'Justfile'}" in output
+    assert f'--epic-symbol "{epic.id}(OwnerIndex)"' in output
+    assert f'--epic-symbol "{phase.id}(OwnerPlaceholder)"' in output
+    assert "CallerDecoy" not in output
 
 
 def test_epic_symbols_json_includes_empty_result_for_unrelated_bead(

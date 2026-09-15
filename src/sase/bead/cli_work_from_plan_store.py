@@ -17,7 +17,7 @@ import random
 import shlex
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.bead.cli_common import (
     find_beads_location,
@@ -27,6 +27,9 @@ from sase.bead.cli_common import (
 from sase.bead.cli_location import resolve_workspace_anchor
 from sase.bead.project import BEADS_DIRNAME
 from sase.sdd.store import SDD_STORAGE_IN_TREE, SddStore
+
+if TYPE_CHECKING:
+    from sase.bead.operation_context import BeadOperationContext
 
 _logger = logging.getLogger(__name__)
 
@@ -56,7 +59,14 @@ class _FallbackBeadsLocation:
         return self.root / self.beads_dirname
 
 
-def resolve_plan_file_context(*, dry_run: bool) -> tuple[Any, SddStore, Path]:
+def resolve_plan_file_context(
+    *,
+    dry_run: bool,
+    bead_context: BeadOperationContext | None = None,
+) -> tuple[Any, SddStore, Path]:
+    if bead_context is not None:
+        return _context_from_parent_bead_route(bead_context, dry_run=dry_run)
+
     cwd = Path.cwd().expanduser().resolve()
     location: Any = resolve_beads_location(cwd, materialize=not dry_run)
     if (
@@ -93,6 +103,36 @@ def resolve_plan_file_context(*, dry_run: bool) -> tuple[Any, SddStore, Path]:
             repo_root=location.root,
         )
     workspace_dir = location.root if store.is_in_tree else cwd
+    return location, store, workspace_dir
+
+
+def _context_from_parent_bead_route(
+    bead_context: BeadOperationContext,
+    *,
+    dry_run: bool,
+) -> tuple[Any, SddStore, Path]:
+    location = bead_context.location
+    if not dry_run and bool(getattr(location, "read_only", False)):
+        raise RuntimeError(
+            f"Refusing bead work from a plain checkout: {location.beads_dir} "
+            "was discovered through a checkout-local .sase/sdd-store.json "
+            "record and is available for reads only."
+        )
+    if not dry_run and not location.beads_dir.is_dir():
+        init_beads(location.root, location.beads_dirname)
+
+    store = location.store
+    if store is None:
+        store = SddStore(
+            storage=SDD_STORAGE_IN_TREE,
+            sdd_dir=location.root / "sdd",
+            repo_root=location.root,
+        )
+    workspace_dir = (
+        location.root
+        if store.is_in_tree
+        else bead_context.primary_workspace or bead_context.invocation_cwd
+    )
     return location, store, workspace_dir
 
 

@@ -6,7 +6,10 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from typing import Any, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
+
+if TYPE_CHECKING:
+    from sase.bead.operation_context import BeadOperationContext
 
 
 def handle_bead_pages(args: argparse.Namespace) -> NoReturn:
@@ -30,7 +33,10 @@ def _handle_refresh(args: argparse.Namespace) -> NoReturn:
         refresh_bead_pages,
     )
 
-    store, primary_root, project = _page_context(materialize=args.write)
+    store, primary_root, project = _page_context(
+        materialize=args.write,
+        bead_id=args.bead,
+    )
     bead_id = _resolve_page_bead_id(store, args.bead)
     report = refresh_bead_pages(
         store,
@@ -50,11 +56,14 @@ def _handle_url(args: argparse.Namespace) -> NoReturn:
     from sase.bead_pages.paths import bead_page_path
     from sase.sdd.hosted_links import hosted_link_resolver
 
-    store, primary_root, project = _page_context(materialize=False)
     raw_bead_id = args.bead_id
     if raw_bead_id is None:
         print("Error: bead pages url requires a bead ID", file=sys.stderr)
         sys.exit(2)
+    store, primary_root, project = _page_context(
+        materialize=False,
+        bead_id=raw_bead_id,
+    )
     bead_id = _resolve_page_bead_id(store, raw_bead_id)
     assert bead_id is not None
     try:
@@ -105,7 +114,16 @@ def _print_refresh(report: Any) -> None:
         )
 
 
-def _page_context(*, materialize: bool) -> tuple[Any, Path, str | None]:
+def _page_context(
+    *,
+    materialize: bool,
+    bead_id: str | None = None,
+) -> tuple[Any, Path, str | None]:
+    if bead_id is not None:
+        routed = _routed_page_context(bead_id, materialize=materialize)
+        if routed is not None:
+            return routed
+
     from sase.sdd.plan_refs import workspace_context_for_plan_resolution
     from sase.sdd.store import materialize_sdd_store, resolve_sdd_store
 
@@ -128,6 +146,51 @@ def _page_context(*, materialize: bool) -> tuple[Any, Path, str | None]:
             project = get_project_from_workspace()
         except Exception:
             pass
+    return store, primary_root, project
+
+
+def _routed_page_context(
+    bead_id: str,
+    *,
+    materialize: bool,
+) -> tuple[Any, Path, str | None] | None:
+    from sase.bead.operation_context import (
+        BeadOperationContext,
+        BeadOperationRoutingError,
+        resolve_operation_context_for_targets,
+    )
+
+    try:
+        context = resolve_operation_context_for_targets(
+            [bead_id],
+            for_write=materialize,
+            materialize=materialize,
+        )
+    except BeadOperationRoutingError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    return _page_context_from_bead_context(context)
+
+
+def _page_context_from_bead_context(
+    context: BeadOperationContext,
+) -> tuple[Any, Path, str | None]:
+    from sase.sdd.store import SDD_STORAGE_IN_TREE, SddStore
+
+    location = context.location
+    store = location.store
+    if store is None:
+        store = SddStore(
+            storage=SDD_STORAGE_IN_TREE,
+            sdd_dir=location.root / "sdd",
+            repo_root=location.root,
+        )
+    primary_root = context.primary_workspace or location.root
+    project = context.project_key
+    if project is None:
+        from sase.sdd.checkout_anchor import resolve_checkout_anchor
+
+        project = resolve_checkout_anchor(primary_root).project_name
     return store, primary_root, project
 
 

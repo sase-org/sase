@@ -55,6 +55,7 @@ from sase.bead.project import AlreadyReadyError, BeadProject, NotAPlanError
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.bead.operation_context import BeadOperationContext
     from sase.bead.project import EpicPreclaimRollback
     from sase.bead.work import (
         PatchLaunchContext,
@@ -197,6 +198,7 @@ def launch_epic_bead_work(
     timer: LaunchTimingRecorder | None = None,
     extra_waits: PromptWaitDirective | None = None,
     capacity: int | None = None,
+    bead_context: BeadOperationContext | None = None,
 ) -> _EpicWorkResult:
     """Run the epic bead-work path, returning the structured launch outcome.
 
@@ -219,6 +221,7 @@ def launch_epic_bead_work(
                 timer=owned_timer,
                 extra_waits=extra_waits,
                 capacity=capacity,
+                bead_context=bead_context,
             )
 
     if not dry_run:
@@ -238,8 +241,13 @@ def launch_epic_bead_work(
 
     with timer.stage("xprompt_lookup"):
         try:
-            work_phase_xprompt = resolve_work_phase_xprompt()
-            land_epic_xprompt = resolve_land_epic_xprompt()
+            xprompt_project = (
+                bead_context.project_key
+                if bead_context is not None and bead_context.project_key
+                else None
+            )
+            work_phase_xprompt = resolve_work_phase_xprompt(project=xprompt_project)
+            land_epic_xprompt = resolve_land_epic_xprompt(project=xprompt_project)
         except (BeadXPromptNotFoundError, ValueError) as e:
             raise BeadWorkError(str(e)) from e
 
@@ -256,14 +264,25 @@ def launch_epic_bead_work(
     with timer.stage("vcs_context"):
         if issue.changespec_name:
             try:
-                patch_context = resolve_patch_launch_context(
-                    changespec_name=issue.changespec_name,
-                    bug_id=issue.changespec_bug_id,
-                )
+                if bead_context is None:
+                    patch_context = resolve_patch_launch_context(
+                        changespec_name=issue.changespec_name,
+                        bug_id=issue.changespec_bug_id,
+                    )
+                else:
+                    patch_context = resolve_patch_launch_context(
+                        changespec_name=issue.changespec_name,
+                        bug_id=issue.changespec_bug_id,
+                        bead_context=bead_context,
+                    )
             except ValueError as e:
                 raise BeadWorkError(str(e)) from e
         else:
-            vcs_context = resolve_vcs_launch_context()
+            vcs_context = (
+                resolve_vcs_launch_context()
+                if bead_context is None
+                else resolve_vcs_launch_context(bead_context=bead_context)
+            )
 
     from sase.bead.work_queue_capacity import (
         EpicQueueCapacityConflictError,

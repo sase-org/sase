@@ -5,6 +5,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+import sase.bead.store_locator as bead_store_locator
+from sase.bead.model import IssueType
+from sase.bead.project import BeadProject
+from sase.core.wait_dependency_resolution import WaitDependencyIndex
 from sase.procs import Proc, append_proc
 from sase.axe.run_agent_wait_deps import (
     initial_dependencies_resolved,
@@ -13,6 +17,7 @@ from sase.axe.run_agent_wait_deps import (
 )
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent, write_workflow_state
+from tests.test_bead.resolution_test_helpers import bead_store_snapshot
 
 
 def _artifact_fork_source(
@@ -135,6 +140,62 @@ def test_initial_dependencies_resolved_matches_terminal_outcome_semantics(
         )
         is should_resolve
     )
+
+
+def test_initial_dependencies_resolved_routes_full_bead_wait_to_owner_project(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local_root = tmp_path / "local"
+    owner_root = tmp_path / "owner"
+    with BeadProject.init(local_root):
+        pass
+    with BeadProject.init(owner_root) as project:
+        open_bead = project.create("Open", IssueType.PLAN)
+        closed_bead = project.create("Closed", IssueType.PLAN)
+        project.close([closed_bead.id])
+
+    def beads_dir_for(project: str) -> Path | None:
+        if project == "proj":
+            return local_root / "sdd/beads"
+        if project == "owner":
+            return owner_root / "sdd/beads"
+        return None
+
+    hints: list[str | None] = []
+    monkeypatch.setattr(
+        bead_store_locator, "canonical_beads_dir_for_project", beads_dir_for
+    )
+    monkeypatch.setattr(
+        "sase.bead.wait_status.enabled_project_store_snapshots",
+        lambda: (
+            bead_store_snapshot("owner", owner_root, open_bead.id, closed_bead.id),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_wait_deps.build_wait_dependency_index",
+        lambda _project: WaitDependencyIndex.empty(),
+    )
+    monkeypatch.setattr(
+        "sase.axe.run_agent_wait_deps.mark_bead_wait_sync_hint",
+        lambda project: hints.append(project),
+    )
+
+    assert not initial_dependencies_resolved(
+        [],
+        [],
+        wait_beads=[open_bead.id],
+        project_name="proj",
+        artifacts_dir=str(tmp_path),
+    )
+    assert initial_dependencies_resolved(
+        [],
+        [],
+        wait_beads=[closed_bead.id],
+        project_name="proj",
+        artifacts_dir=str(tmp_path),
+    )
+    assert "owner" in hints
 
 
 @pytest.mark.parametrize(

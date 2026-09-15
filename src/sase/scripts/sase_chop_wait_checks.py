@@ -16,7 +16,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from sase.axe.run_agent_wait_deps import mark_bead_wait_sync_hint
 from sase.bead.store_locator import closed_bead_ids_for_project
+from sase.bead.wait_status import WaitBeadStatusCache, closed_bead_ids_for_waits
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
@@ -130,7 +132,7 @@ def _run(
                 artifact_rows = _filesystem_dependency_rows(projects_dir)
         dependency_index.add_many(artifact_rows)
 
-    closed_bead_ids_by_project: dict[str, frozenset[str] | None] = {}
+    wait_bead_cache = WaitBeadStatusCache()
     for waiting_marker in pending_waiting_markers:
         try:
             with open(waiting_marker.waiting_path, encoding="utf-8") as f:
@@ -168,11 +170,13 @@ def _run(
         closed_bead_ids = None
         if wait_for_beads:
             project_name = waiting_marker.project_name
-            if project_name not in closed_bead_ids_by_project:
-                closed_bead_ids_by_project[project_name] = closed_bead_ids_for_project(
-                    project_name
-                )
-            closed_bead_ids = closed_bead_ids_by_project[project_name]
+            closed_bead_ids = closed_bead_ids_for_waits(
+                project_name,
+                wait_for_beads,
+                cache=wait_bead_cache,
+                closed_ids_for_project=closed_bead_ids_for_project,
+                sync_hint=mark_bead_wait_sync_hint,
+            ).closed_ids
 
         status = dependency_resolution_status(
             dependency_index,

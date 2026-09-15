@@ -16,7 +16,11 @@ from sase.bead_pages.refresh_models import (
     BeadPagesRefreshReport,
 )
 from sase.main.parser import create_parser
-from sase.sdd.store import SddStore
+from sase.sdd.store import SddStore, write_sdd_store_record
+from tests.test_bead.resolution_test_helpers import (
+    bead_store_snapshot,
+    isolate_bead_store_resolution,
+)
 
 
 def _store(tmp_path: Path) -> SddStore:
@@ -30,6 +34,27 @@ def _store(tmp_path: Path) -> SddStore:
         plans,
         beads_dir=beads,
         beads_remote_url="git@github.com:sase-org/sase--beads.git",
+    )
+
+
+def _write_split_store_record(primary: Path) -> None:
+    write_sdd_store_record(
+        primary,
+        {
+            "schema_version": 3,
+            "storage": "sidecar_repos",
+            "provider": "github",
+            "sidecars": {
+                "plans": {
+                    "repo": "owner/repo--plans",
+                    "remote_url": "git@github.com:owner/repo--plans.git",
+                },
+                "beads": {
+                    "repo": "owner/repo--beads",
+                    "remote_url": "git@github.com:owner/repo--beads.git",
+                },
+            },
+        },
     )
 
 
@@ -134,4 +159,59 @@ def test_url_prints_resolved_hosted_page(
         handle_bead_pages(args)
 
     assert exc.value.code == 0
+    assert capsys.readouterr().out.strip() == url
+
+
+def test_url_foreign_full_id_uses_owner_sidecar_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "caller"
+    plans = owner / "sase/repos/plans"
+    beads = owner / "sase/repos/beads"
+    caller.mkdir()
+    plans.mkdir(parents=True)
+    beads.mkdir(parents=True)
+    _write_split_store_record(owner)
+    with BeadProject.init(beads, beads_dirname=BEADS_DIRNAME_ROOT):
+        pass
+    save_config(
+        beads,
+        {"issue_prefix": "sase-page", "next_counter": 1, "owner": ""},
+    )
+    with BeadProject(beads, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        issue = project.create("Hosted foreign page", IssueType.PLAN)
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    monkeypatch.chdir(caller)
+    monkeypatch.setattr(
+        "sase.bead.operation_context.enabled_project_store_snapshots",
+        lambda: (bead_store_snapshot("owner", owner, issue.id, beads_dir=beads),),
+    )
+    url = f"https://example.test/pages/sase-page/{issue.id}.md"
+    captured: dict[str, object] = {}
+
+    class _Resolver:
+        def bead_url(self, bead_id: str) -> str:
+            assert bead_id == issue.id
+            return url
+
+    def resolver(store: SddStore, **kwargs: object) -> _Resolver:
+        captured["store"] = store
+        captured.update(kwargs)
+        return _Resolver()
+
+    monkeypatch.setattr("sase.sdd.hosted_links.hosted_link_resolver", resolver)
+
+    args = create_parser().parse_args(["bead", "pages", "url", issue.id])
+    with pytest.raises(SystemExit) as exc:
+        handle_bead_pages(args)
+
+    assert exc.value.code == 0
+    store = captured["store"]
+    assert isinstance(store, SddStore)
+    assert store.kind_root("beads") == beads
+    assert captured["primary_root"] == owner
+    assert captured["project"] == "owner"
     assert capsys.readouterr().out.strip() == url

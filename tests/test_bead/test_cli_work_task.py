@@ -18,6 +18,10 @@ from sase.bead.cli_work_commit import (
 from sase.bead.model import PhaseSize, Status
 from sase.bead.project import BeadProject
 from sase.bead.work import SASE_BEAD_ID_ENV, VCSLaunchContext
+from tests.test_bead.resolution_test_helpers import (
+    bead_store_snapshot,
+    isolate_bead_store_resolution,
+)
 
 from .cli_work_helpers import (
     FakeLaunchResult,
@@ -240,6 +244,45 @@ def test_task_work_dry_run_is_read_only(
         assert (task.status, task.assignee) == (Status.READY, "")
     output = capsys.readouterr().out
     assert "--- Task prompt (dry run) ---" in output
+    assert f"#bd/work_task:{task_id}" in output
+
+
+def test_task_work_foreign_full_id_uses_owner_launch_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "caller"
+    caller.mkdir()
+    with BeadProject.init(owner):
+        pass
+    task_id = seed_task(owner)
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    monkeypatch.chdir(caller)
+    monkeypatch.setattr(
+        "sase.bead.operation_context.enabled_project_store_snapshots",
+        lambda: (bead_store_snapshot("owner", owner, task_id),),
+    )
+    routed_contexts: list[object] = []
+
+    def resolve_vcs_context(*, bead_context: object | None = None) -> VCSLaunchContext:
+        assert bead_context is not None
+        routed_contexts.append(bead_context)
+        assert getattr(bead_context, "project_key", None) == "owner"
+        assert getattr(bead_context, "write_beads_dir", None) == owner / "sdd/beads"
+        return VCSLaunchContext(vcs_workflow="git", project_name="owner")
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_task.resolve_task_vcs_launch_context",
+        resolve_vcs_context,
+    )
+
+    bead_cli.handle_bead_work(make_args(task_id, dry_run=True))
+
+    assert len(routed_contexts) == 1
+    output = capsys.readouterr().out
+    assert "#git:owner" in output
     assert f"#bd/work_task:{task_id}" in output
 
 

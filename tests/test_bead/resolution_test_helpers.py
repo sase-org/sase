@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.bead.cross_project import BeadStoreOrigin, BeadStoreSnapshot
 from sase.workspace_provider.marker import CheckoutMarker, MARKER_DIR, MARKER_FILENAME
 from tests.sdd_policy_helpers import set_sdd_policy
 
@@ -41,3 +42,35 @@ def isolate_bead_store_resolution(
     set_sdd_policy(monkeypatch, "in_tree")
     monkeypatch.chdir(checkout)
     return resolved_primary
+
+
+def bead_store_snapshot(
+    project_key: str,
+    primary: Path,
+    *issue_ids: str,
+    beads_dir: Path | None = None,
+    project_label: str | None = None,
+    project_refs: frozenset[str] | None = None,
+) -> BeadStoreSnapshot:
+    """Build a read-only enabled-project snapshot for routed CLI tests."""
+    resolved_beads_dir = beads_dir or primary / "sdd" / "beads"
+    return BeadStoreSnapshot(
+        origin=BeadStoreOrigin(
+            project_key=project_key,
+            project_label=project_label or project_key,
+            primary_workspace=primary,
+            beads_dir=resolved_beads_dir,
+        ),
+        store_key=str(resolved_beads_dir.expanduser().resolve(strict=False)),
+        issue_ids=frozenset(issue_ids),
+        issue_prefix=_issue_prefix(issue_ids),
+        project_refs=project_refs or frozenset({project_key}),
+    )
+
+
+def _issue_prefix(issue_ids: tuple[str, ...]) -> str | None:
+    if not issue_ids:
+        return None
+    top_level = issue_ids[0].split(".", maxsplit=1)[0]
+    prefix, separator, _counter = top_level.rpartition("-")
+    return prefix if separator and prefix else None

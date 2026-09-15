@@ -27,6 +27,7 @@ from sase.sdd.store import SddStore
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.bead.operation_context import BeadOperationContext
     from sase.xprompt.directive_edit import PromptWaitDirective
 
 
@@ -70,6 +71,7 @@ def resume_linked_epic(
     timer: LaunchTimingRecorder,
     extra_waits: PromptWaitDirective | None = None,
     capacity: int | None = None,
+    bead_context: BeadOperationContext | None = None,
 ) -> PlanFileWorkResult:
     from sase.bead.cli_work_handler import BeadWorkError, launch_epic_bead_work
 
@@ -131,6 +133,7 @@ def resume_linked_epic(
                 timer=timer,
                 extra_waits=extra_waits,
                 capacity=capacity,
+                bead_context=bead_context,
             )
             launch_result = normalize_epic_launch_result(
                 raw_launch_result,

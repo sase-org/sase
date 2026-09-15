@@ -11,10 +11,11 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, NoReturn
 from uuid import uuid4
 
-from sase.bead.cli_common import get_project
+from sase.bead.cli_common import get_project, get_read_view
 from sase.bead.model import BeadTier, IssueType
 
 if TYPE_CHECKING:
+    from sase.bead.operation_context import BeadOperationContext
     from sase.xprompt.directive_edit import PromptWaitDirective
 
 
@@ -226,6 +227,16 @@ def _handle_bead_work_locked(
     # replace its launch helper continue to affect CLI dispatch.
     from sase.bead import cli_work_handler
 
+    bead_context = _resolve_bead_id_work_context(
+        target,
+        dry_run=dry_run,
+        json_output=json_output,
+    )
+    routed_target = (
+        bead_context.resolved_ids[0] if bead_context.resolved_ids else target
+    )
+    launch_context = _owner_launch_context(bead_context)
+
     timer = timer_factory(
         target,
         dry_run=dry_run,
@@ -235,15 +246,19 @@ def _handle_bead_work_locked(
     )
     with timer, contextlib.ExitStack() as stack:
         with timer.stage("project_open"):
-            proj = stack.enter_context(get_project())
+            opener = get_read_view if dry_run else get_project
+            proj = stack.enter_context(opener(bead_context=bead_context))
         with timer.stage("initial_show"):
             try:
-                issue = proj.show(target)
+                issue = proj.show(routed_target)
                 target = issue.id
-                timer.add_fields(bead_id=target)
+                timer.add_fields(
+                    bead_id=target,
+                    project=bead_context.project_key or "",
+                )
             except KeyError:
                 _exit_bead_id_error(
-                    f"issue not found: {target}",
+                    f"issue not found: {routed_target}",
                     target=target,
                     json_output=json_output,
                 )
@@ -286,6 +301,7 @@ def _handle_bead_work_locked(
                             yes_to_all=yes_to_all,
                             feedback=launch_feedback,
                             timer=timer,
+                            bead_context=launch_context,
                         )
                 except cli_work_handler.TaskBeadWorkError as exc:
                     if json_output:
@@ -357,6 +373,7 @@ def _handle_bead_work_locked(
                         timer=timer,
                         extra_waits=extra_waits,
                         capacity=capacity,
+                        bead_context=launch_context,
                     )
             except cli_work_handler.BeadWorkError as exc:
                 if json_output:
@@ -414,6 +431,38 @@ def _handle_bead_work_locked(
             target=target,
             json_output=json_output,
         )
+
+
+def _resolve_bead_id_work_context(
+    target: str,
+    *,
+    dry_run: bool,
+    json_output: bool,
+) -> BeadOperationContext:
+    from sase.bead.operation_context import (
+        BeadOperationRoutingError,
+        resolve_operation_context_for_targets,
+    )
+
+    try:
+        return resolve_operation_context_for_targets(
+            [target],
+            for_write=not dry_run,
+            materialize=not dry_run,
+        )
+    except BeadOperationRoutingError as exc:
+        _exit_bead_id_error(
+            str(exc),
+            target=target,
+            json_output=json_output,
+        )
+
+
+def _owner_launch_context(
+    bead_context: BeadOperationContext,
+) -> BeadOperationContext | None:
+    """Return a launch context only when routing selected a project owner."""
+    return bead_context if bead_context.project_key else None
 
 
 def _wait_spec_from_args(args: argparse.Namespace) -> PromptWaitDirective | None:

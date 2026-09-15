@@ -12,6 +12,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from sase.axe.run_agent_wait_markers import read_json_dict
+from sase.bead.wait_status import closed_bead_ids_for_waits
 from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
     dependency_resolution_status,
@@ -62,9 +63,11 @@ def initial_dependencies_resolved(
     wait_bead_items = tuple(wait_beads)
     closed_bead_ids = None
     if wait_bead_items:
-        from sase.bead.store_locator import closed_bead_ids_for_project
-
-        closed_bead_ids = closed_bead_ids_for_project(project_name)
+        closed_bead_ids = closed_bead_ids_for_waits(
+            project_name,
+            wait_bead_items,
+            sync_hint=mark_bead_wait_sync_hint,
+        ).closed_ids
 
     status = dependency_resolution_status(
         dependency_index,

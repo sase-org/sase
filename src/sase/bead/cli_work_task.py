@@ -35,6 +35,7 @@ from sase.bead.model import IssueType, Status
 
 if TYPE_CHECKING:
     from sase.agent.launch_timing import LaunchTimingRecorder
+    from sase.bead.operation_context import BeadOperationContext
     from sase.bead.project import BeadProject
 
 
@@ -95,6 +96,7 @@ def launch_task_bead_work(
     yes_to_all: bool = False,
     feedback: str | None = None,
     timer: LaunchTimingRecorder | None = None,
+    bead_context: BeadOperationContext | None = None,
 ) -> TaskWorkResult:
     """Validate, checkpoint, and launch one deterministic task worker."""
     if timer is None:
@@ -116,6 +118,7 @@ def launch_task_bead_work(
                 yes_to_all=yes_to_all,
                 feedback=feedback,
                 timer=owned_timer,
+                bead_context=bead_context,
             )
 
     issue = proj.show(task_id)
@@ -142,12 +145,21 @@ def launch_task_bead_work(
 
     with timer.stage("xprompt_lookup"):
         try:
-            work_task_xprompt = resolve_work_task_xprompt()
+            xprompt_project = (
+                bead_context.project_key
+                if bead_context is not None and bead_context.project_key
+                else None
+            )
+            work_task_xprompt = resolve_work_task_xprompt(project=xprompt_project)
         except (BeadXPromptNotFoundError, ValueError) as exc:
             raise TaskBeadWorkError(str(exc)) from exc
     with timer.stage("vcs_context"):
         try:
-            vcs_context = resolve_task_vcs_launch_context()
+            vcs_context = (
+                resolve_task_vcs_launch_context()
+                if bead_context is None
+                else resolve_task_vcs_launch_context(bead_context=bead_context)
+            )
         except ValueError as exc:
             raise TaskBeadWorkError(str(exc)) from exc
     with timer.stage("prompt_render"):

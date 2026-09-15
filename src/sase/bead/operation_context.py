@@ -139,7 +139,7 @@ def resolve_operation_context_for_targets(
         if route.error is not None:
             if route.error.kind == "not_found":
                 raise BeadOperationRoutingError(
-                    f"Issue not found: {route.requested_id}"
+                    f"issue not found: {route.requested_id}"
                 )
             raise BeadOperationRoutingError(route.error.message)
         if route.resolved_id is None or route.store is None:
@@ -234,19 +234,8 @@ def _local_location_for_resolution(
     *,
     materialize: bool,
 ) -> BeadsLocation | None:
-    if materialize:
-        return _resolve_beads_location(cwd=invocation_cwd, materialize=True)
+    del materialize
     location = _resolve_beads_location(cwd=invocation_cwd, require_existing=True)
-    if location is None:
-        return None
-    from sase.bead.sync import bead_refresh_mode
-
-    if (
-        not location.read_only
-        and not resolved_beads_location_is_usable(location)
-        and bead_refresh_mode() == "blocking"
-    ):
-        return _resolve_beads_location(cwd=invocation_cwd, materialize=True)
     return location
 
 
