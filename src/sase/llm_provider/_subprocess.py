@@ -53,8 +53,10 @@ stream_and_parse_muse_json_output = _muse.stream_and_parse_muse_json_output
 stream_and_parse_opencode_json_output = _opencode.stream_and_parse_opencode_json_output
 stream_and_parse_qwen_json_output = _qwen.stream_and_parse_qwen_json_output
 stream_process_output = _plain.stream_process_output
+ClaudeTurnWaitState = _claude.ClaudeTurnWaitState
 
 __all__ = [
+    "ClaudeTurnWaitState",
     "_accumulate_opencode_usage",
     "_accumulate_qwen_usage",
     "_append_stream_text",

@@ -1,8 +1,10 @@
 """Claude Code stream-json subprocess parsing."""
 
 import json
+import re
 import subprocess
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, IO
 
@@ -23,12 +25,42 @@ ToolCallWriter = Callable[[Mapping[str, Any]], None]
 ThinkingSink = Callable[[Mapping[str, Any], Mapping[str, Any], IO[str]], None]
 ThinkingSinkOption = ThinkingSink | bool | None
 
+_BACKGROUND_TASK_ID_TEXT_RE = re.compile(
+    r"(?:moved to the background\s*\(ID:\s*|"
+    r"backgrounded by user with ID:\s*|"
+    r"running in background with ID:\s*)"
+    r"(?P<task_id>[A-Za-z0-9_.:-]+)\)?",
+    re.IGNORECASE,
+)
+_TASK_NOTIFICATION_BLOCK_RE = re.compile(
+    r"<task-notification\b[^>]*>.*?</task-notification>",
+    re.IGNORECASE | re.DOTALL,
+)
+_TASK_ID_RE = re.compile(
+    r"<task-id>\s*(?P<task_id>.*?)\s*</task-id>",
+    re.IGNORECASE | re.DOTALL,
+)
+_TASK_STATUS_RE = re.compile(
+    r"<status>\s*(?P<status>.*?)\s*</status>",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+@dataclass
+class ClaudeTurnWaitState:
+    """Signals that a Claude print-mode turn may have ended while waiting."""
+
+    outstanding_background_tasks: set[str] = field(default_factory=set)
+    schedule_wakeup_requested: bool = False
+    final_text_tail: str = ""
+
 
 def stream_and_parse_json_output(
     process: subprocess.Popen[str],
     suppress_output: bool = False,
     *,
     usage_context: UsageProbeContext | None = None,
+    wait_state: ClaudeTurnWaitState | None = None,
 ) -> tuple[str, str, int, dict[str, int]]:
     """Stream stdout as JSON events and extract assistant text.
 
@@ -40,6 +72,7 @@ def stream_and_parse_json_output(
         process,
         suppress_output=suppress_output,
         usage_context=usage_context,
+        wait_state=wait_state,
     )
 
 
@@ -51,6 +84,7 @@ def stream_and_parse_messages_json_output(
     tool_call_writer: ToolCallWriter = append_claude_tool_call_event,
     thinking_sink: ThinkingSinkOption = None,
     usage_context: UsageProbeContext | None = None,
+    wait_state: ClaudeTurnWaitState | None = None,
 ) -> tuple[str, str, int, dict[str, int]]:
     """Stream Anthropic Messages JSON events for Claude-compatible CLIs."""
     return _stream_and_parse_messages_json_output(
@@ -60,6 +94,7 @@ def stream_and_parse_messages_json_output(
         tool_call_writer=tool_call_writer,
         thinking_sink=thinking_sink,
         usage_context=usage_context,
+        wait_state=wait_state,
     )
 
 
@@ -71,6 +106,7 @@ def _stream_and_parse_messages_json_output(
     tool_call_writer: ToolCallWriter = append_claude_tool_call_event,
     thinking_sink: ThinkingSinkOption = None,
     usage_context: UsageProbeContext | None = None,
+    wait_state: ClaudeTurnWaitState | None = None,
 ) -> tuple[str, str, int, dict[str, int]]:
     """Stream Anthropic Messages JSON events and extract assistant text."""
     assistant_texts: list[str] = []
@@ -99,6 +135,7 @@ def _stream_and_parse_messages_json_output(
                 thinking_sink=resolved_thinking_sink,
                 thinking_file=thinking_file,
                 usage_context=usage_context,
+                wait_state=wait_state,
             ),
             suppress_output,
         )
@@ -135,6 +172,7 @@ def _process_json_line(
     thinking_sink: ThinkingSinkOption = None,
     thinking_file: IO[str] | None = None,
     usage_context: UsageProbeContext | None = None,
+    wait_state: ClaudeTurnWaitState | None = None,
 ) -> None:
     """Parse a single JSON line and extract assistant text if present.
 
@@ -162,6 +200,8 @@ def _process_json_line(
 
         submit_claude_passive_usage_event(event, usage_context)
     tool_call_writer(event)
+    if wait_state is not None:
+        _record_wait_state(event, wait_state)
     resolved_thinking_sink = _resolve_thinking_sink(thinking_sink)
 
     if event_type == "assistant":
@@ -195,6 +235,109 @@ def _process_json_line(
             if isinstance(usage, dict):
                 for key in usage_totals:
                     usage_totals[key] += usage.get(key, 0)
+
+
+def _record_wait_state(
+    event: Mapping[str, Any],
+    wait_state: ClaudeTurnWaitState,
+) -> None:
+    event_type = event.get("type")
+    if event_type == "assistant":
+        _record_assistant_wait_state(event, wait_state)
+    elif event_type == "user":
+        _record_user_wait_state(event, wait_state)
+
+
+def _record_assistant_wait_state(
+    event: Mapping[str, Any],
+    wait_state: ClaudeTurnWaitState,
+) -> None:
+    message = event.get("message", {})
+    if not isinstance(message, Mapping):
+        return
+    content_blocks = message.get("content", [])
+    if not isinstance(content_blocks, list):
+        return
+
+    for block in content_blocks:
+        if not isinstance(block, Mapping):
+            continue
+        block_type = block.get("type")
+        if block_type == "text":
+            text = block.get("text")
+            if isinstance(text, str) and text.strip():
+                wait_state.final_text_tail = text.strip()[-700:]
+        elif block_type == "tool_use" and block.get("name") == "ScheduleWakeup":
+            tool_input = block.get("input")
+            stop = tool_input.get("stop") if isinstance(tool_input, Mapping) else None
+            if stop is not True:
+                wait_state.schedule_wakeup_requested = True
+
+
+def _record_user_wait_state(
+    event: Mapping[str, Any],
+    wait_state: ClaudeTurnWaitState,
+) -> None:
+    tool_use_result = event.get("tool_use_result")
+    if isinstance(tool_use_result, Mapping):
+        task_id = tool_use_result.get("backgroundTaskId")
+        if task_id:
+            wait_state.outstanding_background_tasks.add(str(task_id))
+
+    for text in _event_text_fragments(event):
+        _record_background_task_ids_from_text(text, wait_state)
+        _resolve_task_notifications_from_text(text, wait_state)
+
+
+def _event_text_fragments(event: Mapping[str, Any]) -> list[str]:
+    fragments: list[str] = []
+    message = event.get("message")
+    if not isinstance(message, Mapping):
+        return fragments
+    content = message.get("content")
+    if isinstance(content, str):
+        fragments.append(content)
+    elif isinstance(content, list):
+        for block in content:
+            if not isinstance(block, Mapping):
+                continue
+            text = block.get("text")
+            if isinstance(text, str):
+                fragments.append(text)
+            block_content = block.get("content")
+            if isinstance(block_content, str):
+                fragments.append(block_content)
+            elif isinstance(block_content, list):
+                fragments.extend(
+                    item for item in block_content if isinstance(item, str)
+                )
+    return fragments
+
+
+def _record_background_task_ids_from_text(
+    text: str,
+    wait_state: ClaudeTurnWaitState,
+) -> None:
+    for match in _BACKGROUND_TASK_ID_TEXT_RE.finditer(text):
+        task_id = match.group("task_id").strip()
+        if task_id:
+            wait_state.outstanding_background_tasks.add(task_id)
+
+
+def _resolve_task_notifications_from_text(
+    text: str,
+    wait_state: ClaudeTurnWaitState,
+) -> None:
+    for block in _TASK_NOTIFICATION_BLOCK_RE.finditer(text):
+        notification = block.group(0)
+        task_match = _TASK_ID_RE.search(notification)
+        status_match = _TASK_STATUS_RE.search(notification)
+        if not task_match or not status_match:
+            continue
+        task_id = task_match.group("task_id").strip()
+        status = status_match.group("status").strip()
+        if task_id and status:
+            wait_state.outstanding_background_tasks.discard(task_id)
 
 
 def _messages_error_detail(event: Mapping[str, Any]) -> str:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import subprocess
 import uuid
 from pathlib import Path
@@ -14,8 +15,9 @@ from sase.output import provider_timer
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
 from ._subprocess import start_interrupt_monitor, stream_and_parse_json_output
+from ._subprocess_claude import ClaudeTurnWaitState
 from .base import LLMProvider
-from .types import InvokeResult, LLMInvocationOptions, ModelTier
+from .types import InvokeResult, LLMInvocationError, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
@@ -35,6 +37,73 @@ _TIER_TO_MODEL: dict[ModelTier, str] = {
 _EFFORT_CLI_ARGS: dict[str, list[str]] = {
     level: ["--effort", level] for level in ("low", "medium", "high", "xhigh", "max")
 }
+_CLAUDE_MAX_WAIT_CONTINUATIONS_ENV = "SASE_CLAUDE_MAX_WAIT_CONTINUATIONS"
+_DEFAULT_MAX_WAIT_CONTINUATIONS = 2
+# Raise Claude Code's Bash tool timeout ceiling so long verification can stay
+# in the foreground; commands still need explicit larger timeouts to use it.
+_BASH_MAX_TIMEOUT_MS = "14400000"
+_SINGLE_TURN_DIRECTIVE = (
+    "SASE single-turn print mode: this session runs exactly one provider turn "
+    "with no follow-up events. Background-task notifications, scheduled "
+    "wake-ups, and 'you will be notified' promises can never reach you; "
+    "anything still running when you give your final response is lost. Run "
+    "commands synchronously in the foreground, and if a command is killed by "
+    "its timeout, rerun it with a larger explicit timeout. Never end your "
+    "turn to wait."
+)
+_WAIT_CONTINUATION_NUDGE = (
+    "Your previous reply ended the turn waiting for a background notification "
+    "or wake-up that will never arrive; this session is single-turn. Finish "
+    "the work now: read the background task's output file directly or rerun "
+    "the command synchronously in the foreground, then give your final answer. "
+    "Do not end your turn waiting."
+)
+_WAIT_SIGNAL_RE = re.compile(
+    r"\b(?:"
+    r"i(?:'|\u2019)ll wait|"
+    r"will be notified|"
+    r"notify me|"
+    r"when (?:it|the command|the task|the process) "
+    r"(?:completes?|finishes?)|"
+    r"waiting for|"
+    r"still running|"
+    r"in the background"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
+def _claude_max_wait_continuations() -> int:
+    """Return the bounded wait-state continuation budget."""
+    raw_value = os.environ.get(_CLAUDE_MAX_WAIT_CONTINUATIONS_ENV)
+    if raw_value is None:
+        return _DEFAULT_MAX_WAIT_CONTINUATIONS
+    try:
+        return max(0, int(raw_value))
+    except ValueError:
+        return _DEFAULT_MAX_WAIT_CONTINUATIONS
+
+
+def _join_response_parts(left: str, right: str) -> str:
+    """Join non-empty response fragments using SASE's provider convention."""
+    return (left + "\n\n" + right.strip()).strip()
+
+
+def _classify_claude_wait_state(
+    wait_state: ClaudeTurnWaitState,
+) -> tuple[bool, str]:
+    """Classify a completed Claude print-mode turn for impossible wait states."""
+    if wait_state.schedule_wakeup_requested:
+        return True, "schedule_wakeup_tool_use"
+
+    if wait_state.outstanding_background_tasks:
+        tail = wait_state.final_text_tail.strip()[-700:]
+        if _WAIT_SIGNAL_RE.search(tail):
+            task_ids = ",".join(sorted(wait_state.outstanding_background_tasks))
+            return True, f"background_task_wait:{task_ids}"
+        return False, "background_tasks_without_wait_reply"
+
+    return False, "no_wait_state"
 
 
 def _log_interrupt(message: str, cycle: int) -> None:
@@ -328,8 +397,14 @@ class ClaudeCodeProvider(LLMProvider):
         timer_context: Any,
         suppress_output: bool,
     ) -> InvokeResult:
+        active_session_uuid: str | None = None
+        resume_session = False
+        wait_continuations = 0
+        max_wait_continuations = _claude_max_wait_continuations()
         while True:
-            session_uuid = str(uuid.uuid4())
+            if active_session_uuid is None:
+                active_session_uuid = str(uuid.uuid4())
+            session_mode_arg = "--resume" if resume_session else "--session-id"
             base_args = [
                 "claude",
                 "-p",
@@ -339,8 +414,12 @@ class ClaudeCodeProvider(LLMProvider):
                 "--output-format",
                 "stream-json",
                 "--dangerously-skip-permissions",
-                "--session-id",
-                session_uuid,
+                "--append-system-prompt",
+                _SINGLE_TURN_DIRECTIVE,
+                "--disallowedTools",
+                "ScheduleWakeup",
+                session_mode_arg,
+                active_session_uuid,
             ]
 
             base_args.extend(effort_args)
@@ -349,15 +428,22 @@ class ClaudeCodeProvider(LLMProvider):
                 for arg in extra_args_env.split():
                     base_args.append(arg)
 
+            wait_state = ClaudeTurnWaitState()
             if timer_context:
                 with timer_context:
                     content, stderr_content, return_code, usage = self._run_subprocess(
-                        base_args, current_prompt, suppress_output
+                        base_args,
+                        current_prompt,
+                        suppress_output,
+                        wait_state=wait_state,
                     )
                     print()
             else:
                 content, stderr_content, return_code, usage = self._run_subprocess(
-                    base_args, current_prompt, suppress_output
+                    base_args,
+                    current_prompt,
+                    suppress_output,
+                    wait_state=wait_state,
                 )
 
             for key in total_usage:
@@ -372,8 +458,10 @@ class ClaudeCodeProvider(LLMProvider):
                 self._pending_interrupt_message = None
                 cycle += 1
                 _log_interrupt(user_msg, cycle)
-                response_content = response_content.strip() + "\n\n" + content.strip()
+                response_content = _join_response_parts(response_content, content)
                 current_prompt = user_msg
+                active_session_uuid = None
+                resume_session = False
                 continue
 
             if return_code != 0:
@@ -384,7 +472,26 @@ class ClaudeCodeProvider(LLMProvider):
                     stderr=stderr_content,
                 )
 
-            response_content = response_content.strip() + "\n\n" + content.strip()
+            response_content = _join_response_parts(response_content, content)
+            is_wait_state, wait_reason = _classify_claude_wait_state(wait_state)
+            if is_wait_state:
+                if wait_continuations >= max_wait_continuations:
+                    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+                    artifact_hint = (
+                        f" Artifacts: {artifacts_dir}." if artifacts_dir else ""
+                    )
+                    raise LLMInvocationError(
+                        "Claude produced a wait-for-background reply after "
+                        f"{wait_continuations} continuation(s); refusing to "
+                        "report it as success. Reason: "
+                        f"{wait_reason}. The model is waiting on a notification "
+                        f"that `claude -p` cannot deliver.{artifact_hint}"
+                    )
+                wait_continuations += 1
+                current_prompt = _WAIT_CONTINUATION_NUDGE
+                resume_session = True
+                continue
+
             return InvokeResult(content=response_content.strip(), usage=total_usage)
 
     def _run_subprocess(
@@ -392,6 +499,8 @@ class ClaudeCodeProvider(LLMProvider):
         args: list[str],
         prompt: str,
         suppress_output: bool,
+        *,
+        wait_state: ClaudeTurnWaitState | None = None,
     ) -> tuple[str, str, int, dict[str, int]]:
         """Run the Claude CLI subprocess.
 
@@ -410,12 +519,17 @@ class ClaudeCodeProvider(LLMProvider):
         except Exception:  # noqa: BLE001 - never let usage capture break invoke.
             log.debug("Claude passive usage context capture failed", exc_info=True)
             usage_context = None
+        env = os.environ.copy()
+        env.setdefault("CLAUDE_CODE_DISABLE_BACKGROUND_TASKS", "1")
+        env.setdefault("BASH_MAX_TIMEOUT_MS", _BASH_MAX_TIMEOUT_MS)
+
         process = subprocess.Popen(
             args,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
         )
 
         # Write prompt to stdin
@@ -433,4 +547,5 @@ class ClaudeCodeProvider(LLMProvider):
             process,
             suppress_output=suppress_output,
             usage_context=usage_context,
+            wait_state=wait_state,
         )

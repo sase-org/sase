@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.llm_provider.base import LLMProvider
-from sase.llm_provider.claude import ClaudeCodeProvider
+from sase.llm_provider.claude import ClaudeCodeProvider, _SINGLE_TURN_DIRECTIVE
 from sase.llm_provider.types import InvokeResult, ModelTier
 
 
@@ -60,6 +60,8 @@ def test_claude_provider_extra_args_from_env_small(
     assert "--output-format" in cmd
     assert "stream-json" in cmd
     assert "--include-hook-events" not in cmd
+    assert cmd[cmd.index("--append-system-prompt") + 1] == _SINGLE_TURN_DIRECTIVE
+    assert cmd[cmd.index("--disallowedTools") + 1] == "ScheduleWakeup"
 
 
 def test_base_provider_resolve_model_name_returns_unknown() -> None:
