@@ -157,9 +157,9 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: If you changed any file tracked by git in the sase repo (excluding file
   changes in the separate repos contained in the sase/repos/ directory), you MUST read
-  this note before you finish your turn. Verification is NOT optional.
+  this note before you finish your turn.
 - Lines: 62
-- Approx. tokens: 818
+- Approx. tokens: 810
 
 ### `sase/memory/sase_artifacts.md`
 
