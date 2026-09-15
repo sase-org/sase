@@ -235,7 +235,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Reference notes: 10
 - Web descriptor notes: 3
 - Total lines: 1105
-- Total approx. tokens: 14299
+- Total approx. tokens: 14291
 
 ## Commands
 
