@@ -12,10 +12,15 @@ from pathlib import Path
 
 import pytest
 
+from sase.artifact_refs import ArtifactRefDocumentOwner
 from sase.pager.adapters import document_from_paths
 from sase.pager.app import SasePager
 from sase.pager.document import PagerDocument, target_resolution_ref
-from sase.pager.link_context import merge_link_context
+from sase.pager.link_context import (
+    LinkAnchor,
+    LinkResolutionContext,
+    merge_link_context,
+)
 from sase.pager.resolve import resolve_link
 from sase.pager.targets import LinkTargetKind
 
@@ -43,6 +48,7 @@ from tests.pager._rendered_link_pilot import (
     settle,
     wait_for_notification,
 )
+from tests.artifact_refs.helpers import context as make_artifact_context
 
 
 @pytest.fixture
@@ -158,6 +164,64 @@ async def test_screenshot_plan_and_capture_paths_follow_through_real_labels(
                 await settle(pilot)
                 assert screen.document is document
             assert git_calls == []
+
+
+async def test_file_backed_home_path_hint_uses_filesystem_resolution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home = tmp_path / "home"
+    note_dir = tmp_path / "notes"
+    artifact_context = make_artifact_context(tmp_path)
+    checkout = artifact_context.repositories[0].checkout_paths[0]
+    for directory in (home, checkout, note_dir):
+        directory.mkdir(parents=True)
+    home_config = home / ".ssh" / "config"
+    home_config.parent.mkdir()
+    home_config.write_text("Host home\n", encoding="utf-8")
+    decoy = checkout / "~" / ".ssh" / "config"
+    decoy.parent.mkdir(parents=True)
+    decoy.write_text("Host decoy\n", encoding="utf-8")
+    note = note_dir / "tailnet.md"
+    note.write_text("Use `~/.ssh/config` for SSH config.\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(
+        "sase.pager.source_resolve.artifact_context_for_link_context",
+        lambda _context: artifact_context,
+    )
+    document = document_from_paths(
+        [note],
+        cwd=note_dir,
+        link_context=LinkResolutionContext(
+            anchors=(LinkAnchor(directory=note_dir),),
+            owner=ArtifactRefDocumentOwner(
+                repository="sase",
+                source_directory=str(checkout),
+                checkout_candidates=(checkout,),
+            ),
+        ),
+    )
+
+    app = SasePager(document)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await settle(pilot)
+        screen = pager_screen(app)
+        assert screen.document is document
+        label = label_for(screen, "~/.ssh/config")
+        await press_hint(pilot, label.hint)
+        assert screen.document is not document
+        section = screen.document.sections[0]
+        assert str(home_config.resolve()) in (
+            section.identity + (section.subject_ref or "")
+        )
+        body = screen.document.sections[0].plain_text
+        assert "Host home" in body
+        assert "Host decoy" not in body
+        assert screen._back_trail
+
+        await pilot.press("backspace")
+        await settle(pilot)
+        assert screen.document is document
 
 
 async def test_screenshot_hosted_urls_copy_the_exact_destination(

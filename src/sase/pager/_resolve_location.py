@@ -25,7 +25,6 @@ def apply_link_location(
         target.kind is LinkTargetKind.DOCUMENT
         and target.edit_path is not None
         and target.document is not None
-        and any(section.raw_source is not None for section in target.document.sections)
     ):
         return replace(
             target,

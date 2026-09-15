@@ -193,6 +193,14 @@ def test_is_openable_text_path_admits_swift_and_go_without_mime(
     assert is_openable_text_path(go_file) is True
 
 
+def test_is_openable_text_path_admits_ssh_config(tmp_path: Path) -> None:
+    config = tmp_path / ".ssh" / "config"
+    config.parent.mkdir()
+    config.write_text("Host example\n", encoding="utf-8")
+
+    assert is_openable_text_path(config) is True
+
+
 def test_get_pager_syntax_falls_back_on_unknown_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

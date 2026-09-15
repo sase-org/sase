@@ -217,6 +217,8 @@ def is_openable_text_path(
     """
     if preview_has_nul(path):
         return False
+    if path.name == "config" and path.parent.name == ".ssh":
+        return True
     filename = logical_filename if logical_filename is not None else str(path)
     result = resolve_source_language(
         category="raw_file",

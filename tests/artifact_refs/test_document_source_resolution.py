@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 from sase import artifact_refs
 from sase.artifact_refs import ArtifactRefDocumentOwner, ArtifactRefRepository
 
@@ -98,6 +100,40 @@ def test_explicit_owner_repository_excludes_unrelated_repositories(
 
     assert resolution.status == "missing_checkout"
     assert all(candidate.repository != "other" for candidate in resolution.candidates)
+
+
+def test_home_source_path_is_binding_validation_not_repository_search(
+    tmp_path: Path,
+) -> None:
+    context = make_context(tmp_path)
+    checkout = context.repositories[0].checkout_paths[0]
+    decoy = checkout / "~" / ".ssh" / "config"
+    decoy.parent.mkdir(parents=True)
+    decoy.write_text("decoy", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="home paths belong to the filesystem"):
+        artifact_refs.resolve_document_source_target(
+            "~/.ssh/config",
+            context=context,
+        )
+
+
+def test_explicitly_relative_literal_tilde_source_path_still_resolves(
+    tmp_path: Path,
+) -> None:
+    context = make_context(tmp_path)
+    checkout = context.repositories[0].checkout_paths[0]
+    literal = checkout / "~" / "config"
+    literal.parent.mkdir(parents=True)
+    literal.write_text("literal", encoding="utf-8")
+
+    resolution = artifact_refs.resolve_document_source_target(
+        "./~/config",
+        context=context,
+    )
+
+    assert resolution.status == "exact"
+    assert resolution.resolved_path == literal
 
 
 def test_document_owner_wire_carries_optional_source_path_globs() -> None:

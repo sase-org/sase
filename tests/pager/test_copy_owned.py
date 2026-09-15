@@ -20,6 +20,7 @@ from sase.pager.landings import (
 from sase.pager.link_context import LinkAnchor, LinkResolutionContext
 from sase.pager.link_scan import LinkSpanKind
 from sase.pager.resolve import copy_text_for_target, resolve_ref
+from tests.artifact_refs.helpers import context as make_artifact_context
 
 
 def _write(path: Path, body: str = "ok\n") -> Path:
@@ -47,6 +48,38 @@ def _owned_context(directory: Path) -> LinkResolutionContext:
     return LinkResolutionContext(
         anchors=(LinkAnchor(directory=directory),),
         owner=ArtifactRefDocumentOwner(project_key="demo"),
+    )
+
+
+def _real_owned_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, Path, LinkResolutionContext]:
+    home = tmp_path / "home"
+    cwd = tmp_path / "cwd"
+    artifact_context = make_artifact_context(tmp_path)
+    checkout = artifact_context.repositories[0].checkout_paths[0]
+    for directory in (home, checkout, cwd):
+        directory.mkdir(parents=True)
+    decoy = checkout / "~" / ".ssh" / "config"
+    decoy.parent.mkdir(parents=True)
+    decoy.write_text("decoy\n", encoding="utf-8")
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(
+        "sase.pager.source_resolve.artifact_context_for_link_context",
+        lambda _context: artifact_context,
+    )
+    return (
+        home,
+        checkout,
+        LinkResolutionContext(
+            anchors=(LinkAnchor(directory=cwd),),
+            owner=ArtifactRefDocumentOwner(
+                repository="sase",
+                source_directory=str(checkout),
+                checkout_candidates=(checkout,),
+            ),
+        ),
     )
 
 
@@ -252,6 +285,23 @@ def test_copy_includes_location_for_generic_file(
     )
 
     assert copied == f"{live.resolve()}:7"
+
+
+def test_copy_owned_home_path_uses_filesystem_resolution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    home, checkout, context = _real_owned_context(tmp_path, monkeypatch)
+    live = _write(home / ".ssh" / "config", "host home\n")
+
+    copied = copy_text_for_target(
+        "~/.ssh/config:5:6",
+        LinkSpanKind.FILE_PATH.value,
+        context=context,
+    )
+
+    assert (checkout / "~" / ".ssh" / "config").is_file()
+    assert copied == f"{live.resolve()}:5:6"
 
 
 def test_commit_and_card_landings_freeze_context_known_kinds(

@@ -28,9 +28,10 @@ def lookup_owned_source_path(
 ) -> ArtifactRefTargetResolution | None:
     """Resolve *path_text* in the document's owning repositories.
 
-    Returns ``None`` when there is no recoverable owner, so the caller
-    keeps ordinary cwd-relative search. A returned resolution is the one
-    lookup for this press; do not search again to rebuild a toast.
+    Returns ``None`` when there is no recoverable owner, or when the source
+    resolver rejects filesystem-only syntax such as ``~``/``~/...``, so the
+    caller keeps ordinary path search. A returned resolution is the one lookup
+    for this press; do not search again to rebuild a toast.
     """
     if context is None or context.owner is None:
         return None

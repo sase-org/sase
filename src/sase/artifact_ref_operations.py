@@ -250,7 +250,9 @@ def resolve_document_source_target(
     mentions (a source file named from a plan, for example). *owner* carries
     whatever provenance the caller already has about that document; an empty
     owner still resolves correctly by searching every repository in
-    *context*, requiring a unique match.
+    *context*, requiring a unique match. Home-directory syntax is not part of
+    this repository-relative contract; the Rust binding raises ``ValueError``
+    for ``~``/``~/...`` so callers can fall back to filesystem resolution.
     """
     _require_artifact_ref_target_resolution_schema()
     binding = require_rust_binding("artifact_ref_resolve_document_source_target")
