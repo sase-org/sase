@@ -29,12 +29,18 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update_models import (
 )
 from sase.ace.tui.modals.plugins_browser_dev_update import DevUpdatePreview
 from sase.ace.tui.proc_observer import ObservedProc
+from sase.ace.tui.proc_observer import (
+    ProcProjection,
+    recount_projection,
+    store_proc_row,
+)
 from sase.ace.update_scope import UpdateScope
 from sase.agent_clis.models import (
     AgentCliUpdateEntry,
     AgentCliUpdatesReady,
     UpdateStrategy,
 )
+from sase.procs import Proc
 from tests.ace.tui._plugins_browser_pane_helpers import _agent_cli_statuses
 from tests.ace.tui._proc_submit_signature_helpers import (
     assert_session_worker_submit_signature,
@@ -124,6 +130,42 @@ class _Harness(UpdateRunActionsMixin):
 
     def _restart_after_update(self, message: str) -> None:
         self.restarts.append(message)
+
+
+class _ProductionRestartHarness(_Harness):
+    _restart_after_update = UpdateRunActionsMixin._restart_after_update
+
+    def __init__(self, *procs: ObservedProc) -> None:
+        super().__init__()
+        self._proc_projection = recount_projection(ProcProjection(rows=procs))
+        self.timer_callbacks: list[tuple[float, Any]] = []
+        self.restart_axe_calls: list[bool] = []
+
+    def set_timer(self, delay: float, callback: Any) -> object:
+        self.timer_callbacks.append((delay, callback))
+        return SimpleNamespace(stop=lambda: None)
+
+    def _restart_tui(self, *, restart_axe: bool) -> None:
+        self.restart_axe_calls.append(restart_axe)
+
+
+def _telegram_receiver_row() -> ObservedProc:
+    started_at = "2026-09-14T20:30:30.456885Z"
+    return store_proc_row(
+        Proc(
+            proc_id="telegram-receiver",
+            label="Telegram inbound long-poll receiver",
+            kind="command",
+            status="running",
+            command=[],
+            cwd="/tmp",
+            origin="telegram-receiver",
+            created_at=started_at,
+            started_at=started_at,
+            log_path="/tmp/telegram-receiver.log",
+            message="polling",
+        )
+    )
 
 
 def test_preview_proc_runnable_result_pushes_confirm_modal() -> None:
@@ -340,6 +382,43 @@ def test_code_changed_result_restarts(
         "SASE, core & plugins: sase updated; Agent CLIs: no captured work"
     ]
     assert harness.messages == []
+
+
+def test_code_changed_result_restarts_immediately_with_telegram_receiver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    written: list[object] = []
+    receipt = object()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.update_run.build_update_receipt",
+        lambda _result: receipt,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.update_run.write_pending_update_toast",
+        written.append,
+    )
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
+    harness = _ProductionRestartHarness(_telegram_receiver_row())
+    result = ComprehensiveUpdateResult(
+        sase=ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.UPDATED,
+            "sase updated",
+            SimpleNamespace(changed=True),
+        )
+    )
+
+    harness._on_scoped_update_complete(_completion(result, message="sase updated"))
+
+    assert written == [receipt]
+    assert harness.restart_axe_calls == [True]
+    assert harness.timer_callbacks == []
+    assert harness.messages == [
+        (
+            "SASE, core & plugins: sase updated; Agent CLIs: no captured work "
+            "— restarting ACE to load new code.",
+            "information",
+        )
+    ]
 
 
 def test_non_changing_result_toasts_without_restart() -> None:
