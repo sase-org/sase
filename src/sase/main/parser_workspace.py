@@ -150,6 +150,12 @@ def register_workspace_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="dry_run",
         help="Report planned compactions without touching Git config or objects",
     )
+    compact_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a machine-readable JSON object",
+    )
 
     repair_parser = workspace_sub.add_parser(
         "repair",

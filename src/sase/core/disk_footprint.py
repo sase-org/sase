@@ -180,6 +180,7 @@ def _sync_reap_patchables() -> None:
         get_artifact_retention_keep_recent_run_months
     )
     _reap.local_now = local_now
+    _reap.managed_tmpdir_root = managed_tmpdir_root
     _reap.reap_managed_tmpdir = reap_managed_tmpdir
     _reap.prune_procs = prune_procs
     _reap.sweep_orphan_proc_runtime_dirs = sweep_orphan_proc_runtime_dirs

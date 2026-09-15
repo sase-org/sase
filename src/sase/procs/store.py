@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection, Mapping, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -234,12 +235,12 @@ def prune_procs(
         history_limit if history_limit is not None else get_proc_history_limit(),
     )
     outcome = ProcPruneOutcome.from_dict(payload)
-    _delete_pruned_proc_state(
+    runtime_retention = _delete_pruned_proc_state(
         outcome.pruned_log_proc_ids,
         outcome.pruned_proc_ids,
         path=path,
     )
-    return outcome
+    return replace(outcome, runtime_retention=runtime_retention)
 
 
 def _delete_pruned_proc_state(
@@ -247,9 +248,9 @@ def _delete_pruned_proc_state(
     pruned_proc_ids: Sequence[str],
     *,
     path: Path | str | None,
-) -> None:
+) -> Any:
     delete_proc_logs(pruned_log_proc_ids)
-    delete_proc_runtime_dirs(
+    return delete_proc_runtime_dirs(
         pruned_proc_ids,
         runtime_root=_runtime_root_for_store(path),
         store_path=Path(path or proc_store_path()),

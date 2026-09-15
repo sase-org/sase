@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 DISK_COVERAGE_COMPLETE = "complete"
 DISK_COVERAGE_PARTIAL = "partial"
@@ -99,10 +101,18 @@ class DiskReapStep:
     command: tuple[str, ...] = ()
     exit_code: int | None = None
     output: str = ""
+    details: Mapping[str, Any] = field(default_factory=dict)
+
+    @property
+    def failed(self) -> bool:
+        return self.mode in {"blocked", "error"} or (
+            self.exit_code is not None and self.exit_code != 0
+        )
 
     def to_json_dict(self) -> dict[str, object]:
         payload = asdict(self)
         payload["command"] = list(self.command)
+        payload["failed"] = self.failed
         return payload
 
 
@@ -122,11 +132,16 @@ class DiskReapResult:
     def changed(self) -> bool:
         return any(step.changed for step in self.steps)
 
+    @property
+    def failed(self) -> bool:
+        return any(step.failed for step in self.steps)
+
     def to_json_dict(self) -> dict[str, object]:
         return {
             "apply": self.apply,
             "project": self.project,
             "changed": self.changed,
+            "failed": self.failed,
             "reclaimed_bytes": self.reclaimed_bytes,
             "steps": [step.to_json_dict() for step in self.steps],
         }

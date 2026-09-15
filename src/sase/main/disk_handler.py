@@ -122,7 +122,7 @@ def _print_reap_result(result: DiskReapResult) -> None:
     table.add_column("RECLAIMABLE", justify="right")
     table.add_column("SUMMARY")
     for step in result.steps:
-        style = "red" if step.mode in {"blocked", "error"} else None
+        style = "red" if step.failed else None
         table.add_row(
             step.owner,
             step.mode,
@@ -142,7 +142,7 @@ def _print_reap_result(result: DiskReapResult) -> None:
 
 
 def _exit_code(result: DiskReapResult) -> int:
-    return 1 if any(step.mode in {"blocked", "error"} for step in result.steps) else 0
+    return 1 if result.failed else 0
 
 
 __all__ = ["handle_disk_command"]

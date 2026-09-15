@@ -81,6 +81,13 @@ class TestWorkspaceParser:
         assert ns.include_shares is True
         assert ns.dry_run is True
 
+    def test_compact_json_option(self) -> None:
+        ns = parse_sase_args(["workspace", "compact", "-n", "-j", "-p", "demo"])
+        assert ns.workspace_subcommand == "compact"
+        assert ns.dry_run is True
+        assert ns.json is True
+        assert ns.project == "demo"
+
     def test_repair_dry_run(self) -> None:
         ns = parse_sase_args(["workspace", "repair", "-n"])
         assert ns.workspace_subcommand == "repair"

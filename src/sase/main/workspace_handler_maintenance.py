@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -10,7 +11,7 @@ import sys
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 from sase.ace.patch import patch_lock
 from sase.workspace_provider.git_objects import (
@@ -330,6 +331,8 @@ def handle_compact(
     failed = False
     any_rows = False
     requested = set(getattr(args, "workspace_nums", None) or [])
+    json_output = bool(getattr(args, "json", False))
+    rows: list[dict[str, Any]] = []
 
     for num, entry in sorted_entries(registry):
         if num == PRIMARY_WORKSPACE_NUM:
@@ -345,15 +348,38 @@ def handle_compact(
             claimed=claimed,
         )
         if not eligibility.ok:
-            print(f"skipped #{num}: {eligibility.reason} ({checkout_dir})")
+            rows.append(
+                _compact_row(
+                    num,
+                    checkout_dir,
+                    "skipped",
+                    reason=eligibility.reason,
+                    before_bytes=eligibility.before_bytes,
+                    alternate_status=eligibility.alternate_status,
+                )
+            )
+            if not json_output:
+                print(f"skipped #{num}: {eligibility.reason} ({checkout_dir})")
             continue
 
         if args.dry_run:
-            print(
-                f"would compact #{num}: {checkout_dir} "
-                f"(local objects {eligibility.before_bytes} bytes; "
-                f"alternate {eligibility.alternate_status})"
+            rows.append(
+                _compact_row(
+                    num,
+                    checkout_dir,
+                    "planned",
+                    reason="eligible",
+                    before_bytes=eligibility.before_bytes,
+                    reclaimed_bytes=eligibility.before_bytes,
+                    alternate_status=eligibility.alternate_status,
+                )
             )
+            if not json_output:
+                print(
+                    f"would compact #{num}: {checkout_dir} "
+                    f"(local objects {eligibility.before_bytes} bytes; "
+                    f"alternate {eligibility.alternate_status})"
+                )
             continue
 
         attempted = True
@@ -366,21 +392,68 @@ def handle_compact(
                 claimed=locked_claimed,
             )
             if not locked.ok:
-                print(f"skipped #{num}: {locked.reason} after locked recheck")
+                rows.append(
+                    _compact_row(
+                        num,
+                        checkout_dir,
+                        "skipped",
+                        reason=f"{locked.reason} after locked recheck",
+                        before_bytes=locked.before_bytes,
+                        alternate_status=locked.alternate_status,
+                    )
+                )
+                if not json_output:
+                    print(f"skipped #{num}: {locked.reason} after locked recheck")
                 continue
             try:
                 result = compact_checkout(ctx.primary_workspace_dir, checkout_dir)
             except GitObjectSharingError as exc:
-                print(f"failed #{num}: {exc}", file=sys.stderr)
+                rows.append(
+                    _compact_row(
+                        num,
+                        checkout_dir,
+                        "failed",
+                        reason=str(exc),
+                        before_bytes=locked.before_bytes,
+                        alternate_status=locked.alternate_status,
+                        exit_code=1,
+                    )
+                )
+                if not json_output:
+                    print(f"failed #{num}: {exc}", file=sys.stderr)
                 failed = True
                 continue
-        print(
-            f"compacted #{num}: {checkout_dir} "
-            f"({result.before_bytes} -> {result.after_bytes} bytes, "
-            f"reclaimed {result.reclaimed_bytes} bytes)"
+        rows.append(
+            _compact_row(
+                num,
+                checkout_dir,
+                "compacted",
+                reason=result.status,
+                before_bytes=result.before_bytes,
+                after_bytes=result.after_bytes,
+                reclaimed_bytes=result.reclaimed_bytes,
+            )
         )
+        if not json_output:
+            print(
+                f"compacted #{num}: {checkout_dir} "
+                f"({result.before_bytes} -> {result.after_bytes} bytes, "
+                f"reclaimed {result.reclaimed_bytes} bytes)"
+            )
 
-    if not any_rows:
+    if json_output:
+        print(
+            json.dumps(
+                _compact_result_payload(
+                    ctx,
+                    apply=not args.dry_run,
+                    rows=rows,
+                ),
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    elif not any_rows:
         if requested:
             nums = ", ".join(f"#{num}" for num in sorted(requested))
             print(f"No matching registry-owned numbered checkouts to compact: {nums}.")
@@ -392,6 +465,51 @@ def handle_compact(
         print("No eligible checkouts to compact.")
 
     return 1 if failed else 0
+
+
+def _compact_row(
+    workspace_num: int,
+    checkout_dir: str,
+    status: str,
+    *,
+    reason: str,
+    before_bytes: int = 0,
+    after_bytes: int = 0,
+    reclaimed_bytes: int = 0,
+    alternate_status: str = "",
+    exit_code: int | None = None,
+) -> dict[str, Any]:
+    return {
+        "workspace_num": workspace_num,
+        "checkout_dir": checkout_dir,
+        "status": status,
+        "reason": reason,
+        "before_bytes": int(before_bytes),
+        "after_bytes": int(after_bytes),
+        "reclaimed_bytes": int(reclaimed_bytes),
+        "alternate_status": alternate_status,
+        "exit_code": exit_code,
+    }
+
+
+def _compact_result_payload(
+    ctx: ProjectContext,
+    *,
+    apply: bool,
+    rows: list[dict[str, Any]],
+) -> dict[str, Any]:
+    errors = sum(1 for row in rows if row["status"] == "failed")
+    return {
+        "project": ctx.project_name,
+        "apply": apply,
+        "changed": any(row["status"] == "compacted" for row in rows),
+        "errors": errors,
+        "skipped": sum(1 for row in rows if row["status"] == "skipped"),
+        "planned": sum(1 for row in rows if row["status"] == "planned"),
+        "compacted": sum(1 for row in rows if row["status"] == "compacted"),
+        "reclaimed_bytes": sum(int(row["reclaimed_bytes"]) for row in rows),
+        "rows": rows,
+    }
 
 
 def handle_repair(

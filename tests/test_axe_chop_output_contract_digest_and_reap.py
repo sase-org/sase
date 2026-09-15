@@ -111,10 +111,15 @@ def _pin_reap_free_space(monkeypatch: pytest.MonkeyPatch) -> None:
     from sase.core import managed_tmp_reaper
 
     monkeypatch.setattr(
-        "sase.scripts.sase_chop_managed_tmp_reap.reap_managed_tmpdir",
-        lambda: managed_tmp_reaper.reap_managed_tmpdir(
-            filesystem_available_bytes=64 * 1024**3
+        "sase.scripts.sase_chop_managed_tmp_reap.filesystem_pressure_policy",
+        lambda **_kwargs: SimpleNamespace(
+            free_bytes=64 * 1024**3,
+            warn_free_bytes=3 * 1024**3,
         ),
+    )
+    monkeypatch.setattr(
+        "sase.scripts.sase_chop_managed_tmp_reap.reap_managed_tmpdir",
+        lambda **kwargs: managed_tmp_reaper.reap_managed_tmpdir(**kwargs),
     )
 
 
@@ -238,7 +243,7 @@ def test_managed_tmp_reap_reports_pressure_min_age(
     monkeypatch.setattr(
         script,
         "reap_managed_tmpdir",
-        lambda: SimpleNamespace(
+        lambda **_kwargs: SimpleNamespace(
             scanned=3,
             selected=1,
             removed=1,
@@ -275,3 +280,57 @@ def test_managed_tmp_reap_reports_pressure_min_age(
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "ok"
     assert result["counters"]["pressure_min_age_seconds"] == 3600.0
+
+
+def test_disk_pressure_chop_routes_managed_tmp_filesystem_to_reap(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_disk_pressure")
+    from sase.core import disk_pressure
+
+    managed_root = tmp_path / "managed"
+    sase_home = tmp_path / ".sase"
+    managed_root.mkdir()
+    sase_home.mkdir()
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(script, "managed_tmpdir_root", lambda: managed_root)
+    monkeypatch.setattr(script, "sase_home", lambda: sase_home)
+    monkeypatch.setattr(
+        script, "collect_disk_footprint", lambda: SimpleNamespace(rows=())
+    )
+    monkeypatch.setattr(
+        disk_pressure,
+        "_filesystem_identity",
+        lambda path, *, filesystem_identity_fn=None: str(path),
+    )
+
+    def disk_usage(path: str) -> SimpleNamespace:
+        if path == str(managed_root):
+            return SimpleNamespace(
+                total=100 * 1024**3, used=95 * 1024**3, free=2 * 1024**3
+            )
+        if path == str(sase_home):
+            return SimpleNamespace(
+                total=100 * 1024**3, used=20 * 1024**3, free=80 * 1024**3
+            )
+        raise AssertionError(path)
+
+    def run_disk_reap(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(changed=False, failed=True, steps=(object(),))
+
+    monkeypatch.setattr(script.shutil, "disk_usage", disk_usage)
+    monkeypatch.setattr(script, "run_disk_reap", run_disk_reap)
+
+    run_builtin_chop("disk_pressure", ["--context", str(context_path)])
+
+    assert captured["filesystem_available_bytes"] == 2 * 1024**3
+    assert captured["managed_tmp_pressure_min_available_bytes"] == 5 * 1024**3
+    assert captured["managed_tmp_pressure_recovery_available_bytes"] == 5 * 1024**3
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["counters"]["observations"] == 2
+    assert result["counters"]["failed"] == 1

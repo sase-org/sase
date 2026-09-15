@@ -8,12 +8,25 @@ entries, which must never sit in front of a TUI startup or a CLI command.
 
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
+from sase.core import managed_tmp_reaper as _managed_tmp_reaper
+from sase.core.disk_pressure import filesystem_pressure_policy
 from sase.core.managed_tmp_reaper import reap_managed_tmpdir
 
 
 @builtin_chop("managed_tmp_reap")
 def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
-    result = reap_managed_tmpdir()
+    root = _managed_tmp_reaper.managed_tmpdir_root()
+    policy = filesystem_pressure_policy(
+        label="managed_tmp",
+        role="owner",
+        path=root,
+    )
+    result = reap_managed_tmpdir(
+        root=root,
+        filesystem_available_bytes=policy.free_bytes,
+        pressure_min_available_bytes=policy.warn_free_bytes,
+        pressure_recovery_available_bytes=policy.warn_free_bytes,
+    )
     pressure_available_bytes = (
         result.pressure_available_bytes if result.pressure_trigger else None
     )

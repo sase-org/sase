@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -337,3 +338,157 @@ def test_managed_tmp_reap_step_reports_age_only_bytes(
 
     assert stale.exists()
     assert step.reclaimed_bytes == 512
+
+
+def test_managed_tmp_reap_step_uses_classifier_floor(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+    managed = tmp_path / "managed"
+    managed.mkdir()
+    policy = SimpleNamespace(free_bytes=8 * 1024, warn_free_bytes=16 * 1024)
+
+    def fake_reap_managed_tmpdir(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(
+            root=managed,
+            apply=False,
+            scanned=0,
+            selected=0,
+            removed=0,
+            selected_bytes=0,
+            removed_bytes=0,
+            selected_by_subdir={},
+            removed_by_subdir={},
+            deindexed=0,
+            capped=False,
+            ordinary_selected=0,
+            ordinary_removed=0,
+            ordinary_reclaimable_bytes=0,
+            ordinary_reclaimed_bytes=0,
+            launch_selected=0,
+            launch_removed=0,
+            launch_reclaimable_bytes=0,
+            launch_reclaimed_bytes=0,
+            pressure_selected=0,
+            pressure_removed=0,
+            pressure_reclaimable_bytes=0,
+            pressure_reclaimed_bytes=0,
+            pressure_trigger=None,
+            pressure_root_size_bytes=0,
+            pressure_available_bytes=policy.free_bytes,
+            pressure_recovery_available_bytes=policy.warn_free_bytes,
+            pressure_effective_min_age_seconds=None,
+            skipped=0,
+            failed=0,
+            incomplete_observations=0,
+            skip_reasons=(),
+            removal_errors=(),
+            describe=lambda: "nothing stale",
+        )
+
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.managed_tmpdir_root",
+        lambda: managed,
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.filesystem_pressure_policy",
+        lambda **_kwargs: policy,
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.reap_managed_tmpdir",
+        fake_reap_managed_tmpdir,
+    )
+
+    step = managed_tmp_reap_step(apply=False)
+
+    assert captured["root"] == managed
+    assert captured["filesystem_available_bytes"] == 8 * 1024
+    assert captured["pressure_min_available_bytes"] == 16 * 1024
+    assert captured["pressure_recovery_available_bytes"] == 16 * 1024
+    assert step.details["pressure_available_bytes"] == 8 * 1024
+
+
+def test_proc_reap_apply_includes_pruned_runtime_effects(monkeypatch) -> None:
+    from sase.core.disk_footprint_reap import proc_runtime_reap_step
+
+    pruned = _ProcRuntimeRetentionStub(
+        runtime_root=Path("/tmp/runtime"),
+        apply=True,
+        scanned=1,
+        selected=1,
+        removed=1,
+        skipped=0,
+        errors=0,
+        reclaimable_bytes=10,
+        reclaimed_bytes=10,
+        capped=False,
+    )
+    orphan = _ProcRuntimeRetentionStub(
+        runtime_root=Path("/tmp/runtime"),
+        apply=True,
+        scanned=2,
+        selected=2,
+        removed=2,
+        skipped=0,
+        errors=1,
+        reclaimable_bytes=20,
+        reclaimed_bytes=15,
+        capped=True,
+    )
+
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.prune_procs",
+        lambda: SimpleNamespace(runtime_retention=pruned),
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.sweep_orphan_proc_runtime_dirs",
+        lambda *, apply: orphan,
+    )
+
+    step = proc_runtime_reap_step(apply=True)
+
+    assert step.reclaimed_bytes == 25
+    assert step.changed is True
+    assert step.exit_code == 1
+    assert step.details["removed"] == 3
+    assert step.details["errors"] == 1
+    assert len(step.details["phases"]) == 2
+
+
+def test_artifact_reap_apply_errors_fail_step(monkeypatch) -> None:
+    from sase.core.disk_footprint_reap import artifact_run_reap_step
+
+    plan = SimpleNamespace(
+        sources_unavailable=(),
+        reclaimable_bytes=32,
+        counts=SimpleNamespace(selected=1, empty_out_of_range_shards=0),
+    )
+    execution = SimpleNamespace(
+        removed_runs=0,
+        removed_empty_shards=0,
+        bytes_reclaimed=0,
+        deindexed=0,
+        skipped=(),
+        errors=("permission denied",),
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.collect_ace_run_retention_protections",
+        lambda **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.plan_ace_run_retention",
+        lambda *_args, **_kwargs: plan,
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.apply_ace_run_retention",
+        lambda _plan: execution,
+    )
+
+    step = artifact_run_reap_step(apply=True, project=None)
+
+    assert step.mode == "apply"
+    assert step.exit_code == 1
+    assert step.failed is True
+    assert step.details["errors"] == ["permission denied"]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import time
@@ -312,6 +313,56 @@ class TestCompact:
         assert "#10" not in out
         assert not (git_object_dir(str(checkout_10)) / "info" / "alternates").exists()
         assert not (git_object_dir(str(checkout_11)) / "info" / "alternates").exists()
+
+    def test_compact_json_reports_structured_dry_run_rows(
+        self,
+        project_layout: tuple[str, str, Path],
+        capsys: pytest.CaptureFixture[str],
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from sase.main import workspace_handler_maintenance as maintenance
+
+        project_name, _, primary = project_layout
+        _init_primary_repo(primary, commits=2)
+        store = WorkspaceStore(
+            str(primary),
+            config={
+                "workspace": {
+                    "root": str(primary.parent / "managed"),
+                    "project_key": "demo-key",
+                }
+            },
+        )
+        checkout = _clone_registered_workspace(primary, store, 10)
+        monkeypatch.setattr(
+            maintenance,
+            "_compact_eligibility",
+            lambda *_args, **_kwargs: maintenance._CompactEligibility(
+                True,
+                "eligible",
+                before_bytes=4096,
+                alternate_status="absent",
+            ),
+        )
+
+        args = make_args(
+            workspace_subcommand="compact",
+            project=project_name,
+            workspace_nums=[],
+            dry_run=True,
+            json=True,
+        )
+        with pytest.raises(SystemExit) as exc:
+            handle_workspace_command(args)
+
+        assert exc.value.code == 0
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["apply"] is False
+        assert payload["planned"] == 1
+        assert payload["errors"] == 0
+        assert payload["rows"][0]["status"] == "planned"
+        assert payload["rows"][0]["workspace_num"] == 10
+        assert payload["rows"][0]["checkout_dir"] == str(checkout)
 
 
 class TestRepair:

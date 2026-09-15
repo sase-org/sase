@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 
+from sase.core.disk_footprint_models import DiskReapResult, DiskReapStep
+from sase.main.disk_handler import _exit_code
 from sase.main.parser import create_parser, default_list_delegation_notice
 
 
@@ -51,3 +53,20 @@ def test_parser_registers_disk_subcommands_and_short_options() -> None:
     assert args.apply is True
     assert args.json is True
     assert args.project == "sase"
+
+
+def test_reap_exit_code_fails_for_nonzero_owner_exit() -> None:
+    result = DiskReapResult(
+        apply=True,
+        project=None,
+        steps=(
+            DiskReapStep(
+                owner="proc_runtime_sweep",
+                mode="apply",
+                summary="errors=1",
+                exit_code=1,
+            ),
+        ),
+    )
+
+    assert _exit_code(result) == 1

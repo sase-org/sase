@@ -515,6 +515,7 @@ class ProcPruneOutcome:
     snapshot: ProcStoreSnapshot
     pruned_proc_ids: list[str] = field(default_factory=list)
     pruned_log_proc_ids: list[str] = field(default_factory=list)
+    runtime_retention: Any | None = None
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ProcPruneOutcome:
