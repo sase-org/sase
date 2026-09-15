@@ -42,6 +42,7 @@ nav:
   - The Nitty Gritty:
       - Commit Workflows: commit_workflows.md
       - Notifications: notifications.md
+      - Sudo Requests: sudo.md
       - Mobile Gateway: mobile_gateway.md
       - Mobile MVP Runbook: mobile_mvp_runbook.md
       - Remote Dispatch Runbook: remote_dispatch.md

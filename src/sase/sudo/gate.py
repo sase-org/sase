@@ -57,12 +57,12 @@ def build_sudo_gate_request(
             }
         },
         "presentation": {
-            "icon": "🔒",
+            "icon": "🔐",
             "title": title,
             "notes": _notes(request, risk_badges),
             "tags": ["sudo", "gate"],
             "preview": "sudo-request.md",
-            "chip": {"glyph": "🔒", "label": "sudo", "color": "#FFAF5F"},
+            "chip": {"glyph": "🔐", "label": "sudo", "color": "#FFAF5F"},
         },
         "query": "approve OR deny",
         "primary_branch": ["approve"],
@@ -148,7 +148,7 @@ def _approve_option() -> dict[str, Any]:
     return {
         "id": APPROVE_OPTION_ID,
         "label": "Approve with sudo",
-        "icon": "🔒",
+        "icon": "🔐",
         "command": {"argv": [APPROVE_COMMAND_PATH]},
         "requires_tty": True,
         "input_schema": {

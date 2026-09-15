@@ -5,14 +5,22 @@ from __future__ import annotations
 import argparse
 
 
+SUDO_DOCS_URL = "https://sase.sh/sudo/"
+
+
 def register_sudo_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sudo`` command group."""
     sudo_parser = subparsers.add_parser(
         "sudo",
         help="Request, inspect, and answer typed sudo gates",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Create typed sudo request gates and answer them from a controlling "
             "terminal through the dedicated sudo runner."
+        ),
+        epilog=(
+            "With no subcommand, `sase sudo` defaults to `sase sudo list`.\n"
+            f"docs: {SUDO_DOCS_URL}"
         ),
     )
     sudo_subparsers = sudo_parser.add_subparsers(
@@ -36,7 +44,8 @@ def _register_answer(subparsers: argparse._SubParsersAction) -> None:
             "  sase sudo answer sudo-123 --run\n"
             "  sase sudo answer sudo-123 --run --command refresh\n"
             "  sase sudo answer sudo-123 --deny --feedback 'not needed'\n"
-            "  sase sudo answer sudo-123 --json --run"
+            "  sase sudo answer sudo-123 --json --run\n"
+            f"\ndocs: {SUDO_DOCS_URL}"
         ),
     )
     parser.add_argument("gate_ref", metavar="ID", help="Sudo gate id or shell ref")
@@ -69,7 +78,12 @@ def _register_list(subparsers: argparse._SubParsersAction) -> None:
         "list",
         help="List sudo gate shells",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="examples:\n  sase sudo list\n  sase sudo list --all --json",
+        epilog=(
+            "examples:\n"
+            "  sase sudo list\n"
+            "  sase sudo list --all --json\n"
+            f"\ndocs: {SUDO_DOCS_URL}"
+        ),
     )
     parser.add_argument(
         "-a", "--all", action="store_true", help="Include settled gates"
@@ -99,7 +113,8 @@ def _register_request(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             '  printf \'%s\' \'{"reason":"install package","commands":[{"id":"apt","argv":["/usr/bin/apt-get","update"]}]}\' | sase sudo request\n'
-            "  sase sudo request --json < sudo-request.json"
+            "  sase sudo request --json < sudo-request.json\n"
+            f"\ndocs: {SUDO_DOCS_URL}"
         ),
     )
     parser.add_argument("-j", "--json", action="store_true", help="Emit JSON")
@@ -113,10 +128,15 @@ def _register_show(subparsers: argparse._SubParsersAction) -> None:
         "show",
         help="Show a sudo gate",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="examples:\n  sase sudo show sudo-123\n  sase sudo show sudo-123 --json",
+        epilog=(
+            "examples:\n"
+            "  sase sudo show sudo-123\n"
+            "  sase sudo show sudo-123 --json\n"
+            f"\ndocs: {SUDO_DOCS_URL}"
+        ),
     )
     parser.add_argument("gate_ref", metavar="ID", help="Sudo gate id or shell ref")
     parser.add_argument("-j", "--json", action="store_true", help="Emit JSON")
 
 
-__all__ = ["register_sudo_parser"]
+__all__ = ["SUDO_DOCS_URL", "register_sudo_parser"]
