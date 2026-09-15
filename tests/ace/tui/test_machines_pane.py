@@ -114,7 +114,10 @@ async def test_status_check_is_user_triggered_and_records_observation() -> None:
 
         pane.action_check_status()
         await wait_for(pilot, lambda: service.status_calls == [("apollo",)])
-        await wait_for(pilot, lambda: not pane._checking_alias)
+        await wait_for(
+            pilot,
+            lambda: not pane._checking_alias and "apollo" in pane._statuses,
+        )
 
         assert service.status_calls == [("apollo",)]
         assert pane._statuses["apollo"].status.ok
