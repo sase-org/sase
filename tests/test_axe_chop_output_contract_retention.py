@@ -37,6 +37,7 @@ def test_artifact_run_prune_emits_noop_summary(
         reclaimable_bytes=0,
         sources_unavailable=(),
     )
+    notifications: list[Any] = []
     monkeypatch.setattr(
         script,
         "collect_ace_run_retention_protections",
@@ -44,6 +45,11 @@ def test_artifact_run_prune_emits_noop_summary(
     )
     monkeypatch.setattr(
         script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
+    )
+    monkeypatch.setattr(
+        script,
+        "upsert_notification",
+        lambda notification, **kwargs: notifications.append((notification, kwargs)),
     )
 
     run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
@@ -62,6 +68,122 @@ def test_artifact_run_prune_emits_noop_summary(
         "selected": 0,
         "unavailable": 0,
     }
+    assert notifications == []
+
+
+def test_artifact_run_prune_upserts_actionable_preview_notification(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    plan = SimpleNamespace(
+        counts=SimpleNamespace(
+            candidates=3,
+            selected=1,
+            empty_out_of_range_shards=1,
+            protected=1,
+        ),
+        reclaimable_bytes=2048,
+        sources_unavailable=(),
+        selected=(
+            SimpleNamespace(
+                project="proj",
+                timestamp="20260101000000",
+                artifact_dir="/tmp/proj/artifacts/ace-run/202601/01/20260101000000",
+                size_bytes=2048,
+            ),
+        ),
+        empty_out_of_range_shards=(
+            SimpleNamespace(project="proj", kind="day", path="/tmp/proj/day"),
+        ),
+    )
+    notifications: list[Any] = []
+    monkeypatch.setattr(
+        script,
+        "collect_ace_run_retention_protections",
+        lambda **_kwargs: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
+    )
+    monkeypatch.setattr(
+        script,
+        "upsert_notification",
+        lambda notification, **kwargs: notifications.append((notification, kwargs)),
+    )
+
+    run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
+
+    out = capsys.readouterr().out
+    assert "selected=1" in out
+    assert len(notifications) == 1
+    notification, kwargs = notifications[0]
+    assert notification.sender == "axe"
+    assert notification.action == "ViewReport"
+    assert notification.dedup_key.startswith("artifact_run_prune:")
+    assert "artifact-retention" in notification.tags
+    assert notification.action_data["apply_command"] == (
+        "sase artifact prune-runs --apply"
+    )
+    report = json.loads(notification.action_data["report"])
+    assert report["title"] == "ACE run pruning preview"
+    assert kwargs["plus_one_note"] == (
+        "Still previewing 1 run dir(s), 1 empty shard(s), 2.0 KiB reclaimable."
+    )
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "ok"
+
+
+def test_artifact_run_prune_notifies_when_protection_sources_are_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_artifact_run_prune")
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    plan = SimpleNamespace(
+        counts=SimpleNamespace(
+            candidates=2,
+            selected=0,
+            empty_out_of_range_shards=0,
+            protected=2,
+        ),
+        reclaimable_bytes=0,
+        sources_unavailable=("beads: unreadable",),
+        selected=(),
+        empty_out_of_range_shards=(),
+    )
+    notifications: list[Any] = []
+    monkeypatch.setattr(
+        script,
+        "collect_ace_run_retention_protections",
+        lambda **_kwargs: SimpleNamespace(),
+    )
+    monkeypatch.setattr(
+        script, "plan_ace_run_retention", lambda *_args, **_kwargs: plan
+    )
+    monkeypatch.setattr(
+        script,
+        "upsert_notification",
+        lambda notification, **kwargs: notifications.append((notification, kwargs)),
+    )
+
+    run_builtin_chop("artifact_run_prune", ["--context", str(context_path)])
+
+    err = capsys.readouterr().err
+    assert "protection source unavailable" in err
+    assert len(notifications) == 1
+    notification, kwargs = notifications[0]
+    assert notification.color == "#D14343"
+    assert notification.notes[0] == "ACE run pruning needs attention"
+    assert kwargs["plus_one_note"] == "Still blocked by 1 protection source(s)."
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "check_error"
+    assert result["reason"] == "protection_unavailable"
 
 
 def test_epic_launch_flush_emits_noop_summary(

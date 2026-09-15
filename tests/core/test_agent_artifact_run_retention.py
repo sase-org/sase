@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -11,7 +12,9 @@ import pytest
 from sase._repo_inventory_models import RepoInventory, RepoRecord
 from sase.bead.model import Status
 import sase.core.agent_artifact_run_protection as protection
+import sase.core.agent_artifact_run_retention as run_retention
 from sase.core.agent_artifact_run_retention import (
+    ACE_RUN_RETENTION_SCHEMA_VERSION,
     AceRunProtectionSnapshot,
     AceRunRetentionPolicy,
     apply_ace_run_retention,
@@ -299,3 +302,88 @@ def test_apply_refuses_when_continuation_closure_fails(
         "apply refused: protection sources unavailable: continuation retention: "
         "validation: runs has 11037 entries; maximum is 10000",
     )
+
+
+@pytest.mark.skipif(
+    not hasattr(os, "symlink"),
+    reason="symlink reproduction requires os.symlink",
+)
+def test_binding_preserves_run_reached_through_symlinked_ancestor(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    real = _run_dir(projects_root, "demo", "20260101000000")
+    (projects_root / "alias").symlink_to(
+        projects_root / "demo", target_is_directory=True
+    )
+    alias = projects_root / "alias/artifacts/ace-run/202601/01/20260101000000"
+
+    result = run_retention._call_rust(
+        {
+            "schema_version": ACE_RUN_RETENTION_SCHEMA_VERSION,
+            "projects_root": str(projects_root),
+            "recent_months": ["202609"],
+            "current_timestamp": "20260914120000",
+            "limit": None,
+            "apply": True,
+            "sources_unavailable": [],
+            "protected_dirs": [],
+            "protected_timestamps": [],
+            "candidates": [
+                {
+                    "artifact_dir": str(alias),
+                    "project": "alias",
+                    "timestamp": "20260101000000",
+                    "protected_reasons": [],
+                }
+            ],
+            "empty_shard_roots": [],
+            "empty_shard_watched_paths": [],
+            "empty_shard_removal_budget": 0,
+        }
+    )
+
+    assert result["removed_runs"] == 0
+    assert real.exists()
+    assert result["run_items"][0]["outcome"] == "protected"
+    assert result["run_items"][0]["reasons"] == ["symlink_ancestor"]
+
+
+def test_binding_preserves_empty_referenced_run_during_empty_cleanup(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    workflow = projects_root / "proj" / "artifacts" / "ace-run"
+    referenced = workflow / "202601" / "01" / "20260101000000"
+    referenced.mkdir(parents=True)
+
+    result = run_retention._call_rust(
+        {
+            "schema_version": ACE_RUN_RETENTION_SCHEMA_VERSION,
+            "projects_root": str(projects_root),
+            "recent_months": ["202609"],
+            "current_timestamp": "20260914120000",
+            "limit": None,
+            "apply": True,
+            "sources_unavailable": [],
+            "protected_dirs": [str(referenced)],
+            "protected_timestamps": [],
+            "candidates": [
+                {
+                    "artifact_dir": str(referenced),
+                    "project": "proj",
+                    "timestamp": "20260101000000",
+                    "protected_reasons": [],
+                }
+            ],
+            "empty_shard_roots": [str(workflow)],
+            "empty_shard_watched_paths": [],
+            "empty_shard_removal_budget": 10,
+        }
+    )
+
+    assert result["removed_runs"] == 0
+    assert result["removed_empty_shards"] == 0
+    assert referenced.exists()
+    assert referenced.parent.exists()
+    assert referenced.parent.parent.exists()

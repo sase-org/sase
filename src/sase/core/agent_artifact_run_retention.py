@@ -58,7 +58,7 @@ from sase.core.paths import is_valid_sase_project_name
 from sase.core.rust import require_rust_binding
 
 
-_RUN_RETENTION_WIRE_SCHEMA_VERSION = 1
+_RUN_RETENTION_WIRE_SCHEMA_VERSION = 2
 
 _SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     only_workflow_dirs=(ACE_RUN_WORKFLOW_DIR,),
@@ -256,6 +256,8 @@ def _run_owner(
         "limit": policy.limit,
         "apply": apply,
         "sources_unavailable": sources_unavailable,
+        "protected_dirs": sorted(protections.protected_dirs),
+        "protected_timestamps": sorted(protections.protected_timestamps),
         "candidates": candidates,
         "empty_shard_roots": empty_shard_roots,
         "empty_shard_watched_paths": empty_shard_watched_paths,

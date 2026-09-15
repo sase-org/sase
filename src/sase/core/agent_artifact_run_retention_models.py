@@ -11,7 +11,7 @@ from sase.core.paths import sase_projects_dir
 
 
 DEFAULT_ACE_RUN_KEEP_RECENT_MONTHS = 2
-ACE_RUN_RETENTION_SCHEMA_VERSION = 1
+ACE_RUN_RETENTION_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)

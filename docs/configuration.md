@@ -2914,7 +2914,9 @@ axe:
             Plans whole-run ace-run retention without deleting anything. The preview keeps the newest
             artifacts.retention.keep_recent_run_months calendar months whole, protects runs referenced by
             artifact files, text refs, agent names, and non-closed beads, and reports empty month/day shards
-            outside ACE's startup watch window so an authorized apply can clean them up.
+            outside ACE's startup watch window. When unchanged candidates or protection problems remain, it
+            upserts one deduplicated Axe report notification that names the explicit prune-runs command; the
+            hourly preview never applies artifact deletion by itself.
 ```
 
 **Top-level fields:**
