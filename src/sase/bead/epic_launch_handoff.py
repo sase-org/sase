@@ -20,6 +20,7 @@ from sase.logs._bounded import log_file_lock
 EPIC_COMPLETION_GRACE_SECONDS = 90
 EPIC_COMPLETION_SETTLED_TTL_SECONDS = 60 * 60
 _EPIC_LAUNCH_TAGS = frozenset({"epic", "launch"})
+MONITOR_ARTIFACTS_ENV = "SASE_MONITOR_ARTIFACTS_DIR"
 
 
 @dataclass(frozen=True)
@@ -148,10 +149,39 @@ def defer_epic_completion(
     unusable identity or store failure returns ``False`` so the caller sends
     immediately.
     """
+    return _defer_completion(artifacts_dir, payload, path_factory=_handoff_paths)
+
+
+def defer_epic_completion_until_monitor_settlement(
+    root_artifacts_dir: str | Path | None,
+    monitor_artifacts_dir: str | Path | None,
+    payload: CompletionNotificationPayload,
+) -> bool:
+    """Persist *payload* for the owning monitor to publish after settlement."""
+    if monitor_artifacts_dir is None:
+        return False
+    retargeted = _monitor_settlement_payload(
+        root_artifacts_dir,
+        monitor_artifacts_dir,
+        payload,
+    )
+    return _defer_completion(
+        monitor_artifacts_dir,
+        retargeted,
+        path_factory=_monitor_handoff_paths,
+    )
+
+
+def _defer_completion(
+    artifacts_dir: str | Path | None,
+    payload: CompletionNotificationPayload,
+    *,
+    path_factory: Any,
+) -> bool:
     key = _epic_completion_key(artifacts_dir)
     if key is None or artifacts_dir is None:
         return False
-    pending_path, settled_path = _handoff_paths(key)
+    pending_path, settled_path = path_factory(key)
     try:
         with log_file_lock(pending_path):
             if settled_path.exists():
@@ -178,10 +208,45 @@ def claim_epic_completion(
     outcome: Mapping[str, Any],
 ) -> _DeferredCompletion | None:
     """Claim a deferred completion or leave a marker for a later runner."""
+    return _claim_completion(
+        artifacts_dir,
+        outcome=outcome,
+        path_factory=_handoff_paths,
+    )
+
+
+def publish_deferred_monitor_completion(
+    artifacts_dir: str | Path | None,
+    *,
+    outcome: Mapping[str, Any],
+) -> bool:
+    """Publish one monitor-settlement completion payload, if one is pending."""
+    deferred = _claim_completion(
+        artifacts_dir,
+        outcome=outcome,
+        path_factory=_monitor_handoff_paths,
+    )
+    if deferred is None:
+        return False
+    try:
+        send_completion_payload(deferred.payload)
+    except Exception:
+        pending_path, _settled_path = _monitor_handoff_paths(deferred.key)
+        _restore_pending(pending_path, deferred)
+        return False
+    return True
+
+
+def _claim_completion(
+    artifacts_dir: str | Path | None,
+    *,
+    outcome: Mapping[str, Any],
+    path_factory: Any,
+) -> _DeferredCompletion | None:
     key = _epic_completion_key(artifacts_dir)
     if key is None:
         return None
-    pending_path, settled_path = _handoff_paths(key)
+    pending_path, settled_path = path_factory(key)
     try:
         with log_file_lock(pending_path):
             if pending_path.exists():
@@ -196,6 +261,38 @@ def claim_epic_completion(
     except Exception:
         return None
     return None
+
+
+def _monitor_settlement_payload(
+    root_artifacts_dir: str | Path | None,
+    monitor_artifacts_dir: str | Path,
+    payload: CompletionNotificationPayload,
+) -> CompletionNotificationPayload:
+    """Return *payload* retargeted to the settled monitor shell."""
+    data = dict(payload.action_data)
+    monitor_meta = _read_agent_meta(monitor_artifacts_dir)
+    monitor_cl_name = (
+        _optional_str(monitor_meta.get("cl_name"))
+        or payload.cl_name
+        or _optional_str(data.get("cl_name"))
+    )
+    monitor_suffix = _artifact_timestamp(monitor_artifacts_dir)
+    root_suffix = (
+        _optional_str(data.get("family_root_suffix"))
+        or _optional_str(data.get("agent_root_timestamp"))
+        or _artifact_timestamp(root_artifacts_dir)
+        or _optional_str(data.get("raw_suffix"))
+    )
+    if monitor_cl_name:
+        data["cl_name"] = monitor_cl_name
+    if monitor_suffix:
+        data["raw_suffix"] = monitor_suffix
+    if root_suffix:
+        data["family_root_suffix"] = root_suffix
+        data["agent_root_timestamp"] = root_suffix
+    return replace(
+        payload, cl_name=monitor_cl_name or payload.cl_name, action_data=data
+    )
 
 
 def send_completion_payload(payload: CompletionNotificationPayload) -> None:
@@ -350,6 +447,14 @@ def _handoff_paths(key: str) -> tuple[Path, Path]:
     )
 
 
+def _monitor_handoff_paths(key: str) -> tuple[Path, Path]:
+    store_dir = _epic_completion_store_dir()
+    return (
+        store_dir / f"{key}.monitor-pending.json",
+        store_dir / f"{key}.monitor-settled.json",
+    )
+
+
 def _read_plan_file(artifacts_dir: str | Path) -> str | None:
     try:
         value = _read_json_object(Path(artifacts_dir) / "plan_path.json").get(
@@ -378,6 +483,20 @@ def _read_json_object(path: Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"expected a JSON object in {path}")
     return value
+
+
+def _read_agent_meta(artifacts_dir: str | Path) -> dict[str, Any]:
+    try:
+        return _read_json_object(Path(artifacts_dir) / "agent_meta.json")
+    except Exception:
+        return {}
+
+
+def _optional_str(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    stripped = value.strip()
+    return stripped or None
 
 
 def _write_json_atomic(path: Path, value: Mapping[str, Any]) -> None:
@@ -502,10 +621,13 @@ __all__ = [
     "CompletionNotificationPayload",
     "EPIC_COMPLETION_GRACE_SECONDS",
     "EPIC_COMPLETION_SETTLED_TTL_SECONDS",
+    "MONITOR_ARTIFACTS_ENV",
     "claim_epic_completion",
     "defer_epic_completion",
+    "defer_epic_completion_until_monitor_settlement",
     "flush_orphaned_deferrals",
     "fold_epic_launch_outcome",
+    "publish_deferred_monitor_completion",
     "send_completion_payload",
     "settlement_notification_action_data",
 ]

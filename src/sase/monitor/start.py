@@ -24,6 +24,7 @@ from sase.continuation_capture.rollout import (
     monitor_continuation_records_enabled,
 )
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
+from sase.bead.epic_launch_handoff import MONITOR_ARTIFACTS_ENV
 from sase.logs._bounded import log_file_lock
 from sase.procs.models import ARTIFACTS_LOG_OWNER
 from sase.procs.request import ProcSubmitRequest
@@ -312,6 +313,7 @@ def _start_monitor_locked(
                 cwd=request.cwd,
                 env={
                     "SASE_MONITOR_DIAGNOSTICS_DIR": str(diagnostics_dir(artifacts_dir)),
+                    MONITOR_ARTIFACTS_ENV: str(artifacts_dir),
                     "SASE_MONITOR_ID": monitor_id,
                 },
                 origin=MONITOR_PROC_ORIGIN,

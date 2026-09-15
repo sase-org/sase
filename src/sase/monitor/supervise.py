@@ -23,6 +23,10 @@ from typing import Any, Literal, cast
 from sase.agent.env_hygiene import scrub_agent_identity_env
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
+from sase.bead.epic_launch_handoff import (
+    MONITOR_ARTIFACTS_ENV,
+    publish_deferred_monitor_completion,
+)
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -208,6 +212,7 @@ def run_supervisor(artifacts_dir: str, *, startup_signal: int | None = None) -> 
             command_env["SASE_MONITOR_DIAGNOSTICS_DIR"] = str(
                 diagnostics_dir(artifacts_dir)
             )
+            command_env[MONITOR_ARTIFACTS_ENV] = str(artifacts_dir)
             command_env["SASE_MONITOR_ID"] = str(meta.get("monitor_id") or "")
             try:
                 child = _popen_monitored_command(
@@ -597,6 +602,13 @@ def _finish_monitor(
     finalize_monitor_workflow_state(artifacts_dir)
 
     touch_monitor_refresh_pulse(project_name)
+    publish_deferred_monitor_completion(
+        artifacts_dir,
+        outcome={
+            "monitor_state": monitor_state,
+            "settled_at": _utc_now_iso(),
+        },
+    )
 
 
 def _read_meta(artifacts_dir: str) -> dict[str, Any]:

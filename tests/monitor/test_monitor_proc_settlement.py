@@ -8,6 +8,10 @@ from pathlib import Path
 
 import pytest
 
+from sase.bead.epic_launch_handoff import (
+    CompletionNotificationPayload,
+    defer_epic_completion_until_monitor_settlement,
+)
 from sase.continuation_capture.rollout import (
     MONITOR_CONTINUATION_PROTOCOL_RECORDS_V1,
 )
@@ -152,3 +156,55 @@ def test_settle_monitor_followup_sets_missing_stopped_at_on_resume(
     assert isinstance(on_disk.get("stopped_at"), str)
     assert on_disk["monitor_settled"] is True
     assert (Path(artifacts_dir) / "done.json").exists()
+
+
+def test_settle_monitor_followup_publishes_deferred_epic_completion_after_done(
+    tmp_path: Path,
+) -> None:
+    root_dir = make_starter_agent(
+        "proj",
+        "20260906115900",
+        "acme",
+        cl_name="acme",
+    )
+    artifacts_dir = _make_proc_monitor(tmp_path, next_action=None)
+    payload = CompletionNotificationPayload(
+        sender="user-agent",
+        cl_name="acme",
+        success=True,
+        notes=["planner completed"],
+        action="JumpToAgent",
+        action_data={"cl_name": "acme", "raw_suffix": Path(root_dir).name},
+        extra_files=[],
+        silent=False,
+        tags=["done"],
+    )
+    assert defer_epic_completion_until_monitor_settlement(
+        root_dir,
+        artifacts_dir,
+        payload,
+    )
+    state = _settlement_state(artifacts_dir)
+    settle_monitor_artifacts(state)
+    calls: list[dict[str, object]] = []
+
+    def capture_notification(**kwargs: object) -> None:
+        assert (Path(artifacts_dir) / "done.json").exists()
+        on_disk = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+        assert on_disk["monitor_settled"] is True
+        calls.append(kwargs)
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            "sase.notifications.senders.notify_workflow_complete",
+            capture_notification,
+        )
+        settle_monitor_followup(state)
+        settle_monitor_followup(state)
+
+    assert len(calls) == 1
+    action_data = calls[0]["action_data"]
+    assert isinstance(action_data, dict)
+    assert action_data["raw_suffix"] == Path(artifacts_dir).name
+    assert action_data["family_root_suffix"] == Path(root_dir).name
+    assert action_data["agent_root_timestamp"] == Path(root_dir).name

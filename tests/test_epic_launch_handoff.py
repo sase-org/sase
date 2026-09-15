@@ -8,12 +8,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from sase.axe.run_agent_runner_finalize import send_completion_notification
 from sase.bead.epic_launch import finish_epic_launch
 from sase.bead.epic_launch_handoff import (
     CompletionNotificationPayload,
+    MONITOR_ARTIFACTS_ENV,
     claim_epic_completion,
     defer_epic_completion,
+    defer_epic_completion_until_monitor_settlement,
     flush_orphaned_deferrals,
 )
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
@@ -90,6 +94,14 @@ def _pending_path(artifacts_dir: Path) -> Path:
 def _settled_path(artifacts_dir: Path) -> Path:
     return _pending_path(artifacts_dir).with_name(
         _pending_path(artifacts_dir).name.replace(".pending.", ".settled.")
+    )
+
+
+def _monitor_pending_path(artifacts_dir: Path) -> Path:
+    return _pending_path(artifacts_dir).with_name(
+        _pending_path(artifacts_dir).name.replace(
+            ".pending.json", ".monitor-pending.json"
+        )
     )
 
 
@@ -212,6 +224,48 @@ def test_finish_claims_pending_and_sends_one_folded_completion(tmp_path: Path) -
     assert "Epic sase-64 launched from epic.md" in kwargs["notes"]
     assert f"Plan: {archived}" in kwargs["notes"]
     assert not _pending_path(artifacts).exists()
+
+
+def test_finish_under_monitor_defers_folded_completion_until_settlement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts = _artifacts(timestamp="20260727123456")
+    monitor = _artifacts(timestamp="20260727123500")
+    (monitor / "agent_meta.json").write_text(
+        json.dumps({"cl_name": "demo-cl", "name": "demo-cl--mon"}),
+        encoding="utf-8",
+    )
+    assert defer_epic_completion(artifacts, _payload())
+    archived = tmp_path / "plans" / "epic.md"
+    result = SimpleNamespace(
+        dry_run=False,
+        epic_id="sase-64",
+        archived_plan_path=archived,
+        launched=True,
+    )
+    monkeypatch.setenv(MONITOR_ARTIFACTS_ENV, str(monitor))
+
+    with (
+        patch("sase.bead.epic_launch._update_epic_launch_metadata"),
+        patch("sase.notifications.senders.notify_workflow_complete") as notify,
+    ):
+        finish_epic_launch(
+            str(tmp_path / "epic.md"),
+            artifacts_dir=artifacts,
+            cl_name="demo-cl",
+            result=result,
+        )
+
+    notify.assert_not_called()
+    assert not _pending_path(artifacts).exists()
+    pending = json.loads(_monitor_pending_path(monitor).read_text(encoding="utf-8"))
+    payload = pending["payload"]
+    assert payload["sender"] == "user-agent"
+    assert payload["cl_name"] == "demo-cl"
+    assert "Epic sase-64 launched from epic.md" in payload["notes"]
+    assert payload["action_data"]["raw_suffix"] == monitor.name
+    assert payload["action_data"]["family_root_suffix"] == artifacts.name
+    assert payload["action_data"]["agent_root_timestamp"] == artifacts.name
 
 
 def test_finish_marks_early_settle_then_runner_sends_without_refolding(

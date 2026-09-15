@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import shlex
 from datetime import UTC, datetime
@@ -478,7 +479,10 @@ def finish_epic_launch(
 
     try:
         from sase.bead.epic_launch_handoff import (
+            CompletionNotificationPayload,
+            MONITOR_ARTIFACTS_ENV,
             claim_epic_completion,
+            defer_epic_completion_until_monitor_settlement,
             fold_epic_launch_outcome,
             send_completion_payload,
             settlement_notification_action_data,
@@ -520,19 +524,46 @@ def finish_epic_launch(
                 "settled_at": datetime.now(UTC).isoformat(),
             },
         )
+        monitor_artifacts_dir = os.environ.get(MONITOR_ARTIFACTS_ENV)
         if deferred is not None:
-            send_completion_payload(
-                fold_epic_launch_outcome(
-                    deferred,
-                    success=success,
-                    epic_id=str(epic_id) if epic_id is not None else None,
-                    plan_file=plan_file,
-                    archived_plan_path=archived_plan_path,
-                    detail=detail,
-                    resume_argv=argv,
-                )
+            payload = fold_epic_launch_outcome(
+                deferred,
+                success=success,
+                epic_id=str(epic_id) if epic_id is not None else None,
+                plan_file=plan_file,
+                archived_plan_path=archived_plan_path,
+                detail=detail,
+                resume_argv=argv,
             )
+            if defer_epic_completion_until_monitor_settlement(
+                artifacts_dir,
+                monitor_artifacts_dir,
+                payload,
+            ):
+                return
+            send_completion_payload(payload)
             return
+        if monitor_artifacts_dir:
+            payload = CompletionNotificationPayload(
+                sender="epic-launch",
+                cl_name=cl_name,
+                success=success,
+                notes=notes,
+                action=None,
+                action_data=settlement_notification_action_data(
+                    artifacts_dir,
+                    cl_name=cl_name,
+                ),
+                extra_files=[],
+                silent=False,
+                tags=["epic", "launch"],
+            )
+            if defer_epic_completion_until_monitor_settlement(
+                artifacts_dir,
+                monitor_artifacts_dir,
+                payload,
+            ):
+                return
         notify_workflow_complete(
             "epic-launch",
             cl_name,

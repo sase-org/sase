@@ -12,6 +12,7 @@ from typing import Any
 
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
+from sase.bead.epic_launch_handoff import publish_deferred_monitor_completion
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -377,6 +378,13 @@ def settle_monitor_followup(state: dict[str, Any]) -> None:
     write_done_marker_and_update_index(artifacts_dir, done_marker)
     finalize_monitor_workflow_state(artifacts_dir)
     touch_monitor_refresh_pulse(project_name)
+    publish_deferred_monitor_completion(
+        artifacts_dir,
+        outcome={
+            "monitor_state": monitor_state,
+            "settled_at": _utc_now_iso(),
+        },
+    )
 
 
 def _capture_from_log(path: str | Path) -> OutputCapture:
