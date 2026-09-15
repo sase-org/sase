@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime
 from uuid import uuid4
 
 from sase.chops import ChopReport
@@ -17,7 +18,7 @@ from sase.core.agent_artifact_run_retention import (
     collect_ace_run_retention_protections,
     plan_ace_run_retention,
 )
-from sase.core.time import local_now
+from sase.core.time import get_timezone, local_now
 from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import upsert_notification
 
@@ -85,7 +86,7 @@ def _should_notify(plan: AceRunRetentionPlan) -> bool:
 
 
 def _notify_actionable_preview(plan: AceRunRetentionPlan) -> None:
-    timestamp = local_now().isoformat()
+    timestamp = datetime.now(get_timezone()).isoformat()
     notification = Notification(
         id=str(uuid4()),
         timestamp=timestamp,
