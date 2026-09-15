@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from sase.ace.tui.models.agent_live_query import agent_live_query_entry
 from sase.ace.tui.models.fleet_agents import project_fleet_agents
-from tests.ace.tui.fleet_fixture import fleet_host_response, fleet_summary
+from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
+from tests.ace.tui.fleet_fixture import (
+    fleet_exact_key,
+    fleet_host_response,
+    fleet_summary,
+)
 
 
 def test_project_fleet_agents_never_renders_running_for_a_dead_liveness_row() -> None:
@@ -135,6 +142,30 @@ def test_project_fleet_agents_prefers_owner_human_project_label() -> None:
     projection = project_fleet_agents(catalog_response=response)
 
     assert projection.fleet_rows[0].project_display_name == "sase"
+
+
+def test_project_fleet_agents_does_not_render_exact_attempt_as_name() -> None:
+    """Missing labels fall back to the logical agent id, not attempt internals."""
+    summary = fleet_summary(agent_id="sase", run_id="20260915123456")
+    summary["labels"].pop("agent_label")
+    summary["exact_locator"]["attempt_id"] = "attempt-0"
+    summary["exact_key"] = fleet_exact_key(summary["exact_locator"])
+    response = fleet_host_response(alias="apollo", summaries=(summary,))
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    row = projection.fleet_rows[0]
+    assert row.agent_name == "sase"
+    assert "attempt-0" in (row.raw_suffix or "")
+    rendered = format_agent_option(
+        row,
+        0,
+        is_selected=False,
+        now=datetime(2026, 9, 15, 12, 0),
+        show_machine_chip=True,
+    )[0].plain
+    assert "sase" in rendered
+    assert "attempt-0" not in rendered
 
 
 def test_project_fleet_agents_sets_workspace_num() -> None:

@@ -195,6 +195,8 @@ def _agent_from_summary(
     agent_name = _agent_name(
         summary,
         labels,
+        logical_locator,
+        exact_locator,
         logical_key,
         exact_key,
         summary_index,
@@ -402,6 +404,8 @@ def _agent_family_name(
 def _agent_name(
     summary: Mapping[str, Any],
     labels: Mapping[str, Any],
+    logical_locator: Mapping[str, Any],
+    exact_locator: Mapping[str, Any],
     logical_key: str | None,
     exact_key: str | None,
     summary_index: int,
@@ -414,7 +418,14 @@ def _agent_name(
     )
     if name:
         return name
-    key = exact_key or logical_key
+    logical_from_exact = mapping(exact_locator.get("logical"))
+    locator_agent_id = optional_str(
+        logical_locator.get("agent_id"),
+        logical_from_exact.get("agent_id"),
+    )
+    if locator_agent_id:
+        return display_token(locator_agent_id)
+    key = logical_key or exact_key
     if key:
         return key.rsplit("/", 1)[-1].rsplit(":", 1)[-1] or key
     return f"remote-agent-{summary_index + 1}"
