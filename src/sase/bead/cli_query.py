@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import argparse
 import sys
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from typing import Any
 
 from sase.agent.names._registry import name_registry_load_session
 from sase.bead.cli_common import created_cell, get_read_view, status_icon
@@ -60,6 +62,7 @@ from sase.main.parser_bead_common import resolve_wrap_width
 from sase.cli_pager import PagerMode, page_or_print, resolve_pager_mode
 from sase.markdown_width import markdown_print_width
 from sase.task_types import issue_matches_task_types
+
 
 # Closed bead listings can grow without bound, so default to the newest few
 # rows when the user did not request an explicit ``--limit``.
@@ -283,7 +286,7 @@ def handle_bead_show(args: argparse.Namespace) -> None:
         resolve_bead_page_url_fn=resolve_bead_page_url,
     )
 
-    with name_registry_load_session(), get_read_view() as view:
+    with name_registry_load_session(), _show_read_view() as view:
         try:
             with ShowStoreRouter(
                 view,
@@ -327,6 +330,19 @@ def handle_bead_show(args: argparse.Namespace) -> None:
         print(f"Error: {failure.message}", file=sys.stderr)
     if batch.failures:
         sys.exit(1)
+
+
+@contextmanager
+def _show_read_view() -> Iterator[Any | None]:
+    """Yield the local show view without creating a caller bead store."""
+    from sase.bead.operation_context import local_operation_context
+
+    context = local_operation_context(require_existing=True)
+    if context is None:
+        yield None
+        return
+    with get_read_view(bead_context=context) as view:
+        yield view
 
 
 def _show_ids(args: argparse.Namespace) -> list[str]:

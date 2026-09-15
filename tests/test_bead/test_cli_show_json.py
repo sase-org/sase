@@ -230,6 +230,7 @@ def test_show_json_and_full_mirror_dangling_relationships(
         yield _DanglingView()
 
     monkeypatch.setattr("sase.bead.cli_query.get_read_view", read_view)
+    monkeypatch.setattr("sase.bead.cli_query._show_read_view", read_view)
     monkeypatch.setattr(
         "sase.bead.cli_query.design_paths_are_relative",
         lambda: False,

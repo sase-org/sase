@@ -51,6 +51,7 @@ def use_single_issue_view(
         yield _SingleIssueView()
 
     monkeypatch.setattr("sase.bead.cli_query.get_read_view", read_view)
+    monkeypatch.setattr("sase.bead.cli_query._show_read_view", read_view)
     monkeypatch.setattr(
         "sase.bead.cli_query.design_paths_are_relative",
         lambda: False,

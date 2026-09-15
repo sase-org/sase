@@ -39,6 +39,7 @@ def _view() -> Iterator[object]:
 
 def _install(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("sase.bead.cli_query.get_read_view", _view)
+    monkeypatch.setattr("sase.bead.cli_query._show_read_view", _view)
     monkeypatch.setattr("sase.bead.cli_query.design_paths_are_relative", lambda: False)
     monkeypatch.setattr("sase.bead.cli_query.resolve_bead_page_url", lambda _id: None)
     monkeypatch.setattr(

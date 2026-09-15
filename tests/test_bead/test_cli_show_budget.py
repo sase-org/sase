@@ -134,6 +134,7 @@ def test_show_bounds_repo_inventory_subprocess_calls_for_ref_bearing_bead(
         yield _View()
 
     monkeypatch.setattr("sase.bead.cli_query.get_read_view", read_view)
+    monkeypatch.setattr("sase.bead.cli_query._show_read_view", read_view)
     monkeypatch.setattr("sase.bead.cli_query.design_paths_are_relative", lambda: False)
     monkeypatch.setattr("sase.bead.cli_query.resolve_bead_page_url", lambda _id: None)
     monkeypatch.setattr(

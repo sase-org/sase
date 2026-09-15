@@ -337,6 +337,7 @@ def _install_query_view(
 ) -> None:
     view = _StubView(ready=ready or [], blocked=blocked or [])
     monkeypatch.setattr("sase.bead.cli_query.get_read_view", lambda: view)
+    monkeypatch.setattr("sase.bead.cli_query._show_read_view", lambda: view)
 
 
 def _no_args() -> argparse.Namespace:

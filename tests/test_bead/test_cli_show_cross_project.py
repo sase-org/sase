@@ -74,6 +74,10 @@ def _install(
 ) -> None:
     monkeypatch.setattr("sase.bead.cli_query.get_read_view", lambda: _read_view(local))
     monkeypatch.setattr(
+        "sase.bead.cli_query._show_read_view",
+        lambda: _read_view(local),
+    )
+    monkeypatch.setattr(
         "sase.bead.cli_query.design_paths_are_relative", lambda *_a: False
     )
     monkeypatch.setattr("sase.bead.cli_query.plan_reference_roots", lambda *_a: ())
