@@ -25,7 +25,7 @@ _ADVANCED_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {
     "chop": ("env", "inhibit_if", "trigger", "once_per", "for_each", "vars"),
 }
 _HIDDEN_BY_KIND: dict[AxeEntryKind, frozenset[str]] = {
-    "lumberjack": frozenset({"chops"}),
+    "lumberjack": frozenset({"chops", "jobs", "job_timeout"}),
     "chop": frozenset({"name"}),
 }
 

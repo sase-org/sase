@@ -23,6 +23,7 @@ class FeatureFlag(StrEnum):
 
     ace_refresh_tokens = "ace_refresh_tokens"
     admin_center_flags = "admin_center_flags"
+    axe_routine_job_contract = "axe_routine_job_contract"
     agents_unified_query = "agents_unified_query"
     agent_sudo_requests = "agent_sudo_requests"
     monitor_continuation_records = "monitor_continuation_records"
@@ -50,6 +51,16 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "feature-flag control."
         ),
         bead="sase-rx",
+    ),
+    FeatureFlag.axe_routine_job_contract: FeatureFlagDefinition(
+        key=FeatureFlag.axe_routine_job_contract,
+        kind="sunset",
+        description=(
+            "AXE configuration projection and public JSON use canonical "
+            "routine/job names while accepted inputs still normalize to the "
+            "internal AXE model."
+        ),
+        bead="sase-11f",
     ),
     FeatureFlag.agents_unified_query: FeatureFlagDefinition(
         key=FeatureFlag.agents_unified_query,

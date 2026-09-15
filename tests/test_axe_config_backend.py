@@ -15,6 +15,7 @@ from sase.axe.config_backend import (
     plan_axe_entry_edit,
 )
 from sase.config.core import ConfigLayer
+from sase.feature_flags import override_flags
 
 
 def _layers(target: Path) -> list[ConfigLayer]:
@@ -178,6 +179,79 @@ def test_runtime_uses_same_composition_as_preview(tmp_path: Path) -> None:
     assert runtime_chop.description == effective.effective["description"]
     assert runtime_chop.description_summary == "overlay"
     assert runtime_chop.description_body == ""
+
+
+def test_canonical_routine_job_config_projects_public_names(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "sase.yml"
+    target.write_text("", encoding="utf-8")
+    layer = ConfigLayer(
+        name="user",
+        path=str(target),
+        exists=True,
+        list_strategy="replace",
+        data={
+            "axe": {
+                "job_script_dirs": ["/opt/jobs"],
+                "routines": {
+                    "checks": {
+                        "description": "Run checks",
+                        "interval": 10,
+                        "job_timeout": "2m",
+                        "jobs": {
+                            "release": {
+                                "description": "Check releases",
+                                "script": "sase_job_release",
+                            }
+                        },
+                    }
+                },
+            }
+        },
+    )
+
+    with override_flags(axe_routine_job_contract=True):
+        composition = compose_axe_config([layer])
+
+    assert composition.effective_config["axe"]["chop_script_dirs"] == ["/opt/jobs"]
+    release = composition.effective_config["axe"]["lumberjacks"]["checks"]["chops"][
+        "release"
+    ]
+    assert release["script"] == "sase_job_release"
+    public_release = composition.public_config["axe"]["routines"]["checks"]["jobs"][
+        "release"
+    ]
+    assert public_release["script"] == "sase_job_release"
+    provenance = {item.path: item.source_path for item in composition.public_provenance}
+    assert (
+        provenance["axe.routines.checks.jobs.release.script"]
+        == "axe.routines.checks.jobs.release.script"
+    )
+
+    with (
+        patch("sase.axe.config.load_merged_config", return_value={}),
+        patch("sase.axe.config.load_config_layers", return_value=[layer]),
+    ):
+        runtime = load_axe_config()
+    assert runtime.chop_script_dirs == ["/opt/jobs"]
+    assert runtime.lumberjacks["checks"].chop_timeout == 120
+    assert runtime.lumberjacks["checks"].chops[0].script == "sase_job_release"
+
+
+def test_public_projection_obeys_contract_flag(tmp_path: Path) -> None:
+    target = tmp_path / "sase.yml"
+    layer = _layers(target)[0]
+
+    with override_flags(axe_routine_job_contract=False):
+        legacy = compose_axe_config([layer])
+    assert "lumberjacks" in legacy.public_config["axe"]
+    assert "routines" not in legacy.public_config["axe"]
+
+    with override_flags(axe_routine_job_contract=True):
+        canonical = compose_axe_config([layer])
+    assert "routines" in canonical.public_config["axe"]
+    assert "jobs" in canonical.public_config["axe"]["routines"]["checks.main"]
 
 
 def test_composition_enforces_description_shape() -> None:

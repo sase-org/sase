@@ -7,7 +7,7 @@ core owns exact-key composition, inventory, provenance, and mutation logic.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field as dataclass_field
 from typing import Any
 from collections.abc import Sequence
 
@@ -20,6 +20,7 @@ from sase.config.inventory import (
     load_config_schema,
     serialize_config_layer,
 )
+from sase.feature_flags import FeatureFlag, current_flags
 from sase.core.rust import require_rust_binding
 
 
@@ -71,12 +72,25 @@ class AxeFieldProvenance:
     key_path: tuple[str, ...]
     path: str
     layer: str
+    source_key_path: tuple[str, ...] = ()
+    source_path: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.source_key_path:
+            object.__setattr__(self, "source_key_path", self.key_path)
+        if not self.source_path:
+            object.__setattr__(self, "source_path", self.path)
 
     @classmethod
     def from_wire(cls, payload: dict[str, Any]) -> AxeFieldProvenance:
         return cls(
             key_path=tuple(str(item) for item in payload["key_path"]),
             path=str(payload["path"]),
+            source_key_path=tuple(
+                str(item)
+                for item in payload.get("source_key_path", payload["key_path"])
+            ),
+            source_path=str(payload.get("source_path", payload["path"])),
             layer=str(payload["layer"]),
         )
 
@@ -91,6 +105,8 @@ class AxeRawContribution:
     representation: str
     has_value: bool
     value: Any
+    key_path: tuple[str, ...] = ()
+    path: str = ""
 
     @classmethod
     def from_wire(cls, payload: dict[str, Any]) -> AxeRawContribution:
@@ -99,6 +115,8 @@ class AxeRawContribution:
             file=str(payload["file"]) if payload.get("file") is not None else None,
             writable=bool(payload["writable"]),
             representation=str(payload["representation"]),
+            key_path=tuple(str(item) for item in payload.get("key_path", ())),
+            path=str(payload.get("path", "")),
             has_value=bool(payload["has_value"]),
             value=payload["value"],
         )
@@ -161,6 +179,14 @@ class AxeConfigComposition:
     entries: tuple[AxeInventoryEntry, ...]
     diagnostics: tuple[ConfigDiagnostic, ...]
     layer_inputs: tuple[dict[str, Any], ...]
+    public_config: dict[str, Any] = dataclass_field(default_factory=dict)
+    public_provenance: tuple[AxeFieldProvenance, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.public_config:
+            object.__setattr__(self, "public_config", self.effective_config)
+        if not self.public_provenance:
+            object.__setattr__(self, "public_provenance", self.provenance)
 
     @classmethod
     def from_wire(
@@ -172,8 +198,15 @@ class AxeConfigComposition:
         return cls(
             schema_version=int(payload["schema_version"]),
             effective_config=dict(payload["effective_config"]),
+            public_config=dict(
+                payload.get("public_config", payload["effective_config"])
+            ),
             provenance=tuple(
                 AxeFieldProvenance.from_wire(item) for item in payload["provenance"]
+            ),
+            public_provenance=tuple(
+                AxeFieldProvenance.from_wire(item)
+                for item in payload.get("public_provenance", payload["provenance"])
             ),
             entries=tuple(
                 AxeInventoryEntry.from_wire(item) for item in payload["entries"]
@@ -206,6 +239,10 @@ class AxeConfigComposition:
     def legacy_provenance(self) -> dict[str, str]:
         """Return the established dotted display map for compatibility."""
         return {item.path: item.layer for item in self.provenance}
+
+    def public_legacy_provenance(self) -> dict[str, str]:
+        """Return public projection paths keyed to their source layers."""
+        return {item.path: item.layer for item in self.public_provenance}
 
 
 @dataclass(frozen=True)
@@ -301,6 +338,9 @@ def compose_axe_config(
                 "layers": layer_inputs,
                 "require_descriptions": True,
                 "require_description_shape": True,
+                "routine_job_contract": current_flags().enabled(
+                    FeatureFlag.axe_routine_job_contract
+                ),
             }
         )
     except ValueError as exc:

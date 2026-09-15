@@ -2540,13 +2540,33 @@
           },
           "default": []
         },
+        "job_script_dirs": {
+          "type": "array",
+          "description": "Additional directories to search for job scripts (searched before PATH lookup)",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
         "lumberjack_log_max_bytes": {
           "type": "integer",
           "description": "Maximum bytes retained for each bounded lumberjack log.",
           "default": 52428800,
           "minimum": 1
         },
+        "routine_log_max_bytes": {
+          "type": "integer",
+          "description": "Maximum bytes retained for each bounded routine log.",
+          "default": 52428800,
+          "minimum": 1
+        },
         "lumberjack_log_temp_max_age_seconds": {
+          "type": "integer",
+          "description": "Minimum age in seconds before orphaned bounded-log rotation temp files are removed.",
+          "default": 300,
+          "minimum": 1
+        },
+        "routine_log_temp_max_age_seconds": {
           "type": "integer",
           "description": "Minimum age in seconds before orphaned bounded-log rotation temp files are removed.",
           "default": 300,
@@ -2558,9 +2578,20 @@
           "default": 60,
           "minimum": 1
         },
+        "routine_restart_backoff_max_seconds": {
+          "type": "integer",
+          "description": "Maximum delay between retries for a crashing routine.",
+          "default": 60,
+          "minimum": 1
+        },
         "verbose_lumberjack_diagnostics": {
           "type": "boolean",
           "description": "Include verbose lumberjack diagnostics in chop script contexts.",
+          "default": false
+        },
+        "verbose_routine_diagnostics": {
+          "type": "boolean",
+          "description": "Include verbose routine diagnostics in job script contexts.",
           "default": false
         },
         "lumberjacks": {
@@ -2586,6 +2617,12 @@
               "chop_timeout": {
                 "type": "string",
                 "description": "Default positive compound duration (e.g., '30s', '1h30m', '1d') controlling the maximum runtime for chops in this lumberjack",
+                "minLength": 2,
+                "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
+              },
+              "job_timeout": {
+                "type": "string",
+                "description": "Default positive compound duration (e.g., '30s', '1h30m', '1d') controlling the maximum runtime for jobs in this routine",
                 "minLength": 2,
                 "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
               },
@@ -3662,9 +3699,17 @@
                     "description": "Per-provider collection override. When omitted, the provider inherits llm_provider.usage_metrics.enabled."
                   }
                 }
+              },
+              "jobs": {
+                "$ref": "#/properties/axe/properties/lumberjacks/additionalProperties/properties/chops",
+                "description": "Legacy list or composable map of job scripts to run on each tick"
               }
             }
           }
+        },
+        "routines": {
+          "$ref": "#/properties/axe/properties/lumberjacks",
+          "description": "Named routine definitions. Each key is a routine name with interval and jobs config."
         }
       }
     },
@@ -4727,6 +4772,12 @@
         "agents_unified_query": {
           "type": "boolean",
           "description": "The Agents tab parses, evaluates, and edits its filter with the shared agents-live boolean query profile through the Rust corpus engine and the FilterBar chrome.",
+          "default": true,
+          "deprecated": true
+        },
+        "axe_routine_job_contract": {
+          "type": "boolean",
+          "description": "AXE configuration projection and public JSON use canonical routine/job names while accepted inputs still normalize to the internal AXE model.",
           "default": true,
           "deprecated": true
         },
