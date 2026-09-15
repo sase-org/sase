@@ -234,6 +234,12 @@ def test_live_script_registers_and_hides_helper_bridge(live_script: str) -> None
     assert "helper-bridge" not in live_script
 
 
+def test_live_script_offers_print_command_without_value(live_script: str) -> None:
+    assert "complete -c sase -n '__sase_cmd /' -s 'p' -l 'print-command'" in live_script
+    assert "'/|-p'" not in live_script
+    assert "'/|--print-command'" not in live_script
+
+
 def test_live_script_omits_compat_changespec(live_script: str) -> None:
     assert "-a 'changespec'" not in live_script
     assert "-a 'patch'" in live_script

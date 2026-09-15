@@ -138,6 +138,12 @@ def _write_run_prompt_script(directory: Path) -> Path:
     return path
 
 
+def _write_live_script(directory: Path) -> Path:
+    path = directory / "_sase"
+    path.write_text(emit_zsh(build_spec()), encoding="utf-8")
+    return path
+
+
 def test_zsh_syntax_accepts_generated_script(tmp_path: Path) -> None:
     script = _write_script(tmp_path)
     result = subprocess.run(
@@ -197,6 +203,78 @@ def test_tab_completes_bead_plus_to_plus_one(tmp_path: Path) -> None:
     _write_script(fpath_dir)
     completed = _pty_complete(tmp_path, fpath_dir, "sase bead +")
     assert re.search(r"sase bead \+1\b", completed), completed
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        ("sase -p bead sh", "sase -p bead show"),
+        ("sase --print-command bead sh", "sase --print-command bead show"),
+    ],
+)
+def test_tab_completes_after_root_print_command_option(
+    tmp_path: Path, typed: str, expected: str
+) -> None:
+    fpath_dir = tmp_path / "fpath"
+    fpath_dir.mkdir()
+    _write_live_script(fpath_dir)
+
+    completed = _pty_complete_line(tmp_path, fpath_dir, typed)
+
+    assert expected in completed, completed
+    assert "\u276f" not in completed
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [
+        ("sbd sh", re.compile(r"(?:sbd|sase -p bead) show\b")),
+        ("sbd show --for", re.compile(r"(?:sbd|sase -p bead) show --format\b")),
+    ],
+)
+def test_alias_sbd_completes_static_bead_tree(
+    tmp_path: Path, typed: str, expected: re.Pattern[str]
+) -> None:
+    fpath_dir = tmp_path / "fpath"
+    fpath_dir.mkdir()
+    _write_live_script(fpath_dir)
+
+    completed = _pty_complete_line(
+        tmp_path,
+        fpath_dir,
+        typed,
+        zshrc_extra="alias sbd='sase -p bead'\n",
+    )
+
+    assert expected.search(completed), completed
+    assert "\u276f" not in completed
+
+
+def test_alias_sbd_completes_dynamic_bead_id_without_running_bead(
+    tmp_path: Path,
+) -> None:
+    fpath_dir = tmp_path / "fpath"
+    fpath_dir.mkdir()
+    _write_live_script(fpath_dir)
+    bin_dir, calls = _write_logged_fixture_sase(
+        tmp_path,
+        "zzz-fixture-alpha\tAlpha desc",
+        "zzz-fixture-beta\tBeta desc",
+    )
+
+    completed = _pty_complete_line(
+        tmp_path,
+        fpath_dir,
+        "sbd +1 ",
+        bin_dir=bin_dir,
+        zshrc_extra="alias sbd='sase -p bead'\n",
+        taps=2,
+    )
+
+    assert "zzz-fixture-" in completed, completed
+    assert "\u276f" not in completed
+    call_lines = calls.read_text(encoding="utf-8").splitlines()
+    assert call_lines == ["<completion><candidates><bead>"]
 
 
 def test_dynamic_slot_fetches_fixture_candidates_and_caches(tmp_path: Path) -> None:
@@ -285,6 +363,81 @@ def _write_fixture_sase(tmp_path: Path, *candidate_lines: str) -> tuple[Path, Pa
     )
     script.chmod(0o755)
     return bin_dir, call_count
+
+
+def _write_logged_fixture_sase(
+    tmp_path: Path, *candidate_lines: str
+) -> tuple[Path, Path]:
+    """Write a fake ``sase`` that logs each argv vector and returns candidates."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    calls = tmp_path / "calls"
+    prints = "\n".join(
+        f"printf {shlex.quote(line + chr(10))}" for line in candidate_lines
+    )
+    script = bin_dir / "sase"
+    script.write_text(
+        "#!/usr/bin/env bash\n"
+        f"log={shlex.quote(str(calls))}\n"
+        'printf "<%s>" "$@" >> "$log"\n'
+        'printf "\\n" >> "$log"\n'
+        'if [[ "$1" == completion && "$2" == candidates ]]; then\n'
+        f"  {prints}\n"
+        "fi\n",
+        encoding="utf-8",
+    )
+    script.chmod(0o755)
+    return bin_dir, calls
+
+
+def _pty_complete_line(
+    tmp_path: Path,
+    fpath_dir: Path,
+    typed: str,
+    *,
+    bin_dir: Path | None = None,
+    zshrc_extra: str = "",
+    taps: int = 1,
+) -> str:
+    """Drive interactive zsh through TAB without executing the completed line."""
+    zdot = tmp_path / f"zdot-line-{time.monotonic_ns()}"
+    zdot.mkdir()
+    (zdot / ".zshrc").write_text(
+        "unsetopt zle_bracketed_paste beep\n"
+        "PS1='READY>'\n"
+        "PS2=\n"
+        "RPS1=\n"
+        f"fpath=({fpath_dir} $fpath)\n"
+        "autoload -Uz compinit\n"
+        "compinit -u -D\n"
+        "zstyle ':completion:*' insert-tab false\n"
+        "zstyle ':completion:*' menu false\n"
+        "zstyle ':completion:*' list-colors ''\n"
+        "zstyle ':completion:*' use-cache on\n"
+        f"{zshrc_extra}",
+        encoding="utf-8",
+    )
+    env = {
+        **os.environ,
+        "ZDOTDIR": str(zdot),
+        "TERM": "dumb",
+        "NO_COLOR": "1",
+    }
+    if bin_dir is not None:
+        env["PATH"] = f"{bin_dir}:{os.environ['PATH']}"
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.execvpe("zsh", ["zsh", "-i"], env)
+    try:
+        _read_until(fd, b"READY>", timeout=8.0)
+        os.write(fd, typed.encode() + b"\t" * taps)
+        return _read_for(fd, 3.0).decode("utf-8", errors="replace")
+    finally:
+        os.close(fd)
+        try:
+            os.waitpid(pid, 0)
+        except ChildProcessError:
+            pass
 
 
 def _pty_dynamic_complete(

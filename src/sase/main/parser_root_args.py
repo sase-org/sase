@@ -7,6 +7,12 @@ import sys
 from collections.abc import Iterable, Sequence
 from typing import Any, TypeVar, overload
 
+from .global_options import (
+    DISABLE_FEATURE_OPTION_STRINGS,
+    ENABLE_FEATURE_OPTION_STRINGS,
+    PRINT_COMMAND_OPTION_STRINGS,
+)
+
 _NamespaceT = TypeVar("_NamespaceT")
 
 _OBSOLETE_DETACHED_PROC_MESSAGE = (
@@ -26,12 +32,10 @@ _BEAD_NOTE_VALUE_OPTIONS = frozenset(
     }
 )
 _GLOBAL_VALUE_OPTIONS = frozenset(
-    {
-        "-f",
-        "--enable-feature",
-        "-F",
-        "--disable-feature",
-    }
+    (*ENABLE_FEATURE_OPTION_STRINGS, *DISABLE_FEATURE_OPTION_STRINGS)
+)
+_GLOBAL_BOOLEAN_OPTIONS = frozenset(
+    PRINT_COMMAND_OPTION_STRINGS,
 )
 
 _VALIDATION_FORMATTER: argparse.HelpFormatter | None = None
@@ -183,16 +187,52 @@ def root_command_index(argv: Sequence[str]) -> int | None:
     index = 0
     while index < len(argv):
         token = argv[index]
-        if token in _GLOBAL_VALUE_OPTIONS:
-            index += 2
-            continue
-        if token.startswith("--enable-feature=") or token.startswith(
-            "--disable-feature="
-        ):
-            index += 1
-            continue
-        return index
+        if token == "--":
+            return index
+        next_index = _next_root_option_index(argv, index)
+        if next_index is None:
+            return index
+        index = next_index
     return None
+
+
+def _next_root_option_index(argv: Sequence[str], index: int) -> int | None:
+    token = argv[index]
+    if token in _GLOBAL_BOOLEAN_OPTIONS:
+        return index + 1
+    if token.startswith("--print-command="):
+        return None
+    if token in _GLOBAL_VALUE_OPTIONS:
+        value_index = index + 1
+        if value_index >= len(argv) or argv[value_index] == "--":
+            return None
+        return value_index + 1
+    if token.startswith("--enable-feature=") or token.startswith("--disable-feature="):
+        return index + 1 if token.split("=", 1)[1] else None
+    if not token.startswith("-") or token.startswith("--") or len(token) < 2:
+        return None
+    if token[1] in {"f", "F"}:
+        return index + 1
+    if token[1] != "p":
+        return None
+
+    cursor = 1
+    while cursor < len(token):
+        flag = token[cursor]
+        if flag == "p":
+            cursor += 1
+            if cursor < len(token) and token[cursor] in {"=", "-"}:
+                return None
+            continue
+        if flag in {"f", "F"}:
+            if cursor + 1 < len(token):
+                return index + 1
+            value_index = index + 1
+            if value_index >= len(argv) or argv[value_index] == "--":
+                return None
+            return value_index + 1
+        return None
+    return index + 1
 
 
 def uses_obsolete_detached_proc_option(argv: Sequence[str]) -> bool:

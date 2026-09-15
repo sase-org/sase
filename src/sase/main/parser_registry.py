@@ -7,6 +7,8 @@ from collections.abc import Iterable, Sequence
 from importlib import import_module
 from typing import Any
 
+from .parser_root_args import root_command_index
+
 _RegistrarSpec = tuple[str, str]
 
 # Keep the command inventory and registrar routing in one lazy registry. Values are
@@ -88,10 +90,12 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
 
 def parser_only_hint(argv: Sequence[str]) -> str | None:
     """Return a safe narrow-parser hint for a complete command-line argv."""
-    if len(argv) < 2:
+    args = argv[1:]
+    command_index = root_command_index(args)
+    if command_index is None:
         return None
 
-    candidate = argv[1]
+    candidate = args[command_index]
     if candidate.startswith("-") or candidate not in _COMMAND_REGISTRARS:
         return None
     return candidate

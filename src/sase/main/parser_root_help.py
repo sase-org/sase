@@ -94,18 +94,22 @@ _COMPACT_ROOT_EXAMPLES: tuple[str, ...] = (
     "sase agent list",
     "sase --full-help",
 )
-_COMPACT_ROOT_USAGE = "sase [-h] [-H] [-f <flag>] [-F <flag>] <command> [args...]"
+_COMPACT_ROOT_USAGE = "sase [-h] [-H] [-F <flag>] [-f <flag>] [-p] <command> [args...]"
 _COMPACT_GLOBAL_OPTIONS: tuple[tuple[str, str], ...] = (
+    (
+        "-F, --disable-feature <flag>",
+        "Disable a registered feature flag for this invocation",
+    ),
     (
         "-f, --enable-feature <flag>",
         "Enable a registered feature flag for this invocation",
     ),
     (
-        "-F, --disable-feature <flag>",
-        "Disable a registered feature flag for this invocation",
+        "-p, --print-command",
+        "Print the shell-quoted command to stderr before running it",
     ),
 )
-_COMPACT_GLOBAL_OPTION_EXAMPLE = 'sase -f ref_sync_gesture run "..."'
+_COMPACT_GLOBAL_OPTION_EXAMPLE = "alias sbd='sase -p bead'"
 
 
 class CompactRootHelpAction(argparse.Action):

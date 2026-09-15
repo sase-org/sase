@@ -147,6 +147,19 @@ def test_root_help_actions_present() -> None:
     assert {"-H", "--full-help"} <= strings
     assert {"-f", "--enable-feature"} <= strings
     assert {"-F", "--disable-feature"} <= strings
+    assert {"-p", "--print-command"} <= strings
+
+
+def test_root_print_command_option_is_boolean() -> None:
+    spec = build_spec()
+    option = next(
+        option for option in spec.root.options if option.dest == "print_command"
+    )
+
+    assert option.strings == ("-p", "--print-command")
+    assert option.takes_value is False
+    assert option.repeatable is False
+    assert option.kind is None
 
 
 def test_subparser_auto_help_option_present() -> None:

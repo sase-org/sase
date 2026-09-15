@@ -19,9 +19,12 @@ all memory-file changes through `/sase_memory_write` first.
 For exhaustive flag tables, see the
 [configuration reference](configuration.md#cli-flags).
 
-The root `sase` command accepts `-f/--enable-feature` and `-F/--disable-feature` before
-the subcommand to force a registered feature flag on or off for that invocation and its
-children. See the [configuration reference](configuration.md#feature_flags).
+The root `sase` command accepts leading global options before the subcommand:
+`-f/--enable-feature` and `-F/--disable-feature` force a registered feature flag on or
+off for that invocation and its children, and `-p/--print-command` prints a
+shell-quoted, copyable `sase ...` header to stderr before running the command. The
+printed invocation omits only the root print switch. See the
+[configuration reference](configuration.md#feature_flags).
 
 ## Daily Operation
 

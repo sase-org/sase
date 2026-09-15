@@ -247,6 +247,12 @@ def test_live_script_registers_and_hides_helper_bridge(live_script: str) -> None
     assert "__sase_candidates()" in live_script
 
 
+def test_live_script_offers_print_command_without_value(live_script: str) -> None:
+    assert "-p --print-command" in _fn(live_script, "_sase_opts")
+    assert "/|-p" not in _fn(live_script, "_sase_optval")
+    assert "/|--print-command" not in _fn(live_script, "_sase_optval")
+
+
 def test_live_script_omits_compat_changespec(live_script: str) -> None:
     assert "changespec" not in _fn(live_script, "_sase_subs")
     assert "changespec" not in _fn(live_script, "_sase_child")  # legacy command alias

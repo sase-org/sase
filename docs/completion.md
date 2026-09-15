@@ -39,6 +39,19 @@ sase completion deploy-chezmoi -d  # preview source files
 sase completion deploy-chezmoi     # write source, apply, commit, and push
 ```
 
+The generated grammar also understands root `-p/--print-command` as a no-value global
+option. That makes short zsh aliases work cleanly with completion:
+
+```zsh
+alias sbd='sase -p bead'
+```
+
+With that alias loaded in a fresh shell, `sbd sh<TAB>` completes the static `sase bead`
+tree and dynamic bead-id slots still call the narrow candidate fast path. The print
+header is emitted only when a command actually runs, never during tab completion. It
+goes to stderr and omits the print switch, so stdout remains clean for JSON, generated
+scripts, and redirected command output.
+
 **Never** `eval "$(sase completion zsh)"` in an rc file. That pays a full `sase` startup
 (300–640 ms) on every new shell; write the script to a file instead.
 

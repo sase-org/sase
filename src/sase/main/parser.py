@@ -147,9 +147,9 @@ def create_parser(*, only: str | None = None) -> argparse.ArgumentParser:
         action=FullRootHelpAction,
         help="show full command inventory and exit",
     )
-    from .global_options import register_global_feature_flag_options
+    from .global_options import register_global_options
 
-    register_global_feature_flag_options(parser)
+    register_global_options(parser)
 
     top_level_subparsers = parser.add_subparsers(
         dest="command", help="Available commands", required=True

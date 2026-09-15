@@ -67,6 +67,27 @@ forbidden = [
 assert not forbidden, forbidden
 """
 
+_PRINT_PROBE_SOURCE = """
+import sys
+from sase.main.entry import main
+sys.argv = ["sase", "-p", "completion", "candidates", "project"]
+try:
+    main()
+except SystemExit as exc:
+    assert exc.code in (0, None), exc.code
+forbidden = [
+    name
+    for name in sys.modules
+    if name == "sase.main.parser"
+    or name.startswith("sase.ace")
+    or name == "textual"
+    or name.startswith("textual.")
+    or name == "rich"
+    or name.startswith("rich.")
+]
+assert not forbidden, forbidden
+"""
+
 
 def _run_probe(
     cwd: Path, kinds: tuple[str, ...] = _SHIPPED_KINDS
@@ -90,6 +111,26 @@ def test_candidates_fast_path_avoids_heavy_imports(tmp_path: Path) -> None:
     result = _run_probe(tmp_path)
 
     assert result.returncode == 0, result.stderr + result.stdout
+
+
+def test_print_command_candidates_fast_path_avoids_heavy_imports(
+    tmp_path: Path,
+) -> None:
+    env = os.environ.copy()
+    env["SASE_HOME"] = str(tmp_path / "sase-home")
+    env.pop("SASE_SDD_BEADS_DIR", None)
+    env.pop("SASE_SDD_PLANS_DIR", None)
+    result = subprocess.run(
+        [sys.executable, "-c", textwrap.dedent(_PRINT_PROBE_SOURCE)],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.stderr.startswith("\u276f sase completion candidates project\n")
 
 
 def _run_probe_with_cpu_seconds(

@@ -4638,12 +4638,14 @@ subcommand level. Use the explicit `list` form when passing list options, such a
 ### `sase (global)`
 
 These options are recognized only in the leading run of option tokens, before the first
-subcommand. They do not steal `-f`/`-F` from commands such as `sase bead list -f json`.
+subcommand. They do not steal `-f`/`-F` or `-p` from commands such as
+`sase bead list -f json` or `sase completion candidates -p PROJECT`.
 
 | Flag                    | Values              | Default | Description                                                                                                                                                                                         |
 | ----------------------- | ------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-f, --enable-feature`  | registered flag key | -       | Force a registered feature flag on for this invocation and every process it launches. Repeatable. Outranks config layers, a saved machine preference, and an inherited `SASE_FEATURE_FLAGS` value.  |
 | `-F, --disable-feature` | registered flag key | -       | Force a registered feature flag off for this invocation and every process it launches. Repeatable. Outranks config layers, a saved machine preference, and an inherited `SASE_FEATURE_FLAGS` value. |
+| `-f, --enable-feature`  | registered flag key | -       | Force a registered feature flag on for this invocation and every process it launches. Repeatable. Outranks config layers, a saved machine preference, and an inherited `SASE_FEATURE_FLAGS` value.  |
+| `-p, --print-command`   | flag                | -       | Print a shell-quoted `sase ...` header to stderr before running the command. The displayed invocation omits the root print switch.                                                                  |
 
 ### `sase ace`
 
