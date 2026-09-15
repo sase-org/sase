@@ -24061,7 +24061,7 @@
               },
               {
                 "choices": null,
-                "dest": "command",
+                "dest": "sudo_command",
                 "hidden": false,
                 "kind": null,
                 "repeatable": true,
