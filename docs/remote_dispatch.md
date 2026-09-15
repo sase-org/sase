@@ -165,12 +165,22 @@ sase doctor -D -C dispatch
 ```
 
 `sase machine init --check` and `sase init --check --json` are offline checks; they do
-not discover peers or talk to gateways. Explicit `sase machine init` performs discovery,
-preserves diagnostics from failed providers beside candidates from working ones, shows
-already enrolled machines beside new candidates, writes the machine record and
-credential, deploys the chezmoi-managed overlay through a tracked apply when configured,
-reloads config, and runs an authenticated hello before declaring success. Direct
+not discover peers or talk to gateways. Interactive bare `sase init` may discover when a
+previous machine review exists so it can offer enrollment only for newly discovered,
+unreviewed candidates. Explicit `sase machine init` always performs discovery, preserves
+diagnostics from failed providers beside candidates from working ones, shows already
+enrolled machines beside new candidates, writes the machine record and credential,
+deploys the chezmoi-managed overlay through a tracked apply when configured, reloads
+config, and runs an authenticated hello before declaring success. Direct
 `sase machine add` and `sase machine repair` share that same activation path.
+
+After a successful explicit init review, the controller records the candidates that were
+shown in local SASE state, including candidates you skipped or an empty successful
+review. That local record suppresses repeated bare-`sase init` offers for the same
+candidate but does not grant trust, sync to other machines, or update enrollment pins.
+Run `sase machine init` again whenever you want to reconsider skipped candidates; a new
+unreviewed installation can still produce one onboarding offer for the current
+`sase init --all` or repeated-project batch.
 
 If enrollment partially succeeds after the target consumes the bootstrap, follow the
 command's recovery text. Retry a failed local apply when the credential is already

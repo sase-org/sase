@@ -37,6 +37,24 @@ def reconcile_machine_enrollments(request: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def assess_machine_init_review(request: dict[str, Any]) -> dict[str, Any]:
+    """Decide whether onboarding has unreviewed new machine candidates."""
+    return _call_machine_setup(
+        "assess_machine_init_review",
+        request,
+        "machine init review assessment",
+    )
+
+
+def merge_machine_init_review(request: dict[str, Any]) -> dict[str, Any]:
+    """Merge candidates from a completed explicit machine-init review."""
+    return _call_machine_setup(
+        "merge_machine_init_review",
+        request,
+        "machine init review merge",
+    )
+
+
 def _call_machine_setup(
     name: str, request: dict[str, Any], label: str
 ) -> dict[str, Any]:
@@ -58,7 +76,9 @@ def _with_schema(request: dict[str, Any]) -> dict[str, Any]:
 
 
 __all__ = [
+    "assess_machine_init_review",
     "classify_tailnet_discovery",
     "classify_tailnet_health",
+    "merge_machine_init_review",
     "reconcile_machine_enrollments",
 ]

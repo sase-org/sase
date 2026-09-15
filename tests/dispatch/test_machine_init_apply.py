@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from io import StringIO
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,7 @@ import pytest
 from sase.config import core as config_core
 from sase.dispatch.config import load_dispatch_config
 from sase.dispatch.credentials import LocalCredentialStore
+from sase.dispatch._machine_init_review import _machine_init_review_path
 from sase.dispatch.machine_init import MachineInitService
 from sase.dispatch.machine_service import MachineService
 from sase.dispatch.models import DiscoveryResult, MachineDiagnostic
@@ -244,3 +246,88 @@ def test_apply_keeps_working_candidates_beside_discovery_diagnostics(
     assert result.exit_code == 0
     assert [item.alias for item in result.enrollments] == ["fleet"]
     assert result.diagnostics == (diagnostic,)
+
+
+def test_apply_blank_selection_persists_presented_review(
+    isolated_dispatch: tuple[Path, Path],
+) -> None:
+    pin = _pin()
+    candidate = _candidate(pin=pin)
+    service, fake = _service(isolated_dispatch, pin=pin, candidates=(candidate,))
+
+    result = service.apply(
+        input_func=lambda _prompt: "",
+        getpass_func=lambda _prompt: _bundle(pin),
+        stdin=TtyStringIO(),
+    )
+
+    assert result.exit_code == 0
+    assert result.nothing_to_enroll is True
+    assert fake.enroll_calls == 0
+    payload = json.loads(_machine_init_review_path().read_text(encoding="utf-8"))
+    assert payload["initial_review_completed"] is True
+    assert payload["reviewed"][0]["endpoint"] == candidate.endpoint
+    assert payload["reviewed"][0]["installation_pin"] == pin
+
+
+def test_apply_empty_success_persists_completed_empty_review(
+    isolated_dispatch: tuple[Path, Path],
+) -> None:
+    service, _fake = _service(isolated_dispatch, pin=_pin(), candidates=())
+
+    result = service.apply(
+        input_func=lambda _prompt: "unused",
+        getpass_func=lambda _prompt: _bundle(_pin()),
+        stdin=TtyStringIO(),
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(_machine_init_review_path().read_text(encoding="utf-8"))
+    assert payload["initial_review_completed"] is True
+    assert payload["reviewed"] == []
+
+
+def test_apply_invalid_selection_preserves_review_state(
+    isolated_dispatch: tuple[Path, Path],
+) -> None:
+    pin = _pin()
+    candidate = _candidate(pin=pin)
+    service, _fake = _service(isolated_dispatch, pin=pin, candidates=(candidate,))
+
+    result = service.apply(
+        input_func=lambda _prompt: "99",
+        getpass_func=lambda _prompt: _bundle(pin),
+        stdin=TtyStringIO(),
+    )
+
+    assert result.exit_code == 1
+    assert not _machine_init_review_path().exists()
+
+
+def test_apply_persistence_warning_does_not_fail_enrollment(
+    isolated_dispatch: tuple[Path, Path],
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    pin = _pin()
+    candidate = _candidate(pin=pin)
+    unwritable_path = _machine_init_review_path()
+    unwritable_path.parent.mkdir(parents=True)
+    unwritable_path.parent.chmod(0o500)
+    try:
+        service, fake = _service(isolated_dispatch, pin=pin, candidates=(candidate,))
+        answers = iter(["1", "fleet", ""])
+
+        result = service.apply(
+            input_func=lambda _prompt: next(answers),
+            getpass_func=lambda _prompt: _bundle(pin),
+            stdin=TtyStringIO(),
+        )
+    finally:
+        unwritable_path.parent.chmod(0o700)
+
+    assert result.exit_code == 0
+    assert fake.enroll_calls == 1
+    assert any(
+        item.code == "machine_init_review_persist_failed" for item in result.diagnostics
+    )
+    assert "future init may offer review again" in capsys.readouterr().err

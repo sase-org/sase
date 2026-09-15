@@ -6,13 +6,23 @@ import argparse
 from collections.abc import Iterator
 from contextlib import contextmanager
 import copy
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 
 from ._init_onboarding_types import InitRunStatus
 from .init_project_scope import InitProjectTarget
+
+
+@dataclass
+class InitOnboardingBatchContext:
+    """Invocation-local context shared across project onboarding passes."""
+
+    machine_offer_handled: bool = False
+    machine_assessment_cache: dict[tuple[Any, ...], Any] = field(default_factory=dict)
 
 
 @contextmanager
@@ -26,7 +36,10 @@ def working_directory(path: Path) -> Iterator[None]:
         os.chdir(original)
 
 
-def project_args(args: argparse.Namespace) -> argparse.Namespace:
+def project_args(
+    args: argparse.Namespace,
+    batch_context: InitOnboardingBatchContext | None = None,
+) -> argparse.Namespace:
     """Return a fresh namespace for one project in a batch run."""
     fresh_args = copy.copy(args)
     fresh_args.all = False
@@ -34,7 +47,10 @@ def project_args(args: argparse.Namespace) -> argparse.Namespace:
     if hasattr(fresh_args, "project"):
         fresh_args.project = None
     if hasattr(fresh_args, "json"):
+        fresh_args._init_json_mode = bool(fresh_args.json)
         fresh_args.json = False
+    if batch_context is not None:
+        fresh_args._init_onboarding_context = batch_context
     for marker in (
         "_project_memory_opt_in_prepared",
         "_project_config_changed",

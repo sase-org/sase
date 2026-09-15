@@ -9,7 +9,8 @@ import pytest
 
 from sase.dispatch.machine_init import MachineInitService
 from sase.dispatch.machine_service import MachineService
-from sase.dispatch.models import DiscoveryCandidate, DispatchConfig
+from sase.dispatch.models import DiscoveryCandidate, DiscoveryResult, DispatchConfig
+from sase.dispatch._machine_init_review import MachineInitReviewStore
 from sase.main.init_machine_handler import plan_init_machine
 from tests.dispatch.machine_init_helpers import (
     _candidate,
@@ -56,22 +57,44 @@ def test_plan_all_enrolled_is_not_check_drift() -> None:
 
 def test_plan_init_machine_adapter_uses_tty_gated_offer(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
 ) -> None:
+    review_store = MachineInitReviewStore(tmp_path / "review.json")
     monkeypatch.setattr(
         "sase.dispatch.machine_init.load_dispatch_config",
         lambda: _config(),
     )
-    check_args = argparse.Namespace(check=True, _init_stdin=TtyStringIO())
-    offer_args = argparse.Namespace(check=False, _init_stdin=TtyStringIO())
-    quiet_args = argparse.Namespace(check=False, _init_stdin=StringIO())
+    check_args = argparse.Namespace(
+        check=True,
+        _init_stdin=TtyStringIO(),
+        _init_review_store=review_store,
+    )
+    offer_args = argparse.Namespace(
+        check=False,
+        _init_stdin=TtyStringIO(),
+        _init_review_store=review_store,
+    )
+    json_args = argparse.Namespace(
+        check=False,
+        json=True,
+        _init_stdin=TtyStringIO(),
+        _init_review_store=review_store,
+    )
+    quiet_args = argparse.Namespace(
+        check=False,
+        _init_stdin=StringIO(),
+        _init_review_store=review_store,
+    )
 
     check = plan_init_machine(check_args)
     offer = plan_init_machine(offer_args)
+    json_plan = plan_init_machine(json_args)
     quiet = plan_init_machine(quiet_args)
 
     assert check.has_changes is False
     assert offer.has_changes is True
     assert offer.requires_tty is True
+    assert json_plan.has_changes is False
     assert quiet.has_changes is False
 
 
@@ -106,3 +129,80 @@ def test_reconcile_skips_enrolled_and_routes_pin_change_to_repair() -> None:
     assert rows[1].alias == "apollo"
     assert "sase machine repair apollo" in rows[1].reason
     assert rows[2].status == "new"
+
+
+def test_onboarding_assessment_offers_initial_review_without_discovery(
+    tmp_path,
+) -> None:
+    calls = {"discover": 0}
+
+    def discover_result(**_kwargs: object) -> DiscoveryResult:
+        calls["discover"] += 1
+        raise AssertionError("initial review offer must stay offline")
+
+    service = MachineInitService(
+        machine_service=MachineService(discover_result_fn=discover_result),
+        load_config_fn=lambda: _config(),
+        review_store=MachineInitReviewStore(tmp_path / "review.json"),
+    )
+
+    plan = service.assess_onboarding(check_mode=False, is_tty=True)
+
+    assert plan.offer_enrollment is True
+    assert calls["discover"] == 0
+
+
+def test_onboarding_assessment_suppresses_reviewed_candidate_and_caches(
+    tmp_path,
+) -> None:
+    candidate = _candidate(endpoint="https://fleet.example.test", pin=_pin("a"))
+    review_store = MachineInitReviewStore(tmp_path / "review.json")
+    assert review_store.record_completed_review((candidate,)) is None
+    calls = {"discover": 0}
+
+    def discover_result(**_kwargs: object) -> DiscoveryResult:
+        calls["discover"] += 1
+        return DiscoveryResult(candidates=(candidate,))
+
+    service = MachineInitService(
+        machine_service=MachineService(discover_result_fn=discover_result),
+        load_config_fn=lambda: _config(),
+        review_store=review_store,
+    )
+    cache = {}
+
+    first = service.assess_onboarding(
+        check_mode=False,
+        is_tty=True,
+        cache=cache,
+    )
+    second = service.assess_onboarding(
+        check_mode=False,
+        is_tty=True,
+        cache=cache,
+    )
+
+    assert first.offer_enrollment is False
+    assert second.offer_enrollment is False
+    assert calls["discover"] == 1
+
+
+def test_onboarding_assessment_offers_new_unreviewed_candidate(tmp_path) -> None:
+    reviewed = _candidate(endpoint="https://fleet.example.test", pin=_pin("a"))
+    unreviewed = _candidate(endpoint="https://new.example.test", pin=_pin("b"))
+    review_store = MachineInitReviewStore(tmp_path / "review.json")
+    assert review_store.record_completed_review((reviewed,)) is None
+    service = MachineInitService(
+        machine_service=MachineService(
+            discover_result_fn=lambda **_kwargs: DiscoveryResult(
+                candidates=(reviewed, unreviewed)
+            )
+        ),
+        load_config_fn=lambda: _config(),
+        review_store=review_store,
+    )
+
+    plan = service.assess_onboarding(check_mode=False, is_tty=True)
+
+    assert plan.offer_enrollment is True
+    assert "unreviewed" in plan.summary

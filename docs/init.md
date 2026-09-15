@@ -49,7 +49,10 @@ invalid project records, planning errors, and initializer failures are reported 
 that project's heading without preventing later projects from being attempted; the final
 summary and exit status reflect the whole batch. `--all --check` is fully read-only and
 exits non-zero if any project has drift or cannot be checked. Without a TTY, `--all`
-remains read-only unless `--yes` is supplied.
+remains read-only unless `--yes` is supplied. Machine enrollment is offered at most once
+per `--all` or repeated `-p/--project` invocation; accepting, declining, EOF, or a
+machine-init failure consumes that batch's machine opportunity while later projects
+continue with their other initializers.
 
 `-p, --project NAME` selects one or more of those same enabled projects by project name,
 display name, or alias. Repeat the option to name a subset
@@ -181,9 +184,20 @@ operational target-preparation flow is covered in the
 [Remote Dispatch Runbook](remote_dispatch.md).
 
 `--check`, `--json`, and other previews inspect only local merged configuration: they
-never run discovery or talk to a gateway. A zero-machine or all-enrolled registry is not
-drift, so `sase init --check` does not stay red just because enrollment is available. On
-an interactive TTY, bare `sase init` may still offer enrollment.
+never run discovery or talk to a gateway. `--diff` only renders ordinary initializer
+diffs; it is not a guarantee that no interactive apply-time discovery will occur. A
+zero-machine or all-enrolled registry is not drift, so `sase init --check` does not stay
+red just because enrollment is available. On an interactive TTY, bare `sase init` may
+still offer enrollment.
+
+The first successful explicit `sase machine init` review on a controller records a local
+acknowledgment under that user's SASE state root. The record is machine-local and is not
+synced through project config or chezmoi. A completed review includes candidates you
+consciously skip, so a later bare `sase init` offers machine initialization only when
+discovery finds a new unreviewed candidate. Existing installations need one catch-up
+review because old state cannot prove which candidates were previously skipped. Run
+`sase machine init` directly, or the `sase init machine` compatibility alias, any time
+you want to reconsider skipped candidates or force a fresh review.
 
 Explicit apply always rescans. Already-enrolled identities are listed and skipped;
 selecting one existing machine does not hide another candidate. A changed installation

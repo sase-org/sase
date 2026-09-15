@@ -21,9 +21,33 @@ from sase.main.init_plan import InitAction, InitPlan
 def plan_init_machine(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for optional remote-machine enrollment."""
     stdin: TextIO = getattr(args, "_init_stdin", None) or sys.stdin
-    check_mode = bool(getattr(args, "check", False))
-    plan: MachineInitPlan = MachineInitService().plan(
-        check_mode=check_mode, is_tty=stdin.isatty()
+    check_mode = bool(
+        getattr(args, "check", False)
+        or getattr(args, "json", False)
+        or getattr(args, "_init_json_mode", False)
+    )
+    context = getattr(args, "_init_onboarding_context", None)
+    service = MachineInitService(
+        machine_service=getattr(args, "_init_machine_service", None),
+        review_store=getattr(args, "_init_review_store", None),
+    )
+    if context is not None and getattr(context, "machine_offer_handled", False):
+        plan = MachineInitPlan(
+            summary="remote machine enrollment was already handled in this init batch",
+            offer_enrollment=False,
+        )
+    elif context is None:
+        plan = service.plan(check_mode=check_mode, is_tty=stdin.isatty())
+    else:
+        plan = service.assess_onboarding(
+            check_mode=check_mode,
+            is_tty=stdin.isatty(),
+            cache=context.machine_assessment_cache,
+        )
+    action_detail = (
+        "discover providers and review newly discovered machines"
+        if context is not None
+        else "discover providers and optionally enroll selected machines"
     )
     return InitPlan(
         command="machine",
@@ -35,7 +59,7 @@ def plan_init_machine(args: argparse.Namespace) -> InitPlan:
             InitAction(
                 path=Path("remote machine enrollment"),
                 operation="validate",
-                detail="discover providers and optionally enroll selected machines",
+                detail=action_detail,
             ),
         ),
         warnings=plan.warnings,
@@ -88,6 +112,7 @@ def run_init_machine(args: argparse.Namespace) -> int:
         apply_chezmoi_fn=getattr(args, "_init_apply_chezmoi_fn", None),
         use_chezmoi_fn=getattr(args, "_init_use_chezmoi_fn", None),
         registry_target_fn=getattr(args, "_init_registry_target_fn", None),
+        review_store=getattr(args, "_init_review_store", None),
     )
     result = service.apply(
         input_func=input_func,

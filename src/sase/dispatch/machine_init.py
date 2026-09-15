@@ -8,10 +8,10 @@ caller may report enrollment success.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 import sys
-from typing import TextIO
+from typing import Any, TextIO
 
 from sase.config import core as config_core
 from sase.config.targets import resolve_write_path
@@ -35,6 +35,7 @@ from sase.dispatch._machine_init_interaction import (
     status_detail,
 )
 from sase.dispatch._machine_init_reconcile import reconcile_candidates
+from sase.dispatch._machine_init_review import MachineInitReviewStore
 from sase.dispatch._machine_init_types import (
     ApplyChezmoiFn,
     GetPassFunc,
@@ -66,6 +67,7 @@ class MachineInitService:
         use_chezmoi_fn: Callable[[], bool] | None = None,
         registry_target_fn: Callable[[], Path] | None = None,
         clear_config_cache_fn: Callable[[], None] | None = None,
+        review_store: MachineInitReviewStore | None = None,
     ) -> None:
         self.machine_service = machine_service or MachineService()
         self.load_config_fn = load_config_fn or load_dispatch_config
@@ -75,6 +77,7 @@ class MachineInitService:
         self.clear_config_cache_fn = (
             clear_config_cache_fn or config_core.clear_config_cache
         )
+        self.review_store = review_store or MachineInitReviewStore()
 
     def plan(self, *, check_mode: bool, is_tty: bool) -> MachineInitPlan:
         """Return a pure offline plan from local merged configuration."""
@@ -105,6 +108,79 @@ class MachineInitService:
             warnings=warnings,
             enrolled=enrolled,
         )
+
+    def assess_onboarding(
+        self,
+        *,
+        check_mode: bool,
+        is_tty: bool,
+        cache: dict[tuple[Any, ...], MachineInitPlan] | None = None,
+    ) -> MachineInitPlan:
+        """Return an interactive-onboarding plan using saved review state."""
+        base = self.plan(check_mode=check_mode, is_tty=is_tty)
+        if not base.offer_enrollment:
+            return base
+        config = self.load_config_fn()
+
+        read = self.review_store.read()
+        warnings = base.warnings + ((read.warning,) if read.warning else ())
+        if read.state is None:
+            return MachineInitPlan(
+                summary=base.summary,
+                offer_enrollment=True,
+                warnings=warnings,
+                enrolled=base.enrolled,
+            )
+
+        cache_key = _assessment_cache_key(
+            read.state,
+            base.enrolled,
+            tuple(config.discovery_enabled_provider_refs),
+        )
+        if cache is not None and cache_key in cache:
+            return cache[cache_key]
+
+        try:
+            discovery = self.machine_service.discover_detailed()
+        except DispatchError as exc:
+            plan = MachineInitPlan(
+                summary=(
+                    "remote machine enrollment review is current; "
+                    "discovery could not complete"
+                ),
+                offer_enrollment=False,
+                warnings=warnings + (f"machine discovery skipped: {exc}",),
+                enrolled=base.enrolled,
+            )
+            if cache is not None:
+                cache[cache_key] = plan
+            return plan
+
+        diagnostic_warnings = tuple(
+            item.message for item in discovery.diagnostics if item.severity != "info"
+        )
+        assessment = self.review_store.assess(
+            state=read.state,
+            candidates=discovery.candidates,
+            enrolled=base.enrolled,
+        )
+        if assessment.offer_enrollment:
+            plan = MachineInitPlan(
+                summary=("remote machine enrollment found unreviewed candidates"),
+                offer_enrollment=True,
+                warnings=warnings + diagnostic_warnings,
+                enrolled=base.enrolled,
+            )
+        else:
+            plan = MachineInitPlan(
+                summary="remote machine enrollment review is current",
+                offer_enrollment=False,
+                warnings=warnings + diagnostic_warnings,
+                enrolled=base.enrolled,
+            )
+        if cache is not None:
+            cache[cache_key] = plan
+        return plan
 
     def reconcile(
         self,
@@ -163,12 +239,15 @@ class MachineInitService:
                         item.message for item in diagnostics if item.severity == "error"
                     ),
                 )
-            return MachineInitApplyResult(
-                exit_code=0,
-                skipped=skipped,
-                repair=repair,
-                diagnostics=diagnostics,
-                nothing_to_enroll=True,
+            return self._record_successful_review(
+                MachineInitApplyResult(
+                    exit_code=0,
+                    skipped=skipped,
+                    repair=repair,
+                    diagnostics=diagnostics,
+                    nothing_to_enroll=True,
+                ),
+                candidates,
             )
 
         try:
@@ -192,12 +271,15 @@ class MachineInitService:
             )
         if not selected:
             print("No remote machines enrolled.", file=sys.stderr)
-            return MachineInitApplyResult(
-                exit_code=0,
-                skipped=skipped,
-                repair=repair,
-                diagnostics=diagnostics,
-                nothing_to_enroll=True,
+            return self._record_successful_review(
+                MachineInitApplyResult(
+                    exit_code=0,
+                    skipped=skipped,
+                    repair=repair,
+                    diagnostics=diagnostics,
+                    nothing_to_enroll=True,
+                ),
+                candidates,
             )
 
         enrollments: list[EnrollmentResult] = []
@@ -271,13 +353,16 @@ class MachineInitService:
                     chezmoi_proc_id=activation.proc_id,
                     chezmoi_in_progress=activation.in_progress,
                 )
-        return MachineInitApplyResult(
-            exit_code=0,
-            enrollments=tuple(enrollments),
-            skipped=skipped,
-            repair=repair,
-            recovery_messages=tuple(recovery),
-            diagnostics=diagnostics,
+        return self._record_successful_review(
+            MachineInitApplyResult(
+                exit_code=0,
+                enrollments=tuple(enrollments),
+                skipped=skipped,
+                repair=repair,
+                recovery_messages=tuple(recovery),
+                diagnostics=diagnostics,
+            ),
+            candidates,
         )
 
     def activate(
@@ -379,6 +464,67 @@ class MachineInitService:
             return ChezmoiApplyOutcome(error="chezmoi not found on PATH")
         except OSError as exc:
             return ChezmoiApplyOutcome(error=f"chezmoi apply failed: {exc}")
+
+    def _record_successful_review(
+        self,
+        result: MachineInitApplyResult,
+        candidates: Sequence[DiscoveryCandidate],
+    ) -> MachineInitApplyResult:
+        diagnostic = self.review_store.record_completed_review(candidates)
+        if diagnostic is None:
+            return result
+        print(f"warning: {diagnostic.message}", file=sys.stderr)
+        return MachineInitApplyResult(
+            exit_code=result.exit_code,
+            enrollments=result.enrollments,
+            skipped=result.skipped,
+            repair=result.repair,
+            recovery_messages=result.recovery_messages,
+            errors=result.errors,
+            diagnostics=result.diagnostics + (diagnostic,),
+            cancelled=result.cancelled,
+            nothing_to_enroll=result.nothing_to_enroll,
+            chezmoi_proc_id=result.chezmoi_proc_id,
+            chezmoi_in_progress=result.chezmoi_in_progress,
+        )
+
+
+def _assessment_cache_key(
+    state: Mapping[str, Any] | None,
+    enrolled: Sequence[MachineRecord],
+    discovery_provider_refs: Sequence[str],
+) -> tuple[Any, ...]:
+    reviewed: tuple[tuple[str, str, str], ...] = ()
+    if isinstance(state, Mapping):
+        reviewed = tuple(
+            sorted(
+                (
+                    str(item.get("provider_ref") or ""),
+                    str(item.get("endpoint") or ""),
+                    str(item.get("installation_pin") or ""),
+                )
+                for item in state.get("reviewed") or ()
+                if isinstance(item, Mapping)
+            )
+        )
+    return (
+        bool((state or {}).get("initial_review_completed"))
+        if isinstance(state, Mapping)
+        else False,
+        tuple(discovery_provider_refs),
+        reviewed,
+        tuple(
+            sorted(
+                (
+                    record.alias,
+                    record.provider_ref,
+                    record.endpoint,
+                    record.pinned_installation_id,
+                )
+                for record in enrolled
+            )
+        ),
+    )
 
 
 __all__ = [

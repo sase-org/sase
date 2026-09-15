@@ -22,6 +22,8 @@ def _prompt_for_plan(
     console: Console,
 ) -> bool:
     command = f"sase init {plan.command}"
+    if plan.command == "machine":
+        command = "sase machine init"
     if plan.command == "skills":
         command = f"{command} --force"
     prompt = f"Run `{command}` now?"
@@ -82,10 +84,28 @@ def run_changed_plans(
 ) -> InitRunResult:
     spec_by_name = {spec.name: spec for spec in specs}
     skipped = False
+    config_changed_since_plan = False
     for plan in plans:
+        if plan.command == "machine" and config_changed_since_plan:
+            context = getattr(args, "_init_onboarding_context", None)
+            if context is not None:
+                context.machine_assessment_cache.clear()
+            plan_args = copy.copy(args)
+            plan_args._init_stdin = stdin
+            plan = spec_by_name["machine"].plan(plan_args)
+            config_changed_since_plan = False
         if not plan.has_changes or not plan.runnable:
             continue
         spec = spec_by_name[plan.command]
+        context = getattr(args, "_init_onboarding_context", None)
+        if (
+            plan.command == "machine"
+            and context is not None
+            and getattr(context, "machine_offer_handled", False)
+        ):
+            continue
+        if plan.command == "machine" and context is not None:
+            context.machine_offer_handled = True
         if getattr(args, "yes", False):
             should_run = True
         else:
@@ -114,6 +134,8 @@ def run_changed_plans(
                 style="red",
             )
             return InitRunResult(exit_code, "failed")
+        if plan.command == "config":
+            config_changed_since_plan = True
 
     if skipped:
         # Preserve the single-project coordinator's successful exit when a

@@ -18,6 +18,7 @@ from ._init_chezmoi_deploy import (
 )
 from ._init_onboarding_apply import run_changed_plans
 from ._init_onboarding_batch import (
+    InitOnboardingBatchContext,
     project_args,
     render_project_heading,
     summary_parts,
@@ -87,6 +88,9 @@ def _run_init_onboarding_result(
     out_console = console or preview_console(sys.stdout)
     is_tty = (stdin or sys.stdin).isatty()
     effective_stdin = stdin or sys.stdin
+    args._init_stdin = effective_stdin
+    if not hasattr(args, "_init_onboarding_context"):
+        args._init_onboarding_context = InitOnboardingBatchContext()
 
     if not active_specs:
         result = InitRunResult(1, "failed")
@@ -221,6 +225,7 @@ def run_init_onboarding_all(
     checked = current = initialized = needs_attention = unavailable = failed = 0
     cancelled = deploy_failed = False
     project_rows: list[dict[str, Any]] = []
+    batch_context = InitOnboardingBatchContext()
 
     try:
         with defer_chezmoi_deploy() as deferred_chezmoi:
@@ -245,7 +250,7 @@ def run_init_onboarding_all(
                 try:
                     with working_directory(target.workspace_dir):
                         result = _run_init_onboarding_result(
-                            project_args(args),
+                            project_args(args, batch_context),
                             specs=specs,
                             input_func=input_func,
                             stdin=stdin,
