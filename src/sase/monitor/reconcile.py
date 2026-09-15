@@ -14,6 +14,7 @@ from typing import Any
 
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.axe.run_agent_exec_markers import write_done_marker_and_update_index
+from sase.bead.epic_launch_handoff import publish_deferred_monitor_completion
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
@@ -284,6 +285,13 @@ def _reconcile_dead_supervisor_locked(
     write_done_marker_and_update_index(record.artifacts_dir, done_marker)
     finalize_monitor_workflow_state(record.artifacts_dir)
     touch_monitor_refresh_pulse(record.project_name)
+    publish_deferred_monitor_completion(
+        record.artifacts_dir,
+        outcome={
+            "monitor_state": monitor_state,
+            "settled_at": stopped_at,
+        },
+    )
     current = get_monitor(record.project_name, record.artifacts_dir)
     return current if current is not None else record
 

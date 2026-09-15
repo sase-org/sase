@@ -6,6 +6,7 @@ import importlib.util
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -23,11 +24,9 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import probe_surface_tok
 from sase.ace.tui.data_providers import AgentsViewport
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import AgentLoadState
-from sase.bead.epic_launch_handoff import (
-    CompletionNotificationPayload,
-    defer_epic_completion_until_monitor_settlement,
-    publish_deferred_monitor_completion,
-)
+from sase.axe.run_agent_runner_finalize import send_completion_notification
+from sase.bead.epic_launch import finish_epic_launch
+from sase.bead.epic_launch_handoff import MONITOR_ARTIFACTS_ENV
 from sase.core.agent_scan_facade import (
     default_agent_artifact_index_path,
     rebuild_agent_artifact_index,
@@ -35,7 +34,9 @@ from sase.core.agent_scan_facade import (
 )
 from sase.core.agent_scan_wire import AgentArtifactScanOptionsWire
 from sase.core.rust import RUST_EXTENSION_MODULE_NAME
+from sase.monitor.proc_adapter import settle_monitor_artifacts, settle_monitor_followup
 from sase.notifications import Notification, load_notifications
+from sase.notifications.senders import notify_workflow_complete as real_notify_complete
 
 from ._event_handlers_dirty_flags_helpers import _FakeApp
 
@@ -200,17 +201,20 @@ def _build_incident_tree(sase_home: Path) -> _IncidentTree:
         monitor_dir / "agent_meta.json",
         {
             "name": "0l4--mon",
-            "cl_name": "0l4--mon",
+            "cl_name": "0l4",
             "agent_family": "0l4",
             "agent_family_role": "monitor",
             "role_suffix": "--mon",
             "parent_timestamp": _GATE_TS,
             "run_started_at": "2026-09-15T13:05:30Z",
             "monitor_id": "mon-1",
+            "proc_id": "mon-1",
+            "shell_kind": "proc",
             "monitor_state": "running",
             "monitor_start_status": "EPIC APPROVED",
             "monitor_stop_status": "EPIC CREATED",
             "monitor_command": "sase bead work sase-117",
+            "monitor_reason": "launch approved epic",
             "monitor_settled": False,
         },
     )
@@ -240,85 +244,119 @@ def _build_incident_tree(sase_home: Path) -> _IncidentTree:
     )
 
 
-def _settle_monitor(tree: _IncidentTree) -> None:
-    _write_json(
-        tree.monitor_dir / "agent_meta.json",
-        {
-            "name": "0l4--mon",
-            "cl_name": "0l4--mon",
-            "agent_family": "0l4",
-            "agent_family_role": "monitor",
-            "role_suffix": "--mon",
-            "parent_timestamp": _GATE_TS,
-            "run_started_at": "2026-09-15T13:05:30Z",
-            "stopped_at": "2026-09-15T13:05:31Z",
-            "monitor_id": "mon-1",
-            "monitor_state": "completed",
-            "monitor_start_status": "EPIC APPROVED",
-            "monitor_stop_status": "EPIC CREATED",
-            "monitor_command": "sase bead work sase-117",
-            "monitor_settled": True,
-            "monitor_exit_code": 0,
-        },
-    )
-    _write_json(
-        tree.monitor_dir / "done.json",
-        {
-            "outcome": "monitored",
-            "cl_name": "0l4--mon",
-            "name": "0l4--mon",
-            "status_label": "EPIC CREATED",
-            "finished_at": 1789477531.0,
-            "monitor_id": "mon-1",
-            "monitor_state": "completed",
-            "monitor_start_status": "EPIC APPROVED",
-            "monitor_stop_status": "EPIC CREATED",
-            "monitor_exit_code": 0,
-        },
-    )
-    (tree.project_dir / "artifacts" / ".ace_refresh_pulse").write_text(
-        "settled\n",
+def _write_done_marker_without_index(
+    artifacts_dir: str,
+    marker: dict[str, Any],
+) -> None:
+    _write_json(Path(artifacts_dir) / "done.json", marker)
+
+
+def _settle_monitor(tree: _IncidentTree) -> list[dict[str, Any]]:
+    calls: list[dict[str, Any]] = []
+
+    def capture_notification(**kwargs: Any) -> None:
+        assert (tree.monitor_dir / "done.json").exists()
+        meta = json.loads((tree.monitor_dir / "agent_meta.json").read_text())
+        assert meta["monitor_settled"] is True
+        assert (tree.project_dir / "artifacts" / ".ace_refresh_pulse").exists()
+        calls.append(dict(kwargs))
+        real_notify_complete(**kwargs)
+
+    state: dict[str, Any] = {
+        "artifacts_dir": str(tree.monitor_dir),
+        "proc_id": "mon-1",
+        "status": "success",
+        "termination_reason": "success",
+        "exit_code": 0,
+        "log_path": str(tree.monitor_dir / "live_reply.md"),
+    }
+    (tree.monitor_dir / "live_reply.md").write_text("epic launched\n")
+    with (
+        patch(
+            "sase.monitor.proc_adapter.update_agent_artifact_index_for_marker_mutation",
+            lambda _artifacts_dir: None,
+        ),
+        patch(
+            "sase.monitor.proc_adapter.write_done_marker_and_update_index",
+            _write_done_marker_without_index,
+        ),
+        patch(
+            "sase.shells.settlement.update_agent_artifact_index_for_marker_mutation",
+            lambda _artifacts_dir: None,
+        ),
+        patch(
+            "sase.notifications.senders.notify_workflow_complete",
+            capture_notification,
+        ),
+    ):
+        settle_monitor_artifacts(state)
+        assert load_notifications() == []
+        settle_monitor_followup(state)
+    return calls
+
+
+def _run_production_handoff(
+    tree: _IncidentTree,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan_file = tree.root_dir / "approved_epic.md"
+    plan_file.write_text("# Approved Epic\n", encoding="utf-8")
+    (tree.root_dir / "plan_path.json").write_text(
+        json.dumps({"plan_path": str(plan_file)}),
         encoding="utf-8",
     )
-
-
-def _defer_production_completion(tree: _IncidentTree) -> None:
-    payload = CompletionNotificationPayload(
-        sender="user-agent",
+    send_completion_notification(
         cl_name="0l4",
+        artifacts_timestamp=_ROOT_TS,
+        workflow_name="tale",
         success=True,
-        notes=["planner completed"],
-        action="JumpToAgent",
-        action_data={
-            "cl_name": "0l4",
-            "raw_suffix": _ROOT_TS,
-        },
-        extra_files=[],
-        silent=False,
-        tags=["done"],
+        agent_hidden=False,
+        agent_name="0l4",
+        agent_model="gpt-5",
+        agent_llm_provider="openai",
+        error_summary=None,
+        error_report_path=None,
+        saved_path=None,
+        diff_path=None,
+        current_artifacts_dir=str(tree.root_dir),
+        markdown_pdf_paths=[],
+        markdown_source_count=None,
+        image_paths=[],
+        video_paths=[],
+        output_path=str(tree.root_dir / "live_reply.md"),
+        step_output=None,
+        prompt="#tale",
+        outcome="epic_approved",
     )
-    assert defer_epic_completion_until_monitor_settlement(
-        tree.root_dir,
-        tree.monitor_dir,
-        payload,
+    assert load_notifications() == []
+    monkeypatch.setenv(MONITOR_ARTIFACTS_ENV, str(tree.monitor_dir))
+    finish_epic_launch(
+        str(plan_file),
+        artifacts_dir=tree.root_dir,
+        cl_name="0l4",
+        result=SimpleNamespace(
+            dry_run=False,
+            epic_id="sase-117",
+            archived_plan_path=tree.project_dir / "plans" / "approved_epic.md",
+            launched=True,
+        ),
     )
+    assert load_notifications() == []
 
 
-def _publish_production_completion(tree: _IncidentTree) -> Notification:
-    assert publish_deferred_monitor_completion(
-        tree.monitor_dir,
-        outcome={"status": "success"},
-    )
+def _load_production_completion() -> Notification:
     notifications = load_notifications()
     assert len(notifications) == 1
     notification = notifications[0]
     assert notification.sender == "user-agent"
     assert notification.action == "JumpToAgent"
     assert notification.tags == ["done"]
-    assert notification.action_data["cl_name"] == "0l4--mon"
+    assert notification.action_data["agent_name"] == "0l4"
+    assert notification.action_data["cl_name"] == "0l4"
     assert notification.action_data["raw_suffix"] == _MONITOR_TS
     assert notification.action_data["family_root_suffix"] == _ROOT_TS
     assert notification.action_data["agent_root_timestamp"] == _ROOT_TS
+    assert "Epic sase-117 launched from approved_epic.md" in notification.notes
     return notification
 
 
@@ -465,15 +503,16 @@ def test_settlement_notification_exact_delta_converges_before_index_upsert(
         assert _statuses_for_suffix(app, _ROOT_TS) == ("EPIC APPROVED",)
         assert _statuses_for_suffix(app, _MONITOR_TS) == ("EPIC APPROVED",)
 
-        _defer_production_completion(tree)
+        _run_production_handoff(tree, monkeypatch)
         assert load_notifications() == []
-        _settle_monitor(tree)
+        notification_calls = _settle_monitor(tree)
+        assert len(notification_calls) == 1
         assert (tree.monitor_dir / "done.json").exists()
         monitor_meta = json.loads(
             (tree.monitor_dir / "agent_meta.json").read_text(encoding="utf-8")
         )
         assert monitor_meta["monitor_settled"] is True
-        notification = _publish_production_completion(tree)
+        notification = _load_production_completion()
         request_notification_agents_refresh(app, notifications=[notification])
 
         assert scheduled == [(tree.monitor_dir, tree.gate_dir, tree.root_dir)]

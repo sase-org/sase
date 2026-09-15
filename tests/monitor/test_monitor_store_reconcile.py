@@ -11,6 +11,10 @@ from pathlib import Path
 
 import pytest
 
+from sase.bead.epic_launch_handoff import (
+    CompletionNotificationPayload,
+    defer_epic_completion_until_monitor_settlement,
+)
 from sase.monitor.models import MonitorRecord
 from sase.monitor.output import OutputCapture
 from sase.monitor.start import MONITOR_WORKSPACE_CLAIM_WORKFLOW
@@ -101,6 +105,75 @@ def test_dead_supervisor_reconciliation_kills_tree_releases_claim_and_settles(
         if child.poll() is None:
             _kill_process_group(child.pid)
             child.wait(timeout=5)
+
+
+def test_dead_supervisor_reconciliation_publishes_deferred_epic_completion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root_dir = make_starter_agent(
+        "proj",
+        "20260812115900",
+        "acme",
+        agent_family="acme",
+        agent_family_role="root",
+        cl_name="acme",
+    )
+    monitor_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme--mon",
+        agent_family="acme",
+        agent_family_role="monitor",
+        monitor_id="aaa",
+        monitor_state="running",
+        monitor_command="sleep 60",
+        monitor_stop_status="EPIC CREATED",
+        monitor_pgid=DEAD_PID,
+        pid=DEAD_PID,
+        workspace_num=0,
+        workspace_dir="/work",
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [root_dir, monitor_dir])
+    payload = CompletionNotificationPayload(
+        sender="user-agent",
+        cl_name="acme",
+        success=True,
+        notes=["planner completed"],
+        action="JumpToAgent",
+        action_data={
+            "cl_name": "acme",
+            "raw_suffix": Path(root_dir).name,
+        },
+        extra_files=["/tmp/report.md"],
+        silent=False,
+        tags=["done"],
+    )
+    assert defer_epic_completion_until_monitor_settlement(
+        root_dir,
+        monitor_dir,
+        payload,
+    )
+
+    record = MonitorRecord.from_record(record_from_disk(monitor_dir))
+    result = stop_monitor(record)
+
+    assert result.monitor_state == "failed"
+    notifications = load_notifications()
+    assert len(notifications) == 1
+    notification = notifications[0]
+    assert notification.sender == "user-agent"
+    assert notification.notes == ["planner completed"]
+    assert notification.files == ["/tmp/report.md"]
+    assert notification.action == "JumpToAgent"
+    assert notification.tags == ["done"]
+    assert notification.action_data["cl_name"] == "acme"
+    assert notification.action_data["raw_suffix"] == Path(monitor_dir).name
+    assert notification.action_data["family_root_suffix"] == Path(root_dir).name
+    assert notification.action_data["agent_root_timestamp"] == Path(root_dir).name
+
+    assert reconcile_dead_supervisors(project="proj") == []
+    assert [row.id for row in load_notifications()] == [notification.id]
 
 
 def test_dead_supervisor_reconciliation_launches_recorded_followup(

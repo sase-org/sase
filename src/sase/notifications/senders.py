@@ -27,11 +27,12 @@ def notify_workflow_complete(
     extra_files: list[str] | None = None,
     silent: bool = False,
     tags: list[str] | None = None,
+    notification_id: str | None = None,
 ) -> None:
     """Send a notification when a workflow finishes."""
     files = list(extra_files or [])
     n = Notification(
-        id=str(uuid4()),
+        id=notification_id or str(uuid4()),
         timestamp=datetime.now(get_timezone()).isoformat(),
         sender=sender,
         notes=notes,

@@ -10,10 +10,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
+from uuid import NAMESPACE_URL, uuid5
 
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
-from sase.core.paths import sase_subdir
+from sase.core.paths import sase_projects_dir, sase_subdir
 from sase.logs._bounded import log_file_lock
 
 
@@ -81,6 +82,7 @@ class _DeferredCompletion:
     plan_file: str | None
     payload: CompletionNotificationPayload
     resume_argv: tuple[str, ...] = ()
+    notification_id: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -89,6 +91,11 @@ class _DeferredCompletion:
             "created_at": self.created_at,
             **({"plan_file": self.plan_file} if self.plan_file else {}),
             **({"resume_argv": list(self.resume_argv)} if self.resume_argv else {}),
+            **(
+                {"notification_id": self.notification_id}
+                if self.notification_id
+                else {}
+            ),
             "payload": self.payload.to_dict(),
         }
 
@@ -111,6 +118,7 @@ class _DeferredCompletion:
                 if isinstance(raw_resume_argv, list)
                 else ()
             ),
+            notification_id=_nonempty_str(value.get("notification_id")),
         )
 
 
@@ -124,6 +132,14 @@ class _EpicCompletionSweepResult:
     flushed: int = 0
     settled_reaped: int = 0
     errors: int = 0
+
+
+_MonitorCompletionPublishStatus = Literal[
+    "none",
+    "published",
+    "already_published",
+    "failed",
+]
 
 
 def _epic_completion_key(artifacts_dir: str | Path | None) -> str | None:
@@ -169,6 +185,7 @@ def defer_epic_completion_until_monitor_settlement(
         monitor_artifacts_dir,
         retargeted,
         path_factory=_monitor_handoff_paths,
+        notification_identity="monitor",
     )
 
 
@@ -177,6 +194,7 @@ def _defer_completion(
     payload: CompletionNotificationPayload,
     *,
     path_factory: Any,
+    notification_identity: str | None = None,
 ) -> bool:
     key = _epic_completion_key(artifacts_dir)
     if key is None or artifacts_dir is None:
@@ -195,6 +213,11 @@ def _defer_completion(
                 plan_file=_read_plan_file(artifacts_dir),
                 payload=payload,
                 resume_argv=tuple(_read_epic_launch_argv(artifacts_dir) or ()),
+                notification_id=(
+                    _stable_notification_id(key, payload, kind=notification_identity)
+                    if notification_identity
+                    else None
+                ),
             )
             _write_json_atomic(pending_path, deferred.to_dict())
         return True
@@ -221,20 +244,65 @@ def publish_deferred_monitor_completion(
     outcome: Mapping[str, Any],
 ) -> bool:
     """Publish one monitor-settlement completion payload, if one is pending."""
-    deferred = _claim_completion(
-        artifacts_dir,
-        outcome=outcome,
-        path_factory=_monitor_handoff_paths,
-    )
-    if deferred is None:
-        return False
+    return _publish_deferred_monitor_completion(artifacts_dir, outcome=outcome) in {
+        "published",
+        "already_published",
+    }
+
+
+def _publish_deferred_monitor_completion(
+    artifacts_dir: str | Path | None,
+    *,
+    outcome: Mapping[str, Any],
+) -> _MonitorCompletionPublishStatus:
+    key = _epic_completion_key(artifacts_dir)
+    if key is None:
+        return "none"
+    pending_path, settled_path = _monitor_handoff_paths(key)
     try:
-        send_completion_payload(deferred.payload)
+        with log_file_lock(pending_path):
+            if not pending_path.exists():
+                if not settled_path.exists():
+                    _write_settled_marker(
+                        settled_path,
+                        outcome,
+                        notification_id=None,
+                    )
+                return "none"
+            deferred = _DeferredCompletion.from_dict(_read_json_object(pending_path))
+            notification_id = _completion_notification_id(deferred, kind="monitor")
+            if _notification_is_durable(notification_id):
+                _complete_monitor_publication(
+                    pending_path,
+                    settled_path,
+                    outcome,
+                    notification_id=notification_id,
+                )
+                return "already_published"
+            try:
+                send_completion_payload(
+                    deferred.payload,
+                    notification_id=notification_id,
+                )
+            except Exception:
+                if _notification_is_durable(notification_id):
+                    _complete_monitor_publication(
+                        pending_path,
+                        settled_path,
+                        outcome,
+                        notification_id=notification_id,
+                    )
+                    return "already_published"
+                return "failed"
+            _complete_monitor_publication(
+                pending_path,
+                settled_path,
+                outcome,
+                notification_id=notification_id,
+            )
+            return "published"
     except Exception:
-        pending_path, _settled_path = _monitor_handoff_paths(deferred.key)
-        _restore_pending(pending_path, deferred)
-        return False
-    return True
+        return "failed"
 
 
 def _claim_completion(
@@ -295,11 +363,18 @@ def _monitor_settlement_payload(
     )
 
 
-def send_completion_payload(payload: CompletionNotificationPayload) -> None:
+def send_completion_payload(
+    payload: CompletionNotificationPayload,
+    *,
+    notification_id: str | None = None,
+) -> None:
     """Send a previously serialized completion notification."""
     from sase.notifications.senders import notify_workflow_complete
 
-    notify_workflow_complete(**payload.to_dict())
+    kwargs = payload.to_dict()
+    if notification_id:
+        kwargs["notification_id"] = notification_id
+    notify_workflow_complete(**kwargs)
 
 
 def settlement_notification_action_data(
@@ -381,7 +456,11 @@ def flush_orphaned_deferrals(
     store_dir = _epic_completion_store_dir()
     try:
         pending_paths = list(store_dir.glob("*.pending.json"))
-        settled_paths = list(store_dir.glob("*.settled.json"))
+        monitor_pending_paths = list(store_dir.glob("*.monitor-pending.json"))
+        settled_paths = [
+            *store_dir.glob("*.settled.json"),
+            *store_dir.glob("*.monitor-settled.json"),
+        ]
     except Exception:
         return _EpicCompletionSweepResult(errors=1)
 
@@ -413,10 +492,36 @@ def flush_orphaned_deferrals(
         except Exception:
             result = replace(result, errors=result.errors + 1)
 
+    for pending_path in monitor_pending_paths:
+        result = replace(result, pending_scanned=result.pending_scanned + 1)
+        try:
+            with log_file_lock(pending_path):
+                if not pending_path.exists():
+                    continue
+                deferred = _DeferredCompletion.from_dict(
+                    _read_json_object(pending_path)
+                )
+                age_seconds = _age_seconds(deferred.created_at, reference)
+                if age_seconds < grace_seconds:
+                    result = replace(result, young=result.young + 1)
+                    continue
+                monitor_outcome = _monitor_terminal_outcome(deferred.artifacts_dir)
+                if monitor_outcome is None:
+                    result = replace(result, active=result.active + 1)
+                    continue
+            status = _publish_deferred_monitor_completion(
+                deferred.artifacts_dir,
+                outcome=monitor_outcome,
+            )
+            if status in {"published", "already_published"}:
+                result = replace(result, flushed=result.flushed + 1)
+            elif status == "failed":
+                result = replace(result, errors=result.errors + 1)
+        except Exception:
+            result = replace(result, errors=result.errors + 1)
+
     for settled_path in settled_paths:
-        pending_path = settled_path.with_name(
-            settled_path.name.removesuffix(".settled.json") + ".pending.json"
-        )
+        pending_path = _pending_path_for_settled_marker(settled_path)
         try:
             with log_file_lock(pending_path):
                 if not settled_path.exists():
@@ -453,6 +558,82 @@ def _monitor_handoff_paths(key: str) -> tuple[Path, Path]:
         store_dir / f"{key}.monitor-pending.json",
         store_dir / f"{key}.monitor-settled.json",
     )
+
+
+def _pending_path_for_settled_marker(settled_path: Path) -> Path:
+    name = settled_path.name
+    if name.endswith(".monitor-settled.json"):
+        return settled_path.with_name(
+            name.removesuffix(".monitor-settled.json") + ".monitor-pending.json"
+        )
+    return settled_path.with_name(name.removesuffix(".settled.json") + ".pending.json")
+
+
+def _completion_notification_id(
+    deferred: _DeferredCompletion,
+    *,
+    kind: str,
+) -> str:
+    return deferred.notification_id or _stable_notification_id(
+        deferred.key,
+        deferred.payload,
+        kind=kind,
+    )
+
+
+def _stable_notification_id(
+    key: str,
+    payload: CompletionNotificationPayload,
+    *,
+    kind: str,
+) -> str:
+    identity = {
+        "kind": f"epic-completion-{kind}",
+        "key": key,
+        "payload": payload.to_dict(),
+    }
+    encoded = json.dumps(identity, sort_keys=True, separators=(",", ":"))
+    return str(uuid5(NAMESPACE_URL, f"sase:{encoded}"))
+
+
+def _notification_is_durable(notification_id: str) -> bool:
+    try:
+        from sase.notifications.store import load_notifications
+
+        return any(
+            notification.id == notification_id
+            for notification in load_notifications(include_dismissed=True)
+        )
+    except Exception:
+        return False
+
+
+def _complete_monitor_publication(
+    pending_path: Path,
+    settled_path: Path,
+    outcome: Mapping[str, Any],
+    *,
+    notification_id: str,
+) -> None:
+    _write_settled_marker(
+        settled_path,
+        outcome,
+        notification_id=notification_id,
+    )
+    pending_path.unlink(missing_ok=True)
+
+
+def _write_settled_marker(
+    settled_path: Path,
+    outcome: Mapping[str, Any],
+    *,
+    notification_id: str | None,
+) -> None:
+    settled = dict(outcome)
+    settled.setdefault("settled_at", _utc_now())
+    if notification_id:
+        settled["notification_id"] = notification_id
+    _write_json_atomic(settled_path, settled)
 
 
 def _read_plan_file(artifacts_dir: str | Path) -> str | None:
@@ -493,6 +674,10 @@ def _read_agent_meta(artifacts_dir: str | Path) -> dict[str, Any]:
 
 
 def _optional_str(value: object) -> str | None:
+    return _nonempty_str(value)
+
+
+def _nonempty_str(value: object) -> str | None:
     if not isinstance(value, str):
         return None
     stripped = value.strip()
@@ -591,6 +776,46 @@ def _unknown_outcome_payload(
         ),
         tags=tags,
     )
+
+
+def _monitor_terminal_outcome(artifacts_dir: str | Path) -> dict[str, Any] | None:
+    artifacts_path = Path(artifacts_dir)
+    meta = _read_agent_meta(artifacts_path)
+    if not meta.get("monitor_settled"):
+        return None
+    try:
+        done = _read_json_object(artifacts_path / "done.json")
+    except Exception:
+        return None
+    try:
+        workflow_state = _read_json_object(artifacts_path / "workflow_state.json")
+    except Exception:
+        workflow_state = {}
+    if workflow_state.get("status") == "running":
+        return None
+    if not _monitor_refresh_pulse_exists(artifacts_path):
+        return None
+    monitor_state = _optional_str(done.get("monitor_state")) or _optional_str(
+        meta.get("monitor_state")
+    )
+    settled_at = _optional_str(meta.get("stopped_at")) or _utc_now()
+    return {
+        **({"monitor_state": monitor_state} if monitor_state else {}),
+        "settled_at": settled_at,
+    }
+
+
+def _monitor_refresh_pulse_exists(artifacts_dir: str | Path) -> bool:
+    try:
+        info = parse_agent_artifact_path(artifacts_dir)
+    except Exception:
+        return False
+    if info is None:
+        return False
+    pulse_path = (
+        sase_projects_dir() / info.project_name / "artifacts" / ".ace_refresh_pulse"
+    )
+    return pulse_path.exists()
 
 
 def _artifact_timestamp(artifacts_dir: str | Path | None) -> str | None:

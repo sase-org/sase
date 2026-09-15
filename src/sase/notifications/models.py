@@ -22,7 +22,7 @@ class NotificationPlusOne:
 class Notification:
     """A single notification entry."""
 
-    id: str  # UUID4
+    id: str  # UUID string
     timestamp: str  # ISO-8601
     sender: str  # "crs", "fix-hook", etc.
     icon: str | None = None  # Optional single display glyph

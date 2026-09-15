@@ -19,9 +19,11 @@ from sase.bead.epic_launch_handoff import (
     defer_epic_completion,
     defer_epic_completion_until_monitor_settlement,
     flush_orphaned_deferrals,
+    publish_deferred_monitor_completion,
 )
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
 from sase.core.paths import sase_projects_dir, sase_subdir
+from sase.notifications import load_notifications
 
 
 def _artifacts(
@@ -103,6 +105,47 @@ def _monitor_pending_path(artifacts_dir: Path) -> Path:
             ".pending.json", ".monitor-pending.json"
         )
     )
+
+
+def _monitor_settled_path(artifacts_dir: Path) -> Path:
+    return _pending_path(artifacts_dir).with_name(
+        _pending_path(artifacts_dir).name.replace(
+            ".pending.json", ".monitor-settled.json"
+        )
+    )
+
+
+def _mark_monitor_terminal(artifacts_dir: Path) -> None:
+    meta = json.loads((artifacts_dir / "agent_meta.json").read_text(encoding="utf-8"))
+    meta.update(
+        {
+            "monitor_state": "completed",
+            "monitor_settled": True,
+            "stopped_at": datetime.now(UTC).isoformat(),
+        }
+    )
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps(meta),
+        encoding="utf-8",
+    )
+    (artifacts_dir / "done.json").write_text(
+        json.dumps(
+            {
+                "outcome": "monitored",
+                "cl_name": meta.get("cl_name"),
+                "name": meta.get("name"),
+                "monitor_state": "completed",
+                "status_label": "EPIC CREATED",
+            }
+        ),
+        encoding="utf-8",
+    )
+    info = parse_agent_artifact_path(artifacts_dir)
+    assert info is not None
+    pulse_path = (
+        sase_projects_dir() / info.project_name / "artifacts" / ".ace_refresh_pulse"
+    )
+    pulse_path.write_text("settled", encoding="utf-8")
 
 
 def test_key_matches_host_and_promoted_workflow_paths() -> None:
@@ -266,6 +309,100 @@ def test_finish_under_monitor_defers_folded_completion_until_settlement(
     assert payload["action_data"]["raw_suffix"] == monitor.name
     assert payload["action_data"]["family_root_suffix"] == artifacts.name
     assert payload["action_data"]["agent_root_timestamp"] == artifacts.name
+
+
+def test_monitor_publish_keeps_pending_when_append_writes_nothing() -> None:
+    root = _artifacts(timestamp="20260727123456")
+    monitor = _artifacts(timestamp="20260727123500")
+    (monitor / "agent_meta.json").write_text(
+        json.dumps({"cl_name": "demo-cl", "name": "demo-cl--mon"}),
+        encoding="utf-8",
+    )
+    assert defer_epic_completion_until_monitor_settlement(root, monitor, _payload())
+
+    with patch(
+        "sase.notifications.senders.notify_workflow_complete",
+        side_effect=RuntimeError("append failed"),
+    ):
+        assert not publish_deferred_monitor_completion(
+            monitor,
+            outcome={"monitor_state": "completed"},
+        )
+
+    assert _monitor_pending_path(monitor).exists()
+    assert not _monitor_settled_path(monitor).exists()
+    assert load_notifications(include_dismissed=True) == []
+
+    assert publish_deferred_monitor_completion(
+        monitor,
+        outcome={"monitor_state": "completed"},
+    )
+    notifications = load_notifications(include_dismissed=True)
+    assert len(notifications) == 1
+    settled = json.loads(_monitor_settled_path(monitor).read_text(encoding="utf-8"))
+    assert settled["notification_id"] == notifications[0].id
+    assert not _monitor_pending_path(monitor).exists()
+
+
+def test_monitor_publish_recovers_after_durable_append_before_marker() -> None:
+    root = _artifacts(project="crash", timestamp="20260727123456")
+    monitor = _artifacts(project="crash", timestamp="20260727123500")
+    (monitor / "agent_meta.json").write_text(
+        json.dumps({"cl_name": "demo-cl", "name": "demo-cl--mon"}),
+        encoding="utf-8",
+    )
+    assert defer_epic_completion_until_monitor_settlement(root, monitor, _payload())
+
+    with patch(
+        "sase.bead.epic_launch_handoff._complete_monitor_publication",
+        side_effect=RuntimeError("crash after append"),
+    ):
+        assert not publish_deferred_monitor_completion(
+            monitor,
+            outcome={"monitor_state": "completed"},
+        )
+    [first] = load_notifications(include_dismissed=True)
+    assert _monitor_pending_path(monitor).exists()
+    assert not _monitor_settled_path(monitor).exists()
+
+    assert publish_deferred_monitor_completion(
+        monitor,
+        outcome={"monitor_state": "completed"},
+    )
+
+    notifications = load_notifications(include_dismissed=True)
+    assert [notification.id for notification in notifications] == [first.id]
+    settled = json.loads(_monitor_settled_path(monitor).read_text(encoding="utf-8"))
+    assert settled["notification_id"] == first.id
+    assert not _monitor_pending_path(monitor).exists()
+
+
+def test_monitor_publish_derives_stable_id_for_legacy_pending_payload() -> None:
+    root = _artifacts(project="legacy", timestamp="20260727123456")
+    monitor = _artifacts(project="legacy", timestamp="20260727123500")
+    (monitor / "agent_meta.json").write_text(
+        json.dumps({"cl_name": "demo-cl", "name": "demo-cl--mon"}),
+        encoding="utf-8",
+    )
+    assert defer_epic_completion_until_monitor_settlement(root, monitor, _payload())
+    pending_path = _monitor_pending_path(monitor)
+    pending = json.loads(pending_path.read_text(encoding="utf-8"))
+    pending.pop("notification_id")
+    pending_path.write_text(json.dumps(pending), encoding="utf-8")
+
+    assert publish_deferred_monitor_completion(
+        monitor,
+        outcome={"monitor_state": "completed"},
+    )
+    assert not publish_deferred_monitor_completion(
+        monitor,
+        outcome={"monitor_state": "completed"},
+    )
+
+    notifications = load_notifications(include_dismissed=True)
+    assert len(notifications) == 1
+    settled = json.loads(_monitor_settled_path(monitor).read_text(encoding="utf-8"))
+    assert settled["notification_id"] == notifications[0].id
 
 
 def test_finish_marks_early_settle_then_runner_sends_without_refolding(
@@ -437,3 +574,64 @@ def test_sweep_leaves_young_pending_and_reaps_stale_settle() -> None:
     assert result.settled_reaped == 1
     assert _pending_path(young_artifacts).exists()
     assert not _settled_path(settled_artifacts).exists()
+
+
+def test_sweep_retries_old_terminal_monitor_pending_without_unknown_rewrite() -> None:
+    root = _artifacts(timestamp="20260727123456")
+    monitor = _artifacts(timestamp="20260727123500")
+    (monitor / "agent_meta.json").write_text(
+        json.dumps({"cl_name": "demo-cl", "name": "demo-cl--mon"}),
+        encoding="utf-8",
+    )
+    assert defer_epic_completion_until_monitor_settlement(root, monitor, _payload())
+    pending_path = _monitor_pending_path(monitor)
+    pending = json.loads(pending_path.read_text(encoding="utf-8"))
+    pending["created_at"] = (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
+    pending_path.write_text(json.dumps(pending), encoding="utf-8")
+    _mark_monitor_terminal(monitor)
+
+    with patch("sase.procs.read_procs", return_value=[]):
+        result = flush_orphaned_deferrals()
+
+    assert result.flushed == 1
+    assert result.errors == 0
+    assert not pending_path.exists()
+    [notification] = load_notifications(include_dismissed=True)
+    assert notification.sender == "user-agent"
+    assert "Epic launch outcome is unknown." not in notification.notes
+    assert notification.action_data["raw_suffix"] == monitor.name
+    assert notification.action_data["family_root_suffix"] == root.name
+    assert notification.action_data["agent_root_timestamp"] == root.name
+
+
+def test_sweep_waits_for_monitor_terminal_state_and_reaps_monitor_settled() -> None:
+    root = _artifacts(timestamp="20260727123456")
+    monitor = _artifacts(timestamp="20260727123500")
+    (monitor / "agent_meta.json").write_text(
+        json.dumps({"cl_name": "demo-cl", "name": "demo-cl--mon"}),
+        encoding="utf-8",
+    )
+    assert defer_epic_completion_until_monitor_settlement(root, monitor, _payload())
+    pending_path = _monitor_pending_path(monitor)
+    pending = json.loads(pending_path.read_text(encoding="utf-8"))
+    pending["created_at"] = (datetime.now(UTC) - timedelta(minutes=5)).isoformat()
+    pending_path.write_text(json.dumps(pending), encoding="utf-8")
+
+    settled_monitor = _artifacts(project="settled-monitor", timestamp="20260727123600")
+    publish_deferred_monitor_completion(
+        settled_monitor,
+        outcome={
+            "monitor_state": "completed",
+            "settled_at": (datetime.now(UTC) - timedelta(hours=2)).isoformat(),
+        },
+    )
+
+    with patch("sase.procs.read_procs", return_value=[]):
+        result = flush_orphaned_deferrals()
+
+    assert result.active == 1
+    assert result.flushed == 0
+    assert result.settled_reaped == 1
+    assert pending_path.exists()
+    assert load_notifications(include_dismissed=True) == []
+    assert not _monitor_settled_path(settled_monitor).exists()
