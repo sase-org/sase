@@ -11,6 +11,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_clan_context import clan_context_key
 from sase.core.agent_scan_wire import AgentClanContextWire
 
@@ -101,7 +102,7 @@ def _tier1_merge_key(agent: Agent) -> _Tier1MergeKey:
 def _tier1_stable_merge_key(agent: Agent) -> _Tier1MergeKey | None:
     if agent.raw_suffix is None or agent.parent_workflow is not None:
         return None
-    return ("artifact-row", agent.agent_type, agent.project_file, agent.raw_suffix)
+    return ("artifact-row", agent.project_file, agent.raw_suffix)
 
 
 def _unique_stable_merge_index(agents: list[Agent]) -> dict[_Tier1MergeKey, Agent]:
@@ -137,6 +138,35 @@ def _adds_structural_placement(cached: Agent, incoming: Agent) -> bool:
         or (cached.clan_context is None and incoming.clan_context is not None)
         or (cached.tribe is None and incoming.tribe is not None)
     )
+
+
+def _terminal_artifact_projection_replaces(cached: Agent, incoming: Agent) -> bool:
+    """Return whether a same-artifact terminal projection should replace cache."""
+    if cached.agent_type == incoming.agent_type:
+        return False
+    if cached.project_file != incoming.project_file:
+        return False
+    if cached.raw_suffix is None or cached.raw_suffix != incoming.raw_suffix:
+        return False
+    if cached.parent_workflow is not None or incoming.parent_workflow is not None:
+        return False
+    if cached.parent_timestamp != incoming.parent_timestamp:
+        return False
+    return agent_status_bucket(incoming) in {"Done", "Failed"}
+
+
+def _stable_replacement_wins(
+    cached: Agent,
+    incoming: Agent,
+    *,
+    is_artifact_delta: bool,
+) -> bool:
+    """Return whether a stable-key match should replace the cached row."""
+    if _adds_structural_placement(cached, incoming):
+        return True
+    if _terminal_artifact_projection_replaces(cached, incoming):
+        return True
+    return is_artifact_delta and cached.agent_type == incoming.agent_type
 
 
 def _reattach_children_after_parent_dedup(
@@ -341,7 +371,7 @@ def merge_incomplete_load_after_complete_history(
     merged: list[Agent] = []
     seen: set[_Tier1MergeKey] = set()
     cached_keys = {_tier1_merge_key(agent) for agent in cached_agents}
-    cached_stable_keys = set(_unique_stable_merge_index(cached_agents))
+    cached_by_stable_key = _unique_stable_merge_index(cached_agents)
     cached_parent_by_suffix = {
         agent.raw_suffix: agent
         for agent in cached_agents
@@ -381,9 +411,21 @@ def merge_incomplete_load_after_complete_history(
     for agent in prep.filtered_agents:
         agent_key = _tier1_merge_key(agent)
         agent_stable_key = _tier1_stable_merge_key(agent)
+        cached_stable_match = (
+            cached_by_stable_key.get(agent_stable_key)
+            if agent_stable_key is not None
+            else None
+        )
         if (
             agent_key in cached_keys
-            or (agent_stable_key is not None and agent_stable_key in cached_stable_keys)
+            or (
+                cached_stable_match is not None
+                and _stable_replacement_wins(
+                    cached_stable_match,
+                    agent,
+                    is_artifact_delta=is_artifact_delta,
+                )
+            )
             or is_dismissed(agent)
         ):
             continue
@@ -421,12 +463,15 @@ def merge_incomplete_load_after_complete_history(
             if cached_stable_key is not None:
                 stable_replacement = incoming_by_stable_key.get(cached_stable_key)
                 # An exact artifact delta carries the row's current scalar
-                # metadata, so it always wins. Other incomplete Tier 1 loads
-                # may only replace a cached row to repair structural placement;
-                # otherwise a placeholder suffix shadow would clobber it.
-                if stable_replacement is not None and (
-                    is_artifact_delta
-                    or _adds_structural_placement(cached, stable_replacement)
+                # metadata for matching row projections, so it wins there.
+                # Other incomplete Tier 1 loads may only replace a cached row
+                # to repair structural placement or to apply a terminal
+                # projection for the same artifact row; otherwise a placeholder
+                # suffix shadow would clobber it.
+                if stable_replacement is not None and _stable_replacement_wins(
+                    cached,
+                    stable_replacement,
+                    is_artifact_delta=is_artifact_delta,
                 ):
                     replacement = stable_replacement
         if replacement is None:

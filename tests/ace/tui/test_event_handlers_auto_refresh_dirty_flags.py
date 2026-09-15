@@ -432,6 +432,29 @@ async def test_off_tab_delta_failure_retains_dirty_state_without_broad_load() ->
 
 
 @pytest.mark.asyncio
+async def test_fallback_broad_load_covers_retained_exact_agent_delta() -> None:
+    """Fallback refreshes must not throw away exact artifact dirs."""
+    app = _FakeApp(watcher_active=True)
+    artifact_dir = Path("/tmp/artifacts/a")
+    app._dirty_agents = True
+    app._dirty_agent_artifact_fallback_reason = "unknown_watcher_path"
+    app._dirty_agent_artifact_dirs = (artifact_dir,)
+    app._probed_surface_tokens = _surface_token_snapshot(agents=3)
+
+    with override_flags(ace_refresh_tokens=True):
+        await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["agents", "delta-load:watcher:1"]
+    assert app.delta_load_requests == [("watcher", (artifact_dir,))]
+    assert app._dirty_agents is False
+    assert app._dirty_agent_artifact_dirs == ()
+    assert app._dirty_agent_artifact_fallback_reason is None
+    assert app._last_completed_surface_tokens["agents"] == (
+        app._probed_surface_tokens.agents
+    )
+
+
+@pytest.mark.asyncio
 async def test_debounce_collapses_back_to_back_agent_loads() -> None:
     """Two auto-refresh ticks inside the debounce window only load once."""
     app = _FakeApp(watcher_active=True)

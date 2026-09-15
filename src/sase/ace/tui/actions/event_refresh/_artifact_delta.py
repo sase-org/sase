@@ -87,16 +87,12 @@ class EventArtifactDeltaMixin(EventHandlersBase):
         self, changed_paths: tuple[Path, ...] | None
     ) -> None:
         """Store a bounded, deduped set of exact dirty artifact dirs."""
-        if getattr(self, "_dirty_agent_artifact_fallback_reason", None) is not None:
-            return
-
         artifact_dirs, deleted_dirs, fallback_reason = (
             self._agent_artifact_delta_dirs_for_paths(changed_paths)
         )
         if fallback_reason is not None:
-            self._dirty_agent_artifact_dirs = ()
-            self._dirty_deleted_agent_artifact_dirs = ()
-            self._dirty_agent_artifact_fallback_reason = fallback_reason
+            if getattr(self, "_dirty_agent_artifact_fallback_reason", None) is None:
+                self._dirty_agent_artifact_fallback_reason = fallback_reason
             return
         if not artifact_dirs:
             return

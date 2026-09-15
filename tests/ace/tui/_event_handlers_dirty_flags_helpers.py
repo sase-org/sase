@@ -157,6 +157,8 @@ class _FakeApp(EventHandlersMixin):
         self.refresh_calls: list[str] = []
         self.refresh_requests: list[str] = []
         self.delta_requests: list[tuple[str, tuple[Path, ...]]] = []
+        self.delta_load_requests: list[tuple[str, tuple[Path, ...]]] = []
+        self.delta_load_ok = True
         self._agents_refresh_trace_records: list[Any] = []
         self.agent_detail = _FakeAgentDetail(self.refresh_calls)
 
@@ -191,6 +193,19 @@ class _FakeApp(EventHandlersMixin):
 
     async def _load_agents_async(self) -> None:
         self.refresh_calls.append("agents")
+
+    async def _load_agent_artifact_delta_async(
+        self,
+        artifact_dirs: list[Path],
+        *,
+        source: str = "unknown",
+        deleted_artifact_dirs: list[Path] | None = None,
+    ) -> bool:
+        del deleted_artifact_dirs
+        dirs = tuple(artifact_dirs)
+        self.delta_load_requests.append((source, dirs))
+        self.refresh_calls.append(f"delta-load:{source}:{len(dirs)}")
+        return self.delta_load_ok
 
     async def _reload_and_reposition_async(self) -> None:
         self.refresh_calls.append("patches")

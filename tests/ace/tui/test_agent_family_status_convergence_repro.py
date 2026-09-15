@@ -37,10 +37,6 @@ from ._event_handlers_dirty_flags_helpers import _FakeApp
 _ROOT_TS = "20260915130000"
 _GATE_TS = "20260915130300"
 _MONITOR_TS = "20260915130530"
-_XF_REASON = (
-    "sase-117.1 Phase 1 repro: current tree pins the settled monitor behind "
-    "queue loss, token acceptance, and RUNNING/WORKFLOW delta dedup"
-)
 
 
 @dataclass(frozen=True)
@@ -366,7 +362,6 @@ def _load_state_is_bounded(load_state: AgentLoadState) -> bool:
     )
 
 
-@pytest.mark.xfail(strict=True, reason=_XF_REASON)
 def test_enqueue_agent_artifact_delta_paths_keeps_exact_dirs_under_fallback(
     tmp_path: Path,
 ) -> None:
@@ -394,13 +389,6 @@ def test_enqueue_agent_artifact_delta_paths_keeps_exact_dirs_under_fallback(
 @pytest.mark.skipif(
     importlib.util.find_spec(RUST_EXTENSION_MODULE_NAME) is None,
     reason="sase_core_rs is required for the artifact-index incident replay",
-)
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "sase-117.3 notification targeting reaches the exact family chain; "
-        "sase-117.2 still owns the merge/apply pin that keeps the root stale"
-    ),
 )
 def test_settlement_notification_exact_delta_converges_before_index_upsert(
     tmp_path: Path,
@@ -457,7 +445,6 @@ def test_settlement_notification_exact_delta_converges_before_index_upsert(
     importlib.util.find_spec(RUST_EXTENSION_MODULE_NAME) is None,
     reason="sase_core_rs is required for the artifact-index incident replay",
 )
-@pytest.mark.xfail(strict=True, reason=_XF_REASON)
 def test_settled_monitor_replay_converges_after_index_upsert(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

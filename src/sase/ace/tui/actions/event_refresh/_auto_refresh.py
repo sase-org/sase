@@ -364,6 +364,17 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                         fallback_reason,
                         source="auto_refresh",
                     )
+                fallback_artifact_dirs = (
+                    list(queued_agent_artifact_dirs)
+                    if fallback_reason is not None
+                    else []
+                )
+                fallback_deleted_artifact_dirs = (
+                    list(getattr(self, "_dirty_deleted_agent_artifact_dirs", ()))
+                    if fallback_artifact_dirs
+                    else []
+                )
+                fallback_delta_covered = not fallback_artifact_dirs
                 self._agents_loading = True
                 try:
                     load_agents_async = self._load_agents_async  # type: ignore[attr-defined]
@@ -371,12 +382,44 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                     if callable_accepts_kwarg(load_agents_async, "source"):
                         kwargs["source"] = "auto_refresh"
                     await load_agents_async(**kwargs)
+                    if fallback_artifact_dirs:
+                        load_delta_async = getattr(
+                            self,
+                            "_load_agent_artifact_delta_async",
+                            None,
+                        )
+                        if callable(load_delta_async):
+                            try:
+                                fallback_delta_covered = bool(
+                                    await load_delta_async(
+                                        fallback_artifact_dirs,
+                                        source="watcher",
+                                        deleted_artifact_dirs=(
+                                            fallback_deleted_artifact_dirs
+                                        ),
+                                    )
+                                )
+                            except Exception:  # noqa: BLE001 - broad fallback survives.
+                                self._record_agent_artifact_delta_fallback(
+                                    "delta_read_failure",
+                                    source="watcher",
+                                )
+                        else:
+                            self._record_agent_artifact_delta_fallback(
+                                "delta_read_failure",
+                                source="watcher",
+                            )
                 finally:
                     self._agents_loading = False
                     self._last_agents_load_mono = time.monotonic()
                     self._clear_agent_artifact_delta_state()
-                self._dirty_agents = False
-                self._accept_surface_token("agents", current_tokens)
+                self._dirty_agents = not fallback_delta_covered
+                if fallback_delta_covered:
+                    if fallback_artifact_dirs and tokens_enabled:
+                        current_tokens = await asyncio.to_thread(
+                            self._probe_surface_tokens
+                        )
+                    self._accept_surface_token("agents", current_tokens)
                 reloaded.append("agents")
         elif not new_agent_notification:
             self._refresh_selected_agent_file_panel()

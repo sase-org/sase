@@ -340,7 +340,28 @@ def apply_status_overrides(
             for agent in candidates
             if _is_active_root_mirror_candidate(parent, agent)
         ]
+        settled_shell_time: datetime | None = None
+        settled_descendant_shells = [
+            shell for shell in descendant_shells if not agent_row_is_in_flight(shell)
+        ]
+        if settled_descendant_shells:
+            newest_settled_shell = max(
+                settled_descendant_shells,
+                key=child_launch_time,
+            )
+            settled_shell_time = child_launch_time(newest_settled_shell)
+            active = [
+                agent
+                for agent in active
+                if not row_is_family_shell(agent)
+                or child_launch_time(agent) > settled_shell_time
+            ]
         for shell in descendant_shells:
+            if (
+                settled_shell_time is not None
+                and child_launch_time(shell) <= settled_shell_time
+            ):
+                continue
             if shell not in active and _is_active_root_mirror_candidate(parent, shell):
                 active.append(shell)
         if active:

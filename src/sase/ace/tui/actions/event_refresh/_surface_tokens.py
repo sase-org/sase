@@ -89,17 +89,20 @@ class SurfaceTokenRoots:
     notifications_path: Path
     procs_path: Path
     beads_dir: Path | None = None
+    agent_index_path: Path | None = None
 
 
 def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRoots:
     """Return the process's live ACE/proc token roots."""
     from sase.axe.state import axe_state_dir
+    from sase.core.agent_scan_facade import default_agent_artifact_index_path
     from sase.core.paths import sase_projects_dir
     from sase.notifications.store import notifications_file_path
     from sase.procs.paths import proc_store_path
 
     return SurfaceTokenRoots(
         projects_root=sase_projects_dir(),
+        agent_index_path=default_agent_artifact_index_path(),
         axe_root=axe_state_dir(),
         notifications_path=notifications_file_path(),
         procs_path=proc_store_path(),
@@ -113,7 +116,10 @@ def probe_surface_tokens(
     """Collect one token per surface without opening file contents."""
     resolved = live_surface_token_roots() if roots is None else roots
     return SurfaceTokenSnapshot(
-        agents=_probe_agents_token(resolved.projects_root),
+        agents=_probe_agents_token(
+            resolved.projects_root,
+            agent_index_path=resolved.agent_index_path,
+        ),
         axe=_probe_axe_token(resolved.axe_root),
         notifications=_probe_notifications_token(resolved.notifications_path),
         patches=_probe_patches_token(
@@ -124,9 +130,15 @@ def probe_surface_tokens(
     )
 
 
-def _probe_agents_token(projects_root: Path) -> SurfaceToken:
+def _probe_agents_token(
+    projects_root: Path,
+    *,
+    agent_index_path: Path | None = None,
+) -> SurfaceToken:
     """Token project membership, artifacts roots, and refresh pulses."""
     collected, children, ok = _open_membership(projects_root)
+    if agent_index_path is not None:
+        ok = _extend_stat(collected, agent_index_path, ok=ok)
     if children is None:
         return _token("agents", collected, ok=False)
     for entry in children:

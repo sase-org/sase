@@ -90,6 +90,34 @@ def test_refresh_pulse_updates_agents_token(tmp_path: Path) -> None:
     assert first != second
 
 
+def test_agent_artifact_index_updates_agents_token(tmp_path: Path) -> None:
+    projects = tmp_path / "projects"
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    _touch(projects / "demo" / "artifacts" / _PULSE)
+    _write(index_path, "before")
+    first = probe_surface_tokens(
+        SurfaceTokenRoots(
+            projects_root=projects,
+            axe_root=projects / ".unused-axe",
+            notifications_path=projects / ".unused-notifications.jsonl",
+            procs_path=projects / ".unused-procs.jsonl",
+            agent_index_path=index_path,
+        )
+    ).agents
+    _write(index_path, "after")
+    os.utime(index_path, ns=(1, 2))
+    second = probe_surface_tokens(
+        SurfaceTokenRoots(
+            projects_root=projects,
+            axe_root=projects / ".unused-axe",
+            notifications_path=projects / ".unused-notifications.jsonl",
+            procs_path=projects / ".unused-procs.jsonl",
+            agent_index_path=index_path,
+        )
+    ).agents
+    assert first != second
+
+
 def test_nested_agent_archive_is_ignored(tmp_path: Path) -> None:
     projects = tmp_path / "projects"
     artifacts = projects / "demo" / "artifacts"
