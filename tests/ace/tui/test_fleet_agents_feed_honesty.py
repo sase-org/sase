@@ -108,7 +108,10 @@ def test_host_feed_issue_text_reports_invalid_host_with_cache_age() -> None:
 
     projection = project_fleet_agents(summary_response=response)
 
-    assert host_feed_issue_text(projection) == "apollo: feed invalid (cached 5h ago)"
+    assert (
+        host_feed_issue_text(projection)
+        == "apollo: feed invalid: invalid_envelope (cached 5h ago)"
+    )
 
 
 def test_host_feed_issue_text_empty_for_healthy_projection() -> None:

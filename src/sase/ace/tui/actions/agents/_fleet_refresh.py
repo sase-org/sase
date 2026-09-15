@@ -174,6 +174,7 @@ class AgentFleetRefreshMixin:
                     or len(config.hosts),
                     partial=projection.partial,
                     counts=dict(projection.counts),
+                    host_feed_issues=projection.host_feed_issues,
                 )
             if self._defer_fleet_projection_apply_if_navigating(
                 projection,

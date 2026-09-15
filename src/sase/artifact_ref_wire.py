@@ -39,7 +39,10 @@ ArtifactRefResolutionStatus = Literal[
     "denied",
 ]
 ArtifactRefDocumentTargetKind = Literal[
-    "artifact_ref", "url", "file_path", "xprompt_skill"
+    "artifact_ref",
+    "url",
+    "file_path",
+    "xprompt_skill",
 ]
 ArtifactRefTargetFailureCategory = Literal[
     "missing_checkout",

@@ -48,6 +48,20 @@ class MachineDiagnostic:
 
 
 @dataclass(frozen=True)
+class GatewayServiceVersion:
+    """Non-secret version identity reported by a fleet gateway."""
+
+    service: str
+    package_version: str
+
+    def to_wire(self) -> dict[str, str]:
+        return {
+            "service": self.service,
+            "package_version": self.package_version,
+        }
+
+
+@dataclass(frozen=True)
 class _TlsSettings:
     """TLS trust settings for a fleet connection plan."""
 
@@ -408,6 +422,7 @@ class MachineStatus:
     installation_id: str = ""
     protocol_version: int | None = None
     capabilities: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    gateway_version: GatewayServiceVersion | None = None
     service_versions: Mapping[str, str] = field(default_factory=dict)
     capability_schema_version: int | None = None
     message: str = ""
@@ -493,6 +508,7 @@ __all__ = [
     "FLEET_API_BASE_PATH",
     "FLEET_INSTALLATION_ID_PREFIX",
     "FLEET_PROTOCOL_VERSION",
+    "GatewayServiceVersion",
     "MachineDiagnostic",
     "MachineRecord",
     "MachineRegistryError",

@@ -130,10 +130,19 @@ def host_feed_issue_text(projection: FleetRowsProjection) -> str:
     if len(issues) == 1:
         issue = issues[0]
         label = issue.status or "error"
+        detail_parts = [
+            item
+            for item in (
+                issue.error,
+                issue.diagnostic if issue.diagnostic != issue.error else None,
+            )
+            if item
+        ]
+        detail = f": {' - '.join(detail_parts)}" if detail_parts else ""
         if issue.cache_age_seconds is not None:
             age = format_compact_duration(issue.cache_age_seconds)
-            return f"{issue.alias}: feed {label} (cached {age} ago)"
-        return f"{issue.alias}: feed {label}"
+            return f"{issue.alias}: feed {label}{detail} (cached {age} ago)"
+        return f"{issue.alias}: feed {label}{detail}"
     count = len(issues)
     return f"{count} machines with feed errors"
 

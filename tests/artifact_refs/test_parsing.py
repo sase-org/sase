@@ -54,6 +54,22 @@ def test_document_scan_wrapper_separates_visible_text_from_target() -> None:
     assert scan.links[0].source_span.start == len("é ".encode())
 
 
+def test_document_scan_wrapper_accepts_xprompt_skill_targets() -> None:
+    scan = artifact_refs.scan_artifact_ref_document(
+        "Use #skill/sase_plan and [repo](#skill/sase_repo).",
+        known_kinds=("plan",),
+    )
+
+    assert [
+        (link.text, link.target, link.target_kind)
+        for link in scan.links
+        if link.target_kind == "xprompt_skill"
+    ] == [
+        ("#skill/sase_plan", "skill/sase_plan", "xprompt_skill"),
+        ("[repo](#skill/sase_repo)", "skill/sase_repo", "xprompt_skill"),
+    ]
+
+
 @pytest.mark.parametrize(
     ("target", "base", "line", "column", "end_line"),
     [

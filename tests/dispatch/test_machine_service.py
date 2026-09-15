@@ -29,6 +29,66 @@ def _bundle(pin: str) -> str:
     )
 
 
+def _fleet_hello_payload(
+    pin: str,
+    *,
+    gateway_package_version: str = "0.34.31",
+) -> dict[str, Any]:
+    """Serialized shape matching ``FleetHelloResponseWire`` from the gateway."""
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "protocol_version": 1,
+        "gateway_version": {
+            "service": "sase-gateway",
+            "package_version": gateway_package_version,
+        },
+        "installation": {"schema_version": 1, "installation_id": pin},
+        "machine_selector": "athena",
+        "capabilities": {
+            "schema_version": 1,
+            "host": ["fleet.hello"],
+            "protocol": ["fleet.v1"],
+            "resource": [],
+        },
+        "credential": {
+            "schema_version": 1,
+            "credential_id": "cred-1",
+            "scopes": ["fleet.hello"],
+            "issued_at_unix": 1.0,
+            "expires_at_unix": None,
+        },
+        "cursor": {
+            "schema_version": 1,
+            "store_generation": "gen-alpha",
+            "sequence": 1,
+        },
+        "counts": {
+            "schema_version": 1,
+            "basis": {
+                "schema_version": 1,
+                "input_rows": 0,
+                "selected_rows": 0,
+                "max_revision": None,
+                "observed_at_unix_max": None,
+            },
+            "logical_agent_total": 0,
+            "running": 0,
+            "waiting": 0,
+            "attention": 0,
+            "occupied_runner_slots": 0,
+        },
+        "count_revision": None,
+        "freshness": {
+            "schema_version": 1,
+            "freshness": "fresh",
+            "partial": False,
+            "refreshed_at_unix": 1.0,
+            "error": None,
+        },
+    }
+    return json.loads(json.dumps(payload))
+
+
 class _FakeGateway:
     def __init__(self, pin: str) -> None:
         self.pin = pin
@@ -272,7 +332,7 @@ def test_status_quarantines_installation_mismatch(
     assert reloaded.quarantine_reason == "hello installation identity mismatch"
 
 
-def test_status_preserves_hello_versions_and_capability_schema(
+def test_status_preserves_gateway_version_and_capability_schema(
     isolated_dispatch: tuple[Path, Path],
 ) -> None:
     config_dir, credential_path = isolated_dispatch
@@ -304,21 +364,20 @@ def test_status_preserves_hello_versions_and_capability_schema(
         )
     )
     fake_gateway = _FakeGateway(pin)
-    fake_gateway.hello_payload["service_versions"] = {
-        "sase": "0.17.1+628",
-        "sase-core-rs": "0.34.9",
-        "ignored": 1,
-    }
+    fake_gateway.hello_payload = _fleet_hello_payload(
+        pin,
+        gateway_package_version="0.34.31",
+    )
 
     statuses = MachineService(
         credential_store=store,
         gateway_client=fake_gateway,  # type: ignore[arg-type]
     ).status()
 
-    assert statuses[0].service_versions == {
-        "sase": "0.17.1+628",
-        "sase-core-rs": "0.34.9",
-    }
+    assert statuses[0].gateway_version is not None
+    assert statuses[0].gateway_version.service == "sase-gateway"
+    assert statuses[0].gateway_version.package_version == "0.34.31"
+    assert statuses[0].service_versions == {}
     assert statuses[0].capability_schema_version == 1
 
 

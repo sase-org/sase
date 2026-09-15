@@ -21,6 +21,7 @@ from sase.dispatch.models import (
     DispatchError,
     DiscoveryCandidate,
     EnrollmentResult,
+    GatewayServiceVersion,
     MachineDiagnostic,
     MachineRecord,
     MachineStatus,
@@ -436,6 +437,7 @@ def _status_row(
         "capabilities": {
             key: list(value) for key, value in status.capabilities.items()
         },
+        "gateway_version": _gateway_version_row(status.gateway_version),
         "service_versions": dict(status.service_versions),
         "capability_schema_version": status.capability_schema_version,
         "version_skew": _version_skew(status, local),
@@ -491,6 +493,8 @@ def _remote_version_summary(status: MachineStatus) -> str:
         f"{label} {version}"
         for label, version in _remote_status_versions(status).items()
     ]
+    if status.state == "ok" and status.gateway_version is None:
+        parts.insert(0, "sase-gateway unknown")
     if status.capability_schema_version is not None:
         parts.append(f"fleet contract schema v{status.capability_schema_version}")
     return ", ".join(parts)
@@ -503,7 +507,15 @@ def _version_skew(
     if status.state != "ok":
         return []
     skew: list[str] = []
-    for label, remote in _remote_status_versions(status).items():
+    gateway = status.gateway_version
+    if gateway is not None and gateway.service == "sase-gateway":
+        local_version = _local_version(local, "sase-core", CORE_DISTRIBUTION_NAME)
+        if isinstance(local_version, str) and gateway.package_version != local_version:
+            skew.append(
+                f"{gateway.service} remote {gateway.package_version} "
+                f"!= local {CORE_DISTRIBUTION_NAME} {local_version}"
+            )
+    for label, remote in _unexpected_gateway_versions(status).items():
         local_version = local.get(label)
         if isinstance(local_version, str) and remote != local_version:
             skew.append(f"{label} remote {remote} != local {local_version}")
@@ -521,6 +533,17 @@ def _version_skew(
 
 
 def _remote_status_versions(status: MachineStatus) -> dict[str, str]:
+    versions: dict[str, str] = {}
+    if status.gateway_version is not None:
+        versions[status.gateway_version.service] = (
+            status.gateway_version.package_version
+        )
+    for label, version in _legacy_remote_status_versions(status).items():
+        versions.setdefault(label, version)
+    return versions
+
+
+def _legacy_remote_status_versions(status: MachineStatus) -> dict[str, str]:
     remote = dict(status.service_versions)
     versions: dict[str, str] = {}
     host = _first_version(remote, "sase", HOST_DISTRIBUTION_NAME)
@@ -530,6 +553,24 @@ def _remote_status_versions(status: MachineStatus) -> dict[str, str]:
     if core:
         versions["sase-core"] = core
     return versions
+
+
+def _unexpected_gateway_versions(status: MachineStatus) -> dict[str, str]:
+    gateway = status.gateway_version
+    if gateway is None or gateway.service == "sase-gateway":
+        return {}
+    return {gateway.service: gateway.package_version}
+
+
+def _local_version(
+    local: Mapping[str, str | int | None],
+    *labels: str,
+) -> str | int | None:
+    for label in labels:
+        version = local.get(label)
+        if version is not None:
+            return version
+    return None
 
 
 def _first_version(mapping: Mapping[str, str], *keys: str) -> str:
@@ -549,6 +590,7 @@ def _local_status_versions() -> dict[str, str | int | None]:
     if core_versions is not None:
         for package in core_versions.packages:
             versions[package.name] = package.installed_version
+            versions[package.distribution_name] = package.installed_version
     versions["fleet_contract_schema"] = _local_fleet_contract_schema_version()
     return versions
 
@@ -561,6 +603,12 @@ def _local_fleet_contract_schema_version() -> int | None:
     except Exception:  # noqa: BLE001 - status output should degrade gracefully.
         return None
     return int(version) if isinstance(version, int) else None
+
+
+def _gateway_version_row(
+    version: GatewayServiceVersion | None,
+) -> dict[str, str] | None:
+    return version.to_wire() if version is not None else None
 
 
 __all__ = [

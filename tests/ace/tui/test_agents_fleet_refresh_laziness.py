@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Iterable, Mapping
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -12,6 +13,7 @@ from sase.ace.tui.actions.agents import _fleet as fleet_mod
 from sase.ace.tui.actions.agents._fleet import AgentFleetMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fleet_agents import FleetRowsProjection
+from sase.dispatch.models import MachineDiagnostic
 from sase.dispatch.federation import FederationConfig, FederationWorkerSettings
 from sase.ace.tui.util.nav_gate import NavigationGate
 from tests.ace.tui.fleet_fixture import (
@@ -21,6 +23,7 @@ from tests.ace.tui.fleet_fixture import (
     fleet_catalog_snapshot_id,
     fleet_config,
     fleet_host_response,
+    fleet_invalid_host_response,
     fleet_summary,
 )
 
@@ -181,6 +184,48 @@ async def test_zero_machine_config_refresh_performs_no_remote_work(
     assert app._agents_fleet_focus_rows == []
     assert app._agents == []
     assert app.reproject_sources == ["fleet_refresh"]
+
+
+@pytest.mark.asyncio
+async def test_fleet_refresh_preserves_feed_issues_with_config_diagnostics(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    response = fleet_invalid_host_response(
+        alias="apollo",
+        error="invalid_envelope",
+        cached=True,
+        age_seconds=18_000.0,
+    )
+    facade = OfflineFleetFacade(summary_response=response, catalog_response=response)
+    config = replace(
+        fleet_config(),
+        diagnostics=(
+            MachineDiagnostic(
+                code="dispatch_config_warning",
+                severity="warning",
+                alias="mac",
+                message="dispatch config warning",
+            ),
+        ),
+    )
+    app = _FleetRefreshHarness(mode="focus")
+
+    monkeypatch.setattr(fleet_mod, "load_federation_config", lambda: config)
+    monkeypatch.setattr(fleet_mod, "build_federation_facade", lambda _config: facade)
+
+    await app._run_agents_fleet_refresh(generation=1, source="manual")
+
+    projection = app._agents_fleet_projection
+    assert [item["code"] for item in projection.diagnostics] == [
+        "dispatch_config_warning"
+    ]
+    assert len(projection.host_feed_issues) == 1
+    assert projection.host_feed_issues[0].alias == "apollo"
+    assert projection.host_feed_issues[0].diagnostic == "invalid_envelope"
+    assert app._agents_fleet_rows == []
+    assert "apollo: feed invalid: invalid_envelope (cached 5h ago)" in (
+        app._unified_agents_status_text()
+    )
 
 
 @pytest.mark.asyncio

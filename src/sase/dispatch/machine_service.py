@@ -39,6 +39,7 @@ from .models import (
     EnrollmentBundleError,
     EnrollmentResult,
     FLEET_PROTOCOL_VERSION,
+    GatewayServiceVersion,
     MachineRecord,
     MachineRegistryError,
     MachineStatus,
@@ -577,6 +578,7 @@ def _status_from_hello(
         installation_id=record.pinned_installation_id,
         protocol_version=protocol if isinstance(protocol, int) else None,
         capabilities=_capability_mapping(capabilities),
+        gateway_version=_gateway_version(payload.get("gateway_version")),
         service_versions=_service_versions(payload.get("service_versions")),
         capability_schema_version=_schema_version(capabilities),
         message="hello ok",
@@ -630,6 +632,21 @@ def _service_versions(value: object) -> dict[str, str]:
         for key, version in value.items()
         if isinstance(key, str) and isinstance(version, str) and key and version
     }
+
+
+def _gateway_version(value: object) -> GatewayServiceVersion | None:
+    if not isinstance(value, Mapping):
+        return None
+    service = value.get("service")
+    package_version = value.get("package_version")
+    if not isinstance(service, str) or not service.strip():
+        return None
+    if not isinstance(package_version, str) or not package_version.strip():
+        return None
+    return GatewayServiceVersion(
+        service=service.strip(),
+        package_version=package_version.strip(),
+    )
 
 
 def _schema_version(value: object) -> int | None:
