@@ -18,9 +18,14 @@ def test_dry_run_reports_selected_entries_without_removing_them(
     assert not result.apply
     assert result.selected == 1
     assert result.removed == 0
+    assert result.selected_bytes == 7
+    assert result.removed_bytes == 0
+    assert result.ordinary_reclaimable_bytes == 7
     assert result.selected_by_subdir == {"editors": 1}
     assert result.removed_by_subdir == {}
-    assert result.describe() == (f"would reclaim 1 entries under {tmp_path}: editors=1")
+    assert result.describe() == (
+        f"would reclaim 1 entries (7 B) under {tmp_path}: editors=1"
+    )
 
 
 def test_describe_names_the_busiest_buckets(tmp_path: Path) -> None:
@@ -31,7 +36,7 @@ def test_describe_names_the_busiest_buckets(tmp_path: Path) -> None:
     result = reap_managed_tmpdir(tmp_path, now=NOW)
 
     assert result.describe() == (
-        f"reclaimed 4 entries under {tmp_path}: editors=3, viewers=1"
+        f"reclaimed 4 entries (28 B) under {tmp_path}: editors=3, viewers=1"
     )
 
 

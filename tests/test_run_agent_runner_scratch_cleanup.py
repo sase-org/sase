@@ -64,11 +64,14 @@ def test_cleanup_launch_scratch_removes_launch_assigned_directories(
     tmp_path: Path,
 ) -> None:
     proc_root, cargo, tmpdir = _prepare_launch_scratch(monkeypatch, tmp_path)
+    other = cargo.parent / "other-launch"
+    _write_payload(other)
 
     scratch.cleanup_launch_scratch(exec_outcome="completed", proc_root=proc_root)
 
     assert not cargo.exists()
     assert not tmpdir.exists()
+    assert other.is_dir()
 
 
 @pytest.mark.parametrize("outcome", [MONITOR_OUTCOME, GATE_OUTCOME])
@@ -114,6 +117,21 @@ def test_cleanup_launch_scratch_keeps_both_directories_when_cwd_is_live(
 ) -> None:
     proc_root, cargo, tmpdir = _prepare_launch_scratch(monkeypatch, tmp_path)
     _fake_process(proc_root, cwd=tmpdir / "session")
+
+    scratch.cleanup_launch_scratch(exec_outcome="completed", proc_root=proc_root)
+
+    assert cargo.is_dir()
+    assert tmpdir.is_dir()
+
+
+def test_cleanup_launch_scratch_keeps_both_directories_when_proc_detail_is_unreadable(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    proc_root, cargo, tmpdir = _prepare_launch_scratch(monkeypatch, tmp_path)
+    pid_dir = proc_root / str(os.getpid() + 1_000_001)
+    pid_dir.mkdir()
+    (pid_dir / "environ").mkdir()
 
     scratch.cleanup_launch_scratch(exec_outcome="completed", proc_root=proc_root)
 
@@ -182,16 +200,16 @@ def test_cleanup_launch_scratch_preserves_symlink_candidate(
     assert not tmpdir.exists()
 
 
-def test_cleanup_launch_scratch_swallows_rmtree_failure(
+def test_cleanup_launch_scratch_swallows_owner_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     proc_root, cargo, tmpdir = _prepare_launch_scratch(monkeypatch, tmp_path)
 
-    def fail_rmtree(_path: Path) -> None:
+    def fail_reap(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(scratch.shutil, "rmtree", fail_rmtree)
+    monkeypatch.setattr(scratch, "reap_managed_tmpdir", fail_reap)
 
     scratch.cleanup_launch_scratch(exec_outcome="completed", proc_root=proc_root)
 

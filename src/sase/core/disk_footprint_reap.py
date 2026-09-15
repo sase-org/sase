@@ -75,11 +75,7 @@ def managed_tmp_reap_step(
         owner="managed_tmp_reaper",
         mode="apply" if apply else "dry_run",
         summary=result.describe(),
-        reclaimed_bytes=(
-            result.pressure_reclaimed_bytes
-            if apply
-            else result.pressure_reclaimable_bytes
-        ),
+        reclaimed_bytes=result.removed_bytes if apply else result.selected_bytes,
         changed=apply and bool(result.removed),
     )
 

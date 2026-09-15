@@ -140,8 +140,26 @@ passes an explicit ``horizons`` override.
 PRESSURE_REAP_BUCKETS = frozenset({"build-targets", "cargo-targets"})
 """Build-output buckets whose aged large children may be pruned under pressure."""
 
-MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION = 2
+MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION = 3
 """Must match ``sase_core::managed_tmp::MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION``."""
+
+
+@dataclass(frozen=True)
+class LaunchScratchLiveness:
+    """Observed liveness for one launch-assigned scratch identity."""
+
+    live: bool
+    complete: bool
+    diagnostics: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class LaunchScratchRequest:
+    """Narrow launch-exit cleanup request for ``root/{bucket}/{scratch_key}``."""
+
+    scratch_key: str
+    buckets: tuple[str, ...]
+    liveness: LaunchScratchLiveness
 
 
 @dataclass(frozen=True)
@@ -153,10 +171,20 @@ class _ManagedTmpReapResult:
     scanned: int
     selected: int
     removed: int
+    selected_bytes: int
+    removed_bytes: int
     selected_by_subdir: Mapping[str, int]
     removed_by_subdir: Mapping[str, int]
     deindexed: int
     capped: bool
+    ordinary_selected: int
+    ordinary_removed: int
+    ordinary_reclaimable_bytes: int
+    ordinary_reclaimed_bytes: int
+    launch_selected: int
+    launch_removed: int
+    launch_reclaimable_bytes: int
+    launch_reclaimed_bytes: int
     pressure_selected: int
     pressure_removed: int
     pressure_reclaimable_bytes: int
@@ -166,6 +194,11 @@ class _ManagedTmpReapResult:
     pressure_available_bytes: int | None
     pressure_recovery_available_bytes: int
     pressure_effective_min_age_seconds: float | None
+    skipped: int
+    failed: int
+    incomplete_observations: int
+    skip_reasons: tuple[str, ...]
+    removal_errors: tuple[str, ...]
 
     def describe(self) -> str:
         """Return a one-line human summary of the largest buckets pruned."""
@@ -191,9 +224,22 @@ class _ManagedTmpReapResult:
                 f"; pressure={pressure_count}"
                 f" ({_format_bytes(pressure_bytes)}{trigger})"
             )
+        outcome_notes = []
+        if self.skipped:
+            outcome_notes.append(f"skipped={self.skipped}")
+        if self.failed:
+            outcome_notes.append(f"failed={self.failed}")
+        if self.incomplete_observations:
+            outcome_notes.append(f"incomplete={self.incomplete_observations}")
+        if outcome_notes:
+            detail += "; " + ", ".join(outcome_notes)
         suffix = " (removal budget reached)" if self.capped else ""
         verb = "reclaimed" if self.apply else "would reclaim"
-        return f"{verb} {count} entries under {self.root}: {detail}{suffix}"
+        total_bytes = self.removed_bytes if self.apply else self.selected_bytes
+        return (
+            f"{verb} {count} entries ({_format_bytes(total_bytes)}) "
+            f"under {self.root}: {detail}{suffix}"
+        )
 
 
 def _default_horizons() -> dict[str, float]:
@@ -224,6 +270,9 @@ def reap_managed_tmpdir(
     pressure_low_free_space_min_age_seconds: float | None = None,
     pressure_min_entry_bytes: int | None = None,
     filesystem_available_bytes: int | None = None,
+    age_reap: bool = True,
+    pressure_reap: bool = True,
+    launch_scratch: LaunchScratchRequest | None = None,
     apply: bool = True,
 ) -> _ManagedTmpReapResult:
     """Prune stale entries under the managed SASE temp *root* through Rust.
@@ -294,9 +343,11 @@ def reap_managed_tmpdir(
         "root": str(reap_root),
         "apply": apply,
         "now_epoch_seconds": float(clock),
+        "age_reap": age_reap,
         "horizons": {name: float(value) for name, value in resolved_horizons.items()},
         "default_horizon_seconds": float(resolved_default_horizon),
         "max_removals": resolved_max_removals,
+        "pressure_reap": pressure_reap,
         "pressure_max_bytes": resolved_pressure_max_bytes,
         "pressure_target_bytes": resolved_pressure_target_bytes,
         "pressure_min_available_bytes": resolved_pressure_min_available_bytes,
@@ -308,6 +359,7 @@ def reap_managed_tmpdir(
         "pressure_min_entry_bytes": resolved_pressure_min_entry_bytes,
         "pressure_reap_buckets": sorted(PRESSURE_REAP_BUCKETS),
         "filesystem_available_bytes": filesystem_available_bytes,
+        "launch_scratch": _launch_scratch_to_wire(launch_scratch),
     }
     binding = require_rust_binding("reap_managed_tmpdir")
     raw = binding(request)
@@ -322,6 +374,20 @@ def _require_reap_wire_schema() -> None:
             "sase_core_rs managed-temp-reap wire is stale: expected "
             f"{MANAGED_TMP_REAP_WIRE_SCHEMA_VERSION}, got {version}"
         )
+
+
+def _launch_scratch_to_wire(
+    launch_scratch: LaunchScratchRequest | None,
+) -> dict[str, object] | None:
+    if launch_scratch is None:
+        return None
+    return {
+        "scratch_key": launch_scratch.scratch_key,
+        "buckets": list(launch_scratch.buckets),
+        "live": launch_scratch.liveness.live,
+        "liveness_complete": launch_scratch.liveness.complete,
+        "diagnostics": list(launch_scratch.liveness.diagnostics),
+    }
 
 
 def _result_from_wire(raw: Mapping[str, Any]) -> _ManagedTmpReapResult:
@@ -347,10 +413,20 @@ def _result_from_wire(raw: Mapping[str, Any]) -> _ManagedTmpReapResult:
         scanned=raw["scanned"],
         selected=raw["selected"],
         removed=raw["removed"],
+        selected_bytes=raw["selected_bytes"],
+        removed_bytes=raw["removed_bytes"],
         selected_by_subdir=dict(raw["selected_by_subdir"]),
         removed_by_subdir=dict(raw["removed_by_subdir"]),
         deindexed=deindexed,
         capped=raw["capped"],
+        ordinary_selected=raw["ordinary_selected"],
+        ordinary_removed=raw["ordinary_removed"],
+        ordinary_reclaimable_bytes=raw["ordinary_reclaimable_bytes"],
+        ordinary_reclaimed_bytes=raw["ordinary_reclaimed_bytes"],
+        launch_selected=raw["launch_selected"],
+        launch_removed=raw["launch_removed"],
+        launch_reclaimable_bytes=raw["launch_reclaimable_bytes"],
+        launch_reclaimed_bytes=raw["launch_reclaimed_bytes"],
         pressure_selected=raw["pressure_selected"],
         pressure_removed=raw["pressure_removed"],
         pressure_reclaimable_bytes=raw["pressure_reclaimable_bytes"],
@@ -362,6 +438,11 @@ def _result_from_wire(raw: Mapping[str, Any]) -> _ManagedTmpReapResult:
         pressure_effective_min_age_seconds=raw.get(
             "pressure_effective_min_age_seconds"
         ),
+        skipped=raw["skipped"],
+        failed=raw["failed"],
+        incomplete_observations=raw["incomplete_observations"],
+        skip_reasons=tuple(raw["skip_reasons"]),
+        removal_errors=tuple(raw["removal_errors"]),
     )
 
 
@@ -394,5 +475,7 @@ __all__ = [
     "MANAGED_TMPDIR_HORIZONS",
     "PRESSURE_REAP_BUCKETS",
     "RUN_ARTIFACT_HORIZON_SECONDS",
+    "LaunchScratchLiveness",
+    "LaunchScratchRequest",
     "reap_managed_tmpdir",
 ]

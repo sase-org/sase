@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from sase.core.disk_footprint import collect_disk_footprint, run_disk_reap
 from sase.core.disk_footprint_models import DiskReapStep
+from sase.core.disk_footprint_reap import managed_tmp_reap_step
 
 
 @dataclass(frozen=True)
@@ -161,3 +163,26 @@ def test_disk_reap_proc_preview_uses_runtime_owner(monkeypatch) -> None:
     )
     assert proc_step.reclaimed_bytes == 1234
     assert "would remove 3 proc runtime dir(s)" in proc_step.summary
+
+
+def test_managed_tmp_reap_step_reports_age_only_bytes(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    managed = tmp_path / "managed"
+    stale = managed / "editors" / "note.md"
+    stale.parent.mkdir(parents=True)
+    stale.write_bytes(b"x" * 512)
+    ancient = 1_800_000_000.0 - 400 * 24 * 3600
+    os.utime(stale, (ancient, ancient))
+    monkeypatch.setattr(
+        "sase.core.managed_tmp_reaper.managed_tmpdir_root", lambda: managed
+    )
+
+    step = managed_tmp_reap_step(
+        apply=False,
+        filesystem_available_bytes=64 * 1024**3,
+    )
+
+    assert stale.exists()
+    assert step.reclaimed_bytes == 512
