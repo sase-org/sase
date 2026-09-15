@@ -571,6 +571,8 @@ def _status_from_hello(
         installation_id=record.pinned_installation_id,
         protocol_version=protocol if isinstance(protocol, int) else None,
         capabilities=_capability_mapping(capabilities),
+        service_versions=_service_versions(payload.get("service_versions")),
+        capability_schema_version=_schema_version(capabilities),
         message="hello ok",
     )
 
@@ -612,6 +614,27 @@ def _capability_mapping(value: object) -> dict[str, tuple[str, ...]]:
         for key, items in value.items()
         if isinstance(items, list)
     }
+
+
+def _service_versions(value: object) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        str(key): str(version)
+        for key, version in value.items()
+        if isinstance(key, str) and isinstance(version, str) and key and version
+    }
+
+
+def _schema_version(value: object) -> int | None:
+    if not isinstance(value, Mapping):
+        return None
+    version = value.get("schema_version")
+    return (
+        int(version)
+        if isinstance(version, int) and not isinstance(version, bool)
+        else None
+    )
 
 
 __all__ = [

@@ -383,6 +383,8 @@ class MachineStatus:
     installation_id: str = ""
     protocol_version: int | None = None
     capabilities: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    service_versions: Mapping[str, str] = field(default_factory=dict)
+    capability_schema_version: int | None = None
     message: str = ""
 
     @property

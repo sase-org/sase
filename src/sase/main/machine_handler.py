@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 import base64
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 import getpass
 import json
 from pathlib import Path
@@ -25,6 +25,8 @@ from sase.dispatch.models import (
     MachineRecord,
     MachineStatus,
 )
+from sase.uv_tool.versions import collect_installed_core_versions
+from sase.version.inventory import CORE_DISTRIBUTION_NAME, HOST_DISTRIBUTION_NAME
 
 
 def handle_machine_command(args: argparse.Namespace) -> int:
@@ -278,15 +280,16 @@ def _handle_status(args: argparse.Namespace, service: MachineService) -> int:
         tuple(getattr(args, "aliases", ()) or ()),
         timeout_seconds=getattr(args, "timeout", None),
     )
+    local = _local_status_versions()
     if getattr(args, "json", False):
         print(
             machine_json_document(
-                {"statuses": [_status_row(status) for status in statuses]}
+                {"statuses": [_status_row(status, local=local) for status in statuses]}
             )
         )
     else:
         for status in statuses:
-            print(f"{status.alias}\t{status.state}\t{status.message}")
+            print(f"{status.alias}\t{status.state}\t{_status_message(status, local)}")
     return 0 if all(status.ok for status in statuses) else 1
 
 
@@ -394,7 +397,12 @@ def _diagnostic_row(diagnostic: MachineDiagnostic) -> dict[str, object]:
     }
 
 
-def _status_row(status: MachineStatus) -> dict[str, object]:
+def _status_row(
+    status: MachineStatus,
+    *,
+    local: Mapping[str, str | int | None] | None = None,
+) -> dict[str, object]:
+    local = dict(local or {})
     return {
         "alias": status.alias,
         "state": status.state,
@@ -407,7 +415,10 @@ def _status_row(status: MachineStatus) -> dict[str, object]:
         "capabilities": {
             key: list(value) for key, value in status.capabilities.items()
         },
-        "message": status.message,
+        "service_versions": dict(status.service_versions),
+        "capability_schema_version": status.capability_schema_version,
+        "version_skew": _version_skew(status, local),
+        "message": _status_message(status, local),
     }
 
 
@@ -429,6 +440,106 @@ def enrollment_result_row(result: EnrollmentResult) -> dict[str, object]:
 
 def _safe_error(exc: BaseException) -> str:
     return str(exc).replace("\n", " ")
+
+
+def _status_message(
+    status: MachineStatus,
+    local: Mapping[str, str | int | None],
+) -> str:
+    details = _version_detail(status, local)
+    if not details:
+        return status.message
+    return f"{status.message}; {details}"
+
+
+def _version_detail(
+    status: MachineStatus,
+    local: Mapping[str, str | int | None],
+) -> str:
+    skew = _version_skew(status, local)
+    if skew:
+        return "version skew: " + "; ".join(skew) + "; restart target gateway"
+    versions = _remote_version_summary(status)
+    if versions:
+        return f"versions: {versions}"
+    return ""
+
+
+def _remote_version_summary(status: MachineStatus) -> str:
+    parts = [
+        f"{label} {version}"
+        for label, version in _remote_status_versions(status).items()
+    ]
+    if status.capability_schema_version is not None:
+        parts.append(f"fleet contract schema v{status.capability_schema_version}")
+    return ", ".join(parts)
+
+
+def _version_skew(
+    status: MachineStatus,
+    local: Mapping[str, str | int | None],
+) -> list[str]:
+    if status.state != "ok":
+        return []
+    skew: list[str] = []
+    for label, remote in _remote_status_versions(status).items():
+        local_version = local.get(label)
+        if isinstance(local_version, str) and remote != local_version:
+            skew.append(f"{label} remote {remote} != local {local_version}")
+    local_schema = local.get("fleet_contract_schema")
+    if (
+        isinstance(local_schema, int)
+        and status.capability_schema_version is not None
+        and status.capability_schema_version != local_schema
+    ):
+        skew.append(
+            "fleet contract "
+            f"remote schema v{status.capability_schema_version} != local v{local_schema}"
+        )
+    return skew
+
+
+def _remote_status_versions(status: MachineStatus) -> dict[str, str]:
+    remote = dict(status.service_versions)
+    versions: dict[str, str] = {}
+    host = _first_version(remote, "sase", HOST_DISTRIBUTION_NAME)
+    core = _first_version(remote, "sase-core", CORE_DISTRIBUTION_NAME)
+    if host:
+        versions["sase"] = host
+    if core:
+        versions["sase-core"] = core
+    return versions
+
+
+def _first_version(mapping: Mapping[str, str], *keys: str) -> str:
+    for key in keys:
+        version = mapping.get(key)
+        if version:
+            return version
+    return ""
+
+
+def _local_status_versions() -> dict[str, str | int | None]:
+    versions: dict[str, str | int | None] = {}
+    try:
+        core_versions = collect_installed_core_versions()
+    except Exception:  # noqa: BLE001 - status checks must never fail on metadata.
+        core_versions = None
+    if core_versions is not None:
+        for package in core_versions.packages:
+            versions[package.name] = package.installed_version
+    versions["fleet_contract_schema"] = _local_fleet_contract_schema_version()
+    return versions
+
+
+def _local_fleet_contract_schema_version() -> int | None:
+    try:
+        from sase.core.rust import require_rust_binding
+
+        version = require_rust_binding("fleet_contract_schema_version")()
+    except Exception:  # noqa: BLE001 - status output should degrade gracefully.
+        return None
+    return int(version) if isinstance(version, int) else None
 
 
 __all__ = [

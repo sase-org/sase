@@ -8,9 +8,9 @@ from types import SimpleNamespace
 import pytest
 
 from sase.dispatch.machine_service import _parse_enrollment_bundle
-from sase.dispatch.models import BootstrapIssueResult
+from sase.dispatch.models import BootstrapIssueResult, MachineStatus
 from sase.main.parser import create_parser, default_list_delegation_notice
-from sase.main.machine_handler import _handle_bootstrap
+from sase.main.machine_handler import _handle_bootstrap, _handle_status, _status_row
 from tests.main.parser_help_helpers import (
     assert_metavar_option_documented,
     flat_help,
@@ -187,6 +187,71 @@ def test_machine_bootstrap_json_output_is_raw_bundle_only(
     assert payload["bootstrap_secret"] == secret
     assert captured.out.count(secret) == 1
     assert captured.err == ""
+
+
+def test_machine_status_human_output_surfaces_version_skew(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    status = MachineStatus(
+        alias="apollo",
+        state="ok",
+        provider_ref="builtin@https",
+        endpoint="https://fleet.example.test",
+        machine_selector="apollo",
+        installation_id="sase_inst_v1_" + "a" * 64,
+        protocol_version=1,
+        capabilities={"protocol": ("fleet.v1",)},
+        service_versions={"sase": "0.17.1+628", "sase-core-rs": "0.34.9"},
+        capability_schema_version=1,
+        message="hello ok",
+    )
+    service = SimpleNamespace(status=lambda *_args, **_kwargs: (status,))
+
+    code = _handle_status(
+        argparse.Namespace(json=False, aliases=["apollo"], timeout=None),
+        service,  # type: ignore[arg-type]
+    )
+
+    assert code == 0
+    rendered = capsys.readouterr().out
+    assert "apollo\tok\thello ok; version skew:" in rendered
+    assert "sase remote 0.17.1+628" in rendered
+    assert "sase-core remote 0.34.9" in rendered
+    assert "fleet contract remote schema v1" in rendered
+    assert "restart target gateway" in rendered
+
+
+def test_machine_status_json_includes_versions_and_skew() -> None:
+    status = MachineStatus(
+        alias="apollo",
+        state="ok",
+        provider_ref="builtin@https",
+        endpoint="https://fleet.example.test",
+        service_versions={"sase": "0.17.1+628", "sase-core-rs": "0.34.9"},
+        capability_schema_version=1,
+        message="hello ok",
+    )
+
+    row = _status_row(
+        status,
+        local={
+            "sase": "0.17.1+645",
+            "sase-core": "0.34.28",
+            "fleet_contract_schema": 3,
+        },
+    )
+
+    assert row["service_versions"] == {
+        "sase": "0.17.1+628",
+        "sase-core-rs": "0.34.9",
+    }
+    assert row["capability_schema_version"] == 1
+    assert row["version_skew"] == [
+        "sase remote 0.17.1+628 != local 0.17.1+645",
+        "sase-core remote 0.34.9 != local 0.34.28",
+        "fleet contract remote schema v1 != local v3",
+    ]
+    assert "version skew:" in row["message"]
 
 
 def test_machine_init_help_documents_offline_check_and_hidden_bundle() -> None:

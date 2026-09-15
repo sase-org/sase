@@ -283,3 +283,10 @@ sase run "%dispatch:apollo report hostname and SASE version; do not change files
 
 The enrollment should survive a gateway process restart. Reissue a bootstrap only for a
 new or repaired enrollment, not for ordinary gateway restarts.
+
+After upgrading `sase` or `sase-core-rs` on a target that runs `sase-gateway` under a
+supervisor, restart that gateway process before trusting fleet status from another
+machine. Units with `Restart=on-failure` keep the old, still-healthy binary running
+after an install upgrade; `sase machine status TARGET` reports remote service versions
+and fleet-contract schema skew, and a skew warning means the supervised gateway is still
+serving the pre-upgrade binary.

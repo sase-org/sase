@@ -268,6 +268,56 @@ def test_status_quarantines_installation_mismatch(
     assert reloaded.quarantine_reason == "hello installation identity mismatch"
 
 
+def test_status_preserves_hello_versions_and_capability_schema(
+    isolated_dispatch: tuple[Path, Path],
+) -> None:
+    config_dir, credential_path = isolated_dispatch
+    pin = _pin()
+    (config_dir / "sase.yml").write_text(
+        "\n".join(
+            [
+                "dispatch:",
+                "  machines:",
+                "    alpha:",
+                "      provider: builtin@https",
+                "      endpoint: https://fleet.example.test",
+                "      credential_ref: fleet:alpha",
+                f"      installation_pin: {pin}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    store = LocalCredentialStore(credential_path)
+    store.put(
+        CredentialRecord(
+            ref="fleet:alpha",
+            token="stored-token",
+            token_type="bearer",
+            provider_ref="builtin@https",
+            endpoint="https://fleet.example.test",
+            installation_id=pin,
+        )
+    )
+    fake_gateway = _FakeGateway(pin)
+    fake_gateway.hello_payload["service_versions"] = {
+        "sase": "0.17.1+628",
+        "sase-core-rs": "0.34.9",
+        "ignored": 1,
+    }
+
+    statuses = MachineService(
+        credential_store=store,
+        gateway_client=fake_gateway,  # type: ignore[arg-type]
+    ).status()
+
+    assert statuses[0].service_versions == {
+        "sase": "0.17.1+628",
+        "sase-core-rs": "0.34.9",
+    }
+    assert statuses[0].capability_schema_version == 1
+
+
 def test_add_machine_rejects_disabled_provider(
     isolated_dispatch: tuple[Path, Path],
 ) -> None:
