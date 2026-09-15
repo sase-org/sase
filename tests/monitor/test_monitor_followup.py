@@ -135,6 +135,79 @@ def test_launch_followup_agent_uses_explicit_next_model(
     assert "%model:claude-sonnet-5" not in captured["prompt"]
 
 
+def test_launch_followup_agent_reauthors_auto_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    meta.update(
+        {
+            "approve": True,
+            "auto_approve_plan_action": "tale",
+            "auto_approve_argument": "tale",
+            "stopped_at": "2026-08-12T14:19:48+00:00",
+        }
+    )
+    capture = _capture_with_output(monitor_dir, "hello world\n")
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result()
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert captured["prompt"].startswith(
+        "%auto:tale\n#fork:acme--0\n%model:claude-sonnet-5\n%effort:high\n\n"
+    )
+
+
+def test_launch_followup_agent_omits_auto_prefix_without_auto_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monitor_dir, _starter_dir, _project_file = _promote_and_start_monitor(
+        tmp_path, monkeypatch
+    )
+    meta = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    meta["stopped_at"] = "2026-08-12T14:19:48+00:00"
+    capture = _capture_with_output(monitor_dir, "hello world\n")
+    captured: dict[str, Any] = {}
+
+    def fake_spawn(**kwargs: Any) -> AgentLaunchResult:
+        captured.update(kwargs)
+        return _fake_result()
+
+    monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.5,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=_SETTLE_TIMEOUT,
+    )
+
+    assert result.launched is True
+    assert "%auto" not in captured["prompt"]
+
+
 def test_launch_followup_agent_omits_the_fork_prefix_when_the_starter_never_settles(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

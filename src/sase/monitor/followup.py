@@ -33,6 +33,7 @@ from sase.shells.followup import (
 )
 
 from .continuation_delivery import (
+    auto_launch_prefix,
     claim_ordinary_continuation_dispatch,
     continuation_delivery_env,
     launch_wire_extra,
@@ -309,7 +310,7 @@ def launch_followup_agent(
         prompt = compose_followup_prompt(
             **prompt_kwargs, workspace_degraded_reason=degraded_reason
         )
-        prefix = queue_launch_prefix(meta)
+        prefix = queue_launch_prefix(meta) + auto_launch_prefix(meta)
         return f"{prefix}{vcs_prefix}{prompt}" if prefix or vcs_prefix else prompt
 
     try:

@@ -27,6 +27,7 @@ from sase.monitor.continuation_delivery import (
     DELIVERY_KEY_ENV,
     _InjectedDeliveryCrash,
     adopt_ordinary_continuation_delivery,
+    auto_launch_prefix,
     claim_ordinary_continuation_dispatch,
     launch_wire_extra,
     queue_launch_prefix,
@@ -243,6 +244,32 @@ def test_queue_launch_prefix_omits_implicit_zero() -> None:
         )
 
     assert prefix == "%queue(weight=2)\n"
+
+
+@pytest.mark.parametrize(
+    ("meta", "expected"),
+    [
+        ({"approve": True}, "%auto\n"),
+        (
+            {
+                "approve": True,
+                "auto_approve_plan_action": "tale",
+                "auto_approve_argument": "tale",
+            },
+            "%auto:tale\n",
+        ),
+        ({"auto_approve_plan_action": "epic"}, "%auto:epic\n"),
+        ({}, ""),
+        ({"approve": False}, ""),
+        ({"approve": True, "auto_approve_argument": ""}, "%auto\n"),
+        ({"approve": True, "auto_approve_argument": "   "}, "%auto\n"),
+        ({"approve": True, "auto_approve_argument": 123}, "%auto\n"),
+    ],
+)
+def test_auto_launch_prefix_reauthors_auto_directive(
+    meta: dict[str, Any], expected: str
+) -> None:
+    assert auto_launch_prefix(meta) == expected
 
 
 def test_queue_launch_prefix_positive_budget_is_parseable() -> None:
