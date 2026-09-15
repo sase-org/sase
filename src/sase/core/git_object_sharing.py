@@ -7,7 +7,7 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 
-GIT_OBJECT_SHARING_WIRE_SCHEMA_VERSION = 1
+GIT_OBJECT_SHARING_WIRE_SCHEMA_VERSION = 2
 """Must match ``sase_core::git_object_sharing``."""
 
 

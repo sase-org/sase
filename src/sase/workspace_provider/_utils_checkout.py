@@ -31,6 +31,7 @@ from sase.workspace_provider.git_objects import (
     GitObjectSharingError,
     configure_primary_for_sharing,
     ensure_sase_alternate,
+    ensure_sase_alternate_for_reuse,
     recover_sase_borrower,
 )
 from sase.workspace_provider.store import WorkspacePath, WorkspaceStore
@@ -273,7 +274,7 @@ def ensure_git_clone_at(
                 )
             if share_git_objects:
                 try:
-                    ensure_sase_alternate(
+                    ensure_sase_alternate_for_reuse(
                         primary_workspace_dir.rstrip("/"),
                         target_checkout_dir.rstrip("/"),
                     )
@@ -372,7 +373,7 @@ def ensure_git_clone_at(
                     )
                 if share_git_objects:
                     try:
-                        ensure_sase_alternate(
+                        ensure_sase_alternate_for_reuse(
                             primary_workspace_dir.rstrip("/"),
                             target_checkout_dir.rstrip("/"),
                         )

@@ -204,6 +204,8 @@ def _sharing_plan(
     checkout_dir: str,
     *,
     operation: str,
+    mutation_context: str | None = None,
+    checkout_clean: bool | None = None,
 ) -> dict[str, object]:
     primary = primary_checkout_dir.rstrip("/")
     checkout = checkout_dir.rstrip("/")
@@ -211,22 +213,25 @@ def _sharing_plan(
     objects = git_object_dir(checkout)
     alt_file = objects / "info" / "alternates"
     try:
-        return plan_git_object_sharing(
-            {
-                "operation": operation,
-                "checkout_dir": checkout,
-                "object_dir": str(objects),
-                "alternates_file": str(alt_file),
-                "primary_checkout_dir": primary,
-                "primary_object_dir": str(primary_objects),
-                "alternates": list(_read_alternates(alt_file)),
-                "config_enabled": _config_bool(checkout, _CONFIG_ENABLED),
-                "config_primary_objects": _config_get_optional(
-                    checkout,
-                    _CONFIG_PRIMARY_OBJECTS,
-                ),
-            }
-        )
+        request: dict[str, object] = {
+            "operation": operation,
+            "checkout_dir": checkout,
+            "object_dir": str(objects),
+            "alternates_file": str(alt_file),
+            "primary_checkout_dir": primary,
+            "primary_object_dir": str(primary_objects),
+            "alternates": list(_read_alternates(alt_file)),
+            "config_enabled": _config_bool(checkout, _CONFIG_ENABLED),
+            "config_primary_objects": _config_get_optional(
+                checkout,
+                _CONFIG_PRIMARY_OBJECTS,
+            ),
+        }
+        if mutation_context is not None:
+            request["mutation_context"] = mutation_context
+        if checkout_clean is not None:
+            request["checkout_clean"] = checkout_clean
+        return plan_git_object_sharing(request)
     except Exception as exc:
         raise GitObjectSharingError(
             f"could not plan Git object sharing for {checkout}: {exc}"
@@ -379,20 +384,38 @@ def _with_alternate_rollback[T](
 def _apply_install_sase_alternate(
     primary_checkout_dir: str,
     checkout_dir: str,
+    *,
+    mutation_context: str | None = None,
+    checkout_clean: bool | None = None,
+    configure_unchanged: bool = True,
 ) -> _AlternateState:
     """Install or repoint the SASE-owned alternate for one borrower."""
 
     primary = primary_checkout_dir.rstrip("/")
     checkout = checkout_dir.rstrip("/")
-    plan = _sharing_plan(primary, checkout, operation="install")
-    primary_objects = Path(str(plan["expected_object_dir"]))
-    configure_primary_for_sharing(primary)
-    _apply_alternates_plan(plan)
-    _configure_borrower_for_sharing(
+    plan = _sharing_plan(
+        primary,
         checkout,
-        primary_checkout_dir=primary,
-        primary_object_dir=primary_objects,
+        operation="install",
+        mutation_context=mutation_context,
+        checkout_clean=checkout_clean,
     )
+    if str(plan["action"]) == "fail":
+        _apply_alternates_plan(plan)
+    primary_objects = Path(str(plan["expected_object_dir"]))
+    dependency_mutation = bool(plan.get("dependency_mutation"))
+    configure_metadata = configure_unchanged or dependency_mutation
+    fsck_connectivity(primary)
+    if configure_metadata:
+        configure_primary_for_sharing(primary)
+    _apply_alternates_plan(plan)
+    if configure_metadata:
+        _configure_borrower_for_sharing(
+            checkout,
+            primary_checkout_dir=primary,
+            primary_object_dir=primary_objects,
+        )
+    fsck_connectivity(checkout)
     return classify_alternate_state(checkout, primary_checkout_dir=primary)
 
 
@@ -410,6 +433,37 @@ def ensure_sase_alternate(primary_checkout_dir: str, checkout_dir: str) -> None:
     """Ensure one managed checkout borrows the configured primary objects."""
 
     state = _install_sase_alternate(primary_checkout_dir, checkout_dir)
+    if state.status != "expected":
+        raise GitObjectSharingError(
+            f"alternate for {checkout_dir} is {state.status}, expected shared"
+        )
+
+
+def ensure_sase_alternate_for_reuse(
+    primary_checkout_dir: str,
+    checkout_dir: str,
+) -> None:
+    """Safely reconcile object sharing while reusing an existing checkout."""
+
+    checkout = checkout_dir.rstrip("/")
+    status = status_porcelain(checkout)
+    if status.returncode != 0:
+        detail = command_output(status) or "status failed"
+        raise GitObjectSharingError(
+            "could not prove reusable checkout status before Git object-sharing "
+            f"mutation: {detail}"
+        )
+    clean = not status.stdout.strip()
+    state = _with_alternate_rollback(
+        checkout,
+        lambda: _apply_install_sase_alternate(
+            primary_checkout_dir,
+            checkout,
+            mutation_context="existing_checkout",
+            checkout_clean=clean,
+            configure_unchanged=clean,
+        ),
+    )
     if state.status != "expected":
         raise GitObjectSharingError(
             f"alternate for {checkout_dir} is {state.status}, expected shared"
@@ -576,6 +630,7 @@ __all__ = [
     "configure_primary_for_sharing",
     "dissociate_checkout",
     "ensure_sase_alternate",
+    "ensure_sase_alternate_for_reuse",
     "fsck_connectivity",
     "git_object_dir",
     "is_git_checkout",

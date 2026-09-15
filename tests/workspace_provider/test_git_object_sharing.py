@@ -63,6 +63,15 @@ def _make_primary(tmp_path: Path) -> tuple[Path, Path]:
     return primary, remote
 
 
+def _make_replacement_primary_without_objects(tmp_path: Path, remote: Path) -> Path:
+    replacement = tmp_path / "replacement-primary"
+    _git(tmp_path, "init", str(replacement))
+    _git(replacement, "config", "user.email", "test@example.com")
+    _git(replacement, "config", "user.name", "Test User")
+    _git(replacement, "remote", "add", "origin", str(remote))
+    return replacement
+
+
 def test_shared_clone_installs_sase_alternate_and_survives_repack(
     tmp_path: Path,
 ) -> None:
@@ -311,3 +320,113 @@ def test_reuses_broken_sase_borrower_by_dissociating_when_sharing_disabled(
     assert not alternates.exists()
     assert _git_config_missing(target, "sase.workspaceGitObjects")
     _git(target, "fsck", "--connectivity-only")
+
+
+def test_dirty_healthy_reuse_refuses_dependency_repoint(
+    tmp_path: Path,
+) -> None:
+    primary, remote = _make_primary(tmp_path)
+    target = tmp_path / "managed" / "primary_20"
+    ensure_git_clone_at(str(primary), 20, str(target), share_git_objects=True)
+    replacement = _make_replacement_primary_without_objects(tmp_path, remote)
+    alternates = git_object_dir(str(target)) / "info" / "alternates"
+    original_alternates = alternates.read_text(encoding="utf-8")
+    original_primary_config = _git(
+        target,
+        "config",
+        "--local",
+        "--get",
+        "sase.workspaceGitObjectsPrimary",
+    )
+    (target / "file.txt").write_text("dirty edit\n", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="clean status"):
+        ensure_git_clone_at(
+            str(replacement),
+            20,
+            str(target),
+            share_git_objects=True,
+        )
+
+    assert alternates.read_text(encoding="utf-8") == original_alternates
+    assert (
+        _git(
+            target,
+            "config",
+            "--local",
+            "--get",
+            "sase.workspaceGitObjectsPrimary",
+        )
+        == original_primary_config
+    )
+    assert _git(target, "status", "--porcelain") == "M file.txt"
+
+
+def test_clean_reuse_rolls_back_when_replacement_primary_lacks_objects(
+    tmp_path: Path,
+) -> None:
+    primary, remote = _make_primary(tmp_path)
+    target = tmp_path / "managed" / "primary_21"
+    ensure_git_clone_at(str(primary), 21, str(target), share_git_objects=True)
+    replacement = _make_replacement_primary_without_objects(tmp_path, remote)
+    alternates = git_object_dir(str(target)) / "info" / "alternates"
+    original_alternates = alternates.read_text(encoding="utf-8")
+    original_primary_config = _git(
+        target,
+        "config",
+        "--local",
+        "--get",
+        "sase.workspaceGitObjectsPrimary",
+    )
+
+    with pytest.raises(RuntimeError, match="fsck --connectivity-only failed"):
+        ensure_git_clone_at(
+            str(replacement),
+            21,
+            str(target),
+            share_git_objects=True,
+        )
+
+    assert alternates.read_text(encoding="utf-8") == original_alternates
+    assert (
+        _git(
+            target,
+            "config",
+            "--local",
+            "--get",
+            "sase.workspaceGitObjectsPrimary",
+        )
+        == original_primary_config
+    )
+    assert _git(target, "status", "--porcelain") == ""
+    _git(target, "fsck", "--connectivity-only")
+
+
+def test_clean_reuse_preserves_unique_local_history_when_repoint_fails(
+    tmp_path: Path,
+) -> None:
+    primary, remote = _make_primary(tmp_path)
+    target = tmp_path / "managed" / "primary_22"
+    ensure_git_clone_at(str(primary), 22, str(target), share_git_objects=True)
+    _git(target, "config", "user.email", "test@example.com")
+    _git(target, "config", "user.name", "Test User")
+    (target / "local.txt").write_text("local history\n", encoding="utf-8")
+    _git(target, "add", "local.txt")
+    _git(target, "commit", "-m", "local history")
+    local_head = _git(target, "rev-parse", "HEAD")
+    replacement = _make_replacement_primary_without_objects(tmp_path, remote)
+    alternates = git_object_dir(str(target)) / "info" / "alternates"
+    original_alternates = alternates.read_text(encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="fsck --connectivity-only failed"):
+        ensure_git_clone_at(
+            str(replacement),
+            22,
+            str(target),
+            share_git_objects=True,
+        )
+
+    assert alternates.read_text(encoding="utf-8") == original_alternates
+    assert _git(target, "rev-parse", "HEAD") == local_head
+    assert _git(target, "status", "--porcelain") == ""
+    _git(target, "log", "--oneline", "-1")
