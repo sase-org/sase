@@ -12,6 +12,7 @@ from sase.bead.cli_common import (
     bead_store_mutation,
     find_beads_location,
     init_beads,
+    resolve_bead_operation_context,
     storage_plan_path,
 )
 from sase.bead.model import BeadTier, IssueType
@@ -178,8 +179,36 @@ def handle_bead_create(args: argparse.Namespace) -> None:
         ),
     )
 
+    bead_context = None
+    if parent_id:
+        requested_parent_id = parent_id
+        try:
+            bead_context = resolve_bead_operation_context(
+                [parent_id],
+                for_write=True,
+                exit_on_error=False,
+            )
+        except RuntimeError as exc:
+            message = str(exc)
+            if message.startswith("issue not found: "):
+                print(
+                    f"Error: parent bead not found: {requested_parent_id}",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            print(f"Error: {message}", file=sys.stderr)
+            sys.exit(1)
+        parent_id = bead_context.resolved_ids[0]
+
     prefix_repair: tuple[str, str] | None = None
-    with bead_store_mutation(auto_commit_bead_store) as mutation:
+    if bead_context is not None:
+        mutation_context = bead_store_mutation(
+            auto_commit_bead_store,
+            bead_context=bead_context,
+        )
+    else:
+        mutation_context = bead_store_mutation(auto_commit_bead_store)
+    with mutation_context as mutation:
         proj = mutation.project
         if parent_id:
             try:

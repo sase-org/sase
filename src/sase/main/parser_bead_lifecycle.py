@@ -91,6 +91,8 @@ def register_bead_close_parser(
         description=(
             "Close one or more issues atomically. With --phases, the single "
             "target is an epic whose numbered phase beads are closed instead. "
+            "Full IDs can route to another enabled project's owning store; "
+            "mixed-store close batches are rejected before mutation. "
             f"Free-text values accept {AT_PATH_PREFIX}<path>."
         ),
         epilog=(
@@ -173,6 +175,8 @@ def register_bead_create_parser(
             "require an explicit size and -T 'task(<slug>)'; plan beads reject "
             "size, while raw phase creation accepts it optionally. Typed tasks "
             "take repeatable -f/--field values for the type's declared fields. "
+            "A full parent ID in plan(...,<parent>) or phase(<parent>) creates "
+            "the child in that parent's owning enabled project. "
             f"Free-text values accept {AT_PATH_PREFIX}<path>."
         ),
         epilog=(

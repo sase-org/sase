@@ -104,6 +104,17 @@ Full IDs are still accepted unchanged, including IDs whose project prefix contai
 dashes. If a shorthand suffix matches more than one bead, SASE rejects the command and
 lists the candidate full IDs instead of choosing one arbitrarily.
 
+When a full ID is not present in the current store, existing-bead operands can fall back
+to enabled SASE projects. SASE checks the current store first, then looks for the exact
+full ID in each enabled project's canonical bead store; project names, aliases, and
+stored prefixes are hints, not proof that an ID exists. Shorthand suffixes remain
+local-only. Mutating commands resolve every bead operand before writing, and a batch
+that spans more than one store is rejected before any event is recorded. For example,
+`sase bead close bob-cli-1e --note done` can be run from another enabled project, while
+`sase bead update bob-cli-1e sase-2 -s ready` is refused if those IDs belong to
+different stores. Commands with no bead selector, such as `list`, `search`, `ready`,
+`blocked`, and `stats`, keep their current-project scope.
+
 ## Data Model
 
 ### Issue Types
@@ -1638,14 +1649,13 @@ then its remaining children — `sase-tt.3` is not repeated. A malformed token s
 and exits 1. A stem that does not resolve reports `Error: issue not found: <stem>` and
 exits 1, the same as any other missing ID, while beads that did resolve still print.
 
-Full IDs can resolve across enabled SASE projects. `show` first asks the current
-project's bead store, so a local bead always wins when the same full ID also exists
-elsewhere. If the local store misses and the ID has a full project prefix, SASE looks up
-the enabled project whose key, display name, alias, or stored bead `issue_prefix`
-matches that prefix and reads that project's canonical bead store. The cross-project
-fallback is read-only and only runs after a local miss, so an all-local invocation does
-not scan the project registry. Shorthand suffixes such as `1e` remain local-only because
-they carry no prefix to route on.
+Full IDs follow the same cross-project contract described in
+[Bead ID Arguments](#bead-id-arguments): `show` first asks the current project's bead
+store, so a local bead always wins when the same full ID also exists elsewhere. If the
+local store misses and the ID has a full project prefix, SASE looks for the exact ID in
+enabled projects' canonical bead stores. The fallback is read-only and only runs after a
+local miss, so an all-local invocation does not scan the project registry. Shorthand
+suffixes such as `1e` remain local-only because they carry no prefix to route on.
 
 Use `-P/--project PROJECT` to pin the entire invocation to one enabled project by
 canonical key, display name, or alias. With a pinned project, shorthand suffixes resolve
@@ -1661,7 +1671,7 @@ If no enabled project owns a full ID's prefix, the error remains
 not materialized on this machine, `show` reports that project and says the store is not
 materialized. If more than one enabled project claims the same prefix, `show` names the
 candidates and points at `-P/--project`. Aggregate read commands (`list`, `search`,
-`ready`, `blocked`, and `stats`) stay project-local; only `show` routes by full ID.
+`ready`, `blocked`, and `stats`) stay project-local.
 
 With `--format full`, a multi-bead batch prints one detail block per bead. Each block is
 preceded by a left-aligned ordinal divider such as `── 1/3 ───`, styled with the same

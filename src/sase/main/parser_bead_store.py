@@ -16,7 +16,9 @@ def register_bead_dep_parser(
         help="Inspect and manage dependencies",
         description=(
             "Inspect and manage dependency edges. Invoking 'sase bead dep' "
-            "without a subcommand delegates to 'sase bead dep list'."
+            "without a subcommand delegates to 'sase bead dep list'. Full IDs "
+            "can route to another enabled project's owning store; dependency "
+            "mutations reject cross-store edges before writing."
         ),
     )
     dep_subparsers = parser.add_subparsers(dest="dep_action")
@@ -267,7 +269,9 @@ def register_bead_ref_parser(
         help="Inspect and manage artifact references",
         description=(
             "Inspect and manage artifact references. Invoking 'sase bead ref' "
-            "without a subcommand delegates to 'sase bead ref list'."
+            "without a subcommand delegates to 'sase bead ref list'. A scoped "
+            "full bead ID uses that bead's owning project for storage and "
+            "reference resolution."
         ),
     )
     ref_subparsers = parser.add_subparsers(dest="ref_action")

@@ -6,7 +6,11 @@ import argparse
 import sys
 from typing import Any
 
-from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
+from sase.bead.cli_common import (
+    auto_commit_bead_store,
+    bead_store_mutation,
+    resolve_bead_operation_context,
+)
 from sase.bead.cli_crud_common import mutation_outcome_ids, resolve_mutation_author
 from sase.bead.flag_fields import (
     FlagFields,
@@ -103,7 +107,12 @@ def handle_bead_update(args: argparse.Namespace) -> None:
     if note is not None and not note.strip():
         print("Error: note entry cannot be empty or blank", file=sys.stderr)
         sys.exit(1)
-    with bead_store_mutation(auto_commit_bead_store) as mutation:
+    bead_context = resolve_bead_operation_context(args.ids, for_write=True)
+    issue_ids = list(bead_context.resolved_ids)
+    with bead_store_mutation(
+        auto_commit_bead_store,
+        bead_context=bead_context,
+    ) as mutation:
         proj = mutation.project
         fields: dict[str, Any] = {}
         if args.status:
@@ -127,30 +136,30 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         if getattr(args, "size", None) is not None:
             fields["size"] = args.size
         if getattr(args, "remove_by", None) is not None:
-            if len(args.ids) != 1:
-                targets = ", ".join(args.ids)
+            if len(issue_ids) != 1:
+                targets = ", ".join(issue_ids)
                 print(
                     "Error: --remove-by takes exactly one flag bead ID "
-                    f"(got {len(args.ids)}: {targets})",
+                    f"(got {len(issue_ids)}: {targets})",
                     file=sys.stderr,
                 )
                 sys.exit(1)
             try:
-                target = proj.show(args.ids[0])
+                target = proj.show(issue_ids[0])
             except KeyError:
-                print(f"Error: issue not found: {args.ids[0]}", file=sys.stderr)
+                print(f"Error: issue not found: {issue_ids[0]}", file=sys.stderr)
                 sys.exit(1)
             current = flag_fields(target)
             if current is None:
                 print(
-                    f"Error: --remove-by requires a flag bead: {args.ids[0]}",
+                    f"Error: --remove-by requires a flag bead: {issue_ids[0]}",
                     file=sys.stderr,
                 )
                 sys.exit(1)
             new_flag = _parse_remove_by_arg(args.remove_by, current.key)
             if not is_flag_task_bead(target):
                 print(
-                    f"Error: --remove-by requires a flag bead: {args.ids[0]}",
+                    f"Error: --remove-by requires a flag bead: {issue_ids[0]}",
                     file=sys.stderr,
                 )
                 sys.exit(1)
@@ -165,13 +174,13 @@ def handle_bead_update(args: argparse.Namespace) -> None:
         outcomes: list[dict[str, object]] = []
         try:
             if fields:
-                issues = proj.update_many(args.ids, **fields)
+                issues = proj.update_many(issue_ids, **fields)
                 outcomes.append(proj.last_mutation_outcome)
             else:
-                issues = [proj.show(issue_id) for issue_id in args.ids]
+                issues = [proj.show(issue_id) for issue_id in issue_ids]
             if note is not None:
                 author = resolve_mutation_author(proj)
-                issues = proj.append_note_many(args.ids, note, author=author)
+                issues = proj.append_note_many(issue_ids, note, author=author)
                 outcomes.append(proj.last_mutation_outcome)
         except KeyError as exc:
             message = str(exc.args[0]) if exc.args else ""

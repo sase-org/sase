@@ -6,14 +6,18 @@ import argparse
 from datetime import UTC, datetime
 import json
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.agent.identity import discover_agent_identity
 from sase.bead.cli_common import (
     auto_commit_bead_store,
     bead_store_mutation,
     get_read_view,
+    resolve_bead_operation_context,
 )
+
+if TYPE_CHECKING:
+    from sase.bead.operation_context import BeadOperationContext
 
 
 def handle_bead_history(args: argparse.Namespace) -> None:
@@ -31,8 +35,10 @@ def handle_bead_history(args: argparse.Namespace) -> None:
     if not issue_id:
         print("Error: issue ID is required", file=sys.stderr)
         sys.exit(2)
+    bead_context = resolve_bead_operation_context([issue_id])
+    issue_id = bead_context.resolved_ids[0]
 
-    with get_read_view() as view:
+    with get_read_view(bead_context=bead_context) as view:
         try:
             history = view.history(issue_id)
         except KeyError:
@@ -66,7 +72,11 @@ def handle_bead_history(args: argparse.Namespace) -> None:
 
 def _handle_lost_notes(args: argparse.Namespace) -> None:
     issue_id = args.id
-    with get_read_view() as view:
+    bead_context = None
+    if issue_id:
+        bead_context = resolve_bead_operation_context([issue_id])
+        issue_id = bead_context.resolved_ids[0]
+    with get_read_view(bead_context=bead_context) as view:
         try:
             findings = view.lost_notes(issue_id)
         except KeyError:
@@ -84,7 +94,7 @@ def _handle_lost_notes(args: argparse.Namespace) -> None:
         if not args.yes and not _confirm_lost_note_restore(revision_count):
             print("Lost-note restoration cancelled; no changes applied.")
             return
-        _restore_lost_notes(findings, issue_id)
+        _restore_lost_notes(findings, issue_id, bead_context=bead_context)
         return
 
     match args.format:
@@ -134,8 +144,13 @@ def _render_lost_notes(
 def _restore_lost_notes(
     preview: list[dict[str, object]],
     issue_id: str | None,
+    *,
+    bead_context: BeadOperationContext | None = None,
 ) -> None:
-    with bead_store_mutation(auto_commit_bead_store) as mutation:
+    with bead_store_mutation(
+        auto_commit_bead_store,
+        bead_context=bead_context,
+    ) as mutation:
         current = mutation.project.lost_notes(issue_id)
         if current != preview:
             print(

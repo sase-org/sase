@@ -40,10 +40,35 @@ def handle_bead_operation(args: argparse.Namespace) -> int:
 def _run_apply_status(
     args: argparse.Namespace,
 ) -> tuple[bool, str, Mapping[str, object]]:
-    from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
+    from sase.bead.cli_common import (
+        auto_commit_bead_store,
+        bead_store_mutation,
+        resolve_bead_operation_context,
+    )
 
-    with bead_store_mutation(auto_commit_bead_store) as mutation:
-        updated = mutation.project.update(args.bead_id, status=args.status)
+    bead_context = None
+    bead_id = args.bead_id
+    try:
+        bead_context = resolve_bead_operation_context(
+            [args.bead_id],
+            for_write=True,
+            exit_on_error=False,
+        )
+    except RuntimeError as exc:
+        if not str(exc).startswith("issue not found: "):
+            raise
+    else:
+        bead_id = bead_context.resolved_ids[0]
+
+    if bead_context is not None:
+        mutation_context = bead_store_mutation(
+            auto_commit_bead_store,
+            bead_context=bead_context,
+        )
+    else:
+        mutation_context = bead_store_mutation(auto_commit_bead_store)
+    with mutation_context as mutation:
+        updated = mutation.project.update(bead_id, status=args.status)
         mutation.commit(f"Update {updated.id} status to {args.status}")
     return (
         True,

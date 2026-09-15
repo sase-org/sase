@@ -10,7 +10,11 @@ from rich.console import Console
 from rich.markup import escape
 
 from sase.agent.identity import discover_agent_identity
-from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
+from sase.bead.cli_common import (
+    auto_commit_bead_store,
+    bead_store_mutation,
+    resolve_bead_operation_context,
+)
 from sase.bead.model import Issue
 from sase.bead.mutation_commit import require_mutation_commit_message
 from sase.bead.project import BeadProject
@@ -76,13 +80,18 @@ def handle_bead_snooze(args: argparse.Namespace) -> None:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    with bead_store_mutation(auto_commit_bead_store) as mutation:
+    bead_context = resolve_bead_operation_context(args.ids, for_write=True)
+    issue_ids = list(bead_context.resolved_ids)
+    with bead_store_mutation(
+        auto_commit_bead_store,
+        bead_context=bead_context,
+    ) as mutation:
         proj = mutation.project
         actor = _snooze_actor(proj)
         # Resolve every id before mutating any bead, so a typo in the last
         # argument cannot leave the first half of the batch snoozed.
         resolved_ids: list[str] = []
-        for raw_id in args.ids:
+        for raw_id in issue_ids:
             try:
                 resolved_ids.append(proj.show(raw_id).id)
             except KeyError:

@@ -9,7 +9,11 @@ from rich.console import Console
 from rich.markup import escape
 
 from sase.agent.identity import current_instant, resolve_observation_window_start
-from sase.bead.cli_common import auto_commit_bead_store, bead_store_mutation
+from sase.bead.cli_common import (
+    auto_commit_bead_store,
+    bead_store_mutation,
+    resolve_bead_operation_context,
+)
 from sase.bead.cli_crud_common import resolve_mutation_author
 from sase.bead.model import Status
 from sase.bead.mutation_commit import require_mutation_commit_message
@@ -33,17 +37,22 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
     except CliFileValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
-    with bead_store_mutation(auto_commit_bead_store) as mutation:
+    bead_context = resolve_bead_operation_context([args.id], for_write=True)
+    issue_id = bead_context.resolved_ids[0]
+    with bead_store_mutation(
+        auto_commit_bead_store,
+        bead_context=bead_context,
+    ) as mutation:
         try:
             reporter = getattr(args, "author", None)
             if reporter is None:
                 reporter = resolve_mutation_author(mutation.project)
             if verified_after_close:
-                target = mutation.project.show(args.id)
+                target = mutation.project.show(issue_id)
                 if target.status is not Status.CLOSED:
                     print(
                         "Error: --verified-after-close requires a closed "
-                        f"bead (currently {target.status.value}): {args.id}",
+                        f"bead (currently {target.status.value}): {issue_id}",
                         file=sys.stderr,
                     )
                     sys.exit(1)
@@ -51,7 +60,7 @@ def handle_bead_plus_one(args: argparse.Namespace) -> None:
             else:
                 observed_since = resolve_observation_window_start()
             issue, changed = mutation.project.plus_one(
-                args.id,
+                issue_id,
                 note,
                 reporter=reporter,
                 refs=getattr(args, "ref", None) or (),
@@ -133,23 +142,32 @@ def handle_bead_note(args: argparse.Namespace) -> None:
             print(f"Error: {exc}", file=sys.stderr)
             sys.exit(1)
 
-    with bead_store_mutation(auto_commit_bead_store) as mutation:
+    bead_context = resolve_bead_operation_context([args.id], for_write=True)
+    issue_id = bead_context.resolved_ids[0]
+    with bead_store_mutation(
+        auto_commit_bead_store,
+        bead_context=bead_context,
+    ) as mutation:
         try:
             author = args.author
             if author is None:
                 author = resolve_mutation_author(mutation.project)
             if edit_ordinal is not None:
                 issue = mutation.project.edit_note(
-                    args.id, edit_ordinal, str(text), author=author
+                    issue_id, edit_ordinal, str(text), author=author
                 )
                 operation = "note_edit"
             elif remove_ordinal is not None:
                 issue = mutation.project.remove_note(
-                    args.id, remove_ordinal, author=author
+                    issue_id, remove_ordinal, author=author
                 )
                 operation = "note_remove"
             else:
-                issue = mutation.project.append_note(args.id, str(text), author=author)
+                issue = mutation.project.append_note(
+                    issue_id,
+                    str(text),
+                    author=author,
+                )
                 operation = "note"
         except KeyError:
             print(f"Error: issue not found: {args.id}", file=sys.stderr)

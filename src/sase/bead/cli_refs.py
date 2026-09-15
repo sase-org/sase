@@ -5,15 +5,20 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from sase.artifact_ref_lists import (
     ArtifactRefListEntry,
     artifact_ref_list_display_lines,
     resolve_artifact_ref_list,
 )
-from sase.bead.cli_common import get_read_view
+from sase.bead.cli_common import get_read_view, resolve_bead_operation_context
 from sase.bead.cli_detail import artifact_reference_context
 from sase.bead.model import Issue
+
+if TYPE_CHECKING:
+    from sase.bead.operation_context import BeadOperationContext
 
 
 def handle_bead_ref(args: argparse.Namespace) -> None:
@@ -31,8 +36,12 @@ def handle_bead_ref(args: argparse.Namespace) -> None:
     # options are absent from the namespace.
     scope = getattr(args, "id", None)
     as_json = bool(getattr(args, "json", False))
+    bead_context = None
+    if scope:
+        bead_context = resolve_bead_operation_context([scope])
+        scope = bead_context.resolved_ids[0]
 
-    with get_read_view() as view:
+    with get_read_view(bead_context=bead_context) as view:
         if scope:
             try:
                 issues = [view.show(scope)]
@@ -49,7 +58,12 @@ def handle_bead_ref(args: argparse.Namespace) -> None:
         _render_stored_references(issues, scoped=bool(scope), as_json=as_json)
         return
 
-    context = artifact_reference_context()
+    reference_workspace = _reference_workspace(bead_context)
+    context = (
+        artifact_reference_context(reference_workspace)
+        if reference_workspace is not None
+        else artifact_reference_context()
+    )
     resolved: list[tuple[Issue, tuple[ArtifactRefListEntry | str, ...]]] = []
     for issue in issues:
         entries: tuple[ArtifactRefListEntry | str, ...]
@@ -96,6 +110,14 @@ def handle_bead_ref(args: argparse.Namespace) -> None:
             prefix = f"{issue.id}  " if index == 0 else " " * (len(issue.id) + 2)
             lines.append(f"{prefix}{line}")
     print("\n".join(lines) if lines else "No artifact references found.")
+
+
+def _reference_workspace(
+    bead_context: BeadOperationContext | None,
+) -> Path | None:
+    if bead_context is None:
+        return None
+    return bead_context.primary_workspace
 
 
 def _handle_ref_mutation(action: str, issue_id: str, refs: list[str]) -> None:

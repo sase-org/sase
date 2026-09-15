@@ -71,7 +71,8 @@ def register_bead_history_parser(
             "Replay the canonical event streams for one bead, or find note "
             "revisions that no longer appear in current notes. Compact "
             "history output shows one row per event; full output shows the "
-            "prior and new value for every changed field."
+            "prior and new value for every changed field. A scoped full ID "
+            "uses that bead's owning enabled project."
         ),
     )
     parser.add_argument(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 import logging
@@ -140,6 +140,46 @@ def get_read_view(*, bead_context: BeadOperationContext | None = None) -> BeadPr
     return get_project()
 
 
+def resolve_bead_operation_context(
+    targets: Sequence[str],
+    *,
+    for_write: bool = False,
+    materialize: bool = False,
+    require_single_store: bool = True,
+    exit_on_error: bool = True,
+) -> BeadOperationContext:
+    """Resolve CLI bead targets or report a normal command error.
+
+    This is the argparse/Python-handler counterpart to the Rust fast-path
+    target extraction: callers pass only command operands that are bead IDs,
+    never notes, titles, artifact refs, or file paths.
+    """
+    from sase.bead.operation_context import (
+        BeadOperationRoutingError,
+        resolve_operation_context_for_targets,
+    )
+
+    try:
+        return resolve_operation_context_for_targets(
+            targets,
+            for_write=for_write,
+            materialize=materialize,
+            require_single_store=require_single_store,
+        )
+    except BeadOperationRoutingError as exc:
+        message = _cli_routing_error_message(str(exc))
+        if exit_on_error:
+            print(f"Error: {message}", file=sys.stderr)
+            sys.exit(1)
+        raise RuntimeError(message) from exc
+
+
+def _cli_routing_error_message(message: str) -> str:
+    if message.startswith("Issue not found: "):
+        return f"issue not found: {message.removeprefix('Issue not found: ')}"
+    return message
+
+
 def _refuse_read_only_bead_store(
     location: BeadsLocation | None,
     *,
@@ -242,6 +282,7 @@ def bead_store_mutation(
     from sase.bead.sync import bead_store_write_lock
 
     committed = False
+    routed_bead_context = _routed_bead_context(bead_context)
     with get_project(cwd=cwd, bead_context=bead_context) as project:
         with bead_store_write_lock(project.beads_dir) as already_locked:
             mutation = _BeadStoreMutation(project)
@@ -260,24 +301,32 @@ def bead_store_mutation(
                     commit_kwargs["mutation_origin"] = mutation_origin
                 if operation_context is not None:
                     commit_kwargs["operation_context"] = operation_context
-                if bead_context is not None:
-                    commit_kwargs["bead_context"] = bead_context
+                if routed_bead_context is not None:
+                    commit_kwargs["bead_context"] = routed_bead_context
                 committed = auto_commit(mutation.commit_message, **commit_kwargs)
     if committed and not no_push:
         push_kwargs: dict[str, Any] = {}
         if cwd is not None:
             push_kwargs["cwd"] = cwd
-        if bead_context is not None:
-            push_kwargs["bead_context"] = bead_context
+        if routed_bead_context is not None:
+            push_kwargs["bead_context"] = routed_bead_context
         mutation.publication_outcome = _push_committed_bead_store(**push_kwargs)
         verify_kwargs: dict[str, Any] = {"description": mutation.commit_message}
         if cwd is not None:
             verify_kwargs["cwd"] = cwd
-        if bead_context is not None:
-            verify_kwargs["bead_context"] = bead_context
+        if routed_bead_context is not None:
+            verify_kwargs["bead_context"] = routed_bead_context
         verified = _require_published_bead_mutation(**verify_kwargs)
         if verified is not None:
             mutation.publication_outcome = verified
+
+
+def _routed_bead_context(
+    bead_context: BeadOperationContext | None,
+) -> BeadOperationContext | None:
+    if bead_context is None or bead_context.project_key is None:
+        return None
+    return bead_context
 
 
 def _require_published_bead_mutation(
