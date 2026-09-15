@@ -34,7 +34,7 @@ def test_handler_reuses_enrollment_json_and_hidden_bundle(
     pin = _pin()
     candidate = _candidate(pin=pin)
     service, _fake = _service(isolated_dispatch, pin=pin, candidates=(candidate,))
-    answers: Iterator[str] = iter(["1", "fleet"])
+    answers: Iterator[str] = iter(["1", "fleet", ""])
     args = argparse.Namespace(
         check=False,
         json=True,
@@ -71,7 +71,7 @@ def test_handler_quarantine_is_honest(
     service, fake = _service(isolated_dispatch, pin=pin, candidates=(candidate,))
     fake.hello_payload["outcome"] = "quarantined"
     fake.hello_payload["quarantine"] = {"reason": "expired bootstrap"}
-    answers: Iterator[str] = iter(["1", "fleet"])
+    answers: Iterator[str] = iter(["1", "fleet", ""])
     args = argparse.Namespace(
         check=False,
         json=False,
@@ -142,6 +142,7 @@ def test_handle_add_activates_authenticated_hello(
         candidate=None,
         json=True,
         timeout=None,
+        ssh_target="",
         bootstrap_file=str(bundle_path),
     )
     code = _handle_add(args, service.machine_service)

@@ -6,11 +6,13 @@ import os
 import shlex
 from collections.abc import Mapping
 from typing import Any
+from uuid import uuid4
 
 from sase.notification_gates.models import GATE_REQUEST_SCHEMA_VERSION
 from sase.sudo.commands import sudo_approve_command_script, sudo_deny_command_script
 from sase.sudo.core import DEFAULT_SUDO_CORE, SudoCoreBinding
 from sase.sudo.models import SudoRequest, normalize_sudo_request
+from sase.sudo.target import SudoExecutionTarget, resolve_sudo_target
 
 APPROVE_OPTION_ID = "approve"
 DENY_OPTION_ID = "deny"
@@ -22,13 +24,16 @@ def build_sudo_gate_request(
     value: Mapping[str, Any] | SudoRequest,
     *,
     producer: Mapping[str, Any] | None = None,
+    request_id: str | None = None,
     core: SudoCoreBinding = DEFAULT_SUDO_CORE,
 ) -> dict[str, Any]:
     """Return a v3 gate-shell request for one normalized sudo request."""
     request = value if isinstance(value, SudoRequest) else normalize_sudo_request(value)
-    manifest = _manifest(request)
+    request_id = request_id or f"sudo-{uuid4()}"
+    target = resolve_sudo_target(request.machine)
+    manifest = core.validate_manifest(_manifest(request, request_id, target))
     manifest_sha256 = core.manifest_sha256(manifest)
-    risk_badges = core.risk_badges(tuple(manifest["commands"]))
+    risk_badges = core.risk_badges(manifest)
     title = f"Sudo request: {request.commands[0].argv[0]}"
     if len(request.commands) > 1:
         title += f" (+{len(request.commands) - 1})"
@@ -36,17 +41,19 @@ def build_sudo_gate_request(
     return {
         "schema_version": GATE_REQUEST_SCHEMA_VERSION,
         "kind": "sudo",
+        "request_id": request_id,
         "producer": dict(
             producer or {"agent": os.environ.get("SASE_AGENT_NAME", "agent")}
         ),
         "continuation_mode": "gate_shell",
-        "gate_timeout_seconds": float(request.timeout_seconds),
+        "gate_timeout_seconds": float(request.gate_timeout_seconds),
         "payload": {
             "sudo": {
                 "request": request.to_dict(),
                 "manifest": manifest,
                 "manifest_sha256": manifest_sha256,
                 "risk_badges": list(risk_badges),
+                "target": _target_payload(target),
             }
         },
         "presentation": {
@@ -94,18 +101,46 @@ def build_sudo_gate_request(
     }
 
 
-def _manifest(request: SudoRequest) -> dict[str, Any]:
+def _manifest(
+    request: SudoRequest,
+    request_id: str,
+    target: SudoExecutionTarget,
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
-        "reason": request.reason,
-        "commands": [command.to_dict() for command in request.commands],
+        "request_id": request_id,
+        "host": target.host,
+        "host_is_remote": target.remote,
         "run_as": request.run_as,
         "cwd": request.cwd,
         "env": dict(sorted(request.env.items())),
-        "timeout_seconds": request.timeout_seconds,
-        "stop_policy": request.stop_policy,
-        "output_policy": request.output_policy,
-        "machine": request.machine,
+        "stop_on_failure": request.stop_on_failure,
+        "output_to_agent": request.output_to_agent,
+        "commands": [_manifest_command(command) for command in request.commands],
+        "resume_from": None,
+    }
+
+
+def _manifest_command(command: Any) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "id": command.id,
+        "argv": list(command.argv),
+        "why": command.why,
+        "shell": command.shell,
+    }
+    if command.timeout_seconds is not None:
+        payload["timeout_seconds"] = command.timeout_seconds
+    return payload
+
+
+def _target_payload(target: SudoExecutionTarget) -> dict[str, Any]:
+    return {
+        "host": target.host,
+        "requested_machine": target.requested_machine,
+        "enrolled_alias": target.enrolled_alias,
+        "enrolled": target.enrolled,
+        "remote": target.remote,
+        "unenrolled": target.unenrolled,
     }
 
 
@@ -176,7 +211,8 @@ def _notes(request: SudoRequest, risk_badges: tuple[str, ...]) -> list[str]:
     return [
         f"Reason: {request.reason}",
         f"Run as: {request.run_as} in {request.cwd}",
-        "Risk: " + ", ".join(risk_badges),
+        f"Target: {request.machine or 'local'}",
+        "Risk: " + (", ".join(risk_badges) or "none"),
         "Commands: " + ", ".join(command.id for command in request.commands),
     ]
 
@@ -190,8 +226,9 @@ def _preview(
         f"Reason: {request.reason}",
         f"Run as: `{request.run_as}`",
         f"Working directory: `{request.cwd}`",
+        f"Target: `{request.machine or 'local'}`",
         f"Manifest SHA-256: `{manifest_sha256}`",
-        f"Risk: {', '.join(risk_badges)}",
+        f"Risk: {', '.join(risk_badges) or 'none'}",
         "",
         "Commands:",
         "",

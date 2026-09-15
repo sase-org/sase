@@ -7,6 +7,7 @@ from sase.notification_gates.models import GateError, GateSpec, stamp_schema_dia
 from sase.sudo.core import DEFAULT_SUDO_CORE
 from sase.sudo.feature import require_sudo_requests_enabled
 from sase.sudo.models import normalize_sudo_request
+from sase.sudo.target import resolve_sudo_target
 
 APPROVE_OPTION_ID = "approve"
 DENY_OPTION_ID = "deny"
@@ -30,19 +31,46 @@ def _validate_payload(spec: GateSpec) -> None:
         )
     request = normalize_sudo_request(sudo_payload.get("request"))
     manifest = sudo_payload.get("manifest")
-    expected_manifest = {
-        "schema_version": 1,
-        "reason": request.reason,
-        "commands": [command.to_dict() for command in request.commands],
-        "run_as": request.run_as,
-        "cwd": request.cwd,
-        "env": dict(sorted(request.env.items())),
-        "timeout_seconds": request.timeout_seconds,
-        "stop_policy": request.stop_policy,
-        "output_policy": request.output_policy,
-        "machine": request.machine,
-    }
-    if not isinstance(manifest, dict) or manifest != expected_manifest:
+    if not isinstance(manifest, dict):
+        raise GateError(
+            "invalid_sudo_payload",
+            "payload.sudo.manifest",
+            "sudo manifest is required",
+        )
+    target = resolve_sudo_target(request.machine)
+    expected_manifest = DEFAULT_SUDO_CORE.validate_manifest(
+        {
+            "schema_version": 1,
+            "request_id": spec.request_id or "",
+            "host": target.host,
+            "host_is_remote": target.remote,
+            "run_as": request.run_as,
+            "cwd": request.cwd,
+            "env": dict(sorted(request.env.items())),
+            "stop_on_failure": request.stop_on_failure,
+            "output_to_agent": request.output_to_agent,
+            "commands": [
+                {
+                    "id": command.id,
+                    "argv": list(command.argv),
+                    "why": command.why,
+                    "timeout_seconds": command.timeout_seconds,
+                    "shell": command.shell,
+                }
+                if command.timeout_seconds is not None
+                else {
+                    "id": command.id,
+                    "argv": list(command.argv),
+                    "why": command.why,
+                    "shell": command.shell,
+                }
+                for command in request.commands
+            ],
+            "resume_from": None,
+        }
+    )
+    normalized_manifest = DEFAULT_SUDO_CORE.validate_manifest(manifest)
+    if normalized_manifest != expected_manifest:
         raise GateError(
             "invalid_sudo_payload",
             "payload.sudo.manifest",
@@ -55,7 +83,7 @@ def _validate_payload(spec: GateSpec) -> None:
             "payload.sudo.manifest_sha256",
             "sudo manifest hash is required",
         )
-    if manifest_sha256 != DEFAULT_SUDO_CORE.manifest_sha256(manifest):
+    if manifest_sha256 != DEFAULT_SUDO_CORE.manifest_sha256(normalized_manifest):
         raise GateError(
             "invalid_sudo_payload",
             "payload.sudo.manifest_sha256",

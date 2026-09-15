@@ -2478,10 +2478,12 @@ dispatch:
 Machine aliases are 1–64 characters, must start with an ASCII letter or digit, and may
 otherwise contain ASCII letters, digits, `_`, `.`, and `-`. Each machine record stores a
 dispatch provider ref, HTTPS endpoint, opaque credential reference, and pinned
-`sase_inst_v1_...` installation identity. Optional fields select `gateway`, `tunnel`, or
-`direct` connection kind; TLS trust mode (`system_roots`, `pinned_ca`, or
-`pinned_server_name`); and quarantine state. Tokens do not belong in YAML:
-`credential_ref` points into the protected local credential store.
+`sase_inst_v1_...` installation identity. Optional `ssh_target` stores the SSH
+destination used for terminal handoffs; when omitted it defaults to the alias at use
+time. Optional fields select `gateway`, `tunnel`, or `direct` connection kind; TLS trust
+mode (`system_roots`, `pinned_ca`, or `pinned_server_name`); and quarantine state.
+Tokens do not belong in YAML: `credential_ref` points into the protected local
+credential store.
 
 Enrollment commands write those records and keep the installation pin authoritative. A
 quarantined alias cannot receive launches or lifecycle mutations until repaired.
@@ -5080,19 +5082,20 @@ values. `init` always needs an interactive stdin for candidate and alias selecti
 reads the bundle from `-B/--bootstrap-file` or a hidden prompt. `add` and `repair` also
 accept a bundle on piped stdin when `--bootstrap-file` is omitted.
 
-| Form                                      | Flags                                               | Description                                                                                 |
-| ----------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `sase machine` / `machine list`           | `-j/--json`                                         | List configured aliases without provider or gateway I/O.                                    |
-| `sase machine discover`                   | `-j/--json`, `-p/--provider`, `-t/--timeout`        | Query configured or repeatably selected discovery providers.                                |
-| `sase machine bootstrap`                  | `-e/--expires`, `-j/--json`, `-s/--scope`           | On the target, issue a scoped single-use bundle to stdout.                                  |
-| `sase machine init`                       | `-B/--bootstrap-file`, `-c/--check`, `-j`, `-t`     | Interactively discover, enroll, reload, and verify; `--check` is offline.                   |
-| `sase machine add ALIAS [ENDPOINT]`       | `-B`, `-c/--candidate`, `-j`, `-p/--provider`, `-t` | Enroll a named HTTPS endpoint or discovered candidate, then activate.                       |
-| `sase machine status [ALIAS ...]`         | `-j/--json`, `-t/--timeout`                         | Run authenticated hello checks; no aliases means all configured aliases.                    |
-| `sase machine repair ALIAS`               | `-B/--bootstrap-file`, `-j/--json`, `-t/--timeout`  | Rotate a quarantined or mismatched enrollment and activate the replacement.                 |
-| `sase machine rename OLD NEW`             | `-j/--json`                                         | Rename the viewer-local alias without changing gateway identity or credentials.             |
-| `sase machine remove ALIAS`               | `-j/--json`, `-y/--yes`                             | Remove local config and its credential reference; interactive stdin prompts unless `--yes`. |
-| `sase machine agent {stop,retry,fork}`    | action-specific arguments, `-j`, `-t`               | Submit a journaled remote lifecycle mutation; ACE supplies revision-safe durable sidecars.  |
-| `sase machine attention {answer,approve}` | action-specific arguments, `-j`, `-t`               | Answer a remote question or approve a gate through the same durable operation path.         |
+| Form                                      | Flags                                                                  | Description                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `sase machine` / `machine list`           | `-j/--json`                                                            | List configured aliases without provider or gateway I/O.                                    |
+| `sase machine discover`                   | `-j/--json`, `-p/--provider`, `-t/--timeout`                           | Query configured or repeatably selected discovery providers.                                |
+| `sase machine bootstrap`                  | `-e/--expires`, `-j/--json`, `-s/--scope`                              | On the target, issue a scoped single-use bundle to stdout.                                  |
+| `sase machine init`                       | `-B/--bootstrap-file`, `-c/--check`, `-j`, `-t`                        | Interactively discover, enroll, reload, and verify; `--check` is offline.                   |
+| `sase machine add ALIAS [ENDPOINT]`       | `-B`, `-c/--candidate`, `-j`, `-p/--provider`, `-S/--ssh-target`, `-t` | Enroll a named HTTPS endpoint or discovered candidate, then activate.                       |
+| `sase machine show ALIAS`                 | `-j/--json`                                                            | Show one local machine record, including its effective SSH target.                          |
+| `sase machine status [ALIAS ...]`         | `-j/--json`, `-t/--timeout`                                            | Run authenticated hello checks; no aliases means all configured aliases.                    |
+| `sase machine repair ALIAS`               | `-B/--bootstrap-file`, `-j/--json`, `-t/--timeout`                     | Rotate a quarantined or mismatched enrollment and activate the replacement.                 |
+| `sase machine rename OLD NEW`             | `-j/--json`                                                            | Rename the viewer-local alias without changing gateway identity or credentials.             |
+| `sase machine remove ALIAS`               | `-j/--json`, `-y/--yes`                                                | Remove local config and its credential reference; interactive stdin prompts unless `--yes`. |
+| `sase machine agent {stop,retry,fork}`    | action-specific arguments, `-j`, `-t`                                  | Submit a journaled remote lifecycle mutation; ACE supplies revision-safe durable sidecars.  |
+| `sase machine attention {answer,approve}` | action-specific arguments, `-j`, `-t`                                  | Answer a remote question or approve a gate through the same durable operation path.         |
 
 See the [Remote Dispatch Runbook](remote_dispatch.md) for gateway supervision, Tailscale
 Serve, enrollment, launch constraints, and ACE machine-row operation.

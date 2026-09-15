@@ -30,6 +30,7 @@ from sase.dispatch._machine_init_interaction import (
     print_reconciled,
     read_alias,
     read_bundle_once,
+    read_ssh_target,
     select_candidates,
     status_detail,
 )
@@ -204,6 +205,7 @@ class MachineInitService:
         for candidate in selected:
             try:
                 alias = read_alias(input_func, candidate)
+                ssh_target = read_ssh_target(input_func, candidate, alias)
                 bundle = (
                     bundle_text
                     if bundle_text is not None
@@ -214,6 +216,7 @@ class MachineInitService:
                     endpoint=candidate.endpoint,
                     provider_ref=candidate.provider_ref,
                     bundle_text=bundle,
+                    ssh_target=ssh_target,
                     timeout_seconds=timeout_seconds,
                 )
             except (EOFError, KeyboardInterrupt):

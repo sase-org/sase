@@ -102,6 +102,7 @@ def test_add_machine_stores_only_credential_ref_in_config(
         endpoint="https://fleet.example.test",
         provider_ref="builtin@https",
         bundle_text=_bundle(pin),
+        ssh_target="alpha.tailnet",
     )
 
     assert result.quarantined is False
@@ -109,12 +110,15 @@ def test_add_machine_stores_only_credential_ref_in_config(
     assert "one-time-secret" not in config_text
     assert "stored-token" not in config_text
     assert "credential_ref: fleet:alpha" in config_text
+    assert "ssh_target: alpha.tailnet" in config_text
 
     credential = LocalCredentialStore(credential_path).get("fleet:alpha")
     assert credential is not None
     assert credential.token == "stored-token"
     machines = load_dispatch_config().machine_by_alias()
     assert machines["alpha"].pinned_installation_id == pin
+    assert machines["alpha"].ssh_target == "alpha.tailnet"
+    assert machines["alpha"].effective_ssh_target == "alpha.tailnet"
 
 
 def test_list_machines_is_offline(

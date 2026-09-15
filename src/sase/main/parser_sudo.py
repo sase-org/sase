@@ -20,6 +20,7 @@ def register_sudo_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Sudo subcommands",
     )
     _register_answer(sudo_subparsers)
+    _register_exec(sudo_subparsers)
     _register_list(sudo_subparsers)
     _register_request(sudo_subparsers)
     _register_show(sudo_subparsers)
@@ -75,6 +76,18 @@ def _register_list(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("-j", "--json", action="store_true", help="Emit JSON")
     parser.add_argument("-l", "--limit", type=int, default=None, help="Limit rows")
     parser.add_argument("-p", "--project", default=None, help="Filter by project")
+
+
+def _register_exec(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "exec",
+        help=argparse.SUPPRESS,
+        description="Internal target-side sudo execution entrypoint.",
+    )
+    parser.add_argument("--contract", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--manifest", metavar="PATH", help=argparse.SUPPRESS)
+    parser.add_argument("--expected-sha256", metavar="SHA256", help=argparse.SUPPRESS)
+    parser.add_argument("--ledger", metavar="PATH", help=argparse.SUPPRESS)
 
 
 def _register_request(subparsers: argparse._SubParsersAction) -> None:

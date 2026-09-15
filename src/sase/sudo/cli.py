@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any, Literal
 
 from rich.console import Console
@@ -31,7 +32,8 @@ from sase.sudo.gate import APPROVE_OPTION_ID, DENY_OPTION_ID, build_sudo_gate_re
 from sase.sudo.lease import sudo_auth_lease
 from sase.sudo.manifest import selected_sudo_manifest
 from sase.sudo.receipt import validate_sudo_receipt
-from sase.sudo.runner import run_sudo_runner
+from sase.sudo.runner import run_sudo_runner, run_sudo_runner_file
+from sase.sudo.ssh import run_remote_sudo
 
 
 def handle_sudo_command(args: argparse.Namespace) -> int:
@@ -40,14 +42,53 @@ def handle_sudo_command(args: argparse.Namespace) -> int:
     subcommand = getattr(args, "sudo_subcommand", None)
     if subcommand == "answer":
         return _answer(args)
+    if subcommand == "exec":
+        return _exec(args)
     if subcommand == "list":
         return _list(args)
     if subcommand == "request":
         return _request(args)
     if subcommand == "show":
         return _show(args)
-    print("Usage: sase sudo {answer,list,request,show}", file=sys.stderr)
+    print("Usage: sase sudo {answer,exec,list,request,show}", file=sys.stderr)
     return 1
+
+
+def _exec(args: argparse.Namespace) -> int:
+    """Target-side manifest execution entrypoint for SSH handoffs."""
+    if bool(getattr(args, "contract", False)):
+        emit_json(
+            {
+                "schema_version": 1,
+                "kind": "sase_sudo_exec",
+                "sudo_manifest_schema_version": 1,
+                "sudo_ledger_schema_version": 1,
+            }
+        )
+        return 0
+    manifest_path = getattr(args, "manifest", None)
+    expected_sha256 = getattr(args, "expected_sha256", None)
+    ledger_path = getattr(args, "ledger", None)
+    if not manifest_path or not expected_sha256 or not ledger_path:
+        raise GateError(
+            "invalid_sudo_exec",
+            "sudo.exec",
+            "--manifest, --expected-sha256, and --ledger are required",
+        )
+    if not has_controlling_tty():
+        raise GateError(
+            "tty_required",
+            "sudo.exec",
+            "sudo target execution requires a controlling TTY",
+        )
+    ledger = run_sudo_runner_file(
+        Path(str(manifest_path)),
+        manifest_sha256=str(expected_sha256),
+    )
+    destination = Path(str(ledger_path))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(ledger, sort_keys=True) + "\n", encoding="utf-8")
+    return 0
 
 
 def _request(args: argparse.Namespace) -> int:
@@ -126,25 +167,33 @@ def _approve(
         dict(sudo_payload["manifest"]),
         command_ids,
     )
+    target = sudo_payload.get("target")
     with sudo_auth_lease(
         request_id=gate_id,
         run_as=str(manifest.get("run_as") or "root"),
         cwd=str(manifest.get("cwd") or ""),
         command_ids=selected_command_ids,
     ):
-        receipt = run_sudo_runner(
-            {
-                "request_id": gate_id,
-                "manifest": manifest,
-                "manifest_sha256": manifest_sha256,
-            },
-            timeout_seconds=_runner_timeout_seconds(manifest),
-        )
+        if isinstance(target, Mapping) and bool(target.get("remote")):
+            host = str(target.get("host") or "")
+            receipt = run_remote_sudo(
+                host,
+                manifest,
+                manifest_sha256=manifest_sha256,
+                timeout_seconds=_runner_timeout_seconds(manifest),
+            )
+        else:
+            receipt = run_sudo_runner(
+                manifest,
+                manifest_sha256=manifest_sha256,
+                timeout_seconds=_runner_timeout_seconds(manifest),
+            )
     _reject_non_terminal_auth(receipt)
     normalized_receipt = validate_sudo_receipt(
         receipt,
         manifest_sha256=manifest_sha256,
         selected_command_ids=selected_command_ids,
+        manifest=manifest,
     )
     execution = execute_gate_selection(
         bundle.root,
@@ -239,30 +288,20 @@ def _retry(args: argparse.Namespace) -> Literal["resume", "restart"] | None:
 
 
 def _reject_non_terminal_auth(receipt: Mapping[str, Any]) -> None:
-    status = str(receipt.get("status") or "")
-    if status in {"authentication_failed", "cancelled", "canceled", "timeout"}:
+    outcome = str(receipt.get("outcome") or "")
+    code_by_outcome = {
+        "auth_failed": "authentication_failed",
+        "cancelled": "cancelled",
+        "tty_unavailable": "tty_required",
+        "runner_error": "runner_failed",
+    }
+    if outcome in code_by_outcome:
+        code = code_by_outcome[outcome]
         raise GateError(
-            status,
+            code,
             "sase_sudo_runner",
             "sudo runner did not approve execution; the gate remains pending",
         )
-    ledger = receipt.get("ledger")
-    if isinstance(ledger, list):
-        for index, entry in enumerate(ledger):
-            if not isinstance(entry, Mapping):
-                continue
-            entry_status = str(entry.get("status") or "")
-            if entry_status in {
-                "authentication_failed",
-                "cancelled",
-                "canceled",
-                "timeout",
-            }:
-                raise GateError(
-                    entry_status,
-                    f"sase_sudo_runner.ledger[{index}]",
-                    "sudo runner did not approve execution; the gate remains pending",
-                )
 
 
 def _sudo_payload(envelope: Mapping[str, Any]) -> dict[str, Any]:
@@ -346,10 +385,7 @@ def _response_outcome(option_results: object) -> str:
             ledger = result.get("ledger")
             if isinstance(ledger, list):
                 for entry in ledger:
-                    if (
-                        isinstance(entry, Mapping)
-                        and entry.get("status") == "command_failed"
-                    ):
+                    if isinstance(entry, Mapping) and entry.get("status") == "failed":
                         return "command_failed"
     return "completed"
 
@@ -373,10 +409,19 @@ def _error_exit_code(exc: GateError) -> int:
 
 
 def _runner_timeout_seconds(manifest: Mapping[str, Any]) -> float | None:
-    value = manifest.get("timeout_seconds")
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
+    commands = manifest.get("commands")
+    if not isinstance(commands, list):
         return None
-    return max(1.0, float(value)) + 30.0
+    total = 0.0
+    for command in commands:
+        if not isinstance(command, Mapping):
+            continue
+        value = command.get("timeout_seconds")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            total += 300.0
+        else:
+            total += max(1.0, float(value))
+    return total + 30.0 if total else None
 
 
 def _shell_payload(row: GateShellRecord) -> dict[str, Any]:

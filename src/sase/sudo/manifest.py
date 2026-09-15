@@ -77,7 +77,9 @@ def selected_sudo_manifest(
         for command in commands
         if isinstance(command, Mapping) and command.get("id") in selected_set
     ]
-    return subset, selected_ids, core.manifest_sha256(subset)
+    subset["resume_from"] = None
+    normalized = core.validate_manifest(subset)
+    return normalized, selected_ids, core.manifest_sha256(normalized)
 
 
 def _normalize_requested_ids(

@@ -18,6 +18,7 @@ from sase.dispatch.models import (
     MachineRecord,
     MachineStatus,
     validate_machine_alias,
+    validate_ssh_target,
 )
 
 
@@ -115,12 +116,35 @@ def read_alias(input_func: InputFunc, candidate: DiscoveryCandidate) -> str:
     return alias
 
 
+def read_ssh_target(
+    input_func: InputFunc,
+    candidate: DiscoveryCandidate,
+    alias: str,
+) -> str:
+    """Read the SSH target for a selected discovery candidate."""
+    suggested = _suggested_ssh_target(candidate) or alias
+    target = input_func(f"SSH target for {alias} [{suggested}]: ").strip() or suggested
+    validate_ssh_target(target)
+    return target if target != alias else ""
+
+
 def _suggested_alias(candidate: DiscoveryCandidate) -> str:
     suggested = candidate.machine_selector.strip()
     if not suggested:
         return ""
     try:
         validate_machine_alias(suggested)
+    except ValueError:
+        return ""
+    return suggested
+
+
+def _suggested_ssh_target(candidate: DiscoveryCandidate) -> str:
+    suggested = candidate.machine_selector.strip()
+    if not suggested:
+        return ""
+    try:
+        validate_ssh_target(suggested)
     except ValueError:
         return ""
     return suggested

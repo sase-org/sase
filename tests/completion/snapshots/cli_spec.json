@@ -12706,7 +12706,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "b91a5a090eb1050a",
+            "description_digest": "385de8244623293e",
             "hidden": false,
             "mutex_groups": [],
             "name": "add",
@@ -12768,6 +12768,18 @@
                 "strings": [
                   "-p",
                   "--provider"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "ssh_target",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-S",
+                  "--ssh-target"
                 ],
                 "takes_value": true
               },
@@ -13794,6 +13806,55 @@
             "path": [
               "machine",
               "repair"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "alias",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "ALIAS",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "4ef8478ef1b31d13",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "machine",
+              "show"
             ],
             "positionals": [
               {

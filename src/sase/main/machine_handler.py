@@ -61,6 +61,8 @@ def handle_machine_command(args: argparse.Namespace) -> int:
             return _handle_rename(args, service)
         if subcommand == "repair":
             return _handle_repair(args, service)
+        if subcommand == "show":
+            return _handle_show(args)
         if subcommand == "status":
             return _handle_status(args, service)
     except (DispatchError, FleetGatewayError, OSError) as exc:
@@ -107,6 +109,7 @@ def _handle_add(args: argparse.Namespace, service: MachineService) -> int:
         endpoint=endpoint,
         provider_ref=provider_ref,
         bundle_text=read_enrollment_bundle(args),
+        ssh_target=str(getattr(args, "ssh_target", "") or ""),
         timeout_seconds=getattr(args, "timeout", None),
     )
     return _activate_and_report(args, service, result, success_verb="enrolled")
@@ -177,9 +180,25 @@ def _handle_list(args: argparse.Namespace) -> int:
         for machine in config.machines:
             state = "quarantined" if machine.quarantined else "configured"
             print(
-                f"{machine.alias}\t{state}\t{machine.provider_ref}\t{machine.endpoint}"
+                f"{machine.alias}\t{state}\t{machine.provider_ref}\t"
+                f"{machine.endpoint}\tssh={machine.effective_ssh_target}"
             )
     return 1 if any(item.severity == "error" for item in config.diagnostics) else 0
+
+
+def _handle_show(args: argparse.Namespace) -> int:
+    config = load_dispatch_config()
+    alias = str(getattr(args, "alias", "") or "")
+    record = config.machine_by_alias().get(alias)
+    if record is None:
+        raise DispatchError(f"machine alias is not configured: {alias}")
+    payload = _machine_row(record)
+    if getattr(args, "json", False):
+        print(machine_json_document({"machine": payload}))
+    else:
+        for key in sorted(payload):
+            print(f"{key}\t{payload[key]}")
+    return 0
 
 
 def _handle_remove(args: argparse.Namespace, service: MachineService) -> int:
@@ -371,6 +390,8 @@ def _machine_row(machine: MachineRecord) -> dict[str, object]:
         "endpoint": machine.endpoint,
         "credential_ref": machine.credential_ref,
         "installation_pin": machine.pinned_installation_id,
+        "ssh_target": machine.effective_ssh_target,
+        "ssh_target_configured": machine.ssh_target,
         "quarantined": machine.quarantined,
         "quarantine_reason": machine.quarantine_reason,
     }

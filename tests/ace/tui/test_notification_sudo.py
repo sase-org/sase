@@ -76,8 +76,16 @@ def _sudo_request() -> dict[str, object]:
     return {
         "reason": "Refresh root-owned cache",
         "commands": [
-            {"id": "refresh", "argv": [executable, "--refresh"]},
-            {"id": "verify", "argv": [executable, "--verify"]},
+            {
+                "id": "refresh",
+                "argv": [executable, "--refresh"],
+                "why": "Refresh root-owned cache",
+            },
+            {
+                "id": "verify",
+                "argv": [executable, "--verify"],
+                "why": "Verify root-owned cache",
+            },
         ],
         "run_as": "root",
         "cwd": "/tmp",

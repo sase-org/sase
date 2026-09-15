@@ -57,7 +57,7 @@ def test_chezmoi_source_vs_applied_activation(
         use_chezmoi=True,
         registry_target=applied,
     )
-    answers = iter(["1", "fleet"])
+    answers = iter(["1", "fleet", ""])
     result = service.apply(
         input_func=lambda _prompt: next(answers),
         getpass_func=lambda _prompt: _bundle(pin),
@@ -97,7 +97,7 @@ def test_apply_failure_prints_recovery(
         use_chezmoi=True,
         registry_target=applied,
     )
-    answers = iter(["1", "fleet"])
+    answers = iter(["1", "fleet", ""])
     result = service.apply(
         input_func=lambda _prompt: next(answers),
         getpass_func=lambda _prompt: _bundle(pin),
@@ -141,7 +141,7 @@ def test_chezmoi_submit_failure_does_not_untracked_apply(
         use_chezmoi=True,
         registry_target=applied,
     )
-    answers = iter(["1", "fleet"])
+    answers = iter(["1", "fleet", ""])
     result = service.apply(
         input_func=lambda _prompt: next(answers),
         getpass_func=lambda _prompt: _bundle(pin),
@@ -195,7 +195,7 @@ def test_chezmoi_wait_failure_retains_proc_and_does_not_reapply(
         use_chezmoi=True,
         registry_target=applied,
     )
-    answers = iter(["1", "fleet"])
+    answers = iter(["1", "fleet", ""])
     result = service.apply(
         input_func=lambda _prompt: next(answers),
         getpass_func=lambda _prompt: _bundle(pin),

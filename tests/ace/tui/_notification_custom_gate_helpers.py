@@ -128,7 +128,13 @@ def _sudo_request() -> dict[str, object]:
     executable = "/usr/bin/true"
     return {
         "reason": "Refresh root-owned cache",
-        "commands": [{"id": "refresh", "argv": [executable]}],
+        "commands": [
+            {
+                "id": "refresh",
+                "argv": [executable],
+                "why": "Refresh root-owned cache",
+            }
+        ],
         "run_as": "root",
         "cwd": "/tmp",
         "env": {},

@@ -1232,6 +1232,11 @@
           "pattern": "^sase_inst_v1_[0-9a-f]{64}$",
           "description": "Authoritative remote gateway installation identity pin."
         },
+        "ssh_target": {
+          "type": "string",
+          "pattern": "^[^-\\s;&|<>`$(){}][^\\s;&|<>`$(){}]*$",
+          "description": "SSH destination used for terminal handoffs; omitted defaults to the machine alias."
+        },
         "connection_kind": {
           "type": "string",
           "enum": ["gateway", "tunnel", "direct"],

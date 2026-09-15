@@ -60,7 +60,7 @@ def test_apply_enrolls_new_candidate_beside_existing(
         _candidate(pin=pin_new),
     )
     service, fake = _service(isolated_dispatch, pin=pin_new, candidates=candidates)
-    answers = iter(["1", "fleet"])
+    answers = iter(["1", "fleet", ""])
     result = service.apply(
         input_func=lambda _prompt: next(answers),
         getpass_func=lambda _prompt: _bundle(pin_new),
@@ -87,7 +87,7 @@ def test_apply_quarantine_exits_nonzero(
     service, fake = _service(isolated_dispatch, pin=pin, candidates=(candidate,))
     fake.hello_payload["outcome"] = "quarantined"
     fake.hello_payload["quarantine"] = {"reason": "bootstrap replayed"}
-    answers = iter(["1", "fleet"])
+    answers = iter(["1", "fleet", ""])
     result = service.apply(
         input_func=lambda _prompt: next(answers),
         getpass_func=lambda _prompt: _bundle(pin),
@@ -105,7 +105,7 @@ def test_hidden_prompt_is_getpass_not_input(
     candidate = _candidate(pin=pin, selector="")
     service, _fake = _service(isolated_dispatch, pin=pin, candidates=(candidate,))
     input_prompts: list[str] = []
-    answers = iter(["1", "fleet"])
+    answers = iter(["1", "fleet", ""])
 
     def input_func(prompt: str) -> str:
         input_prompts.append(prompt)
@@ -130,7 +130,7 @@ def test_file_and_stdin_bundle_inputs(
     service, fake = _service(isolated_dispatch, pin=pin, candidates=(candidate,))
     bundle_path = tmp_path / "bundle.json"
     bundle_path.write_text(_bundle(pin), encoding="utf-8")
-    answers = iter(["1", "fleet"])
+    answers = iter(["1", "fleet", ""])
     file_result = service.apply(
         input_func=lambda _prompt: next(answers),
         getpass_func=lambda _prompt: (_ for _ in ()).throw(AssertionError("getpass")),
@@ -172,7 +172,7 @@ def test_hello_failure_prints_repair_recovery(
         raise FleetGatewayError("unavailable", code="timeout")
 
     fake.hello = hello  # type: ignore[method-assign]
-    answers = iter(["1", "fleet"])
+    answers = iter(["1", "fleet", ""])
     result = service.apply(
         input_func=lambda _prompt: next(answers),
         getpass_func=lambda _prompt: _bundle(pin),
@@ -235,7 +235,7 @@ def test_apply_keeps_working_candidates_beside_discovery_diagnostics(
         machine_service=machine,
         use_chezmoi_fn=lambda: False,
     )
-    answers = iter(["1", "fleet"])
+    answers = iter(["1", "fleet", ""])
     result = service.apply(
         input_func=lambda _prompt: next(answers),
         getpass_func=lambda _prompt: _bundle(pin),

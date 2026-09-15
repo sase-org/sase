@@ -189,7 +189,8 @@ network work, and local mutations:
 | `sase machine discover`          | Query configured discovery providers explicitly; `-p` is repeatable.                             |
 | `sase machine bootstrap`         | Issue a target-local, single-use bundle; the secret is written only to stdout.                   |
 | `sase machine init`              | Interactively discover, select, enroll, reload config, and require an authenticated hello.       |
-| `sase machine add`               | Enroll a named endpoint or discovered candidate, then share init's deploy/hello activation.      |
+| `sase machine add`               | Enroll a named endpoint or discovered candidate, optionally recording an SSH handoff target.     |
+| `sase machine show`              | Show one local machine record, including the effective SSH handoff target.                       |
 | `sase machine status`            | Run bounded authenticated hello checks for selected aliases, or every alias when none are given. |
 | `sase machine repair`            | Rotate a quarantined or mismatched enrollment with a fresh one-time bundle and activate it.      |
 | `sase machine rename` / `remove` | Change viewer-local alias state; removal also deletes the local credential reference.            |

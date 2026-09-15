@@ -18,6 +18,7 @@ MachineState = Literal["ok", "error", "quarantined", "skipped"]
 _ALIAS_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
 _REFERENCE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@-]{0,127}$")
 _INSTALLATION_ID_RE = re.compile(r"^sase_inst_v1_[0-9a-f]{64}$")
+_SSH_FORBIDDEN_CHARS = frozenset(";&|<>`$(){}")
 
 
 class DispatchError(RuntimeError):
@@ -98,6 +99,7 @@ class MachineRecord:
     endpoint: str
     credential_ref: str
     pinned_installation_id: str
+    ssh_target: str = ""
     connection_kind: str = "gateway"
     tls: _TlsSettings = field(default_factory=_TlsSettings)
     quarantined: bool = False
@@ -142,6 +144,7 @@ class MachineRecord:
             raw.get("pinned_installation_id", raw.get("installation_pin")),
             "",
         )
+        ssh_target = _string_or_default(raw.get("ssh_target"), "")
         connection_kind = _string_or_default(raw.get("connection_kind"), "gateway")
         tls = _TlsSettings.from_config(raw.get("tls"))
         quarantined = bool(raw.get("quarantined", False))
@@ -199,6 +202,20 @@ class MachineRecord:
                     ),
                 )
             )
+        if ssh_target:
+            try:
+                validate_ssh_target(ssh_target)
+            except ValueError as exc:
+                diagnostics.append(
+                    MachineDiagnostic(
+                        code="invalid_ssh_target",
+                        alias=alias,
+                        severity="error",
+                        message=(
+                            f"dispatch.machines.{alias}.ssh_target is invalid: {exc}"
+                        ),
+                    )
+                )
 
         if any(diagnostic.severity == "error" for diagnostic in diagnostics):
             return None, tuple(diagnostics)
@@ -209,6 +226,7 @@ class MachineRecord:
                 endpoint=endpoint,
                 credential_ref=credential_ref,
                 pinned_installation_id=pinned,
+                ssh_target=ssh_target,
                 connection_kind=connection_kind,
                 tls=tls,
                 quarantined=quarantined,
@@ -225,6 +243,8 @@ class MachineRecord:
             "installation_pin": self.pinned_installation_id,
             "connection_kind": self.connection_kind,
         }
+        if self.ssh_target:
+            payload["ssh_target"] = self.ssh_target
         if self.tls != _TlsSettings():
             payload["tls"] = self.tls.to_config()
         if self.quarantined:
@@ -243,6 +263,11 @@ class MachineRecord:
             "connection_kind": self.connection_kind,
             "tls": self.tls.to_plan(),
         }
+
+    @property
+    def effective_ssh_target(self) -> str:
+        """Return the concrete SSH destination for terminal handoffs."""
+        return self.ssh_target or self.alias
 
 
 @dataclass(frozen=True)
@@ -400,6 +425,20 @@ def validate_machine_alias(value: str) -> None:
         )
 
 
+def validate_ssh_target(value: str) -> None:
+    """Validate one SSH destination string as data, not shell syntax."""
+    if not isinstance(value, str) or not value:
+        raise ValueError("SSH target is required")
+    if value != value.strip():
+        raise ValueError("SSH target must not contain surrounding whitespace")
+    if value.startswith("-"):
+        raise ValueError("SSH target must not start with '-'")
+    if any(ord(ch) < 32 or ord(ch) == 127 or ch.isspace() for ch in value):
+        raise ValueError("SSH target must not contain whitespace or control characters")
+    if any(ch in _SSH_FORBIDDEN_CHARS for ch in value):
+        raise ValueError("SSH target must not contain shell metacharacters")
+
+
 def is_reference_id(value: str) -> bool:
     return bool(_REFERENCE_RE.fullmatch(value)) and not _looks_secretish(value)
 
@@ -463,4 +502,5 @@ __all__ = [
     "is_installation_id",
     "is_reference_id",
     "validate_machine_alias",
+    "validate_ssh_target",
 ]

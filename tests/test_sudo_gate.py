@@ -33,7 +33,13 @@ def _request() -> dict[str, Any]:
     assert executable is not None
     return {
         "reason": "Need to refresh root-owned package metadata",
-        "commands": [{"id": "refresh", "argv": [executable]}],
+        "commands": [
+            {
+                "id": "refresh",
+                "argv": [executable],
+                "why": "Refresh package metadata",
+            }
+        ],
         "run_as": "root",
         "cwd": "/tmp",
         "env": {"LC_ALL": "C"},
@@ -48,22 +54,50 @@ def _multi_command_request() -> dict[str, Any]:
     assert executable is not None
     request = _request()
     request["commands"] = [
-        {"id": "alpha", "argv": [executable, "--alpha"]},
-        {"id": "beta", "argv": [executable, "--beta"]},
-        {"id": "gamma", "argv": [executable, "--gamma"]},
+        {"id": "alpha", "argv": [executable, "--alpha"], "why": "Run alpha"},
+        {"id": "beta", "argv": [executable, "--beta"], "why": "Run beta"},
+        {"id": "gamma", "argv": [executable, "--gamma"], "why": "Run gamma"},
     ]
     return request
+
+
+def _runner_ledger(manifest: dict[str, Any], manifest_sha256: str) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "request_id": manifest["request_id"],
+        "manifest_sha256": manifest_sha256,
+        "outcome": "completed",
+        "entries": [
+            {
+                "id": command["id"],
+                "status": "ran",
+                "exit_code": 0,
+                "duration_seconds": 0.0,
+                "output_tail": "",
+            }
+            for command in manifest["commands"]
+        ],
+        "diagnostic": None,
+    }
+
+
+def _auth_failed_ledger(
+    manifest: dict[str, Any], manifest_sha256: str
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "request_id": manifest["request_id"],
+        "manifest_sha256": manifest_sha256,
+        "outcome": "auth_failed",
+        "entries": [],
+        "diagnostic": "authentication failed",
+    }
 
 
 def _runner_receipt(envelope: dict[str, Any]) -> dict[str, Any]:
     sudo_payload = envelope["payload"]["sudo"]
     manifest = sudo_payload["manifest"]
-    return {
-        "manifest_sha256": sudo_payload["manifest_sha256"],
-        "ledger": [
-            {"id": command["id"], "status": "ran"} for command in manifest["commands"]
-        ],
-    }
+    return _runner_ledger(manifest, sudo_payload["manifest_sha256"])
 
 
 def test_sudo_gate_creation_is_feature_flagged(gate_home: Path) -> None:
@@ -201,7 +235,12 @@ def test_sudo_approval_requires_controlling_tty_before_accepting_decision(
             gate.bundle_path,
             [APPROVE_OPTION_ID],
             source="sudo_cli",
-            option_inputs={APPROVE_OPTION_ID: {"receipt": receipt}},
+            option_inputs={
+                APPROVE_OPTION_ID: {
+                    "command_ids": ["refresh"],
+                    "receipt": receipt,
+                }
+            },
         )
 
     assert excinfo.value.code == "tty_required"
@@ -227,7 +266,12 @@ def test_sudo_approval_must_use_sudo_cli_even_with_tty(
             gate.bundle_path,
             [APPROVE_OPTION_ID],
             source="mobile",
-            option_inputs={APPROVE_OPTION_ID: {"receipt": receipt}},
+            option_inputs={
+                APPROVE_OPTION_ID: {
+                    "command_ids": ["refresh"],
+                    "receipt": receipt,
+                }
+            },
         )
 
     assert excinfo.value.code == "unsupported_sudo_approval"
@@ -282,7 +326,7 @@ def test_sudo_manifest_hash_is_part_of_kind_validation(gate_home: Path) -> None:
     del gate_home
     spec = build_sudo_gate_request(_request())
     tampered = copy.deepcopy(spec)
-    tampered["payload"]["sudo"]["manifest"]["timeout_seconds"] = 999
+    tampered["payload"]["sudo"]["manifest"]["commands"][0]["why"] = "tampered"
 
     with override_flags(agent_sudo_requests=True):
         with pytest.raises(GateError) as excinfo:
@@ -305,7 +349,10 @@ def test_sudo_runner_auth_failure_leaves_gate_answerable(
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.sudo.cli.run_sudo_runner",
-        lambda _payload, **_kwargs: {"status": "authentication_failed"},
+        lambda manifest, **kwargs: _auth_failed_ledger(
+            manifest,
+            str(kwargs["manifest_sha256"]),
+        ),
     )
 
     with override_flags(agent_sudo_requests=True):
@@ -347,15 +394,15 @@ def test_sudo_answer_runs_reviewed_command_subset(
     )
     captured_runner_payload: dict[str, Any] = {}
 
-    def fake_runner(payload: dict[str, Any], **_kwargs: Any) -> dict[str, Any]:
-        captured_runner_payload.update(payload)
-        return {
-            "manifest_sha256": payload["manifest_sha256"],
-            "ledger": [
-                {"id": command["id"], "status": "ran"}
-                for command in payload["manifest"]["commands"]
-            ],
-        }
+    def fake_runner(
+        manifest: dict[str, Any],
+        *,
+        manifest_sha256: str,
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        captured_runner_payload["manifest"] = manifest
+        captured_runner_payload["manifest_sha256"] = manifest_sha256
+        return _runner_ledger(manifest, manifest_sha256)
 
     monkeypatch.setattr("sase.sudo.cli.run_sudo_runner", fake_runner)
 
@@ -394,7 +441,10 @@ def test_sudo_answer_json_auth_failure_reports_pending_gate(
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.sudo.cli.run_sudo_runner",
-        lambda _payload, **_kwargs: {"status": "authentication_failed"},
+        lambda manifest, **kwargs: _auth_failed_ledger(
+            manifest,
+            str(kwargs["manifest_sha256"]),
+        ),
     )
 
     with override_flags(agent_sudo_requests=True):
@@ -430,7 +480,7 @@ def test_sudo_command_resource_requires_runner_receipt(
             },
         )
 
-    assert excinfo.value.code == "receipt_hash_mismatch"
+    assert excinfo.value.code == "invalid_sudo_ledger"
     assert not gate.response_path.exists()
     assert not (gate.bundle_path / DECISION_RECEIPT_FILENAME).exists()
 

@@ -113,25 +113,30 @@ def _load_sudo_request_modal_data(notification: Notification) -> SudoRequestModa
             "notification does not reference a sudo gate",
         )
     sudo_payload = _sudo_payload(envelope)
+    request = _sudo_request(sudo_payload)
     manifest = _manifest(sudo_payload)
+    review_commands = _review_commands(request)
     commands = tuple(
-        _command_data(command, index)
-        for index, command in enumerate(_commands(manifest))
+        _command_data(command, index) for index, command in enumerate(review_commands)
     )
     summary = gate_summary_from_notification(notification)
     return SudoRequestModalData(
         request_id=str(envelope.get("request_id") or notification.id),
         title=_title(envelope, summary.title if summary is not None else None),
         sender=notification.sender,
-        reason=_str_field(manifest, "reason", default=""),
+        reason=_str_field(request, "reason", default=""),
         commands=commands,
         run_as=_str_field(manifest, "run_as", default="root"),
         cwd=_str_field(manifest, "cwd", default=""),
         env=_env_items(manifest.get("env")),
-        timeout_seconds=_int_field(manifest, "timeout_seconds", default=0),
-        stop_policy=_str_field(manifest, "stop_policy", default="on_failure"),
-        output_policy=_str_field(manifest, "output_policy", default="summary"),
-        machine=_optional_str(manifest.get("machine")),
+        timeout_seconds=_manifest_timeout(manifest),
+        stop_policy=(
+            "stop_on_failure"
+            if bool(manifest.get("stop_on_failure", True))
+            else "continue_on_failure"
+        ),
+        output_policy=_str_field(manifest, "output_to_agent", default="none"),
+        machine=_target_label(sudo_payload),
         manifest_sha256=_str_field(sudo_payload, "manifest_sha256", default=""),
         risk_badges=_str_tuple(sudo_payload.get("risk_badges")),
         requester=notification_origin_agent(notification),
@@ -286,6 +291,17 @@ def _sudo_payload(envelope: Mapping[str, Any]) -> Mapping[str, Any]:
     return sudo_payload
 
 
+def _sudo_request(sudo_payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    from sase.notification_gates.models import GateError
+
+    request = sudo_payload.get("request")
+    if not isinstance(request, Mapping):
+        raise GateError(
+            "invalid_sudo_payload", "payload.sudo.request", "sudo request missing"
+        )
+    return request
+
+
 def _manifest(sudo_payload: Mapping[str, Any]) -> Mapping[str, Any]:
     from sase.notification_gates.models import GateError
 
@@ -299,14 +315,14 @@ def _manifest(sudo_payload: Mapping[str, Any]) -> Mapping[str, Any]:
     return manifest
 
 
-def _commands(manifest: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+def _review_commands(request: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     from sase.notification_gates.models import GateError
 
-    commands = manifest.get("commands")
+    commands = request.get("commands")
     if not isinstance(commands, list) or not commands:
         raise GateError(
             "invalid_sudo_payload",
-            "payload.sudo.manifest.commands",
+            "payload.sudo.request.commands",
             "sudo manifest commands missing",
         )
     normalized: list[Mapping[str, Any]] = []
@@ -314,7 +330,7 @@ def _commands(manifest: Mapping[str, Any]) -> list[Mapping[str, Any]]:
         if not isinstance(command, Mapping):
             raise GateError(
                 "invalid_sudo_payload",
-                f"payload.sudo.manifest.commands[{index}]",
+                f"payload.sudo.request.commands[{index}]",
                 "sudo command must be an object",
             )
         normalized.append(command)
@@ -354,6 +370,34 @@ def _command_data(
         argv=tuple(argv),
         executable_sha256=executable_sha256,
     )
+
+
+def _manifest_timeout(manifest: Mapping[str, Any]) -> int:
+    commands = manifest.get("commands")
+    if not isinstance(commands, list):
+        return 0
+    values: list[int] = []
+    for command in commands:
+        if not isinstance(command, Mapping):
+            continue
+        timeout = _int_field(command, "timeout_seconds", default=0)
+        if timeout:
+            values.append(timeout)
+    return max(values) if values else 0
+
+
+def _target_label(sudo_payload: Mapping[str, Any]) -> str | None:
+    target = sudo_payload.get("target")
+    if isinstance(target, Mapping):
+        requested = _optional_str(target.get("requested_machine"))
+        host = _optional_str(target.get("host"))
+        if requested and host and requested != host:
+            return f"{requested} ({host})"
+        return requested or host
+    request = sudo_payload.get("request")
+    if isinstance(request, Mapping):
+        return _optional_str(request.get("machine"))
+    return None
 
 
 def _title(envelope: Mapping[str, Any], fallback: str | None) -> str:

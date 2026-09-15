@@ -57,14 +57,22 @@ class _SudoCommand:
 
     id: str
     argv: tuple[str, ...]
+    why: str
+    timeout_seconds: float | None
+    shell: bool
     executable_sha256: str
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "id": self.id,
             "argv": list(self.argv),
+            "why": self.why,
+            "shell": self.shell,
             "executable_sha256": self.executable_sha256,
         }
+        if self.timeout_seconds is not None:
+            payload["timeout_seconds"] = self.timeout_seconds
+        return payload
 
 
 @dataclass(frozen=True)
@@ -76,9 +84,9 @@ class SudoRequest:
     run_as: str
     cwd: str
     env: dict[str, str]
-    timeout_seconds: int
-    stop_policy: str
-    output_policy: str
+    gate_timeout_seconds: int
+    stop_on_failure: bool
+    output_to_agent: str
     machine: str | None
     next_prompt: str | None
 
@@ -90,9 +98,9 @@ class SudoRequest:
             "run_as": self.run_as,
             "cwd": self.cwd,
             "env": dict(sorted(self.env.items())),
-            "timeout_seconds": self.timeout_seconds,
-            "stop_policy": self.stop_policy,
-            "output_policy": self.output_policy,
+            "gate_timeout_seconds": self.gate_timeout_seconds,
+            "stop_on_failure": self.stop_on_failure,
+            "output_to_agent": self.output_to_agent,
             "machine": self.machine,
             "next_prompt": self.next_prompt,
         }
@@ -103,16 +111,21 @@ def normalize_sudo_request(value: object) -> SudoRequest:
     data = _json_object(value, "request")
     unknown = set(data) - {
         "schema_version",
+        "why",
         "reason",
         "commands",
         "run_as",
         "cwd",
         "env",
+        "gate_timeout_seconds",
         "timeout_seconds",
         "timeout",
+        "stop_on_failure",
         "stop_policy",
+        "output_to_agent",
         "output_policy",
         "machine",
+        "next",
         "next_prompt",
     }
     if unknown:
@@ -128,43 +141,54 @@ def normalize_sudo_request(value: object) -> SudoRequest:
             "schema_version",
             "sudo request schema_version must be 1",
         )
-    reason = _required_text(data.get("reason"), "reason")
+    reason = _required_text(data.get("reason", data.get("why")), "reason")
     run_as = _run_as(data.get("run_as", "root"))
     cwd = _cwd(data.get("cwd", os.getcwd()))
     env = _env(data.get("env", {}))
-    timeout_seconds = _timeout(data.get("timeout_seconds", data.get("timeout", 300)))
-    stop_policy = _choice(
-        data.get("stop_policy", "terminate"),
-        "stop_policy",
-        {"terminate", "kill-tree"},
+    default_timeout = _optional_timeout(
+        data.get("timeout_seconds", data.get("timeout")), "timeout_seconds"
     )
-    output_policy = _choice(
-        data.get("output_policy", "bounded"),
-        "output_policy",
-        {"bounded", "discard", "tail"},
+    gate_timeout_seconds = _timeout(
+        data.get(
+            "gate_timeout_seconds",
+            data.get("timeout_seconds", data.get("timeout", 300)),
+        )
     )
+    stop_on_failure = _stop_on_failure(data)
+    output_to_agent = _output_to_agent(data)
     machine = data.get("machine")
     if machine is not None:
-        if not isinstance(machine, str) or machine not in {"", "local"}:
+        if not isinstance(machine, str):
             raise GateError(
-                "unsupported_machine",
+                "invalid_sudo_request",
                 "machine",
-                "remote sudo relay is not available in this phase",
+                "machine must be a string",
             )
-        machine = None
+        machine = machine.strip()
+        if machine in {"", "local"}:
+            machine = None
+        elif any(ord(ch) < 32 or ch.isspace() for ch in machine):
+            raise GateError(
+                "invalid_sudo_request",
+                "machine",
+                "machine must not contain whitespace or control characters",
+            )
     next_prompt = data.get("next_prompt")
+    next_value = data.get("next")
+    if next_prompt is None and isinstance(next_value, Mapping):
+        next_prompt = next_value.get("prompt")
     if next_prompt is not None:
         next_prompt = _required_text(next_prompt, "next_prompt")
-    commands = _commands(data.get("commands"))
+    commands = _commands(data.get("commands"), default_timeout=default_timeout)
     return SudoRequest(
         reason=reason,
         commands=commands,
         run_as=run_as,
         cwd=cwd,
         env=env,
-        timeout_seconds=timeout_seconds,
-        stop_policy=stop_policy,
-        output_policy=output_policy,
+        gate_timeout_seconds=gate_timeout_seconds,
+        stop_on_failure=stop_on_failure,
+        output_to_agent=output_to_agent,
         machine=machine,
         next_prompt=next_prompt,
     )
@@ -187,14 +211,21 @@ def contains_credential_shape(value: object) -> bool:
     return False
 
 
-def _commands(value: object) -> tuple[_SudoCommand, ...]:
+def _commands(
+    value: object,
+    *,
+    default_timeout: float | None,
+) -> tuple[_SudoCommand, ...]:
     if not isinstance(value, list) or not value:
         raise GateError(
             "invalid_sudo_request",
             "commands",
             "commands must be a non-empty array",
         )
-    commands = tuple(_command(item, index) for index, item in enumerate(value))
+    commands = tuple(
+        _command(item, index, default_timeout=default_timeout)
+        for index, item in enumerate(value)
+    )
     ids = [command.id for command in commands]
     duplicates = sorted({item for item in ids if ids.count(item) > 1})
     if duplicates:
@@ -206,10 +237,23 @@ def _commands(value: object) -> tuple[_SudoCommand, ...]:
     return commands
 
 
-def _command(value: object, index: int) -> _SudoCommand:
+def _command(
+    value: object,
+    index: int,
+    *,
+    default_timeout: float | None,
+) -> _SudoCommand:
     target = f"commands[{index}]"
     data = _json_object(value, target)
-    unknown = set(data) - {"id", "argv", "executable_sha256"}
+    unknown = set(data) - {
+        "id",
+        "argv",
+        "why",
+        "timeout_seconds",
+        "timeout",
+        "shell",
+        "executable_sha256",
+    }
     if unknown:
         raise GateError(
             "invalid_sudo_command",
@@ -228,6 +272,12 @@ def _command(value: object, index: int) -> _SudoCommand:
         _argument(item, f"{target}.argv[{i}]") for i, item in enumerate(raw_argv)
     )
     _reject_unsafe_argv(argv, target)
+    why = _required_text(data.get("why"), f"{target}.why")
+    timeout_seconds = _optional_timeout(
+        data.get("timeout_seconds", data.get("timeout", default_timeout)),
+        f"{target}.timeout_seconds",
+    )
+    shell = bool(data.get("shell", False))
     executable_sha256 = _executable_sha256(argv[0], target)
     declared_sha256 = data.get("executable_sha256")
     if declared_sha256 is not None and declared_sha256 != executable_sha256:
@@ -239,6 +289,9 @@ def _command(value: object, index: int) -> _SudoCommand:
     return _SudoCommand(
         id=command_id,
         argv=argv,
+        why=why,
+        timeout_seconds=timeout_seconds,
+        shell=shell,
         executable_sha256=executable_sha256,
     )
 
@@ -400,6 +453,46 @@ def _timeout(value: object) -> int:
             "invalid_timeout", "timeout_seconds", "timeout_seconds is out of range"
         )
     return value
+
+
+def _optional_timeout(value: object, target: str) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise GateError("invalid_timeout", target, f"{target} must be a number")
+    timeout = float(value)
+    if timeout <= 0 or timeout > 24 * 60 * 60:
+        raise GateError("invalid_timeout", target, f"{target} is out of range")
+    return timeout
+
+
+def _stop_on_failure(data: Mapping[str, Any]) -> bool:
+    value = data.get("stop_on_failure")
+    if value is not None:
+        if not isinstance(value, bool):
+            raise GateError(
+                "invalid_sudo_request",
+                "stop_on_failure",
+                "stop_on_failure must be a boolean",
+            )
+        return value
+    # Legacy beta requests used stop_policy for timeout cleanup, not command
+    # sequencing. The accepted values both imply the original default of
+    # stopping the reviewed batch after a failure.
+    if "stop_policy" in data:
+        _choice(data.get("stop_policy"), "stop_policy", {"terminate", "kill-tree"})
+    return True
+
+
+def _output_to_agent(data: Mapping[str, Any]) -> str:
+    value = data.get("output_to_agent")
+    if value is not None:
+        return _choice(value, "output_to_agent", {"none", "tail", "full"})
+    legacy = data.get("output_policy")
+    if legacy is None:
+        return "tail"
+    legacy_value = _choice(legacy, "output_policy", {"bounded", "discard", "tail"})
+    return {"bounded": "tail", "tail": "tail", "discard": "none"}[legacy_value]
 
 
 def _choice(value: object, target: str, allowed: set[str]) -> str:

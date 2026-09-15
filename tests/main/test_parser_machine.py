@@ -32,6 +32,7 @@ def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
         "remove",
         "rename",
         "repair",
+        "show",
         "status",
     }
 
@@ -45,7 +46,7 @@ def test_machine_help_renders_sorted_subcommands_and_defaults_to_list() -> None:
         expected
     )
     assert (
-        "{add,agent,attention,bootstrap,discover,init,list,remove,rename,repair,status}"
+        "{add,agent,attention,bootstrap,discover,init,list,remove,rename,repair,show,status}"
         in machine_parser.format_help()
     )
 
@@ -77,6 +78,7 @@ def test_machine_add_help_has_no_secret_cli_value() -> None:
     assert "ALIAS" in add_help
     assert "ENDPOINT" in add_help
     assert_metavar_option_documented(add_help, "-B", "--bootstrap-file", "PATH")
+    assert_metavar_option_documented(add_help, "-S", "--ssh-target", "TARGET")
     assert "no secret value is accepted as a command-line option" in add_help
     assert "sase machine init" in add_help
     assert "authenticated hello" in add_help

@@ -139,9 +139,14 @@ class MachineService:
         endpoint: str,
         provider_ref: str,
         bundle_text: str,
+        ssh_target: str = "",
         timeout_seconds: float | None = None,
     ) -> EnrollmentResult:
         validate_machine_alias(alias)
+        if ssh_target:
+            from .models import validate_ssh_target
+
+            validate_ssh_target(ssh_target)
         config = load_dispatch_config()
         if alias in config.machine_by_alias():
             raise MachineRegistryError(f"machine alias already exists: {alias}")
@@ -160,6 +165,7 @@ class MachineService:
             endpoint=endpoint,
             credential_ref=credential_ref,
             pinned_installation_id=bundle.pinned_installation_id,
+            ssh_target=ssh_target,
         )
         diagnostics = validate_connection_plan(record, config=config)
         errors = [item.message for item in diagnostics if item.severity == "error"]

@@ -48,7 +48,7 @@ def sudo_approve_entrypoint() -> NoReturn:
     command_ids_value = (
         submitted_command_ids if isinstance(submitted_command_ids, list) else None
     )
-    _subset, command_ids, manifest_sha256 = selected_sudo_manifest(
+    subset, command_ids, manifest_sha256 = selected_sudo_manifest(
         manifest,
         command_ids_value,
     )
@@ -56,6 +56,7 @@ def sudo_approve_entrypoint() -> NoReturn:
         receipt,
         manifest_sha256=manifest_sha256,
         selected_command_ids=command_ids,
+        manifest=subset,
     )
     print(
         json.dumps(
@@ -63,7 +64,7 @@ def sudo_approve_entrypoint() -> NoReturn:
                 "status": "approved",
                 "command_ids": list(command_ids),
                 "receipt": normalized,
-                "ledger": normalized.get("ledger", []),
+                "ledger": normalized.get("entries", []),
             },
             sort_keys=True,
         )

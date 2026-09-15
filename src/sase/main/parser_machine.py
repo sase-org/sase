@@ -70,6 +70,13 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Dispatch provider ref to store with the alias",
     )
     add_parser.add_argument(
+        "-S",
+        "--ssh-target",
+        metavar="TARGET",
+        default="",
+        help="SSH destination used for terminal handoffs; defaults to ALIAS",
+    )
+    add_parser.add_argument(
         "-t",
         "--timeout",
         type=float,
@@ -375,6 +382,19 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         description="List configured remote machine aliases from local config only.",
     )
     list_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit a schema-versioned JSON result",
+    )
+
+    show_parser = machine_subparsers.add_parser(
+        "show",
+        help="Show one configured machine alias without network IO",
+        description="Show the full local config record for one enrolled machine alias.",
+    )
+    show_parser.add_argument("alias", metavar="ALIAS", help="Configured alias to show")
+    show_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
