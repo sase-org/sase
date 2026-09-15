@@ -211,26 +211,30 @@ _FRAMEWORK_DIR_NAMES: frozenset[str] = frozenset(
 _DROP_IN_DIR_NAME = "completions"
 
 
-def _cache_managed(parts: tuple[str, ...], environ: Mapping[str, str]) -> bool:
-    """Return whether *parts* names a path inside a cache root."""
-    if ".cache" in parts:
-        return True
+def _cache_managed(path: Path, *, environ: Mapping[str, str], home: Path) -> bool:
+    """Return whether *path* names a path inside the user's cache root."""
+    expanded = path.expanduser()
     xdg_cache = environ.get("XDG_CACHE_HOME", "").strip()
-    if not xdg_cache:
+    cache_root = Path(xdg_cache).expanduser() if xdg_cache else home / ".cache"
+    try:
+        return expanded == cache_root or expanded.is_relative_to(cache_root)
+    except (OSError, ValueError):
         return False
-    cache_parts = Path(xdg_cache).expanduser().parts
-    return parts[: len(cache_parts)] == cache_parts
 
 
-def _is_framework_drop_in(path: Path, *, environ: Mapping[str, str]) -> bool:
+def _is_framework_drop_in(
+    path: Path, *, environ: Mapping[str, str], home: Path
+) -> bool:
     """Return whether *path* is a framework's third-party drop-in directory."""
-    if _cache_managed(tuple(path.parts), environ):
+    if _cache_managed(path, environ=environ, home=home):
         return False
     parts = tuple(part.lstrip(".") for part in path.parts)
     return not _FRAMEWORK_DIR_NAMES.isdisjoint(parts) and path.name == _DROP_IN_DIR_NAME
 
 
-def _is_acceptable_target(path: Path, *, environ: Mapping[str, str]) -> bool:
+def _is_acceptable_target(
+    path: Path, *, environ: Mapping[str, str], home: Path
+) -> bool:
     """Return whether a scanned *path* is a sane place to install a script.
 
     Framework plugin directories and cache roots are scanned and writable but
@@ -239,7 +243,7 @@ def _is_acceptable_target(path: Path, *, environ: Mapping[str, str]) -> bool:
     for.
     """
     parts = tuple(part.lstrip(".") for part in path.parts)
-    if _cache_managed(tuple(path.parts), environ):
+    if _cache_managed(path, environ=environ, home=home):
         return False
     if not _FRAMEWORK_DIR_NAMES.isdisjoint(parts):
         return path.name == _DROP_IN_DIR_NAME
@@ -456,7 +460,7 @@ def resolve_target(
         (
             directory
             for directory in scanned_dirs
-            if _is_framework_drop_in(directory, environ=env)
+            if _is_framework_drop_in(directory, environ=env, home=home_path)
             and (writable_fn(directory) or writable_fn(directory.parent))
         ),
         key=_drop_in_rank,
@@ -467,7 +471,8 @@ def resolve_target(
     usable = [
         directory
         for directory in scanned_dirs
-        if writable_fn(directory) and _is_acceptable_target(directory, environ=env)
+        if writable_fn(directory)
+        and _is_acceptable_target(directory, environ=env, home=home_path)
     ]
     for directory in usable:
         if _under_home(directory, home_path):

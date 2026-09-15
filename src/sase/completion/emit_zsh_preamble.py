@@ -38,7 +38,6 @@ __sase_cache_policy() {
 }
 
 __sase_candidate_lines() {
-  emulate -L zsh
   local kind=$1
   local policy
   zstyle -s ":completion:${curcontext}:" cache-policy policy ||
@@ -55,8 +54,12 @@ __sase_candidate_lines() {
 # per-keystroke pressure from tools like zsh-autosuggestions. The prefix is
 # never passed to the fast path: the full kind is fetched once and cached,
 # and `_describe` filters locally so one cached fetch serves a whole word.
+#
+# These helpers run inside zsh's completion system. Do not reset shell options
+# around compsys calls here: `_main_complete` establishes option state such as
+# `extendedglob`, and helpers like `_describe`, `compadd`, and `_alternative`
+# rely on that environment while still restoring the user's interactive state.
 __sase_candidates() {
-  emulate -L zsh
   local kind=$1
   local -a lines entries
   local line value desc
@@ -108,7 +111,6 @@ __sase_run_prompt_fragment() {
 }
 
 __sase_run_prompt_embedded() {
-  emulate -L zsh
   local kind=$1 marker=$2 fragment=$3 base=$4
   local -a lines values
   local line value
@@ -127,7 +129,6 @@ __sase_run_prompt_embedded() {
 # editor buffer was drafted in), `#name`-style xprompt references, and
 # embedded `#xprompt`, `%directive`, or `@artifact-reference` fragments.
 __sase_run_prompt() {
-  emulate -L zsh
   if __sase_run_prompt_fragment; then
     __sase_run_prompt_embedded $reply && return
   fi

@@ -30,3 +30,24 @@ def test_preamble_defines_sase_candidates_with_in_shell_cache() -> None:
     # The prefix is never passed to the fast path: the full kind is fetched
     # once and cached, and `_describe` filters locally.
     assert "__sase_run completion candidates $kind" in text
+
+
+def test_preamble_keeps_compsys_helpers_in_completion_environment() -> None:
+    text = zsh_preamble()
+    assert "Do not reset shell options" in text
+    assert "around compsys calls" in text
+    for helper in (
+        "__sase_candidate_lines",
+        "__sase_candidates",
+        "__sase_run_prompt_embedded",
+        "__sase_run_prompt",
+    ):
+        assert "emulate -L zsh" not in _function_body(text, helper)
+    assert "emulate -L zsh" in _function_body(text, "__sase_run")
+    assert "emulate -L zsh" in _function_body(text, "__sase_run_prompt_fragment")
+
+
+def _function_body(text: str, name: str) -> str:
+    match = re.search(rf"^{re.escape(name)}\(\) \{{\n(.*?)^}}$", text, re.M | re.S)
+    assert match is not None
+    return match.group(1)

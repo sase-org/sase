@@ -56,11 +56,16 @@ scripts, and redirected command output.
 (300–640 ms) on every new shell; write the script to a file instead.
 
 For zsh, the directory must be on `fpath` **before** `compinit` runs, or the completion
-silently never loads even though the file is sitting right there.
-`sase completion install` prefers a directory your shell already scans — and, when you
-run a framework like oh-my-zsh, its `completions` drop-in directory, which the framework
-guarantees is on `fpath` before `compinit`. If it has to fall back to a conventional
-directory (`~/.zfunc`), it prints the exact line to add:
+silently never loads even though the file is sitting right there. Registration as
+`_sase` is necessary, but it is not the whole story: if another directory earlier on
+`fpath` also contains `_sase`, zsh can register the command and later autoload the older
+file. Frameworks such as oh-my-zsh may prepend their own completion directories after an
+earlier user prepend, so managed startup files should reassert the managed directory's
+priority after the framework loads. `sase completion install` prefers a directory your
+shell already scans — and, when you run a framework like oh-my-zsh, its `completions`
+drop-in directory, which the framework guarantees is on `fpath` before `compinit`. If it
+has to fall back to a conventional directory (`~/.zfunc`), it prints the exact line to
+add:
 
 ```zsh
 fpath=(~/.zfunc $fpath)   # must appear BEFORE compinit
@@ -247,12 +252,29 @@ Common issues:
   status and target path. For zsh specifically, confirm the target directory appears in
   `fpath` _before_ `compinit` — `sase doctor -D -C completion.registration` catches this
   even when the script file is present.
+- **Registration says `_sase`, but completion still acts stale.** The zsh registration
+  table stores the function name, not the file that lazy autoload will choose. Run
+  `sase doctor -D -C completion.registration` to detect an older `_sase` earlier on
+  `fpath`; this commonly happens when oh-my-zsh prepends a custom completion directory
+  after an earlier `~/.zfunc` prepend.
+- **Aliases like `alias sbd='sase -p bead'` stop completing static commands or
+  options.** A failure after `-p` or `--print-command` usually means zsh loaded an older
+  grammar that does not know the root print-command option. Refresh the managed source,
+  ensure the managed `_sase` wins on `fpath`, and open a fresh shell so the old
+  autoloaded function is not reused.
+- **An empty bead-id slot completes, but a typed prefix does not.** Empty-slot success
+  only proves candidates are being fetched. Typed-prefix matching also depends on the
+  zsh completion environment around `_describe`; use a fresh shell with the repaired
+  managed script before diagnosing candidate data.
 - **Completion is slow.** A cold first `<TAB>` for a zsh script that was written but
   never `zcompile`d costs 79–84 ms; re-run `sase completion install` to compile it. A
   slow _dynamic_ value (a kinded slot) points at the candidates fast path itself —
   `sase completion candidates <kind>` directly to isolate it from shell overhead.
 - **A completion looks stale.** In-shell caches (zsh, bash) expire after
   `SASE_COMPLETION_CACHE_TTL` seconds (default 60); a new shell always starts cold.
+  Chezmoi-managed machines must regenerate the source files through
+  `sase completion deploy-chezmoi`, apply the updated chezmoi source, and then start a
+  fresh shell to pick up repaired files and previously loaded zsh functions.
 
 ### Measured Latency
 

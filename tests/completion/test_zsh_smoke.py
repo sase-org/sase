@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import os
 import pty
-import re
 import select
 import shlex
+import signal
 import shutil
 import subprocess
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -30,6 +31,12 @@ from sase.completion.model import (
 
 zsh = shutil.which("zsh")
 pytestmark = pytest.mark.skipif(zsh is None, reason="zsh is not on PATH")
+
+
+class _CompletionCapture(NamedTuple):
+    buffer: str
+    screen: str
+    options: dict[str, str]
 
 
 def _option(**overrides: object) -> OptionSpec:
@@ -201,15 +208,16 @@ def test_tab_completes_bead_plus_to_plus_one(tmp_path: Path) -> None:
     fpath_dir = tmp_path / "fpath"
     fpath_dir.mkdir()
     _write_script(fpath_dir)
-    completed = _pty_complete(tmp_path, fpath_dir, "sase bead +")
-    assert re.search(r"sase bead \+1\b", completed), completed
+    captured = _pty_capture_completion(tmp_path, fpath_dir, "sase bead +")
+    assert captured.buffer == "sase bead +1 "
 
 
 @pytest.mark.parametrize(
     ("typed", "expected"),
     [
-        ("sase -p bead sh", "sase -p bead show"),
-        ("sase --print-command bead sh", "sase --print-command bead show"),
+        ("sase bead sh", "sase bead show "),
+        ("sase -p bead sh", "sase -p bead show "),
+        ("sase --print-command bead sh", "sase --print-command bead show "),
     ],
 )
 def test_tab_completes_after_root_print_command_option(
@@ -219,35 +227,35 @@ def test_tab_completes_after_root_print_command_option(
     fpath_dir.mkdir()
     _write_live_script(fpath_dir)
 
-    completed = _pty_complete_line(tmp_path, fpath_dir, typed)
+    captured = _pty_capture_completion(tmp_path, fpath_dir, typed)
 
-    assert expected in completed, completed
-    assert "\u276f" not in completed
+    assert captured.buffer == expected
+    assert "\u276f" not in captured.screen
 
 
 @pytest.mark.parametrize(
     ("typed", "expected"),
     [
-        ("sbd sh", re.compile(r"(?:sbd|sase -p bead) show\b")),
-        ("sbd show --for", re.compile(r"(?:sbd|sase -p bead) show --format\b")),
+        ("sbd sh", "sbd show "),
+        ("sbd show --for", "sbd show --format "),
     ],
 )
 def test_alias_sbd_completes_static_bead_tree(
-    tmp_path: Path, typed: str, expected: re.Pattern[str]
+    tmp_path: Path, typed: str, expected: str
 ) -> None:
     fpath_dir = tmp_path / "fpath"
     fpath_dir.mkdir()
     _write_live_script(fpath_dir)
 
-    completed = _pty_complete_line(
+    captured = _pty_capture_completion(
         tmp_path,
         fpath_dir,
         typed,
         zshrc_extra="alias sbd='sase -p bead'\n",
     )
 
-    assert expected.search(completed), completed
-    assert "\u276f" not in completed
+    assert captured.buffer == expected
+    assert "\u276f" not in captured.screen
 
 
 def test_alias_sbd_completes_dynamic_bead_id_without_running_bead(
@@ -262,7 +270,7 @@ def test_alias_sbd_completes_dynamic_bead_id_without_running_bead(
         "zzz-fixture-beta\tBeta desc",
     )
 
-    completed = _pty_complete_line(
+    captured = _pty_capture_completion(
         tmp_path,
         fpath_dir,
         "sbd +1 ",
@@ -271,14 +279,25 @@ def test_alias_sbd_completes_dynamic_bead_id_without_running_bead(
         taps=2,
     )
 
-    assert "zzz-fixture-" in completed, completed
-    assert "\u276f" not in completed
+    assert captured.buffer == "sbd +1 zzz-fixture-"
+    assert "Alpha desc" in captured.screen
+    assert "Beta desc" in captured.screen
+    assert "\u276f" not in captured.screen
     call_lines = calls.read_text(encoding="utf-8").splitlines()
     assert call_lines == ["<completion><candidates><bead>"]
 
 
-def test_dynamic_slot_fetches_fixture_candidates_and_caches(tmp_path: Path) -> None:
-    """A kinded positional calls the fast path once, then serves the cache.
+@pytest.mark.parametrize(
+    ("use_cache", "expected_call_count"),
+    [
+        (True, "1"),
+        (False, "2"),
+    ],
+)
+def test_dynamic_slot_fetches_fixture_candidates_with_cache_contract(
+    tmp_path: Path, use_cache: bool, expected_call_count: str
+) -> None:
+    """A kinded positional obeys compsys's cache contract.
 
     Drives ``sase bead +1 <TAB><TAB>`` against a fixture ``sase`` on PATH
     that records every invocation. The plus-one spec's ``id`` positional
@@ -287,7 +306,8 @@ def test_dynamic_slot_fetches_fixture_candidates_and_caches(tmp_path: Path) -> N
     prefix so the first TAB inserts only that prefix (leaving the cursor on
     the same word) and the second TAB re-triggers completion at the same
     position -- the scenario where a stale in-shell cache would otherwise
-    cause a second fork of ``sase``.
+    cause a second fork of ``sase``. With caching disabled, the same buffer
+    assertion still holds while both TAB presses call the fast path.
     """
     fpath_dir = tmp_path / "fpath"
     fpath_dir.mkdir()
@@ -298,11 +318,102 @@ def test_dynamic_slot_fetches_fixture_candidates_and_caches(tmp_path: Path) -> N
         "zzz-fixture-beta\tBeta desc",
     )
 
-    completed = _pty_dynamic_complete(
-        tmp_path, fpath_dir, bin_dir, "sase bead +1 ", taps=2
+    captured = _pty_capture_completion(
+        tmp_path,
+        fpath_dir,
+        "sase bead +1 ",
+        bin_dir=bin_dir,
+        taps=2,
+        use_cache=use_cache,
     )
-    assert "zzz-fixture-" in completed, completed
-    assert call_count.read_text().strip() == "1"
+    assert captured.buffer == "sase bead +1 zzz-fixture-"
+    assert call_count.read_text().strip() == expected_call_count
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected", "alias"),
+    [
+        ("sbd show zzz", "sbd show zzz-completion-fixture ", True),
+        ("sbd +1 zzz", "sbd +1 zzz-completion-fixture ", True),
+        ("sase bead show zzz", "sase bead show zzz-completion-fixture ", False),
+        (
+            "sase -p bead show zzz",
+            "sase -p bead show zzz-completion-fixture ",
+            False,
+        ),
+    ],
+)
+def test_dynamic_bead_id_typed_prefix_completes_direct_and_aliased_commands(
+    tmp_path: Path, typed: str, expected: str, alias: bool
+) -> None:
+    fpath_dir = tmp_path / "fpath"
+    fpath_dir.mkdir()
+    _write_live_script(fpath_dir)
+    bin_dir, calls = _write_logged_fixture_sase(
+        tmp_path,
+        "zzz-completion-fixture\tFixture bead",
+        "other-bead\tOther bead",
+    )
+
+    captured = _pty_capture_completion(
+        tmp_path,
+        fpath_dir,
+        typed,
+        bin_dir=bin_dir,
+        zshrc_extra="alias sbd='sase -p bead'\n" if alias else "",
+    )
+
+    assert captured.buffer == expected
+    assert calls.read_text(encoding="utf-8").splitlines() == [
+        "<completion><candidates><bead>"
+    ]
+
+
+def test_dynamic_bead_id_nonmatching_prefix_leaves_buffer_unchanged(
+    tmp_path: Path,
+) -> None:
+    fpath_dir = tmp_path / "fpath"
+    fpath_dir.mkdir()
+    _write_live_script(fpath_dir)
+    bin_dir, calls = _write_logged_fixture_sase(
+        tmp_path,
+        "zzz-completion-fixture\tFixture bead",
+    )
+
+    captured = _pty_capture_completion(
+        tmp_path,
+        fpath_dir,
+        "sbd show nope",
+        bin_dir=bin_dir,
+        zshrc_extra="alias sbd='sase -p bead'\n",
+    )
+
+    assert captured.buffer == "sbd show nope"
+    assert calls.read_text(encoding="utf-8").splitlines() == [
+        "<completion><candidates><bead>"
+    ]
+
+
+def test_dynamic_completion_does_not_leak_extendedglob_to_shell(
+    tmp_path: Path,
+) -> None:
+    fpath_dir = tmp_path / "fpath"
+    fpath_dir.mkdir()
+    _write_live_script(fpath_dir)
+    bin_dir, _calls = _write_logged_fixture_sase(
+        tmp_path,
+        "zzz-completion-fixture\tFixture bead",
+    )
+
+    captured = _pty_capture_completion(
+        tmp_path,
+        fpath_dir,
+        "sase bead show zzz",
+        bin_dir=bin_dir,
+    )
+
+    assert captured.buffer == "sase bead show zzz-completion-fixture "
+    assert captured.options["extendedglob"] == "off"
 
 
 @pytest.mark.parametrize(
@@ -328,9 +439,9 @@ def test_run_prompt_completes_embedded_markers_in_spaced_prompt(
         "file:explicit:abc123\tScreenshot",
     )
 
-    completed = _pty_run_prompt_complete(tmp_path, fpath_dir, bin_dir, typed)
+    captured = _pty_capture_completion(tmp_path, fpath_dir, typed, bin_dir=bin_dir)
 
-    assert expected in completed, completed
+    assert expected in captured.buffer
 
 
 def _write_fixture_sase(tmp_path: Path, *candidate_lines: str) -> tuple[Path, Path]:
@@ -390,7 +501,7 @@ def _write_logged_fixture_sase(
     return bin_dir, calls
 
 
-def _pty_complete_line(
+def _pty_capture_completion(
     tmp_path: Path,
     fpath_dir: Path,
     typed: str,
@@ -398,23 +509,38 @@ def _pty_complete_line(
     bin_dir: Path | None = None,
     zshrc_extra: str = "",
     taps: int = 1,
-) -> str:
-    """Drive interactive zsh through TAB without executing the completed line."""
-    zdot = tmp_path / f"zdot-line-{time.monotonic_ns()}"
+    use_cache: bool = True,
+) -> _CompletionCapture:
+    """Press TAB in interactive zsh, then capture ZLE's BUFFER without Enter."""
+    nonce = time.monotonic_ns()
+    zdot = tmp_path / f"zdot-capture-{nonce}"
     zdot.mkdir()
+    capture_path = tmp_path / f"zle-buffer-{nonce}"
+    marker = f"__SASE_CAPTURE_{nonce}__"
+    cache_value = "on" if use_cache else "off"
     (zdot / ".zshrc").write_text(
-        "unsetopt zle_bracketed_paste beep\n"
+        "unsetopt zle_bracketed_paste beep extendedglob\n"
         "PS1='READY>'\n"
         "PS2=\n"
         "RPS1=\n"
-        f"fpath=({fpath_dir} $fpath)\n"
+        f"fpath=({shlex.quote(str(fpath_dir))} $fpath)\n"
         "autoload -Uz compinit\n"
         "compinit -u -D\n"
         "zstyle ':completion:*' insert-tab false\n"
         "zstyle ':completion:*' menu false\n"
         "zstyle ':completion:*' list-colors ''\n"
-        "zstyle ':completion:*' use-cache on\n"
-        f"{zshrc_extra}",
+        f"zstyle ':completion:*' use-cache {cache_value}\n"
+        f"{zshrc_extra}"
+        "__sase_capture_buffer() {\n"
+        f'  print -r -- "$BUFFER" >| {shlex.quote(str(capture_path))}\n'
+        "  print -r -- "
+        f'"extendedglob=${{options[extendedglob]}}" '
+        f">> {shlex.quote(str(capture_path))}\n"
+        "  zle -I\n"
+        f"  print -r -- {shlex.quote(marker)}\n"
+        "}\n"
+        "zle -N __sase_capture_buffer\n"
+        "bindkey '^X^B' __sase_capture_buffer\n",
         encoding="utf-8",
     )
     env = {
@@ -428,101 +554,35 @@ def _pty_complete_line(
     pid, fd = pty.fork()
     if pid == 0:
         os.execvpe("zsh", ["zsh", "-i"], env)
+    screen = b""
     try:
         _read_until(fd, b"READY>", timeout=8.0)
-        os.write(fd, typed.encode() + b"\t" * taps)
-        return _read_for(fd, 3.0).decode("utf-8", errors="replace")
+        os.write(fd, typed.encode() + b"\t" * taps + b"\x18\x02")
+        screen = _read_until(fd, marker.encode(), timeout=5.0)
+        screen += _read_for(fd, 0.2)
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if capture_path.exists():
+                payload = capture_path.read_text(encoding="utf-8").splitlines()
+                buffer = payload[0] if payload else ""
+                options: dict[str, str] = {}
+                for line in payload[1:]:
+                    key, _, value = line.partition("=")
+                    options[key] = value
+                return _CompletionCapture(
+                    buffer,
+                    screen.decode("utf-8", errors="replace"),
+                    options,
+                )
+            time.sleep(0.05)  # sase-test-wait: poll for ZLE capture file output
+        raise TimeoutError(
+            f"completion capture file was not written; screen={screen!r}"
+        )
     finally:
-        os.close(fd)
         try:
-            os.waitpid(pid, 0)
-        except ChildProcessError:
+            os.kill(pid, signal.SIGHUP)
+        except ProcessLookupError:
             pass
-
-
-def _pty_dynamic_complete(
-    tmp_path: Path, fpath_dir: Path, bin_dir: Path, typed: str, *, taps: int
-) -> str:
-    """Drive an interactive zsh through *taps* TAB presses and return the
-    captured screen text, with a fixture ``sase`` ahead on PATH and the
-    completion cache on (the documented recommended zstyle -- without it
-    ``_retrieve_cache`` never consults the cache at all)."""
-    zdot = tmp_path / "zdot"
-    zdot.mkdir()
-    (zdot / ".zshrc").write_text(
-        "unsetopt zle_bracketed_paste beep\n"
-        "PS1='READY>'\n"
-        "PS2=\n"
-        "RPS1=\n"
-        f"fpath=({fpath_dir} $fpath)\n"
-        "autoload -Uz compinit\n"
-        "compinit -u -D\n"
-        "zstyle ':completion:*' insert-tab false\n"
-        "zstyle ':completion:*' menu false\n"
-        "zstyle ':completion:*' list-colors ''\n"
-        "zstyle ':completion:*' use-cache on\n",
-        encoding="utf-8",
-    )
-    env = {
-        **os.environ,
-        "PATH": f"{bin_dir}:{os.environ['PATH']}",
-        "ZDOTDIR": str(zdot),
-        "TERM": "dumb",
-        "NO_COLOR": "1",
-    }
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.execvpe("zsh", ["zsh", "-i"], env)
-    try:
-        _read_until(fd, b"READY>", timeout=8.0)
-        os.write(fd, typed.encode() + b"\t" * taps)
-        buf = _read_for(fd, 3.0)
-        return buf.decode("utf-8", errors="replace")
-    finally:
-        os.close(fd)
-        try:
-            os.waitpid(pid, 0)
-        except ChildProcessError:
-            pass
-
-
-def _pty_run_prompt_complete(
-    tmp_path: Path, fpath_dir: Path, bin_dir: Path, typed: str
-) -> str:
-    """Drive interactive zsh through TAB on a quoted ``sase run`` prompt."""
-    zdot = tmp_path / "zdot-run"
-    zdot.mkdir()
-    (zdot / ".zshrc").write_text(
-        "unsetopt zle_bracketed_paste beep\n"
-        "PS1='READY>'\n"
-        "PS2=\n"
-        "RPS1=\n"
-        f"fpath=({fpath_dir} $fpath)\n"
-        "autoload -Uz compinit\n"
-        "compinit -u -D\n"
-        "zstyle ':completion:*' insert-tab false\n"
-        "zstyle ':completion:*' menu false\n"
-        "zstyle ':completion:*' list-colors ''\n"
-        "zstyle ':completion:*' use-cache on\n",
-        encoding="utf-8",
-    )
-    env = {
-        **os.environ,
-        "PATH": f"{bin_dir}:{os.environ['PATH']}",
-        "ZDOTDIR": str(zdot),
-        "TERM": "dumb",
-        "NO_COLOR": "1",
-    }
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.execvpe("zsh", ["zsh", "-i"], env)
-    try:
-        _read_until(fd, b"READY>", timeout=8.0)
-        os.write(fd, typed.encode() + b"\t")
-        completed = _read_for(fd, 3.0)
-        os.write(fd, b"\n")
-        return completed.decode("utf-8", errors="replace")
-    finally:
         os.close(fd)
         try:
             os.waitpid(pid, 0)
@@ -546,51 +606,6 @@ def _read_for(fd: int, seconds: float) -> bytes:
             break
         buf += chunk
     return buf
-
-
-def _pty_complete(tmp_path: Path, fpath_dir: Path, typed: str) -> str:
-    """Drive an interactive zsh through TAB and return the visible line.
-
-    Setup lives in ``ZDOTDIR/.zshrc`` so the first prompt is already a
-    fully initialized compsys, and TAB is not interleaved with setup.
-    """
-    zdot = tmp_path / "zdot"
-    zdot.mkdir()
-    (zdot / ".zshrc").write_text(
-        "unsetopt zle_bracketed_paste beep\n"
-        "PS1='READY>'\n"
-        "PS2=\n"
-        "RPS1=\n"
-        f"fpath=({fpath_dir} $fpath)\n"
-        "autoload -Uz compinit\n"
-        "compinit -u -D\n"
-        "zstyle ':completion:*' insert-tab false\n"
-        "zstyle ':completion:*' menu false\n"
-        "zstyle ':completion:*' list-colors ''\n",
-        encoding="utf-8",
-    )
-    env = {
-        **os.environ,
-        "ZDOTDIR": str(zdot),
-        "TERM": "dumb",
-        "NO_COLOR": "1",
-    }
-    pid, fd = pty.fork()
-    if pid == 0:
-        os.execvpe("zsh", ["zsh", "-i"], env)
-    try:
-        _read_until(fd, b"READY>", timeout=8.0)
-        os.write(fd, typed.encode() + b"\t")
-        completed = _read_until(fd, b"sase bead +1", timeout=5.0)
-        os.write(fd, b"\n")
-        rest = _read_until(fd, b"READY>", timeout=5.0)
-        return (completed + rest).decode("utf-8", errors="replace")
-    finally:
-        os.close(fd)
-        try:
-            os.waitpid(pid, 0)
-        except ChildProcessError:
-            pass
 
 
 def _read_until(fd: int, needle: bytes, timeout: float = 5.0) -> bytes:
