@@ -3,7 +3,7 @@ type: reference
 parent: AGENTS.md
 description: |-
   If you changed any file tracked by git in the sase repo (excluding file changes in the separate repos contained in the
-  sase/repos/ directory), you MUST read this note before you finish your turn. Verification is NOT optional.
+  sase/repos/ directory), you MUST read this note before you finish your turn.
 ---
 
 # Linting And Testing
