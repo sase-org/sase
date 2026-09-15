@@ -7,9 +7,14 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.agent.force_reuse_launch import ForceReuseLaunchPlan
+from sase.agent.force_reuse_launch import ForceReuseLaunchPlan, plan_force_reuse_launch
 from sase.agent.names import AgentNameWipePreview
 from sase.agent.restart import AgentRestartError, plan_agent_restart
+from tests.agent._launch_guard_helpers import (
+    disable,
+    install_disables,
+    pin_cli_available,
+)
 from tests._agent_restart_helpers import (
     dummy_force_plan,
     dummy_wipe_preview,
@@ -283,6 +288,39 @@ def test_plan_preflight_failure_surfaces_underlying_message(tmp_path: Path) -> N
         plan_agent_restart("02p")
     assert caught.value.reason == "preflight"
     assert caught.value.message == "name '02p' is already reserved"
+    for spy in spies.values():
+        spy.assert_not_called()
+
+
+def test_plan_refuses_hard_disabled_provider_before_mutation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_cli_available(monkeypatch)
+    install_disables(monkeypatch, {"claude": disable("claude")})
+    spies = mutation_spies()
+    artifacts = make_restartable_agent(
+        tmp_path,
+        raw_prompt="%id:02p\n%model:claude/opus\nDo the work",
+    )
+    agent = named_agent_for(artifacts)
+    with (
+        patch("sase.agent.names.find_named_agent", return_value=agent),
+        patch("sase.agent.names.lookup_registered_name", return_value=None),
+        patch(
+            "sase.agent.force_reuse_launch.plan_force_reuse_launch",
+            side_effect=plan_force_reuse_launch,
+        ),
+        patch("sase.agent.running.kill_named_agent", spies["kill"]),
+        patch("sase.agent.running.dismiss_named_agent", spies["dismiss"]),
+        patch("sase.agent.force_reuse_launch.apply_force_reuse_launch", spies["apply"]),
+        patch("sase.agent.launch_cwd.launch_agents_from_cwd", spies["launch"]),
+        pytest.raises(AgentRestartError) as caught,
+    ):
+        plan_agent_restart("02p")
+
+    assert caught.value.reason == "provider_disabled"
+    assert "claude/opus" in caught.value.message
     for spy in spies.values():
         spy.assert_not_called()
 

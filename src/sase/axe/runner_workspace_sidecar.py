@@ -29,6 +29,13 @@ class _SidecarUpstreamTarget:
     remote: str
 
 
+@dataclass(frozen=True)
+class _SidecarCommitCountResult:
+    count: int
+    error: str | None = None
+    damaged: bool = False
+
+
 def protect_sidecar_repos(
     workspace_root: Path,
     *,
@@ -81,27 +88,60 @@ def _protect_sidecar_repo(
     refuse_on_unpublished: bool,
 ) -> bool:
     """Publish or rescue one non-bead sidecar repo before cleanup."""
-    local_commits, inspect_error = _unpushed_sidecar_commit_count(repo_root)
-    if inspect_error is not None:
+    inspected = _unpushed_sidecar_commit_count(repo_root)
+    if inspected.error is not None:
+        if inspected.damaged and refuse_on_unpublished:
+            quarantined_path, quarantine_error = _quarantine_damaged_sidecar_repo(
+                repo_root
+            )
+            if quarantined_path is not None:
+                _report_sidecar_quarantine(
+                    repo_root=repo_root,
+                    quarantined_path=quarantined_path,
+                    detail=inspected.error,
+                )
+                print(
+                    "Warning: quarantined damaged sidecar repo "
+                    f"{repo_root} at {quarantined_path}; {inspected.error}",
+                    file=sys.stderr,
+                )
+                return True
+            detail = (
+                f"{inspected.error}; quarantine failed: "
+                f"{quarantine_error or 'unknown error'}"
+            )
+            _report_sidecar_eviction_failure(
+                repo_root=repo_root,
+                remaining=None,
+                recovery_ref=None,
+                detail=detail,
+            )
+            print(
+                "workspace preparation refused to evict sidecar repo "
+                f"{repo_root}: {detail}",
+                file=sys.stderr,
+            )
+            return False
         if refuse_on_unpublished:
             _report_sidecar_eviction_failure(
                 repo_root=repo_root,
                 remaining=None,
                 recovery_ref=None,
-                detail=inspect_error,
+                detail=inspected.error,
             )
             print(
                 "workspace preparation refused to evict sidecar repo "
-                f"{repo_root}: could not verify publication state: {inspect_error}",
+                f"{repo_root}: could not verify publication state: {inspected.error}",
                 file=sys.stderr,
             )
             return False
         print(
             f"Warning: could not verify sidecar publication state for {repo_root}: "
-            f"{inspect_error}",
+            f"{inspected.error}",
             file=sys.stderr,
         )
         return True
+    local_commits = inspected.count
     if local_commits <= 0:
         return True
 
@@ -111,8 +151,9 @@ def _protect_sidecar_repo(
         "publishing before workspace cleanup..."
     )
     publication = _publish_sidecar_repo(repo_root)
-    remaining, remaining_error = _unpushed_sidecar_commit_count(repo_root)
-    if remaining_error is not None:
+    remaining_inspected = _unpushed_sidecar_commit_count(repo_root)
+    remaining = remaining_inspected.count
+    if remaining_inspected.error is not None:
         remaining = local_commits
     if remaining <= 0 and publication.published:
         return True
@@ -120,7 +161,7 @@ def _protect_sidecar_repo(
         remaining = local_commits
 
     detail = (
-        remaining_error
+        remaining_inspected.error
         or publication.detail
         or "git push reported success but local sidecar commits remain"
     )
@@ -164,9 +205,17 @@ def _protect_sidecar_repo(
     return True
 
 
-def _unpushed_sidecar_commit_count(repo_root: Path) -> tuple[int, str | None]:
+def _unpushed_sidecar_commit_count(repo_root: Path) -> _SidecarCommitCountResult:
     """Return commits ahead of the configured upstream, or an error detail."""
     from sase.sdd._repository_health import default_git_runner, format_git_error
+
+    damaged_error = _uncountable_sidecar_state(repo_root)
+    if damaged_error is not None:
+        return _SidecarCommitCountResult(
+            count=0,
+            error=damaged_error,
+            damaged=True,
+        )
 
     result = default_git_runner(
         repo_root,
@@ -174,13 +223,81 @@ def _unpushed_sidecar_commit_count(repo_root: Path) -> tuple[int, str | None]:
         op="workspace.sidecar_safety.unpushed_count",
     )
     if result.returncode != 0:
-        return 0, format_git_error(
-            "could not count unpublished sidecar commits", result
+        return _SidecarCommitCountResult(
+            count=0,
+            error=format_git_error(
+                "could not count unpublished sidecar commits", result
+            ),
         )
     try:
-        return int(result.stdout.strip()), None
+        return _SidecarCommitCountResult(count=int(result.stdout.strip()))
     except ValueError:
-        return 0, f"git rev-list returned a non-integer count: {result.stdout!r}"
+        return _SidecarCommitCountResult(
+            count=0,
+            error=f"git rev-list returned a non-integer count: {result.stdout!r}",
+        )
+
+
+def _uncountable_sidecar_state(repo_root: Path) -> str | None:
+    """Return a damage detail when HEAD/upstream cannot be resolved."""
+    from sase.sdd._repository_health import default_git_runner, format_git_error
+
+    branch_result = default_git_runner(
+        repo_root,
+        ["symbolic-ref", "-q", "--short", "HEAD"],
+        op="workspace.sidecar_safety.countability_branch",
+    )
+    if branch_result.returncode != 0 or not branch_result.stdout.strip():
+        return format_git_error(
+            "could not resolve current sidecar branch",
+            branch_result,
+        )
+    branch = branch_result.stdout.strip()
+
+    head_result = default_git_runner(
+        repo_root,
+        ["rev-parse", "--verify", "HEAD"],
+        op="workspace.sidecar_safety.countability_head",
+    )
+    if head_result.returncode != 0 or not head_result.stdout.strip():
+        return format_git_error(
+            "could not resolve sidecar HEAD",
+            head_result,
+        )
+
+    remote_result = default_git_runner(
+        repo_root,
+        ["config", "--get", f"branch.{branch}.remote"],
+        op="workspace.sidecar_safety.countability_upstream_remote",
+    )
+    if remote_result.returncode != 0 or not remote_result.stdout.strip():
+        return format_git_error(
+            f"could not resolve upstream remote for branch {branch!r}",
+            remote_result,
+        )
+
+    merge_result = default_git_runner(
+        repo_root,
+        ["config", "--get", f"branch.{branch}.merge"],
+        op="workspace.sidecar_safety.countability_upstream_merge",
+    )
+    if merge_result.returncode != 0 or not merge_result.stdout.strip():
+        return format_git_error(
+            f"could not resolve upstream merge ref for branch {branch!r}",
+            merge_result,
+        )
+
+    upstream_result = default_git_runner(
+        repo_root,
+        ["rev-parse", "--verify", "@{upstream}"],
+        op="workspace.sidecar_safety.countability_upstream_ref",
+    )
+    if upstream_result.returncode != 0 or not upstream_result.stdout.strip():
+        return format_git_error(
+            f"could not resolve upstream ref for branch {branch!r}",
+            upstream_result,
+        )
+    return None
 
 
 def _publish_sidecar_repo(repo_root: Path) -> _SidecarPublicationResult:
@@ -339,11 +456,13 @@ def _verify_sidecar_publication(repo_root: Path) -> str | None:
     """Prove the sidecar HEAD is published to its configured upstream."""
     from sase.sdd._repository_health import default_git_runner, format_git_error
 
-    remaining, count_error = _unpushed_sidecar_commit_count(repo_root)
-    if count_error is not None:
-        return count_error
-    if remaining > 0:
-        return f"{remaining} local sidecar commit(s) still appear ahead of upstream"
+    remaining = _unpushed_sidecar_commit_count(repo_root)
+    if remaining.error is not None:
+        return remaining.error
+    if remaining.count > 0:
+        return (
+            f"{remaining.count} local sidecar commit(s) still appear ahead of upstream"
+        )
     ancestor = default_git_runner(
         repo_root,
         ["merge-base", "--is-ancestor", "HEAD", "@{upstream}"],
@@ -354,6 +473,40 @@ def _verify_sidecar_publication(repo_root: Path) -> str | None:
             "could not verify sidecar HEAD is reachable from upstream", ancestor
         )
     return None
+
+
+def _quarantine_damaged_sidecar_repo(
+    repo_root: Path,
+) -> tuple[Path | None, str | None]:
+    """Move an uncountable sidecar clone aside so strict launch prep can re-clone."""
+    quarantine_root = _sidecar_quarantine_root(repo_root)
+    timestamp = time.strftime("%Y%m%d%H%M%S", time.localtime())
+    base = quarantine_root / f"{repo_root.name}-{timestamp}-{os.getpid()}"
+    try:
+        quarantine_root.mkdir(parents=True, exist_ok=True)
+        destination = _unique_quarantine_destination(base)
+        repo_root.rename(destination)
+        return destination.resolve(strict=False), None
+    except OSError as exc:
+        return None, str(exc)
+
+
+def _sidecar_quarantine_root(repo_root: Path) -> Path:
+    try:
+        workspace_root = repo_root.parents[2]
+    except IndexError:
+        workspace_root = repo_root.parent
+    return workspace_root / ".sase" / "sidecar-quarantine"
+
+
+def _unique_quarantine_destination(base: Path) -> Path:
+    if not base.exists():
+        return base
+    for index in range(1, 100):
+        candidate = base.with_name(f"{base.name}-{index}")
+        if not candidate.exists():
+            return candidate
+    return base.with_name(f"{base.name}-{time.time_ns()}")
 
 
 def _format_sidecar_push_failure(
@@ -370,6 +523,36 @@ def _format_sidecar_push_failure(
         f"{format_git_error('git push failed', result)}; {reason} "
         f"(classification={classification}, attempt {attempt}/{max_attempts})"
     )
+
+
+def _report_sidecar_quarantine(
+    *,
+    repo_root: Path,
+    quarantined_path: Path,
+    detail: str,
+) -> None:
+    """Surface a damaged sidecar quarantine to the notification inbox."""
+    try:
+        from sase.notifications import notify_workflow_complete
+
+        notify_workflow_complete(
+            "sidecar-protection",
+            os.environ.get("SASE_AGENT_CL_NAME", ""),
+            False,
+            [
+                f"Quarantined damaged sidecar before workspace cleanup: {repo_root.name}",
+                detail,
+                f"Quarantined path: {quarantined_path}",
+                "The sidecar clone was preserved so local-only commits are not lost.",
+            ],
+            extra_files=[str(quarantined_path)],
+            tags=["sidecar"],
+        )
+    except Exception:
+        logger.debug(
+            "Failed to report sidecar quarantine",
+            exc_info=True,
+        )
 
 
 def _report_sidecar_eviction_failure(

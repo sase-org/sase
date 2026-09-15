@@ -37,10 +37,13 @@ def force_reuse_bead_env(
     """Return a scoped child environment delta for *association*."""
     if association is None:
         return {}
+    from sase.bead.work import SASE_BEAD_ID_ENV
+
     return {
         SASE_AGENT_FORCE_REUSE_BEAD_ENV: _encode_force_reuse_bead_association(
             association
-        )
+        ),
+        SASE_BEAD_ID_ENV: association.bead_id,
     }
 
 

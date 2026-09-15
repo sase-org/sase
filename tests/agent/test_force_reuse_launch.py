@@ -16,6 +16,7 @@ from sase.agent.launch_validation import (
     AgentNameReuseConfirmationRequiredError,
     AgentNameSyntaxError,
 )
+from sase.bead.work import SASE_BEAD_ID_ENV
 
 
 def test_plan_returns_none_without_forced_reuse() -> None:
@@ -42,6 +43,7 @@ def test_plan_collects_clan_member_owner_name() -> None:
     assert plan.segment_envs[0][SASE_AGENT_FORCE_REUSE_BEAD_ENV] == (
         '{"bead_id":"sase-op.2","owner_name":"sase-op.2"}'
     )
+    assert plan.segment_envs[0][SASE_BEAD_ID_ENV] == "sase-op.2"
 
 
 def test_plan_collects_family_member_owner_name() -> None:
@@ -55,6 +57,7 @@ def test_plan_collects_family_member_owner_name() -> None:
     assert plan.segment_envs[0][SASE_AGENT_FORCE_REUSE_BEAD_ENV] == (
         '{"bead_id":"sase-oc.4","owner_name":"sase-oc.4--plan"}'
     )
+    assert plan.segment_envs[0][SASE_BEAD_ID_ENV] == "sase-oc.4"
 
 
 def test_plan_threads_per_segment_owner_names_and_envs() -> None:
@@ -76,6 +79,8 @@ def test_plan_threads_per_segment_owner_names_and_envs() -> None:
     assert plan.segment_envs[0] is not None
     assert plan.segment_envs[1] is None
     assert plan.segment_envs[2] is not None
+    assert plan.segment_envs[0][SASE_BEAD_ID_ENV] == "sase-1"
+    assert plan.segment_envs[2][SASE_BEAD_ID_ENV] == "sase-2"
 
 
 def test_plan_raises_confirmation_required_error_never_reaches_here() -> None:

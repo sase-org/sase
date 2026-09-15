@@ -90,7 +90,11 @@ def _plan_one(
 
     assert row.name is not None
     try:
-        plan = plan_agent_restart(row.name, model_override=model_override)
+        plan = plan_agent_restart(
+            row.name,
+            model_override=model_override,
+            refuse_disabled_provider=False,
+        )
     except AgentRestartError as exc:
         return ProviderDrainSkip(
             name=row.name,

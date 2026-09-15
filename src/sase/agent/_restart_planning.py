@@ -25,6 +25,7 @@ def plan_agent_restart(
     name: str,
     *,
     model_override: str | None = None,
+    refuse_disabled_provider: bool = True,
 ) -> AgentRestartPlan:
     """Read the named agent and build a restart plan, or raise."""
     from sase.agent.force_reuse_launch import plan_force_reuse_launch
@@ -76,6 +77,8 @@ def plan_agent_restart(
         plan_force_reuse_launch=plan_force_reuse_launch,
         ensure_forced_name_reuse=ensure_forced_name_reuse,
     )
+    if refuse_disabled_provider:
+        _refuse_hard_disabled_provider(force_reuse_plan.rewritten_prompt)
     wipe_preview = preview_agent_name_wipe(meta_name)
 
     vcs_tag = extract_vcs_workflow_tag(raw_prompt) or find_vcs_workflow_tag(raw_prompt)
@@ -257,6 +260,24 @@ def _plan_force_reuse(
             message=str(exc),
             hint="Fix the stored prompt and retry.",
         ) from exc
+
+
+def _refuse_hard_disabled_provider(rewritten_prompt: str) -> None:
+    from sase.agent.launch_guard import DisabledProviderLaunchError
+
+    try:
+        from sase.agent.launch_guard import blocked_launch_units
+
+        blocked = blocked_launch_units(rewritten_prompt)
+    except Exception:
+        return
+    if not blocked:
+        return
+    raise AgentRestartError(
+        reason="provider_disabled",
+        message=str(DisabledProviderLaunchError.from_unit(blocked[0])),
+        hint="Choose an enabled model or clear the provider disable before restarting.",
+    )
 
 
 def _prompt_fans_out(prompt: str) -> bool:

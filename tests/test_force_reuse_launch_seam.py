@@ -24,6 +24,7 @@ from sase.ace.tui.actions.agent_workflow._launch_procs import LaunchProcMixin
 from sase.ace.tui.actions.agent_workflow._launch_start import AgentLaunchStartMixin
 from sase.ace.tui.actions.agent_workflow._types import PromptContext
 from sase.agent.force_reuse_bead import SASE_AGENT_FORCE_REUSE_BEAD_ENV
+from sase.bead.work import SASE_BEAD_ID_ENV
 from sase.ops.models import DurableOperationRequest
 from sase.ops.names import RUN_LAUNCH
 
@@ -212,6 +213,7 @@ def test_launch_query_consumes_authorized_payload_and_wipes_reserved_name(
     assert segment_envs[0][SASE_AGENT_FORCE_REUSE_BEAD_ENV] == (
         '{"bead_id":"sase-op.2","owner_name":"sase-op.2"}'
     )
+    assert segment_envs[0][SASE_BEAD_ID_ENV] == "sase-op.2"
 
 
 def test_launch_query_consumes_authorized_family_form(
@@ -233,6 +235,7 @@ def test_launch_query_consumes_authorized_family_form(
     assert segment_envs[0][SASE_AGENT_FORCE_REUSE_BEAD_ENV] == (
         '{"bead_id":"sase-oc.4","owner_name":"sase-oc.4--plan"}'
     )
+    assert segment_envs[0][SASE_BEAD_ID_ENV] == "sase-oc.4"
 
 
 def test_launch_query_threads_multi_prompt_segment_envs(
@@ -262,11 +265,13 @@ def test_launch_query_threads_multi_prompt_segment_envs(
     assert segment_envs[0][SASE_AGENT_FORCE_REUSE_BEAD_ENV] == (
         '{"bead_id":"sase-1","owner_name":"a"}'
     )
+    assert segment_envs[0][SASE_BEAD_ID_ENV] == "sase-1"
     assert segment_envs[1] is None
     assert segment_envs[2] is not None
     assert segment_envs[2][SASE_AGENT_FORCE_REUSE_BEAD_ENV] == (
         '{"bead_id":"sase-2","owner_name":"crew.b"}'
     )
+    assert segment_envs[2][SASE_BEAD_ID_ENV] == "sase-2"
 
 
 def test_prepared_kill_and_edit_prompt_survives_submit_then_launch_query(

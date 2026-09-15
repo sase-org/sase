@@ -125,6 +125,10 @@ def _commit_unpushed_sidecar_file(sidecar: Path) -> str:
     )
 
 
+def _damage_sidecar_unborn_head(sidecar: Path) -> None:
+    _git(sidecar, "symbolic-ref", "HEAD", "refs/heads/master")
+
+
 def _commit_remote_sidecar_file(
     tmp_path: Path,
     remote: Path,
@@ -178,6 +182,76 @@ def _fail_publish(sync_log: Path, attempts: list[Path]):
         )
 
     return publish
+
+
+def test_eviction_quarantines_unborn_head_sidecar_and_reclones(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, plans, _remote = _seed_workspace_sidecar_repo(tmp_path)
+    _damage_sidecar_unborn_head(plans)
+    clones: list[tuple[str, int, bool]] = []
+    notified: list[tuple[object, ...]] = []
+
+    def recreate_plans_sidecar(
+        workspace_dir: str, workspace_num: int, *, strict: bool = False
+    ) -> None:
+        clones.append((workspace_dir, workspace_num, strict))
+        fresh = Path(workspace_dir) / "sase" / "repos" / "plans"
+        fresh.mkdir(parents=True)
+        init_git_repo(fresh)
+
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        recreate_plans_sidecar,
+    )
+    monkeypatch.setattr(
+        "sase.notifications.notify_workflow_complete",
+        lambda *args, **kwargs: notified.append((*args, kwargs)),
+    )
+
+    cloned_sidecars = prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+    assert cloned_sidecars == {str(plans.resolve())}
+    assert (plans / ".git").is_dir()
+    quarantined = sorted((workspace / ".sase" / "sidecar-quarantine").glob("plans-*"))
+    assert len(quarantined) == 1
+    assert (quarantined[0] / ".git").is_dir()
+    assert len(notified) == 1
+    sender, _cl_name, success, notes, kwargs = notified[0]
+    assert sender == "sidecar-protection"
+    assert success is False
+    assert any("Quarantined damaged sidecar" in note for note in notes)
+    assert any(str(quarantined[0]) in note for note in notes)
+    assert kwargs["extra_files"] == [str(quarantined[0])]
+
+
+def test_eviction_refuses_when_damaged_sidecar_quarantine_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    workspace, plans, _remote = _seed_workspace_sidecar_repo(tmp_path)
+    _damage_sidecar_unborn_head(plans)
+    clones: list[tuple[str, int, bool]] = []
+    monkeypatch.setattr(
+        "sase.axe.runner_workspace_sidecar._quarantine_damaged_sidecar_repo",
+        lambda _repo: (None, "injected quarantine failure"),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+
+    with pytest.raises(_WorkspaceBeadEvictionRefused):
+        prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    assert clones == []
+    assert (plans / ".git").is_dir()
+    stderr = capsys.readouterr().err
+    assert "quarantine failed" in stderr
+    assert "injected quarantine failure" in stderr
 
 
 def test_eviction_publishes_unpushed_plans_sidecar_commit(

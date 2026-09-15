@@ -7,8 +7,10 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agent.force_reuse_launch import plan_force_reuse_launch
 from sase.agent.provider_drain import ProviderDrainError, plan_provider_drain
 from sase.agent.running_listing import RunningAgentInfo
+from sase.bead.work import SASE_BEAD_ID_ENV
 from sase.llm_provider.provider_disable import TemporaryProviderDisable
 from tests._agent_restart_helpers import (
     dummy_force_plan,
@@ -63,6 +65,16 @@ def _plan_drain(
 ):
     resolved_disable = disable if disable is not None else _hard_disable(provider)
     planned = dummy_force_plan() if force_plan is ... else force_plan
+    if callable(planned):
+        force_cm = patch(
+            "sase.agent.force_reuse_launch.plan_force_reuse_launch",
+            side_effect=planned,
+        )
+    else:
+        force_cm = patch(
+            "sase.agent.force_reuse_launch.plan_force_reuse_launch",
+            return_value=planned,
+        )
     with (
         patch(
             "sase.llm_provider.provider_disable.get_active_provider_disable",
@@ -76,10 +88,7 @@ def _plan_drain(
             "sase.agent.names.preview_agent_name_wipe",
             return_value=dummy_wipe_preview(),
         ),
-        patch(
-            "sase.agent.force_reuse_launch.plan_force_reuse_launch",
-            return_value=planned,
-        ),
+        force_cm,
     ):
         return plan_provider_drain(provider, model_override=model_override, limit=limit)
 
@@ -206,6 +215,29 @@ def test_limit_truncates_moves_and_reports_the_rest_as_capped(tmp_path: Path) ->
     capped = [s for s in plan.skips if s.reason == "capped"]
     assert len(capped) == 1
     assert plan.limit == 2
+
+
+def test_drain_relaunches_carry_each_agent_bead_env(tmp_path: Path) -> None:
+    rows: list[RunningAgentInfo] = []
+    expected_beads = ["sase-xe.1", "sase-xe.2", "sase-xe.3"]
+    for index, bead_id in enumerate(expected_beads, start=1):
+        name = f"agent{index}"
+        artifacts_dir = make_restartable_agent(
+            tmp_path,
+            name=name,
+            raw_prompt=f"%id({name}, bead={bead_id})\n#gh:sase\nDo the work",
+            suffix=f"2026081812100{index}",
+        )
+        rows.append(_row(artifacts_dir, name=name, status="WAITING"))
+    unit = _fake_unit(blocked=False, provider="codex", model="gpt-5")
+    with patch("sase.agent.launch_guard.plan_launch_units", return_value=(unit,)):
+        plan = _plan_drain(rows, force_plan=plan_force_reuse_launch)
+
+    assert [move.name for move in plan.moves] == ["agent1", "agent2", "agent3"]
+    envs = [move.restart_plan.force_reuse_plan.segment_envs[0] for move in plan.moves]
+    assert [env[SASE_BEAD_ID_ENV] if env is not None else None for env in envs] == (
+        expected_beads
+    )
 
 
 def _fake_unit(*, blocked: bool, provider: str, model: str):
