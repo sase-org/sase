@@ -134,6 +134,14 @@ def schedule_current_bead_refresh() -> _AsyncPushHandle | None:
         return None
 
 
+def schedule_bead_refresh(beads_dir: Path) -> _AsyncPushHandle | None:
+    """Best-effort post-command refresh for an explicitly selected store."""
+    try:
+        return _maybe_schedule_bead_refresh(beads_dir)
+    except Exception:
+        return None
+
+
 def refresh_current_bead_store() -> None:
     """Synchronously integrate the current remote-backed bead store."""
     from sase.bead.cli_common import resolve_beads_location

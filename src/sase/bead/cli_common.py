@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.bead.cli_location import (
     BeadsLocation,
@@ -26,6 +26,9 @@ from sase.bead.project import (
 )
 
 _logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from sase.bead.operation_context import BeadOperationContext
 
 # Backward-compatible alias for tests and downstream imports of the old module.
 _BeadsLocation = BeadsLocation
@@ -92,8 +95,17 @@ def init_beads(root: Path, beads_dirname: str) -> None:
         commit_sdd_files(root, "Initialize beads", auto_commit_type="beads")
 
 
-def get_project(*, cwd: Path | None = None) -> BeadProject:
+def get_project(
+    *,
+    cwd: Path | None = None,
+    bead_context: BeadOperationContext | None = None,
+) -> BeadProject:
     """Open the BeadProject for write operations, auto-initializing if needed."""
+    if bead_context is not None:
+        from sase.bead.operation_context import project_for_operation_context
+
+        return project_for_operation_context(bead_context)
+
     location = resolve_beads_location(cwd=cwd, require_existing=True)
     _refuse_read_only_bead_store(location, operation="mutation")
     from sase.bead.sync import bead_refresh_mode
@@ -115,8 +127,13 @@ def get_project(*, cwd: Path | None = None) -> BeadProject:
     return BeadProject(root, beads_dirname=beads_dirname)
 
 
-def get_read_view() -> BeadProject:
+def get_read_view(*, bead_context: BeadOperationContext | None = None) -> BeadProject:
     """Open the same single bead store used by write commands."""
+    if bead_context is not None:
+        from sase.bead.operation_context import read_view_for_operation_context
+
+        return read_view_for_operation_context(bead_context)
+
     location = resolve_beads_location(require_existing=True)
     if location is not None and location.read_only:
         return BeadProject(location.root, beads_dirname=location.beads_dirname)
@@ -145,13 +162,23 @@ def auto_commit_bead_store(
     cwd: Path | None = None,
     mutation_origin: str = "user",
     operation_context: Any | None = None,
+    bead_context: BeadOperationContext | None = None,
 ) -> bool:
     """Best-effort commit/push for non-in-tree SDD bead store mutations."""
     try:
         from sase.sdd.files import commit_sdd_store_files
         from sase.sdd.store import SddStore
 
-        location = resolve_beads_location(cwd=cwd, require_existing=True)
+        from sase.bead.operation_context import (
+            location_from_operation_context,
+            ownership_context_for_commit,
+        )
+
+        location = location_from_operation_context(
+            bead_context,
+            cwd=cwd,
+            require_existing=True,
+        )
         if location is None or location.is_in_tree or location.read_only:
             return False
         store = location.store or SddStore(
@@ -166,6 +193,8 @@ def auto_commit_bead_store(
             commit_kwargs["already_locked"] = True
         if mutation_origin != "user":
             commit_kwargs["mutation_origin"] = mutation_origin
+        if operation_context is None:
+            operation_context = ownership_context_for_commit(bead_context)
         if operation_context is not None:
             commit_kwargs["operation_context"] = operation_context
         return bool(
@@ -207,12 +236,13 @@ def bead_store_mutation(
     cwd: Path | None = None,
     mutation_origin: str = "user",
     operation_context: Any | None = None,
+    bead_context: BeadOperationContext | None = None,
 ) -> Iterator[_BeadStoreMutation]:
     """Keep one CLI bead mutation and its commit under one store lock."""
     from sase.bead.sync import bead_store_write_lock
 
     committed = False
-    with get_project(cwd=cwd) as project:
+    with get_project(cwd=cwd, bead_context=bead_context) as project:
         with bead_store_write_lock(project.beads_dir) as already_locked:
             mutation = _BeadStoreMutation(project)
             yield mutation
@@ -230,17 +260,22 @@ def bead_store_mutation(
                     commit_kwargs["mutation_origin"] = mutation_origin
                 if operation_context is not None:
                     commit_kwargs["operation_context"] = operation_context
+                if bead_context is not None:
+                    commit_kwargs["bead_context"] = bead_context
                 committed = auto_commit(mutation.commit_message, **commit_kwargs)
     if committed and not no_push:
-        mutation.publication_outcome = (
-            _push_committed_bead_store()
-            if cwd is None
-            else _push_committed_bead_store(cwd=cwd)
-        )
-        verified = _require_published_bead_mutation(
-            description=mutation.commit_message,
-            cwd=cwd,
-        )
+        push_kwargs: dict[str, Any] = {}
+        if cwd is not None:
+            push_kwargs["cwd"] = cwd
+        if bead_context is not None:
+            push_kwargs["bead_context"] = bead_context
+        mutation.publication_outcome = _push_committed_bead_store(**push_kwargs)
+        verify_kwargs: dict[str, Any] = {"description": mutation.commit_message}
+        if cwd is not None:
+            verify_kwargs["cwd"] = cwd
+        if bead_context is not None:
+            verify_kwargs["bead_context"] = bead_context
+        verified = _require_published_bead_mutation(**verify_kwargs)
         if verified is not None:
             mutation.publication_outcome = verified
 
@@ -249,9 +284,16 @@ def _require_published_bead_mutation(
     *,
     description: str | None,
     cwd: Path | None = None,
+    bead_context: BeadOperationContext | None = None,
 ) -> Any | None:
     """Fail the mutation when its commit never reached the canonical remote."""
-    location = resolve_beads_location(cwd=cwd, require_existing=True)
+    from sase.bead.operation_context import location_from_operation_context
+
+    location = location_from_operation_context(
+        bead_context,
+        cwd=cwd,
+        require_existing=True,
+    )
     if location is None or location.is_in_tree or location.read_only:
         return None
     return ensure_bead_mutation_published(location.beads_dir, description=description)
@@ -305,7 +347,11 @@ def ensure_bead_mutation_published(
     raise BeadPublicationError(lines[0], diagnostic="\n".join(lines))
 
 
-def _push_committed_bead_store(*, cwd: Path | None = None) -> Any | None:
+def _push_committed_bead_store(
+    *,
+    cwd: Path | None = None,
+    bead_context: BeadOperationContext | None = None,
+) -> Any | None:
     """Apply the configured push policy after the mutation lock is released."""
     try:
         from sase.sdd._commit_store import (
@@ -314,7 +360,13 @@ def _push_committed_bead_store(*, cwd: Path | None = None) -> Any | None:
         )
         from sase.sdd.store import SddStore
 
-        location = resolve_beads_location(cwd=cwd, require_existing=True)
+        from sase.bead.operation_context import location_from_operation_context
+
+        location = location_from_operation_context(
+            bead_context,
+            cwd=cwd,
+            require_existing=True,
+        )
         if location is None or location.is_in_tree:
             return None
         store = location.store or SddStore(

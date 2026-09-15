@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any, Literal, overload
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 from sase.bead.mutation_commit import (
     close_mutation_commit_message,
     mutation_commit_message,
 )
+
+if TYPE_CHECKING:
+    from sase.bead.operation_context import BeadOperationContext
 
 _BEADS_DIRNAME = "sdd/beads"
 _BEADS_DIRNAME_NON_VC = "beads"
@@ -60,9 +63,32 @@ def execute_bead_cli(argv: list[str], *, materialize: bool = False) -> int | Non
     that have no fallback of their own pass ``materialize=True`` so a bead store
     that has not been materialized yet is prepared instead of deferred.
     """
-    context = _resolve_fast_path_context(argv)
-    if context is None and materialize:
-        context = _resolve_materialized_context()
+    try:
+        if materialize:
+            try:
+                context = _resolve_fast_path_context(
+                    argv,
+                    materialize=True,
+                    terminal_errors=True,
+                )
+            except TypeError:
+                context = _resolve_fast_path_context(argv)
+                if context is None:
+                    context = _resolve_materialized_context()
+        else:
+            try:
+                context = _resolve_fast_path_context(argv, terminal_errors=True)
+            except TypeError:
+                context = _resolve_fast_path_context(argv)
+    except TypeError:
+        raise
+    except Exception as exc:
+        from sase.bead.operation_context import BeadOperationRoutingError
+
+        if not isinstance(exc, BeadOperationRoutingError):
+            raise
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
     if context is None:
         return None
 
@@ -84,7 +110,7 @@ def execute_bead_cli(argv: list[str], *, materialize: bool = False) -> int | Non
                 argv,
                 [str(path) for path in context.read_beads_dirs],
                 str(context.write_beads_dir),
-                str(Path.cwd()),
+                str(context.invocation_cwd or Path.cwd().resolve()),
                 context.relativize_design_paths,
             )
         )
@@ -97,9 +123,17 @@ def execute_bead_cli(argv: list[str], *, materialize: bool = False) -> int | Non
     published = True
     mutation_summary = outcome.get("mutation_summary")
     if isinstance(mutation_summary, dict):
-        published = _apply_mutation_side_effects(
-            context.write_beads_dir, mutation_summary
-        )
+        if context.bead_context is None:
+            published = _apply_mutation_side_effects(
+                context.write_beads_dir,
+                mutation_summary,
+            )
+        else:
+            published = _apply_mutation_side_effects(
+                context.write_beads_dir,
+                mutation_summary,
+                bead_context=context.bead_context,
+            )
 
     stdout = str(outcome.get("stdout") or "")
     stderr = str(outcome.get("stderr") or "")
@@ -111,9 +145,9 @@ def execute_bead_cli(argv: list[str], *, materialize: bool = False) -> int | Non
         sys.stderr.write(stderr)
 
     try:
-        from sase.bead.sync import schedule_current_bead_refresh
+        from sase.bead.sync import schedule_bead_refresh
 
-        schedule_current_bead_refresh()
+        schedule_bead_refresh(context.write_beads_dir)
     except Exception:
         pass
 
@@ -142,41 +176,237 @@ class _FastPathContext:
         write_beads_dir: Path,
         relativize_design_paths: bool,
         read_only: bool = False,
+        invocation_cwd: Path | None = None,
+        bead_context: BeadOperationContext | None = None,
     ) -> None:
         self.read_beads_dirs = read_beads_dirs
         self.write_beads_dir = write_beads_dir
         self.relativize_design_paths = relativize_design_paths
         self.read_only = read_only
+        self.invocation_cwd = invocation_cwd
+        self.bead_context = bead_context
 
 
-def _resolve_fast_path_context(argv: list[str]) -> _FastPathContext | None:
+def _resolve_fast_path_context(
+    argv: list[str],
+    *,
+    materialize: bool = False,
+    terminal_errors: bool = False,
+) -> _FastPathContext | None:
+    from sase.bead.operation_context import BeadOperationRoutingError
+    from sase.bead.operation_context import (
+        local_operation_context,
+        resolve_operation_context_for_targets,
+    )
+
     cwd = Path.cwd().resolve()
-    resolved = _resolve_lightweight_beads_context(cwd, include_read_only=True)
-    if resolved is None:
+    targets = _fast_path_target_operands(argv)
+    if targets is None:
         return None
-    read_beads_dirs, write_beads_dir, beads_dirname, read_only = resolved
+    bead_context: BeadOperationContext | None
+    if targets:
+        try:
+            bead_context = resolve_operation_context_for_targets(
+                targets,
+                cwd=cwd,
+                require_single_store=True,
+                for_write=_is_mutating_verb(argv),
+                materialize=materialize,
+            )
+        except BeadOperationRoutingError:
+            bead_context = local_operation_context(
+                cwd=cwd,
+                materialize=materialize,
+                require_existing=not materialize,
+            )
+            if bead_context is None:
+                if terminal_errors:
+                    raise
+                return None
+    else:
+        bead_context = local_operation_context(
+            cwd=cwd,
+            materialize=materialize,
+            require_existing=not materialize,
+        )
+    if bead_context is None:
+        return None
 
     return _FastPathContext(
-        read_beads_dirs=read_beads_dirs,
-        write_beads_dir=write_beads_dir,
-        relativize_design_paths=beads_dirname == _BEADS_DIRNAME,
-        read_only=read_only,
+        read_beads_dirs=bead_context.read_beads_dirs,
+        write_beads_dir=bead_context.write_beads_dir,
+        relativize_design_paths=bead_context.relativize_design_paths,
+        read_only=bead_context.read_only,
+        invocation_cwd=bead_context.invocation_cwd,
+        bead_context=bead_context,
     )
 
 
 def _resolve_materialized_context() -> _FastPathContext | None:
     """Resolve a write context, materializing the bead store if needed."""
-    from sase.bead.cli_common import resolve_beads_location
+    from sase.bead.operation_context import local_operation_context
 
-    location = resolve_beads_location(Path.cwd().resolve(), materialize=True)
-    if location is None:
+    bead_context = local_operation_context(
+        cwd=Path.cwd().resolve(),
+        materialize=True,
+        require_existing=False,
+    )
+    if bead_context is None:
         return None
     return _FastPathContext(
-        read_beads_dirs=[location.beads_dir],
-        write_beads_dir=location.beads_dir,
-        relativize_design_paths=location.beads_dirname == _BEADS_DIRNAME,
-        read_only=location.read_only,
+        read_beads_dirs=bead_context.read_beads_dirs,
+        write_beads_dir=bead_context.write_beads_dir,
+        relativize_design_paths=bead_context.relativize_design_paths,
+        read_only=bead_context.read_only,
+        invocation_cwd=bead_context.invocation_cwd,
+        bead_context=bead_context,
     )
+
+
+def _fast_path_target_operands(argv: list[str]) -> tuple[str, ...] | None:
+    """Return command-aware bead targets, or ``None`` for unsupported syntax."""
+
+    if not argv:
+        return None
+    verb = argv[0]
+    args = argv[1:]
+    if verb in {"search", "ready", "blocked", "stats"}:
+        return ()
+    if verb == "open":
+        return (args[0],) if len(args) == 1 and not args[0].startswith("-") else None
+    if verb == "rm":
+        return (
+            tuple(args)
+            if args and not any(arg.startswith("-") for arg in args)
+            else None
+        )
+    if verb == "update":
+        return _update_target_operands(args)
+    if verb == "dep":
+        return _dep_target_operands(args)
+    if verb == "ref":
+        return _ref_target_operands(args)
+    if verb == "close":
+        return _close_target_operands(args)
+    return ()
+
+
+def _update_target_operands(args: list[str]) -> tuple[str, ...] | None:
+    targets: list[str] = []
+    value_options = {
+        "-s",
+        "--status",
+        "-t",
+        "--title",
+        "-d",
+        "--description",
+        "-n",
+        "--notes",
+        "-D",
+        "--design",
+        "-m",
+        "--model",
+        "-a",
+        "--assignee",
+        "-x",
+        "--external-ref",
+        "-E",
+        "--epic-count",
+        "--tier",
+    }
+    prefix_options = {
+        "--status=",
+        "--title=",
+        "--description=",
+        "--notes=",
+        "--design=",
+        "--model=",
+        "--assignee=",
+        "--external-ref=",
+        "--tier=",
+    }
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if not arg.startswith("-"):
+            targets.append(arg)
+            index += 1
+            continue
+        if arg in {"-X", "--clear-external-ref"}:
+            index += 1
+            continue
+        if arg in value_options:
+            index += 2
+            if index > len(args):
+                return None
+            continue
+        if any(arg.startswith(prefix) for prefix in prefix_options):
+            index += 1
+            continue
+        return None
+    return tuple(targets) if targets else None
+
+
+def _dep_target_operands(args: list[str]) -> tuple[str, ...] | None:
+    if any(arg.startswith("-") for arg in args):
+        return None
+    match args:
+        case ["add", source, dependency]:
+            return (source, dependency)
+        case ["rm", source, *dependencies] if dependencies:
+            return (source, *dependencies)
+        case ["list"] | ["tree"]:
+            return ()
+        case _:
+            return None
+
+
+def _ref_target_operands(args: list[str]) -> tuple[str, ...] | None:
+    action = args[0] if args and args[0] in {"add", "list", "rm"} else "list"
+    action_args = args[1:] if args and action == args[0] else args
+    if action in {"add", "rm"}:
+        if len(action_args) < 2 or action_args[0].startswith("-"):
+            return None
+        return (action_args[0],)
+    if action != "list":
+        return None
+    target: str | None = None
+    for arg in action_args:
+        if arg in {"-j", "--json"}:
+            continue
+        if arg in {"-r", "--resolve"}:
+            return None
+        if arg.startswith("-"):
+            return None
+        if target is not None:
+            return None
+        target = arg
+    return () if target is None else (target,)
+
+
+def _close_target_operands(args: list[str]) -> tuple[str, ...] | None:
+    targets: list[str] = []
+    value_options = {"-n", "--note", "-r", "--reason", "-R", "--resolution"}
+    prefix_options = {"--note=", "--reason=", "--resolution="}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg in {"-f", "--force"}:
+            index += 1
+            continue
+        if arg in value_options:
+            index += 2
+            if index > len(args):
+                return None
+            continue
+        if any(arg.startswith(prefix) for prefix in prefix_options):
+            index += 1
+            continue
+        if arg.startswith("-"):
+            return None
+        targets.append(arg)
+        index += 1
+    return tuple(targets) if targets else None
 
 
 def _argv_requests_at_path(argv: list[str]) -> bool:
@@ -253,7 +483,10 @@ def _resolve_lightweight_beads_context(
 
 
 def _apply_mutation_side_effects(
-    write_beads_dir: Path, mutation_summary: dict[str, Any]
+    write_beads_dir: Path,
+    mutation_summary: dict[str, Any],
+    *,
+    bead_context: BeadOperationContext | None = None,
 ) -> bool:
     """Commit and publish a Rust fast-path mutation.
 
@@ -284,7 +517,10 @@ def _apply_mutation_side_effects(
             )
         else:
             message = mutation_commit_message(operation, issue_ids)
-        if message and auto_commit_bead_store(message):
+        commit_kwargs: dict[str, Any] = {}
+        if bead_context is not None:
+            commit_kwargs["bead_context"] = bead_context
+        if message and auto_commit_bead_store(message, **commit_kwargs):
             committed_message = message
     except Exception:
         return True
