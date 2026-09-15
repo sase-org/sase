@@ -1,4 +1,4 @@
-"""Agent start entry point facade for the ace TUI app."""
+"""Agent start entry point facade for sase's TUI app."""
 
 from __future__ import annotations
 

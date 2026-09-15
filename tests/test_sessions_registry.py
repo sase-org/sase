@@ -47,7 +47,7 @@ def _write_record(session_id: str, **overrides: object) -> Path:
         "project": "sase",
         "workspace_num": 27,
         "cwd": "/tmp",
-        "title": "sase ace",
+        "title": "sase tui",
     }
     record.update(overrides)
     path = session_record_path(session_id)

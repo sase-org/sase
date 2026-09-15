@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for general Agents-tab list states.
+"""sase's TUI PNG visual snapshots for general Agents-tab list states.
 
 Family and clan list snapshots live in the sibling ``*_families`` and
 ``*_clans`` modules. Agents-tab modal and detail snapshots live in the other

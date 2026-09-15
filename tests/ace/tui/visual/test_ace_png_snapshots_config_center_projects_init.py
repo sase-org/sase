@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the Projects-tab InitPlanModal."""
+"""sase's TUI PNG visual snapshots for the Projects-tab InitPlanModal."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Watcher dirty-surface routing for ACE TUI refreshes."""
+"""Watcher dirty-surface routing for sase's TUI refreshes."""
 
 from __future__ import annotations
 

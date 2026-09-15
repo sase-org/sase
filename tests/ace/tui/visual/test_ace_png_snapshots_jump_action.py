@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot for the prompt jump action chooser."""
+"""sase's TUI PNG visual snapshot for the prompt jump action chooser."""
 
 from __future__ import annotations
 

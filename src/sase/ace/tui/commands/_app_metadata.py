@@ -1,4 +1,4 @@
-"""App action metadata for the ace TUI command catalog.
+"""App action metadata for sase's TUI command catalog.
 
 The (action, label, category, tabs, aliases) table is split across sibling
 modules to keep each file under the 500-line cap:

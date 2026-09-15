@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the updates badge states."""
+"""sase's TUI PNG visual snapshots for the updates badge states."""
 
 from __future__ import annotations
 

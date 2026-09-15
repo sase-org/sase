@@ -1,4 +1,4 @@
-"""One asynchronous clipboard-delivery seam for the ACE TUI."""
+"""One asynchronous clipboard-delivery seam for sase's TUI."""
 
 from __future__ import annotations
 

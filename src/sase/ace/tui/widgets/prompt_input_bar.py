@@ -1,4 +1,4 @@
-"""Prompt input bar widget for agent workflow in the ace TUI."""
+"""Prompt input bar widget for agent workflow in sase's TUI."""
 
 from __future__ import annotations
 

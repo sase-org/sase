@@ -16,7 +16,6 @@ _RegistrarSpec = tuple[str, str]
 # does not import unrelated command trees. Aliases share one registrar and are
 # deduplicated when the full parser is built.
 _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
-    "ace": ("sase.main.parser_ace", "register_ace_parser"),
     "agent": ("sase.main.parser_agent", "register_agent_parser"),
     "agent-cli": ("sase.main.parser_agent_cli", "register_agent_cli_parser"),
     "artifact": ("sase.main.parser_artifact", "register_artifact_parser"),
@@ -76,6 +75,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "task": ("sase.main.parser_proc", "register_proc_parser"),
     "telemetry": ("sase.main.parser_telemetry", "register_telemetry_parser"),
     "tmux-agent": ("sase.main.parser_tmux_agent", "register_tmux_agent_parser"),
+    "tui": ("sase.main.parser_ace", "register_ace_parser"),
     "update": ("sase.main.parser_update", "register_update_parser"),
     "usage": ("sase.main.parser_usage", "register_usage_parser"),
     "validate": ("sase.main.parser_validate", "register_validate_parser"),

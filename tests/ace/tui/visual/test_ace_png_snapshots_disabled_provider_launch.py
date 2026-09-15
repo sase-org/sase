@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for the disabled-provider launch panel."""
+"""sase's TUI PNG snapshots for the disabled-provider launch panel."""
 
 from __future__ import annotations
 

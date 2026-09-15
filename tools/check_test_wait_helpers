@@ -361,7 +361,7 @@ def main() -> int:
     print(
         "Private test bounded waits are retired. Use "
         "sase.ace.testing.wait.wait_for for raw Textual pilots, "
-        "sase.ace.testing.set_agent_prompt_document for ACE prompt-panel "
+        "sase.ace.testing.set_agent_prompt_document for TUI prompt-panel "
         "document injection, or give non-pilot harness waits a "
         "domain-specific name. Positive literal test sleeps must use "
         "an inline '# sase-test-wait: <reason>' pragma, or be replaced by "

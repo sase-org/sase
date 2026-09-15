@@ -1,4 +1,4 @@
-"""TTL-cached agent-family plan/bead preview resolution for the ACE TUI.
+"""TTL-cached agent-family plan/bead preview resolution for sase's TUI.
 
 Mirrors :mod:`sase.ace.tui.models.agent_bead`'s ``_BeadDisplayCache`` shape.
 The cache expresses three states for one family's cache key:

@@ -1,4 +1,4 @@
-"""Image preview helpers for the ACE TUI."""
+"""Image preview helpers for sase's TUI."""
 
 from .capability import ImageRenderContext, has_truecolor, image_render_context
 from .cell import (

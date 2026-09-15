@@ -60,7 +60,7 @@ invocation inside a SASE-launched agent session, the shared commit finalizer che
 main workspace and configured Git linked repos for uncommitted state at their resolved
 workspace directories. The
 `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` command records
-manually opened linked workspaces for ACE context, and `-p/--project` names the
+manually opened linked workspaces for sase's TUI context, and `-p/--project` names the
 configured linked repo's backing project record. If enforced work is dirty, the
 finalizer sends bounded follow-up prompts to the same provider with a structured
 instruction to invoke the matching commit skill (for example `/sase_git_commit` for
@@ -198,4 +198,4 @@ contribute to the resolver, not which providers exist.
 - [VCS providers](../../vcs.md) — provider selection tiers, per-command VCS usage,
   provider-specific details.
 - [\[06\] Patches in Practice — Review State Outside the Chat](changespecs-in-practice.md)
-  — what the commit/PR flow writes to, and how ACE reviews it.
+  — what the commit/PR flow writes to, and how sase's TUI reviews it.

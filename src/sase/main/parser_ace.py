@@ -1,4 +1,4 @@
-"""Argument parser definitions for ace and axe subcommands."""
+"""Argument parser definitions for the TUI and axe subcommands."""
 
 import argparse
 
@@ -29,10 +29,10 @@ def _positive_float(value: str) -> float:
 
 
 def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
-    """Register the 'ace' subcommand parser."""
+    """Register the 'tui' subcommand parser."""
     ace_parser = subparsers.add_parser(
-        "ace",
-        help="Interactively navigate through Patches matching a query",
+        "tui",
+        help="Open sase's TUI for agents, Patches, artifacts, notifications, and axe",
     )
     # Optional positional argument with default
     ace_parser.add_argument(
@@ -44,7 +44,7 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
         'Examples: \'"feature" AND "Ready"\', \'"myproject" OR "bugfix"\', '
         "'!!! AND @myproject'",
     )
-    # Options for 'ace' (keep sorted alphabetically by long option name)
+    # Options for 'tui' (keep sorted alphabetically by long option name)
     ace_parser.add_argument(
         "-m",
         "--model-tier",

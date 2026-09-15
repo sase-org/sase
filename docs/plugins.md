@@ -58,19 +58,19 @@ uv tool install sase --with sase-github
 
 The recommended way to add a plugin to an existing managed install is the
 [**Updates** tab of the SASE Admin Center](configuration.md#updates-tab): press `#`
-inside `sase ace`, switch to the **Updates** tab, highlight the plugin, and press `i` to
-install. To install several plugins from ACE, mark installable rows with `I` / `Space`,
-then press `i` once; ACE previews one combined `uv` operation before changing the
-environment. A single-plugin preview offers both an explicit git variant and the
-default-source variant; when public PyPI definitively lacks the distribution the default
-variant already resolves to git automatically, so no redundant duplicate variant is
-offered. Otherwise press `g` in the confirmation modal to switch to the git variant
+inside `sase tui`, switch to the **Updates** tab, highlight the plugin, and press `i` to
+install. To install several plugins from sase's TUI, mark installable rows with `I` /
+`Space`, then press `i` once; sase's TUI previews one combined `uv` operation before
+changing the environment. A single-plugin preview offers both an explicit git variant
+and the default-source variant; when public PyPI definitively lacks the distribution the
+default variant already resolves to git automatically, so no redundant duplicate variant
+is offered. Otherwise press `g` in the confirmation modal to switch to the git variant
 before confirming. Install confirmations show the exact `uv` command and selected
 source; a batch preview also lists every included or skipped plugin, each with its own
 resolved source. Use `Ctrl+D` / `Ctrl+U` when a preview overflows. Install previews do
 not fetch incoming commit subjects—the repository-grouped commit pane is available on
-update confirmations when ACE has an installed commit range to compare. The equivalent
-CLI for one plugin is `sase plugin install github`.
+update confirmations when sase's TUI has an installed commit range to compare. The
+equivalent CLI for one plugin is `sase plugin install github`.
 
 ## Plugin Catalog (`sase plugin list` / `sase plugin show`)
 
@@ -81,7 +81,7 @@ listing purely by gaining or losing the topic, with no code change.
 
 > The same browse / install / update / uninstall operations are available interactively
 > in the
-> [**Updates** tab of the `sase ace` SASE Admin Center modal](configuration.md#updates-tab)
+> [**Updates** tab of the `sase tui` SASE Admin Center modal](configuration.md#updates-tab)
 > (`#`), which reuses this catalog and these renderers for CLI parity and adds a SASE
 > Core panel for `sase update`.
 
@@ -276,7 +276,7 @@ Axe restarted (pid 12345) to load the updated code.
   editable sources.
 - **Restart behavior is automatic after real code changes.** In the CLI, SASE restarts
   axe when it is running so the daemon loads the new code. In the Admin Center Updates
-  tab, SASE restarts ACE and axe through the same restart path as the `Q` restart
+  tab, SASE restarts sase's TUI and axe through the same restart path as the `Q` restart
   action. No-op and failed updates do not restart anything.
 - **The Admin Center mirrors the split.** On a highlighted **Plugins** row in the
   Updates tab, `U` updates that installed plugin and `m` switches install mode.
@@ -380,7 +380,7 @@ matters:
 
 Ordinary readers and the writer remain non-blocking and fail fast rather than queueing:
 a waiting reader may already hold pre-swap imports, and a waiting writer would stall
-ACE. The approved-epic bootstrap can wait safely because it has not imported the
+sase's TUI. The approved-epic bootstrap can wait safely because it has not imported the
 editable package yet. Set `SASE_DISABLE_CODE_SWAP_LOCK=1` to bypass the mechanism
 entirely (both the barrier and the warning). Direct readers still have one accepted
 residual race: one that starts while a swap is already underway can import torn modules
@@ -404,8 +404,8 @@ of updating within one:
   through `uv`.
 - Switching to the mode you are already in is a no-op. `-n|--dry-run` previews the plan;
   without `-y|--yes` an interactive confirmation is required, and cancelling exits
-  non-zero. A changed switch restarts axe (and ACE plus axe when driven from the Updates
-  tab) through the shared restart path.
+  non-zero. A changed switch restarts axe (and sase's TUI plus axe when driven from the
+  Updates tab) through the shared restart path.
 - **In the Admin Center Updates tab, highlight a Plugins row and press `m`** to switch
   mode interactively: it shows the current mode and dev root, confirms, runs the switch
   as a proc, and shows a restart toast.
@@ -446,7 +446,7 @@ sase plugin install github -j       # stable machine-readable JSON (also on upda
   failure keeps resolving from the index instead of silently switching source on an
   outage. Pass `-g|--git` to force the repository install regardless of index state; a
   forced `--git` never probes PyPI. The resolved `source` (`catalog`, `git`, or
-  `passthrough`) is reported in `-j|--json` output and ACE's install confirmation.
+  `passthrough`) is reported in `-j|--json` output and sase's TUI install confirmation.
 - **The receipt is the source of truth.** uv's `--with X` _replaces_ the injected set
   rather than appending to it, so both commands reconstruct the **full** `--with` set
   from sase's `uv-receipt.toml` — faithfully preserving existing plugins, editable/dev
@@ -469,7 +469,7 @@ sase plugin install github -j       # stable machine-readable JSON (also on upda
 - **Restart after real package changes.** Like `sase update`, `sase plugin install`,
   `update`, and `uninstall` restart the axe daemon from the CLI when uv actually changed
   installed packages, and show an operation-specific post-restart toast when driven from
-  ACE. The JSON payload carries the same restart status shape as `sase update`.
+  sase's TUI. The JSON payload carries the same restart status shape as `sase update`.
 
 ### Removing a plugin (`sase plugin uninstall`)
 

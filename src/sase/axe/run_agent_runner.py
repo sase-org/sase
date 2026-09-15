@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Background run agent runner for sase ace TUI.
+"""Background run agent runner for sase's TUI.
 
-This script is launched by the ace TUI to run custom agents in the background.
+This script is launched by the TUI to run custom agents in the background.
 It handles workspace cleanup and releases the workspace upon completion.
 
 ``main`` owns admission control -- dependency waits, code refresh, repeat-stop

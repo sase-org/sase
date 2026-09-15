@@ -1,7 +1,7 @@
 """Tests for named-agent kill persistence and notification cleanup.
 
 When the user kills an agent via the Telegram "Kill" button, gchat, or
-``sase agent kill``, the agent ought to disappear from ``sase ace``'s
+``sase agent kill``, the agent ought to disappear from ``sase tui``'s
 agents tab the same way an ``x`` press in the TUI does. The kill path
 must therefore add the agent's identity to ``~/.sase/dismissed_agents.json``
 and dismiss matching notifications after successful live or stale cleanup.

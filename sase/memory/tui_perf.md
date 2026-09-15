@@ -32,7 +32,7 @@ serial app message pump. Reuse these established fixes; don't invent new paths.
    flows submit through `_submit_launch_proc()` / `_submit_cleanup_proc()`
    (`LaunchProcMixin` / `CleanupProcMixin`), which delegate to `submit_agent_launch()` /
    `submit_agent_cleanup()` in `agent_durable`; Patch actions use
-   `submit_patch_operation()`. ACE observes these procs read-only through
+   `submit_patch_operation()`. sase's TUI observes these procs read-only through
    `ProcActionsMixin`. They appear in the proc indicator/Procs tab, dedup submissions,
    count at quit, and leave records. Shape: optimistic UI → sync worker returning a
    typed outcome → UI-thread `on_complete` effects.
@@ -91,7 +91,7 @@ Perceived causes are usually wrong; profile before and after.
   stacks and recovery rows to `~/.sase/logs/tui_stalls.jsonl`, naming the stuck await.
   Lower `SASE_TUI_STALL_*` / `SASE_TUI_PUMP_STALL_*` thresholds for short verification
   runs.
-- `sase ace --profile [path]` — pyinstrument profile of the event loop.
+- `sase tui --profile [path]` — pyinstrument profile of the event loop.
 - `SASE_TUI_PERF=1` — per-j/k key-to-paint JSONL at `~/.sase/perf/tui_jk.jsonl`; target
   p95 < 16 ms on every tab.
 - `SASE_TUI_TRACE=1` — hot-path span JSONL at `~/.sase/perf/tui_trace.jsonl`

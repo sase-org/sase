@@ -1,4 +1,4 @@
-"""Workflow selection modal for the ace TUI."""
+"""Workflow selection modal for sase's TUI."""
 
 from textual.app import ComposeResult
 from textual.containers import Container

@@ -61,7 +61,7 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     key_sequence_display(cm.prefix, commits_copy["snapshot"]),
-                    "Copy sase ace snapshot",
+                    "Copy sase tui snapshot",
                 ),
             ],
         ),
@@ -103,7 +103,7 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     key_sequence_display(cm.prefix, beads_copy["snapshot"]),
-                    "Copy sase ace snapshot",
+                    "Copy sase tui snapshot",
                 ),
             ],
         ),
@@ -149,7 +149,7 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     key_sequence_display(cm.prefix, plans_copy["snapshot"]),
-                    "Copy sase ace snapshot",
+                    "Copy sase tui snapshot",
                 ),
             ],
         ),
@@ -191,7 +191,7 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     key_sequence_display(cm.prefix, files_copy["snapshot"]),
-                    "Copy sase ace snapshot",
+                    "Copy sase tui snapshot",
                 ),
             ],
         ),
@@ -213,7 +213,7 @@ def copy_mode_sections(km: KeymapRegistry) -> Sections:
                     key_sequence_display(cm.prefix, cs_copy["reference"]),
                     "Copy @patch reference",
                 ),
-                (f"{d(cm.prefix)}{d(cs_copy['snapshot'])}", "Copy sase ace snapshot"),
+                (f"{d(cm.prefix)}{d(cs_copy['snapshot'])}", "Copy sase tui snapshot"),
             ],
         ),
     ]

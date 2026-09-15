@@ -1,4 +1,4 @@
-"""Event-driven artifact-directory watcher for the ace TUI.
+"""Event-driven artifact-directory watcher for sase's TUI.
 
 Phase 5 of sdd/tales/202604/instant_jk_navigation.md (bead sase-u.5). The TUI
 historically polled disk every 10 s to discover new agents, status flips,

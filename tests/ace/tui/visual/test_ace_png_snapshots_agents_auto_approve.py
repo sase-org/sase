@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Agents-tab auto-approve metadata."""
+"""sase's TUI PNG visual snapshots for Agents-tab auto-approve metadata."""
 
 from __future__ import annotations
 

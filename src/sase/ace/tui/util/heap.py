@@ -1,6 +1,6 @@
-"""Opt-in heap sampler for the long-lived ACE TUI.
+"""Opt-in heap sampler for long-lived sessions of sase's TUI.
 
-Set ``SASE_TUI_HEAP=1`` before starting ``sase ace`` to enable periodic
+Set ``SASE_TUI_HEAP=1`` before starting ``sase tui`` to enable periodic
 ``tracemalloc`` snapshots. Snapshot collection runs from a pump-free task and
 writes compact top-site JSONL records to ``~/.sase/perf/tui_heap.jsonl`` by
 default.
@@ -71,7 +71,7 @@ def _positive_int_env(name: str, default: int) -> int:
 
 
 class TUIHeapSampler:
-    """Periodic ``tracemalloc`` snapshot writer for one ACE app process."""
+    """Periodic ``tracemalloc`` snapshot writer for one TUI app process."""
 
     def __init__(
         self,

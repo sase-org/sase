@@ -53,8 +53,8 @@ def main() -> NoReturn:
     # COMMAND HANDLERS (keep sorted alphabetically to match parser order)
     # =========================================================================
 
-    # --- ace ---
-    if args.command == "ace":
+    # --- tui ---
+    if args.command == "tui":
         from .ace_handler import handle_ace_command
 
         handle_ace_command(args)

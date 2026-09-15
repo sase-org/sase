@@ -3,7 +3,7 @@
 A restart stops the agent and wipes its name before relaunching, so the
 rewritten prompt is snapshotted under ``~/.sase/restarts`` first: if the wipe
 or the relaunch fails, the operator still has the reviewed prompt and launch
-context needed to recover it through the normal ACE launch surface.
+context needed to recover it through the normal sase's TUI launch surface.
 """
 
 from __future__ import annotations
@@ -83,7 +83,9 @@ def _write_recovery_files(plan: AgentRestartPlan, dest: Path) -> None:
             "saved_prompt": "rewritten.md",
             "execution_prompt": "execution.md",
             "direct_cli_supported": False,
-            "procedure": "Review rewritten.md in ACE before relaunching forced reuse.",
+            "procedure": (
+                "Review rewritten.md in sase's TUI before relaunching forced reuse."
+            ),
         },
     }
     (dest / "restart.json").write_text(

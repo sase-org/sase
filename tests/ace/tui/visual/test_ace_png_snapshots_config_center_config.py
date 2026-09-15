@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Config Center Config surfaces.
+"""sase's TUI PNG visual snapshots for Config Center Config surfaces.
 
 The Config tab is fed a deterministic fixture inventory by patching
 ``config_pane._load_config_view`` so no real config files are read.

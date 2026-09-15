@@ -33,12 +33,12 @@ def test_register_ace_session_passes_project_context(
     )
     monkeypatch.setattr("sase.sessions.register_session", _fake_register)
 
-    register_ace_session("sase ace v1")
+    register_ace_session("sase tui v1")
 
     assert recorded["kind"] == "ace"
     assert recorded["project"] == "sase"
     assert recorded["workspace_num"] == 27
-    assert recorded["title"] == "sase ace v1"
+    assert recorded["title"] == "sase tui v1"
     assert recorded["cwd"] == os.getcwd()
 
 

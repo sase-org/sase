@@ -4,7 +4,7 @@
 ``_PlanCountsSummary``. ``encode_plan_counts``/``decode_plan_counts`` are the
 two halves of a small string-keyed codec used to carry that summary through
 ``Notification.action_data`` — a compatibility surface written by the process
-that creates a plan gate and read by a different process (the ACE TUI) later,
+that creates a plan gate and read by a different process (sase's TUI) later,
 so the key names and formats below are a contract, not an implementation
 detail:
 

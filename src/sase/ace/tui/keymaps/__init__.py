@@ -1,4 +1,4 @@
-"""Keymap registry for the ace TUI.
+"""Keymap registry for sase's TUI.
 
 Defines dataclasses for all configurable keymaps (app-level bindings and
 prefix-key modes) and provides a loader that reads from the merged config

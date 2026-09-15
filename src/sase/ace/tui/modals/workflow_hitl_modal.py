@@ -1,4 +1,4 @@
-"""Workflow HITL modal for the ace TUI."""
+"""Workflow HITL modal for sase's TUI."""
 
 import os
 from dataclasses import dataclass, field

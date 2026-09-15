@@ -1,4 +1,4 @@
-"""Tests for the ``sase ace`` command handler."""
+"""Tests for the ``sase tui`` command handler."""
 
 import argparse
 import asyncio
@@ -160,7 +160,7 @@ def _parse_ace_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="subcommand")
     register_ace_parser(subparsers)
-    return parser.parse_args(["ace", *argv])
+    return parser.parse_args(["tui", *argv])
 
 
 def test_tab_option_defaults_to_agents() -> None:
@@ -206,14 +206,14 @@ def test_sanity_refresh_interval_help_mentions_option() -> None:
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="subcommand")
     register_ace_parser(subparsers)
-    ace_help = subparsers.choices["ace"].format_help()
+    ace_help = subparsers.choices["tui"].format_help()
     assert "--sanity-refresh-interval" in ace_help
     assert "-s" in ace_help
 
 
 def test_build_ace_restart_argv_strips_restart_and_tmux_flags() -> None:
     argv = [
-        "ace",
+        "tui",
         "--tab",
         "axe",
         "--restart-axe",
@@ -226,27 +226,50 @@ def test_build_ace_restart_argv_strips_restart_and_tmux_flags() -> None:
     assert ace_handler._build_ace_restart_argv(
         restart_axe=False,
         argv=argv,
-    ) == ["ace", "--tab", "axe", '"Ready"']
+    ) == ["tui", "--tab", "axe", '"Ready"']
     assert ace_handler._build_ace_restart_argv(
         restart_axe=True,
         argv=argv,
-    ) == ["ace", "--tab", "axe", '"Ready"', "--restart-axe"]
+    ) == ["tui", "--tab", "axe", '"Ready"', "--restart-axe"]
 
 
 def test_build_ace_restart_argv_preserves_separator_query_flags() -> None:
-    argv = ["ace", "--restart-axe", "--", "--restart-axe"]
+    argv = ["tui", "--restart-axe", "--", "--restart-axe"]
 
     assert ace_handler._build_ace_restart_argv(
         restart_axe=True,
         argv=argv,
-    ) == ["ace", "--restart-axe", "--", "--restart-axe"]
+    ) == ["tui", "--restart-axe", "--", "--restart-axe"]
 
 
-def test_build_ace_restart_argv_prepends_ace_subcommand_when_missing() -> None:
+def test_build_ace_restart_argv_prepends_tui_subcommand_when_missing() -> None:
     assert ace_handler._build_ace_restart_argv(
         restart_axe=False,
         argv=["--tab", "agents"],
-    ) == ["ace", "--tab", "agents"]
+    ) == ["tui", "--tab", "agents"]
+
+
+def test_build_ace_restart_argv_replaces_legacy_ace_subcommand() -> None:
+    assert ace_handler._build_ace_restart_argv(
+        restart_axe=False,
+        argv=["ace", "--tab", "agents"],
+    ) == ["tui", "--tab", "agents"]
+
+
+def test_build_ace_restart_argv_preserves_global_options_before_tui() -> None:
+    assert ace_handler._build_ace_restart_argv(
+        restart_axe=True,
+        argv=["-p", "-f", "provider_drain", "tui", '"Ready"', "--", "--tab"],
+    ) == [
+        "-p",
+        "-f",
+        "provider_drain",
+        "tui",
+        '"Ready"',
+        "--restart-axe",
+        "--",
+        "--tab",
+    ]
 
 
 def test_exec_ace_restart_if_requested_quit_does_not_exec(
@@ -268,7 +291,7 @@ def test_exec_ace_restart_if_requested_execs_current_python(
     def fake_exec(executable: str, args: list[str]) -> None:
         calls.append((executable, args))
 
-    monkeypatch.setattr(ace_handler.sys, "argv", ["sase", "ace", "-R", "-T"])
+    monkeypatch.setattr(ace_handler.sys, "argv", ["sase", "tui", "-R", "-T"])
     monkeypatch.setattr(ace_handler.sys, "executable", "/venv/bin/python")
     monkeypatch.setattr(ace_handler.os, "execv", fake_exec)
 
@@ -281,7 +304,7 @@ def test_exec_ace_restart_if_requested_execs_current_python(
                 "/venv/bin/python",
                 "-m",
                 "sase",
-                "ace",
+                "tui",
                 "--restart-axe",
             ],
         )
@@ -301,4 +324,4 @@ def test_exec_ace_restart_if_requested_exits_on_exec_failure(
         ace_handler._exec_ace_restart_if_requested(AceExitAction.RESTART_TUI)
 
     assert exc_info.value.code == 1
-    assert "sase ace restart failed: boom" in capsys.readouterr().err
+    assert "sase tui restart failed: boom" in capsys.readouterr().err

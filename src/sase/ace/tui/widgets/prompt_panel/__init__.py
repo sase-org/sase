@@ -1,4 +1,4 @@
-"""Agent prompt panel widget for the ace TUI."""
+"""Agent prompt panel widget for sase's TUI."""
 
 from typing import Any
 

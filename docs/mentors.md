@@ -8,7 +8,7 @@ review profiles match, and then run focused review agents in the background.
 
 The Axe daemon drives mentor checks. When a mentor finds issues, it writes structured
 JSON comments with severities (`error`, `warning`, or `suggestion`). You review those
-comments in the ACE TUI and can launch an apply agent for the accepted comments.
+comments in sase's TUI and can launch an apply agent for the accepted comments.
 
 The lifecycle is:
 
@@ -17,7 +17,7 @@ The lifecycle is:
 3. Wait for non-skipped hooks on the latest regular commit to become ready.
 4. Start mentor agents when runner capacity is available.
 5. Save structured JSON output and file snapshots.
-6. Review, accept, and apply comments from ACE.
+6. Review, accept, and apply comments from sase's TUI.
 
 ## Configuration
 
@@ -207,7 +207,7 @@ The entry ID matches a regular `STITCHES` entry. The header line shows profile n
 with `[started/total]` counts. Status lines show timestamp, `profile:mentor`, status,
 and duration for completed mentors.
 
-## ACE TUI Integration
+## sase's TUI Integration
 
 ### Review Mentors (`,C`)
 
@@ -281,7 +281,7 @@ mentor: `▸` (selected), `●` (running), `✗` (failed/killed), or `✓` (all 
 accepted). Read state persists across modal opens and is stored per Patch and stitch.
 
 Unread comment counts also appear inline in the Patches sub-tab list (see
-[ACE docs](ace.md#mentor-comment-stats-in-pr-list)).
+[sase's TUI docs](ace.md#mentor-comment-stats-in-pr-list)).
 
 ### Kill Mentors (`,M`)
 

@@ -1,4 +1,4 @@
-"""Query edit modal for the ace TUI."""
+"""Query edit modal for sase's TUI."""
 
 from collections.abc import Callable
 

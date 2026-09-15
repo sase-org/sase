@@ -184,7 +184,7 @@ def kill_proc(proc_id: str) -> Proc:
         return proc
     if proc.kind == TUI_PROC_KIND:
         raise ProcControlError(
-            "TUI-owned procs can only be killed from their owning ACE session"
+            "TUI-owned procs can only be killed from their owning sase's TUI session"
         )
     if is_proc_shell_row(proc):
         return stop_proc_shell(proc)

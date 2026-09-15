@@ -1,4 +1,4 @@
-"""Agent name modal for the ace TUI."""
+"""Agent name modal for sase's TUI."""
 
 from textual.app import ComposeResult
 from textual.containers import Container

@@ -225,7 +225,7 @@ class AgentOnboarding(VerticalScroll):
     def _build_hero() -> Text:
         text = Text(justify="center")
         text.append("*  ", style="bold #FFD700")
-        text.append("Welcome to sase ace", style="bold #FFFFFF")
+        text.append("Welcome to sase's TUI", style="bold #FFFFFF")
         text.append("  *\n", style="bold #FFD700")
         text.append("Structured Agentic Software Engineering", style="dim #87D7FF")
         return text
@@ -336,7 +336,7 @@ class AgentOnboarding(VerticalScroll):
         append_doc_link(
             text,
             _ACE_DOCS_URL,
-            "the full ACE TUI guide, tab by tab.",
+            "the full guide to sase's TUI, tab by tab.",
             accent=_AGENTS_ACCENT,
         )
         append_doc_link(

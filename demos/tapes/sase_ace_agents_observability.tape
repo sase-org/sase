@@ -43,7 +43,7 @@ Type "clear"
 Enter
 Show
 
-Type "sase ace --refresh-interval 0 --tab agents -x"
+Type "sase tui --refresh-interval 0 --tab agents -x"
 Hide
 Enter
 Wait+Screen /Agents/
@@ -81,7 +81,7 @@ Wait+Screen /TOOLS/
 Wait+Screen /pytest tests\/test_parser.py/
 Sleep 2s
 
-Type "z"
+Type "Z"
 Wait+Screen /ZOOM.*TOOLS/
 Sleep 2.7s
 Type "j"

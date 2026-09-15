@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots: usage badge widths, window mixes, states, and palette."""
+"""sase's TUI PNG snapshots: usage badge widths, window mixes, states, and palette."""
 
 from __future__ import annotations
 
@@ -539,7 +539,7 @@ async def test_header_usage_long_title_png_snapshot(
     )
     async with AcePage(query='"visual"', patches=patches(), size=(80, 24)) as page:
         await wait_for_startup(page)
-        page.app.title = "sase ace (v0.8.0+12.gabcdef0.dirty)"
+        page.app.title = "sase tui (v0.8.0+12.gabcdef0.dirty)"
         await page.press(page.artifacts_digit("patches"))
         await page.expect_state("artifacts_subtab", "patches")
         paint_current_project_chip(page)

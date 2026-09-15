@@ -139,7 +139,7 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 (d(cm.prefix), "Open Copy as… palette"),
                 (f"{d(cm.prefix)}{d(axe_copy['visible'])}", "Copy visible output"),
                 (f"{d(cm.prefix)}{d(axe_copy['full'])}", "Copy full output"),
-                (f"{d(cm.prefix)}{d(axe_copy['snapshot'])}", "Copy sase ace snapshot"),
+                (f"{d(cm.prefix)}{d(axe_copy['snapshot'])}", "Copy sase tui snapshot"),
             ],
         ),
         (

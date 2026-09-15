@@ -89,7 +89,7 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Stop, retry, or fork a remote agent on its owning host",
         description=(
             "Submit a journaled lifecycle mutation for a remote agent. ALIAS is "
-            "the enrolled machine; AGENT identifies the exact remote row. ACE "
+            "the enrolled machine; AGENT identifies the exact remote row. sase's TUI "
             "supplies locator, revision, and operation key through the durable "
             "request sidecar."
         ),
@@ -113,7 +113,7 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs="?",
         metavar="INSTRUCTION",
         help=(
-            "Fork instruction appended to #fork:<name>. Optional when ACE "
+            "Fork instruction appended to #fork:<name>. Optional when sase's TUI "
             "supplies it through the durable request sidecar."
         ),
     )
@@ -192,7 +192,7 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Answer a pending remote question or approve a pending remote gate "
             "on its owning host. ALIAS is the enrolled machine; REQUEST "
-            "identifies the pending attention request. ACE supplies the "
+            "identifies the pending attention request. sase's TUI supplies the "
             "request key, observed revision, selection, and operation key "
             "through the durable request sidecar."
         ),
@@ -217,7 +217,7 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs="?",
         metavar="ANSWER",
         help=(
-            "Free-text answer. Optional when ACE supplies a structured "
+            "Free-text answer. Optional when sase's TUI supplies a structured "
             "answer through the durable request sidecar."
         ),
     )
@@ -252,7 +252,7 @@ def register_machine_parser(subparsers: argparse._SubParsersAction) -> None:
         nargs="*",
         metavar="OPTION",
         help=(
-            "Selected option IDs. Optional when ACE supplies the selection "
+            "Selected option IDs. Optional when sase's TUI supplies the selection "
             "through the durable request sidecar."
         ),
     )

@@ -1,4 +1,4 @@
-"""Saved-query slots and query-history navigation for the ace TUI app."""
+"""Saved-query slots and query-history navigation for sase's TUI app."""
 
 from __future__ import annotations
 

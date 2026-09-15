@@ -78,7 +78,7 @@ def format_blocked_cleanup_error(blocked_targets: Sequence[CleanupTarget]) -> st
     return (
         f"{reasons}\n"
         "Rerun with --dry-run to review the full cleanup preview. "
-        "Dismiss the listed agent(s) in sase ace before retrying."
+        "Dismiss the listed agent(s) in sase tui before retrying."
     )
 
 

@@ -10,8 +10,8 @@ SASE uses three different kinds of agent grouping:
 
 Dot-separated names also define an agent _hood_: `foo.bar` and `foo.baz` are neighbors
 in hood `foo`, and the agent named `foo` belongs to hood `foo` as well. A deeper name
-belongs to every hood along its dotted path, so ACE can group `foo.bar.worker` with
-peers under `foo.bar` and cousins under `foo`. A family joins hoods under its bare
+belongs to every hood along its dotted path, so sase's TUI can group `foo.bar.worker`
+with peers under `foo.bar` and cousins under `foo`. A family joins hoods under its bare
 family name, not its root member's `--` name, so a family `foo` and a single agent
 `foo.bar` are related in both directions exactly as two single agents with those names
 would be. Clans use that namespace rule deliberately, while dotted names alone do not
@@ -52,12 +52,12 @@ See [XPrompt template directives](xprompt.md#directives) for `{@<id>}` and `{@<i
 
 ### Launch-time clan summaries
 
-The declaring member can attach a short description to its clan generation. ACE displays
-this description near the top of the clan's `CLAN` panel; it is metadata and is not sent
-to the member as work instructions. Use a literal for stable context, the double-colon
-shorthand for a larger text block, or an executable when the description depends on
-state available as the runner starts. A literal keeps the work prompt immediately below
-the declaration:
+The declaring member can attach a short description to its clan generation. sase's TUI
+displays this description near the top of the clan's `CLAN` panel; it is metadata and is
+not sent to the member as work instructions. Use a literal for stable context, the
+double-colon shorthand for a larger text block, or an executable when the description
+depends on state available as the runner starts. A literal keeps the work prompt
+immediately below the declaration:
 
 ```text
 %id:research.lead
@@ -92,8 +92,8 @@ Coordinate the release.
 ```
 
 `sase_clan_summary_plan` renders any valid tale or epic plan with the same logical
-PLAN-lane presentation used by ACE. Its first argument is the plan reference; when that
-argument is omitted, it reads `SASE_EPIC_PLAN_REF` instead.
+PLAN-lane presentation used by sase's TUI. Its first argument is the plan reference;
+when that argument is omitted, it reads `SASE_EPIC_PLAN_REF` instead.
 
 `summary=` accepts the usual directive values: a bare token, a quoted string for text
 containing spaces or special characters, or a multiline `[[...]]` text block. The `::`
@@ -145,7 +145,8 @@ declaring agent's metadata. The scan contract resolves summaries within one clan
 generation deterministically, using the newest explicit declaration if it must read
 older or externally-authored artifacts with more than one. Rich markup is rendered when
 valid and shown as literal text when invalid. The saved description is distinct from the
-foldable sections that ACE synthesizes below it from member artifacts and activity.
+foldable sections that sase's TUI synthesizes below it from member artifacts and
+activity.
 
 Clan membership is execution-neutral. It does not add waits, change launch order, choose
 a workspace or model, or otherwise rewrite launch behavior. Use `%wait` explicitly
@@ -161,15 +162,15 @@ and sequential families whose names stay inside the same hood.
 name targets only that member. Killing or dismissing the synthetic clan row cascades to
 its live members, while acting on one member leaves the rest of the clan alone.
 
-Retrying a clan member from ACE keeps it in the same named clan. ACE rewrites the prompt
-into `%id(<new-member-id>, clan=<clan>)`, where the member id carries the retry suffix.
-It does not repeat the create-only `%clan` declaration. If the original prompt used a
-clan template such as `research.@` or `research.{@1}`, ACE first substitutes the
-member's concrete clan, such as `research.2`.
+Retrying a clan member from sase's TUI keeps it in the same named clan. sase's TUI
+rewrites the prompt into `%id(<new-member-id>, clan=<clan>)`, where the member id
+carries the retry suffix. It does not repeat the create-only `%clan` declaration. If the
+original prompt used a clan template such as `research.@` or `research.{@1}`, sase's TUI
+first substitutes the member's concrete clan, such as `research.2`.
 
-ACE renders every grouping row with a trailing color-coded name and no kind icon. A clan
-is synthetic and ends with an orchid `<name>` after its rolled-up status counts; its
-`@tribe` labels follow the name. A real multi-member family root ends with its bare
+sase's TUI renders every grouping row with a trailing color-coded name and no kind icon.
+A clan is synthetic and ends with an orchid `<name>` after its rolled-up status counts;
+its `@tribe` labels follow the name. A real multi-member family root ends with its bare
 azure container `<name>`, while its concrete member rows retain their exact `--<suffix>`
 names. Plain agent annotations and a lone plan proposer with only its display-only
 planner child remain gold. Press `l` once on a collapsed clan to reveal its direct
@@ -364,7 +365,7 @@ one multi-parent fork.
 
 ### Family detail folding
 
-Selecting a real multi-member family root in ACE opens the metadata panel with
+Selecting a real multi-member family root in sase's TUI opens the metadata panel with
 underlined `FAMILY` (cyan, matching the name), then a numbered `FAMILY SHELLS` roster in
 stable chain order: agent shells in chain order, with each monitor spliced in directly
 after its starter shell. The original member and each follow-up are direct jump targets;
@@ -510,17 +511,18 @@ should be auto-named:
 #tribe:review Review another boundary with an automatic id.
 ```
 
-ACE displays tribes with an `@` prefix and splits the Agents tab into panels such as
-`@review` and `@epic`. The clan's single declaration assigns one effective tribe to the
-whole generation; joiner prompts omit `tribe=`. Older clan generations without any
+sase's TUI displays tribes with an `@` prefix and splits the Agents tab into panels such
+as `@review` and `@epic`. The clan's single declaration assigns one effective tribe to
+the whole generation; joiner prompts omit `tribe=`. Older clan generations without any
 `clan_tribe` value fall back to the distinct post-hoc member tribe assignments they
 carry.
 
-Press `N` in ACE to set or clear the focused agent's tribe (or every marked agent). For
-the declaring clan member, ACE rewrites the stored `%clan(<clan>, tribe=<tribe>)` and
-its `clan_tribe` metadata. For a joiner, ACE updates only the metadata and never invents
-a second `%clan` declaration. The synthetic clan row itself is not an editable agent.
-The CLI manages the per-agent assignment store for any named agent:
+Press `N` in sase's TUI to set or clear the focused agent's tribe (or every marked
+agent). For the declaring clan member, sase's TUI rewrites the stored
+`%clan(<clan>, tribe=<tribe>)` and its `clan_tribe` metadata. For a joiner, sase's TUI
+updates only the metadata and never invents a second `%clan` declaration. The synthetic
+clan row itself is not an editable agent. The CLI manages the per-agent assignment store
+for any named agent:
 
 ```bash
 sase agent tribe set -n <agent> -t <tribe>
@@ -536,13 +538,14 @@ shapes. The first mutation writes all imported assignments to the canonical stor
 is authoritative from then on. Existing artifacts and saved bundles can still be read
 when they use the legacy `tag` field, but rewritten metadata, new bundles, CLI output,
 and editor projections use `tribe`. Clan-wide assignments use the separate per-member
-`clan_tribe` metadata and are resolved across the generation. For ACE panel grouping,
-that explicit clan assignment takes precedence over per-agent assignments.
+`clan_tribe` metadata and are resolved across the generation. For sase's TUI panel
+grouping, that explicit clan assignment takes precedence over per-agent assignments.
 
-ACE derives the reserved `@default` panel for agents whose outer presentation root has
-no effective tribe. This fallback is display-only: SASE does not write `default` into
-agent metadata or the assignment store. An explicit stored `default` assignment joins
-the same panel, and clearing any user-managed tribe returns the agent there.
+sase's TUI derives the reserved `@default` panel for agents whose outer presentation
+root has no effective tribe. This fallback is display-only: SASE does not write
+`default` into agent metadata or the assignment store. An explicit stored `default`
+assignment joins the same panel, and clearing any user-managed tribe returns the agent
+there.
 
 ### Tribe panel focus and folding
 
@@ -550,9 +553,9 @@ In the split layout, a tribe panel is also a selectable container. Repeated lowe
 `h` follows the validated workflow → family → clan → tribe ladder and selects the whole
 expanded panel after the structural parent chain is exhausted; `h` on the selected panel
 collapses it when another panel remains visible. Press `l` to expand a collapsed panel
-while keeping container focus, then `l` again to return to the row ACE remembered for
-that panel. Uppercase `L` instead expands the panel and enters its first selectable row.
-Lowercase `h` on a collapsed panel selects the visually bottom-most expanded panel
+while keeping container focus, then `l` again to return to the row sase's TUI remembered
+for that panel. Uppercase `L` instead expands the panel and enters its first selectable
+row. Lowercase `h` on a collapsed panel selects the visually bottom-most expanded panel
 without changing panel folds; `Ctrl+O` returns to the collapsed origin. If every live
 panel is collapsed, `h` retains the existing already-collapsed warning. While an
 expanded whole panel is selected, `j` / `k` cycle across every panel, including
@@ -565,10 +568,10 @@ with a whole tribe panel selected to zoom that tribe's metadata document. Press 
 isolate the focused panel by keeping it expanded and collapsing every sibling without
 changing its remembered row. `=` works from whole-panel focus and from a row selection
 inside a panel alike; from a row, it isolates the panel that holds the cursor without
-changing the selected row. When isolation changes the layout, ACE remembers the prior
-collapsed-panel set for the session: `↺` title markers and the `= restore panels` footer
-hint show that the next `=` will restore it. A separate sibling-panel or layout mutation
-invalidates that one-step restore.
+changing the selected row. When isolation changes the layout, sase's TUI remembers the
+prior collapsed-panel set for the session: `↺` title markers and the `= restore panels`
+footer hint show that the next `=` will restore it. A separate sibling-panel or layout
+mutation invalidates that one-step restore.
 
 Press `-` to sweep every open agent node and clan — never a grouping banner such as
 `Done` or `Running` — in the focused panel closed in one press. It resolves scope the
@@ -666,24 +669,24 @@ standalone match contributes its full conversation. A clan match contributes one
 launch-ordered clan summary containing each member's sanitized prompts, outcome/model
 metadata, reply size, and transcript path; full member replies are deliberately omitted
 so the child can open only the transcripts it needs. Tribe targets can be mixed with
-explicit agent or clan parents in a multi-parent fork, and ACE prompt completion offers
-visible `@tribe` values for both `%wait` and `#fork`. When no `%id` is supplied, tribe
-waits and forks use neutral auto-names rather than derived `.w*` or `.f*` names because
-the eventual parent is unknown at launch planning time.
+explicit agent or clan parents in a multi-parent fork, and sase's TUI prompt completion
+offers visible `@tribe` values for both `%wait` and `#fork`. When no `%id` is supplied,
+tribe waits and forks use neutral auto-names rather than derived `.w*` or `.f*` names
+because the eventual parent is unknown at launch planning time.
 
-ACE can insert these group references directly. Select a clan's synthetic container row
-and press `F` for `#fork:<clan>`, or press `W` for `%wait:<clan>`. For a tribe, give its
-named panel whole-panel focus—expanded or collapsed—and use the same keys for
-`#fork:@<tribe>` or `%wait:@<tribe>`. The reserved `@default` panel and grouping banners
-are not group targets, and marked rows take precedence over the focused clan or tribe
-for `W`. For a selected clan or tribe, ACE prefixes either prompt with a VCS tag only
-when every real agent currently in that scope resolves to the same workflow and ref.
-Otherwise it omits the VCS tag so you can add the intended `#git`, `#gh`, or other
-workflow reference yourself. Marked waits instead take VCS context from the selected
-marked row, or the first named mark when the selection is elsewhere. The current rows
-determine only that optional VCS prefix; they do not pin the eventual clan or tribe fork
-source. See [Forking Agents and Groups](ace.md#forking-agents-and-groups) for selection
-and revalidation behavior.
+sase's TUI can insert these group references directly. Select a clan's synthetic
+container row and press `F` for `#fork:<clan>`, or press `W` for `%wait:<clan>`. For a
+tribe, give its named panel whole-panel focus—expanded or collapsed—and use the same
+keys for `#fork:@<tribe>` or `%wait:@<tribe>`. The reserved `@default` panel and
+grouping banners are not group targets, and marked rows take precedence over the focused
+clan or tribe for `W`. For a selected clan or tribe, sase's TUI prefixes either prompt
+with a VCS tag only when every real agent currently in that scope resolves to the same
+workflow and ref. Otherwise it omits the VCS tag so you can add the intended `#git`,
+`#gh`, or other workflow reference yourself. Marked waits instead take VCS context from
+the selected marked row, or the first named mark when the selection is elsewhere. The
+current rows determine only that optional VCS prefix; they do not pin the eventual clan
+or tribe fork source. See [Forking Agents and Groups](ace.md#forking-agents-and-groups)
+for selection and revalidation behavior.
 
 ## Agent-Initiated Family Launches
 
@@ -717,7 +720,7 @@ Outside an agent, the request defaults to terminal handoff, prints the creation
 descriptor, and returns immediately. A script that needs to block can use its
 `request_id` with `sase gate wait -i <request-id> -k launch -j` as a separate step.
 
-Approve or reject from ACE, or use:
+Approve or reject from sase's TUI, or use:
 
 ```bash
 sase launch approve <selector>

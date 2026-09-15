@@ -1,4 +1,4 @@
-"""Persistent updates-available indicator widget for the ace TUI."""
+"""Persistent updates-available indicator widget for sase's TUI."""
 
 from typing import Any
 

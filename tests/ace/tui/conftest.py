@@ -1,4 +1,4 @@
-"""Shared isolation for ACE TUI tests."""
+"""Shared isolation for sase's TUI tests."""
 
 import functools
 from collections.abc import Iterator
@@ -29,7 +29,7 @@ def _reset_link_follow_outcome_counts() -> Iterator[None]:
 
 @pytest.fixture(autouse=True)
 def _event_driven_bare_pilot_pause(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make raw ACE TUI ``pilot.pause()`` calls use the shared settle barrier."""
+    """Make raw sase's TUI ``pilot.pause()`` calls use the shared settle barrier."""
 
     original_pause = Pilot.pause
 

@@ -85,7 +85,7 @@ class TestHookspecSignatures:
 # from the spec. Renaming or removing a name here therefore crashes every
 # out-of-tree plugin built against the old name (sase-github, sase-telegram,
 # ...) as soon as it registers -- which is how a Patch-terminology sweep once
-# broke `sase ace` at startup by renaming ws_submit's legacy compatibility
+# broke `sase tui` at startup by renaming ws_submit's legacy compatibility
 # argument name `changespec_file` and ws_prepare_mail's legacy compatibility
 # argument name `changespec_parent`.
 #
@@ -231,7 +231,7 @@ def test_out_of_tree_plugin_with_legacy_argument_names_registers() -> None:
     Mirrors ``sase_github.workspace_plugin.GitHubWorkspacePlugin``, whose
     hookimpls declare the legacy ``changespec_file``/``changespec_parent``
     spellings. Renaming those in the hookspec made pluggy raise
-    ``PluginValidationError`` here, which crashed ``sase ace`` at startup.
+    ``PluginValidationError`` here, which crashed ``sase tui`` at startup.
     """
 
     class LegacyNamedPlugin:

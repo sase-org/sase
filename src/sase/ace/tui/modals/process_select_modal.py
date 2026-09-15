@@ -1,4 +1,4 @@
-"""Process selection modal for the ace TUI.
+"""Process selection modal for sase's TUI.
 
 Used when pressing X on non-AXE tabs with both axe and background commands running,
 to select which process to stop.

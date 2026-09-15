@@ -1,4 +1,4 @@
-"""Base classes and mixins for ace TUI modals."""
+"""Base classes and mixins for sase's TUI modals."""
 
 from textual import events
 from textual.widgets import Input, OptionList

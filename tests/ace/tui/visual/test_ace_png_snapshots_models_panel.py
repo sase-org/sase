@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for primary Launch Control states."""
+"""sase's TUI PNG snapshots for primary Launch Control states."""
 
 from __future__ import annotations
 

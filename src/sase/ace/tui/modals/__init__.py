@@ -1,4 +1,4 @@
-"""Modal dialogs for the ace TUI."""
+"""Modal dialogs for sase's TUI."""
 
 from __future__ import annotations
 

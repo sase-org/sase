@@ -1,4 +1,4 @@
-"""Agent tmux workspace actions for the ace TUI app."""
+"""Agent tmux workspace actions for sase's TUI app."""
 
 from __future__ import annotations
 

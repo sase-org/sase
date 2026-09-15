@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for Agents-tab external repos."""
+"""sase's TUI PNG visual snapshot coverage for Agents-tab external repos."""
 
 from __future__ import annotations
 

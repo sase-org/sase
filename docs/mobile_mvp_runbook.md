@@ -238,9 +238,9 @@ Then smoke the end-to-end path:
 6. For FCM builds, verify push registration in Settings, send a test hint, tap the local
    notification, and confirm the app fetches host state before showing detail-sensitive
    UI.
-7. Snooze a notification in ACE, wait for its deadline, and verify the row returns to
-   the mobile inbox as unread on the first page, that its displayed sent time is
-   unchanged, and that an incremental `newer_than` poll using the stored
+7. Snooze a notification in sase's TUI, wait for its deadline, and verify the row
+   returns to the mobile inbox as unread on the first page, that its displayed sent time
+   is unchanged, and that an incremental `newer_than` poll using the stored
    `next_high_water` cursor returns it exactly once.
 8. Forget the host and verify the app returns to the unpaired state.
 

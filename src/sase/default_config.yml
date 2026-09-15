@@ -107,7 +107,7 @@ managed_tmp:
     handoff_seconds: 259200
     # Cargo and other build scratch created for one launched agent.
     build_scratch_seconds: 259200
-    # Artifacts the ACE Agents tab reads back long after the run finished.
+    # Artifacts sase's TUI Agents tab reads back long after the run finished.
     run_artifact_seconds: 1209600
   # Removal budget for one reaper invocation, so a long-neglected root
   # converges across invocations instead of stalling one of them.
@@ -266,10 +266,10 @@ ace:
     # Also seed the Agents-tab search query. Off by default because that query
     # also drives unread jumps and prospective clans, not just the visible list.
     seed_agents_query: false
-  # Per-tribe ACE TUI identity display. Keys are bare tribe names (no "@").
+  # Per-tribe sase's TUI identity display. Keys are bare tribe names (no "@").
   # The special "default" entry styles the reserved untagged identity.
   # Empty icon strings disable an inherited default icon, while empty color
-  # strings restore the gold ACE fallback. Colors apply only to structured
+  # strings restore the gold sase's TUI fallback. Colors apply only to structured
   # tribe identities, not semantic chrome. Manual panel folds last only for
   # the panel's current lifetime; initially_expanded applies whenever the
   # panel appears. Every configured tribe requires a description, shown in
@@ -1169,7 +1169,7 @@ axe:
             Submit due subscription-usage refreshes through the shared durable service
 
             Checks machine-local due and backoff state and submits coalesced usage-refresh work for eligible
-            providers. One chop serves CLI, ACE, and AXE callers; it does not poll per agent or project. Collection
+            providers. One chop serves CLI, sase's TUI, and AXE callers; it does not poll per agent or project. Collection
             stays gated by llm_provider.usage_metrics.enabled.
     external_mirror:
       description: |-
@@ -1251,7 +1251,7 @@ axe:
 
             Moves dismissed rows past the 14-day retention window from notifications.jsonl into
             notifications-archive.jsonl under the store lock. Unread and still-actionable rows stay in the live
-            file. Runs here so a multi-megabyte re-parse and rewrite never sits on the ACE refresh cadence.
+            file. Runs here so a multi-megabyte re-parse and rewrite never sits on sase's TUI refresh cadence.
         - name: managed_tmp_reap
           script: sase_chop_managed_tmp_reap
           description: |-
@@ -1332,7 +1332,7 @@ axe:
             Plans whole-run ace-run retention without deleting anything. The preview keeps the newest
             artifacts.retention.keep_recent_run_months calendar months whole, protects runs referenced by
             artifact files, text refs, agent names, and non-closed beads, and reports empty month/day shards
-            outside ACE's startup watch window. When unchanged candidates or protection problems remain, it
+            outside sase's TUI startup watch window. When unchanged candidates or protection problems remain, it
             upserts one deduplicated Axe report notification that names the explicit prune-runs command; the
             hourly preview never applies artifact deletion by itself.
 
@@ -1372,7 +1372,7 @@ llm_provider:
   # @<alias> reference. An alias
   # reference may carry a trailing @<effort> that overrides its target's effort.
   # User-invented aliases live under custom and must include a description for
-  # completions and Launch settings. Bucket membership is display-only: ACE
+  # completions and Launch settings. Bucket membership is display-only: sase's TUI
   # shows only buckets referenced by custom aliases.
   # Current shipped defaults and descriptions for every builtin alias below are
   # the single responsibility of
@@ -1491,7 +1491,7 @@ llm_provider:
     warn_percent: 75              # percentage used for local low attention
     critical_percent: 90          # percentage used for local very-low attention
     indicator:
-      enabled: true               # false hides the ACE header usage indicator only
+      enabled: true               # false hides sase's TUI header usage indicator only
       default:
         below_remaining_percent: 20
       weekly_all: always
@@ -1609,7 +1609,7 @@ workspace:
   cleanup_ttl_days: 14
   # Days before a pinned (held) dead-PID workspace claim is released
   # automatically. Artifacts are kept so the failed run stays dismissible
-  # in ACE; only the workspace hold is dropped. 0 disables age-based
+  # in sase's TUI; only the workspace hold is dropped. 0 disables age-based
   # release.
   held_claim_ttl_days: 14
 

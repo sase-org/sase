@@ -217,7 +217,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
   responsiveness (navigation, refresh, rendering, startup), and before diagnosing TUI
   freezes or stalls.
 - Lines: 103
-- Approx. tokens: 1647
+- Approx. tokens: 1649
 
 ### `sase/memory/xprompts.md`
 
@@ -235,7 +235,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Reference notes: 10
 - Web descriptor notes: 3
 - Total lines: 1105
-- Total approx. tokens: 14297
+- Total approx. tokens: 14299
 
 ## Commands
 

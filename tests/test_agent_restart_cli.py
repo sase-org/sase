@@ -325,7 +325,7 @@ def test_wipe_failed_exits_1_and_prints_recovery_dir(
     assert "Recovery directory" in stderr
     assert recovery.name in stderr
     assert "never released" in stderr
-    assert "ACE" in stderr
+    assert "sase's TUI" in stderr
     assert "sase run" not in stderr
 
 

@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for the artifact links inspector panel."""
+"""sase's TUI PNG snapshots for the artifact links inspector panel."""
 
 from __future__ import annotations
 

@@ -6,14 +6,14 @@ pdf: false
 
 !!! warning "Historical review"
 
-    This critique records the pre-Artifacts ACE layout and the state of the asset before its 2026-05-10 regeneration.
-    Current ACE navigation is **Agents · Artifacts · Axe**. Artifacts has **Stitches · Patches · Beads**,
+    This critique records the pre-Artifacts sase's TUI layout and the state of the asset before its 2026-05-10 regeneration.
+    Current sase's TUI navigation is **Agents · Artifacts · Axe**. Artifacts has **Stitches · Patches · Beads**,
     configured document-provider panes, and **Files**. The PNG is no longer embedded in active documentation, and
     claims below about current code paths or a missing prompt sidecar should be read only as historical context.
 
 This is a clarity-and-accuracy review of `docs/images/sase_tui_tabs_infographic.png`,
 the diagram embedded in the "How the pieces connect" section of `docs/index.md`
-(line 137) with the figcaption "ACE gives operators one place to inspect agents,
+(line 137) with the figcaption "sase's TUI gives operators one place to inspect agents,
 changes, notifications, and automation state." The diagram is reviewed against:
 
 - The embedding doc (`docs/index.md`) — there is **no
@@ -28,7 +28,7 @@ changes, notifications, and automation state." The diagram is reviewed against:
 
 ## What the diagram currently shows
 
-A title strap reads "sase ACE TUI: 3 tabs, one control plane". Below it, three
+A title strap reads "sase's TUI: 3 tabs, one control plane". Below it, three
 side-by-side coloured cards represent the tabs:
 
 - **PRs (teal)** — caption "PRs: Patch command center" with three small icon rows:
@@ -46,17 +46,18 @@ path: `plan` (clipboard icon) → `launch` (rocket) → `monitor` (graph) → `l
 
 1. **The bottom `plan → launch → monitor → land` strip is not a TUI element and has no
    labelled relationship to the three tab cards above it.** A reader who has never
-   opened ACE will assume this strip corresponds either to a navigation row in the
-   actual UI or to a one-to-one mapping with the three tabs (plan→PRs? launch→Agents?
-   monitor→AXE?), but `land` has no tab counterpart and the mapping is not even
-   one-to-one. The strip is best read as the _conceptual_ agent lifecycle, but nothing
-   in the diagram says so.
-2. **"One control plane" is the headline claim and it is not depicted.** What makes ACE
-   a single control plane is the shared chrome — the persistent tab bar, the right-side
-   indicator stack (`TaskIndicator`/`LLMOverrideIndicator`/`NotificationIndicator` in
-   `app.py:236-239`), and the `KeybindingFooter` (`app.py:268`) — all of which surround
-   every tab. The diagram instead shows three independent cards with no shared frame,
-   which contradicts the title.
+   opened sase's TUI will assume this strip corresponds either to a navigation row in
+   the actual UI or to a one-to-one mapping with the three tabs (plan→PRs?
+   launch→Agents? monitor→AXE?), but `land` has no tab counterpart and the mapping is
+   not even one-to-one. The strip is best read as the _conceptual_ agent lifecycle, but
+   nothing in the diagram says so.
+2. **"One control plane" is the headline claim and it is not depicted.** What makes
+   sase's TUI a single control plane is the shared chrome — the persistent tab bar, the
+   right-side indicator stack
+   (`TaskIndicator`/`LLMOverrideIndicator`/`NotificationIndicator` in `app.py:236-239`),
+   and the `KeybindingFooter` (`app.py:268`) — all of which surround every tab. The
+   diagram instead shows three independent cards with no shared frame, which contradicts
+   the title.
 3. **The three rows inside each tab card mix three different categories without flagging
    them as such.** Each card conflates _what is shown_ (e.g. `running + completed runs`,
    `prompts, files, diffs`), _state model_ (e.g. `status lifecycle`), and _available
@@ -159,7 +160,7 @@ The accuracy bar is whether the diagram matches today's
 These are scoped so the regen agent (`sase-2s.17`) can act on them directly.
 
 1. **Wrap the three tab cards in a single explicit "control plane" frame** that depicts
-   the persistent ACE chrome: a top bar containing the tab pills plus four small
+   the persistent sase's TUI chrome: a top bar containing the tab pills plus four small
    indicators (Task / LLM-override / Inactive / Notifications), and a bottom keybinding
    footer strip. This is the single most important change because it is what makes the
    title's "one control plane" claim visible.
@@ -199,7 +200,7 @@ These are scoped so the regen agent (`sase-2s.17`) can act on them directly.
    (referenced by the regen-phase pattern in `sdd/epics/202605/diagram_review.md`).
 8. **Create a new `docs/images/sase_tui_tabs_infographic.prompt.md` sidecar** alongside
    the regenerated PNG. Since no sidecar exists today, the regen agent must author one
-   from scratch — this should record the operator-facing intent ("show ACE as one
+   from scratch — this should record the operator-facing intent ("show sase's TUI as one
    control plane wrapping three tabs"), the chrome elements, and the per-tab
    Surfaces/Lifecycle/Actions trio so future regenerations have a starting point.
 

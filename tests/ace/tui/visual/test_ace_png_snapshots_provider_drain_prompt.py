@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshot for the provider-drain prompt panel."""
+"""sase's TUI PNG snapshot for the provider-drain prompt panel."""
 
 from __future__ import annotations
 

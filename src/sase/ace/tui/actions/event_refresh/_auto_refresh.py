@@ -1,4 +1,4 @@
-"""Auto-refresh timer handling for ACE TUI event refreshes."""
+"""Auto-refresh timer handling for sase's TUI event refreshes."""
 
 from __future__ import annotations
 

@@ -50,10 +50,10 @@ event store, and `agents` is hidden machine-level agent data plus the canonical 
 and prompt-artifact archive. Every other enabled `repos.sidecar` role is a document
 sidecar: a month-sharded Markdown corpus labeled by its role name. A document role such
 as `designs` receives its own clone and store root, `sase repo path` resolution, doctor
-checks, commit routing, agent environment variable, plan-search kind, and ACE Plans
-kind. `research` is only the document role seeded by default; it has no storage-level
-privilege. The shipped `research` README and directory map remain an optional
-presentation preset, while other document roles receive the generic README.
+checks, commit routing, agent environment variable, plan-search kind, and sase's TUI
+Plans kind. `research` is only the document role seeded by default; it has no
+storage-level privilege. The shipped `research` README and directory map remain an
+optional presentation preset, while other document roles receive the generic README.
 
 The record also carries an **optional** `beads` sidecar, and its presence selects the
 schema version:

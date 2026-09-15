@@ -410,13 +410,13 @@ actionable gate kind projects the same verified `branches` model. A branch conta
 `feedback` (`disabled`, `optional`, or `required`), and `inputs` — the option's declared
 input fields, each with `id`, `label`, `type` (`word`, `line`, `text`, `path`, `agent`,
 `int`, `bool`, `float`, or `enum`), `required`, `default`, `choices`, `placeholder`,
-`help`, `secret`, and `repeatable`, mirroring the fields ACE's typed input form already
-renders for xprompt launches. Group branches also include `submit` metadata with the
-button label and optional icon. Mobile clients keep selection state locally and submit
-option IDs from one branch, feedback, and each selected option's own input value through
-the host bridge — never a command, path, cwd, or environment value. Download tokens are
-minted only in detail responses, are bound to the authenticated device, expire after a
-short TTL, and must still pass path and size checks at download time.
+`help`, `secret`, and `repeatable`, mirroring the fields sase's TUI typed input form
+already renders for xprompt launches. Group branches also include `submit` metadata with
+the button label and optional icon. Mobile clients keep selection state locally and
+submit option IDs from one branch, feedback, and each selected option's own input value
+through the host bridge — never a command, path, cwd, or environment value. Download
+tokens are minted only in detail responses, are bound to the authenticated device,
+expire after a short TTL, and must still pass path and size checks at download time.
 
 Mark a notification read or dismiss it without taking its pending action:
 
@@ -478,10 +478,11 @@ Two submission shapes the other surfaces have are deliberately absent from this 
 - **No shared `input`.** A bundle authored before `inputs` existed declares a raw
   `input_schema` and expects one value shared by every selected option. `option_inputs`
   cannot express that, so if such a schema requires a property, the gate must be
-  answered from `sase gate answer --input` or ACE's raw editor.
+  answered from `sase gate answer --input` or sase's TUI raw editor.
 - **No `retry`.** A reviewer who submits a group whose commands partly ran gets the
   `partial_attempt` error and cannot resume or restart from the phone. This is a dead
-  end, never a silent re-run: use `sase gate answer --resume` / `--restart` or ACE.
+  end, never a silent re-run: use `sase gate answer --resume` / `--restart` or sase's
+  TUI.
 
 `tests/gate_conformance/` runs the shared fixture set through this bridge and skips
 exactly the cases those two gaps cover, so the limitations stay stated rather than

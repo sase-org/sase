@@ -3,18 +3,18 @@
 ## Overview
 
 Sase includes a notification system that surfaces important events from background
-processes (axe, workflows, mentors) to the user through the ACE TUI. Notifications are
+processes (axe, workflows, mentors) to the user through sase's TUI. Notifications are
 stored as JSONL and persisted to `~/.sase/notifications/notifications.jsonl`.
 
 Plan, epic-plan, question, agent-launch, and task-triage approvals use the notification
 row as a typed transport projection of a durable interaction gate. The reviewed content,
 option-query branches, validation schemas, and hash-verified commands live in
-`~/.sase/interaction_requests/<kind>/<request-id>/`; ACE, mobile, Telegram, and typed
-CLI actions all resolve that same bundle.
+`~/.sase/interaction_requests/<kind>/<request-id>/`; sase's TUI, mobile, Telegram, and
+typed CLI actions all resolve that same bundle.
 
 ### Remote Attention
 
-When remote machines are enrolled, ACE's normal refresh polls their global pending
+When remote machines are enrolled, sase's TUI normal refresh polls their global pending
 attention inventory independently of the Agents rows currently visible or followed. Each
 authorized remote question or gate becomes a durable unread notification in the
 **Attention** panel, labeled with the owning machine alias. Selecting the notification
@@ -25,18 +25,18 @@ The inbox reconciles requests by origin installation, request ID, and revision. 
 request that is still pending resurfaces if its notification was read or dismissed;
 existing mute and snooze choices remain intact. A new revision creates a fresh row and
 dismisses the superseded revision. When a fresh, complete host inventory no longer
-contains a request, ACE dismisses the stale row. A failed or unavailable host does not
-settle missing requests, so a transient outage cannot silently remove a pending
+contains a request, sase's TUI dismisses the stale row. A failed or unavailable host
+does not settle missing requests, so a transient outage cannot silently remove a pending
 decision. If the owning alias is later removed or quarantined, submission stops with a
 diagnostic instead of routing the answer elsewhere.
 
 ## Viewing Notifications
 
-Press `i` on any tab in ACE to open the notifications modal. Rows in the list show
-relative timestamps (e.g., "2m ago", "1h ago") and can be marked as read or dismissed.
-The detail pane shows the selected notification's absolute send time alongside its
-relative age (`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS` /
-`yesterday HH:MM` / `Mon D HH:MM` / `Mon D 'YY HH:MM` in the configured timezone.
+Press `i` on any tab in sase's TUI to open the notifications modal. Rows in the list
+show relative timestamps (e.g., "2m ago", "1h ago") and can be marked as read or
+dismissed. The detail pane shows the selected notification's absolute send time
+alongside its relative age (`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS`
+/ `yesterday HH:MM` / `Mon D HH:MM` / `Mon D 'YY HH:MM` in the configured timezone.
 
 ### Modal Keybindings
 
@@ -71,15 +71,15 @@ when at least one marked protected notification is included in the batch.
 
 `R` is scoped to the tab you are on, not the whole inbox, and it is a wider write than
 it looks: it marks the tab read in the notification store, which includes rows matching
-that tab that ACE has not loaded into the visible list. Because of that, it opens a
-danger confirmation naming the tab (`Mark Notification Tab Read?`) that defaults to
-**Cancel**; it cannot be undone from ACE. The target is frozen when the prompt opens, so
-switching tabs while the confirmation is up cannot redirect the write to a different
-tab, and a tab with nothing in the visible list never prompts at all. The mutation
-itself runs as a proc, so a slow store write does not block the modal. On confirmation
-the marked-read rows leave the visible list immediately, the emptied tab disappears from
-the tab strip, and the modal moves to the nearest surviving tab (or shows
-`No unread notifications` when that was the last tab). A toast reports how many
+that tab that sase's TUI has not loaded into the visible list. Because of that, it opens
+a danger confirmation naming the tab (`Mark Notification Tab Read?`) that defaults to
+**Cancel**; it cannot be undone from sase's TUI. The target is frozen when the prompt
+opens, so switching tabs while the confirmation is up cannot redirect the write to a
+different tab, and a tab with nothing in the visible list never prompts at all. The
+mutation itself runs as a proc, so a slow store write does not block the modal. On
+confirmation the marked-read rows leave the visible list immediately, the emptied tab
+disappears from the tab strip, and the modal moves to the nearest surviving tab (or
+shows `No unread notifications` when that was the last tab). A toast reports how many
 notifications the store marked read.
 
 ### Gate Detail Pane
@@ -167,8 +167,9 @@ for rows without a task-type chip. Rows inside each section keep the same activi
 ordering described below.
 
 Press `S` to toggle the active tab between grouped sections and `recent`, a flat
-newest-first render. The choice is per tab and lasts only for the current ACE process.
-Tabs without a grouping strategy stay flat and report that they have no sections.
+newest-first render. The choice is per tab and lasts only for the current sase's TUI
+process. Tabs without a grouping strategy stay flat and report that they have no
+sections.
 
 Within the active tab, rows are ordered newest-first by their **activity time** —
 `resurfaced_at` when a snooze has expired, otherwise `timestamp` (see
@@ -250,8 +251,8 @@ entirely, so a dismissed notification can never ring later.
 While a supporting long-lived consumer is running, a snoozed notification becomes
 current within that consumer's tolerance of its wall-clock deadline:
 
-- **ACE session** — one second, including after suspend/resume, a restart, or a
-  system-clock change, and independently of `--refresh-interval`. ACE schedules a
+- **sase's TUI session** — one second, including after suspend/resume, a restart, or a
+  system-clock change, and independently of `--refresh-interval`. sase's TUI schedules a
   deadline-driven coordinator rather than relying on the general refresh tick.
 - **Mobile gateway** — the next authenticated list or detail read, which expires the row
   and publishes a `notifications_changed` event so connected clients refresh.
@@ -265,8 +266,8 @@ reader.
 Because expiry happens under the store lock, exactly one concurrent reader observes a
 given row in its `expired_ids` transition metadata. Every other consumer still observes
 the result through the persistent `muted`, `read`, and `resurfaced_at` fields, so a
-losing process never misses the resurfacing. ACE emits one toast and one tmux bell per
-observed resurface batch and does not repeat it on later polls.
+losing process never misses the resurfacing. sase's TUI emits one toast and one tmux
+bell per observed resurface batch and does not repeat it on later polls.
 
 #### Activity Ordering
 
@@ -280,7 +281,7 @@ activity_cursor(notification) = (activity_at, notification_id)
 
 `timestamp` keeps its immutable meaning as the original creation time and is what the UI
 displays as the sent time. The activity key is what makes a resurfaced snooze
-first-class recent activity: an old row moves to the top of the ACE modal, the first
+first-class recent activity: an old row moves to the top of sase's TUI modal, the first
 `sase notify list` page, and the first mobile page instead of staying buried. The
 notification-ID tie-breaker is required anywhere a cursor is persisted (mobile
 `newer_than`/high-water, Telegram delivery) so two rows sharing an activity instant
@@ -299,7 +300,7 @@ default cleanly to `resurfaced_at: null`.
 Raw audit reads (`load_notifications()`, the non-expiring snapshot read) deliberately
 never mutate time-driven state, so inspection and export paths cannot cause a resurface
 as a side effect. User-facing "current inbox" reads
-(`read_current_notification_snapshot()` and the CLI, ACE, mobile, and Telegram
+(`read_current_notification_snapshot()` and the CLI, sase's TUI, mobile, and Telegram
 projections built on it) atomically expire due rows under the store lock before
 projecting rows, counts, `expired_ids`, and the next active deadline.
 
@@ -345,7 +346,7 @@ Silent notifications never contribute to the indicator (see
 New unmuted notifications remain visually prominent through the top-bar indicator and
 action-specific toasts. A genuinely new `PlanApproval` or `EpicApproval` rings once on
 arrival, alongside its priority inbox row, warning toast, and the producer's desktop
-notification. The ACE toast says `Tale ready` or `Epic ready`; an epic adds the
+notification. sase's TUI toast says `Tale ready` or `Epic ready`; an epic adds the
 gate-time phase, dependency-wave, and non-zero phase-size counts, while batched toasts
 count tales and epics separately. Already-handled plan reviews discovered during polling
 and the intermediate post-approval handoff remain silent. Task triage, stale-cleanup,
@@ -422,9 +423,9 @@ suppresses duplicates and keeps the two mutually exclusive — a task bead never
 both at once. After the bead mutation commits, `sase bead close` makes a best-effort
 attempt to cancel the matching pending gate; a cancellation failure does not fail the
 close, and the next reconciliation remains the backstop. Choosing **Launch** in
-`TaskTriage` answers that gate normally, and a successful launch submission from ACE's
-Beads pane explicitly cancels it. A direct `sase bead work <task-id>` command does not
-settle an older gate itself; while a live agent is working the bead, the next
+`TaskTriage` answers that gate normally, and a successful launch submission from sase's
+TUI Beads pane explicitly cancels it. A direct `sase bead work <task-id>` command does
+not settle an older gate itself; while a live agent is working the bead, the next
 reconciliation cancels that stale gate with reason `bead_work_in_flight`. The same
 liveness rule covers `BeadSnooze` and `FlagTriage`. If the bead's status otherwise
 changes out of band (leaves `ready`, gets snoozed, or wakes), the chop cancels the gate
@@ -549,15 +550,15 @@ agent metadata consumers. Explicit artifact paths are read from the explicit-art
 association index at notification time, deduplicated against the standard attachments,
 and ignored if the index is unavailable.
 
-In ACE, completion artifacts are opened from the Agents tab with `a`. The artifact panel
-supports marking multiple files and opening the full artifact sequence, so notification
-attachments, generated PDFs/images/videos, plan files, and explicit artifacts use one
-selection workflow. Generated videos are included as ordinary file artifacts. ACE may
-also include image and video files referenced by saved prompt artifacts in that picker.
-Those prompt-referenced media are persisted or synthesized as ACE artifact-list entries,
-but they are not appended to notification delivery payloads unless they also appear in
-`done.json.image_paths` / `done.json.video_paths` or were saved explicitly with
-`sase artifact create`.
+In sase's TUI, completion artifacts are opened from the Agents tab with `a`. The
+artifact panel supports marking multiple files and opening the full artifact sequence,
+so notification attachments, generated PDFs/images/videos, plan files, and explicit
+artifacts use one selection workflow. Generated videos are included as ordinary file
+artifacts. sase's TUI may also include image and video files referenced by saved prompt
+artifacts in that picker. Those prompt-referenced media are persisted or synthesized as
+sase's TUI artifact-list entries, but they are not appended to notification delivery
+payloads unless they also appear in `done.json.image_paths` / `done.json.video_paths` or
+were saved explicitly with `sase artifact create`.
 
 When an agent sets output variables with `sase var set`, non-reserved variables are
 snapshotted into the completion notification as sorted JSON and rendered in Telegram
@@ -568,9 +569,9 @@ repeat-control variable `STOP` is omitted from Telegram completion summaries.
 
 The Agents tab also treats user-agent completions as unread work items. When a terminal
 agent is selected after it has been marked unread, or when the user jumps to it with the
-unread-agent shortcut, ACE clears the row's unread marker and dismisses the matching
-completion notification. Plan approvals and user questions remain explicit response
-workflows and are not auto-read merely by selection.
+unread-agent shortcut, sase's TUI clears the row's unread marker and dismisses the
+matching completion notification. Plan approvals and user questions remain explicit
+response workflows and are not auto-read merely by selection.
 
 Unread state on the Agents tab is projected from the active user-agent completion
 notifications in the store rather than written as separate per-row state — when the
@@ -580,8 +581,8 @@ with `U` overrides this projection locally so a deliberately re-flagged row is n
 immediately re-cleared. Plan approvals and user questions still require an explicit `y`
 / `n` response and are never auto-dismissed by row navigation.
 
-See [`agent_images.md`](agent_images.md) for the full attachment contract and ACE image
-preview notes.
+See [`agent_images.md`](agent_images.md) for the full attachment contract and sase's TUI
+image preview notes.
 
 For user-agent completion and failure notifications, `action_data` also includes
 `bead_display` when the agent name maps to a bead created by `sase bead work`. The value
@@ -652,22 +653,22 @@ Every failure becomes a bounded, human-readable `error` string such as
 construction: `render_chop_report` builds Rich text with explicit styles and never
 interprets console markup or ANSI from the document.
 
-In ACE, selecting a `ViewReport` notification renders the report in the modal's right
-pane under its provenance line, with a dim `attachments:` footer when the notification
-also carries files. Pressing Enter re-reads the document and opens the full-screen
-report modal, so the modal always shows the freshest published report rather than the
-pane's cached load. That modal binds `Ctrl+D`/`Ctrl+U` for half-page scrolling, `j`/`k`
-for lines, `g`/`G` for top/bottom, `y` to copy the report path, `e` to open the file in
-`$EDITOR`, and `Esc`/`q` to close. `y` and `e` warn instead for an inline snapshot,
-which has no file path. `ViewReport` is an ordinary informational action: selecting it
-marks the notification read.
+In sase's TUI, selecting a `ViewReport` notification renders the report in the modal's
+right pane under its provenance line, with a dim `attachments:` footer when the
+notification also carries files. Pressing Enter re-reads the document and opens the
+full-screen report modal, so the modal always shows the freshest published report rather
+than the pane's cached load. That modal binds `Ctrl+D`/`Ctrl+U` for half-page scrolling,
+`j`/`k` for lines, `g`/`G` for top/bottom, `y` to copy the report path, `e` to open the
+file in `$EDITOR`, and `Esc`/`q` to close. `y` and `e` warn instead for an inline
+snapshot, which has no file path. `ViewReport` is an ordinary informational action:
+selecting it marks the notification read.
 
 ### Action-less Notifications
 
 A notification with no `action` is a valid, common shape — an informational row with
-nothing to open. Selecting one in ACE marks it read and does nothing else; it is a
-silent no-op, not a producer error. Only a non-empty `action` string this build does not
-recognize produces an "Unsupported notification action" warning.
+nothing to open. Selecting one in sase's TUI marks it read and does nothing else; it is
+a silent no-op, not a producer error. Only a non-empty `action` string this build does
+not recognize produces an "Unsupported notification action" warning.
 
 ## Notification Fields
 
@@ -718,10 +719,10 @@ Successful visible and hidden user-agent completion notifications that jump back
 agent row carry the `done` tag. Failed user-agent notifications do not carry `done`;
 failures remain error reports.
 
-In ACE, tags create modal tabs above the notification list after the synthetic `Gates`,
-declared panel tabs, `Errors`, `General`, and `Done` tabs. **Every notification belongs
-to exactly one tab.** The Rust core decides which one, by this precedence, so the panel,
-the top-bar indicator, and the mobile snapshot always agree:
+In sase's TUI, tags create modal tabs above the notification list after the synthetic
+`Gates`, declared panel tabs, `Errors`, `General`, and `Done` tabs. **Every notification
+belongs to exactly one tab.** The Rust core decides which one, by this precedence, so
+the panel, the top-bar indicator, and the mobile snapshot always agree:
 
 1. `Snoozed` — muted with a `snooze_until` wake time
 2. `Muted` — muted with no wake time
@@ -751,8 +752,8 @@ resolves by precedence, highest first:
 1. [`ace.notification_tabs.<tab>.color`](configuration.md#acenotification_tabs), when
    non-empty
 2. the color a sender declared on a notification in that tab
-3. the built-in default for a tab ACE ships knowing about (`hitl`, `errors`, `beads`,
-   `general`, `snoozed`, `muted`)
+3. the built-in default for a tab sase's TUI ships knowing about (`hitl`, `errors`,
+   `beads`, `general`, `snoozed`, `muted`)
 4. a stable auto-palette entry derived from the tab key, so the same tag keeps the same
    color across restarts
 
@@ -777,10 +778,10 @@ precedence, highest first:
 1. [`ace.notification_tabs.<tab>.icon`](configuration.md#acenotification_tabs), when
    non-empty
 2. the icon a sender declared on a notification in that tab
-3. the built-in default for a tab ACE ships knowing about (`hitl`, `errors`, `beads`,
-   `general`, `snoozed`, `muted`)
-4. a default keyed by the tab's own kind (`panel`, `tag`), so a tab ACE has never heard
-   of still gets a glyph that means something about what it is
+3. the built-in default for a tab sase's TUI ships knowing about (`hitl`, `errors`,
+   `beads`, `general`, `snoozed`, `muted`)
+4. a default keyed by the tab's own kind (`panel`, `tag`), so a tab sase's TUI has never
+   heard of still gets a glyph that means something about what it is
 5. `•`, reachable only when a tab arrives with no kind at all
 
 Unlike color, an icon never falls back to a hashed auto-palette entry: an arbitrary
@@ -790,15 +791,15 @@ mark instead. The bundled defaults are `⚑` `hitl`, `✖` `errors`, `◈` `bead
 `general`, `☾` `snoozed`, and `⊘` `muted`; a gate-declared panel with no closer match
 falls to the kind default `◆`, and a tag tab falls to `#`.
 
-ACE resolves icons over the whole ordered tab list before rendering. Configured icons,
-sender-declared icons, and the bundled defaults are never rewritten. If two SASE-chosen
-generic icons from rung 4 or 5 would collide, ACE walks the tab key and uses the first
-unused ASCII letter or digit from that key: `axe` can become `a`, then `x`, then `e`;
-`file-hooks` can become `f`; `123-deploy` can become `1`. If every alphanumeric
-character in the key is already claimed, the tab keeps the generic mark rather than
-inventing a false glyph. Explicit duplicates remain explicit: if two configured tabs or
-two gates choose the same glyph, ACE renders that glyph for both. Run
-`sase doctor -C config.notification_tabs` to report configured duplicates.
+sase's TUI resolves icons over the whole ordered tab list before rendering. Configured
+icons, sender-declared icons, and the bundled defaults are never rewritten. If two
+SASE-chosen generic icons from rung 4 or 5 would collide, sase's TUI walks the tab key
+and uses the first unused ASCII letter or digit from that key: `axe` can become `a`,
+then `x`, then `e`; `file-hooks` can become `f`; `123-deploy` can become `1`. If every
+alphanumeric character in the key is already claimed, the tab keeps the generic mark
+rather than inventing a false glyph. Explicit duplicates remain explicit: if two
+configured tabs or two gates choose the same glyph, sase's TUI renders that glyph for
+both. Run `sase doctor -C config.notification_tabs` to report configured duplicates.
 
 A sender declares an icon with `presentation.panel_icon` on a gate (see
 [Command-backed interaction gates](#command-backed-interaction-gates) below); there is
@@ -950,10 +951,10 @@ characters, and at most 32 characters), and `color` (optional `#RRGGBB`). A decl
 chip is projected into notification `action_data` as `gate_chip_glyph`,
 `gate_chip_label`, and `gate_chip_color`; a colourless chip writes only the first two
 keys. Those keys are protected: producers may not write them through
-`presentation.action_data`. Every render surface — the ACE toast, the notification row,
-the gate detail pane, the review modal, and the mobile bridge row — reads the stored
-keys only and never resolves a task type. A stored colour that is not `#RRGGBB` is
-ignored so the glyph and label still render; a missing glyph or label drops the chip.
+`presentation.action_data`. Every render surface — sase's TUI toast, the notification
+row, the gate detail pane, the review modal, and the mobile bridge row — reads the
+stored keys only and never resolves a task type. A stored colour that is not `#RRGGBB`
+is ignored so the glyph and label still render; a missing glyph or label drops the chip.
 
 Every gate whose subject is a typed task bead declares this chip from the presentation
 frozen at gate creation (the type glyph, the slug as the label, and the type accent) and
@@ -992,11 +993,11 @@ button. The selected ids must be a non-empty subset of exactly one branch.
 branch's submit label and icon. `feedback` is `disabled`, `optional`, or `required`;
 custom options default to `optional`, and a group selection uses the strongest mode
 among its selected members. Automatic resolution is forbidden for custom gates.
-`primary_branch` must name one complete branch in canonical query order. ACE submits it
-with Enter while Space toggles the focused AND member; submitting a primary group
-preserves the reviewer's current toggles. ACE also numbers top-level branches in
-canonical order: the fixed keys `1`–`9` submit their matching branches directly.
-AND-member toggles remain unnumbered.
+`primary_branch` must name one complete branch in canonical query order. sase's TUI
+submits it with Enter while Space toggles the focused AND member; submitting a primary
+group preserves the reviewer's current toggles. sase's TUI also numbers top-level
+branches in canonical order: the fixed keys `1`–`9` submit their matching branches
+directly. AND-member toggles remain unnumbered.
 
 Every option references a bundle-owned `command` resource and is executed in query order
 as an argv array without a shell after its hash is reverified. A selected-command
@@ -1030,7 +1031,7 @@ exit codes 0, 3, and 4 respectively. A CLI timeout can shorten but never extend 
 request's own gate timeout.
 
 `sase gate answer`, `sase gate act`, and `sase gate show` are the headless counterparts
-to the ACE modals: `answer` selects a branch and supplies each selected option's
+to sase's TUI modals: `answer` selects a branch and supplies each selected option's
 declared input (`--set field=value` typed by its declaration,
 `--option-input <opt>=@file.json` for a whole per-option value, or `--input @file.json`
 for the legacy shared value) and resumes or restarts a partially executed AND branch
@@ -1087,8 +1088,9 @@ attached file paths, action data, and state flags. Axe error digest notification
 usually point to the actionable report through `files` or
 `action_data.error_report_path`; read that attached file for the detailed errors.
 
-To create a local test notification with a persistent PNG attachment for ACE modal
-image-preview checks, run `tools/test_image_notification` from the repository root.
+To create a local test notification with a persistent PNG attachment for sase's TUI
+modal image-preview checks, run `tools/test_image_notification` from the repository
+root.
 
 See [`docs/configuration.md`](configuration.md#sase-notify) for the full CLI reference.
 
@@ -1111,24 +1113,24 @@ write-once response validation. The pending-action 24-hour stale threshold is
 transport-only; it may hide remote controls but does not terminate a waiting producer.
 Only cancellation or an explicit per-request gate timeout is terminal. Every terminal
 response or cancellation marks the pending action handled and dismisses the notification
-row, regardless of gate kind or client surface. When ACE opens the notification modal,
-it also repairs live gate rows whose bundles became terminal without a corresponding
-dismissal.
+row, regardless of gate kind or client surface. When sase's TUI opens the notification
+modal, it also repairs live gate rows whose bundles became terminal without a
+corresponding dismissal.
 
-ACE, Telegram, and mobile derive gate-kind capabilities from the shared adapter registry
-and render branches in query order from the same normalized envelope structure.
+sase's TUI, Telegram, and mobile derive gate-kind capabilities from the shared adapter
+registry and render branches in query order from the same normalized envelope structure.
 Registering a new branch-actionable kind therefore makes it actionable on every surface
 without adding per-surface action or kind allowlists. Singleton branches are buttons.
 AND branches expose one toggle per option and a configurable submit control; the primary
 AND branch starts expanded. Top-level branches have fixed one-based digit selectors in
 canonical query order, while AND members remain unnumbered and use Space to toggle.
-ACE's Decision column shows those branches and toggles only — typed fields live in a
-dedicated input panel, not in the left pane. Enter submits the declared primary branch,
-Ctrl+S submits the active branch, and `q` or Escape cancels the modal. A selection that
-needs typed input — any declared `inputs` field, a raw `input_schema` with a property
-the host does not already collect, or `feedback: required` — opens the panel first;
-confirming the panel submits the branch, and cancelling returns to the gate with the
-selection and whatever was typed intact. An option that declares only
+sase's TUI Decision column shows those branches and toggles only — typed fields live in
+a dedicated input panel, not in the left pane. Enter submits the declared primary
+branch, Ctrl+S submits the active branch, and `q` or Escape cancels the modal. A
+selection that needs typed input — any declared `inputs` field, a raw `input_schema`
+with a property the host does not already collect, or `feedback: required` — opens the
+panel first; confirming the panel submits the branch, and cancelling returns to the gate
+with the selection and whatever was typed intact. An option that declares only
 `feedback: optional`, or nothing at all, still answers on Enter or its digit. Press `i`
 on the focused option first to open the same panel for an optional note. For an AND
 group, the panel opens when the group's submit control is activated, not when a member
@@ -1149,19 +1151,20 @@ Cancellation is refused after acceptance, even if the selected command is still 
 or a detached proc must be resumed later.
 
 `decision_receipt.json` is the local signal for immediate notification dismissal and
-targeted ACE refresh. `response.json` remains the terminal execution record written only
-after the command set, archive, and successor launch work has completed. Approval labels
-therefore mean the human decision is durable; they do not imply that a commit, archive,
-or next agent has already finished unless the terminal response says so.
+targeted sase's TUI refresh. `response.json` remains the terminal execution record
+written only after the command set, archive, and successor launch work has completed.
+Approval labels therefore mean the human decision is durable; they do not imply that a
+commit, archive, or next agent has already finished unless the terminal response says
+so.
 
 Rollout keeps existing bundles readable. Upgrade `sase-core` first so every surface has
-the indexed shell lookup and acceptance policy, then upgrade the SASE Python/ACE/mobile
-clients against that binding, and finally upgrade Telegram so its receiver submits
-answers through the same supervised proc path. In-flight legacy gates still fall back to
-their historical `response.json` path. Telegram receiver adoption requires no config
-edit: the first enabled chop tick re-arms the persistent receiver, `--once` remains the
-diagnostic direct poll path, disabled or credential-less receivers self-terminate, and a
-running receiver can be stopped with `sase proc kill`.
+the indexed shell lookup and acceptance policy, then upgrade the SASE Python/sase's
+TUI/mobile clients against that binding, and finally upgrade Telegram so its receiver
+submits answers through the same supervised proc path. In-flight legacy gates still fall
+back to their historical `response.json` path. Telegram receiver adoption requires no
+config edit: the first enabled chop tick re-arms the persistent receiver, `--once`
+remains the diagnostic direct poll path, disabled or credential-less receivers
+self-terminate, and a running receiver can be stopped with `sase proc kill`.
 
 Latency evidence from isolated probes on 2026-09-14:
 
@@ -1223,7 +1226,7 @@ forbidden, and all client surfaces use the same host-side side effects.
 Inside a running SASE agent, workflow `HITL` now uses the same gate-shell handoff as
 questions and plans. Historical HITL bundles remain readable and use their compatibility
 response-file path; every neutral bundle is resolved through the same hash-verified
-executor in ACE and Telegram.
+executor in sase's TUI and Telegram.
 
 ### Gate shells and continuation
 
@@ -1342,8 +1345,8 @@ builds the richest value a client could actually submit and checks that the sche
 accept it. For an option declaring `inputs`, that value is `{}` plus every declared
 field's default plus `feedback` when the option's feedback mode allows it, validated
 against the compiled schema. For an option declaring a raw `input_schema` and no
-`inputs`, the reviewer types the value into a raw-schema editor — ACE's input panel (one
-YAML editor under that option's section), `sase gate answer --option-input`, or the
+`inputs`, the reviewer types the value into a raw-schema editor — sase's TUI input panel
+(one YAML editor under that option's section), `sase gate answer --option-input`, or the
 mobile bridge's `option_inputs` — so every property declared under `properties` is
 producible and the schema's own constraints on those properties (patterns, bounds,
 types) are the reviewer's to satisfy. What still fails closed is a `required` name that
@@ -1355,7 +1358,7 @@ Every input value is also bounded, both at creation and at submission: canonical
 most 64 KiB, nesting depth at most 16, at most 128 properties in one object, and at most
 512 items in one array.
 
-ACE collects typed values in that input panel. Each selected option that declares
+sase's TUI collects typed values in that input panel. Each selected option that declares
 `inputs` or a raw schema gets its own section, headed by that option's icon and label.
 When two selected AND options declare the same field id compatibly, the field is
 collected once — it renders in the first declaring option's section, annotated
@@ -1370,8 +1373,8 @@ Ctrl+S submits; a `path` field also accepts Ctrl+T to cycle filesystem completio
 `input.feedback` for a selected option **iff that option's effective `input_schema`
 declares a `feedback` property** — an option with no `feedback` property is left alone,
 and an option with an ordinary `feedback` field declared under its own `inputs` is
-respected as-is. The same rule runs inside the shared executor for every caller — ACE,
-mobile, Telegram, and `sase gate answer` alike — so a gate answers identically
+respected as-is. The same rule runs inside the shared executor for every caller — sase's
+TUI, mobile, Telegram, and `sase gate answer` alike — so a gate answers identically
 regardless of where it was tapped.
 
 **Submission is per option.** A surface submits `option_inputs`, a mapping of selected
@@ -1428,7 +1431,7 @@ An action may declare a single-character `key` (for example `key: "e"` on the pl
 epic `edit_plan` action). Creation rejects a key already reserved by the static gate
 modal bindings (`q`, `d`, `g`, `G`, and the digit branch selectors `1`-`9`) or reused by
 another action on the same gate. A collision with the reviewer's own configured gate
-modal keymaps cannot be known at creation time; ACE resolves it at render time by
+modal keymaps cannot be known at creation time; sase's TUI resolves it at render time by
 reassigning from a deterministic fallback pool and displaying whichever key it actually
 bound.
 
@@ -1472,9 +1475,9 @@ Unanswered schema-v2 neutral bundles also remain hash-verifiable and answerable.
 project their historical first branch as the primary action in memory; new gate creation
 requires schema v3 and an explicit `primary_branch`.
 
-Question summaries use the same resolver, so ACE can render both neutral and legacy
-questions. Gate command execution from ACE is scheduled as tracked background work
-rather than running on Textual's event loop.
+Question summaries use the same resolver, so sase's TUI can render both neutral and
+legacy questions. Gate command execution from sase's TUI is scheduled as tracked
+background work rather than running on Textual's event loop.
 
 ## Storage
 
@@ -1484,9 +1487,9 @@ shared sidecar lock, and rewrites use a tempfile plus rename so multiple axe pro
 and the TUI can access the file without truncate-before-lock exposure. Common state-only
 updates such as mark-read, mark-all-read, mute, snooze, and dismiss use a count-only
 Rust mutation path unless the caller needs rehydrated notification rows; this keeps
-inbox counters cheap when ACE or a bridge process only needs mutation metadata.
+inbox counters cheap when sase's TUI or a bridge process only needs mutation metadata.
 
-ACE snapshot reads memoize the parsed store against the JSONL path, the
+sase's TUI snapshot reads memoize the parsed store against the JSONL path, the
 `include_dismissed` flag, and an mtime+size change token, so an unchanged live file is
 not re-parsed on the TUI refresh cadence. A due `next_snooze_deadline` still forces a
 re-read when the caller asked to expire snoozes.

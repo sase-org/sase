@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the prompt Frontmatter Panel (Phase 3).
+"""sase's TUI PNG visual snapshots for the prompt Frontmatter Panel (Phase 3).
 
 Pin how :class:`FrontmatterPanel` renders above the prompt stack in three states
 the design calls out: a populated panel (scalar rows, the status chip, and the

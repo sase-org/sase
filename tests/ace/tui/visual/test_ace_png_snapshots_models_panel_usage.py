@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for the Providers · Usage view at 120/80/60 columns."""
+"""sase's TUI PNG snapshots for the Providers · Usage view at 120/80/60 columns."""
 
 from __future__ import annotations
 

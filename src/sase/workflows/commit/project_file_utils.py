@@ -63,7 +63,7 @@ def create_project_file(project: str) -> bool:
     Uses locking and atomic writes for consistency. Refuses to mint a new
     project whose name is already claimed as another project's PROJECT_NAME
     or alias — creating one would shadow that ref and break alias
-    resolution (crashing ``sase ace`` at startup).
+    resolution (crashing ``sase tui`` at startup).
 
     Args:
         project: Project name.

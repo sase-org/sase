@@ -6,7 +6,7 @@ lands in a durable, findable file (``~/.sase/logs/tui.log``). This is the
 implicit backstop for the explicit :func:`sase.logs.log_launch_failure`
 writer: even an un-instrumented failure path leaves a trace.
 
-The handler is scoped to the ``sase ace`` TUI (installed from
+The handler is scoped to ``sase tui`` (installed from
 ``handle_ace_command``), not the bare CLI or tests, and is idempotent so
 re-entrant startups never double-install.
 """

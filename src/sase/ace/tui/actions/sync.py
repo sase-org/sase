@@ -1,4 +1,4 @@
-"""Sync action methods for the ace TUI app."""
+"""Sync action methods for sase's TUI app."""
 
 from __future__ import annotations
 

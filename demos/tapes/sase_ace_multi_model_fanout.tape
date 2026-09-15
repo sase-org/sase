@@ -57,7 +57,7 @@ Type "clear"
 Enter
 Show
 
-Type "sase ace --refresh-interval 1 --tab agents -x"
+Type "sase tui --refresh-interval 1 --tab agents -x"
 Hide
 Enter
 Wait+Screen /Agents/

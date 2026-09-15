@@ -48,7 +48,7 @@ def _fixture_schema() -> dict[str, Any]:
             "ace": {
                 "type": "object",
                 "additionalProperties": False,
-                "description": "ACE TUI settings.",
+                "description": "Configuration for sase's TUI",
                 "properties": {
                     "lumberjack": {
                         "type": "object",

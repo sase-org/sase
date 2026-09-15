@@ -1,4 +1,4 @@
-"""Tests for ``sase ace --tmux`` window launching."""
+"""Tests for ``sase tui --tmux`` window launching."""
 
 from __future__ import annotations
 
@@ -84,7 +84,7 @@ def test_returns_sase_tmux_1_on_fresh_session(capsys, monkeypatch) -> None:
     with (
         patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
         patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
-        patch.object(sys, "argv", ["sase", "ace", "my-query"]),
+        patch.object(sys, "argv", ["sase", "tui", "my-query"]),
     ):
         ace_tmux.launch_ace_in_tmux(_args())
 
@@ -103,7 +103,7 @@ def test_skips_occupied_window_numbers(capsys, monkeypatch) -> None:
     with (
         patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
         patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
-        patch.object(sys, "argv", ["sase", "ace"]),
+        patch.object(sys, "argv", ["sase", "tui"]),
     ):
         ace_tmux.launch_ace_in_tmux(_args())
 
@@ -121,7 +121,7 @@ def test_strips_tmux_flags_from_relaunch_argv(monkeypatch) -> None:
     fake = _FakeTmux(in_tmux=True)
     argv = [
         "sase",
-        "ace",
+        "tui",
         "--tmux",
         "-T",
         "my-query",
@@ -146,7 +146,7 @@ def test_strips_tmux_flags_from_relaunch_argv(monkeypatch) -> None:
         sys.executable,
         "-m",
         "sase",
-        "ace",
+        "tui",
         "my-query",
         "--tab",
         "agents",
@@ -162,7 +162,7 @@ def test_inside_tmux_uses_current_session(monkeypatch) -> None:
     with (
         patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
         patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
-        patch.object(sys, "argv", ["sase", "ace"]),
+        patch.object(sys, "argv", ["sase", "tui"]),
     ):
         ace_tmux.launch_ace_in_tmux(_args())
 
@@ -180,7 +180,7 @@ def test_outside_tmux_creates_agents_session(monkeypatch) -> None:
     with (
         patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
         patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
-        patch.object(sys, "argv", ["sase", "ace"]),
+        patch.object(sys, "argv", ["sase", "tui"]),
     ):
         ace_tmux.launch_ace_in_tmux(_args())
 
@@ -208,11 +208,85 @@ def test_outside_tmux_creates_session_when_missing(monkeypatch) -> None:
     with (
         patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
         patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
-        patch.object(sys, "argv", ["sase", "ace"]),
+        patch.object(sys, "argv", ["sase", "tui"]),
     ):
         ace_tmux.launch_ace_in_tmux(_args())
 
     assert any(c[1] == "new-session" for c in fake.calls)
+
+
+def test_relaunch_replaces_legacy_ace_subcommand(monkeypatch) -> None:
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+    fake = _FakeTmux(in_tmux=True)
+    with (
+        patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
+        patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
+        patch.object(sys, "argv", ["sase", "ace", "--tmux", "my-query"]),
+    ):
+        ace_tmux.launch_ace_in_tmux(_args())
+
+    new_window_call = next(c for c in fake.calls if c[1] == "new-window")
+    relaunch_cmd = new_window_call[-1]
+    parsed = shlex.split(relaunch_cmd[len("exec ") :])
+    assert parsed == [sys.executable, "-m", "sase", "tui", "my-query"]
+
+
+def test_relaunch_preserves_global_options_before_tui(monkeypatch) -> None:
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+    fake = _FakeTmux(in_tmux=True)
+    with (
+        patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
+        patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
+        patch.object(
+            sys,
+            "argv",
+            ["sase", "-p", "-f", "provider_drain", "tui", "--tmux", "my query"],
+        ),
+    ):
+        ace_tmux.launch_ace_in_tmux(_args())
+
+    new_window_call = next(c for c in fake.calls if c[1] == "new-window")
+    relaunch_cmd = new_window_call[-1]
+    parsed = shlex.split(relaunch_cmd[len("exec ") :])
+    assert parsed == [
+        sys.executable,
+        "-m",
+        "sase",
+        "-p",
+        "-f",
+        "provider_drain",
+        "tui",
+        "my query",
+    ]
+
+
+def test_relaunch_preserves_separator_query_flags(monkeypatch) -> None:
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+    fake = _FakeTmux(in_tmux=True)
+    with (
+        patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
+        patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
+        patch.object(
+            sys,
+            "argv",
+            ["sase", "tui", "--tmux", "ready", "--", "--tmux", "-T"],
+        ),
+    ):
+        ace_tmux.launch_ace_in_tmux(_args())
+
+    new_window_call = next(c for c in fake.calls if c[1] == "new-window")
+    relaunch_cmd = new_window_call[-1]
+    parsed = shlex.split(relaunch_cmd[len("exec ") :])
+    assert parsed == [
+        sys.executable,
+        "-m",
+        "sase",
+        "tui",
+        "ready",
+        "--",
+        "--tmux",
+        "-T",
+    ]
 
 
 def test_sets_profiling_env_vars_by_default(monkeypatch) -> None:
@@ -223,7 +297,7 @@ def test_sets_profiling_env_vars_by_default(monkeypatch) -> None:
     with (
         patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
         patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
-        patch.object(sys, "argv", ["sase", "ace"]),
+        patch.object(sys, "argv", ["sase", "tui"]),
     ):
         ace_tmux.launch_ace_in_tmux(_args())
 
@@ -244,7 +318,7 @@ def test_respects_explicit_profiling_env_var(monkeypatch) -> None:
     with (
         patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
         patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
-        patch.object(sys, "argv", ["sase", "ace"]),
+        patch.object(sys, "argv", ["sase", "tui"]),
     ):
         ace_tmux.launch_ace_in_tmux(_args())
 
@@ -264,7 +338,7 @@ def test_profiling_env_args_precede_window_name(monkeypatch) -> None:
     with (
         patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
         patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
-        patch.object(sys, "argv", ["sase", "ace"]),
+        patch.object(sys, "argv", ["sase", "tui"]),
     ):
         ace_tmux.launch_ace_in_tmux(_args())
 

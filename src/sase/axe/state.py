@@ -1,7 +1,7 @@
 """Disk state management for sase axe scheduler.
 
 This module handles all state persistence for the axe scheduler, enabling
-sase ace to monitor and control axe processes via the TUI.
+sase's TUI to monitor and control axe processes.
 
 Includes both the flat scheduler state (legacy) and per-lumberjack state
 directories used by the new lumberjack architecture.

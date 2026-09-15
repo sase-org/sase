@@ -1,4 +1,4 @@
-"""Tests for ace TUI Agents-tab help-modal bindings.
+"""Tests for sase's TUI Agents-tab help-modal bindings.
 
 Covers Agents-tab-specific sections: zoom/isolation, neighbor navigation,
 tmux workspace chooser, save/dismiss/cleanup actions, wait badges, inline

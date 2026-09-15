@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the ACE PNG visual snapshot failure report.
+"""Render the sase's TUI PNG visual snapshot failure report.
 
 Consumes ``failure.json`` sidecars written by
 ``tests/ace/tui/visual/png_diff.py`` and produces:
@@ -70,7 +70,7 @@ class RenderContext:
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Render the ACE PNG visual snapshot failure report from "
+            "Render the sase's TUI PNG visual snapshot failure report from "
             "failure.json sidecars."
         )
     )
@@ -192,11 +192,11 @@ def render_html(
     body_parts: list[str] = []
     if not records:
         body_parts.append(
-            "<p class=\"empty\">No ACE PNG snapshot failures were recorded.</p>"
+            "<p class=\"empty\">No sase's TUI PNG snapshot failures were recorded.</p>"
         )
     else:
         body_parts.append(
-            f"<p class=\"count\">{len(records)} ACE PNG snapshot failure(s).</p>"
+            f"<p class=\"count\">{len(records)} sase's TUI PNG snapshot failure(s).</p>"
         )
         for record in records:
             body_parts.append(_render_html_section(record, context=context))
@@ -330,13 +330,13 @@ def render_summary(
 ) -> str:
     """Render the compact ``summary.md`` GitHub job summary."""
     if not records:
-        return "# ACE PNG snapshot failures\n\nNo failures recorded.\n"
+        return "# sase's TUI PNG snapshot failures\n\nNo failures recorded.\n"
 
     lines: list[str] = []
-    lines.append("# ACE PNG snapshot failures")
+    lines.append("# sase's TUI PNG snapshot failures")
     lines.append("")
     lines.append(
-        f"{len(records)} ACE PNG snapshot failure(s)."
+        f"{len(records)} sase's TUI PNG snapshot failure(s)."
     )
     lines.append("")
     lines.append(
@@ -429,8 +429,8 @@ def _annotation_line(record: FailureRecord) -> str:
 
 def _annotation_title(record: FailureRecord) -> str:
     if record.kind == "missing_golden":
-        return "ACE PNG snapshot missing golden"
-    return "ACE PNG snapshot mismatch"
+        return "sase's TUI PNG snapshot missing golden"
+    return "sase's TUI PNG snapshot mismatch"
 
 
 def _annotation_message(record: FailureRecord) -> str:
@@ -584,7 +584,7 @@ _HTML_TEMPLATE = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>ACE PNG snapshot failure report</title>
+<title>sase's TUI PNG snapshot failure report</title>
 <style>
 body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
        margin: 2rem auto; max-width: 60rem; padding: 0 1rem; }}
@@ -609,7 +609,7 @@ h1 {{ margin-bottom: 0.25rem; }}
 </style>
 </head>
 <body>
-<h1>ACE PNG snapshot failure report</h1>
+<h1>sase's TUI PNG snapshot failure report</h1>
 {body}
 </body>
 </html>

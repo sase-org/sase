@@ -131,23 +131,24 @@ task-worker proposal from `sase-iq` becomes `sase-iq.1`. Agents with no bead ass
 at all continue to create top-level epics.
 
 When `sase plan propose` submits a plan for approval, it touches
-`~/.sase/.ace_refresh_pulse` so any running ACE TUI flips the agent into the tier-aware
-`TALE` or `EPIC` pending-review status immediately rather than waiting for the next
-auto-refresh tick. Legacy or unreadable-tier plans use the `PLAN` fallback. The pulse
-file is consumed by the inotify-based artifact watcher and is harmless when no TUI is
-open.
+`~/.sase/.ace_refresh_pulse` so any running sase's TUI flips the agent into the
+tier-aware `TALE` or `EPIC` pending-review status immediately rather than waiting for
+the next auto-refresh tick. Legacy or unreadable-tier plans use the `PLAN` fallback. The
+pulse file is consumed by the inotify-based artifact watcher and is harmless when no TUI
+is open.
 
-Humans can approve the pending proposal from ACE or from the CLI. `sase plan` lists
-pending PlanApproval notifications, recent approvals, and inferred rejected archived
-proposals. `sase plan approve <id-prefix>` defaults to the tier authored in the plan;
-`--kind tale|epic` explicitly overrides it. The selected target schema is validated
-before the response, SDD copy, or notification dismissal, and failures leave the
-proposal pending.
+Humans can approve the pending proposal from sase's TUI or from the CLI. `sase plan`
+lists pending PlanApproval notifications, recent approvals, and inferred rejected
+archived proposals. `sase plan approve <id-prefix>` defaults to the tier authored in the
+plan; `--kind tale|epic` explicitly overrides it. The selected target schema is
+validated before the response, SDD copy, or notification dismissal, and failures leave
+the proposal pending.
 
 Tale approval promotes the plan and launches its coder through the agent runner. Every
-epic approval surface — ACE, the CLI, Telegram, or a bare gate response — instead hands
-`sase bead work <plan-file> --yes-to-all` to a durable supervisor, because launching an
-epic's phases is itself a long-running command that must outlive the approving process.
+epic approval surface — sase's TUI, the CLI, Telegram, or a bare gate response — instead
+hands `sase bead work <plan-file> --yes-to-all` to a durable supervisor, because
+launching an epic's phases is itself a long-running command that must outlive the
+approving process.
 
 The preferred form is a [monitor](monitors.md) shell under the planner's own agent
 family, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
@@ -196,9 +197,9 @@ or as agent-friendly `json`/`markdown` via `--format`.
 Once you know which plan you want, `sase plan show [TARGET]` resolves it — a path, a
 `plan:` reference, a pending-approval selector, a bare slug or `<shard>/<slug>`, or a
 bead id — to exactly one plan and renders it as a colored, section-structured detail
-view matching the ACE TUI's PLAN lane, with `compact`, `json`, and byte-faithful `raw`
-output alongside the default `full` view. See [CLI](cli.md#work-tracking-and-planning)
-for the resolution ladder and format details.
+view matching the PLAN lane in sase's TUI, with `compact`, `json`, and byte-faithful
+`raw` output alongside the default `full` view. See
+[CLI](cli.md#work-tracking-and-planning) for the resolution ladder and format details.
 
 ### Q&A Sections
 

@@ -1,4 +1,4 @@
-"""Tests for the ace TUI command generators.
+"""Tests for sase's TUI command generators.
 
 Verifies that the app, saved-query, and mode generators:
 

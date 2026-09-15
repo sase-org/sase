@@ -1,4 +1,4 @@
-"""Keybinding footer widget for the ace TUI.
+"""Keybinding footer widget for sase's TUI.
 
 Footer Convention
 -----------------

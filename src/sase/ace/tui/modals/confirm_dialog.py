@@ -1,4 +1,4 @@
-"""Shared confirmation dialog foundation for the ace TUI."""
+"""Shared confirmation dialog foundation for sase's TUI."""
 
 from __future__ import annotations
 

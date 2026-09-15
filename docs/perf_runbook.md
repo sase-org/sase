@@ -1,30 +1,30 @@
-# `sase ace` Performance Runbook
+# `sase tui` Performance Runbook
 
-This runbook explains how to capture and compare performance data for ACE, the
-`sase ace` terminal user interface. It started as the Phase 1 deliverable for the TUI
+This runbook explains how to capture and compare performance data for sase's TUI, the
+`sase tui` terminal user interface. It started as the Phase 1 deliverable for the TUI
 performance overhaul (bead `sase-w.1`, `sdd/epics/202604/tui_perf_overhaul_1.md`), and
 later performance phases still rely on the tracing and benchmark harness described here.
 
 ## Athena host-relief baseline
 
 Bead `sase-zn.1` captured this host-pressure baseline on athena on 2026-09-11 while
-investigating prompt-input lag in a long-lived `sase ace` session. Use it as the
+investigating prompt-input lag in a long-lived `sase tui` session. Use it as the
 reference point for the later `sase-zn` phases that measure remaining CPU, heap,
 refresh, and scratch pressure.
 
-| signal               | before                                                                                                                            | after host relief                                                                    |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `/tmp` tmpfs         | 20G used, 13G available, 62% full                                                                                                 | 5.6G used, 26G available, 18% full                                                   |
-| `/` filesystem       | 837G used, 29G available, 97% full                                                                                                | 815G used, 51G available, 95% full                                                   |
-| swap                 | 30.4G used of 64G                                                                                                                 | 13.1G used of 64G                                                                    |
-| ACE process          | PID 2019865, 10036968 kB RSS, 3332948 kB swap                                                                                     | PID 2351038, 766372 kB RSS, 0 kB swap                                                |
-| SASE scratch matches | 24 matched `/tmp/*cargo-target*`, `/tmp/*core-target*`, `/tmp/sase-*-recovery*`, and synced managed-root build targets; 37G total | 0 remaining matches                                                                  |
-| `SASE_TMPDIR`        | `/home/bryan/tmp/sase`, via `/home/bryan/tmp -> Sync/home/tmp`                                                                    | `/home/bryan/.cache/sase/tmp` in chezmoi-managed `.profile` and the live ACE process |
+| signal               | before                                                                                                                            | after host relief                                                                           |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `/tmp` tmpfs         | 20G used, 13G available, 62% full                                                                                                 | 5.6G used, 26G available, 18% full                                                          |
+| `/` filesystem       | 837G used, 29G available, 97% full                                                                                                | 815G used, 51G available, 95% full                                                          |
+| swap                 | 30.4G used of 64G                                                                                                                 | 13.1G used of 64G                                                                           |
+| sase's TUI process   | PID 2019865, 10036968 kB RSS, 3332948 kB swap                                                                                     | PID 2351038, 766372 kB RSS, 0 kB swap                                                       |
+| SASE scratch matches | 24 matched `/tmp/*cargo-target*`, `/tmp/*core-target*`, `/tmp/sase-*-recovery*`, and synced managed-root build targets; 37G total | 0 remaining matches                                                                         |
+| `SASE_TMPDIR`        | `/home/bryan/tmp/sase`, via `/home/bryan/tmp -> Sync/home/tmp`                                                                    | `/home/bryan/.cache/sase/tmp` in chezmoi-managed `.profile` and the live sase's TUI process |
 
 The cleanup removed only SASE-named cargo/core target directories, SASE recovery
 bundles, and the stale `~/.sase/perf/tui_trace.jsonl` file. The durable environment
-change is in the chezmoi source `home/dot_profile`, applied to `~/.profile`, then ACE
-was restarted in tmux pane `sase:5.1` after sourcing the updated profile.
+change is in the chezmoi source `home/dot_profile`, applied to `~/.profile`, then sase's
+TUI was restarted in tmux pane `sase:5.1` after sourcing the updated profile.
 
 Py-spy profiles from the same run are stored outside the repo at:
 
@@ -42,17 +42,17 @@ while the host was under real agent load: load average `38.93 / 37.40 / 37.07`, 
 `run_agent_runner.py` processes were active, and pytest workers from several SASE
 workspaces were consuming CPU.
 
-| signal         | 2026-09-12 verification                                                                                                                                                    |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/tmp` tmpfs   | 22M used of 32G; no `/tmp/*cargo-target*`, `/tmp/*core-target*`, or `/tmp/sase-*-recovery*` matches remained                                                               |
-| `/` filesystem | 847G used, 19G available, 98% full                                                                                                                                         |
-| swap           | 8.3G used of 64G                                                                                                                                                           |
-| ACE process    | PID 54331, up 5h09m; `VmRSS: 1199148 kB`, `VmSwap: 275464 kB`, `Anonymous: 1163148 kB`                                                                                     |
-| ACE CPU        | main thread sampled at 569 ticks over 60s, about 0.095 cores, or roughly 2.3 CPU-hours/day; whole process was about 0.30 cores under load                                  |
-| SASE scratch   | live `SASE_TMPDIR=/home/bryan/.cache/sase/tmp`; managed `cargo-targets/` was present and bounded at 68K                                                                    |
-| old hot frames | 25s `py-spy` raw capture had no `reconcile_agent_artifact_index_dismissed_family_members` samples and only 4/2399 `read_current_notifications_snapshot` samples            |
-| watchdog       | not green: the last 30 minutes contained 17 `tui_hitch` and 5 `tui_pump_hitch` starts, with fresh Agents-tab hitches during the run                                        |
-| key-to-paint   | not re-confirmed green: the live ACE process was not started with `SASE_TUI_PERF=1`; the existing `tui_jk.jsonl` was stale from 2026-09-10 and showed Agents p95 174.06 ms |
+| signal             | 2026-09-12 verification                                                                                                                                                           |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/tmp` tmpfs       | 22M used of 32G; no `/tmp/*cargo-target*`, `/tmp/*core-target*`, or `/tmp/sase-*-recovery*` matches remained                                                                      |
+| `/` filesystem     | 847G used, 19G available, 98% full                                                                                                                                                |
+| swap               | 8.3G used of 64G                                                                                                                                                                  |
+| sase's TUI process | PID 54331, up 5h09m; `VmRSS: 1199148 kB`, `VmSwap: 275464 kB`, `Anonymous: 1163148 kB`                                                                                            |
+| sase's TUI CPU     | main thread sampled at 569 ticks over 60s, about 0.095 cores, or roughly 2.3 CPU-hours/day; whole process was about 0.30 cores under load                                         |
+| SASE scratch       | live `SASE_TMPDIR=/home/bryan/.cache/sase/tmp`; managed `cargo-targets/` was present and bounded at 68K                                                                           |
+| old hot frames     | 25s `py-spy` raw capture had no `reconcile_agent_artifact_index_dismissed_family_members` samples and only 4/2399 `read_current_notifications_snapshot` samples                   |
+| watchdog           | not green: the last 30 minutes contained 17 `tui_hitch` and 5 `tui_pump_hitch` starts, with fresh Agents-tab hitches during the run                                               |
+| key-to-paint       | not re-confirmed green: the live sase's TUI process was not started with `SASE_TUI_PERF=1`; the existing `tui_jk.jsonl` was stale from 2026-09-10 and showed Agents p95 174.06 ms |
 
 The profile is stored outside the repo at
 `~/.sase/perf/athena-verify-sase-zn8-20260912T131736.raw`. `py-spy` reported sampling
@@ -159,8 +159,8 @@ reference uses, does not. The one extra row was an agent created during the run.
 the dismissal step was added, 107 rows differed; every one was a dismissed identity or
 one of those family members.
 
-Live session: ACE from this tree (`sase ace -x --tab agents`, PID 2078791, logs in
-`~/.sase/perf/sase-zu.8.5-tui_{startup,agent_loads,trace}.jsonl`) against the real
+Live session: sase's TUI from this tree (`sase tui -x --tab agents`, PID 2078791, logs
+in `~/.sase/perf/sase-zu.8.5-tui_{startup,agent_loads,trace}.jsonl`) against the real
 archive, with the `not machine:apollo` query committed interactively:
 
 | signal                     | observation                                                                                                   |
@@ -175,12 +175,12 @@ archive, with the `not machine:apollo` query committed interactively:
 | remaining expensive stage  | 3 bounded loads before the upgrade fell back to a 6.7-7.4 s source scan: `artifact index operation lock busy` |
 
 First paint stays in the indexed baseline range (8.036 s on 2026-09-12; 5.5-6.8 s in the
-live ACE today). Unchanged covered history is loaded once per committed query. The
-lock-busy fallbacks come from the process-local index lock's 50 ms read timeout, which
-`62ad9b657c` added. Old artifact directories are outside the bounded startup inotify
-watch budget. Their marker changes therefore reach the tab through revalidation, not
-watcher deltas: a touched July `done.json` showed up in the index as a new `done_sig`
-without a rebuild.
+live sase's TUI today). Unchanged covered history is loaded once per committed query.
+The lock-busy fallbacks come from the process-local index lock's 50 ms read timeout,
+which `62ad9b657c` added. Old artifact directories are outside the bounded startup
+inotify watch budget. Their marker changes therefore reach the tab through revalidation,
+not watcher deltas: a touched July `done.json` showed up in the index as a new
+`done_sig` without a rebuild.
 
 ## Idle-host CPU diet
 
@@ -232,8 +232,8 @@ jq '{chops_spawned, chops_no_op, chops_skipped, last_tick_spawns, last_tick_skip
 # 3. Process CPU over a quiet minute (/proc deltas)
 pidof -x sase; ps -o pid,pcpu,pmem,comm -p $(pgrep -d, -f 'sase (ace|axe)')
 # sample twice, 60s apart:
-awk '{print $1,$14,$15}' /proc/$(pgrep -n -f 'sase ace')/stat; sleep 60; \
-awk '{print $1,$14,$15}' /proc/$(pgrep -n -f 'sase ace')/stat
+awk '{print $1,$14,$15}' /proc/$(pgrep -n -f 'sase tui')/stat; sleep 60; \
+awk '{print $1,$14,$15}' /proc/$(pgrep -n -f 'sase tui')/stat
 # utime+stime ticks / (HZ * elapsed) is cores used. On Linux HZ is usually 100.
 
 # 4. Stall-watchdog count over a 30-minute idle ace session
@@ -241,7 +241,7 @@ jq -s 'map(select(.event=="tui_stall" or .event=="tui_hitch")) | length' \
   ~/.sase/logs/tui_stalls.jsonl
 
 # 5. Per-tick ace counters (surfaces reloaded, axe collector file opens)
-SASE_TUI_TRACE=1 sase ace
+SASE_TUI_TRACE=1 sase tui
 # quit after a few idle refresh intervals, then:
 jq -c 'select(.span=="refresh.auto_tick")' ~/.sase/perf/tui_trace.jsonl | tail
 jq -c 'select(.event=="axe.collect")' ~/.sase/perf/tui_trace.jsonl | tail
@@ -280,8 +280,9 @@ shipped chops lost their `fs` trigger in `src/sase/default_config.yml`, or wheth
 
 ## Suite test-cost gate
 
-The repository-wide pytest cost harness is separate from ACE trace spans. Use it when a
-change may affect the whole test suite's cost model rather than one TUI interaction:
+The repository-wide pytest cost harness is separate from sase's TUI trace spans. Use it
+when a change may affect the whole test suite's cost model rather than one TUI
+interaction:
 
 ```bash
 just test-cost
@@ -445,10 +446,10 @@ where there is no timed block to measure.
 
 ## Heap sampler
 
-`SASE_TUI_HEAP=1` enables an opt-in `tracemalloc` sampler for long-lived ACE sessions.
-Tracing starts when `AceApp` initializes, while each snapshot is scheduled from the TUI
-timer into a pump-free task and written from a worker thread. Samples append one compact
-JSONL record to:
+`SASE_TUI_HEAP=1` enables an opt-in `tracemalloc` sampler for long-lived sase's TUI
+sessions. Tracing starts when `AceApp` initializes, while each snapshot is scheduled
+from the TUI timer into a pump-free task and written from a worker thread. Samples
+append one compact JSONL record to:
 
 ```text
 ~/.sase/perf/tui_heap.jsonl
@@ -497,9 +498,9 @@ Spans nest cleanly: a single keypress that fires `agents.refresh_debounced` will
 one outer span plus inner `widget.agent_list.update_highlight` and
 `agents.refresh_panel_highlights` spans.
 
-ACE deliberately keeps live-workspace pencil hints off the startup-critical agents
-loader. The first load classifies only cheap persisted `diff_path` badges. After that
-agents list has applied, `agents.live_hint_refresh` runs VCS probes for active,
+sase's TUI deliberately keeps live-workspace pencil hints off the startup-critical
+agents loader. The first load classifies only cheap persisted `diff_path` badges. After
+that agents list has applied, `agents.live_hint_refresh` runs VCS probes for active,
 non-terminal rows that do not yet have a persisted diff and patches changed rows in
 place. During startup investigations, treat `agents.load_from_disk` and
 `agents.live_hint_refresh` as separate costs: the former controls time to first
@@ -635,7 +636,7 @@ only exercises a tiny hermetic in-memory fixture, so it stays safe to run in CI.
 ## Quick capture
 
 ```bash
-SASE_TUI_TRACE=1 sase ace
+SASE_TUI_TRACE=1 sase tui
 # … exercise the path you care about (cold start, query change, j/k burst,
 #   auto-refresh, large reply select) …
 # Quit with q.
@@ -654,13 +655,13 @@ jq -c 'select(.event)' ~/.sase/perf/tui_trace.jsonl | head -20
 For key-to-paint timing during j/k navigation, also enable the separate perf recorder:
 
 ```bash
-SASE_TUI_TRACE=1 SASE_TUI_PERF=1 sase ace
+SASE_TUI_TRACE=1 SASE_TUI_PERF=1 sase tui
 jq -c . ~/.sase/perf/tui_jk.jsonl | head -20
 ```
 
 Override the key-to-paint path with `SASE_TUI_PERF_PATH=/tmp/tui_jk.jsonl`.
 
-Agents that launch the TUI via `sase ace --tmux` get `SASE_TUI_TRACE=1` and
+Agents that launch the TUI via `sase tui --tmux` get `SASE_TUI_TRACE=1` and
 `SASE_TUI_PERF=1` injected automatically; export the variable to `0` before invoking to
 opt out. `SASE_TUI_HEAP` is never auto-enabled; set it explicitly for heap attribution.
 
@@ -690,7 +691,7 @@ pump was blocked and must be investigated before landing.
 
 ## Freeze and hitch capture
 
-ACE's always-on watchdog writes event-loop and Textual message-pump diagnostics to
+sase's TUI always-on watchdog writes event-loop and Textual message-pump diagnostics to
 `~/.sase/logs/tui_stalls.jsonl`. There are two independent severity tiers:
 
 - `tui_hitch` / `tui_pump_hitch` fire after 1.5 seconds by default. These are compact
@@ -713,7 +714,7 @@ SASE_TUI_PUMP_STALL_THRESHOLD_SECONDS=0.75 \
 SASE_TUI_STALL_POLL_INTERVAL=0.02 \
 SASE_TUI_PUMP_STALL_POLL_INTERVAL=0.02 \
 SASE_TUI_STALL_PATH=/tmp/sase-tui-soak.jsonl \
-sase ace
+sase tui
 ```
 
 Exercise startup typing, launch and cleanup bursts, prompt-history and revive-agent
@@ -744,10 +745,10 @@ for no size rotation. This bound is separate from the opt-in trace files under
 ## Startup telemetry capture
 
 `~/.sase/logs/tui_startup.jsonl` (`sase/logs/tui_telemetry.py:log_tui_startup`) gets one
-durable record per ACE session, written after both the Agents and AXE surfaces finish
-their first load — the same point the visible startup-stopwatch badge stops. It exists
-so every "startup dropped from X to Y" claim in this repo's plans and epics is checkable
-against a real terminal run instead of a modelled component sum
+durable record per sase's TUI session, written after both the Agents and AXE surfaces
+finish their first load — the same point the visible startup-stopwatch badge stops. It
+exists so every "startup dropped from X to Y" claim in this repo's plans and epics is
+checkable against a real terminal run instead of a modelled component sum
 (`plans/202608/ace_startup_critical_path.md`).
 
 Each record carries two headline metrics, both measured from the App's `on_mount` — the
@@ -775,11 +776,11 @@ To capture a before/after pair:
 ```bash
 # baseline, before your change
 git stash  # or check out the prior commit in a second workspace
-sase ace   # quit once the tabs finish loading; repeat 3x for a stable read
+sase tui   # quit once the tabs finish loading; repeat 3x for a stable read
 git stash pop
 
 # after your change
-sase ace   # quit once the tabs finish loading; repeat 3x
+sase tui   # quit once the tabs finish loading; repeat 3x
 ```
 
 Then compare the two sets of records:
@@ -798,7 +799,7 @@ tree that has already dropped under 2 s needs the sub-threshold stages too. Over
 threshold for the run instead of editing the constant:
 
 ```bash
-SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS=0.05 sase ace
+SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS=0.05 sase tui
 ```
 
 ## Synthetic-data benchmark harness
@@ -946,10 +947,10 @@ just view-hints-perf-check
 The floor compares traced spans against the committed baseline and ignores wall-clock
 Pilot settle time. It also checks that warm repeat presses and unchanged auto-refreshes
 do not rescan annotated text, and that family rows stay within the shared hint scan cap
-at both metadata levels. If long output is capped, ACE shows a dim notice in the detail
-panel; hints are not generated past that notice. The committed baseline remains the
-synchronous pre-optimization reference and is not rewritten merely because conversation
-sections became fold-inert.
+at both metadata levels. If long output is capped, sase's TUI shows a dim notice in the
+detail panel; hints are not generated past that notice. The committed baseline remains
+the synchronous pre-optimization reference and is not rewritten merely because
+conversation sections became fold-inert.
 
 ## Targets per phase gate
 
@@ -1004,12 +1005,12 @@ both methods next to each other and let the public name stay the trace span name
 
 ## Reading the Admin Center Perf view
 
-Perf is the eighth view in the ACE Admin Center's **Statistics** tab. Open Admin Center
-with `#`, press `6` for Statistics, then press `0` followed by `8`; `[` / `]` also cycle
-to it. The selected Statistics range applies, and `g` groups latency by subsystem,
-provider, or workflow. Perf is global rather than project-scoped: the project chip stays
-visible but is marked **not applied** because the underlying telemetry and TUI logs do
-not carry project attribution.
+Perf is the eighth view in the **Statistics** tab of the Admin Center in sase's TUI.
+Open Admin Center with `#`, press `6` for Statistics, then press `0` followed by `8`;
+`[` / `]` also cycle to it. The selected Statistics range applies, and `g` groups
+latency by subsystem, provider, or workflow. Perf is global rather than project-scoped:
+the project chip stays visible but is marked **not applied** because the underlying
+telemetry and TUI logs do not carry project attribution.
 
 There is no CLI rendering of this dashboard. Use `sase telemetry status` for store and
 configuration state or `sase telemetry health` for the related traffic-light health
@@ -1131,7 +1132,7 @@ environment that started the TUI, so a deliberate `SASE_TUI_PERF=0` still displa
 `SASE_TUI_HEAP`. Read that line as "set / unset", and check the value yourself when an
 expected probe file stays empty.
 
-`sase ace --tmux` turns the perf and trace probes on unless the caller has already set
-the variable, so `SASE_TUI_TRACE=0 sase ace --tmux …` (or the `SASE_TUI_PERF=0`
+`sase tui --tmux` turns the perf and trace probes on unless the caller has already set
+the variable, so `SASE_TUI_TRACE=0 sase tui --tmux …` (or the `SASE_TUI_PERF=0`
 equivalent) opts out. `SASE_TUI_HEAP` stays explicit because snapshots add overhead. Use
 `just view-hints-perf-check` for the automated hint-mode regression floor.

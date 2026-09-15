@@ -1,4 +1,4 @@
-"""Tests for the ace TUI app initialization, navigation, and modals."""
+"""Tests for sase's TUI app initialization, navigation, and modals."""
 
 from sase.ace.patch.models import DeltaEntry, DeltaLineStats
 from sase.ace.testing import (

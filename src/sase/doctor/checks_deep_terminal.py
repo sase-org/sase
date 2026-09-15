@@ -42,7 +42,7 @@ def check_kitty_graphics(context: DoctorContext) -> DiagnosticCheck:
     next_steps = tuple(
         step
         for step in (
-            "Run ACE in kitty, WezTerm, Ghostty, or another terminal with kitty graphics support."
+            "Run sase's TUI in kitty, WezTerm, Ghostty, or another terminal with kitty graphics support."
             if not support["supported"]
             else "",
             "Install `kitten` to enable terminal image artifact display."
@@ -87,7 +87,9 @@ def check_tmux_version(context: DoctorContext) -> DiagnosticCheck:
             status="SKIP",
             title="tmux passthrough version",
             summary="tmux command is unavailable; version check skipped",
-            details=("`tools.tmux` reports missing tmux for ACE tmux workflows.",),
+            details=(
+                "`tools.tmux` reports missing tmux for sase's TUI tmux workflows.",
+            ),
             data={
                 "command": "tmux",
                 "resolved_path": None,
@@ -196,7 +198,7 @@ def check_truecolor(context: DoctorContext) -> DiagnosticCheck:
             title="Terminal truecolor",
             summary="terminal color environment is unavailable",
             details=(
-                "ACE image-preview fidelity only matters inside an interactive terminal.",
+                "sase's TUI image-preview fidelity only matters inside an interactive terminal.",
             ),
             data={
                 "term": None,
@@ -245,7 +247,7 @@ def check_truecolor(context: DoctorContext) -> DiagnosticCheck:
         summary="terminal does not advertise truecolor for image previews",
         details=(
             render_context.reason,
-            "ACE falls back to 256-color cell image previews, which are lower fidelity.",
+            "sase's TUI falls back to 256-color cell image previews, which are lower fidelity.",
         ),
         next_steps=(
             "Use a terminal that advertises 24-bit color, or set `COLORTERM=truecolor` if your terminal supports it.",

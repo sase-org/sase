@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for the Help panel."""
+"""TUI PNG visual snapshot coverage for the Help panel."""
 
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ async def test_help_panel_keymaps_png_snapshot(
         await page.expect_modal("HelpModal")
         await wait_for_visual_idle(page)
 
-        assert_page_svg_contains(page, "sase ace Help")
+        assert_page_svg_contains(page, "sase tui Help")
         assert_page_svg_contains(page, "Keymaps")
         assert_page_svg_contains(page, "Guide")
         ace_png_visual.assert_page_png(
@@ -167,7 +167,7 @@ async def test_help_guide_agents_png_snapshot(
             ),
         )
 
-        assert_page_svg_contains(page, "Welcome to sase ace")
+        assert_page_svg_contains(page, "Welcome to sase's TUI")
         assert_page_svg_contains(page, "? / q / esc close")
         assert_page_svg_contains(page, "Read what happened")
         ace_png_visual.assert_page_png(

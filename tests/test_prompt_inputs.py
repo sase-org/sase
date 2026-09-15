@@ -236,4 +236,4 @@ def test_launch_query_errors_clearly_on_missing_required_inputs(
     out = capsys.readouterr().out
     assert "service" in out
     assert "retries" in out
-    assert "sase ace" in out
+    assert "sase tui" in out

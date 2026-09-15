@@ -417,7 +417,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     key_sequence_display(cm.prefix, ag_copy["reference"]),
                     "Copy @agent reference",
                 ),
-                (f"{d(cm.prefix)}{d(ag_copy['snapshot'])}", "Copy sase ace snapshot"),
+                (f"{d(cm.prefix)}{d(ag_copy['snapshot'])}", "Copy sase tui snapshot"),
             ],
         ),
         (
@@ -429,7 +429,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ("p / P", "Copy stored / source path"),
                 ("J", "Copy artifact-file metadata JSON"),
                 ("Y", "Copy preferred stored/source path"),
-                ("s", "Copy sase ace snapshot"),
+                ("s", "Copy sase tui snapshot"),
             ],
         ),
         (

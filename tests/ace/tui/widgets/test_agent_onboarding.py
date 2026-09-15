@@ -17,7 +17,7 @@ def test_agent_onboarding_content_includes_tabs_and_docs_link() -> None:
     sections = widget.render_content(load_keymap_registry({}))
     rendered = "\n".join(text.plain for text in sections.values())
 
-    assert "Welcome to sase ace" in rendered
+    assert "Welcome to sase's TUI" in rendered
     assert "Artifacts" in rendered
     assert "Agents" in rendered
     assert "AXE" in rendered

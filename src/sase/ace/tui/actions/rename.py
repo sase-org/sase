@@ -1,4 +1,4 @@
-"""Rename action methods for the ace TUI app."""
+"""Rename action methods for sase's TUI app."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Help modal package for the ace TUI."""
+"""Help modal package for sase's TUI."""
 
 from .bindings import TabName
 from .modal import HelpModal

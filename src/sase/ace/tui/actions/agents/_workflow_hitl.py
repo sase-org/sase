@@ -1,4 +1,4 @@
-"""Agent workflow human-in-the-loop methods for the ace TUI app."""
+"""Agent workflow human-in-the-loop methods for sase's TUI app."""
 
 from __future__ import annotations
 

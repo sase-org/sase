@@ -1,4 +1,4 @@
-"""Patch management mixin for the ace TUI app."""
+"""Patch management mixin for sase's TUI app."""
 
 from ._core import PatchMixin
 from ._display import PatchDisplayMixin

@@ -312,7 +312,7 @@ class PluginUpdateActionsMixin:
                 argv=tuple(plan.argv),
                 summary=update_summary(plan),
                 details=(
-                    "ACE restarts after a successful update to load the new plugin code.",
+                    "sase's TUI restarts after a successful update to load the new plugin code.",
                 ),
             )
         ]

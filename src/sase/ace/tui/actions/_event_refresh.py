@@ -1,4 +1,4 @@
-"""Refresh, watcher, and daemon event handlers for the ACE TUI."""
+"""Refresh, watcher, and daemon event handlers for sase's TUI."""
 
 from __future__ import annotations
 

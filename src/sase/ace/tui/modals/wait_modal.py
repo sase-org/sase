@@ -1,4 +1,4 @@
-"""Wait modal for the ace TUI."""
+"""Wait modal for sase's TUI."""
 
 from __future__ import annotations
 

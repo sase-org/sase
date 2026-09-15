@@ -1,4 +1,4 @@
-"""Tests for the ace TUI keybinding footer agent bindings."""
+"""Tests for sase's TUI keybinding footer agent bindings."""
 
 from sase.ace.tui.models.agent import Agent, AgentType, AttemptRecord
 from sase.ace.tui.widgets import KeybindingFooter

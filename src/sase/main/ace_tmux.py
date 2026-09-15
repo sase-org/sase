@@ -1,4 +1,4 @@
-"""Launch ``sase ace`` in a new tmux window for agent automation."""
+"""Launch ``sase tui`` in a new tmux window for agent automation."""
 
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ _PROFILING_ENV_DEFAULTS = {
     "SASE_TUI_TRACE": "1",
     "SASE_TUI_PERF": "1",
 }
+_TUI_COMMAND = "tui"
+_LEGACY_ACE_COMMAND = "ace"
 
 
 class _TmuxLaunchError(Exception):
@@ -27,7 +29,7 @@ class _TmuxLaunchError(Exception):
 
 
 def launch_ace_in_tmux(args: argparse.Namespace) -> None:
-    """Launch the ace TUI inside a new tmux window named ``sase_tmux_<N>``.
+    """Launch sase's TUI inside a new tmux window named ``sase_tmux_<N>``.
 
     Prints ``key=value`` lines on stdout describing the spawned window so
     callers (typically scripting agents) can drive it via
@@ -40,7 +42,7 @@ def launch_ace_in_tmux(args: argparse.Namespace) -> None:
         relaunch_cmd = _build_relaunch_cmd()
         window_name, pane_pid = _claim_window(session, relaunch_cmd)
     except _TmuxLaunchError as exc:
-        print(f"sase ace --tmux: {exc}", file=sys.stderr)
+        print(f"sase tui --tmux: {exc}", file=sys.stderr)
         sys.exit(2)
 
     _print_target(session, window_name, pane_pid)
@@ -103,22 +105,43 @@ def _build_relaunch_cmd() -> str:
 
     Strips ``--tmux``/``-T`` from ``sys.argv`` so we don't recurse, and
     re-invokes the same Python interpreter (preserving the active venv) via
-    ``python -m sase ace ...``.
+    ``python -m sase tui ...``.
 
     Returns a single ``/bin/sh -c``-compatible string prefixed with ``exec``
     so the shell replaces itself with the Python interpreter — that way
     tmux's ``#{pane_pid}`` reports the live Python PID, not the shell's.
     """
+    from sase.main.parser_root_args import root_command_index
+
     forwarded: list[str] = []
+    after_separator = False
     for arg in sys.argv[1:]:
-        if arg in ("--tmux", "-T"):
+        if arg == "--":
+            after_separator = True
+            forwarded.append(arg)
+            continue
+        if not after_separator and arg in ("--tmux", "-T"):
             continue
         forwarded.append(arg)
 
-    # sys.argv[1:] starts with the "ace" subcommand. If for any reason it
-    # doesn't (e.g. invoked via a different entrypoint), prepend it.
-    if not forwarded or forwarded[0] != "ace":
-        forwarded = ["ace", *forwarded]
+    # sys.argv[1:] starts with the "tui" subcommand. If for any reason it
+    # doesn't (e.g. invoked via a different entrypoint), add it without
+    # duplicating global options or query tokens.
+    command_index = root_command_index(forwarded)
+    if command_index is None:
+        forwarded = [_TUI_COMMAND, *forwarded]
+    elif forwarded[command_index] == _LEGACY_ACE_COMMAND:
+        forwarded = [
+            *forwarded[:command_index],
+            _TUI_COMMAND,
+            *forwarded[command_index + 1 :],
+        ]
+    elif forwarded[command_index] != _TUI_COMMAND:
+        forwarded = [
+            *forwarded[:command_index],
+            _TUI_COMMAND,
+            *forwarded[command_index:],
+        ]
 
     return "exec " + shlex.join([sys.executable, "-m", "sase", *forwarded])
 
@@ -126,7 +149,7 @@ def _build_relaunch_cmd() -> str:
 def _profiling_env_args() -> list[str]:
     """Return ``-e KEY=VAL`` args for ``tmux new-window`` so the spawned TUI
     runs with profiling instrumentation enabled. Pass-through any value the
-    caller has already set, so ``SASE_TUI_TRACE=0 sase ace --tmux …`` opts
+    caller has already set, so ``SASE_TUI_TRACE=0 sase tui --tmux …`` opts
     out cleanly.
     """
     args: list[str] = []

@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the glossary and repo preview cards."""
+"""sase's TUI PNG visual snapshots for the glossary and repo preview cards."""
 
 from __future__ import annotations
 

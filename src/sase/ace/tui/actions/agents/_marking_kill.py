@@ -1,4 +1,4 @@
-"""Bulk kill and edit actions for marked agents in the ace TUI app."""
+"""Bulk kill and edit actions for marked agents in sase's TUI app."""
 
 from __future__ import annotations
 

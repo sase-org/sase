@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Agents-tab Fleet surfaces."""
+"""sase's TUI PNG visual snapshots for Agents-tab Fleet surfaces."""
 
 from __future__ import annotations
 

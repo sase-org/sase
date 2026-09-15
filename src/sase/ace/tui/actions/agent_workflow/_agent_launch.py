@@ -1,4 +1,4 @@
-"""Agent launch mixin for the ace TUI app."""
+"""Agent launch mixin for sase's TUI app."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for AXE add/edit modals."""
+"""sase's TUI PNG visual snapshots for AXE add/edit modals."""
 
 from __future__ import annotations
 

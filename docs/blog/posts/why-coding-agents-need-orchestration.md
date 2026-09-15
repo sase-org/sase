@@ -3,8 +3,8 @@ title: "[00] The Missing Operating Layer for Coding Agents"
 date: 2026-05-08
 draft: true
 description: >-
-  SASE's first principles: XPrompts, SDD, Beads, ACE, AXE, plugins, and the durable
-  operating layer around coding-agent CLIs.
+  SASE's first principles: XPrompts, SDD, Beads, sase's TUI, AXE, plugins, and the
+  durable operating layer around coding-agent CLIs.
 categories:
   - Agentic Software Engineering
 slug: why-coding-agents-need-orchestration
@@ -12,7 +12,7 @@ links:
   - Getting Started: getting_started.md
   - XPrompts: xprompt.md
   - Spec-Driven Development: sdd.md
-  - ACE TUI: ace.md
+  - sase's TUI: ace.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
 
@@ -33,8 +33,8 @@ steer without becoming a full-time air-traffic controller.
 
 Borrowing the name from the research paper discussed later, SASE calls that layer
 **Structured Agentic Software Engineering**. This post is the map of the fundamentals:
-XPrompts, SDD, Beads, ACE, AXE, plugins, and why SASE wraps coding-agent CLIs instead of
-raw model APIs.
+XPrompts, SDD, Beads, sase's TUI, AXE, plugins, and why SASE wraps coding-agent CLIs
+instead of raw model APIs.
 
 <!-- more -->
 
@@ -60,7 +60,7 @@ The repo split is intentionally boring:
 
 | Repo                                                         | What it does                                                                                                                                                  |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`sase`](https://github.com/sase-org/sase)                   | The Python host package: CLI, ACE TUI, AXE daemon, XPrompt expansion, SDD, Beads integration, config, and built-in providers.                                 |
+| [`sase`](https://github.com/sase-org/sase)                   | The Python host package: CLI, sase's TUI, AXE daemon, XPrompt expansion, SDD, Beads integration, config, and built-in providers.                              |
 | [`sase-core`](https://github.com/sase-org/sase-core)         | Shared Rust core for deterministic data operations and cross-frontend APIs. It also houses the mobile gateway and XPrompt LSP crates.                         |
 | [`sase-github`](https://github.com/sase-org/sase-github)     | GitHub VCS/workspace provider plugin. It uses `gh` for PR operations and ships GitHub-focused xprompts such as `#gh`, `#new_pr_desc`, and `#prdd`.            |
 | [`sase-telegram`](https://github.com/sase-org/sase-telegram) | Telegram integration package. It runs as inbound/outbound AXE chops so you can receive notifications, answer approvals, and launch or steer agents from chat. |
@@ -74,7 +74,7 @@ GitHub-only, Telegram-only, or Neovim-only.
 ARCHITECTURE DIAGRAM BRIEF 1 - place here after the repo table.
 Title: "SASE as the operating layer"
 Shape: horizontal layered architecture diagram.
-Top layer: "Human surfaces" with ACE TUI, Telegram, Neovim/XPrompt LSP, future Web UI, future Mobile app.
+Top layer: "Human surfaces" with sase's TUI, Telegram, Neovim/XPrompt LSP, future Web UI, future Mobile app.
 Middle layer: "SASE Python host" with XPrompts, agent launcher, AXE daemon, Patches, SDD, Beads, VCS/workspace plugins.
 Right side attached to middle: "Provider CLIs" with Codex, Claude Code, Antigravity (agy), Qwen, OpenCode, and Muse Code. Draw them as replaceable
 execution engines rather than the center of the system.
@@ -185,12 +185,12 @@ Here is the SASE loop:
    artifacts.
 4. If the work needs planning, SASE records the prompt archive, plan, and bead graph as
    durable project state.
-5. ACE shows the live state. AXE watches the background state. Plugins translate VCS and
-   notification operations.
+5. sase's TUI shows the live state. AXE watches the background state. Plugins translate
+   VCS and notification operations.
 
 The docs that matter most at first are [XPrompts](../../xprompt.md),
-[SDD](../../sdd.md), [Beads](../../beads.md), [ACE](../../ace.md), [AXE](../../axe.md),
-[VCS providers](../../vcs.md), and [plugins](../../plugins.md).
+[SDD](../../sdd.md), [Beads](../../beads.md), [sase's TUI](../../ace.md),
+[AXE](../../axe.md), [VCS providers](../../vcs.md), and [plugins](../../plugins.md).
 
 <!--
 FUNNY DIAGRAM BRIEF 1 - place here after "The Fundamental Loop".
@@ -264,7 +264,7 @@ outputs.
 > **Friction note:** XPrompt discovery is intentionally flexible: repo-local,
 > user-local, config-defined, plugin-shipped, and built-in sources all participate. That
 > is powerful, but the mental model can get slippery. Use `sase xprompt list`,
-> `sase xprompt explain`, and the ACE XPrompt Browser when you are not sure which
+> `sase xprompt explain`, and sase's TUI XPrompt Browser when you are not sure which
 > `#thing` wins.
 
 ## XPrompt Directives, In One Place
@@ -281,7 +281,7 @@ before the agent sees it. The full reference is in
 | `%clan`   | `%c`  | Join a named, rootless parallel clan; the member name must be inside the clan's hood.                                            | `%i:release.test %clan:release`                                    |
 | `%wait`   | `%w`  | Start only after named agents or workflows complete successfully. Bare `%wait` waits for the most recently named agent.          | `%w:planner`, `%wait:agent1,agent2`, `%wait`                       |
 | `#t`      |       | Delay launch by a duration or until wall-clock time. Use `%wait(time=...)` when combining with agent dependencies.               | `#t:5m`, `%wait(time=1h30m)`, `%wait(planner, time=1430)`          |
-| `%hide`   | `%h`  | Hide the agent from the default Agents tab display. ACE can toggle hidden rows back into view.                                   | `%h %i:background-log-checker inspect logs`                        |
+| `%hide`   | `%h`  | Hide the agent from the default Agents tab display. sase's TUI can toggle hidden rows back into view.                            | `%h %i:background-log-checker inspect logs`                        |
 | `%auto`   | `%a`  | Request gate-specific automatic resolution; plan compatibility aliases include `plan`, `tale`, and `epic`.                       | `%a #!sync` or `%auto:epic %i:checkout plan the rewrite`           |
 | `%repeat` | `%r`  | Run the same prompt serially multiple times; later slots wait on earlier slots. A slot can set `STOP` to stop the chain.         | `%r:5 %i:flaky-repro try to reproduce the flaky test once`         |
 | `%alt`    | `%(`  | Split one prompt into variants. Named variants become child suffixes; model branches and text variants form a Cartesian product. | `%alt(sec=focus on auth,perf=focus on hot paths) review this diff` |
@@ -366,8 +366,8 @@ epic: move it from draft `open` to `ready` for human triage, then launch one wor
 
 This is where Steve Yegge's [Beads](https://github.com/gastownhall/beads) influence is
 most obvious. Beads makes agent-friendly work items git-portable and dependency-aware.
-SASE borrows that spirit, then integrates it with SDD plans, Patches, ACE, AXE, and
-local workspace orchestration.
+SASE borrows that spirit, then integrates it with SDD plans, Patches, sase's TUI, AXE,
+and local workspace orchestration.
 
 <!--
 ARCHITECTURE DIAGRAM BRIEF 2 - place here after the SDD/Beads section.
@@ -375,7 +375,7 @@ Title: "Durable work state graph"
 Shape: graph/flow diagram, not a stack.
 Nodes: user prompt -> agents-sidecar prompt archive -> tale OR epic -> phase beads in the resolved SDD store -> agent
 runs -> commits -> Patch -> PR provider -> final archive. Add a separate standalone task bead -> one worker branch.
-Side nodes: ACE reads Patches/agents/beads; AXE watches waits/hooks/chops; Telegram emits/receives notifications.
+Side nodes: sase's TUI reads Patches/agents/beads; AXE watches waits/hooks/chops; Telegram emits/receives notifications.
 Draw dependencies between phase beads clearly; reserve the `ready` label for standalone task triage.
 Purpose: show that chat history is not the source of truth; durable files and state records are.
 -->
@@ -385,10 +385,10 @@ Purpose: show that chat history is not the source of truth; durable files and st
 > doing better at teaching "what do I touch today?" versus "what exists for the full
 > research roadmap?"
 
-## ACE: The Cockpit
+## sase's TUI: The Cockpit
 
-`sase ace` opens the Agentic Change Explorer, the terminal UI for daily work. ACE has
-three top-level tabs:
+`sase tui` opens sase's TUI, the terminal UI for daily work. sase's TUI has three
+top-level tabs:
 
 - **Agents**: live and recent agents, groups, tags, hidden rows, child workflow steps,
   prompt panels, transcript panels, artifact viewers, tool metadata, file panels,
@@ -402,27 +402,28 @@ three top-level tabs:
   hook checks, mentor checks, comment polling, and error digests.
 
 <!--
-SCREENSHOT BRIEF 1 - place immediately after the ACE tab list.
+SCREENSHOT BRIEF 1 - place immediately after sase's TUI tab list.
 Asset suggestion: docs/images/blog/00-ace-agents-tab.png
-View: ACE Agents tab in a real terminal, 16:10 or 16:9 crop.
+View: sase's TUI Agents tab in a real terminal, 16:10 or 16:9 crop.
 Show several grouped agents: at least one running, one waiting via %wait, one completed, and one hidden/toggled row.
 Include the prompt preview panel on the right and a bottom prompt bar with completion hints visible.
 Make sure provider/model badges are legible, and include one tribe side panel so the screenshot says "control
 surface" rather than "log list".
-Alt text: "ACE Agents tab showing grouped coding-agent runs, provider badges, wait state, prompt preview, and prompt
+Alt text: "sase's TUI Agents tab showing grouped coding-agent runs, provider badges, wait state, prompt preview, and prompt
 input completion."
 -->
 
-ACE is fun because it treats agents as work records, not mystical chat bubbles. You can
-fork an agent, wait on one, retry a failed run, inspect its artifacts, view its changed
-files, jump to the workspace, or hide background noise until you care about it. You can
-also open the XPrompt Browser, insert snippets, complete directives, complete file
-paths, and compose multi-agent prompts directly in the prompt input widget.
+sase's TUI is fun because it treats agents as work records, not mystical chat bubbles.
+You can fork an agent, wait on one, retry a failed run, inspect its artifacts, view its
+changed files, jump to the workspace, or hide background noise until you care about it.
+You can also open the XPrompt Browser, insert snippets, complete directives, complete
+file paths, and compose multi-agent prompts directly in the prompt input widget.
 
-The VCS support is the part that makes ACE feel like engineering software instead of a
-prettier terminal. SASE's VCS providers are pluggy-based. Bare Git support ships with
-`sase`; GitHub support lives in `sase-github`. ACE shows the same review objects either
-way: file deltas, diffs, commit lists, Patch status, and provider-backed actions.
+The VCS support is the part that makes sase's TUI feel like engineering software instead
+of a prettier terminal. SASE's VCS providers are pluggy-based. Bare Git support ships
+with `sase`; GitHub support lives in `sase-github`. sase's TUI shows the same review
+objects either way: file deltas, diffs, commit lists, Patch status, and provider-backed
+actions.
 
 In practice, this means you can:
 
@@ -436,10 +437,10 @@ In practice, this means you can:
 <!--
 SCREENSHOT BRIEF 2 - place after the VCS paragraph above.
 Asset suggestion: docs/images/blog/00-ace-prs-diff.png
-View: ACE Artifacts tab with the Patches sub-tab focused on one Patch with file deltas and diff preview visible.
+View: sase's TUI Artifacts tab with the Patches sub-tab focused on one Patch with file deltas and diff preview visible.
 Show status, commits, and at least one action hint for diff/revert/rewind. The key visual should be "this is not just
 chat; this is reviewable code state."
-Alt text: "ACE Artifacts Patches view showing a Patch with file deltas, commits, diff preview, and VCS actions."
+Alt text: "sase's TUI Artifacts Patches view showing a Patch with file deltas, commits, diff preview, and VCS actions."
 -->
 
 ## AXE, Lumberjacks, And Chops
@@ -469,9 +470,9 @@ state changes, runs the right scripts, and owns any resulting agent lifecycle.
 <!--
 SCREENSHOT BRIEF 3 - optional, place after the AXE examples if the final post wants a third TUI image.
 Asset suggestion: docs/images/blog/00-ace-axe-tab.png
-View: ACE Axe tab with lumberjack tree on the left, recent chop runs in the center, and live output/history panel on the
+View: sase's TUI Axe tab with lumberjack tree on the left, recent chop runs in the center, and live output/history panel on the
 right. Include a Telegram chop and a GitHub Actions fixer chop if possible.
-Alt text: "ACE Axe tab showing lumberjacks, scheduled chops, recent run status, and live chop output."
+Alt text: "sase's TUI Axe tab showing lumberjacks, scheduled chops, recent run status, and live chop output."
 -->
 
 > **Friction note:** AXE is powerful, but it needs more friendly defaults and clearer
@@ -492,7 +493,8 @@ Useful things it can do:
 - list, kill, fork, retry, or inspect agents with slash commands;
 - show Patch and Bead summaries;
 - launch agents from messages, including messages with images or PDF attachments;
-- keep outbound notifications quiet when ACE sees you actively working at the terminal.
+- keep outbound notifications quiet when sase's TUI sees you actively working at the
+  terminal.
 
 <!--
 TELEGRAM SCREENSHOT BRIEF 1 - place after the feature list.
@@ -513,8 +515,8 @@ Include one example where the user replies with a slash command like /list or /c
 Alt text: "Telegram chat showing a SASE agent notification with follow-up action buttons and slash-command control."
 -->
 
-Telegram is not meant to replace ACE. It is the thing you use when an agent asks a
-yes/no question while you are away from the keyboard and your laptop is, unreasonably,
+Telegram is not meant to replace sase's TUI. It is the thing you use when an agent asks
+a yes/no question while you are away from the keyboard and your laptop is, unreasonably,
 not strapped to your face.
 
 ## Neovim, The XPrompt LSP, And The Prompt Widget
@@ -533,14 +535,14 @@ The XPrompt LSP can provide:
 - snippets and skeleton insertion for typed xprompt inputs;
 - YAML schema help for workflow files.
 
-ACE's prompt input widget overlaps with that on purpose. It uses the same catalog and
-helper machinery for directive completion, xprompt insertion, slash-skill insertion,
+sase's TUI prompt input widget overlaps with that on purpose. It uses the same catalog
+and helper machinery for directive completion, xprompt insertion, slash-skill insertion,
 argument hints, snippets, file completion, and prompt history.
 
-The division of labor is ergonomic: ACE is fastest for launching and steering work in
-the cockpit; Neovim is better for writing longer prompt files, editing workflow YAML,
-navigating xprompt definitions, and using editor-native muscle memory. The same prompt
-system should feel familiar in both places.
+The division of labor is ergonomic: sase's TUI is fastest for launching and steering
+work in the cockpit; Neovim is better for writing longer prompt files, editing workflow
+YAML, navigating xprompt definitions, and using editor-native muscle memory. The same
+prompt system should feel familiar in both places.
 
 > **Friction note:** The editor story should not be Neovim-only forever. `sase-nvim` is
 > the reference client because I live there, but the LSP exists so other editors can use
@@ -580,12 +582,12 @@ sase run '%i:api-audit %{%m:codex/gpt-5.6-sol | %m:claude/sonnet} audit the API 
 ```
 
 That launches a model fan-out. Sometimes the right answer is not trusting one model
-harder. Sometimes it is asking two models, comparing the overlap, and letting ACE keep
-the results from turning into tab soup.
+harder. Sometimes it is asking two models, comparing the overlap, and letting sase's TUI
+keep the results from turning into tab soup.
 
 > **Friction note:** SASE needs better budget visibility. It can route work today, but
 > the future version should make cost, quota, rate limits, and provider health visible
-> in the same way ACE makes agent state visible.
+> in the same way sase's TUI makes agent state visible.
 
 ## Useful Commands
 
@@ -595,7 +597,7 @@ These are the commands I reach for most:
 | -------------------------------------------------------- | -------------------------------------------------------------------- |
 | `sase doctor`                                            | Read-only install, config, provider, project, and state diagnostics. |
 | `sase version`                                           | Exact SASE, Rust core, and plugin package inventory.                 |
-| `sase ace`                                               | Open the TUI cockpit.                                                |
+| `sase tui`                                               | Open the TUI cockpit.                                                |
 | `sase run "..."`                                         | Launch an agent, xprompt, or workflow.                               |
 | `sase agent list`                                        | See active and recent agent runs from the terminal.                  |
 | `sase xprompt list`                                      | See available xprompts and workflows.                                |
@@ -622,10 +624,9 @@ future of software engineering into **SE for Humans** and **SE for Agents**, the
 proposes two workbenches: **ACE**, the **Agent Command Environment**, where humans
 orchestrate and mentor agent teams, and **AEE**, the **Agent Execution Environment**,
 where agents execute work and call humans in for ambiguity or complex trade-offs. SASE
-maps that lineage into local tooling: its **ACE** cockpit is the **Agentic Change
-Explorer**, but it deliberately echoes the paper's Agent Command Environment; **AXE** is
-the background execution/supervision daemon that echoes the paper's Agent Execution
-Environment.
+maps that lineage into local tooling: **`sase tui`** is the terminal cockpit that echoes
+the paper's Agent Command Environment, and **AXE** is the background
+execution/supervision daemon that echoes the paper's Agent Execution Environment.
 
 SASE is also inspired by IBM's
 [Prompt Declaration Language](https://github.com/IBM/prompt-declaration-language) and
@@ -666,7 +667,7 @@ Title: "Mayor vs cockpit"
 Shape: split-panel cartoon.
 Left panel: Gas Town as city hall. A Mayor at a desk dispatches beads to rigs, with polecats in hard hats running to
 worktrees. Label it "autonomous town experiments".
-Right panel: SASE as a terminal cockpit. A developer sits at ACE with levers labeled XPrompts, Beads, AXE, VCS, and
+Right panel: SASE as a terminal cockpit. A developer sits at sase's TUI with levers labeled XPrompts, Beads, AXE, VCS, and
 model_aliases; several agent planes are queued on a runway.
 Caption: "Both believe agents can do work. SASE obsesses over the control surface."
 Keep it affectionate and clearly respectful of Gas Town/Beads.
@@ -683,18 +684,18 @@ Three directions are incomplete but important:
   toward a real mobile SASE client. Telegram covers a lot today, but a purpose-built app
   can expose richer state than chat buttons.
 - Web: the Rust core boundary exists partly so a future web interface can share the same
-  domain behavior as ACE, Telegram, and editor integrations instead of becoming a
+  domain behavior as sase's TUI, Telegram, and editor integrations instead of becoming a
   separate almost-SASE.
 
 These are exciting because they all point at the same principle: the agent state should
 be durable and shared across surfaces. The terminal should not be the only window into
 the work.
 
-> **Friction note:** The future-surface story is promising but unfinished. Today, ACE is
-> the daily driver; Telegram and Neovim are useful companions; mobile and web are still
-> early. The architecture is moving in the right direction, but nobody should pretend
-> the phone app is already the Death Star. Also, given my luck, the exhaust port would
-> be YAML.
+> **Friction note:** The future-surface story is promising but unfinished. Today, sase's
+> TUI is the daily driver; Telegram and Neovim are useful companions; mobile and web are
+> still early. The architecture is moving in the right direction, but nobody should
+> pretend the phone app is already the Death Star. Also, given my luck, the exhaust port
+> would be YAML.
 
 ## The Point
 

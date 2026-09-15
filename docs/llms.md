@@ -92,7 +92,7 @@ Key design principles:
 | `src/sase/llm_provider/model_alias_resolution_types.py`    | Alias-resolution types, normalization, and target availability                           |
 | `src/sase/llm_provider/model_alias_resolution_resolve.py`  | Alias-chain walker and effort/selector provenance                                        |
 | `src/sase/llm_provider/model_alias_resolution_selector.py` | Selector member diagnostics and selector-value validation                                |
-| `src/sase/llm_provider/alias_view.py`                      | ACE Launch Control alias-view construction (`build_alias_views()`)                       |
+| `src/sase/llm_provider/alias_view.py`                      | sase's TUI Launch Control alias-view construction (`build_alias_views()`)                |
 | `src/sase/llm_provider/config.py`                          | Config file reader (`sase.yml`)                                                          |
 | `src/sase/llm_provider/temporary_override.py`              | Primary/worker temporary override state and resolution                                   |
 | `src/sase/llm_provider/provider_disable.py`                | Rust-backed temporary provider-disable facade                                            |
@@ -278,9 +278,9 @@ one normalized record per tool call to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl`:
   length-bounded preview of the response, drawing structured output from the top-level
   `tool_use_result` envelope when present.
 
-The ACE Tools panel reads this same `tool_calls.jsonl` to render the per-agent timeline
-— see [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). The reader pairs a
-`ToolUse` with its `ToolResult` by `tool_use_id` and collapses them into one row.
+sase's TUI Tools panel reads this same `tool_calls.jsonl` to render the per-agent
+timeline — see [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). The reader pairs
+a `ToolUse` with its `ToolResult` by `tool_use_id` and collapses them into one row.
 
 Stream parsing is the only writer for new runs. SASE does **not** install Claude Code
 hooks and does **not** write to the workspace's `.claude/settings.local.json`; earlier
@@ -412,7 +412,7 @@ preserves these invariants:
 - **Tool-call timeline** — SASE never invents rows from stdout display glyphs or prose.
   For explicitly supported Antigravity versions, a guarded best-effort extractor may
   decode new rows from Antigravity's local trajectory DB and append
-  `source="trajectory"` records to `tool_calls.jsonl`; otherwise the ACE
+  `source="trajectory"` records to `tool_calls.jsonl`; otherwise sase's TUI
   [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel) shows nothing for `agy` runs.
 - **Usage accounting** — `InvokeResult.usage` is `None` and no `usage.json` is written;
   `agy` print mode exposes no stable token counters.
@@ -482,7 +482,7 @@ compatibility.
 SASE captures Codex tool calls from the `codex exec --json` NDJSON stream; it does not
 install Codex hooks or mutate user Codex configuration for telemetry. When
 `SASE_ARTIFACTS_DIR` is present, the stream parser appends normalized Codex records to
-`$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for the ACE
+`$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for sase's TUI
 [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel).
 
 Current fixture coverage is based on Codex CLI `0.130.0`. For stream items that expose
@@ -562,7 +562,7 @@ headless-run config mutation could be verified.
 SASE captures Qwen tool calls from the `qwen --output-format stream-json` event stream;
 it does not install Qwen hooks. When `SASE_ARTIFACTS_DIR` is present, the stream parser
 normalizes Qwen's nested `tool_use` and `tool_result` blocks into records appended to
-`$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for the ACE
+`$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for sase's TUI
 [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel) with `runtime: "qwen"` and
 `source: "stream"`. Malformed or unsupported tool-shaped events emit a diagnostic
 instead of producing a malformed record. The Tools-panel reader collapses each
@@ -747,7 +747,7 @@ Every flag and payload-type string lives in one module-level constant block in
 SASE builds tool-call records purely from the stdout stream; it does not wire Muse's
 hook system and does not read Muse state off disk for this. When `SASE_ARTIFACTS_DIR` is
 present, normalized records are appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with
-`runtime: "muse"` and `source: "stream"` for the ACE
+`runtime: "muse"` and `source: "stream"` for sase's TUI
 [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). Fixture coverage is keyed to
 Muse release `0.1.0-R708.1`.
 
@@ -931,8 +931,8 @@ This is safe by construction for Claude, which never emits `errors[]` and whose
 is never mistaken for an error.
 
 Grok's `thinking` content blocks are routed into the same `codex_thinking.jsonl` sidecar
-Codex writes reasoning summaries to (the filename is kept as-is because ACE's
-`read_codex_thinking` reads that exact path), so Grok's reasoning renders in the ACE
+Codex writes reasoning summaries to (the filename is kept as-is because sase's TUI
+`read_codex_thinking` reads that exact path), so Grok's reasoning renders in sase's TUI
 thinking pane instead of being silently discarded the way non-`text` Claude blocks are.
 
 ### Grok Tool-Call Capture
@@ -940,10 +940,11 @@ thinking pane instead of being silently discarded the way non-`text` Claude bloc
 SASE captures Grok tool calls from the `streaming-messages-json` event stream; it does
 not install Grok hooks. When `SASE_ARTIFACTS_DIR` is present, normalized records are
 appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with `runtime: "grok"` and
-`source: "stream"` for the ACE [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel).
-Grok's native tool names are mapped onto SASE's canonical display names so the shared
-summarizers in `_tool_call_common.py` produce rich previews instead of falling through
-to a generic `{"input_keys": [...]}` row:
+`source: "stream"` for sase's TUI
+[Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). Grok's native tool names are
+mapped onto SASE's canonical display names so the shared summarizers in
+`_tool_call_common.py` produce rich previews instead of falling through to a generic
+`{"input_keys": [...]}` row:
 
 | Grok tool              | Canonical display name |
 | ---------------------- | ---------------------- |
@@ -1079,12 +1080,12 @@ Collection is gated by the durable `llm_provider.usage_metrics.enabled` preferen
 Per-provider `llm_provider.usage_metrics.providers.<name>.enabled` overrides collection
 without hard-coding the initial three providers.
 
-`submit_usage_refresh` is the shared durable refresh service for CLI, ACE, AXE, and
-limit-event triggers. It coalesces work per provider and account generation, joins
+`submit_usage_refresh` is the shared durable refresh service for CLI, sase's TUI, AXE,
+and limit-event triggers. It coalesces work per provider and account generation, joins
 in-flight probes without dropping other requested providers, and bounds automatic
 retries with cadence-based backoff. AXE submits due work from the `usage_refresh` chop
-on the five-minute checks lumberjack. ACE requests the same due work after first paint
-and while open when AXE is absent. A normal TUI tick never probes inline.
+on the five-minute checks lumberjack. sase's TUI requests the same due work after first
+paint and while open when AXE is absent. A normal TUI tick never probes inline.
 
 ## Configuration
 
@@ -1141,7 +1142,7 @@ llm_provider:
 | `llm_provider.model_alias_history_limit` | int    | `10`        | Maximum prior runs returned per alias for the Launch Control agent-history panel. Must be at least `1`; malformed runtime values defensively fall back to `10`.                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `llm_provider.model_aliases.builtin`     | dict   | -           | Builtin size-alias overrides only (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar below, a `\|` round-robin pool, a `\|\|` ordered fallback, or a parenthesized `(A \| B) \|\| C` last-resort. Retired names — `default`, `epic_lander`, `big_epic_lander`, `<size>_worker`, `smart`, `smarter`, `smartest`, `cheap`, `cheaper`, `cheapest`, `coder`, `<provider>_coder`, `epic_creator`, `phase_worker`, and `<size>_phase_worker` — are no longer builtin overrides; `sase doctor -C config.model_aliases` reports them and names each replacement. |
 | `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases for `%model:@<alias>` / `%m:@<alias>`. Each value is an object with required `model` and `description` fields; `model` accepts the same single-target and selector grammar. Descriptions are shown in completions and Launch Control.                                                                                                                                                                                                                                                                                                                                   |
-| `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only sase's TUI Launch Control bucket descriptions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `llm_provider.usage_limit`               | dict   | enabled     | Usage-limit classification and automatic temporary provider-disable policy. See [Usage-Limit Auto-Disable](#usage-limit-auto-disable).                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `llm_provider.usage_metrics`             | dict   | enabled     | Subscription-capacity collection cadence and opt-out. See [Subscription usage extension](#subscription-usage-extension).                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
@@ -1253,12 +1254,12 @@ empty members are invalid. Unparenthesized `|` and `||` cannot be mixed in one v
 member may follow an ordinary alias chain but cannot reach another pool or fallback,
 including when it sits in a last-resort tail. Selector expressions are config-only:
 `%model` values, launch-scoped alias overrides, and temporary overrides remain single
-targets. The ACE Launch Control's persistent Edit path authors selectors directly —
+targets. sase's TUI Launch Control's persistent Edit path authors selectors directly —
 hand-typed in the custom input or assembled with a guided pool/fallback builder (`w`/`W`
 raise and lower a pool member's weight; `f` adds a last-resort candidate) — while its
 temporary Override path refuses a typed pool or fallback outright, pointing at Edit,
 rather than silently accepting and corrupting it. An override on the alias that owns a
-selector bypasses that expression for the override's lifetime. The ACE Launch Control
+selector bypasses that expression for the override's lifetime. sase's TUI Launch Control
 shows every member's availability, an aggregate `pool <available>/<total>` chip that
 counts only pool members (not the last-resort tail), and a `→` on the current selection.
 A temporary alias override labels the member list suspended only while its provider is
@@ -1281,13 +1282,13 @@ removed top-level `custom_model_aliases`, custom names under `model_aliases.buil
 builtin names under `model_aliases.custom`, collisions between the two maps, missing
 custom descriptions/models, dangling `@alias` references, empty or mixed selectors, and
 nested selectors. Unavailable selector providers are reported as informational notes;
-for an ordered fallback the note also identifies the current winner. In ACE, Launch
-Control shows descriptions from config; a user alias without one shows the
+for an ordered fallback the note also identifies the current winner. In sase's TUI,
+Launch Control shows descriptions from config; a user alias without one shows the
 `llm_provider.model_aliases.custom.<name>.description` path to fix.
 
-The same alias vocabulary appears in the `%model:` / `%m:` completion menu in ACE and in
-editors through the xprompt LSP: alias rows sit beneath the concrete model names with
-their kind, resolved `PROVIDER(model)` target, and provenance, and typing `@` right
+The same alias vocabulary appears in the `%model:` / `%m:` completion menu in sase's TUI
+and in editors through the xprompt LSP: alias rows sit beneath the concrete model names
+with their kind, resolved `PROVIDER(model)` target, and provenance, and typing `@` right
 after the colon narrows the menu to aliases only. Concrete model rows and provider-scope
 rows for **hard**-disabled providers are omitted, while aliases remain and show their
 current fallback target. **Soft**-disabled providers stay in the menu, annotated `soft`;
@@ -1296,11 +1297,11 @@ priority provider are annotated `backup`. Provider rows such as `claude/` sit at
 bottom of the broad menu; accepting one opens that provider's scoped model list and
 inserts qualified values such as `claude/opus`. See
 [xprompt directive syntax](xprompt.md#syntax) for the row anatomy. The completion menu
-is read-only; the ACE Launch Control (`,m`) remains the authoritative place to edit
+is read-only; sase's TUI Launch Control (`,m`) remains the authoritative place to edit
 alias targets and to set or clear temporary overrides.
 
 There are no built-in Launch Control buckets: the compact five-size-alias contract ships
-no automatic grouping. The ACE Launch Control instead shows the three scalar
+no automatic grouping. sase's TUI Launch Control instead shows the three scalar
 [launch model settings](#implicit-role-aliases) (`default model`, `epic lander`,
 `big epic lander`) as their own rows, alongside the five size aliases and any custom
 aliases. Optional `model_aliases.buckets.<name>` metadata still creates a display-only
@@ -1443,9 +1444,9 @@ Use `provider/model` to specify both explicitly:
 %model:fakey/fakey-large
 ```
 
-In ACE and xprompt-aware editors, `%model:` completion includes provider rows such as
-`claude/`, `codex/`, and `opencode/` after concrete models and aliases. Typing or
-accepting a visible provider prefix scopes the menu to that provider, so `%m:claude/`
+In sase's TUI and xprompt-aware editors, `%model:` completion includes provider rows
+such as `claude/`, `codex/`, and `opencode/` after concrete models and aliases. Typing
+or accepting a visible provider prefix scopes the menu to that provider, so `%m:claude/`
 offers `claude/opus`, `claude/sonnet`, and the rest of Claude's model catalog while
 `%m:opencode/anthropic/` continues narrowing inside OpenCode's slash-bearing model
 names.
@@ -1468,7 +1469,7 @@ Known model names are automatically mapped to their provider:
 Each installed plugin contributes its own model names via the `llm_known_model_names()`
 hook.
 
-`fakey` is deliberately hidden from the ACE model picker and the `%model` completion
+`fakey` is deliberately hidden from sase's TUI model picker and the `%model` completion
 menu (a provider opts in via the `llm_hidden_from_model_pickers()` hook) since it exists
 only for testing. Routing, resolution, autodetect, and short aliases are unaffected —
 `%model:fakey-large` and the explicit `fakey/fakey-large` syntax above still work, and
@@ -1517,12 +1518,12 @@ advisory-flagged models.
 Advisories render at every point a user meets the model, all reading from the registry
 so no render site hardcodes a model id:
 
-| Surface                                    | Rendering                                                      |
-| ------------------------------------------ | -------------------------------------------------------------- |
-| [ACE model picker](ace.md#custom-approval) | `⚠ <label>` suffix on the row, with `detail` as secondary text |
-| `%model` completion detail                 | `— ⚠ <label>` appended to the completion description           |
-| [Resolved model label](#model-tier-system) | An inline `⚠` marker for the run's whole life                  |
-| `sase doctor -C llm.model_advisory`        | A **warning** naming each configured route that lands on one   |
+| Surface                                           | Rendering                                                      |
+| ------------------------------------------------- | -------------------------------------------------------------- |
+| [sase's TUI model picker](ace.md#custom-approval) | `⚠ <label>` suffix on the row, with `detail` as secondary text |
+| `%model` completion detail                        | `— ⚠ <label>` appended to the completion description           |
+| [Resolved model label](#model-tier-system)        | An inline `⚠` marker for the run's whole life                  |
+| `sase doctor -C llm.model_advisory`               | A **warning** naming each configured route that lands on one   |
 
 `⚠` (orange) marks `severity: "warn"`; `ⓘ` (blue) marks `severity: "info"`.
 
@@ -1565,7 +1566,7 @@ The canonical effort vocabulary, ordered least → most, is `none`, `minimal`, `
 `medium`, `high`, `xhigh`, `max`. Spelling is validated globally; _which_ levels a given
 provider honors is decided per provider (below).
 
-The ACE Launch Control shows the launch-effective default in its header
+sase's TUI Launch Control shows the launch-effective default in its header
 (`default effort: @ <level>`), or says `provider default` when none is configured. An
 active temporary value carries an override countdown plus an annotation for the
 underlying configured value. Alias-borne effort appears only on rows that explicitly pin
@@ -1734,7 +1735,7 @@ defaults.
 In addition to prompt-level [launch-scoped overrides](#launch-scoped-alias-overrides)
 and the tier-based global override, sase supports **concrete** provider/model overrides
 that act as temporary, time-bound machine-wide overrides of a model alias or
-launch-model setting. The ACE `,m` chord opens the
+launch-model setting. sase's TUI `,m` chord opens the
 [**Launch Control**](ace.md#launch-control) for setting, changing, and clearing these
 overrides — for the `default model`, `epic lander`, and `big epic lander` settings, or
 any size/custom alias.
@@ -1824,7 +1825,7 @@ configured default.
 
 ## Temporary Provider Disables
 
-The ACE Launch Control's `p=Providers` flow can temporarily disable a registered
+sase's TUI Launch Control's `p=Providers` flow can temporarily disable a registered
 provider for new routing without editing `sase.yml` or unregistering the plugin.
 Provider-disable state is machine-wide runtime state in
 `~/.sase/llm_provider_disables.json`, owned by the Rust core and exposed through
@@ -1863,7 +1864,7 @@ A **soft** disable never fails a launch; it only deprioritizes the provider:
 `source` and `mode` are independent axes: a manual Launch Control disable may be set to
 either mode, but usage-limit auto-disable (`source: "usage_limit"`) always writes a
 **hard** disable — nothing in routing changes that. Create, flip, and inspect a soft
-disable from ACE Launch Control → Provider Routing (`p` from `,m`); see
+disable from sase's TUI Launch Control → Provider Routing (`p` from `,m`); see
 [Provider routing controls](ace.md#provider-routing-controls). A hard disable can
 additionally drain the agents it stranded — relaunching them elsewhere or reporting why
 they cannot move; see [Draining a Disabled Provider](#draining-a-disabled-provider).
@@ -2033,7 +2034,7 @@ key:
 
 ## Temporary Provider Priority
 
-The ACE Launch Control's Provider Routing modal can set one machine-wide provider
+sase's TUI Launch Control's Provider Routing modal can set one machine-wide provider
 priority for new routing. Press `p` on an enabled, installed, user-facing provider row,
 then choose a relative duration, exact local time, or `Until cleared`. Press `c` from
 the same modal to clear the active priority. The modal stays open after writes,
@@ -2133,7 +2134,7 @@ collection can be disabled with
 `llm_provider.usage_metrics.providers.<name>.enabled: false`; routing-disabled providers
 still collect when otherwise eligible because their reset information remains useful.
 
-ACE's compact usage-window indicator has separate display policy under
+sase's TUI compact usage-window indicator has separate display policy under
 `llm_provider.usage_metrics.indicator`. Collection controls whether SASE probes and
 records provider usage; indicator policy only chooses which already-observed windows
 appear in the application header. The default shows every positively classified weekly
@@ -2145,8 +2146,8 @@ keys are stable selectors and can be found in `sase usage list --json` at
 exact Fable key to `never` to hide it, or to `{below_remaining_percent: 20}` to restore
 the generic fallback threshold. Invalid display overrides are reported and ignored at
 that override while unrelated collection settings and valid provider/window policies
-keep working. Config changes are picked up by the normal ACE usage refresh path even
-when no provider writes a new usage cache file.
+keep working. Config changes are picked up by the normal sase's TUI usage refresh path
+even when no provider writes a new usage cache file.
 
 Use `sase usage` or `sase usage list` to inspect the cache without provider I/O:
 
@@ -2161,13 +2162,14 @@ waits for the operations and then prints the refreshed cache; `--background` ret
 submission receipt immediately. Provider filters are repeatable. `--plain` provides
 stable line-oriented text, while redirected output also becomes plain automatically.
 
-ACE exposes the same cache from Launch Control: press `u`, or choose **Open Providers ·
-Usage** from the command palette. The modal never probes on first paint. Press its own
-`u` to update, close it without cancelling durable work, and reopen to reattach. AXE
-submits due refreshes on its checks cadence. ACE independently requests due work after
-its first paint and then on the configured cadence while it remains open; it does not
-first detect whether AXE is running. Per-provider coalescing makes concurrent AXE, ACE,
-CLI, and limit-event requests join the same live probe.
+sase's TUI exposes the same cache from Launch Control: press `u`, or choose **Open
+Providers · Usage** from the command palette. The modal never probes on first paint.
+Press its own `u` to update, close it without cancelling durable work, and reopen to
+reattach. AXE submits due refreshes on its checks cadence. sase's TUI independently
+requests due work after its first paint and then on the configured cadence while it
+remains open; it does not first detect whether AXE is running. Per-provider coalescing
+makes concurrent AXE, sase's TUI, CLI, and limit-event requests join the same live
+probe.
 
 Each provider summary reports remaining capacity, scope, freshness, and collection
 status. Details show every currently retained allowance window with its reset, age,
@@ -2336,7 +2338,7 @@ row is lost; the chat transcript under `~/.sase/chats` survives.
 
 The `llm_provider.usage_limit.relaunch` / `relaunch_limit` config fields (above) control
 whether and how much a usage-limit hard disable drains automatically; the
-`provider_drain` beta flag gates that automatic submission and the ACE Launch Control
+`provider_drain` beta flag gates that automatic submission and sase's TUI Launch Control
 [provider-drain relaunch prompt](ace.md#provider-drain-relaunch-prompt) — both are off
 until the flag is enabled.
 
@@ -2356,10 +2358,10 @@ durable proc output has the complete JSON envelope. Inspect a bad drain with
 
 Restart recovery bundles live under `~/.sase/restarts/<timestamp>-<agent>/`. For a
 failed forced-reuse restart, open the saved `rewritten.md` prompt from that bundle in
-ACE and relaunch through the reviewed launch flow so name reuse, bead context, family or
-clan membership, and scoped authorization are reconstructed. Do not recover forced reuse
-by running a bare `sase run "$(cat rewritten.md)"`; `execution.md` is retained for audit
-of the already-prepared launch text, not as a privileged replay path.
+sase's TUI and relaunch through the reviewed launch flow so name reuse, bead context,
+family or clan membership, and scoped authorization are reconstructed. Do not recover
+forced reuse by running a bare `sase run "$(cat rewritten.md)"`; `execution.md` is
+retained for audit of the already-prepared launch text, not as a privileged replay path.
 
 ## Environment Variables
 
@@ -2618,7 +2620,7 @@ immediately.
 
 ### TUI Display
 
-The ACE Agents tab reflects retry state (see
+sase's TUI Agents tab reflects retry state (see
 [Retry/Fallback Display](ace.md#retryfallback-display)):
 
 - **RETRYING (Ns)** — Waiting before the next attempt (bold orange, with countdown)
@@ -2812,15 +2814,15 @@ share the same artifact hooks for live replies and usage files.
 ### Live Reply File
 
 When `SASE_ARTIFACTS_DIR` is set, the streaming output is also written in real-time to
-`<SASE_ARTIFACTS_DIR>/live_reply.md`. This file is used by the ACE TUI Agents tab to
+`<SASE_ARTIFACTS_DIR>/live_reply.md`. This file is used by sase's TUI Agents tab to
 display the agent's reply as it streams in, and remains available after execution
 completes for the metadata panel's AGENT REPLY section.
 
 Providers that support richer streams may write sidecar artifacts. Codex and Grok both
 write reasoning content to `<SASE_ARTIFACTS_DIR>/codex_thinking.jsonl` (the filename is
-shared rather than renamed per provider, since ACE's `read_codex_thinking` reads that
-exact path); providers with token counters write `<SASE_ARTIFACTS_DIR>/usage.json`; Muse
-records the model it actually configured and its session id in
+shared rather than renamed per provider, since sase's TUI `read_codex_thinking` reads
+that exact path); providers with token counters write `<SASE_ARTIFACTS_DIR>/usage.json`;
+Muse records the model it actually configured and its session id in
 `<SASE_ARTIFACTS_DIR>/run_metadata.json`.
 
 ### Output Suppression

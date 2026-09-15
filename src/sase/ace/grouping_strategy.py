@@ -1,4 +1,4 @@
-"""Persistence helpers for ACE TUI grouping strategies."""
+"""Persistence helpers for sase's TUI grouping strategies."""
 
 from __future__ import annotations
 

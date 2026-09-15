@@ -35,8 +35,9 @@ infrastructure:
   `SASE_PLAN=<path>` tag pointing back to the plan file. The result is spec-driven
   development where the full history of intent, decomposition, and execution is
   preserved and queryable, not trapped in a single agent session's context window.
-- **ACE instead of tmux** -- A single TUI provides unified navigation, filtering, and
-  management across all active workstreams, replacing the manual tab-switching workflow.
+- **sase's TUI instead of tmux** -- A single TUI provides unified navigation, filtering,
+  and management across all active workstreams, replacing the manual tab-switching
+  workflow.
 - **AXE instead of manual supervision** -- A background daemon handles scheduling,
   monitoring, and lifecycle management of agent runs, so the developer doesn't need to
   babysit each session.
@@ -94,8 +95,9 @@ This project was heavily influenced by two research papers:
 - **[Agentic Software Engineering: Foundational Pillars and a Research Roadmap](https://arxiv.org/abs/2509.06216)**
   (Hassan et al., 2025) -- This paper's vision of Structured Agentic Software
   Engineering (SASE) inspired the project's name and overall direction. Its concepts of
-  the Agent Command Environment (ACE) and Agent Execution Environment (AEE) directly
-  informed the naming and design of the `ace` TUI and `axe` daemon, respectively.
+  the Agent Command Environment (sase's TUI) and Agent Execution Environment (AEE)
+  directly informed the naming and design of the `ace` TUI and `axe` daemon,
+  respectively.
 
   ![Visual overview of the SASE paper](images/sase_paper.png){ width="800" }
 

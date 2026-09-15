@@ -1,4 +1,4 @@
-"""Core agent display and interaction methods for the ace TUI app."""
+"""Core agent display and interaction methods for sase's TUI app."""
 
 from __future__ import annotations
 

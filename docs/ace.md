@@ -1,20 +1,19 @@
-# ACE TUI User Guide
+# sase's TUI User Guide
 
 ## Overview
 
-ACE (Agentic Change Explorer) is the primary TUI for the SASE toolkit. It provides an
-interactive interface for navigating, managing, and operating on Patches, agents, and
-the Axe daemon.
+sase's TUI is the primary TUI for the SASE toolkit. It provides an interactive interface
+for navigating, managing, and operating on Patches, agents, and the Axe daemon.
 
 ## Launching
 
 ```bash
-sase ace [QUERY] [options]
+sase tui [QUERY] [options]
 ```
 
-If no Patches query is provided, ACE loads the last used Patches query, then the first
-saved Patches query, then falls back to `!!!` for error suffixes. The top-level Agents
-tab restores its own last submitted Agents query after startup.
+If no Patches query is provided, sase's TUI loads the last used Patches query, then the
+first saved Patches query, then falls back to `!!!` for error suffixes. The top-level
+Agents tab restores its own last submitted Agents query after startup.
 
 ### CLI Options
 
@@ -29,42 +28,43 @@ tab restores its own last submitted Agents query after startup.
 | `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                                                         |
 | `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)                                         |
 | `-t`, `--tab`              | Tab to focus on startup (`artifacts`, `agents`, `axe`; `changespecs` and `patches` are legacy aliases) |
-| `-T`, `--tmux`             | Launch ACE in a new tmux window and print the target for external control                              |
+| `-T`, `--tmux`             | Launch sase's TUI in a new tmux window and print the target for external control                       |
 
-When profiling is enabled, ACE writes text output to `PATH`. If `PATH` is omitted, it
-uses the managed temp tree: `$SASE_TMPDIR/ace-profiles/ace_profile_<timestamp>.txt` when
-`SASE_TMPDIR` is set, or `$SASE_HOME/tmp/ace-profiles/ace_profile_<timestamp>.txt`
-otherwise (`SASE_HOME` defaults to `~/.sase`). On exit, ACE prints the shortened path
-and copies it when a clipboard tool is available.
+When profiling is enabled, sase's TUI writes text output to `PATH`. If `PATH` is
+omitted, it uses the managed temp tree:
+`$SASE_TMPDIR/ace-profiles/ace_profile_<timestamp>.txt` when `SASE_TMPDIR` is set, or
+`$SASE_HOME/tmp/ace-profiles/ace_profile_<timestamp>.txt` otherwise (`SASE_HOME`
+defaults to `~/.sase`). On exit, sase's TUI prints the shortened path and copies it when
+a clipboard tool is available.
 
 ### Examples
 
 ```bash
-sase ace                              # Last query, first saved query, or "!!!"
-sase ace '"feature" AND "Drafted"'    # Filter by name and status
-sase ace '+myproject'                 # Filter by project
-sase ace -m small -r 30 '!!! OR @@@' # Small model, 30s refresh
+sase tui                              # Last query, first saved query, or "!!!"
+sase tui '"feature" AND "Drafted"'    # Filter by name and status
+sase tui '+myproject'                 # Filter by project
+sase tui -m small -r 30 '!!! OR @@@' # Small model, 30s refresh
 ```
 
-When `--profile` is enabled, ACE prints a shortened profile-output path after the TUI
-exits and tries to copy that shortened path to the system clipboard (`pbcopy`,
+When `--profile` is enabled, sase's TUI prints a shortened profile-output path after the
+TUI exits and tries to copy that shortened path to the system clipboard (`pbcopy`,
 `wl-copy`, `xclip`, or `xsel` when available).
 
 ### Clipboard Transports
 
-Every copy inside the ACE TUI runs in the background and tries both a verifiable system
-transport and OSC 52 for the client terminal. Inside tmux, ACE tries
+Every copy inside sase's TUI runs in the background and tries both a verifiable system
+transport and OSC 52 for the client terminal. Inside tmux, sase's TUI tries
 `tmux load-buffer -w -` first; otherwise the system candidates are `pbcopy`, `wl-copy`,
 `xclip`, and `xsel` as appropriate for the platform and display environment. A plain
 `Copied …` toast means a subprocess transport confirmed success, while
-`Copied … (OSC 52)` means ACE emitted the terminal escape sequence without a verifiable
-subprocess result. OSC 52 payloads above the terminal-safe size limit are skipped. If
-neither transport works, ACE opens the generated text in a read-only fallback view so it
-can still be selected and recovered.
+`Copied … (OSC 52)` means sase's TUI emitted the terminal escape sequence without a
+verifiable subprocess result. OSC 52 payloads above the terminal-safe size limit are
+skipped. If neither transport works, sase's TUI opens the generated text in a read-only
+fallback view so it can still be selected and recovered.
 
 ## Tab System
 
-ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
+sase's TUI has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 | Tab           | Description                                                                                                                                                                                                                 |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -74,17 +74,17 @@ ACE has three tabs, cycled with `Tab` and `Shift+Tab`:
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `?`
 to open the Help modal on its **Keymaps** view, then `]` to switch to the tab's
-**Guide** view. While Help is open, the configured tab-switch keys still switch ACE tabs
-and refresh both views in place. By default those keys are `Tab` and `Shift+Tab`; if you
-remap them, the modal follows the configured keys.
+**Guide** view. While Help is open, the configured tab-switch keys still switch sase's
+TUI tabs and refresh both views in place. By default those keys are `Tab` and
+`Shift+Tab`; if you remap them, the modal follows the configured keys.
 
 Press `/` in the Keymaps view to open a live filter bar. Typing splits the query into
 whitespace-separated tokens that must **all** match — each token is checked against a
 row's section name, key display, or description, so a token that matches a section name
 (e.g. `beads`) pulls in every keymap in that section. Matched text is highlighted and a
-counter shows how many keymaps and sections matched. The filter follows you across ACE
-tab switches while Help stays open, but resets whenever the panel is closed and
-reopened. `Esc` clears an active filter before it closes the Help modal.
+counter shows how many keymaps and sections matched. The filter follows you across
+sase's TUI tab switches while Help stays open, but resets whenever the panel is closed
+and reopened. `Esc` clears an active filter before it closes the Help modal.
 
 On first use, empty tabs render onboarding states instead of blank panels: the Patches
 view shows a getting-started card when no Patches or saved queries exist yet, and the
@@ -117,11 +117,11 @@ Artifacts still selects Stitch by default.
 
 ### Contextual Artifact Links
 
-ACE owns one link rail across the three top-level tabs. It appears when the current
-selection has artifact links: an Artifacts-pane entry, a named agent or family shell, or
-an AXE chop. Synthetic clan containers, lumberjacks, and background-command rows do not
-provide a link subject. The rail includes a breadcrumb while a link-follow trail is
-active.
+sase's TUI owns one link rail across the three top-level tabs. It appears when the
+current selection has artifact links: an Artifacts-pane entry, a named agent or family
+shell, or an AXE chop. Synthetic clan containers, lumberjacks, and background-command
+rows do not provide a link subject. The rail includes a breadcrumb while a link-follow
+trail is active.
 
 Press `$` to arm the rail. Then press `$` again to follow its first entry, `1`-`9` for a
 numbered entry, or `0` to open the complete links panel. The rail always advertises
@@ -151,7 +151,7 @@ projection details.
 #### The Reveal Ladder
 
 Following a link whose target is outside the destination pane's current result set does
-not fail. ACE owns one ordered ladder and walks it until the row is selectable,
+not fail. sase's TUI owns one ordered ladder and walks it until the row is selectable,
 preferring the cheapest rung first:
 
 | Rung                | What it does                                                                                                        |
@@ -172,15 +172,15 @@ hydration fires at most once per follow and never for a ref that failed to parse
 route; it is what makes a deep-archive plan, a stitch outside the collection window, or
 a capped provider snapshot reachable.
 
-When every rung misses, ACE says so honestly rather than silently doing nothing:
+When every rung misses, sase's TUI says so honestly rather than silently doing nothing:
 `No such artifact: <ref>` when nothing resolves the ref, and
 `<Pane> has no <ref> in its inventory` when the destination pane genuinely does not
 carry it.
 
 Each rewriting rung commits through the pane's host-query adapter, so query history
 records exactly one `^` restore for the whole follow. After a rewriting follow lands,
-ACE toasts `Revealed <ref> — press ^ to restore your query` and the pane's info header
-shows a reversible **lens chip** — `↩ Revealed <ref>` in the pane's accent color,
+sase's TUI toasts `Revealed <ref> — press ^ to restore your query` and the pane's info
+header shows a reversible **lens chip** — `↩ Revealed <ref>` in the pane's accent color,
 followed by a dim `^ to return` naming the configured `prev_query` key rather than
 introducing a new binding. The lens is derived from the live query rather than stored as
 a flag: it is active only while the pane's canonical query is still exactly the query
@@ -318,7 +318,7 @@ cancellation.
 | Provider documents | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body |
 | Files              | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt         |
 
-`%s` captures the current `sase ace` tmux pane on every view.
+`%s` captures the current `sase tui` tmux pane on every view.
 
 The palette and copied value follow the active pane. After selection or cancellation,
 the footer returns to the active pane's normal bindings. An unknown printable key warns
@@ -416,7 +416,7 @@ The query schema currently advertises those three field names, but the Agent que
 does not populate their values. Consequently, both `historically_viewable:true` and
 `historically_viewable:false` (and the equivalent queries for the other two fields)
 return no rows. Inspect the revive modal for these per-row capabilities; use
-`revivable:true` when the goal is to find rows ACE can restore.
+`revivable:true` when the goal is to find rows sase's TUI can restore.
 
 `revivable:true` now means all of "dismissed", "backed by a readable top-level bundle",
 and `durably_revivable`, so the saved query the `w` action seeds
@@ -448,16 +448,16 @@ other committed token; its **All projects** choice removes it. The compatibility
 action removes an active project token and restores the last automatic or picked project
 on the next press.
 
-The bundled initial query is `sidecar:false merges:hide since:24h`; ACE injects
+The bundled initial query is `sidecar:false merges:hide since:24h`; sase's TUI injects
 `limit:<ace.page_size>` (default `limit:100`) when that string has no `limit:` token. It
 is configurable with `ace.artifacts.stitches.default_query`
 (`ace.artifacts.commits.default_query` is a deprecated alias), and changes take effect
-the next time ACE starts. An explicit `project:` in the ACE query or in the configured
-default query wins over the current-project seed. An empty parsed query includes sidecar
-repositories; at ACE startup the async Artifacts seed can add a visible project token.
-Canonical rendering always includes either `sidecar:true` or `sidecar:false`, and the
-configured `d` action rewrites that same visible token. Selecting a sidecar with `repo:`
-therefore requires `sidecar:true`. For example,
+the next time sase's TUI starts. An explicit `project:` in sase's TUI query or in the
+configured default query wins over the current-project seed. An empty parsed query
+includes sidecar repositories; at sase's TUI startup the async Artifacts seed can add a
+visible project token. Canonical rendering always includes either `sidecar:true` or
+`sidecar:false`, and the configured `d` action rewrites that same visible token.
+Selecting a sidecar with `repo:` therefore requires `sidecar:true`. For example,
 `project:sase repo:sase author:Ada origin:stitch since:7d sidecar:false fix` shows
 recent tracked SASE commits by Ada whose subjects contain `fix`,
 `repo:plans sidecar:true` shows that sidecar across all projects, and `limit:40` caps a
@@ -478,8 +478,8 @@ only the origins present in the displayed commits, so a result containing only t
 work shows only `✦ stitch`.
 
 Every Artifacts pane accepts a host-owned `limit:N` token that caps how many matched
-rows the list shows. It is not a row property: ACE extracts it before dialect parse /
-Rust eval, matches against the remainder, then slices. Startup writes
+rows the list shows. It is not a row property: sase's TUI extracts it before dialect
+parse / Rust eval, matches against the remainder, then slices. Startup writes
 `limit:<ace.page_size>` into each pane's default query when no `limit:` is present; a
 user-authored `limit:40` or `limit:all` is left alone, and deleting the token leaves
 that pane uncapped. `Ctrl+J` raises the cap by `ace.page_size` and `Ctrl+K` lowers it,
@@ -665,7 +665,7 @@ same graph as query facets.
 revivable member it revives that member directly; with several, it narrows the pane to
 the matching `state:dismissed AND revivable:true` family or clan query so the choice is
 explicit. Use [`sase agent search`](configuration.md#sase-agent) for the same catalog
-dialect outside ACE.
+dialect outside sase's TUI.
 
 ### Document Provider Panes
 
@@ -684,9 +684,9 @@ Plans is the built-in provider-backed document pane for the plans sidecar. It ke
 existing plan actions: `A` and `X` approve or reject pending proposals, and `L` appears
 only when the selected document has an owning bead. That key jumps to Beads; pressing
 `L` on the linked bead returns to the document. If a destination filter hides the
-counterpart, ACE clears that filter before landing on the row. Other document providers
-reuse the same list, filter, detail, preview, copy, and refresh behavior from their
-declared properties and detail fields.
+counterpart, sase's TUI clears that filter before landing on the row. Other document
+providers reuse the same list, filter, detail, preview, copy, and refresh behavior from
+their declared properties and detail fields.
 
 ### Commit Detail and Linked Plans
 
@@ -710,17 +710,17 @@ Press `p` in the commit modal to load the last structured `SASE_PLAN` footer tag
 render its referenced local UTF-8 file as Markdown; press `p` again to return to the
 cached diff. This is a local-only lookup: an absolute path is expanded and checked
 directly, while a relative path is checked first in the commit repository, then in each
-known project workspace and its plans store. ACE does not clone or materialize a missing
-store. A missing tag, invalid reference, unavailable path, non-file path, or unreadable
-file produces a specific toast and leaves the commit visible. Moving to another commit
-always returns the modal to commit mode.
+known project workspace and its plans store. sase's TUI does not clone or materialize a
+missing store. A missing tag, invalid reference, unavailable path, non-file path, or
+unreadable file produces a specific toast and leaves the commit visible. Moving to
+another commit always returns the modal to commit mode.
 
 ### Preview Reader
 
 Press `Enter` on a Beads entry, provider document, or Files row to open its full
 contents in the preview reader. Prompt-normal-mode `K` opens the same reader for a
-previewable xprompt, skill, or file. When ACE knows a canonical artifact reference, the
-title shows that logical reference beside the resolved local path.
+previewable xprompt, skill, or file. When sase's TUI knows a canonical artifact
+reference, the title shows that logical reference beside the resolved local path.
 
 | Key                 | Action                                                     |
 | ------------------- | ---------------------------------------------------------- |
@@ -866,12 +866,12 @@ and names the key that focuses the query row.
 
 ### Epic phase sizes across plan surfaces
 
-ACE uses the literal scope labels `xsmall`, `small`, `medium`, `large`, and `xlarge`,
-with mint, sky, gold, rose, and violet chips whose text remains the primary signal.
-Valid older plans and phase beads with an omitted size use the stable `small` fallback,
-while an invalid authored value never produces a confident chip or count. The Plans pane
-also uses that shared display fallback for a legacy standalone task with no stored size;
-launch routing uses the same `@small` fallback.
+sase's TUI uses the literal scope labels `xsmall`, `small`, `medium`, `large`, and
+`xlarge`, with mint, sky, gold, rose, and violet chips whose text remains the primary
+signal. Valid older plans and phase beads with an omitted size use the stable `small`
+fallback, while an invalid authored value never produces a confident chip or count. The
+Plans pane also uses that shared display fallback for a legacy standalone task with no
+stored size; launch routing uses the same `@small` fallback.
 
 | Surface                                                                  | Size contract                                                                                                                                                                                                                                                                                          |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -1024,7 +1024,7 @@ inline line-count tokens. Binary files display `binary`; zero-count entries disp
 | `+`     | Run a custom agent (opens project/Patch selection) |
 | `Space` | Run agent from current PR                          |
 
-If ACE cannot detect a workspace provider for the selected Patch or agent, the
+If sase's TUI cannot detect a workspace provider for the selected Patch or agent, the
 quick-launch actions show an error toast instead of opening a prompt with a broken VCS
 prefix.
 
@@ -1095,7 +1095,7 @@ The repeat binding is the leader prefix followed by the configured `repeat_last`
 With the defaults both are comma, so the sequence is `,,`; if the leader prefix is
 changed but `repeat_last` is not, the second key remains comma. Repeat re-dispatches the
 last recognized leader subkey against the current tab and selection. If no leader
-command has been run yet, ACE shows a toast and does nothing.
+command has been run yet, sase's TUI shows a toast and does nothing.
 
 > **Note:** `,x` (kill & edit) and `,X` (kill & edit last launched agent) are only
 > available on the Agents tab — see [Agents Tab Leader Mode](#leader-mode-prefix_1).
@@ -1137,7 +1137,7 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 | `%n` | Copy PR name           |
 | `%l` | Copy Markdown link     |
 | `%p` | Copy project spec file |
-| `%s` | Copy sase ace snapshot |
+| `%s` | Copy sase tui snapshot |
 
 ## Keybindings: Agents Tab
 
@@ -1188,16 +1188,16 @@ Agents list after they settle. Setup and recovery commands are covered by the
 On the Agents tab, `~` uses dotted agent-name relationships rather than Patch sibling
 families. Relations are keyed on the name a row presents as its **sase agent** name, so
 a family participates under its bare family name rather than its root member's `--`
-name. ACE includes visible ancestors and descendants plus neighbors from every dotted
-hood that contains the selected sase-agent name — including the hood that matches that
-name exactly. For example, `foo.bar.worker` can offer peers under `foo.bar` and cousins
-elsewhere under `foo`, grouped deepest hood first, and a family `fam` offers
+name. sase's TUI includes visible ancestors and descendants plus neighbors from every
+dotted hood that contains the selected sase-agent name — including the hood that matches
+that name exactly. For example, `foo.bar.worker` can offer peers under `foo.bar` and
+cousins elsewhere under `foo`, grouped deepest hood first, and a family `fam` offers
 `fam.helper` as a descendant while `fam.helper` offers `fam` back as its ancestor.
 Dotless names can still have descendants such as `foo.child`. If there is exactly one
-related visible row and no dismissed descendant to offer, ACE jumps directly. Otherwise
-it opens a chooser that can also revive same-session dismissed descendants. A chosen
-target is resolved by stable identity and revealed through any clan, family, workflow,
-or grouping folds before focus moves.
+related visible row and no dismissed descendant to offer, sase's TUI jumps directly.
+Otherwise it opens a chooser that can also revive same-session dismissed descendants. A
+chosen target is resolved by stable identity and revealed through any clan, family,
+workflow, or grouping folds before focus moves.
 
 When a clan or a sase agent is selected, its metadata panel assigns a fixed number to
 each numbered row, up to 100 targets. A sase agent is a multi-member family container or
@@ -1296,16 +1296,17 @@ agents currently visible in the selected tribe panel. See
 [Tribe wait and fork targets](agent_families.md#tribe-wait-and-fork-targets) for the
 full ordering rules.
 
-ACE also tries to carry VCS context into either prefilled prompt. For one selected agent
-or family row, it uses that row's launch ref when it can resolve it. For a selected clan
-or tribe, it adds a VCS tag only when every real agent in the current scope resolves to
-the same workflow and ref. Mixed or missing context produces only the `#fork` or `%w`
-reference, leaving you to add the desired `#git`, `#gh`, or other VCS tag. A marked wait
-is different: one mark uses that row's context; multiple marks use the selected marked
-row, or the first named mark when the selection is elsewhere. The VCS lookup runs off
-the UI thread. Before opening the prompt, ACE verifies that the selected scope and its
-members did not change; marked waits instead verify the marked target set. A stale
-selection cancels with a warning rather than opening a prompt for the wrong target.
+sase's TUI also tries to carry VCS context into either prefilled prompt. For one
+selected agent or family row, it uses that row's launch ref when it can resolve it. For
+a selected clan or tribe, it adds a VCS tag only when every real agent in the current
+scope resolves to the same workflow and ref. Mixed or missing context produces only the
+`#fork` or `%w` reference, leaving you to add the desired `#git`, `#gh`, or other VCS
+tag. A marked wait is different: one mark uses that row's context; multiple marks use
+the selected marked row, or the first named mark when the selection is elsewhere. The
+VCS lookup runs off the UI thread. Before opening the prompt, sase's TUI verifies that
+the selected scope and its members did not change; marked waits instead verify the
+marked target set. A stale selection cancels with a warning rather than opening a prompt
+for the wrong target.
 
 ### Clan and Family Detail Panels
 
@@ -1394,24 +1395,24 @@ and at positions 2-3 the full value renders. A selected whole tribe panel adds l
 for exhaustive detail. These keys are configurable; see
 [Agent Clans, Families, and Tribes](agent_families.md) for the grouping model.
 
-When ACE knows a planner/author or epic lander's associated plan, the metadata panel
-adds a `PLAN` lane in `SASE CONTEXT`. A task worker that authored a plan in the same run
-also shows a `PLAN` lane beside its task `BEAD` lane. The lane order is `PLAN`, `BEAD`,
-`ARTIFACTS`, the audited `MEMORY`, `GLOSSARY`, `SKILLS`, and `WORKSPACES`, with absent
-lanes omitted once they have resolved. A plan or any recorded output is enough to show
-the context section. An epic phase worker never shows its parent epic as a `PLAN` lane.
-Instead, its launch metadata identifies the epic plan and exact phase bead, and ACE
-derives one phase-local `BEAD` lane from that phase's validated, frontmatter-ordered
-entry. The lane shows `Phase Title`, `Description`, `Size`, `Epic Plan`, and
-`Epic Title`; `Size` uses the literal `xsmall`, `small`, `medium`, `large`, or `xlarge`
-label and the same accessible chip palette as epic summaries. The phase title comes from
-the same validated entry, is normalized to one line, and wraps losslessly like the other
-values. Authored descriptions are also normalized to one line; a missing description
-uses the same stable plan-and-phase pointer generated during deterministic bead
-creation. This modern path does not read the bead store, and missing, unreadable,
-damaged, explicitly invalid, or out-of-range metadata keeps the known identity/path
-fallbacks while rendering optional fields as `unavailable`, without exposing the epic
-goal, dependencies, or any peer phase.
+When sase's TUI knows a planner/author or epic lander's associated plan, the metadata
+panel adds a `PLAN` lane in `SASE CONTEXT`. A task worker that authored a plan in the
+same run also shows a `PLAN` lane beside its task `BEAD` lane. The lane order is `PLAN`,
+`BEAD`, `ARTIFACTS`, the audited `MEMORY`, `GLOSSARY`, `SKILLS`, and `WORKSPACES`, with
+absent lanes omitted once they have resolved. A plan or any recorded output is enough to
+show the context section. An epic phase worker never shows its parent epic as a `PLAN`
+lane. Instead, its launch metadata identifies the epic plan and exact phase bead, and
+sase's TUI derives one phase-local `BEAD` lane from that phase's validated,
+frontmatter-ordered entry. The lane shows `Phase Title`, `Description`, `Size`,
+`Epic Plan`, and `Epic Title`; `Size` uses the literal `xsmall`, `small`, `medium`,
+`large`, or `xlarge` label and the same accessible chip palette as epic summaries. The
+phase title comes from the same validated entry, is normalized to one line, and wraps
+losslessly like the other values. Authored descriptions are also normalized to one line;
+a missing description uses the same stable plan-and-phase pointer generated during
+deterministic bead creation. This modern path does not read the bead store, and missing,
+unreadable, damaged, explicitly invalid, or out-of-range metadata keeps the known
+identity/path fallbacks while rendering optional fields as `unavailable`, without
+exposing the epic goal, dependencies, or any peer phase.
 
 `SASE CONTEXT` **streams**: its lanes are resolved cheapest-first in batches and each
 batch is published as it lands, so the section appears almost immediately instead of
@@ -1435,19 +1436,19 @@ epics never show a `Size` row here. The lane header shows the effective user-fac
 user approved the plan: `approve` means a plan approved without an SDD commit, `tale`
 (and the legacy commit-only action) means a committed tale, and `epic` means a committed
 or launched epic. That displayed choice survives a later commit or launch failure. When
-action metadata is absent, ACE falls back to a valid authored `tier: tale` or
+action metadata is absent, sase's TUI falls back to a valid authored `tier: tale` or
 `tier: epic`; a legacy committed record without a readable authored tier falls back to
 `tale`, while a genuinely unresolved tier renders `tier unavailable`. Path selection is
 independent: committed paths are relative to the agent workspace (including SDD sidecars
 such as `sase/repos/plans/...`), while pending and explicitly uncommitted archives use
 `~/.sase/plans/...`.
 
-Validated authored epics add a phase roadmap beneath those three rows. ACE validates
-this display as a launch consumer: modern phases retain their authored `xsmall`,
-`small`, `medium`, `large`, or `xlarge` size, while historical phases with an omitted
-size normalize to `small`; an explicit invalid size or other schema damage makes all
-phase metadata unavailable. Each entry shows its one-based authored order and diamond,
-title, fixed-width literal size chip, canonical ID, `no dependencies` or
+Validated authored epics add a phase roadmap beneath those three rows. sase's TUI
+validates this display as a launch consumer: modern phases retain their authored
+`xsmall`, `small`, `medium`, `large`, or `xlarge` size, while historical phases with an
+omitted size normalize to `small`; an explicit invalid size or other schema damage makes
+all phase metadata unavailable. Each entry shows its one-based authored order and
+diamond, title, fixed-width literal size chip, canonical ID, `no dependencies` or
 `after <id>, ...`, plus an authored phase model when present. Optional descriptions get
 their own hanging-indented line. The order and diamond glyph describe static plan
 structure, not execution state or live bead progress. Tales retain the compact four-row
@@ -1460,14 +1461,14 @@ in the plan's visual reading order. Missing or damaged plans keep their known la
 path visible; when epic context is known, validation failure renders one quiet
 `phases unavailable` header state rather than partial phase data.
 
-ACE separates fast visible-inbox loads from full-history scans. The visible inbox is the
-normal Agents-tab working set: active rows plus recent completed, non-hidden rows.
-Startup, manual This-tab refresh (`r` then `r` on Agents), and active agent search use
-that path through the persistent artifact index when it is available.
+sase's TUI separates fast visible-inbox loads from full-history scans. The visible inbox
+is the normal Agents-tab working set: active rows plus recent completed, non-hidden
+rows. Startup, manual This-tab refresh (`r` then `r` on Agents), and active agent search
+use that path through the persistent artifact index when it is available.
 
-If the index is missing or unhealthy, ACE falls back to a bounded source-artifact scan
-for the first paint and shows a repair warning with the reason. That repair state can
-arm a deferred full-history reconcile after input has been quiet, but normal Agents
+If the index is missing or unhealthy, sase's TUI falls back to a bounded source-artifact
+scan for the first paint and shows a repair warning with the reason. That repair state
+can arm a deferred full-history reconcile after input has been quiet, but normal Agents
 This-tab refreshes still stay on the visible-inbox path. Use
 `sase agent index status --json` for a lightweight check that does not scan source
 artifacts, `sase agent index verify` to compare the index with source artifacts, and
@@ -1480,8 +1481,8 @@ by default; this never removes or alters a row).
 ### Refresh Panel
 
 Press `R` on Artifacts or Axe, or `r` on Agents, to open the Refresh panel: a centered
-single-key chooser that names every refresh ACE can perform, shows how fresh each target
-already is, and runs exactly one of them.
+single-key chooser that names every refresh sase's TUI can perform, shows how fresh each
+target already is, and runs exactly one of them.
 
 | Key | Aliases           | Option        | What it does                                                                |
 | --- | ----------------- | ------------- | --------------------------------------------------------------------------- |
@@ -1517,7 +1518,7 @@ first delete dismissed-bundle files and summary rows for suffixes that are no lo
 present in `dismissed_agents.json`, then rebuild the corrected projection.
 
 When one or more agents are marked, `e` edits the marked set instead of only the focused
-row. ACE opens editable completed transcripts in visible row order, deduplicates
+row. sase's TUI opens editable completed transcripts in visible row order, deduplicates
 repeated paths, skips live marked rows that are still running or have no chat file, and
 reports that live skip count. Stale marks are ignored for this action, and marks remain
 in place after the editor exits.
@@ -1560,7 +1561,7 @@ panel's `neighbors:` badge still count them.
 
 Configured `linked_repos` are recorded in agent metadata at launch time, while linked
 and external repos opened during a run are recorded in opened-repository markers. For
-non-terminal agents, ACE can include dirty opened repos in the agent detail
+non-terminal agents, sase's TUI can include dirty opened repos in the agent detail
 `SASE CONTEXT` `ARTIFACTS` lane under `Deltas`. The field counts primary and opened-repo
 changes together, groups linked and external entries under distinct glyphs and canonical
 repo names, and resolves file hints relative to the opened repo directory. Missing
@@ -1570,11 +1571,11 @@ live delta display.
 When a SASE-launched agent uses `/sase_repo`, the run records an opened-repository
 marker. The underlying command infers the host project and workspace from cwd;
 configured linked repos remain backed by hidden `PROJECT_STATE: sibling` project
-records, while external repos remain workspace-local and create no project record. ACE
-shows the markers in the prompt/detail `SASE CONTEXT` section with the repo name, kind,
-resolved path, open time, and reason. Live deltas, commit diffs, and revert all retain
-the canonical external name (for example, `gh:pallets/click`); reverting an external
-repo discards local clone changes without re-cloning from the network.
+records, while external repos remain workspace-local and create no project record.
+sase's TUI shows the markers in the prompt/detail `SASE CONTEXT` section with the repo
+name, kind, resolved path, open time, and reason. Live deltas, commit diffs, and revert
+all retain the canonical external name (for example, `gh:pallets/click`); reverting an
+external repo discards local clone changes without re-cloning from the network.
 
 ### Wait Modal
 
@@ -1656,16 +1657,16 @@ carry over HITL overrides.
 
 ### Workflow Visibility
 
-Workflows launched via `sase run` are visible in the Agents tab alongside ACE-launched
-workflows. The TUI scans `artifacts/run/*` directories in addition to `workflow-*` and
-`ace-run` directories, and writes an initial `workflow_state.json` before execution so
-that step data appears immediately rather than showing a bare RUNNING entry. Anonymous
-`tmp_*` workflows are included in the normal visible-inbox index when their workflow
-state has `appears_as_agent: true` and does not set `hidden: true`; explicitly hidden
-workflow rows are omitted from the default view. Specialized review runners launched by
-axe (mentor, CRS, fix-hook, and summarize-hook review agents) are also visible and are
-automatically grouped into tribe `@review`, matching the behavior of a
-`%id(..., tribe=review)` prompt launch.
+Workflows launched via `sase run` are visible in the Agents tab alongside sase's
+TUI-launched workflows. The TUI scans `artifacts/run/*` directories in addition to
+`workflow-*` and `ace-run` directories, and writes an initial `workflow_state.json`
+before execution so that step data appears immediately rather than showing a bare
+RUNNING entry. Anonymous `tmp_*` workflows are included in the normal visible-inbox
+index when their workflow state has `appears_as_agent: true` and does not set
+`hidden: true`; explicitly hidden workflow rows are omitted from the default view.
+Specialized review runners launched by axe (mentor, CRS, fix-hook, and summarize-hook
+review agents) are also visible and are automatically grouped into tribe `@review`,
+matching the behavior of a `%id(..., tribe=review)` prompt launch.
 
 ### Agent Artifacts
 
@@ -1673,9 +1674,9 @@ Press `a` on a focused agent to open the artifact panel whenever artifacts are
 associated with that agent. The list can include chat transcripts, plan files, generated
 Markdown PDFs, generated images, generated videos, prompt-referenced media from saved
 prompt artifacts, and explicit files saved with
-`sase artifact create -p <path> [-l <label>] [-k <kind>]`. ACE always opens the panel,
-even for a single artifact, so the label, kind, and path are visible before launching
-the terminal viewer.
+`sase artifact create -p <path> [-l <label>] [-k <kind>]`. sase's TUI always opens the
+panel, even for a single artifact, so the label, kind, and path are visible before
+launching the terminal viewer.
 
 The prompt/detail header includes those non-chat entries in the plan-adjacent
 `SASE CONTEXT` `ARTIFACTS` lane. Within that lane, `Reads`, `Commits`, `Deltas`, and
@@ -1717,18 +1718,18 @@ producing workspace — including legacy rows whose workspace is discoverable on
 the agent's artifact metadata — and the completion toast says when the copied path no
 longer exists.
 
-When ACE is running inside tmux, artifact viewing opens in a right-side tmux pane so the
-TUI remains visible. The Agents list collapses while the tracked pane is live,
+When sase's TUI is running inside tmux, artifact viewing opens in a right-side tmux pane
+so the TUI remains visible. The Agents list collapses while the tracked pane is live,
 row-changing navigation shows a warning instead of moving to a different agent, `l`
 focuses the tracked pane, and lowercase `a` closes it. If the pane was already closed,
-lowercase `a` opens the artifact panel normally. Outside tmux, ACE suspends while the
-terminal viewer runs in the current pane. The viewer supports image, video, Markdown,
-PDF, and text artifacts: images are displayed directly with `kitten icat`, videos play
-with `mpv`, Markdown is first rendered to PDF, PDFs are converted to PNG pages for
-paging, and unknown file artifacts fall back to a text viewer. The viewer needs `kitten`
-for image/PDF/Markdown display, `mpv` for videos, `pdftoppm` for PDF/Markdown paging,
-and `pandoc` plus a supported PDF engine for Markdown rendering. Missing tools produce a
-warning instead of failing the TUI.
+lowercase `a` opens the artifact panel normally. Outside tmux, sase's TUI suspends while
+the terminal viewer runs in the current pane. The viewer supports image, video,
+Markdown, PDF, and text artifacts: images are displayed directly with `kitten icat`,
+videos play with `mpv`, Markdown is first rendered to PDF, PDFs are converted to PNG
+pages for paging, and unknown file artifacts fall back to a text viewer. The viewer
+needs `kitten` for image/PDF/Markdown display, `mpv` for videos, `pdftoppm` for
+PDF/Markdown paging, and `pandoc` plus a supported PDF engine for Markdown rendering.
+Missing tools produce a warning instead of failing the TUI.
 
 Viewer controls:
 
@@ -1744,13 +1745,13 @@ Viewer controls:
 | `q`   | Close the viewer                                             |
 
 Only one plan artifact is shown for an agent. When both an archived plan and an SDD tale
-path are present, ACE prefers the committed SDD plan; otherwise it keeps the path that
-best matches the run metadata.
+path are present, sase's TUI prefers the committed SDD plan; otherwise it keeps the path
+that best matches the run metadata.
 
 During successful-agent finalization, Markdown-to-PDF rendering updates
-`workflow_state.json.pdf_status` and a compact activity label. ACE renders that label
-only in the prompt/detail header's labeled `Activity:` field, so long conversions show
-progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` instead of looking
+`workflow_state.json.pdf_status` and a compact activity label. sase's TUI renders that
+label only in the prompt/detail header's labeled `Activity:` field, so long conversions
+show progress such as `PDF 2/4 <path>` or `PDFs done 3/4 (1 skipped)` instead of looking
 idle.
 
 ### Tribe Side Panels
@@ -1767,28 +1768,29 @@ for its synthetic container. Per-tribe icons, identity colors, and initial expan
 configurable through [`ace.tribes`](configuration.md#acetribes); the special `default`
 entry styles the reserved panel. A manual panel fold lasts for that panel's current
 lifetime, and the configured initial state is applied again when the panel appears after
-a restart or after the tribe disappears and returns. Across structured ACE TUI surfaces,
-identity colors apply only to an existing configured icon and the `@tribe` name; they do
-not recolor free-form `@...` text or selection, fold, count, heading, and status chrome.
-Configured icons remain limited to surfaces that already show an icon. Each panel title
-can also show compact scoped metrics in the form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped
-for human input, `R` is running, `W` is waiting to start, `F` is failed, `U` is unread
-terminal work, and `D` is done/read terminal work. Zero-count metrics are omitted. The
-status metrics use the same sase-agent projection as the adjacent total and classify a
-sequential family once from its normalized owner status. The selected whole-panel
-`TRIBE` header uses that same projection, while its nested count and per-family/per-clan
-member summaries preserve the concrete-member distinction. On the selected whole panel,
-the title marker, total, brackets, and metric letters use the focus accent; each numeric
-metric count retains its semantic status color. The title can end with an amber `⚙N`
-badge for running monitors followed by a grey `⚙N` badge for finished ones, in that
-order, after the metric chip (or after the total when the chip is empty); the two counts
-partition the tribe's monitors exactly. Each badge is fold- and collapse-independent —
-it still reports on a fully collapsed panel — and is omitted entirely when its own count
-is zero. Both badges keep their semantic hue on a selected panel while the brackets and
-metric letters take the focus accent. Panel heights are sized to their content and
-separated by a one-row gap. When the panels fit, the first panel grows to absorb
-leftover vertical space while later panels stay pinned to their natural height; when the
-panels overflow, space is weighted by each panel's rendered row count.
+a restart or after the tribe disappears and returns. Across structured sase's TUI
+surfaces, identity colors apply only to an existing configured icon and the `@tribe`
+name; they do not recolor free-form `@...` text or selection, fold, count, heading, and
+status chrome. Configured icons remain limited to surfaces that already show an icon.
+Each panel title can also show compact scoped metrics in the form `[S1 R2 W1 F1 U1 D3]`:
+`S` is stopped for human input, `R` is running, `W` is waiting to start, `F` is failed,
+`U` is unread terminal work, and `D` is done/read terminal work. Zero-count metrics are
+omitted. The status metrics use the same sase-agent projection as the adjacent total and
+classify a sequential family once from its normalized owner status. The selected
+whole-panel `TRIBE` header uses that same projection, while its nested count and
+per-family/per-clan member summaries preserve the concrete-member distinction. On the
+selected whole panel, the title marker, total, brackets, and metric letters use the
+focus accent; each numeric metric count retains its semantic status color. The title can
+end with an amber `⚙N` badge for running monitors followed by a grey `⚙N` badge for
+finished ones, in that order, after the metric chip (or after the total when the chip is
+empty); the two counts partition the tribe's monitors exactly. Each badge is fold- and
+collapse-independent — it still reports on a fully collapsed panel — and is omitted
+entirely when its own count is zero. Both badges keep their semantic hue on a selected
+panel while the brackets and metric letters take the focus accent. Panel heights are
+sized to their content and separated by a one-row gap. When the panels fit, the first
+panel grows to absorb leftover vertical space while later panels stay pinned to their
+natural height; when the panels overflow, space is weighted by each panel's rendered row
+count.
 
 A selected tribe panel's `TRIBE` header ends with an unlabeled description row only when
 the tribe has a configured [`description`](configuration.md#acetribes). That row is set
@@ -1844,15 +1846,15 @@ row-focused group scope across the merged roster.
 
 Press `Z` with a whole tribe panel selected to zoom that tribe's metadata document.
 Press `=` to isolate the focused tribe panel: it keeps that panel expanded and collapses
-every sibling panel. If that changes the layout, ACE remembers the prior collapsed-panel
-set for one session-local restore. Panels whose state would change back show `↺` in
-their titles, the footer changes to `= restore panels`, and the next `=` restores the
-remembered layout. A separate sibling-panel or layout mutation invalidates the pending
-restore. An already isolated panel is an idempotent no-op and does not arm a restore.
-`=` works from whole-panel focus and from a row selection inside a panel alike — from a
-row, it isolates the panel that holds the cursor without changing the selected row. This
-action preserves the selected panel's remembered row and is available only in the split
-layout.
+every sibling panel. If that changes the layout, sase's TUI remembers the prior
+collapsed-panel set for one session-local restore. Panels whose state would change back
+show `↺` in their titles, the footer changes to `= restore panels`, and the next `=`
+restores the remembered layout. A separate sibling-panel or layout mutation invalidates
+the pending restore. An already isolated panel is an idempotent no-op and does not arm a
+restore. `=` works from whole-panel focus and from a row selection inside a panel alike
+— from a row, it isolates the panel that holds the cursor without changing the selected
+row. This action preserves the selected panel's remembered row and is available only in
+the split layout.
 
 Press `-` to sweep every open structural fold — agent nodes and clans, never grouping
 banners such as `Done` or `Running` — closed in the tribe panel that holds focus, in one
@@ -2103,15 +2105,15 @@ to cycle it in reverse. The Agents tab shows a brief toast (`Grouping: by projec
 | `BY_STATUS`  | `Stopped` / `Failed` / `Running` / `Queued` / `Waiting` / `Done` / `Starting` | Bucketed by shared status semantics; status priority fixes bucket position. Standalone agent nodes precede name subgroups, with launch recency sorting units inside each partition. |
 | `BY_MACHINE` | `here`, then remote aliases alphabetically                                    | Machine at L0, status at L1, then name-root/name-prefix groups. Project and Patch levels are omitted.                                                                               |
 
-In `BY_DATE` mode, ACE chooses one L1 subgroup style from the L0 date bucket: one-hour
-windows (`09:00`) for `Today` and `Yesterday`, calendar-day labels for `This Week`, and
-Monday-start week ranges for `Earlier`. The time anchor is `stop_time` for terminal
-agents and `start_time` otherwise. The same anchor selects the L0 date bucket, so an
-agent that started Friday evening and finished Saturday morning renders under Saturday's
-bucket, matching the finish timestamp on its row. Buckets and their subgroups sort
-newest-first. Workflow children inherit the parent's anchor so they stay adjacent
-regardless of their own start time, and agents with no usable timestamp fall into a
-`(no time)` subgroup that sorts last.
+In `BY_DATE` mode, sase's TUI chooses one L1 subgroup style from the L0 date bucket:
+one-hour windows (`09:00`) for `Today` and `Yesterday`, calendar-day labels for
+`This Week`, and Monday-start week ranges for `Earlier`. The time anchor is `stop_time`
+for terminal agents and `start_time` otherwise. The same anchor selects the L0 date
+bucket, so an agent that started Friday evening and finished Saturday morning renders
+under Saturday's bucket, matching the finish timestamp on its row. Buckets and their
+subgroups sort newest-first. Workflow children inherit the parent's anchor so they stay
+adjacent regardless of their own start time, and agents with no usable timestamp fall
+into a `(no time)` subgroup that sorts last.
 
 In `BY_STATUS` mode the L0 banner is the status bucket and L1 is the name-root, with the
 same singleton-suppression rule as `STANDARD`. Status priority fixes the bucket order:
@@ -2158,17 +2160,17 @@ The sase-agent total is followed by an always-visible global capacity prefix in 
 is the current effective `max_running_agents` budget (temporary override first,
 configured value second). Normal agents claim `1.0`; non-default `%queue(weight=...)` /
 `%q(w=...)` launches claim their authored capacity units. If the capacity snapshot is
-unavailable, ACE renders an explicit unknown value such as `—/—` instead of deriving a
-fake value from visible rows. Capacity belongs to the machine running this ACE session
-and does not change when the Agents list is searched, folded, filtered by tribe/project,
-or focused on remote rows. Rows from other enrolled machines never add to this machine's
-`C`, although they still show their own machine's capacity and weight badges (described
-under **Queued** below). The visible running count and the global queued count remain in
-the following status strip, for example `8.0/10.0 [8 running · 1 queued]`. Capacity
-pressure is carried by the `C/L` prefix, escalating from dim through gold at half the
-limit, orange at three quarters, and red when occupied capacity reaches or exceeds the
-limit. The running count keeps its stable green count style. A nonzero queue count is
-cornflower blue.
+unavailable, sase's TUI renders an explicit unknown value such as `—/—` instead of
+deriving a fake value from visible rows. Capacity belongs to the machine running this
+sase's TUI session and does not change when the Agents list is searched, folded,
+filtered by tribe/project, or focused on remote rows. Rows from other enrolled machines
+never add to this machine's `C`, although they still show their own machine's capacity
+and weight badges (described under **Queued** below). The visible running count and the
+global queued count remain in the following status strip, for example
+`8.0/10.0 [8 running · 1 queued]`. Capacity pressure is carried by the `C/L` prefix,
+escalating from dim through gold at half the limit, orange at three quarters, and red
+when occupied capacity reaches or exceeds the limit. The running count keeps its stable
+green count style. A nonzero queue count is cornflower blue.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with
@@ -2206,10 +2208,10 @@ Beads-tab status glyph (`○` open, `◐` in progress, `●` closed). When a bea
 matches a present agent bucket, the bead token follows that agent token, for example
 `WAITING ▶1 ◐2` or `WAITING ✓1 ●1`; unmatched bead tokens trail in canonical bead order.
 Zero entries are omitted. When a row waits on exactly one bead and has no agent, name,
-or group wait dependency, ACE shows that bead's ID instead of a count. The ID has no
-prefix until status resolution; afterward it is prefixed by the bead's status glyph (or
-`?` for an unknown status). Multiple or mixed waits keep the counts. Unknown agents and
-unknown beads both render as `?N`; when both are present they appear as adjacent
+or group wait dependency, sase's TUI shows that bead's ID instead of a count. The ID has
+no prefix until status resolution; afterward it is prefixed by the bead's status glyph
+(or `?` for an unknown status). Multiple or mixed waits keep the counts. Unknown agents
+and unknown beads both render as `?N`; when both are present they appear as adjacent
 independent counts, as in `WAITING ?1 ?2`. These tokens sit directly after `WAITING` and
 before a reserved-tribe `!`, duration, or countdown annotation. They are not the
 trailing gold `◆` linked-bead badge that marks an agent launched by `sase bead work`.
@@ -2290,8 +2292,8 @@ through the same code path as `sase monitor stop`. As with the CLI, stopping nev
 launches the recorded `--next` follow-up agent. The stop itself runs as a tracked proc,
 so a slow teardown does not block the TUI. `x` on a monitor row that has already settled
 falls through to the normal dismiss behavior, and bulk scopes still win over the single
-row: marks, a focused panel, and a focused group are all handled before ACE looks at
-whether the selected row is a monitor.
+row: marks, a focused panel, and a focused group are all handled before sase's TUI looks
+at whether the selected row is a monitor.
 
 Agents launched by `sase bead work` also show a gold `◆ <bead_id>` badge between the
 status glyph and the tribe/name. That trailing gold `◆` linked-bead badge is a
@@ -2406,18 +2408,18 @@ filter bar uses the same **structured Boolean Agent dialect** as Artifacts -> Ag
 `agents-live` profile. Bare words match an agent's `cl_name`, `display_name`,
 `agent_name`, and `status`, plus its **xprompt, live reply/response, chat transcript,
 and prior attempt replies** through the `text` corpus. When
-`ace.current_project.seed_agents_query` is on, ACE seeds this query with the current
-project's exact `project:` term on first load and marks it `seeded` until you edit it.
-That setting defaults **off** because the same query also drives unread jumps and
-prospective clans.
+`ace.current_project.seed_agents_query` is on, sase's TUI seeds this query with the
+current project's exact `project:` term on first load and marks it `seeded` until you
+edit it. That setting defaults **off** because the same query also drives unread jumps
+and prospective clans.
 
 The bar previews each valid edit against the loaded snapshot, `Enter` commits and adds
 the previous query to history, `Escape` restores the pre-edit query and result, `Tab`
 accepts completions, and `^` / `_` walk query history while the bar is open. Each
 successful `Enter` commit is remembered in machine-local SASE state and restored in the
-next ACE session; submitting an empty or whitespace-only query remembers the unfiltered
-view. Typing, `Escape`, invalid submits, history preview, saved-slot commands, and bare
-`/` metadata search do not replace the remembered query.
+next sase's TUI session; submitting an empty or whitespace-only query remembers the
+unfiltered view. Typing, `Escape`, invalid submits, history preview, saved-slot
+commands, and bare `/` metadata search do not replace the remembered query.
 
 Restored Agents queries are applied before provider filtering and before current-project
 seeding. A restored query does not push history, change saved-query slots, or write back
@@ -2513,10 +2515,11 @@ The CLI equivalent of `,x` without the edit pause is `sase agent restart NAME`: 
 the named agent and immediately relaunches the stored prompt under the same name.
 
 If any agents are marked, `,x` acts on that marked set instead of the focused row. Stale
-marks are ignored; if any remaining marked agent has no recoverable prompt, ACE warns
-and leaves the set untouched. After confirmation, ACE kills or dismisses the marked
-agents and opens a prompt stack with one editable pane per original prompt in mark
-order. Embedded `---` inside an individual agent prompt stays inside that agent's pane.
+marks are ignored; if any remaining marked agent has no recoverable prompt, sase's TUI
+warns and leaves the set untouched. After confirmation, sase's TUI kills or dismisses
+the marked agents and opens a prompt stack with one editable pane per original prompt in
+mark order. Embedded `---` inside an individual agent prompt stays inside that agent's
+pane.
 
 Each recovered prompt is marked for forced name reuse so the relaunch keeps the original
 agent's name instead of claiming `<name>1`. The marker is a `!` on the `%id` directive,
@@ -2539,46 +2542,46 @@ relaunches under a newly allocated name. A serial family member is the one case 
 prompt with no `%id` is still rewritten, because its `family=` attachment comes from the
 row rather than the prompt; family roots are not treated that way.
 
-ACE is the surface that confirms that reuse, and it carries the authorization through to
-the launch, so no second confirmation is asked for. Forced reuse cannot be combined with
-alt/fan-out directives in one segment; such a prompt is rejected with an explanatory
-error and preserved in prompt history, so you can reopen it from `,.` and split the
-launch.
+sase's TUI is the surface that confirms that reuse, and it carries the authorization
+through to the launch, so no second confirmation is asked for. Forced reuse cannot be
+combined with alt/fan-out directives in one segment; such a prompt is rejected with an
+explanatory error and preserved in prompt history, so you can reopen it from `,.` and
+split the launch.
 
-`,X` targets the most recently launched agent this ACE session accepted, instead of the
-focused or marked row(s) — marks are ignored entirely, even when agents are marked.
-Repeating `,X` walks back through this session's launch history one accepted launch at a
-time; a launch already killed or dismissed by hand is skipped. A launch leaves that
-history only once its kill or dismissal actually starts, so canceling the confirmation,
-losing the row mid-action, or failing to resolve the prompt leaves the same launch as
-the next `,X` target instead of walking back to an older one — and pressing `,X` again
-while that confirmation is still up neither opens a second one nor advances. Once its
-target row exists, `,X` reuses the exact `,x` machinery above (the same confirmation
-rule and forced-name-reuse rewrite), so a single-agent launch opens one editable pane
-and a bulk-Patch or multi-prompt `---` launch opens one pane per launched agent in
-launch order. Nothing is recorded across ACE restarts: the targetable history is this
-session's in-memory launch stack, not disk state.
+`,X` targets the most recently launched agent this sase's TUI session accepted, instead
+of the focused or marked row(s) — marks are ignored entirely, even when agents are
+marked. Repeating `,X` walks back through this session's launch history one accepted
+launch at a time; a launch already killed or dismissed by hand is skipped. A launch
+leaves that history only once its kill or dismissal actually starts, so canceling the
+confirmation, losing the row mid-action, or failing to resolve the prompt leaves the
+same launch as the next `,X` target instead of walking back to an older one — and
+pressing `,X` again while that confirmation is still up neither opens a second one nor
+advances. Once its target row exists, `,X` reuses the exact `,x` machinery above (the
+same confirmation rule and forced-name-reuse rewrite), so a single-agent launch opens
+one editable pane and a bulk-Patch or multi-prompt `---` launch opens one pane per
+launched agent in launch order. Nothing is recorded across sase's TUI restarts: the
+targetable history is this session's in-memory launch stack, not disk state.
 
 `,X` is meant to undo a premature `<enter>` press, including the moment right after
-submit before the launched agent's row exists yet. In that in-flight window ACE restores
-the submitted prompt immediately (no confirmation — the `,X` press is the confirmation)
-and kills the launched agent(s) once the launch proc finishes. A replacement submit from
-the restored prompt waits until that kill settles so the original name is not
-resurrected underneath it. Repeat `,X` while the kill is still pending re-focuses the
-restored prompt and does not walk back to an earlier launch. Restarting ACE mid-flight
-drops the pending kill: the launch completes, the row appears, and ordinary `,x`
-applies.
+submit before the launched agent's row exists yet. In that in-flight window sase's TUI
+restores the submitted prompt immediately (no confirmation — the `,X` press is the
+confirmation) and kills the launched agent(s) once the launch proc finishes. A
+replacement submit from the restored prompt waits until that kill settles so the
+original name is not resurrected underneath it. Repeat `,X` while the kill is still
+pending re-focuses the restored prompt and does not walk back to an earlier launch.
+Restarting sase's TUI mid-flight drops the pending kill: the launch completes, the row
+appears, and ordinary `,x` applies.
 
 Press `,r` on a `DONE` or `FAILED` agent to preview commits attributed to that agent
-before creating git revert commits. For plan/follow-up families, ACE reverts the family
-scope when the row carries family metadata; otherwise it reverts the focused agent name.
-The preview includes the primary workspace plus recorded `linked_repos` metadata entries
-that still point at an existing workspace directory; never-opened linked workspaces are
-not part of this action. Each repository is checked before execution, and a dirty or
-non-git linked repo is reported and skipped while clean repositories can still be
-reverted. Successful execution creates one revert commit per repository, pushes when a
-remote tracking branch is available, and writes `revert_result.json` beside the agent
-artifacts.
+before creating git revert commits. For plan/follow-up families, sase's TUI reverts the
+family scope when the row carries family metadata; otherwise it reverts the focused
+agent name. The preview includes the primary workspace plus recorded `linked_repos`
+metadata entries that still point at an existing workspace directory; never-opened
+linked workspaces are not part of this action. Each repository is checked before
+execution, and a dirty or non-git linked repo is reported and skipped while clean
+repositories can still be reverted. Successful execution creates one revert commit per
+repository, pushes when a remote tracking branch is available, and writes
+`revert_result.json` beside the agent artifacts.
 
 When agents are marked, `,r` previews the combined commit set for the marked `DONE` /
 `FAILED` rows. Marked agents must come from the same primary workspace. The bulk path
@@ -2592,8 +2595,8 @@ Agents-tab reproduction bundles capture the loader/apply sequence that determine
 rows are visible. Use them when the Agents tab briefly drops historical rows, re-adds
 them, or shows duplicate workflow parents.
 
-When you see one of these bugs in a live ACE session, switch to the Agents tab and press
-`,B` before refreshing again. ACE writes a commit-safe bundle to
+When you see one of these bugs in a live sase's TUI session, switch to the Agents tab
+and press `,B` before refreshing again. sase's TUI writes a commit-safe bundle to
 `~/.sase/repros/<timestamp>-manual-.../agents_tab_repro.json` and shows a toast with the
 path. "Commit-safe" means local names and paths are redacted, and prompt, response,
 chat, and diff bodies are omitted. The bundle keeps the row identities, loader state,
@@ -2634,9 +2637,9 @@ disappearance/reappearance and duplicate-parent bug class; it is not a general p
 arbitrary rendering races.
 
 For continuous diagnosis, press `,T` on the Agents tab to enable invariant checks after
-each load/apply cycle. On the first violation in a burst, ACE auto-captures one bundle
-under `~/.sase/repros/<timestamp>-auto-.../` and shows a warning toast. It does not
-write a new bundle every refresh while the same violation remains active.
+each load/apply cycle. On the first violation in a burst, sase's TUI auto-captures one
+bundle under `~/.sase/repros/<timestamp>-auto-.../` and shows a warning toast. It does
+not write a new bundle every refresh while the same violation remains active.
 
 ### Bang Mode (`!` prefix)
 
@@ -2659,7 +2662,7 @@ which case the target wins.
 | `%@` | Copy the focused concrete agent's durable global `@agent:` reference                        |
 | `%n` | Copy the focused agent's `agent_name` (falls back to `display_name`; toast indicates which) |
 | `%p` | Copy agent prompt                                                                           |
-| `%s` | Copy sase ace snapshot                                                                      |
+| `%s` | Copy sase tui snapshot                                                                      |
 
 ## Keybindings: Axe Tab
 
@@ -2715,7 +2718,7 @@ first line starts with `-`, `*`, or `•` renders as a hanging-indent bullet lis
 every other block is joined into one paragraph and re-wrapped to the current pane width.
 See [Description Grammar](axe.md#description-grammar) for the authored form.
 
-`ace.axe_description_expanded` (default `true`) sets the state each `sase ace` session
+`ace.axe_description_expanded` (default `true`) sets the state each `sase tui` session
 starts in. `d` flips an in-memory session state and repaints from cached snapshot data —
 it never reloads config, reads disk, or writes the toggle back.
 
@@ -2891,7 +2894,7 @@ cancels, with configured target keys taking precedence.
 | ---- | ---------------------- |
 | `%o` | Copy visible output    |
 | `%O` | Copy full output       |
-| `%s` | Copy sase ace snapshot |
+| `%s` | Copy sase tui snapshot |
 
 ### Axe Control
 
@@ -2932,10 +2935,10 @@ On Patches and the top-level Agents tab, these commands run inside the inline fi
 leave both the active query and editor session in place.
 
 On first open, when `ace.current_project.seed_filters` is on and the Patches query
-carries no `project:` / `+name` term of any polarity or depth, ACE appends a visible
-`project:<name>` token for the current project (the configured project name, never the
-ProjectSpec key). An explicit term wins, including `NOT project:…` and a term nested
-inside parentheses. The seeded token is session-only: it is not written to
+carries no `project:` / `+name` term of any polarity or depth, sase's TUI appends a
+visible `project:<name>` token for the current project (the configured project name,
+never the ProjectSpec key). An explicit term wins, including `NOT project:…` and a term
+nested inside parentheses. The seeded token is session-only: it is not written to
 `last_query.txt`. Press `p` and choose **All projects** to remove it. Submitting the
 query from the filter bar keeps the token as yours and persists it.
 
@@ -2992,8 +2995,8 @@ The pane uses the Admin Center list/detail layout: a header with registered/on/s
 counts, a flag rail, a scrollable detail card, a hidden inline filter, and a one-line
 footer. Effective on/off and source are shown separately from saved on/off. When
 environment or root CLI `-f`/`-F` still wins, a yellow “forced for this process” warning
-explains that saving restarts ACE and AXE but will not take effect until that override
-is removed.
+explains that saving restarts sase's TUI and AXE but will not take effect until that
+override is removed.
 
 | Key              | Action                                                                                        |
 | ---------------- | --------------------------------------------------------------------------------------------- |
@@ -3005,10 +3008,10 @@ is removed.
 | `0` then `1`–`6` | Jump to a numbered Config child while Flags is visible (`1`–`5` when the rollout flag is off) |
 
 Confirmation is cancel-first. It names the flag, the current-to-target state, the saved
-state path, any shadowing source, and that **ACE and AXE restart after active procs
-finish**. Confirming writes only the machine-state file, waits up to 60 seconds for
-tracked background procs, then performs one controlled ACE+AXE restart. A restart
-failure does not roll back the saved preference.
+state path, any shadowing source, and that **sase's TUI and AXE restart after active
+procs finish**. Confirming writes only the machine-state file, waits up to 60 seconds
+for tracked background procs, then performs one controlled sase's TUI+AXE restart. A
+restart failure does not roll back the saved preference.
 
 Disabling `admin_center_flags` from its own row is supported: the confirmation says the
 Flags pane will disappear after restart and gives `sase flag enable admin_center_flags`
@@ -3055,12 +3058,12 @@ pane directly and make a successful entry the next resume target. Closing from h
 not clear an older target.
 
 Both the top-level resume target and the alternate are persisted machine-locally and
-survive across ACE process restarts. Within one running ACE process, closing and
-reopening Admin Center also remembers each selectable pane's last logical entry by
-stable identity, plus the minimal scope or sub-tab needed to show it again. Filters,
-marks, scroll position, loaded data, pane instances, Statistics controls, and other
-pane-local state still end with the modal. If `ace.keymaps.app.open_config_center` is
-rebound, repeat that configured key instead; the footer and landing page display the
+survive across sase's TUI process restarts. Within one running sase's TUI process,
+closing and reopening Admin Center also remembers each selectable pane's last logical
+entry by stable identity, plus the minimal scope or sub-tab needed to show it again.
+Filters, marks, scroll position, loaded data, pane instances, Statistics controls, and
+other pane-local state still end with the modal. If `ace.keymaps.app.open_config_center`
+is rebound, repeat that configured key instead; the footer and landing page display the
 effective binding and destination.
 
 Inside every working section, `'` is an Admin Center-wide entry-jump key: it paints
@@ -3085,13 +3088,13 @@ Pressing `Q` opens the **quit / restart menu**. When procs are still running, th
 warns inline with the count that leaving will stop (`N procs will be stopped`), and it
 offers three actions:
 
-- `1` / `s` — quit ACE and stop the axe daemon
+- `1` / `s` — quit sase's TUI and stop the axe daemon
 - `2` / `r` — restart the TUI, leaving axe running
 - `3` / `a` — restart the TUI and restart axe
 
 Press `esc` (or `q`) to cancel and return to the TUI.
 
-A plain `q` quits ACE directly. When procs are still running, `q` first shows a
+A plain `q` quits sase's TUI directly. When procs are still running, `q` first shows a
 confirmation dialog listing the active procs and asks whether to kill them and quit;
 declining returns to the TUI.
 
@@ -3210,18 +3213,18 @@ are configurable under [`ace.keymaps.projects`](configuration.md#acekeymaps).
 
 `i` initializes the marked set, or the highlighted project when nothing is marked.
 Disabled and system-managed rows in the mark set are dropped with a status message; if
-nothing remains, ACE warns and submits nothing. `I` always means the canonical
+nothing remains, sase's TUI warns and submits nothing. `I` always means the canonical
 `sase init --all` inventory: marks, filter, and highlight are ignored.
 
 Either key sets a status line immediately, then plans off-thread with
-`sase init … --check --json`. When every target is already current, ACE toasts that and
-does not open a modal. Otherwise an initialization-plan preview shows the exact apply
-argv, per-planner rows with the CLI's glyph vocabulary, and warnings and blockers
+`sase init … --check --json`. When every target is already current, sase's TUI toasts
+that and does not open a modal. Otherwise an initialization-plan preview shows the exact
+apply argv, per-planner rows with the CLI's glyph vocabulary, and warnings and blockers
 verbatim. The memory step may commit and push generated project memory; that warning is
 shown with the same prominence as the CLI prompt. Confirm runs exactly one
 `sase init … --yes` proc into the Procs tab and refreshes the pane in place. If the plan
-has TTY-only blockers, `t` suspends ACE into interactive `sase init` for the blocked
-subset. `Enter` still means enable; initialization is never implicit.
+has TTY-only blockers, `t` suspends sase's TUI into interactive `sase init` for the
+blocked subset. `Enter` still means enable; initialization is never implicit.
 
 The preview's own keys are listed on its border: `y` runs the plan, `d` toggles full
 file diffs on and off, `t` hands the run to a real terminal when the plan has TTY-only
@@ -3263,12 +3266,12 @@ become visible. `/` then filters within that project scope; `Esc` clears the sco
 the cleared filter sticks for the rest of the session. The picker is filterable by
 display name, canonical key, or state and shows repo/workspace counts for each project.
 
-`e` suspends ACE, opens the selected ProjectSpec in `$EDITOR` (falling back to `nvim`),
-holds the ProjectSpec edit lock for the editor session, then reloads project records. In
-this panel, `Ctrl+D` asks for confirmation before deleting the entire SASE project
-directory: ProjectSpecs, project-local config, artifacts, and related state under
-`~/.sase/projects/<project>/`. Deletion is refused while the project still has `RUNNING`
-claims or live artifact markers. It does not delete workspace checkouts, and
+`e` suspends sase's TUI, opens the selected ProjectSpec in `$EDITOR` (falling back to
+`nvim`), holds the ProjectSpec edit lock for the editor session, then reloads project
+records. In this panel, `Ctrl+D` asks for confirmation before deleting the entire SASE
+project directory: ProjectSpecs, project-local config, artifacts, and related state
+under `~/.sase/projects/<project>/`. Deletion is refused while the project still has
+`RUNNING` claims or live artifact markers. It does not delete workspace checkouts, and
 system-managed projects such as `home` are excluded from the panel.
 
 ## Statistics Tab
@@ -3417,7 +3420,7 @@ If a builtin size alias is mistakenly configured under
 every affected `@alias`. A gold warning glyph remains on the affected alias row even
 while a temporary override is active, and highlighting it replaces the normal
 description with the same actionable advice. Move the entry's `model` value from
-`llm_provider.model_aliases.custom` to `llm_provider.model_aliases.builtin`; ACE
+`llm_provider.model_aliases.custom` to `llm_provider.model_aliases.builtin`; sase's TUI
 identifies the misplaced entry but does not rewrite the configuration automatically.
 Because ownership follows the alias kind rather than where it is configured, the
 misplaced alias stays in the **Built-in size aliases** section — never inside a custom
@@ -3473,8 +3476,8 @@ right of the existing title row, for example:
 The title is centered on the header line. Usage occupies a right-docked reserve sized so
 the complete title still fits centered; changing usage text never moves the title, and
 the navigation and routing controls on the row below stay put. The complete title has
-priority: ACE never truncates it merely to show more usage, and a clipped title keeps
-the full string in its tooltip.
+priority: sase's TUI never truncates it merely to show more usage, and a clipped title
+keeps the full string in its tooltip.
 
 The rendered segment owns one quiet space before the first provider icon and one after
 the block. Each provider icon appears once, followed by one space, and providers are
@@ -3499,26 +3502,26 @@ configurable through
 Stale or unknown-age numeric observations render with neutral text and disclose their
 freshness in the tooltip instead of adding a visible marker. `<1%` remains a low but
 nonzero reading on the normal badge surface. `?% 0h0m↻` means the window's reset has
-passed and ACE is awaiting a new observation, retaining the last known percentage only
-in the tooltip. A bare `?` in the countdown position means the provider never reported a
-reset time. `!` marks a vendor-rejected window. Collector failures no longer add a
-header warning glyph; selected failing windows keep collector-failure prose in the
+passed and sase's TUI is awaiting a new observation, retaining the last known percentage
+only in the tooltip. A bare `?` in the countdown position means the provider never
+reported a reset time. `!` marks a vendor-rejected window. Collector failures no longer
+add a header warning glyph; selected failing windows keep collector-failure prose in the
 tooltip, and model picker hints keep their own separate `⚠ usage failing` identity.
 
 Provider groups always render in provider-name order. Within a provider, the default
 weekly all-model window is first, followed by additional windows by window key.
-Attention is shown only through color and markers; it never changes order. ACE shows the
-longest prefix of complete windows that fits the measured header remainder after the
-icon and unclipped title, allowing the final provider group to be partially visible,
-before adding a `+N` overflow count. If no complete window prefix plus disclosure fits,
-ACE falls back through `usage N`, `N`, and `…`, relaxing the text-only padding at
-one-cell boundaries. Every selected and overflowed window's full identity, exact key,
-precise percentage, scope, effective display policy, and reset timestamp are in the
-tooltip. Clicking the usage cluster — including a window, `+N`, `usage N`, a bare count,
-or `…` — opens Providers · Usage at the first displayed provider and does not expand the
-header. Clicking the routing pill still opens Config > Launch. The Usage command is also
-reachable from Launch Control's `u` and the command palette when there is no display
-space at all.
+Attention is shown only through color and markers; it never changes order. sase's TUI
+shows the longest prefix of complete windows that fits the measured header remainder
+after the icon and unclipped title, allowing the final provider group to be partially
+visible, before adding a `+N` overflow count. If no complete window prefix plus
+disclosure fits, sase's TUI falls back through `usage N`, `N`, and `…`, relaxing the
+text-only padding at one-cell boundaries. Every selected and overflowed window's full
+identity, exact key, precise percentage, scope, effective display policy, and reset
+timestamp are in the tooltip. Clicking the usage cluster — including a window, `+N`,
+`usage N`, a bare count, or `…` — opens Providers · Usage at the first displayed
+provider and does not expand the header. Clicking the routing pill still opens Config >
+Launch. The Usage command is also reachable from Launch Control's `u` and the command
+palette when there is no display space at all.
 
 Press `u` inside the view to submit or join bounded refresh work for eligible providers.
 The modal stays responsive, reattaches to an in-flight refresh when reopened, reloads
@@ -3572,10 +3575,10 @@ Permanent Edit always targets the writable **user base** config rather than a
 project-local layer. Its preview shows `llm_provider.default_effort`, configured
 before/after values, the actual target, validation, and the source-preserving YAML diff.
 With `use_chezmoi: true`, the actual write goes to the chezmoi source and the target is
-applied before ACE reports success. A dirty Git-backed target receives the usual tracked
-commit/pull/push offer with `chore: update default model effort`. An active temporary
-override remains launch-effective after this write until it expires or is cleared; the
-preview and success notification both make that explicit.
+applied before sase's TUI reports success. A dirty Git-backed target receives the usual
+tracked commit/pull/push offer with `chore: update default model effort`. An active
+temporary override remains launch-effective after this write until it expires or is
+cleared; the preview and success notification both make that explicit.
 
 ### Runner capacity controls
 
@@ -3668,8 +3671,8 @@ providers stay in the model picker (header labelled `soft`, rows dimmed one step
 `%model` completion (annotated `soft` in the provenance column). Hard-disabled providers
 are still omitted from both.
 
-ACE also shows active provider routing state in compact top-bar pills beside the model
-override indicators. One hard-disabled provider renders like `CLAUDE off 42m`; one
+sase's TUI also shows active provider routing state in compact top-bar pills beside the
+model override indicators. One hard-disabled provider renders like `CLAUDE off 42m`; one
 soft-disabled provider renders like `CLAUDE soft 42m`; active priority renders like
 `CODEX ★ priority 42m`. When priority and disables are both active, the top bar keeps a
 single priority-led pill with the disable count, such as `CODEX ★ 42m +1`. Several
@@ -3680,14 +3683,14 @@ expiry; clicking the pill opens Launch Control.
 
 ### Disabled-provider launch panel
 
-When ACE is about to launch an agent that can only run on a **hard**-disabled provider,
-it opens a one-keypress panel instead of submitting a launch that would fail at invoke
-time. Soft disables never open this panel. The prompt bar stays mounted until something
-is actually submitted, so aborting leaves the draft exactly where it was.
+When sase's TUI is about to launch an agent that can only run on a **hard**-disabled
+provider, it opens a one-keypress panel instead of submitting a launch that would fail
+at invoke time. Soft disables never open this panel. The prompt bar stays mounted until
+something is actually submitted, so aborting leaves the draft exactly where it was.
 
 The panel is one blocked agent at a time. A four-agent swarm with two blocked units
 shows the panel twice in sequence. Enabling a provider while resolving one agent can
-unblock a later one, so ACE re-checks after every write.
+unblock a later one, so sase's TUI re-checks after every write.
 
 | Key       | When it appears                                        | Action                                                                                                            |
 | --------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
@@ -3706,7 +3709,7 @@ re-modelling a unit in a multi-agent launch submits only the agents that remain.
 ### Provider-drain relaunch prompt {#provider-drain-relaunch-prompt}
 
 After a **manual** hard disable in Provider Routing (`p` from Launch Control, above)
-changes a provider's state, ACE offers to relaunch the agents that disable just
+changes a provider's state, sase's TUI offers to relaunch the agents that disable just
 stranded. The `provider-routing-write` worker computes a drain preview off the event
 loop through the same `plan_provider_drain()` the CLI and the automatic usage-limit path
 use, and only pushes `ProviderDrainPromptModal` when all of these hold:
@@ -3745,9 +3748,9 @@ launch engine back `sase tmux-agent` on the command line; only the presentation 
 These windows are unmanaged agent CLIs, not SASE agents — they do not appear in
 `sase agent list`.
 
-If ACE is not running inside tmux, `t` warns
-`ACE is not running inside tmux; start ACE in a tmux window to launch agent CLIs.` and
-does not open the panel.
+If sase's TUI is not running inside tmux, `t` warns
+`sase's TUI is not running inside tmux; start sase's TUI in a tmux window to launch agent CLIs.`
+and does not open the panel.
 
 Each row is `<key>  ● <display name>  <vendor>  <state>`: the key in the selector
 accent, the bullet and display name in the provider's accent color, the vendor dim, and
@@ -3909,9 +3912,9 @@ expiry details, or click it to open Launch Control.
 
 When no override is active, the same top-bar pill instead names the current launch
 default — `PROVIDER(model)`, in a calmer dim-cyan tone — and stays live for the whole
-ACE session. If `llm_provider.default_model` (directly or through a referenced alias,
-such as the shipped `@large`) is a load-balanced `|` pool, the pill follows the pool's
-round-robin cursor as it advances: a launch consumes one member, and within a few
+sase's TUI session. If `llm_provider.default_model` (directly or through a referenced
+alias, such as the shipped `@large`) is a load-balanced `|` pool, the pill follows the
+pool's round-robin cursor as it advances: a launch consumes one member, and within a few
 seconds the pill flips to name whichever member runs next. It never resolves on the UI
 thread and never advances the cursor itself — it only reflects state that a real launch
 already changed. Hover the pill for a
@@ -4080,16 +4083,16 @@ actionable count.
 
 ### Snooze Reminder Scheduling
 
-Snooze expiry does not depend on the general refresh cadence. ACE keeps at most one
-timer for the nearest deadline reported by the current notification snapshot, so
+Snooze expiry does not depend on the general refresh cadence. sase's TUI keeps at most
+one timer for the nearest deadline reported by the current notification snapshot, so
 reminders fire on time even with clean inotify state or `--refresh-interval 0` (which
 disables ordinary auto-refresh). The timer callback stays thin and synchronous: it
 compares cached wall-clock values on Textual's message pump and hands the store read to
 a coalesced proc, so no disk or worker I/O runs on the pump and an expired snooze never
 triggers a full Agents-list rebuild.
 
-While any snooze is pending, ACE rechecks the wall clock at most one second apart, so a
-suspended host, a resumed session, or a forward/backward system-clock change
+While any snooze is pending, sase's TUI rechecks the wall clock at most one second
+apart, so a suspended host, a resumed session, or a forward/backward system-clock change
 re-evaluates the authoritative UTC deadline promptly instead of waiting out a monotonic
 timer. Startup reconciliation, notification-file watcher events, ordinary polling, and
 modal snooze/resnooze/unmute/dismiss completions all route through the same coalescing
@@ -4097,8 +4100,8 @@ guard, so an external mutation can replace or cancel the cached nearest deadline
 immediately. The coordinator starts after first paint and its timer and task are
 cancelled during normal and controlled teardown.
 
-Once due, ACE performs one current-state snapshot read, applies counts, toasts, and
-status projections, then schedules the next future deadline. Each observed resurface
+Once due, sase's TUI performs one current-state snapshot read, applies counts, toasts,
+and status projections, then schedules the next future deadline. Each observed resurface
 batch produces one toast and one tmux bell — including rows that were marked read while
 snoozed — and no repeat on later polls. Cancelled, dismissed, permanently muted, and
 not-yet-due rows never ring. If another process wins the expiry, the persisted unread
@@ -4141,7 +4144,7 @@ is present; optional feedback still answers in one keystroke and is attached by 
 produce a warning instead of silently doing nothing.
 
 Custom gates and neutral HITL gates execute through the shared hash-verifying gate
-executor. ACE schedules the terminal command and each selected add-on through the
+executor. sase's TUI schedules the terminal command and each selected add-on through the
 tracked proc queue, streams live stdout/stderr to the proc, shows each command as a
 reporter phase, and refreshes the inbox when the proc completes. Legacy HITL bundles
 retain the direct response-file fallback.
@@ -4307,8 +4310,8 @@ the `origin:` query property.
 
 ## Current project
 
-ACE has one **current project**: the head of the VCS xprompt MRU store. Launching an
-agent on a project — or on a Patch owned by that project — promotes it to that head.
+sase's TUI has one **current project**: the head of the VCS xprompt MRU store. Launching
+an agent on a project — or on a Patch owned by that project — promotes it to that head.
 `sase project set-current <project>` and the Projects tab's `c` key (see
 [Projects Tab](#projects-tab)) move it the same way, by promoting the project to the MRU
 head, without a launch. Click the top-bar `+<project>` chip to open the `+` launch
@@ -4357,7 +4360,7 @@ tab — rather than as suffixes on the tab title itself.
 
 ### Proc Indicator
 
-A blue gear icon (⚙) with a count appears in the top bar when ACE's own procs are
+A blue gear icon (⚙) with a count appears in the top bar when sase's TUI own procs are
 running (e.g., sync, mail, accept, and notification-gate operations). It excludes
 monitor shells — see [Monitor Indicator](#monitor-indicator) below. The indicator
 automatically hides when all procs complete.
@@ -4366,8 +4369,8 @@ automatically hides when all procs complete.
 
 An amber gear icon (⚙), immediately right of the [Proc Indicator](#proc-indicator),
 shows a count of currently running monitor shells (`sase monitor start` supervised
-commands). It hides at zero. A monitor is a detached supervisor that survives ACE exit,
-so it is counted separately from — and never blocks — ACE's own procs.
+commands). It hides at zero. A monitor is a detached supervisor that survives sase's TUI
+exit, so it is counted separately from — and never blocks — sase's TUI own procs.
 
 ### Current Project Indicator
 
@@ -4381,11 +4384,12 @@ turn each part off.
 
 Press `,R` (leader + `R`) to open the runners modal. It shows concurrency information
 including hook runners, agent runners, and a **Procs** section listing active and
-recently completed TUI procs from the current ACE session. These include Patch actions,
-agent launch and cleanup work, `monitor-stop`, and notification updates. Each row shows
-the target, proc type and status, and elapsed or total duration; a failed row also shows
-its error message. This modal does not show proc output. Use the Admin Center's
-[Procs tab](#procs-tab) or `sase proc show ID` for durable records and captured output.
+recently completed TUI procs from the current sase's TUI session. These include Patch
+actions, agent launch and cleanup work, `monitor-stop`, and notification updates. Each
+row shows the target, proc type and status, and elapsed or total duration; a failed row
+also shows its error message. This modal does not show proc output. Use the Admin
+Center's [Procs tab](#procs-tab) or `sase proc show ID` for durable records and captured
+output.
 
 ## File Panel Rendering
 
@@ -4422,9 +4426,9 @@ is committed, `Esc` leaves search and returns to the normal zoomed panel.
 
 ## Image Preview Foundation
 
-ACE renders PNG, JPEG, WebP, and GIF attachments with a Pillow-backed Rich cell preview.
-The renderer decodes the first image frame, preserves aspect ratio within the visible
-panel bounds, composites transparency, and paints colored half-block cells using
+sase's TUI renders PNG, JPEG, WebP, and GIF attachments with a Pillow-backed Rich cell
+preview. The renderer decodes the first image frame, preserves aspect ratio within the
+visible panel bounds, composites transparency, and paints colored half-block cells using
 truecolor when the terminal advertises it and 256-color approximations otherwise.
 
 Generated images are already attached to successful agent completion notifications and
@@ -4497,11 +4501,11 @@ double-dash suffixes. For example, if the initial agent was named `a`:
    `a--commit`.
 
 The base name (`a`) is reserved for the family as a whole, so `%wait:a` or `@a`
-references resolve through the family container. In ACE, the aggregate family row
+references resolve through the family container. In sase's TUI, the aggregate family row
 displays that bare container name, while expanded concrete member rows keep their exact
 suffixed names (`a--0`, `a--plan`, `a--code`, and so on). New plan-family metadata
-stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...). ACE still
-canonicalizes older dotted suffixes (`.plan`, `.2`, `.code`, etc.) and legacy
+stores double-dash `role_suffix` values (`--plan`, `--2`, `--code`, ...). sase's TUI
+still canonicalizes older dotted suffixes (`.plan`, `.2`, `.code`, etc.) and legacy
 single-dash suffixes (`-plan`, `-2`, `-code`, etc.) when reading legacy artifacts.
 
 ## Agent Statuses
@@ -4548,8 +4552,8 @@ The `,n` shortcut can reopen the live question even when no unread notification 
 
 Older in-flight runs may still use a `pending_question.json` marker. Those compatibility
 runs yield their slot while unanswered, then reacquire capacity in the same process and
-can become `QUEUED` after an answer. ACE continues to project that marker as `QUESTION`
-until the legacy continuation resumes or terminates.
+can become `QUEUED` after an answer. sase's TUI continues to project that marker as
+`QUESTION` until the legacy continuation resumes or terminates.
 
 The keybinding footer renders available conditional actions as non-breaking key/label
 chips. When the chips do not fit on one line, the footer switches to a deterministic
@@ -4602,33 +4606,33 @@ panel for focused-panel, global, tribe, clan, marked, group, and custom planner-
 selections. `DONE`, `PLAN DONE`, and `TALE DONE` rows with a saved response path are
 resumable from the Agents tab.
 
-When a terminal agent becomes unread, ACE marks it with the completed-agent indicator
-and includes it in the Agents header unread count. Selecting that row, jumping to it
-with `,j`, or toggling it back to read with `U` acknowledges the row and dismisses the
-matching user-agent completion notification. Manually marking a row unread with `U` arms
-it for normal acknowledgement after you move away and return, so the marker can be used
-as a short-lived reminder without leaving stale inbox entries.
+When a terminal agent becomes unread, sase's TUI marks it with the completed-agent
+indicator and includes it in the Agents header unread count. Selecting that row, jumping
+to it with `,j`, or toggling it back to read with `U` acknowledges the row and dismisses
+the matching user-agent completion notification. Manually marking a row unread with `U`
+arms it for normal acknowledgement after you move away and return, so the marker can be
+used as a short-lived reminder without leaving stale inbox entries.
 
-If the currently focused row finishes while you are already on the Agents tab, ACE still
-marks it unread and keeps the completion notification active until a real navigation or
-selection event acknowledges it. A refresh that merely preserves focus does not silently
-consume the unread marker.
+If the currently focused row finishes while you are already on the Agents tab, sase's
+TUI still marks it unread and keeps the completion notification active until a real
+navigation or selection event acknowledges it. A refresh that merely preserves focus
+does not silently consume the unread marker.
 
 The `unread` count in the Agents header is drawn as black text on a gold pill so the
 "you still have unseen completed work" signal stands out from the rest of the colored
 metrics. It uses the same gold tone as the top-bar notification indicator, giving you a
 single color to scan for.
 
-Switching to the Agents tab does not bulk-dismiss completion notifications. ACE projects
-active completion notifications onto unread rows, then acknowledges rows one at a time
-when you select or navigate into a terminal unread row. Bulk acknowledgement is explicit
-through `,u`, which marks loaded unread completed agents read. Plan approvals and user
-questions are never auto-dismissed by this flow; they always require explicit `y` / `n`
-confirmation from their respective modals.
+Switching to the Agents tab does not bulk-dismiss completion notifications. sase's TUI
+projects active completion notifications onto unread rows, then acknowledges rows one at
+a time when you select or navigate into a terminal unread row. Bulk acknowledgement is
+explicit through `,u`, which marks loaded unread completed agents read. Plan approvals
+and user questions are never auto-dismissed by this flow; they always require explicit
+`y` / `n` confirmation from their respective modals.
 
 ### Agent Revival
 
-Press `!R` on the Agents tab to revive previously dismissed work. ACE opens the
+Press `!R` on the Agents tab to revive previously dismissed work. sase's TUI opens the
 saved-group revival modal first, showing newest saved groups with a right-hand preview
 of included agents, projects, PRs, statuses, provider/model labels, and revival count.
 Select a group and press Enter to revive it, choose **Load more saved groups...** to
@@ -4641,7 +4645,7 @@ Use `m` to mark related Agents-tab rows and then `s` to save and dismiss them as
 group. The save modal accepts an optional human name. Leaving it blank keeps the
 generated display title, such as "3 agents from @review" or "2 agents in auth_retry".
 Saving a marked group hides the selected rows from the normal Agents tab without killing
-running processes. When a marked top-level workflow row has child rows, ACE also
+running processes. When a marked top-level workflow row has child rows, sase's TUI also
 includes the children in the saved group so revival can restore the original tree.
 
 Dismissed agents are saved as individual bundle files under month shards in
@@ -4653,7 +4657,7 @@ groups that can be stored.
 
 Dismiss operations are O(1) per agent: each agent is saved to its own JSON file rather
 than a monolithic store. Parent workflow rows use `<raw_suffix>.json`; workflow children
-use `<raw_suffix>__c<step_index>.json`. ACE keeps a SQLite summary index in the
+use `<raw_suffix>__c<step_index>.json`. sase's TUI keeps a SQLite summary index in the
 dismissed-bundle directory so the revive modal and internal lookups can list dismissed
 agents without opening every bundle. Use `sase agent archive verify` to check that
 maintenance index, or `sase agent archive rebuild-index` to rebuild it from bundle
@@ -4661,11 +4665,11 @@ files. The index stores metadata such as status, name, project, model, provider,
 workflow, and Patch metadata; it is not a full-text copy of agent chat contents.
 
 Revival removes the agent identity from the dismissed set, restores enough artifact
-files for ACE to rediscover the agent, and preserves the dismissed bundle as historical
-recovery data. Saved-group revival skips missing bundle references with a warning and
-restores the remaining agents. Group metadata is not deleted after revival; ACE marks
-the group with `revived_at` and increments `times_revived` so the modal can show
-previous use. The reload path forces a full-history scan and can hydrate the
+files for sase's TUI to rediscover the agent, and preserves the dismissed bundle as
+historical recovery data. Saved-group revival skips missing bundle references with a
+warning and restores the remaining agents. Group metadata is not deleted after revival;
+sase's TUI marks the group with `revived_at` and increments `times_revived` so the modal
+can show previous use. The reload path forces a full-history scan and can hydrate the
 just-revived row directly from the bundle, so agents still appear after revive even if
 the persistent artifact index was empty or stale.
 
@@ -4678,9 +4682,9 @@ CLI flags.
 
 Current dismiss and revive operations preserve stored agent names, per-agent tribes, and
 top-level/workflow-child identity. Older dismissed bundles may still contain
-`YYmmdd.<base>` names from the previous dismissal model, and ACE keeps compatibility
-helpers for reading those bundles. Bare `%wait` (no target) intentionally skips legacy
-dismissal-prefixed candidates so it anchors on a live, visible agent.
+`YYmmdd.<base>` names from the previous dismissal model, and sase's TUI keeps
+compatibility helpers for reading those bundles. Bare `%wait` (no target) intentionally
+skips legacy dismissal-prefixed candidates so it anchors on a live, visible agent.
 
 ## Agents Tab Metadata Panel
 
@@ -4940,8 +4944,8 @@ records.
 For retry chains and planner-to-coder follow-up families, the panel aggregates
 `tool_calls.jsonl` from related artifact directories so the selected logical agent shows
 one ordered tool timeline. Discovery uses the persistent artifact index when it is
-available; if the index is missing or stale, ACE falls back to direct lineage pointers
-plus a bounded scan of nearby legacy sibling artifacts.
+available; if the index is missing or stale, sase's TUI falls back to direct lineage
+pointers plus a bounded scan of nearby legacy sibling artifacts.
 
 Records are produced by writers that share one normalized on-disk format. Claude uses
 the SASE tool-call hook collector as the preferred source and keeps its stream-derived
@@ -4984,7 +4988,7 @@ When an agent submits a plan via `/sase_plan` (or `sase plan propose`, including
   compatibility fallback when the authored tier cannot be resolved.
 - **PLAN APPROVED** — The plan has been approved and the follow-up agent has been
   spawned. Shown in cyan/turquoise.
-- **PLAN REJECTED** — The plan was rejected. A no-feedback rejection from ACE or
+- **PLAN REJECTED** — The plan was rejected. A no-feedback rejection from sase's TUI or
   `sase plan reject` writes the rejection response first, then attempts to dismiss the
   notification, user-kill the matching planner, and persist dismissed-agent state so the
   row is hidden on refresh. If the matching row is already gone, the plan is still
@@ -4996,12 +5000,13 @@ artifacts. Plan approval notifications include the LLM provider and model name, 
 can see which model proposed the plan (visible in both the TUI notification modal and
 Telegram delivery).
 
-ACE's arrival toast names the authored tier — **Tale ready** or **Epic ready** — instead
-of using a generic Plan label. An epic toast adds the validated phase count, dependency
-wave count when available, and the non-zero per-size counts (`XS`, `S`, `M`, `L`, and
-`XL`). Those values are captured when the approval gate is created, so a notification
-that is snoozed and later resurfaces keeps its original summary even if the bundled plan
-was edited meanwhile. Batched warning toasts likewise count tales and epics separately.
+sase's TUI arrival toast names the authored tier — **Tale ready** or **Epic ready** —
+instead of using a generic Plan label. An epic toast adds the validated phase count,
+dependency wave count when available, and the non-zero per-size counts (`XS`, `S`, `M`,
+`L`, and `XL`). Those values are captured when the approval gate is created, so a
+notification that is snoozed and later resurfaces keeps its original summary even if the
+bundled plan was edited meanwhile. Batched warning toasts likewise count tales and epics
+separately.
 
 When `sase plan propose` writes the plan, it also touches `~/.sase/.ace_refresh_pulse`
 to wake any running TUI immediately — the tier-aware `TALE` or `EPIC` status (or
@@ -5151,9 +5156,9 @@ priority notifications with a `LaunchApproval` action. Selecting one opens the l
 approval modal, which renders the request's human-readable preview
 (`launch_preview.md`). Clan slots identify their rootless clan alongside the model,
 kind, and planned member name. Press `a` to approve, `r` to reject, and `q` or `Esc` to
-cancel. ACE resolves the same hash-verified command bundle used by mobile and remote
-callbacks, while retaining legacy launch-request fallback. The CLI equivalents are
-`sase launch approve <selector>` and `sase launch reject <selector>`. From inside an
+cancel. sase's TUI resolves the same hash-verified command bundle used by mobile and
+remote callbacks, while retaining legacy launch-request fallback. The CLI equivalents
+are `sase launch approve <selector>` and `sase launch reject <selector>`. From inside an
 agent, `sase launch request` creates a `LAUNCH` gate shell and ends the requesting turn;
 the process does not wait for the response. By default, approval, rejection, timeout, or
 gate/dispatch failure settles the shell and resumes the original requester as one family
@@ -5205,9 +5210,9 @@ reply, error text, timestamps, and model are snapshotted under
 prior attempts inline with styled dividers before the current/final attempt, so the full
 arc of the agent's work stays visible in one scroll.
 
-ACE hydrates prior-attempt history lazily. Normal Agents-tab refreshes do not enumerate
-every `attempts/<N>/` directory; the selected detail panel, `D` attempt-view toggle, and
-content search hydrate the needed attempt records on demand.
+sase's TUI hydrates prior-attempt history lazily. Normal Agents-tab refreshes do not
+enumerate every `attempts/<N>/` directory; the selected detail panel, `D` attempt-view
+toggle, and content search hydrate the needed attempt records on demand.
 
 Press `D` to collapse the view to the current attempt only; press `D` again to
 re-expand. The binding only appears in the keybinding footer when the selected agent has
@@ -5424,13 +5429,13 @@ space-indented `<N>.` / `<N>)` ordered marker, are additionally bolded with the 
 theme-aware accent, including inside fenced code; this presentation does not change the
 prompt text. A tab-indented dash or ordered marker is not treated as a list marker.
 
-When loaded prompt text contains literal top-level `---` multi-agent separators, ACE
-renders the text as a prompt stack: one pane per agent segment. YAML frontmatter at the
-start stays prompt-level metadata, and `---` lines inside fenced code blocks are left
-alone. A `#name` xprompt swarm invocation stays a single pane and expands only when it
-is launched. During live editing, typed `---` lines stay literal text; add prompt panes
-with `g-` in prompt NORMAL mode. The detailed multi-agent parsing rules live in the
-[XPrompt reference](xprompt.md#multi-agent-prompts).
+When loaded prompt text contains literal top-level `---` multi-agent separators, sase's
+TUI renders the text as a prompt stack: one pane per agent segment. YAML frontmatter at
+the start stays prompt-level metadata, and `---` lines inside fenced code blocks are
+left alone. A `#name` xprompt swarm invocation stays a single pane and expands only when
+it is launched. During live editing, typed `---` lines stay literal text; add prompt
+panes with `g-` in prompt NORMAL mode. The detailed multi-agent parsing rules live in
+the [XPrompt reference](xprompt.md#multi-agent-prompts).
 
 ### Cursor Readout
 
@@ -5487,13 +5492,13 @@ separator cannot fit both the readout and the `agent N` label.
 | `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                                          |
 | `Escape` / `Ctrl+]`          | Switch to vim NORMAL mode; `Ctrl+]` is the race-free alternative when typing following NORMAL commands quickly                           |
 
-In prompt INSERT mode, ACE auto-pairs safe openers for `()`, `[]`, `{}`, `<>`, single
-quotes, double quotes, and backticks. Typing the matching closer over an auto-inserted
-closer moves the cursor across it instead of duplicating it, and backspace or delete
-removes both sides of an empty pair. Pairing is conservative: it is suppressed before
-token characters, when text is selected (the typed character replaces the selection
-literally), for contractions or possessives, and for repeated quotes/backticks needed to
-type Markdown fences or code spans.
+In prompt INSERT mode, sase's TUI auto-pairs safe openers for `()`, `[]`, `{}`, `<>`,
+single quotes, double quotes, and backticks. Typing the matching closer over an
+auto-inserted closer moves the cursor across it instead of duplicating it, and backspace
+or delete removes both sides of an empty pair. Pairing is conservative: it is suppressed
+before token characters, when text is selected (the typed character replaces the
+selection literally), for contractions or possessives, and for repeated quotes/backticks
+needed to type Markdown fences or code spans.
 
 INSERT-mode `Ctrl+J` and prompt NORMAL-mode `o` / `O` continue a containing
 space-indented `- ` bullet using that bullet's indentation. Prompt NORMAL-mode `J` is
@@ -5515,8 +5520,8 @@ path.
 
 Ordered items (`<N>.` or `<N>)`, one to nine digits) mirror every one of those hyphen
 rules for `Ctrl+J`, `o`, `O`, and `J`, and add the one thing ordered lists need: after
-each structural edit, ACE renumbers the surrounding _run_ -- the maximal sequence of
-same-indent, same-delimiter siblings, joined across blank lines and each item's own
+each structural edit, sase's TUI renumbers the surrounding _run_ -- the maximal sequence
+of same-indent, same-delimiter siblings, joined across blank lines and each item's own
 owned continuation lines -- so the live numbers agree with what `gf` (Prettier
 formatting) would produce. When a run's second item repeats the first item's number,
 every item in the run keeps that number (the `1. / 1. / 1.` convention Prettier
@@ -5533,10 +5538,10 @@ expands a trigger word immediately before the cursor, then advances to the next 
 snippet tabstop. `Shift+Tab` first retreats to a previous live tabstop. When that
 snippet action reports no movement or expansion, the selection is collapsed, and the
 cursor is anywhere on a direct marker line beginning with zero or more spaces followed
-by `- `, ACE indents or dedents that bullet. Each press shifts only that logical line by
-the same two-space unit as vim `>>` / `<<`; dedent removes up to one unit, and the
-cursor follows the shifted content. Physical continuation lines, tab indentation, and
-other Markdown marker styles are excluded.
+by `- `, sase's TUI indents or dedents that bullet. Each press shifts only that logical
+line by the same two-space unit as vim `>>` / `<<`; dedent removes up to one unit, and
+the cursor follows the shifted content. Physical continuation lines, tab indentation,
+and other Markdown marker styles are excluded.
 
 The same fallback applies to ordered items from anywhere on the direct `<N>.` / `<N>)`
 marker line. Ordered `Tab` nests at the _content column_ of the nearest preceding marker
@@ -5554,12 +5559,12 @@ Line numbers appear in cyan when the text exceeds one line. The native cursor ce
 color-coded by prompt Vim mode: INSERT uses cyan, NORMAL uses gold, and VISUAL or V-LINE
 uses magenta.
 
-Uppercase `TODO` at identifier boundaries is a visual draft marker. ACE gives `TODO`,
-`TODO:`, `TODO(owner)`, and `TODO(owner):` headers the exact `#FFD700` gold used by the
-Agents-tab `RUNNING` status with explicit deep navy `#00005F` text. The deep navy stays
-legible on gold without relying on the terminal's customizable ANSI black palette entry.
-Only a header ending in `:` activates the quiet, theme-aware warm italic annotation
-style for the rest of that line; punctuation and prose after bare `TODO` or
+Uppercase `TODO` at identifier boundaries is a visual draft marker. sase's TUI gives
+`TODO`, `TODO:`, `TODO(owner)`, and `TODO(owner):` headers the exact `#FFD700` gold used
+by the Agents-tab `RUNNING` status with explicit deep navy `#00005F` text. The deep navy
+stays legible on gold without relying on the terminal's customizable ANSI black palette
+entry. Only a header ending in `:` activates the quiet, theme-aware warm italic
+annotation style for the rest of that line; punctuation and prose after bare `TODO` or
 `TODO(owner)` retain their ordinary prompt syntax. When the first content in a dash-list
 item is the exact `TODO:` header, the body style continues through lazy and indented
 continuation lines, nested list content, and later paragraphs that Markdown assigns to
@@ -5576,9 +5581,9 @@ pill for every non-literal match across the full prompt stack, including compact
 inactive panes and markers outside the active viewport. The pill disappears immediately
 when the last marker is edited away.
 
-TODO treatment does not move the cursor during history or stash restoration, and ACE
-stashes and opens the literal prompt text in `$EDITOR` unchanged. Submitting an agent
-prompt with one or more visible TODO markers opens a neutral y/n confirmation with
+TODO treatment does not move the cursor during history or stash restoration, and sase's
+TUI stashes and opens the literal prompt text in `$EDITOR` unchanged. Submitting an
+agent prompt with one or more visible TODO markers opens a neutral y/n confirmation with
 **Keep editing** focused by default. Keeping the draft preserves the exact prompt or
 prompt stack without launching or writing history; approving launches the same literal
 prompt text unchanged. The warning uses the same detector as the gold marker and count
@@ -5591,13 +5596,13 @@ yank feedback, and the cursor retain their higher-priority treatments.
 
 ### Raw Placeholder Inputs
 
-Raw `<placeholder>` tags in the ACE prompt bar act like ad hoc prompt inputs. When you
-submit a prompt containing one or more highlighted raw tags, ACE opens the **Prompt
-Inputs** panel before launch. The panel lists each unique tag once, shows a one-line
-context snippet and an occurrence count, and collects values on the same page as any
-required frontmatter-declared `input:` arguments. After confirmation, ACE substitutes
-the collected values into the prompt and records history for the resolved prompt that
-the agents actually received.
+Raw `<placeholder>` tags in sase's TUI prompt bar act like ad hoc prompt inputs. When
+you submit a prompt containing one or more highlighted raw tags, sase's TUI opens the
+**Prompt Inputs** panel before launch. The panel lists each unique tag once, shows a
+one-line context snippet and an occurrence count, and collects values on the same page
+as any required frontmatter-declared `input:` arguments. After confirmation, sase's TUI
+substitutes the collected values into the prompt and records history for the resolved
+prompt that the agents actually received.
 
 Inline backtick spans, fenced code blocks, and `%xprompts_enabled:false` regions are
 literal zones. Tags inside those zones are not highlighted as raw placeholders, recorded
@@ -5637,22 +5642,22 @@ for a remote it also states that source proof is checked on submit. Submission r
 proof preflight off the UI thread before launch. A failure leaves the prompt intact,
 reports the exact reason, and returns focus to the originating pane.
 
-After source preflight passes, ACE inserts a provisional `QUEUED` remote row before the
-background launch settles. A structured accepted owner response keeps it `QUEUED`; a
-settled response changes it to `STARTING`. If the launch finishes without a structured
-dispatch result—including the current rejection and failed-receipt paths—the row becomes
-outcome-unknown `WAITING`; use **Agents: check dispatch launch outcome** from the
-command palette. Once the owner's catalog exposes the matching logical or exact locator,
-ACE removes the provisional row in favor of that authoritative row. The
+After source preflight passes, sase's TUI inserts a provisional `QUEUED` remote row
+before the background launch settles. A structured accepted owner response keeps it
+`QUEUED`; a settled response changes it to `STARTING`. If the launch finishes without a
+structured dispatch result—including the current rejection and failed-receipt paths—the
+row becomes outcome-unknown `WAITING`; use **Agents: check dispatch launch outcome**
+from the command palette. Once the owner's catalog exposes the matching logical or exact
+locator, sase's TUI removes the provisional row in favor of that authoritative row. The
 [Remote Dispatch Runbook](remote_dispatch.md#launch-and-operate) explains the portable
 source requirements and remote operation model.
 
 ### Prompt Stacks
 
-Prompt stacks are the ACE editing surface for literal `---` multi-agent prompts. Loading
-multi-agent prompt text from history, a whole-bar editor session, or an editor buffer
-that returned with a ` @` review marker splits top-level `---` segment separators into
-panes labeled `agent 1`, `agent 2`, and so on; the border title shows
+Prompt stacks are sase's TUI editing surface for literal `---` multi-agent prompts.
+Loading multi-agent prompt text from history, a whole-bar editor session, or an editor
+buffer that returned with a ` @` review marker splits top-level `---` segment separators
+into panes labeled `agent 1`, `agent 2`, and so on; the border title shows
 `Prompt · N agents`. Restoring stashed prompts and using marked-agent `,x` can also open
 a stack, but those paths load one pane per selected draft or agent instead of re-parsing
 each pane's text. Panes are ordered top-to-bottom for whole-stack submission. The bottom
@@ -5764,10 +5769,10 @@ literal throughout. See [Raw Prompt Placeholders](xprompt.md#raw-prompt-placehol
 for the exact launch, conversion, and naming rules.
 
 `Ctrl+G p` opens the unified stashed-prompt picker from the prompt bar, and `@` opens
-the same picker from the main ACE tabs even when the prompt bar is not active. In the
-picker, `space` toggles a row's persistent pin, `Tab` marks a row to restore and remove
-from the stash, `d` marks one row for deletion, `D` marks every row for deletion, `a`
-toggles all rows for restore-and-remove, and `Enter` confirms the marked set. Delete
+the same picker from the main sase's TUI tabs even when the prompt bar is not active. In
+the picker, `space` toggles a row's persistent pin, `Tab` marks a row to restore and
+remove from the stash, `d` marks one row for deletion, `D` marks every row for deletion,
+`a` toggles all rows for restore-and-remove, and `Enter` confirms the marked set. Delete
 marks are staged until confirmation, replace restore marks for the same rows, and do not
 alter pin state; `Escape` or `q` cancels without deleting anything. With no explicit
 marks, `Enter` restores the highlighted row; pinned rows stay stashed when restored,
@@ -5874,8 +5879,8 @@ token under the cursor:
   opens GitHub repositories for `bbugyi200`, and `#gh:bbugyi200/sa` narrows locally or
   through the LSP client's filtering. Accepting a row replaces only the current ref
   value, producing `#gh:bbugyi200/sase ` in colon form or `#gh(bbugyi200/sase)` in
-  parenthesized form. Failed or empty lookups show a placeholder row in ACE; stale
-  cached results are reused when a refresh fails.
+  parenthesized form. Failed or empty lookups show a placeholder row in sase's TUI;
+  stale cached results are reused when a refresh fails.
 - **Slash-skill completion**: When the cursor is on a slash-skill token such as `/` or
   `/sase_`, completion filters the same catalog to skill sources and inserts
   `/<skill_name>` — the provider name, not the `#` reference. The same source completes
@@ -5914,9 +5919,9 @@ token under the cursor:
   completion suppresses duplicates and mutually exclusive keywords, and
   `%model(..., alias=...)` suppresses the alias's own `@alias` value, while manually
   typed values still flow to launch-time validation. Dynamic agent and bead rows come
-  from ACE's warmed snapshots rather than synchronous prompt-bar bead-store reads; if a
-  dynamic refresh is unavailable, static directive names, aliases, keyword rows, and
-  fixed values remain available.
+  from sase's TUI warmed snapshots rather than synchronous prompt-bar bead-store reads;
+  if a dynamic refresh is unavailable, static directive names, aliases, keyword rows,
+  and fixed values remain available.
 - **Model shortcuts**: When the cursor is on a `=alias` or `==model` token at the start
   of a logical line or immediately after a literal ASCII space, completion opens a model
   shortcut menu. `=alias` lists alias rows only; for example, typing `=la` can select
@@ -5924,19 +5929,19 @@ token under the cursor:
   rows only; for example, typing `==gpt` can select `gpt-5.6-sol` and rewrite the token
   to `%m:gpt-5.6-sol`, while provider-qualified input such as `==codex/g` narrows to
   that provider. The second equals sign switches an open alias shortcut panel into the
-  explicit model panel. If the token already has a following ASCII space, ACE reuses it
-  and leaves the cursor after that space; before a tab it inserts no extra space; before
-  a newline or prompt end it appends one ASCII space. `Enter` and `Ctrl+L` accept the
-  highlighted row and never submit the prompt while either shortcut menu is open. No
-  matches dismiss the panel and leave the literal query text intact, so unknown equals
-  tokens submit as ordinary prose. These shortcuts do not fire inside inline code,
-  fenced code, frontmatter, placeholder/directive contexts, escaped equals signs,
+  explicit model panel. If the token already has a following ASCII space, sase's TUI
+  reuses it and leaves the cursor after that space; before a tab it inserts no extra
+  space; before a newline or prompt end it appends one ASCII space. `Enter` and `Ctrl+L`
+  accept the highlighted row and never submit the prompt while either shortcut menu is
+  open. No matches dismiss the panel and leave the literal query text intact, so unknown
+  equals tokens submit as ordinary prose. These shortcuts do not fire inside inline
+  code, fenced code, frontmatter, placeholder/directive contexts, escaped equals signs,
   Markdown-style `=text=` / `==text==` marker pairs, or path-like tokens such as
   `path/=`. The old `*alias` and `**model` forms are ordinary prompt text. The xprompt
   LSP uses the same shared filter and edit plans; see
   [Equals model shortcuts](editor.md#equals-model-shortcuts).
-  `ace.prompt_completion.auto_directive_menu` only controls whether ACE auto-opens these
-  menus and does not govern an external editor's `=` trigger.
+  `ace.prompt_completion.auto_directive_menu` only controls whether sase's TUI
+  auto-opens these menus and does not govern an external editor's `=` trigger.
 - **`@` reference completion**: A bare `@` opens the artifact-kind menu before a `:`
   appears. Local file rows such as `@src/` and `@Justfile` from the prompt-selected base
   directory stay hidden while the typed text prefix-matches an artifact kind; the panel
@@ -5997,17 +6002,17 @@ token under the cursor:
   common placeholders learned from tags you have written before. Within the
   current-prompt group, live tags keep document order and literal-zone tags follow in
   document order. Current-prompt rows use the cyan `<>` badge; saved rows use the gold
-  `◆` badge. ACE retains up to `ace.prompt_completion.common_placeholder_count` saved
-  placeholders. Automatic completion stays quiet for a bare `<` and adds saved
+  `◆` badge. sase's TUI retains up to `ace.prompt_completion.common_placeholder_count`
+  saved placeholders. Automatic completion stays quiet for a bare `<` and adds saved
   placeholders only after you type at least one prefix character; manual `Ctrl+T` on a
   bare `<` shows the saved list explicitly. A lone match in the highest-priority group
   is inserted outright, so saved tags never suppress direct insertion of a lone
   current-prompt match. Set `common_placeholder_count: 0` to disable saving and display
   of common placeholders. In the completion panel, `Ctrl+D` deletes the highlighted
   saved (`◆`) placeholder from the store; current-prompt (`<>`) rows are not deletable.
-  By default, submitting from ACE opens **Fill in this prompt** and asks once for each
-  distinct live tag before launch; `Ctrl+L` can keep a tag literal. Saving a new xprompt
-  converts the same live tags to typed inputs. Inline-code, fenced-code, and
+  By default, submitting from sase's TUI opens **Fill in this prompt** and asks once for
+  each distinct live tag before launch; `Ctrl+L` can keep a tag literal. Saving a new
+  xprompt converts the same live tags to typed inputs. Inline-code, fenced-code, and
   disabled-region tags stay literal in both paths; see
   [Raw Prompt Placeholders](xprompt.md#raw-prompt-placeholders).
 
@@ -6034,7 +6039,7 @@ token under the cursor:
   completed path (useful for file-reference arguments). Relative paths use the
   prompt-selected base directory: registered workspace-provider refs and known-project
   refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root completion in that
-  project checkout. If no prompt workspace ref resolves, ACE uses the TUI process
+  project checkout. If no prompt workspace ref resolves, sase's TUI uses the TUI process
   directory.
 - **File-history completion**: When the cursor is in whitespace (or at an empty prompt
   prefix), `Ctrl+T` opens a list of recently referenced files and well-formed
@@ -6075,7 +6080,7 @@ token under the cursor:
   described above. Hyphenated identifier-like spellings are indexed, matched,
   length-filtered, and replaced as one word, with only the typed prefix replaced so a
   preserved suffix survives acceptance. Matching and insertion use the same case-variant
-  collapse and typed-case policy as prompt-local completion. ACE retains up to
+  collapse and typed-case policy as prompt-local completion. sase's TUI retains up to
   `ace.prompt_completion.history_word_count` unique words that meet the shared
   `ace.prompt_completion.word_min_length` (defaults: `10000` and `5`); set
   `history_word_count: 0` to disable only this final fallback. History is loaded
@@ -6123,25 +6128,25 @@ and `Esc` to cancel.
 In prompt NORMAL mode, `K` previews the xprompt, slash skill, or file under the cursor.
 Inside `#name: ` / `#name:: ` argument text, `K` and `Ctrl+]` prefer a nested reference,
 file path, glossary term, or plain word under the cursor, and fall back to the xprompt
-that owns the argument text only when nothing else matches. On ordinary prompt text, ACE
-checks the warm project glossary before falling back to plain word lookup or spelling
-fixes. `Ctrl+]` jumps to an xprompt, skill, file, or glossary definition, or opens an
-action picker when several jump targets are available. Glossary terms come from the
-project selected by a leading VCS workflow reference, or from the active workspace
+that owns the argument text only when nothing else matches. On ordinary prompt text,
+sase's TUI checks the warm project glossary before falling back to plain word lookup or
+spelling fixes. `Ctrl+]` jumps to an xprompt, skill, file, or glossary definition, or
+opens an action picker when several jump targets are available. Glossary terms come from
+the project selected by a leading VCS workflow reference, or from the active workspace
 project when the prompt does not select one.
 
 #### Glossary terms
 
 Project glossary entries are authored as strand files under `sase/memory/glossary/`, one
 term per strand file, described by the `sase/memory/glossary.md` web descriptor; see
-[Memory Webs](memory.md#memory-webs). ACE highlights matched glossary phrases in the
-prompt after the catalog is warm, rendering them bold, underlined, and in a muted blue
-so they read apart from the lavender repo-name highlight — the same "you can preview
-this with `K` or jump to it with `Ctrl+]`" affordance, a different hue. Matching skips
-inline code and fenced code and uses the shared longest-match rules from the xprompt
-LSP. Loading, validation, and matcher compilation run off the render path and are cached
-per project/source signature. Strand edits, project changes, and watched memory changes
-invalidate the cache.
+[Memory Webs](memory.md#memory-webs). sase's TUI highlights matched glossary phrases in
+the prompt after the catalog is warm, rendering them bold, underlined, and in a muted
+blue so they read apart from the lavender repo-name highlight — the same "you can
+preview this with `K` or jump to it with `Ctrl+]`" affordance, a different hue. Matching
+skips inline code and fenced code and uses the shared longest-match rules from the
+xprompt LSP. Loading, validation, and matcher compilation run off the render path and
+are cached per project/source signature. Strand edits, project changes, and watched
+memory changes invalidate the cache.
 
 `K` on a glossary phrase opens a compact definition card. The title shows the canonical
 term and discloses the matched phrase only when you opened an alias. The body renders
@@ -6152,8 +6157,8 @@ back through the card history. `y` copies the definition, while `Y`, `o`, and `Z
 the source path, open the owning strand file's definition line in `$EDITOR`, or hand the
 file to the artifact viewer when a source path is available. `Ctrl+]` opens the
 project-local strand file's definition range through the normal editor/tmux jump flow.
-If the catalog is still loading, ACE schedules a warm and asks you to retry rather than
-falling through to word lookup or an unrelated jump target.
+If the catalog is still loading, sase's TUI schedules a warm and asks you to retry
+rather than falling through to word lookup or an unrelated jump target.
 
 The card's `SEE ALSO` chips are the depth-1 case of the same closure resolver behind
 `sase memory show`/`read glossary:<keyword>` (see [Memory Webs](memory.md#memory-webs)):
@@ -6362,7 +6367,7 @@ list widget supplies alongside the configurable `j`/`k`/`g`/`G`.
 
 #### Repo names
 
-ACE highlights the unambiguous identifier of every non-primary repo in the active
+sase's TUI highlights the unambiguous identifier of every non-primary repo in the active
 project — linked names (`sase-core`), sidecar slugs (`sase--beads`), and external names
 (`gh:owner/repo`) — after the catalog is warm. Matches are bold, underlined, and
 lavender. The project's own primary name, sidecar role words (`beads`, `plans`), and any
@@ -6373,8 +6378,8 @@ Matching skips inline and fenced code, ignores path-adjacent hits (`../sase-core
 `sase-core/crates`), and drops the matcher's derived plurals so the highlighted
 characters always equal a real identifier. Loading and compilation run off the render
 path and are cached per project. Config edits, project changes, and watched `sase.yml`
-changes invalidate the cache. A repo opened with `sase repo open` during a live ACE
-session does not appear until the next config-driven invalidation.
+changes invalidate the cache. A repo opened with `sase repo open` during a live sase's
+TUI session does not appear until the next config-driven invalidation.
 
 `K` on a repo mention opens a compact repo card: kind, description, checkout path, clone
 coverage, remote URL, and where the repo is declared. The title shows the repo
@@ -6384,14 +6389,14 @@ mark the kind, plus `AUTO-CLONE` and/or `AUTO-SYNC` when set, and `ENV <name>` w
 record has one. `Checkout` prefers the clone registered for the active workspace, else
 the record's own path; when that path does not exist locally it is suffixed
 ` (not cloned)` and the card prints the exact `sase repo open <name>` command as a hint
-— ACE never runs that command itself. `Clones` shows
+— sase's TUI never runs that command itself. `Clones` shows
 `<existing> of <registered> workspaces` when the repo has clone records, and rows whose
 value is unknown (no remote, no declaration site) are omitted rather than shown empty.
 `y` copies the description, `p` copies the checkout path, and `Y`, `o`, and `Z` copy the
 declaration path, open the owning `sase.yml` line in `$EDITOR`, or hand the file to the
 artifact viewer — all three warn cleanly for an external repo, which has no declaration
-site. If the catalog is still loading, ACE schedules a warm and asks you to retry rather
-than falling through to word lookup or an unrelated jump target.
+site. If the catalog is still loading, sase's TUI schedules a warm and asks you to retry
+rather than falling through to word lookup or an unrelated jump target.
 
 `Ctrl+]` on a repo mention opens the resolved checkout — the clone registered for the
 active workspace, else the record's own path — in `$EDITOR` or a new tmux pane through
@@ -6400,7 +6405,7 @@ repo has one (external repos do not). When the checkout is not cloned in the act
 workspace, `Ctrl+]` notifies that the repo is not cloned and prints the exact
 `sase repo open <name>` command to run instead of offering to open a path that does not
 exist: it opens the declaration directly when one exists, or just notifies with no
-chooser at all for an external repo. ACE never runs `sase repo open` itself.
+chooser at all for an external repo. sase's TUI never runs `sase repo open` itself.
 
 #### Word definitions & spellcheck
 
@@ -6413,12 +6418,12 @@ replacement is an ordinary undoable prompt edit.
 
 Definitions require the optional `dict` command. Spell checking requires GNU `aspell`
 with an English dictionary (`aspell-en` on Debian; Homebrew's package bundles English).
-If either tool is absent, ACE explains the unavailable feature without affecting the
-rest of prompt preview. Run `sase doctor -D` to see the exact optional-tool status and
-installation hint.
+If either tool is absent, sase's TUI explains the unavailable feature without affecting
+the rest of prompt preview. Run `sase doctor -D` to see the exact optional-tool status
+and installation hint.
 
 Every word `K` proves misspelled is remembered durably and gets a red underline in every
-prompt input from that moment on, in every `sase ace` session -- no live spell-checking
+prompt input from that moment on, in every `sase tui` session -- no live spell-checking
 runs on every keystroke; only what `K` has already checked is ever squiggled. This is
 distinct from the bold blue glossary underline and the bold lavender repo-name
 underline, which mark a definable project term or repo rather than a spelling issue. The
@@ -6427,21 +6432,21 @@ correction panel offers two ways to stop fighting a word, at two different scope
 it no longer opens the panel, but `aspell` itself -- and every other consumer of it on
 the machine -- still rejects the word. Press `d` to add the word to your `aspell`
 personal dictionary instead (usually `~/.aspell.en.pws`, though `aspell` configuration
-can relocate it), so it stops being flagged everywhere on the machine, not just in ACE;
-this is reversible by editing that file directly. The add is verified by re-checking the
-word in a fresh `aspell` process afterwards, so the squiggle clears only once `aspell`
-genuinely accepts it -- a failure leaves the word flagged and reports `aspell`'s own
-explanation. Case follows `aspell`: a word added capitalized (`Bugyi`) stays flagged in
-lowercase (`bugyi`). Hyphenated words cannot be added with `d` -- `aspell` does not
-permit `-` inside a personal-dictionary entry -- and the panel reports that explicitly
-rather than pretending the add worked. A `K` press on a now-correctly-spelled remembered
-word clears its squiggle automatically. The remembered words are stored at
-`sase_home()/prompt_misspellings.json`; see
+can relocate it), so it stops being flagged everywhere on the machine, not just in
+sase's TUI; this is reversible by editing that file directly. The add is verified by
+re-checking the word in a fresh `aspell` process afterwards, so the squiggle clears only
+once `aspell` genuinely accepts it -- a failure leaves the word flagged and reports
+`aspell`'s own explanation. Case follows `aspell`: a word added capitalized (`Bugyi`)
+stays flagged in lowercase (`bugyi`). Hyphenated words cannot be added with `d` --
+`aspell` does not permit `-` inside a personal-dictionary entry -- and the panel reports
+that explicitly rather than pretending the add worked. A `K` press on a
+now-correctly-spelled remembered word clears its squiggle automatically. The remembered
+words are stored at `sase_home()/prompt_misspellings.json`; see
 [`ace.prompt_spellcheck`](configuration.md#aceprompt_spellcheck) to disable the
 highlight or change how many words are retained.
 
-ACE also computes a non-disruptive live suggestion after a short debounce while the
-prompt input is in INSERT mode. The suggestion appears in the prompt bar subtitle as
+sase's TUI also computes a non-disruptive live suggestion after a short debounce while
+the prompt input is in INSERT mode. The suggestion appears in the prompt bar subtitle as
 `[^L] accept ...`; press `Ctrl+L` to accept it. `Enter` still submits the prompt as
 typed, so live suggestions cannot accidentally replace text on send.
 
@@ -6453,8 +6458,8 @@ automatically while typing matching `#name`, `#!name`, or `/skill` tokens; disab
 xprompt auto-open behavior with `ace.prompt_completion.auto_xprompt_menu: false`. The
 directive menu likewise opens automatically while typing matching `%` directive tokens,
 fixed values such as `%model:`, and `=alias` / `==model` shortcuts; disable it with
-`ace.prompt_completion.auto_directive_menu: false`. That setting is ACE-only and does
-not change xprompt LSP trigger characters in an external editor. The xprompt/skill
+`ace.prompt_completion.auto_directive_menu: false`. That setting is sase's TUI-only and
+does not change xprompt LSP trigger characters in an external editor. The xprompt/skill
 auto-menu opens only once at least one identifier character follows its marker, so bare
 `#` and `/` stay quiet. Directive completion opens from a valid bare `%`, and no
 automatic menu ever auto-accepts a single match. The grouped `@` reference menu opens
@@ -6527,8 +6532,8 @@ The alt overlay layers on top of the existing Jinja and search highlighting rath
 replacing it, and it uses the same size guards, so highlighting stays responsive on
 large prompts.
 
-Editing help in the ACE prompt input mirrors the Jinja auto-pair behavior and only fires
-for the `%{...}` shorthand:
+Editing help in sase's TUI prompt input mirrors the Jinja auto-pair behavior and only
+fires for the `%{...}` shorthand:
 
 - **Auto-pair** — typing `{` immediately after a directive-valid `%` inserts `%{  }` and
   parks the cursor between the two padding spaces. The expansion fires at end of line,
@@ -6679,7 +6684,7 @@ renumbered either way. Prompt `J` removes a supported `- ` or `<N>.` marker when
 onto a nonblank current line, renumbering the run an ordered item left behind; a blank
 current line keeps the marker, and non-prompt editors retain vanilla `J` behavior.
 
-For `Ctrl+]`, ACE opens the target directly in `$EDITOR` when there is only one
+For `Ctrl+]`, sase's TUI opens the target directly in `$EDITOR` when there is only one
 available action. Inside tmux, or for loadable Markdown xprompt definitions, it can show
 a small chooser for editor, tmux-pane, or load-into-prompt actions. Glossary jumps use
 the same flow, targeting the owning project's `sase/sase.yml` `definition` scalar.
@@ -6699,8 +6704,8 @@ instead), landing on the start of the destination match. Unlike `/` and `?`, the
 always case-sensitive, matching vim's exemption of `*` / `#` from smartcase. `n` and `N`
 afterward repeat with the same whole-word and case-sensitivity rules, not a plain
 smartcase substring search. When no keyword character follows the cursor on the line,
-ACE reports "no string under cursor" and leaves the cursor and any existing search state
-untouched.
+sase's TUI reports "no string under cursor" and leaves the cursor and any existing
+search state untouched.
 
 ### Visual Mode
 
@@ -6746,11 +6751,11 @@ always apply to whole selected lines regardless of the cursor column.
 
 Press `Ctrl+K` from the prompt input to open the prompt history modal. That shortcut is
 available when the current prompt is a single logical line; that line pre-fills the
-modal filter. Press `,.` (leader + `.`) to open the same modal from the main ACE UI. The
-modal loads prompts previously launched from ACE or `sase run` in recency pages of
-`ace.page_size` rows (default 100). Normal launch writes skip trivial one-token prompts
-(e.g. `y`, `ok`) so they do not clutter the list, while failed-launch recovery can still
-preserve a short submitted prompt.
+modal filter. Press `,.` (leader + `.`) to open the same modal from the main sase's TUI
+UI. The modal loads prompts previously launched from sase's TUI or `sase run` in recency
+pages of `ace.page_size` rows (default 100). Normal launch writes skip trivial one-token
+prompts (e.g. `y`, `ok`) so they do not clutter the list, while failed-launch recovery
+can still preserve a short submitted prompt.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace
@@ -6853,7 +6858,7 @@ is visible.
 ### Monitors on this tab
 
 A `sase monitor start` supervisor is a durable proc like any other, but this tab marks
-it the same way the rest of ACE does. See [Monitors](monitors.md).
+it the same way the rest of sase's TUI does. See [Monitors](monitors.md).
 
 - **Orange `⚙`.** Monitor rows carry the orange gear between the status icon and the
   label (`● ⚙ just check-full`), matching the Agents tab and the top-bar monitor
@@ -6870,7 +6875,7 @@ it the same way the rest of ACE does. See [Monitors](monitors.md).
 - **`<enter>` jumps to the agent.** On a monitor whose agent row is loaded, `<enter>`
   (or a click) closes Admin Center and reveals that agent on the Agents tab. The hints
   line shows `⏎: agent` only when that jump is possible. If the agent is not on the
-  Agents tab, ACE says so and stays put.
+  Agents tab, sase's TUI says so and stays put.
 - **Visible in both scopes.** Monitor procs are unattributed, so they appear in both
   **this session** and **all sessions**.
 - **`K` stops the supervisor.** Kill uses the proc-shell stop path: it stops the
@@ -6904,7 +6909,7 @@ name is only reusable once the proc holding it settles. A monitor's member agent
 
 | Kind       | Typical producer                                          | Owner and scope                                                     |
 | ---------- | --------------------------------------------------------- | ------------------------------------------------------------------- |
-| `tui`      | Work run and mirrored by ACE                              | The ACE process; scoped to its session                              |
+| `tui`      | Work run and mirrored by sase's TUI                       | sase's TUI process; scoped to its session                           |
 | `command`  | `sase proc run` or `sase.procs.submit_proc()`             | The proc supervisor; attributed to one session or left unattributed |
 | `detached` | Historical rows from retired CLI/API detached submissions | The legacy proc supervisor; global because no session owns the row  |
 
@@ -6922,8 +6927,8 @@ direct or unrecognized API callers.
 Session attribution is not delegation: a `command` proc always executes under its own
 supervisor, while its session id decides which TUI includes it by default. `--session`
 accepts a full session id, a unique id prefix or short handle, or `current`, `latest`,
-and `none`; the default is this process's ACE session, then the newest live one, then no
-session. `sase proc run --session none` creates an unattributed command row.
+and `none`; the default is this process's sase's TUI session, then the newest live one,
+then no session. `sase proc run --session none` creates an unattributed command row.
 `sase proc list` scopes work to the resolved session plus unattributed rows by default,
 and widens to every session with `--all`. Rows from a session that has since exited
 render dim with a `†` marker.
@@ -7019,14 +7024,14 @@ press clears the filter and removes the bar.
 `Shift+G` convention. `d` and `D` currently perform no dismissal; both explain that
 finished rows age out according to `procs.history_limit`.
 
-`K` opens a danger confirmation only for a store-backed row that ACE still considers
-active. The backend stops command/proc-shell records, including monitor supervisors. It
-refuses a TUI-owned record because only its owning ACE session may stop it, and a legacy
-record whose supervisor has died is reconciled to `error` rather than killed. Other
-ineligible rows explain why: a finished proc reports `Proc already finished`, a proc
-still being submitted reports `Proc is still submitting — try again in a moment`, and a
-session-local row with no durable record reports that it cannot be killed from the Procs
-tab.
+`K` opens a danger confirmation only for a store-backed row that sase's TUI still
+considers active. The backend stops command/proc-shell records, including monitor
+supervisors. It refuses a TUI-owned record because only its owning sase's TUI session
+may stop it, and a legacy record whose supervisor has died is reconciled to `error`
+rather than killed. Other ineligible rows explain why: a finished proc reports
+`Proc already finished`, a proc still being submitted reports
+`Proc is still submitting — try again in a moment`, and a session-local row with no
+durable record reports that it cannot be killed from the Procs tab.
 
 ## Updates Tab
 
@@ -7071,25 +7076,26 @@ installed-plugin **update** confirmations load incoming commits by repository in
 background; install confirmations do not. The global `,U` chord opens the **Update
 panel** from already-fetched SASE and provider snapshots — no Admin Center, no live
 inventory load. `e` / `s` / `p` (or `⏎` on the highlighted row) choose Everything, SASE,
-or providers and then show the same `y`/`n` confirmation ACE uses elsewhere, containing
-only the selected legs. `E` / `S` / `P` plan those same scopes and skip only that final
-confirmation after a runnable preview succeeds; failed or already-current previews still
-do not mutate. `,E` is the global direct alias for `,U` then capital `E`: it uses the
-same cached snapshots, preview planning, no-op handling, and error reporting without
-mounting the panel. `r` re-checks in place; `q` / `Esc` cancel. An Everything
+or providers and then show the same `y`/`n` confirmation sase's TUI uses elsewhere,
+containing only the selected legs. `E` / `S` / `P` plan those same scopes and skip only
+that final confirmation after a runnable preview succeeds; failed or already-current
+previews still do not mutate. `,E` is the global direct alias for `,U` then capital `E`:
+it uses the same cached snapshots, preview planning, no-op handling, and error reporting
+without mounting the panel. `r` re-checks in place; `q` / `Esc` cancel. An Everything
 confirmation groups SASE and Agent CLI work into labeled sections with
 update/current/skipped glyphs, counts, and commands. The tracked proc runs Agent CLI
 commands first and the SASE/core/plugin leg second. A failure in one leg is reported
 alongside the independent earlier results. After a changed core/plugin update restarts
-ACE, the one-shot result toast can show applied commits grouped by repository as well as
-file/line statistics. Configure the toast with `ace.updates.post_update_toast_commits`,
-`post_update_toast_max_commits`, and `post_update_toast_diffstat`.
+sase's TUI, the one-shot result toast can show applied commits grouped by repository as
+well as file/line statistics. Configure the toast with
+`ace.updates.post_update_toast_commits`, `post_update_toast_max_commits`, and
+`post_update_toast_diffstat`.
 
 The providers leg still captures the agent-CLI candidates from the latest completed
 automatic result, revalidates exactly those names, and never broadens the captured set
 from an Updates-pane load. Manual-only providers remain in the preview with their
-suggested command or docs. A real SASE/core/plugin code change restarts ACE and axe only
-after provider work finishes, while provider-only updates refresh in place.
+suggested command or docs. A real SASE/core/plugin code change restarts sase's TUI and
+axe only after provider work finishes, while provider-only updates refresh in place.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
 pane-wide agent-CLI action: it updates `Space`-marked agent CLIs from anywhere in the
@@ -7109,8 +7115,8 @@ privacy, publication, status, and recovery behavior.
 The prompt input supports expandable text snippets triggered by pressing `Tab`. Snippets
 are configured in the `ace.snippets` section of `sase.yml` as a mapping of trigger words
 to template strings. Inspect or edit the same catalog from the shell with
-[`sase snippet`](xprompt.md#snippet-cli) (`list`, `show`, `add`, `delete`), or from ACE
-with the [Snippets panel](#snippets-panel) (`gT` / `Ctrl+G T`).
+[`sase snippet`](xprompt.md#snippet-cli) (`list`, `show`, `add`, `delete`), or from
+sase's TUI with the [Snippets panel](#snippets-panel) (`gT` / `Ctrl+G T`).
 
 ```yaml
 ace:
@@ -7134,7 +7140,7 @@ ace:
 **Tab priority:** Snippet expansion always takes priority over tabstop advancement. If
 you type a trigger word at an active tabstop and press `Tab`, the snippet expands rather
 than jumping to the next tabstop. Expanding inside the live snippet nests the new
-snippet session: ACE visits the nested snippet's tabstops first, then resumes the
+snippet session: sase's TUI visits the nested snippet's tabstops first, then resumes the
 enclosing snippet at the next outer stop. Expanding outside the current snippet resets
 the tabstop session.
 
@@ -7185,8 +7191,8 @@ exposes both `foo` → `foo bar baz` and `Foo` → `Foo bar baz`.
   resolve, and generated templates preserve tabstop and escape behavior.
 
 The rule applies uniformly to xprompt-derived snippets, merged `ace.snippets`, and
-snippets saved into the current ACE session — including a second save that updates an
-already-pending trigger. The same pairs appear through ACE,
+snippets saved into the current sase's TUI session — including a second save that
+updates an already-pending trigger. The same pairs appear through sase's TUI,
 `sase editor helper-bridge snippet-catalog`, normal LSP completion, and the native Rust
 fallback.
 
@@ -7194,20 +7200,20 @@ You can also create a snippet on the fly from the prompt save panel, opened with
 `Ctrl+G X`. Press `Ctrl+X` in that panel to switch to snippet mode and choose which
 config file should store the new `ace.snippets` entry. In snippet mode, rows are grouped
 by source and sorted alphabetically by trigger; snippet completions elsewhere are listed
-in trigger order, too, for stable display. As soon as ACE reports the snippet as created
-or saved, it is available to every prompt input already open in the current TUI; no
-prompt remount or restart is needed. When
+in trigger order, too, for stable display. As soon as sase's TUI reports the snippet as
+created or saved, it is available to every prompt input already open in the current TUI;
+no prompt remount or restart is needed. When
 [`ace.snippet_config_path`](configuration.md#acesnippet_config_path) is configured, this
 panel's row list always offers it, pre-selected, as a synthetic destination row — even
 when it points outside the standard discovered locations — and shows why if it falls
 back to a discovered location instead (for example
 `configured path unusable: read-only`).
 
-When `use_chezmoi` is enabled, the save panel writes the chezmoi source file first. ACE
-keeps that successfully written snippet live as session state even before deployment.
-Skipping or failing the optional commit/push/apply step does not remove it from the
-running TUI, but another SASE process will not see the source-only change until chezmoi
-is applied. SASE applies chezmoi from this flow only after the user confirms the
+When `use_chezmoi` is enabled, the save panel writes the chezmoi source file first.
+sase's TUI keeps that successfully written snippet live as session state even before
+deployment. Skipping or failing the optional commit/push/apply step does not remove it
+from the running TUI, but another SASE process will not see the source-only change until
+chezmoi is applied. SASE applies chezmoi from this flow only after the user confirms the
 optional commit-and-push action.
 
 Editors using `sase lsp` can receive the same registry as LSP snippet completions after
@@ -7215,7 +7221,7 @@ bare trigger words when the client advertises `completionItem.snippetSupport`. T
 server uses the editor helper operation `sase editor helper-bridge snippet-catalog` as
 the authoritative source and falls back to native Rust loading only for simple snippets
 if the helper is unavailable. Clients without snippet support do not receive these
-entries, because raw `$1` / `$0` markers would not behave like ACE tabstops.
+entries, because raw `$1` / `$0` markers would not behave like sase's TUI tabstops.
 
 ### Authoring a snippet from the prompt bar
 
@@ -7274,11 +7280,11 @@ quick access to xprompt references rather than expanding static templates.
 
 ## Auto-Refresh
 
-ACE auto-refreshes data at a configurable interval (default: 10 seconds). The remaining
-time until the next refresh is shown in the info panel. Set `--refresh-interval 0` to
-disable. Press `R` on Artifacts or Axe, or `r` on Agents, to open the
-[Refresh panel](#refresh-panel) and choose a manual refresh without waiting for the next
-tick.
+sase's TUI auto-refreshes data at a configurable interval (default: 10 seconds). The
+remaining time until the next refresh is shown in the info panel. Set
+`--refresh-interval 0` to disable. Press `R` on Artifacts or Axe, or `r` on Agents, to
+open the [Refresh panel](#refresh-panel) and choose a manual refresh without waiting for
+the next tick.
 
 Tab switches are instant: cached data is shown immediately while a background refresh
 runs asynchronously, so moving between tabs never blocks on disk I/O.
@@ -7293,7 +7299,7 @@ events, so a quiet TUI does ~zero work between real changes without going stale.
 
 ### Performance Tracing
 
-For diagnosing TUI latency, set `SASE_TUI_TRACE=1` before launching `sase ace`. Tracing
+For diagnosing TUI latency, set `SASE_TUI_TRACE=1` before launching `sase tui`. Tracing
 is near-zero-cost when the env var is unset; with it enabled, each instrumented hot path
 emits one JSONL line per span to `~/.sase/perf/tui_trace.jsonl` (override via
 `SASE_TUI_TRACE_PATH=…`). See [`docs/perf_runbook.md`](perf_runbook.md) for the full

@@ -1,4 +1,4 @@
-"""Hook history selection modal with filtering for the ace TUI."""
+"""Hook history selection modal with filtering for sase's TUI."""
 
 from dataclasses import dataclass
 from enum import Enum, auto

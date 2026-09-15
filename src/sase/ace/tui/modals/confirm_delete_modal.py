@@ -1,4 +1,4 @@
-"""Confirm delete modal for the ace TUI."""
+"""Confirm delete modal for sase's TUI."""
 
 from __future__ import annotations
 

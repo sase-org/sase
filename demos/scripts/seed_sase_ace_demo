@@ -58,16 +58,27 @@ mkdir -p \
   "$workspace/tests/fixtures" \
   "$workspace/docs"
 
+printf 'demo\n' >"$sase_home/machine_name"
+
+cat >"$demo_home/.config/sase/sase_demo.yml" <<'YAML'
+id:
+  username: demo
+  machine_name: demo
+YAML
+
 cat >"$demo_home/.config/sase/sase.yml" <<'YAML'
+workspace:
+  root: adjacent
+
 llm_provider:
   model_aliases:
     custom:
       gpt53:
         model: codex/gpt-5.3-codex
         description: Codex model used by the multi-model fan-out demo.
-      flash37h:
-        model: agy/gemini-3.7-flash-high
-        description: Antigravity Gemini 3.7 Flash model used by the multi-model fan-out demo.
+      pro31h:
+        model: agy/gemini-3.1-pro-high
+        description: Antigravity Gemini 3.1 Pro model used by the multi-model fan-out demo.
 
 xprompts:
   add_tests:
@@ -360,7 +371,7 @@ WORKSPACE_DIR: $workspace
 
 NAME: nova_prompt_input
 DESCRIPTION:
-  Improve the ACE prompt input widget demonstration path.
+  Improve the TUI prompt input widget demonstration path.
   Keep completion, argument hints, and multi-agent prompt stacks visible.
 PARENT:
 PR: https://example.test/nova/pull/42
@@ -692,7 +703,7 @@ cat >"$project_dir/artifacts/ace-run/20260706133000/tool_calls.jsonl" <<EOF
 {"schema_version":2,"recorded_at":"2026-07-06T13:32:19Z","runtime":"gemini","source":"stream","event":"ToolResult","status":"failure","tool_name":"Bash","tool_use_id":"nova-review-help-smoke","session_id":"nova-demo-review","duration_ms":980,"completed_at":"2026-07-06T13:32:19Z","tool_input_summary":{},"tool_response_summary":{"exit_code":2,"stderr_preview":"missing package entry point in demo fixture"}}
 EOF
 
-printf 'Seeded SASE ACE demo state under %s\n' "$root" >&2
+printf 'Seeded SASE TUI demo state under %s\n' "$root" >&2
 printf 'export HOME=%q\n' "$demo_home"
 printf 'export SASE_HOME=%q\n' "$sase_home"
 printf 'export SASE_TMPDIR=%q\n' "$sase_tmpdir"

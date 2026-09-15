@@ -414,7 +414,7 @@ class AgentState:
 
     # The plan action chosen at approval time, e.g. "tale", "epic", "commit".
     # Persisted in agent_meta.json so the parent's approved-status
-    # variant can be reconstructed across `sase ace` restart even after the
+    # variant can be reconstructed across `sase tui` restart even after the
     # workflow itself has completed.
     plan_action: str | None = None
 

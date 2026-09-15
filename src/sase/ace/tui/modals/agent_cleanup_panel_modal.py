@@ -1,4 +1,4 @@
-"""Agent cleanup action chooser for the ace TUI."""
+"""Agent cleanup action chooser for sase's TUI."""
 
 from __future__ import annotations
 

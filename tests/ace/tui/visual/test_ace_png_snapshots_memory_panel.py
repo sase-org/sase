@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for the Memory panel in light and dark themes."""
+"""sase's TUI PNG snapshots for the Memory panel in light and dark themes."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Exit action requested by the ACE TUI."""
+"""Exit action requested by sase's TUI."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from enum import StrEnum
 
 
 class AceExitAction(StrEnum):
-    """Action for the ``sase ace`` handler after the TUI exits."""
+    """Action for the ``sase tui`` handler after the TUI exits."""
 
     QUIT = "quit"
     RESTART_TUI = "restart_tui"

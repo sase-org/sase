@@ -1,4 +1,4 @@
-"""Rewind workflow methods for the ace TUI app."""
+"""Rewind workflow methods for sase's TUI app."""
 
 from __future__ import annotations
 

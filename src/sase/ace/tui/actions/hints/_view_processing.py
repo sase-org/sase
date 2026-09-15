@@ -1,4 +1,4 @@
-"""View-file hint input processing for the ace TUI app."""
+"""View-file hint input processing for sase's TUI app."""
 
 from __future__ import annotations
 

@@ -60,7 +60,7 @@ Source: `src/sase/integrations/changespec_tags.py`
 ## Agent Status Groups
 
 `sase.integrations.agent_status_groups` exposes the same status-bucketing semantics used
-by the ACE Agents tab for external chat or editor surfaces that want a compact
+by sase's TUI Agents tab for external chat or editor surfaces that want a compact
 running-agent summary.
 
 ```python
@@ -73,7 +73,7 @@ for group in group_agent_statuses(list_all_agents()):
         print(" ", agent.name, agent.status)
 ```
 
-Buckets are emitted in ACE display order and empty buckets are omitted:
+Buckets are emitted in sase's TUI display order and empty buckets are omitted:
 
 Each returned `AgentStatusGroup` contains the bucket label and the running-agent records
 assigned to that bucket.
@@ -95,8 +95,8 @@ Source: `src/sase/integrations/agent_status_groups.py`,
 `sase.integrations.agent_list_entries.agent_list_entries()` returns a richer
 presentation-neutral projection for surfaces that need more than the compact
 `sase agent list -j` schema. It is intended for plugins, chat clients, and future UI
-surfaces that want one row model for running and recent agents without importing ACE
-internals.
+surfaces that want one row model for running and recent agents without importing sase's
+TUI internals.
 
 ```python
 from sase.integrations.agent_list_entries import agent_list_entries
@@ -161,9 +161,9 @@ command_rows = read_procs(kind=COMMAND_PROC_KIND)
 `submit_proc()` validates a non-empty argument vector and an existing working directory,
 appends a durable `pending` row, then starts the supervisor. The supervisor owns the
 child process group, captures combined stdout/stderr, and writes the terminal status.
-`session_id=None` records an unattributed command row even when called from a live ACE
-process. That makes it visible in every session's default Procs scope and adds the
-active proc to every live ACE session's top-bar proc count.
+`session_id=None` records an unattributed command row even when called from a live
+sase's TUI process. That makes it visible in every session's default Procs scope and
+adds the active proc to every live sase's TUI session's top-bar proc count.
 
 The legacy `submit_detached_proc()` compatibility wrapper is still importable for old
 integrations, but new code should call `submit_proc(..., session_id=None)`. The wrapper
@@ -177,8 +177,8 @@ supervised process group. Active `command` rows and historical `detached` rows w
 supervisor PID are allowed a 60-second startup grace period, then reconciled to `error`;
 `tui` rows are owned by the mirroring TUI and are not treated as supervisor orphans.
 
-The storage model, CLI inspection commands, retention, and ACE rendering are documented
-under [Durable Procs](ace.md#durable-procs).
+The storage model, CLI inspection commands, retention, and sase's TUI rendering are
+documented under [Durable Procs](ace.md#durable-procs).
 
 Source: `src/sase/procs/__init__.py`, `src/sase/procs/runner.py`,
 `src/sase/procs/store.py`
@@ -240,9 +240,10 @@ the corresponding response JSON once, and run best-effort host side effects. The
 supports plan approvals, workflow human-in-the-loop actions, user-question answers, and
 custom gates. Custom-gate details project each choice's id, label, icon, feedback mode,
 and ordered add-ons; submissions carry only the choice id, selected add-on ids, and
-feedback and then run through the same hash-verified executor as ACE and Telegram.
-Action failures raise `MobilePlanActionError` with deterministic `code` and `target`
-fields for duplicate, stale, ambiguous, unsupported, missing, and invalid requests.
+feedback and then run through the same hash-verified executor as sase's TUI and
+Telegram. Action failures raise `MobilePlanActionError` with deterministic `code` and
+`target` fields for duplicate, stale, ambiguous, unsupported, missing, and invalid
+requests.
 
 Source: `src/sase/integrations/mobile_notifications.py`
 
@@ -350,9 +351,9 @@ printf '{"schema_version":1,"workflow":"gh","namespace":"sase-org"}\n' \
 The `xprompt-catalog` operation returns the structured xprompt catalog, including
 insertion metadata, typed inputs, source display fields, and `definition_path` for
 entries backed by a resolvable file. The `snippet-catalog` operation returns the
-composed ACE snippet registry from xprompt snippets plus user snippets configured under
-`ace.snippets`, including the generated initial-capital aliases (`foo` → `Foo`) so the
-registry matches ACE, editor completion, and the native LSP fallback. The
+composed sase's TUI snippet registry from xprompt snippets plus user snippets configured
+under `ace.snippets`, including the generated initial-capital aliases (`foo` → `Foo`) so
+the registry matches sase's TUI, editor completion, and the native LSP fallback. The
 `agent-catalog` operation returns cross-project active/recent agent rows, de-duplicated
 by name, and additive `family`, `clan`, and `tribe` rows derived from the same artifact
 snapshot. Ordinary rows carry `kind: agent`, except monitors, which use `kind: monitor`.

@@ -141,8 +141,8 @@ actually cache results in-shell instead of re-forking `sase` on every keystroke.
 Options and positionals whose value can't be enumerated statically (bead ids, project
 names, repo names, plan references, and more) complete through
 `sase completion candidates <KIND> [PREFIX]` — a pre-argparse fast path in `entry.py`
-that never imports the full CLI, ACE, or Rust extension surface it doesn't need, and
-answers in well under its latency budget for a warm process. `KIND` completes to the
+that never imports the full CLI, sase's TUI, or Rust extension surface it doesn't need,
+and answers in well under its latency budget for a warm process. `KIND` completes to the
 kinds this build can actually answer, so `sase completion candidates <TAB>` is the
 authoritative list; today that is `agent`, `artifact`, `artifact_ref`,
 `artifact_relation`, `bead`, `directive`, `flag`, `memory`, `model`, `monitor`, `patch`,

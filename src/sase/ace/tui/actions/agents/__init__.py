@@ -1,4 +1,4 @@
-"""Agent display mixin for the ace TUI app."""
+"""Agent display mixin for sase's TUI app."""
 
 from ._core import DISMISSABLE_STATUSES, AgentsMixinCore
 from ._marking import AgentMarkingMixin

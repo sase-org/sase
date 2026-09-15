@@ -36,7 +36,7 @@ from sase.main.update_types import AxeRunningFn, RestartAxeFn, RestartInfo
 SET_JSON_SCHEMA_VERSION = 1
 APPLY_SAVED_FEATURE_FLAG = "apply the saved feature flag"
 ACE_RESTART_NOTICE = (
-    "Restart any separately running ACE session to apply the saved feature flag."
+    "Restart any separately running sase's TUI session to apply the saved feature flag."
 )
 _AXE_NOT_RUNNING_MESSAGE = "AXE is not running; left stopped."
 MutateFn = Callable[[str, bool], FeatureFlagMutationOutcome]

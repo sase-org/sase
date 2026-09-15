@@ -1,4 +1,4 @@
-"""Tests for the ace TUI keybinding footer workflow and rebase bindings."""
+"""Tests for sase's TUI keybinding footer workflow and rebase bindings."""
 
 from unittest.mock import patch as mock_patch
 

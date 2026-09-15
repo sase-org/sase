@@ -1,4 +1,4 @@
-"""Agent detail widget for the ace TUI."""
+"""Agent detail widget for sase's TUI."""
 
 from typing import Any
 

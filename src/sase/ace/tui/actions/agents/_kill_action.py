@@ -1,4 +1,4 @@
-"""Agent kill and cleanup actions for the ace TUI app.
+"""Agent kill and cleanup actions for sase's TUI app.
 
 This module remains the compatibility entry point for :class:`AgentKillMixin`.
 Implementation lives in focused mixins so each file stays small.

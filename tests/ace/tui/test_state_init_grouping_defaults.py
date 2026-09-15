@@ -1,4 +1,4 @@
-"""Startup grouping restoration for the ACE TUI."""
+"""Startup grouping restoration for sase's TUI."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Agent list widget for the ace TUI."""
+"""Agent list widget for sase's TUI."""
 
 from datetime import datetime
 from collections.abc import Collection

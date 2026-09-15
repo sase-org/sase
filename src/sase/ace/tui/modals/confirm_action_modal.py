@@ -1,4 +1,4 @@
-"""Generic yes/no confirmation modal for the ace TUI."""
+"""Generic yes/no confirmation modal for sase's TUI."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot for the Refresh panel chooser."""
+"""sase's TUI PNG visual snapshot for the Refresh panel chooser."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Persistent notification indicator widget for the ace TUI."""
+"""Persistent notification indicator widget for sase's TUI."""
 
 from __future__ import annotations
 

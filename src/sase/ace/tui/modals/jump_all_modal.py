@@ -1,4 +1,4 @@
-"""Cross-tab jump-to-entry modal for the ace TUI.
+"""Cross-tab jump-to-entry modal for sase's TUI.
 
 Opens a modal showing all entries across Artifacts, Agents, and AXE tabs.
 Each entry has an adaptive one- or two-character hint; completing a hint

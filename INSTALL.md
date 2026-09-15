@@ -60,7 +60,7 @@ environment as `sase` so their entry points are discovered.
 
 If SASE is already installed, install plugins interactively from the TUI:
 
-1. Run `sase ace`.
+1. Run `sase tui`.
 2. Press `#` to open the **SASE Admin Center**.
 3. Switch to the **Updates** tab (press `7` or select it in the numbered tab strip).
 4. Highlight the plugin (`j` / `k`, or `/` to filter the list).
@@ -69,8 +69,8 @@ If SASE is already installed, install plugins interactively from the TUI:
 
 The install runs as a tracked proc (watch it on the **Procs** tab). When the install
 actually changes the package set, SASE automatically restarts the axe daemon (and shows
-a post-restart toast in ACE) so the plugin's entry points are picked up immediately. The
-same tab uninstalls plugins with `x`.
+a post-restart toast in sase's TUI) so the plugin's entry points are picked up
+immediately. The same tab uninstalls plugins with `x`.
 
 The CLI equivalents are `sase plugin list`, `sase plugin show <plugin>`,
 `sase plugin install <plugin>`, and `sase plugin uninstall <plugin>` — see
@@ -103,15 +103,15 @@ See the [sase-nvim README](https://github.com/sase-org/sase-nvim).
 
 ### Recommended: the SASE Admin Center Updates tab
 
-The **Updates** tab is also the recommended way to keep SASE current. In `sase ace`,
+The **Updates** tab is also the recommended way to keep SASE current. In `sase tui`,
 press `#` to open Admin Center **home**, then `7` to enter Updates. For a faster
 snapshot-only update of SASE, providers, and agents without opening Admin Center, press
-`,U` in ACE to open the [Update panel](https://sase.sh/ace/#updates-tab). Plugin install
-and uninstall still live on this Updates tab (`i` / `x`), not on `,U`.
+`,U` in sase's TUI to open the [Update panel](https://sase.sh/ace/#updates-tab). Plugin
+install and uninstall still live on this Updates tab (`i` / `x`), not on `,U`.
 
 - The tab leads with a **SASE Core** panel showing the installed and latest versions of
   the `sase` and `sase-core-rs` packages, with an `↑` marker when a newer version is
-  available. ACE also surfaces startup and top-bar update signals when SASE or an
+  available. sase's TUI also surfaces startup and top-bar update signals when SASE or an
   installed plugin is behind.
 - Press `u` to update SASE core **plus every installed plugin together** (the TUI analog
   of `sase update`, which delegates to `uv tool upgrade sase`).
@@ -124,9 +124,9 @@ and uninstall still live on this Updates tab (`i` / `x`), not on `,U`.
 - Every mutation previews first: the confirm modal shows the exact `uv` command (or the
   git fast-forward plan for editable dev checkouts) before anything changes. The
   confirmation _is_ the dry run.
-- A successful update that changed code automatically restarts ACE and the axe daemon so
-  running surfaces pick up the new code; no-op and failed updates leave everything
-  running.
+- A successful update that changed code automatically restarts sase's TUI and the axe
+  daemon so running surfaces pick up the new code; no-op and failed updates leave
+  everything running.
 
 ### CLI equivalent
 
@@ -171,7 +171,7 @@ Missing tools degrade the specific feature listed; everything else keeps working
 | Command                                       | Feature that needs it                                                                                                                |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `gh` (authenticated)                          | The plugin catalog (Updates tab and `sase plugin list`), GitHub PR operations via the `sase-github` plugin, and mentor/PR workflows. |
-| `tmux`                                        | ACE tmux windows and artifact panes.                                                                                                 |
+| `tmux`                                        | sase's TUI tmux windows and artifact panes.                                                                                          |
 | `bat`                                         | Syntax-highlighted file previews (falls back to plain output).                                                                       |
 | `dict`                                        | Prompt word definitions when pressing `K` on a plain word.                                                                           |
 | `aspell`                                      | Prompt spellcheck fixes when pressing `K` on a misspelled word. Debian also needs `aspell-en`; Homebrew bundles English.             |
@@ -183,7 +183,7 @@ Missing tools degrade the specific feature listed; everything else keeps working
 | `pdftoppm` (poppler)                          | PDF and Markdown artifact paging in the TUI.                                                                                         |
 | `kitten` (kitty)                              | Terminal image artifact display.                                                                                                     |
 | `prettier`                                    | Prompt and generated-Markdown formatting.                                                                                            |
-| A clipboard helper                            | Copy actions in ACE: `pbcopy` (macOS, preinstalled), `wl-copy` (Wayland), or `xclip` / `xsel` (X11).                                 |
+| A clipboard helper                            | Copy actions in sase's TUI: `pbcopy` (macOS, preinstalled), `wl-copy` (Wayland), or `xclip` / `xsel` (X11).                          |
 | `pass`                                        | Only for the `sase-telegram` plugin's bot-token retrieval.                                                                           |
 | `node` / `npm`                                | Only to install npm-distributed provider CLIs (Claude Code, Codex, Qwen Code).                                                       |
 

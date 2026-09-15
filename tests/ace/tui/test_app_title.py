@@ -1,4 +1,4 @@
-"""Title formatting for the ACE TUI app.
+"""Title formatting for the TUI app.
 
 The header title shows the running ``sase`` version. It is resolved in two
 phases: an instant, I/O-free ``__version__`` string at ``__init__`` and a
@@ -25,8 +25,8 @@ from sase.ace.tui.util.app_version import (
 def test_app_title_shows_initial_version() -> None:
     app = AceApp(query="!!!", auto_start_axe=False)
 
-    assert app.title == f"sase ace (v{sase.__version__})"
-    assert app.title.startswith("sase ace ")
+    assert app.title == f"sase tui (v{sase.__version__})"
+    assert app.title.startswith("sase tui ")
     assert app.title.endswith(")")
 
 
@@ -57,9 +57,9 @@ def test_initial_app_version_is_dunder_version() -> None:
 
 
 def test_format_app_title_prefixes_with_v() -> None:
-    assert format_app_title("0.7.1") == "sase ace (v0.7.1)"
+    assert format_app_title("0.7.1") == "sase tui (v0.7.1)"
     assert format_app_title("0.8.0+3.g084a6a2.dirty") == (
-        "sase ace (v0.8.0+3.g084a6a2.dirty)"
+        "sase tui (v0.8.0+3.g084a6a2.dirty)"
     )
 
 
@@ -168,4 +168,4 @@ async def test_on_mount_keeps_initial_title_when_resolver_returns_none(
     app = AceApp(query="!!!", auto_start_axe=False)
     async with app.run_test() as pilot:
         await _wait_for_mount_state_loads(app, pilot)
-        assert app.title == f"sase ace (v{sase.__version__})"
+        assert app.title == f"sase tui (v{sase.__version__})"

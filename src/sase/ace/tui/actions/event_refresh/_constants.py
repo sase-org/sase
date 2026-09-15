@@ -1,4 +1,4 @@
-"""Constants shared by ACE TUI event refresh handlers."""
+"""Constants shared by sase's TUI event refresh handlers."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from sase.agent.status_buckets import (
 # Slow sanity-refresh floor: even when the inotify watcher is active and
 # every dirty flag is clear we still reconcile on this interval as a
 # safety net for missed events (NFS, container bind-mount edge cases,
-# etc.). ``sase ace -s/--sanity-refresh-interval`` overrides it per session.
+# etc.). ``sase tui -s/--sanity-refresh-interval`` overrides it per session.
 FULL_SANITY_REFRESH_SECONDS = 300.0
 PROMPT_INPUT_DEFER_SECONDS = 0.25
 # Minimum spacing between successive ``_load_agents_async`` calls from the

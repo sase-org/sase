@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual coverage for Agents-tab artifact type icons."""
+"""sase's TUI PNG visual coverage for Agents-tab artifact type icons."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Persistent stashed-prompts indicator widget for the ace TUI."""
+"""Persistent stashed-prompts indicator widget for sase's TUI."""
 
 from typing import Any
 

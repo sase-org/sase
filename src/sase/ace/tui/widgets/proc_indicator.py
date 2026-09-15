@@ -1,4 +1,4 @@
-"""Background proc and monitor indicator widgets for the ace TUI."""
+"""Background proc and monitor indicator widgets for sase's TUI."""
 
 from typing import Any
 

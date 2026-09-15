@@ -8,8 +8,8 @@ completion, mentor launch, workflow cleanup, comment polling, `%wait` dependency
 and error digests.
 
 Axe uses a multi-process architecture: an **Orchestrator** spawns multiple
-**Lumberjacks**, and each lumberjack runs a subset of jobs on its own schedule. The ACE
-TUI starts axe automatically unless launched with `sase ace --no-axe`; operators can
+**Lumberjacks**, and each lumberjack runs a subset of jobs on its own schedule. sase's
+TUI starts axe automatically unless launched with `sase tui --no-axe`; operators can
 also manage it directly with `sase axe start` and `sase axe stop`.
 
 ## Architecture
@@ -255,10 +255,10 @@ Markers may also carry `wait_for_beads`, emitted by `%wait(bead=<bead-id>)`.
 `wait_checks` reads the waiting agent's project bead store once per cycle and releases
 the marker only when every named bead is closed as well as every agent or artifact
 dependency being satisfied. Missing beads, unavailable stores, and read failures
-deliberately fail closed and leave the agent parked; ACE's run-now action remains the
-manual escape hatch. While live bead waits are outstanding, `sidecar_auto_sync` hints
-their projects' `beads` role every 30 seconds — even when that role has not opted into
-`auto_sync` — so the one conservative fetch/fast-forward sync policy converges it
+deliberately fail closed and leave the agent parked; sase's TUI run-now action remains
+the manual escape hatch. While live bead waits are outstanding, `sidecar_auto_sync`
+hints their projects' `beads` role every 30 seconds — even when that role has not opted
+into `auto_sync` — so the one conservative fetch/fast-forward sync policy converges it
 promptly instead of a competing managed-integration refresh path. The waiting runner
 also marks the same hint on a coarser ten-minute cadence as an outage backstop, in case
 a chop failure ever leaves the tick-driven hint unconsumed. Setting
@@ -295,7 +295,7 @@ earns a `TaskTriage` gate: its own task type's `triage.min_plus_ones` (`0` for `
 [`bead.task_triage.min_plus_ones`](configuration.md#bead) when the bead is untyped or
 its type is not registered on this machine. A sub-threshold bead is withheld from triage
 without any change to its stored status — it stays `ready` and stays visible to
-`sase bead list`, `sase bead ready`, the ACE Beads panel, and its bead page — and a
+`sase bead list`, `sase bead ready`, sase's TUI Beads panel, and its bead page — and a
 `TaskTriage` gate already raised for a bead that later falls below the bar is canceled
 (reason `task_bead_below_plus_one_threshold`) and its notification dismissed on the
 chop's next tick. Snoozed beads and `flag` task beads are never subject to this bar.
@@ -337,7 +337,7 @@ deduplicated global unattributed proc for `sase bead work <task-id> --yes-to-all
 **Close** requires a reason and closes the bead as `canceled`; **Snooze** collects one
 required `duration` line and defers the task, moving it to `snoozed` so the next tick
 reconciles it into a `BeadSnooze` gate instead. The line takes the same
-`"<wake-time> [+<N>]"` vocabulary the ACE snooze modal takes — for example `3d`,
+`"<wake-time> [+<N>]"` vocabulary sase's TUI snooze modal takes — for example `3d`,
 `2026-08-09T09:00:00-04:00`, or `3d +2` — combining the CLI's `-u` duration and `-p` +1
 target into one expression. See
 [TaskTriage notifications](notifications.md#command-backed-interaction-gates), the
@@ -464,7 +464,7 @@ Periodic maintenance:
 
 The `error_digest` chop summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
-`ViewErrorReport` action that opens the digest in `$EDITOR` when selected in the ACE
+`ViewErrorReport` action that opens the digest in `$EDITOR` when selected in sase's TUI
 notification modal. For failed script subprocesses, the digest includes the chop run ID,
 exit code, source log path, and a bounded subprocess output excerpt captured at failure
 time. The excerpt is redacted, stripped of terminal control sequences, and retained in
@@ -474,9 +474,9 @@ instead of being reported as a Python traceback.
 
 The `notification_store_compact` chop bounds `~/.sase/notifications/notifications.jsonl`
 by moving dismissed rows older than 14 days into `notifications-archive.jsonl`. Unread
-and still-actionable rows stay in the live file. ACE snapshot reads are memoized against
-an mtime+size token, so this pass lives on `housekeeping` rather than the TUI refresh
-cadence that previously re-parsed the whole store every tick.
+and still-actionable rows stay in the live file. sase's TUI snapshot reads are memoized
+against an mtime+size token, so this pass lives on `housekeeping` rather than the TUI
+refresh cadence that previously re-parsed the whole store every tick.
 
 The `managed_tmp_reap` chop bounds the managed SASE temp root (`$SASE_TMPDIR`, else
 `~/.sase/tmp`) that `get_sase_managed_tmpdir()` hands out. The actual age/pressure
@@ -485,7 +485,7 @@ resolves the configured horizons and thresholds and calls that binding. Horizons
 subdirectory: command scratch (`editors/`, `wrappers/`, `viewers/`, `commit-messages/`,
 `agent-tmp/`, …) goes after 12 hours by default, handoff files (`handoff/`, `gh-diffs/`,
 `muse-prompts/` — a provider re-reads the latter mid-run) after 3 days, build targets
-(`cargo-targets/`) after 3 days, and artifacts the ACE Agents tab reads back
+(`cargo-targets/`) after 3 days, and artifacts sase's TUI Agents tab reads back
 (`launch-prompts/`, `workflow-artifacts/`) after 14 days. Launched agents default
 `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to per-launch
 directories under those managed buckets, so shell scratch and Cargo targets no longer
@@ -563,11 +563,11 @@ The `artifact_run_prune` chop is a read-only preview for old `artifacts/ace-run/
 directories. It keeps the newest `artifacts.retention.keep_recent_run_months` calendar
 months whole and protects runs referenced by artifact-file rows, text refs, agent names,
 and non-closed beads. The summary reports selected run directories, reclaimable bytes,
-protection-source gaps, and empty month/day shards outside ACE's startup watch window.
-When candidates or protection problems remain unchanged across hourly passes, the chop
-upserts one deduplicated Axe report notification with the preview and explicit apply
-command. Actual deletion still requires an explicit `sase artifact prune-runs --apply`
-or a follow-up gate.
+protection-source gaps, and empty month/day shards outside sase's TUI startup watch
+window. When candidates or protection problems remain unchanged across hourly passes,
+the chop upserts one deduplicated Axe report notification with the preview and explicit
+apply command. Actual deletion still requires an explicit
+`sase artifact prune-runs --apply` or a follow-up gate.
 
 ## Configuration
 
@@ -588,7 +588,7 @@ Axe is configured in `sase.yml` under the `axe:` section. See
 | `lumberjack_restart_backoff_max_seconds` | 60       | Maximum delay between retries for a crashing lumberjack   |
 | `verbose_lumberjack_diagnostics`         | false    | Include verbose diagnostics in chop script context JSON   |
 
-The `query` setting uses the same Patch query language as ACE. CLI flags on
+The `query` setting uses the same Patch query language as sase's TUI. CLI flags on
 `sase axe start` and `sase axe lumberjack run` override the configured query, runner
 limits, and zombie timeout for that process.
 
@@ -708,9 +708,9 @@ borrowed from the shape of a Git commit message:
 - A single-line description is still completely valid and simply has an empty body.
 
 The split is owned by the shared Rust config authority (`split_axe_description`), so the
-ACE Axe tab, both CLI listings, and the entry editor always agree on where the summary
-ends. It is computed once per entity when the config is parsed, never on a render or
-keystroke path.
+sase's TUI Axe tab, both CLI listings, and the entry editor always agree on where the
+summary ends. It is computed once per entity when the config is parsed, never on a
+render or keystroke path.
 
 Author multi-line descriptions as YAML literal block scalars (`|-`), hand-wrapping
 source lines to keep the file inside the configured Markdown prose width
@@ -893,9 +893,9 @@ clan. The declarer claim is recorded durably before that member's launch attempt
 so a launch failure cannot let a later member declare the same clan a second time, and a
 detached coordinator resuming in a fresh process still honors an earlier claim.
 
-`report` is an optional structured document rendered with the result on the ACE AXE tab.
-Chop authors supply semantic tones rather than colors, and the frontend owns the palette
-and width-responsive layout. The public SDK keeps report construction typed and
+`report` is an optional structured document rendered with the result on sase's TUI AXE
+tab. Chop authors supply semantic tones rather than colors, and the frontend owns the
+palette and width-responsive layout. The public SDK keeps report construction typed and
 validates the finished result through the Rust contract:
 
 ```python
@@ -971,24 +971,24 @@ appended to the chop output and does not replace the original launch or agent ou
 A proposal's `prompt` may contain typed directives such as `%if::` (a Bash or Python
 condition fence) or `%proc`. When the `typed_launch_units` beta flag is enabled, a batch
 containing an active directive routes through the same durable typed admission
-coordinator used by ACE, `sase run`, and LaunchApproval, joining AXE as a fourth typed-
-admission source; see [Agent Launch Flow](architecture.md#agent-launch-flow). A `%if`
-predicate evaluates after its unit's `%wait` dependency settles and before any runner,
-agent identity, proc identity, or model request is allocated. For a selected managed
-project, the predicate itself briefly uses a claimed, prepared operational workspace so
-stale chop checkouts can observe newer pushed work before admission decides. Exit `0`
-admits the unit normally; exit `1` records a skip with no runner, identity, proc, or
-model allocation. AXE owns the admission bundle across the run, keeping the chop in
-active `launched` state until every admitted unit reaches its own terminal state, and
-treats predicate skips as successful no-op outcomes rather than once-per duplicates or
-launcher errors. A structured proposal `wait_on` becomes both a typed admission-order
-edge and, for an admitted Agent unit, a restored named-agent `%wait` in the prompt AXE
-dispatches to the runner. If admission skips or condition-errors an intermediate
-proposal, AXE relinks that runner wait to the nearest earlier proposal that actually
-launched; if no ancestor launched, it dispatches without a named wait. A batch with no
-active `%if`/`%proc` directive, or any batch while the flag is disabled, keeps using the
-legacy launch path unchanged; an explicit typed directive while the flag is disabled
-fails before any agent or model is dispatched.
+coordinator used by sase's TUI, `sase run`, and LaunchApproval, joining AXE as a fourth
+typed-admission source; see [Agent Launch Flow](architecture.md#agent-launch-flow). A
+`%if` predicate evaluates after its unit's `%wait` dependency settles and before any
+runner, agent identity, proc identity, or model request is allocated. For a selected
+managed project, the predicate itself briefly uses a claimed, prepared operational
+workspace so stale chop checkouts can observe newer pushed work before admission
+decides. Exit `0` admits the unit normally; exit `1` records a skip with no runner,
+identity, proc, or model allocation. AXE owns the admission bundle across the run,
+keeping the chop in active `launched` state until every admitted unit reaches its own
+terminal state, and treats predicate skips as successful no-op outcomes rather than
+once-per duplicates or launcher errors. A structured proposal `wait_on` becomes both a
+typed admission-order edge and, for an admitted Agent unit, a restored named-agent
+`%wait` in the prompt AXE dispatches to the runner. If admission skips or
+condition-errors an intermediate proposal, AXE relinks that runner wait to the nearest
+earlier proposal that actually launched; if no ancestor launched, it dispatches without
+a named wait. A batch with no active `%if`/`%proc` directive, or any batch while the
+flag is disabled, keeps using the legacy launch path unchanged; an explicit typed
+directive while the flag is disabled fails before any agent or model is dispatched.
 
 Python chop packages should use the public `sase.chops` SDK (`load_chop_invocation`,
 `ChopLogger`, `ChopReport`, `ChopResultBuilder`, and `launch_proposal`) for argument
@@ -1018,8 +1018,8 @@ any network call or latency inside the TUI.
 
 The notification then carries `action: "ViewReport"` with
 `action_data: {"report_path": "<state_dir>/<name>.report.json", "report_title": "..."}`.
-Selecting it in ACE renders the document in the notification modal's right pane and
-Enter opens it full-screen; see `docs/notifications.md` for the contract, the
+Selecting it in sase's TUI renders the document in the notification modal's right pane
+and Enter opens it full-screen; see `docs/notifications.md` for the contract, the
 inline-snapshot alternative, and the fail-closed loader limits. Prefer the published
 path over inlining a snapshot into `action_data` whenever the chop has a durable state
 directory. Timestamps inside a published document should be absolute, because the file
@@ -1187,7 +1187,7 @@ restrictions in replacement prompts. The script only proposes work; it never cal
 ### Manual Chop Runs
 
 Scheduled lumberjack ticks are not the only way a chop runs. Operators can launch any
-configured chop on demand from both the CLI and the ACE TUI; manual runs share the same
+configured chop on demand from both the CLI and sase's TUI; manual runs share the same
 execution path, run history, and live-output streaming as scheduled runs.
 
 **From the CLI:**
@@ -1206,7 +1206,7 @@ fails with an unambiguous error listing the candidate lumberjacks. Pass
 `~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/` exactly like a scheduled run,
 except its metadata is tagged with `source = "manual"` (vs `"scheduled"`).
 
-**From the ACE TUI:**
+**From sase's TUI:**
 
 On the Axe tab, press `r` while a chop row is selected to launch that exact
 `(lumberjack, chop)` manually. The run uses the chop's configured script, environment,
@@ -1313,7 +1313,7 @@ pruned or itself becomes the newest run.
 
 The same structured report renderer is used by `sase axe chop run` when that command
 prints a structured result (dry run or chop-verbose mode), so semantic tones, rows,
-gauges, and literal-text safety do not drift between the CLI and the ACE AXE tab.
+gauges, and literal-text safety do not drift between the CLI and sase's TUI AXE tab.
 
 ### Chop-Agent Registry
 
@@ -1367,29 +1367,30 @@ rendering is otherwise best-effort: missing conversion tools or render failures 
 that source without failing the agent run. Generated Markdown PDFs are optimized for
 narrow viewers with a small portrait page, small margins, and larger type. As PDFs are
 prepared, axe updates `workflow_state.json.pdf_status` and a compact `activity` label so
-ACE can show live finalization progress such as `PDF 2/4 <path>` or
+sase's TUI can show live finalization progress such as `PDF 2/4 <path>` or
 `PDFs done 3/4 (1 skipped)` in the prompt/detail header's labeled `Activity:` field.
 Successful runs also copy discovered media artifacts, plus prompt-referenced images and
-videos, into persistent SASE artifact storage for ACE. Prompt-referenced media are not
-appended to completion notifications unless they were also generated/modified files or
-explicit artifacts. See [`agent_images.md`](agent_images.md) for the full contract.
+videos, into persistent SASE artifact storage for sase's TUI. Prompt-referenced media
+are not appended to completion notifications unless they were also generated/modified
+files or explicit artifacts. See [`agent_images.md`](agent_images.md) for the full
+contract.
 
 The Agents tab exposes completion artifacts through the `a` action. When artifacts
-exist, ACE opens the artifact panel for selection. Chat transcripts, plan files,
+exist, sase's TUI opens the artifact panel for selection. Chat transcripts, plan files,
 generated PDFs/images/videos, prompt-referenced media from saved prompt artifacts, and
 explicit artifacts created with
 `sase artifact create -p <path> [-l <label>] [-k <kind>]` all participate in the same
 list. Explicit artifacts are stored under `~/.sase/artifacts/` with a persistent
-association so they remain available after dismissing and later reviving the agent. ACE
-shows the picker even for a single artifact. Inside that picker, `m` marks rows, `Enter`
-opens the marked set or highlighted row, and `A` opens the full list. Only one plan
-artifact is listed for an agent, preferring the committed SDD plan path when one exists.
-Inside tmux, artifact viewing opens in a right-side tmux pane, collapses the Agents list
-while live, uses `l` to focus the pane, and uses lowercase `a` to close it; outside
-tmux, ACE suspends and uses the current pane. The viewer supports images, videos,
-Markdown, PDFs, and text fallbacks, wraps `j`/`k` page navigation at the ends, uses
-`n`/`p` for artifact-sequence navigation, and warns when required terminal/rendering
-tools are missing. The direct agent run-log binding is `V`.
+association so they remain available after dismissing and later reviving the agent.
+sase's TUI shows the picker even for a single artifact. Inside that picker, `m` marks
+rows, `Enter` opens the marked set or highlighted row, and `A` opens the full list. Only
+one plan artifact is listed for an agent, preferring the committed SDD plan path when
+one exists. Inside tmux, artifact viewing opens in a right-side tmux pane, collapses the
+Agents list while live, uses `l` to focus the pane, and uses lowercase `a` to close it;
+outside tmux, sase's TUI suspends and uses the current pane. The viewer supports images,
+videos, Markdown, PDFs, and text fallbacks, wraps `j`/`k` page navigation at the ends,
+uses `n`/`p` for artifact-sequence navigation, and warns when required
+terminal/rendering tools are missing. The direct agent run-log binding is `V`.
 
 ## Maintenance Mode
 
@@ -1468,12 +1469,12 @@ invokes the stable SASE executable selected at installation time and preserves
 and removes both units. On systems without `systemctl --user`, run bare
 `sase axe ensure` manually or from the host's scheduler instead.
 
-Managed restart paths, including ACE and update-triggered restarts, record `running`,
-make up to three startup attempts, and report success only after the orchestrator is
-live and every configured lumberjack reports `running` with PID and heartbeat values
-changed from the pre-restart snapshot. If all attempts fail, SASE records the attempt
-summaries in `recent_errors.json` and sends a durable **Axe restart failed**
-notification; an installed watchdog can try a clean start on a later tick.
+Managed restart paths, including sase's TUI and update-triggered restarts, record
+`running`, make up to three startup attempts, and report success only after the
+orchestrator is live and every configured lumberjack reports `running` with PID and
+heartbeat values changed from the pre-restart snapshot. If all attempts fail, SASE
+records the attempt summaries in `recent_errors.json` and sends a durable **Axe restart
+failed** notification; an installed watchdog can try a clean start on a later tick.
 `sase axe restart` exposes this same verified orchestration directly to operators, with
 a live TTY panel, plain milestone lines when piped, or `--json` for scripts; it exits 0
 only once the restart is verified.
@@ -1538,9 +1539,9 @@ only once the restart is verified.
    unexpected downtime but honors an explicit stop. See
    [Watchdog and Recovery](#watchdog-and-recovery).
 
-## ACE Integration
+## sase's TUI Integration
 
-The Axe tab in the ACE TUI provides live monitoring of the daemon:
+The Axe tab in sase's TUI provides live monitoring of the daemon:
 
 - A lumberjack tree sidebar (lumberjack rows + their chops as children +
   background-command rows)
@@ -1554,7 +1555,7 @@ The Axe tab in the ACE TUI provides live monitoring of the daemon:
 - Footer shows a segmented `AXE` badge followed by daemon status: RUNNING, STOPPED,
   STARTING, STOPPING, or RESTARTING
 
-The RESTARTING indicator appears when `sase ace --restart-axe` (`-R`) is used — the
+The RESTARTING indicator appears when `sase tui --restart-axe` (`-R`) is used — the
 daemon restarts in the background while the TUI starts up normally.
 
 See [`docs/ace.md`](ace.md) for the full Axe tab keybinding reference.

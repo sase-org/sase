@@ -1,4 +1,4 @@
-"""Event handlers and shared input teardown for the ace TUI app."""
+"""Event handlers and shared input teardown for sase's TUI app."""
 
 from __future__ import annotations
 

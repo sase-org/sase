@@ -1,4 +1,4 @@
-"""Full-application test harness for the ace TUI."""
+"""Full-application test harness for sase's TUI."""
 
 import asyncio
 from collections.abc import Callable

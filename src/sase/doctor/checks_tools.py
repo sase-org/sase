@@ -162,7 +162,7 @@ def _editor_next_steps(resolution: EditorResolution) -> tuple[str, ...]:
 
 
 def _check_tmux() -> DiagnosticCheck:
-    """Check whether the tmux command is available for ACE tmux workflows."""
+    """Check whether the tmux command is available for sase's TUI tmux workflows."""
     resolved_path = shutil.which("tmux")
     if resolved_path:
         return DiagnosticCheck(
@@ -170,7 +170,7 @@ def _check_tmux() -> DiagnosticCheck:
             group="tools",
             status="OK",
             title="tmux command",
-            summary="tmux is available for ACE tmux workflows",
+            summary="tmux is available for sase's TUI tmux workflows",
             details=(f"Command: {resolved_path}",),
             data={
                 "command": "tmux",
@@ -186,10 +186,10 @@ def _check_tmux() -> DiagnosticCheck:
         title="tmux command",
         summary="tmux is not installed or not on PATH",
         details=(
-            "`sase ace --tmux` exits with code 2 when tmux is missing.",
+            "`sase tui --tmux` exits with code 2 when tmux is missing.",
             "Agents can run without tmux, but workspace windows, inline artifact panes, and artifact zoom are degraded.",
         ),
-        next_steps=("Install `tmux` or run ACE without `--tmux`.",),
+        next_steps=("Install `tmux` or run `sase tui` without `--tmux`.",),
         data={
             "command": "tmux",
             "resolved_path": None,

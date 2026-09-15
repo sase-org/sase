@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for the prompt-stash surfaces.
+"""sase's TUI PNG visual snapshot coverage for the prompt-stash surfaces.
 
 Phase 4 visual polish: pin how the two user-facing chrome pieces of the prompt
 stash render — the top-bar ``StashedPromptsIndicator`` badge (snowflake glyph +

@@ -283,7 +283,7 @@ def _print_recovery(err: Console, outcome: AgentRestartOutcome) -> None:
     elif outcome.recovery_prompt:
         err.print(
             Text(
-                "Review this prompt in ACE before relaunching forced reuse:",
+                "Review this prompt in sase's TUI before relaunching forced reuse:",
                 style="dim",
             )
         )
@@ -292,7 +292,7 @@ def _print_recovery(err: Console, outcome: AgentRestartOutcome) -> None:
         saved_prompt = Path(outcome.recovery_dir) / "rewritten.md"
         err.print(
             Text(
-                "Recovery prompt saved; review it in ACE before relaunching "
+                "Recovery prompt saved; review it in sase's TUI before relaunching "
                 "forced reuse:",
                 style="dim",
             )

@@ -25,13 +25,13 @@ The provider maps `large` to `fakey-large` and `small` to `fakey-small`. It is
 deliberately the last autodetection candidate because the executable is always installed
 with SASE; prefer explicit selection.
 
-Fakey models are not offered in the ACE model picker or the `%model` completion menu —
-it exists only for testing, so it is hidden from user-facing model selection surfaces.
+Fakey models are not offered in sase's TUI model picker or the `%model` completion menu
+— it exists only for testing, so it is hidden from user-facing model selection surfaces.
 It remains fully registered and routable: the explicit spellings above
 (`%model:fakey-large`, `sase run -m fakey-large`) and `%model:fakey/fakey-large` all
 still work, and the picker's `Custom...` entry accepts them by hand. There is no
 implicit `@fakey_coder` role alias; if you deliberately configure
-`model_aliases.custom.fakey_coder`, it appears in the ACE Launch Control (`,m`) as an
+`model_aliases.custom.fakey_coder`, it appears in sase's TUI Launch Control (`,m`) as an
 ordinary user alias.
 
 Fakey is also intentionally absent from `sase agent-cli` inventories and the SASE Admin

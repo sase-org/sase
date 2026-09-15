@@ -68,7 +68,7 @@ The xprompt language server is focused on prompt and xprompt editing:
 | VCS repositories      | Completes repository names after namespace slashes such as `#gh:owner/` through the owning workspace provider.                                                                                                                                                                                                                                                                                                                                         |
 | Argument assistance   | Completes named arguments, path inputs, and bool values for typed xprompt inputs where the catalog exposes input metadata.                                                                                                                                                                                                                                                                                                                             |
 | Directive completion  | Completes the shared [directive matrix](xprompt.md#directive-completion-matrix): directive names and aliases, fixed values, `%model:` catalog rows and provider drill-down, parenthesized `%model(..., alias=...)` keys, and `%id` / `%clan` / `%wait(...)` keyword rows and values. `%if` / `%proc` recipes and `type: code` assistance appear only when the `typed_launch_units` beta flag is enabled; they are hidden and rejected while it is off. |
-| Model shortcuts       | Completes `=alias` and `==model` at prompt/line start or after an ASCII space into canonical `%m:` values, using the same shared Rust filters and edit plans as ACE. `=` is an LSP trigger character; manual completion also works inside a valid equals token. See [Equals model shortcuts](#equals-model-shortcuts).                                                                                                                                 |
+| Model shortcuts       | Completes `=alias` and `==model` at prompt/line start or after an ASCII space into canonical `%m:` values, using the same shared Rust filters and edit plans as sase's TUI. `=` is an LSP trigger character; manual completion also works inside a valid equals token. See [Equals model shortcuts](#equals-model-shortcuts).                                                                                                                          |
 | Artifact references   | Fuzzy-completes bare `@` and `@query` tokens as canonical artifact kinds, adding local paths on a kind-prefix miss or manual completion request, then completes local payloads after `@kind:`, including local stitch references.                                                                                                                                                                                                                      |
 | File completion       | Completes path-like tokens and recent file-history entries; `@`-prefixed local paths appear automatically when no artifact kind prefix-matches, or on manual invocation.                                                                                                                                                                                                                                                                               |
 | Snippets              | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                                                                                                                                                                                                                                                                                                          |
@@ -77,15 +77,15 @@ The xprompt language server is focused on prompt and xprompt editing:
 | Semantic highlighting | Highlights the kind, payload, and supported fragment of known artifact references, plus glossary phrases, outside prompt literal zones using standard LSP semantic tokens.                                                                                                                                                                                                                                                                             |
 | Definition            | Jumps from xprompt and slash-skill references to real source files when the catalog provides a resolvable path, including the backing note for `#memory/<stem>`.                                                                                                                                                                                                                                                                                       |
 
-Snippet completions come from the same registry ACE uses: xprompts with `snippet` front
-matter plus user-defined `ace.snippets`, with `ace.snippets` winning on trigger
+Snippet completions come from the same registry sase's TUI uses: xprompts with `snippet`
+front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on trigger
 collisions. The server asks the host helper bridge for that authoritative registry and
 falls back to native Rust loading only for simple xprompt snippets and configured
-`ace.snippets` when the helper is unavailable. In ACE, that shared registry expands into
-nested snippet sessions: expanding a trigger while another snippet's tabstops are live
-visits the inner tabstops first, then returns to the remaining outer tabstops. LSP
-clients receive ordinary editor snippets from the same catalog, so placeholder
-navigation in external editors is handled by the editor.
+`ace.snippets` when the helper is unavailable. In sase's TUI, that shared registry
+expands into nested snippet sessions: expanding a trigger while another snippet's
+tabstops are live visits the inner tabstops first, then returns to the remaining outer
+tabstops. LSP clients receive ordinary editor snippets from the same catalog, so
+placeholder navigation in external editors is handled by the editor.
 
 Directive completion uses UTF-16 LSP ranges, so accepting a row replaces the correct
 token even after non-BMP characters earlier on the line. `%wait:` remains positional and
@@ -100,12 +100,13 @@ inventories degrade independently.
 ### Equals model shortcuts
 
 Typing `=` in an eligible prompt document requests model shortcut completion through the
-same Rust contracts ACE uses. A valid equals token sits at prompt offset zero, at the
-start of a logical line, or immediately after an ASCII space, with the caret after the
-equals marker. Escaped or embedded equals signs, Markdown-style `=text=` / `==text==`
-marker pairs, paths, inline and fenced code, disabled prompt regions, frontmatter,
-Jinja, placeholders, and directive-owned input stay ordinary text. The former `*alias`
-and `**model` syntax is a hard-cutover legacy spelling and remains ordinary text.
+same Rust contracts sase's TUI uses. A valid equals token sits at prompt offset zero, at
+the start of a logical line, or immediately after an ASCII space, with the caret after
+the equals marker. Escaped or embedded equals signs, Markdown-style `=text=` /
+`==text==` marker pairs, paths, inline and fenced code, disabled prompt regions,
+frontmatter, Jinja, placeholders, and directive-owned input stay ordinary text. The
+former `*alias` and `**model` syntax is a hard-cutover legacy spelling and remains
+ordinary text.
 
 The `=alias` menu lists only effective `implicit_alias` and `user_alias` rows from the
 launcher-materialized model catalog, in canonical catalog order, with case-insensitive
@@ -126,9 +127,9 @@ because the source text differs from the inserted `%m:` value. The catalog is a
 launch-time snapshot: restart the LSP after config or plugin changes. Manual editor
 completion also works while the caret is in a valid equals token.
 
-`ace.prompt_completion.auto_directive_menu` remains an ACE prompt-bar setting and does
-not govern an editor client's trigger policy. The ACE prompt input uses these same
-shortcuts; see [Prompt Input](ace.md#prompt-input-widget) and
+`ace.prompt_completion.auto_directive_menu` remains an sase's TUI prompt-bar setting and
+does not govern an editor client's trigger policy. sase's TUI prompt input uses these
+same shortcuts; see [Prompt Input](ace.md#prompt-input-widget) and
 [Equals model shortcuts](xprompt.md#equals-model-shortcuts).
 
 Artifact assistance is local-only. Before a `:` appears, `@` completion withholds local
@@ -147,10 +148,10 @@ completion offers. Historical aliases such as `@commit:`, `@plans:`, `@chat:`, a
 `@bug:` are not offered by completion. The LSP never contacts git hosts, issue trackers,
 or other network providers. Unknown `@kind:` text remains ordinary prose.
 
-This canonical-only rule is specific to the editor LSP. ACE's prompt bar currently also
-lists recognized aliases and historical kinds, and its repository-history payload picker
-remains attached to `@commit:`; both `@commit:` and `@stitch:` resolve through the same
-launch resolver.
+This canonical-only rule is specific to the editor LSP. sase's TUI prompt bar currently
+also lists recognized aliases and historical kinds, and its repository-history payload
+picker remains attached to `@commit:`; both `@commit:` and `@stitch:` resolve through
+the same launch resolver.
 
 Matching is **fuzzy and ranked on the server** for every enumerated kind — document
 roles, indexed artifact files, Patches, beads, agents, and stitches — against the
@@ -244,8 +245,8 @@ fields, and `definition_path` when SASE can resolve a real file.
 - Valid trigger words only; user snippets override xprompt snippets on collision.
 - `#[trigger]` snippet references resolved after the xprompt/user merge.
 - Generated initial-capital aliases (`foo` → `Foo`, uppercasing only the first character
-  of the trigger and template) composed after that merge, so the registry matches ACE.
-  Explicit `Foo` definitions are never overwritten.
+  of the trigger and template) composed after that merge, so the registry matches sase's
+  TUI. Explicit `Foo` definitions are never overwritten.
 
 `agent-catalog` requires only `{"schema_version":1}` and reads across projects. It
 returns active and recent ordinary agent rows, de-duplicated by name, with `status` and
@@ -330,10 +331,10 @@ Snippet templates can reuse other snippets by trigger with `#[trigger]`. Positio
 forms such as `#[trigger(value)]` and `#[trigger:value]` fill the referenced snippet's
 tabstops before the composed template is renumbered.
 
-When the composed registry is used in ACE, `Tab` moves forward through `$1`, `$2`, ...
-and `$0`, while `Shift+Tab` retreats through visited tabstops. Expanding a second
-trigger from inside an active snippet nests it instead of discarding the remaining outer
-stops.
+When the composed registry is used in sase's TUI, `Tab` moves forward through `$1`,
+`$2`, ... and `$0`, while `Shift+Tab` retreats through visited tabstops. Expanding a
+second trigger from inside an active snippet nests it instead of discarding the
+remaining outer stops.
 
 ## Troubleshooting
 
@@ -352,4 +353,4 @@ stops.
 - [Integration APIs](integrations.md#editor-helper-bridge) for the Python helper facade.
 - [Configuration](configuration.md#sase-editor) for CLI flag and environment-variable
   reference.
-- [ACE snippets](ace.md#snippets) for the in-TUI prompt widget behavior.
+- [sase's TUI snippets](ace.md#snippets) for the in-TUI prompt widget behavior.

@@ -12,7 +12,7 @@ slug: changespecs-in-practice
 links:
   - Patches: change_spec.md
   - Mentors: mentors.md
-  - ACE TUI: ace.md
+  - sase's TUI: ace.md
   - "[05] Commit Workflows — The Pluggable Path From Diff to PR": blog/posts/commit-workflows-plugins.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
@@ -29,7 +29,7 @@ them.
 marker written during post-dispatch tracking when `SASE_ARTIFACTS_DIR` is set. The
 tracking stage separately creates a Patch for a PR, or appends a stitch to a resolved
 Patch for a commit or proposal. This post walks through what's actually in a Patch, how
-mentors attach to it, and what the ACE TUI does with it once it exists.
+mentors attach to it, and what sase's TUI does with it once it exists.
 
 ## The ProjectSpec `.sase` Record, End to End
 
@@ -157,9 +157,9 @@ Two prefix characters change behavior:
 
 They combine: `!$just presubmit` skips fix-hook hints _and_ skips proposals.
 
-## Advanced ACE Operations
+## Advanced sase's TUI Operations
 
-The Patches sub-tab in [ACE](../../ace.md)'s Artifacts tab is built around Patch
+The Patches sub-tab in [sase's TUI](../../ace.md)'s Artifacts tab is built around Patch
 navigation. The high-leverage moves:
 
 - **Grouping (`o` / `O`)** cycles the L0 bucket through `BY_PROJECT`, `BY_DATE`, and
@@ -206,10 +206,10 @@ It is recorded atomically by SASE and is not normally edited by hand.
 
 - [Patch format](../../change_spec.md) — every field, every state transition, complete
   examples.
-- [Mentors](../../mentors.md) — profile matching criteria, execution lifecycle, ACE
-  review modal, apply modes, file-snapshot semantics.
-- [ACE TUI](../../ace.md) — the full keybinding reference for the Artifacts, Agents, and
-  Axe tabs.
+- [Mentors](../../mentors.md) — profile matching criteria, execution lifecycle, sase's
+  TUI review modal, apply modes, file-snapshot semantics.
+- [sase's TUI](../../ace.md) — the full keybinding reference for the Artifacts, Agents,
+  and Axe tabs.
 - [\[07\] Driving SASE From Your Phone — Telegram as the Mobile Control Surface](telegram-mobile-agents.md)
   — turn an existing Telegram chat into a two-way control surface for plans, agents, and
   generated artifacts.

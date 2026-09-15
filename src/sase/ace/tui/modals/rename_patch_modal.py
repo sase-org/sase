@@ -1,4 +1,4 @@
-"""Rename Patch modal for the ace TUI."""
+"""Rename Patch modal for sase's TUI."""
 
 from sase.ace.patch.project_spec_path import project_spec_basename
 from textual.app import ComposeResult

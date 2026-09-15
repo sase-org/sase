@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for model-picker capacity hints."""
+"""sase's TUI PNG snapshots for model-picker capacity hints."""
 
 from __future__ import annotations
 

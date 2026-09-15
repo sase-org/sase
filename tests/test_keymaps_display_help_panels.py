@@ -1,4 +1,4 @@
-"""Tests for ace TUI help-modal side-panel sections.
+"""Tests for sase's TUI help-modal side-panel sections.
 
 Covers Prompt Input, Memory, Snippets, and Frontmatter panel sections, the
 retired Glossary Panel, Copy Mode palette sections, and the global

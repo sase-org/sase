@@ -1,7 +1,7 @@
-"""Background command state management for the ace TUI.
+"""Background command state management for sase's TUI.
 
 This module handles all state persistence for background commands,
-enabling sase ace to run arbitrary shell commands in the background
+enabling the TUI to run arbitrary shell commands in the background
 and track their output.
 """
 

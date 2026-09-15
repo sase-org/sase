@@ -47,7 +47,7 @@ magick "$BASE_PNG" "$LABELS_PNG" -compose over -composite \
 The deterministic labels are:
 
 - Header: `SASE` and `Structured Agentic Software Engineering`
-- Operator controls: `You`, `ACE TUI` / `interactive`, and `AXE` / `scheduled`
+- Operator controls: `You`, `sase's TUI` / `interactive`, and `AXE` / `scheduled`
 - Input: `ONE PROMPT`, `Prompt`, `XPrompt`, and `Workflow`
 - Fan-out: `PARALLEL AGENTS`; `Workspace 1` / `Claude Code`; `Workspace 2` / `Codex`;
   and `Workspace 3` / `Antigravity CLI`
@@ -62,4 +62,4 @@ The deterministic labels are:
   or watermark.
 - Confirmed the same asset works in the dark README banner and the existing
   `docs/index.md` hero slot.
-- Final SHA-256: `5c2ef949d060f5239eacaf8e86e1962aa9def546a84765bfe1dc4fc72c190547`.
+- Final SHA-256: `114751fdb705be27aeb47b85499ab28d3e186852d993fc285a46a95941fe114e`.

@@ -16,7 +16,7 @@
 
 <img src="docs/images/sase_overview.png" alt="One developer using SASE to run parallel coding agents in isolated workspaces with tracked, reviewable results" width="830">
 
-<p><em>One prompt fans out to parallel agents in isolated workspaces; ACE supervises, AXE schedules, durable state tracks Patches, beads, and artifacts, and reviewed PRs are the output.</em></p>
+<p><em>One prompt fans out to parallel agents in isolated workspaces; sase's TUI supervises, AXE schedules, durable state tracks Patches, beads, and artifacts, and reviewed PRs are the output.</em></p>
 
 </div>
 
@@ -33,8 +33,8 @@ layer, use those CLIs directly.
 
 ## Why sase
 
-- Launch, monitor, resume, and archive agent runs from one keyboard-driven TUI
-  (**ACE**).
+- Launch, monitor, resume, and archive agent runs from one keyboard-driven TUI (**sase's
+  TUI**).
 - Run agents in parallel, each in an isolated numbered workspace clone.
 - Keep prompts and multi-step workflows reusable (**XPrompts**) instead of trapped in
   shell history.
@@ -50,19 +50,19 @@ sase does not replace coding agents; it makes agent-driven engineering dependabl
 Claude, Codex, and Antigravity, runs all three agents in isolated workspaces, and keeps
 kill controls close at hand.
 
-<img src="docs/images/blog/sase_ace_multi_model_fanout.gif" alt="SASE ACE launching one GitHub prompt as three live Claude, Codex, and Antigravity agents, then killing them from the Agents tab" width="830">
+<img src="docs/images/blog/sase_ace_multi_model_fanout.gif" alt="sase's TUI launching one GitHub prompt as three live Claude, Codex, and Antigravity agents, then killing them from the Agents tab" width="830">
 
 **Supervise every run.** The Agents tab shows live status, retry chains, per-agent
 diffs, chats, and artifact files from one control surface.
 
-<a href="demos/out/sase_ace_agents_observability.mp4"><img src="docs/images/blog/agents_observability_still.png" alt="SASE ACE Agents tab showing live runs, retry chains, diffs, chats, and artifact files" width="830"></a>
+<a href="demos/out/sase_ace_agents_observability.mp4"><img src="docs/images/blog/agents_observability_still.png" alt="sase's TUI Agents tab showing live runs, retry chains, diffs, chats, and artifact files" width="830"></a>
 
 <em>Select the still to watch the 29-second demo.</em>
 
 **Land tracked changes.** The Patches view follows the Patch lifecycle from WIP to
 Submitted, with grouping, search, stitches, and diffs.
 
-<a href="demos/out/sase_ace_prs_pipeline.mp4"><img src="docs/images/blog/sase_ace_prs_pipeline_still.png" alt="SASE ACE Patches view showing work moving through the review and submission pipeline" width="830"></a>
+<a href="demos/out/sase_ace_prs_pipeline.mp4"><img src="docs/images/blog/sase_ace_prs_pipeline_still.png" alt="sase's TUI Patches view showing work moving through the review and submission pipeline" width="830"></a>
 
 <em>Select the still to watch the 26-second demo.</em>
 
@@ -87,13 +87,13 @@ sase run "#git:home summarize what this repository does; do not change files" # 
 sase run "%model:muse/muse-spark-1.2 #git:home summarize what this repository does; do not change files"
 # Or, for Grok Build:
 sase run "%model:grok/grok-4.6 #git:home summarize what this repository does; do not change files"
-sase ace                                                  # open the interactive control surface
+sase tui                                                  # open the interactive control surface
 ```
 
 For a first run, use the auto-detected-provider command, or one of the explicit
 Muse/Grok examples for deterministic provider selection. The `#git:home` workspace
 reference targets the built-in `home` project, which is bootstrapped automatically, so
-the first run needs no project setup. After the run completes, `sase ace` opens the TUI
+the first run needs no project setup. After the run completes, `sase tui` opens the TUI
 with the completed run visible on the Agents tab.
 
 If `sase doctor` reports a missing provider, install and authenticate it, then run the
@@ -118,7 +118,7 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 **The complete documentation lives at [sase.sh](https://sase.sh/).**
 
 - [Getting Started](https://sase.sh/getting_started/) — the guided beginner path
-- [ACE TUI](https://sase.sh/ace/) — the interactive control surface
+- [sase's TUI](https://sase.sh/ace/) — the interactive control surface
 - [XPrompts](https://sase.sh/xprompt/) — reusable prompts and multi-step workflows
 - [Patches](https://sase.sh/change_spec/) — tracked PR-sized units of work
 - [AXE Automation](https://sase.sh/axe/) — scheduled and background agent work

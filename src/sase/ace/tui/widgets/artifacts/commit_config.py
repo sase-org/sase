@@ -36,7 +36,7 @@ def resolve_commits_default_query(
 ) -> _ResolvedCommitsDefaultQuery:
     """Resolve and validate the commits query from already-loaded ACE config."""
     if not isinstance(ace_config, Mapping):
-        return _bundled_fallback("ACE configuration is not an object", ace_config)
+        return _bundled_fallback("TUI configuration is not an object", ace_config)
 
     artifacts = ace_config.get("artifacts")
     if artifacts is None:

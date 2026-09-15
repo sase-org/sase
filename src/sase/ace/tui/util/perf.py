@@ -1,4 +1,4 @@
-"""Key-to-paint perf instrumentation for the ace TUI.
+"""Key-to-paint perf instrumentation for sase's TUI.
 
 Phase 1 of sdd/tales/202604/instant_jk_navigation.md (bead sase-u.1). Captures
 three timestamps for every j/k navigation:

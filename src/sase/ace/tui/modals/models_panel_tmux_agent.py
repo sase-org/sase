@@ -23,16 +23,14 @@ _EMPTY_TMUX_AGENT_CATALOG = TmuxAgentCatalog(
     entries=(), default_provider=None, directory=""
 )
 
-_NOT_IN_TMUX_WARNING = (
-    "ACE is not running inside tmux; start ACE in a tmux window to launch agent CLIs."
-)
+_NOT_IN_TMUX_WARNING = "sase's TUI is not running inside tmux; start `sase tui` in a tmux window to launch agent CLIs."
 
 
 class ModelsPanelTmuxAgentMixin(_MixinBase):
     """Open the tmux Agent panel to launch an agent CLI in a new tmux window."""
 
     def action_tmux_agent(self) -> None:
-        """Open the tmux Agent panel, or warn when ACE is not inside tmux."""
+        """Open the tmux Agent panel, or warn when sase's TUI is not inside tmux."""
         if not inside_tmux():
             self.notify(_NOT_IN_TMUX_WARNING, severity="warning")  # type: ignore[attr-defined]
             return

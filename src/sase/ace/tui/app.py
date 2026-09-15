@@ -1,4 +1,4 @@
-"""Main Textual App for the ace TUI."""
+"""Main Textual App for sase's TUI."""
 
 import logging
 import os
@@ -154,7 +154,7 @@ class AceApp(
 ):
     """TUI application for navigating Patches."""
 
-    TITLE = "sase ace"
+    TITLE = "sase tui"
     CSS_PATH = "styles.tcss"
     ENABLE_COMMAND_PALETTE = False
 
@@ -298,7 +298,7 @@ class AceApp(
         initial_tab: TabInput = "agents",
         sanity_refresh_interval: int = int(FULL_SANITY_REFRESH_SECONDS),
     ) -> None:
-        """Initialize the ace TUI app."""
+        """Initialize sase's TUI app."""
         super().__init__()
         from .util.app_version import format_app_title, initial_app_version
 
@@ -361,11 +361,11 @@ class AceApp(
         silent, then force shutdown if the superclass crash handling
         itself fails.
         """
-        log.exception("Unhandled exception in sase ace", exc_info=error)
+        log.exception("Unhandled exception in sase's TUI", exc_info=error)
         try:
             super()._handle_exception(error)
         except Exception:
-            log.exception("sase ace crash-path handling itself raised")
+            log.exception("sase's TUI crash-path handling itself raised")
             try:
                 self._close_messages_no_wait()
             except Exception:

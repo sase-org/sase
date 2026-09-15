@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for the prompt-history modal."""
+"""sase's TUI PNG visual snapshot coverage for the prompt-history modal."""
 
 from __future__ import annotations
 

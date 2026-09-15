@@ -1,4 +1,4 @@
-"""Patch list widget for the ace TUI."""
+"""Patch list widget for sase's TUI."""
 
 from datetime import datetime
 from typing import Any

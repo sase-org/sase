@@ -1,4 +1,4 @@
-"""Adaptive entry-jump navigation facade for the ace TUI app."""
+"""Adaptive entry-jump navigation facade for sase's TUI app."""
 
 from __future__ import annotations
 

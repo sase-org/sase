@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for revert confirmation."""
+"""sase's TUI PNG visual snapshot coverage for revert confirmation."""
 
 from __future__ import annotations
 

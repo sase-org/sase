@@ -1,4 +1,4 @@
-"""One-shot force-reuse bead authorization passed from ACE to a runner."""
+"""One-shot force-reuse bead authorization passed from sase's TUI to a runner."""
 
 from __future__ import annotations
 

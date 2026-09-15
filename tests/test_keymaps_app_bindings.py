@@ -1,4 +1,4 @@
-"""Tests for ace TUI app binding construction."""
+"""Tests for sase's TUI app binding construction."""
 
 from dataclasses import fields
 

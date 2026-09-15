@@ -1,4 +1,4 @@
-"""Widgets for the ace TUI."""
+"""Widgets for sase's TUI."""
 
 from __future__ import annotations
 

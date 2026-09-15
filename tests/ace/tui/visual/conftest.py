@@ -55,7 +55,7 @@ def _force_color_for_visual_snapshots(
             # Prompt rendering must not depend on whether the host has prettier on PATH.
             hide_prettier_from_path(visual_env, stub_dir=tmp_path / "hide-prettier")
             fake_prettier_missing(visual_env)
-            # Pin the app version so the "sase ace (v…)" header title is byte-stable
+            # Pin the app version so the "sase tui (v…)" header title is byte-stable
             # across runs and install shapes. AceApp seeds the title from
             # ``initial_app_version()`` in ``__init__`` and refines it off-thread from
             # ``resolved_app_version()`` in ``on_mount``; pinning both to the same value

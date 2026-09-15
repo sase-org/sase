@@ -1,4 +1,4 @@
-"""Scoped span tracer for the ace TUI hot paths.
+"""Scoped span tracer for sase's TUI hot paths.
 
 Phase 1 of sdd/tales/202604/tui_perf_overhaul_1.md (bead sase-w.1). Provides a
 ``tui_trace(name, **counters)`` context manager that emits one JSONL line

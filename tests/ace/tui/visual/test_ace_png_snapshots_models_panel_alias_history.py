@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for Launch Control alias-history panel states."""
+"""sase's TUI PNG snapshots for Launch Control alias-history panel states."""
 
 from __future__ import annotations
 

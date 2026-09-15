@@ -99,21 +99,21 @@ what lets a failed run be retried without touching your primary checkout.
 The launched agent gets its own durable record on disk: prompt, reply transcript,
 artifacts directory, status, and workspace path. Default `sase agent list` shows
 **running** agents only. After the run finishes, use `sase agent list -a` (recent
-DONE/FAILED, capped at 50 most-recent per project) or open ACE's Agents tab to find the
-completed record.
+DONE/FAILED, capped at 50 most-recent per project) or open sase's TUI Agents tab to find
+the completed record.
 
 **What you just did.** Dispatched a read-only coding-agent run inside an explicit
 [workspace](workspace.md), then looked up the resulting SASE agent record.
 
-## Step 4 — Open ACE And Find The Result
+## Step 4 — Open sase's TUI And Find The Result
 
-ACE is the TUI control surface. Open it:
+sase's TUI is the TUI control surface. Open it:
 
 ```bash
-sase ace
+sase tui
 ```
 
-ACE has three top-level tabs:
+sase's TUI has three top-level tabs:
 
 - **Agents** — live and recent agent records. Find the run you just launched: prompt,
   reply transcript, workspace path, status, retry chain.
@@ -126,8 +126,8 @@ ACE has three top-level tabs:
   you're curious. This first read-only run should not have created one yet; editable
   committed work is where Patches appear.
 - **Axe** — the background daemon's view: scheduled jobs, hooks waiting to complete,
-  mentor launches, error digests. ACE auto-starts AXE the first time it opens, so this
-  tab is already ticking before you click it.
+  mentor launches, error digests. sase's TUI auto-starts AXE the first time it opens, so
+  this tab is already ticking before you click it.
 
 The top bar's colored `+<project>` chip is the [current project](ace.md#current-project)
 — the project you most recently launched an agent on (or promoted with
@@ -136,7 +136,8 @@ First-open Artifacts filters seed from it; they do not lock you into that projec
 `?` for help and `q` to quit.
 
 **What you just did.** Observed one `sase run` produce a persistent agent artifact
-visible in [ACE](ace.md), with [AXE](axe.md) handling lifecycle work in the background.
+visible in [sase's TUI](ace.md), with [AXE](axe.md) handling lifecycle work in the
+background.
 
 ## Step 5 — Try One Tiny Edit
 
@@ -151,14 +152,14 @@ sase agent list -a
 Now the agent has permission to make a visible diff in its isolated numbered workspace.
 Your own repositories and the `home` primary checkout stay untouched unless you
 explicitly bring changes back. When the agent commits its work, SASE's commit workflow
-records a Patch that you can review in ACE's Artifacts tab, under Patches, before
+records a Patch that you can review in sase's TUI Artifacts tab, under Patches, before
 landing or submitting anything.
 
 Wait until that run finishes before continuing. Default `sase agent list` shows
 **running** agents only, so the row disappears from the default list when the run ends.
-Watch it on ACE's Agents tab, or poll `sase agent list -a` until that row's status is
-`DONE` or `FAILED`. `-a` still includes running agents; you are waiting for the status
-to change, not for the row to appear. The second instruction registers a durable
+Watch it on sase's TUI Agents tab, or poll `sase agent list -a` until that row's status
+is `DONE` or `FAILED`. `-a` still includes running agents; you are waiting for the
+status to change, not for the row to appear. The second instruction registers a durable
 snapshot while leaving the tracked `notes.md` in the workspace.
 
 For your own repositories, use `#git:<name>` to target a managed project or
@@ -215,16 +216,16 @@ Artifact references cover more than indexed files:
 Use `@plan:<path>` for the built-in plans sidecar. `@commit:` remains an alias for
 `@stitch:`; the old `#ref/<kind>` renderer syntax has been retired.
 
-ACE can supply these without memorizing the grammar. Type `@` in the prompt bar for the
-grouped reference menu, or press `%` on an Artifacts entry to open **Copy as…**. The
-editor LSP completes canonical `@stitch:` payloads from local git checkouts, excluding
-SDD sidecar repositories. ACE's prompt bar currently lists both canonical and
-compatibility kinds, but its repository-history picker is still attached to `@commit:`;
-that alias and `@stitch:` resolve identically at launch. ACE also lists `@patch:`
-without enumerating Patch names, so use `%` on the Patch or type its name. Choose
-**Reference in new agent prompt** to open a prompt pre-filled with the entry's project
-and prompt-ready `@` reference; choose **Copy artifact reference** when you only want
-the reference on the clipboard.
+sase's TUI can supply these without memorizing the grammar. Type `@` in the prompt bar
+for the grouped reference menu, or press `%` on an Artifacts entry to open **Copy as…**.
+The editor LSP completes canonical `@stitch:` payloads from local git checkouts,
+excluding SDD sidecar repositories. sase's TUI prompt bar currently lists both canonical
+and compatibility kinds, but its repository-history picker is still attached to
+`@commit:`; that alias and `@stitch:` resolve identically at launch. sase's TUI also
+lists `@patch:` without enumerating Patch names, so use `%` on the Patch or type its
+name. Choose **Reference in new agent prompt** to open a prompt pre-filled with the
+entry's project and prompt-ready `@` reference; choose **Copy artifact reference** when
+you only want the reference on the clipboard.
 
 At launch, each known artifact reference expands to portable semantic prose rather than
 an `@`-prefixed filesystem path. `@plan:202608/foobar.md` becomes
@@ -316,12 +317,12 @@ still run `sase bead work <epic-id>` manually to retry remaining work.
 
 The names you'll keep bumping into, in one place:
 
-- **[ACE](ace.md)** — the TUI control surface for Patches, agents, notifications, and
-  automation.
+- **[sase's TUI](ace.md)** — the TUI control surface for Patches, agents, notifications,
+  and automation.
 - **[Current project](ace.md#current-project)** — the project SASE treats as working
   context: in practice, the one you most recently launched an agent on (or promoted with
-  `sase project set-current` / ACE Projects tab `c`). `sase project current` prints it.
-  The working directory never sets it, and there may be none.
+  `sase project set-current` / sase's TUI Projects tab `c`). `sase project current`
+  prints it. The working directory never sets it, and there may be none.
 - **[AXE](axe.md)** — the background automation daemon. Runs hooks, mentor launches,
   comment polling, dependency unblocking, error digests.
 - **`sase run`** — the entry point that launches an agent or workflow. See the
@@ -333,15 +334,15 @@ The names you'll keep bumping into, in one place:
 - **Artifact references** — durable `@kind:payload` locators that put files, documents,
   chats, beads, agents, commits, and bugs into a launch prompt. Resolve them with
   `sase artifact show`, `path`, or `open`; complete, copy, or hand them off from
-  [ACE](ace.md).
+  [sase's TUI](ace.md).
 - **[Beads](beads.md)** — dependency-aware, git-portable plan, phase, and standalone
   task work units.
 - **[Memory Webs / Glossary](memory.md#memory-webs)** — per-project definitions of the
   terms your team keeps reusing, authored as strand files under `sase/memory/glossary/`.
   Agents fetch one on demand with `sase memory read glossary:<term> -r "<why>"` instead
   of carrying every definition in memory (`-r` is required — a read is never printed
-  unless it is recorded). In ACE, both shortcuts are prompt-bar keys: from a prompt pane
-  in NORMAL mode, `K` previews the term under the cursor and `gG` opens the
+  unless it is recorded). In sase's TUI, both shortcuts are prompt-bar keys: from a
+  prompt pane in NORMAL mode, `K` previews the term under the cursor and `gG` opens the
   browse-and-edit [Memory panel](ace.md#memory-panel) seeded on it. `gT` opens the
   [Snippets panel](ace.md#snippets-panel).
 - **[XPrompts](xprompt.md)** — reusable prompt templates and YAML workflows with typed

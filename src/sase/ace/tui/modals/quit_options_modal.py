@@ -14,7 +14,7 @@ type QuitOption = Literal["quit_stop_axe", "restart_tui", "restart_tui_and_axe"]
 
 
 class QuitOptionsModal(ModalScreen[QuitOption | None]):
-    """Single-key chooser for leaving the current ACE TUI session."""
+    """Single-key chooser for leaving the current sase's TUI session."""
 
     BINDINGS = [
         Binding("1", "choose_quit_stop_axe", "Quit & Stop axe", show=False),
@@ -51,7 +51,7 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
                 classes="duration-choice-body",
             ):
                 yield Label(
-                    "Quit ACE",
+                    "Quit sase's TUI",
                     id="quit-options-title",
                     classes="duration-choice-title",
                 )

@@ -124,12 +124,12 @@ control surface and writes:
 - `demos/out/sase_ace_agents_observability.mp4`
 
 The prompt history and stash tape shows recall, search, stash, and restore inside the
-ACE prompt input and writes:
+sase's TUI prompt input and writes:
 
 - `demos/out/sase_ace_prompt_history_stash.gif`
 - `demos/out/sase_ace_prompt_history_stash.mp4`
 
-The PR pipeline tape shows the ACE PRs tab Patch lifecycle, parent/child navigation,
+The PR pipeline tape shows sase's TUI PRs tab Patch lifecycle, parent/child navigation,
 grouping, and folding, and writes:
 
 - `demos/out/sase_ace_prs_pipeline.gif`
@@ -147,14 +147,14 @@ The recipe writes:
 - `demos/out/last_generated_date.txt`
 
 The seed data is fictional and hermetic. It sets both `HOME` and `SASE_HOME`, then runs
-ACE from seeded fake workspaces so prompt `@` file completion never exposes real local
-project paths. The fan-out demo launches real SASE subprocesses, but the
+sase's TUI from seeded fake workspaces so prompt `@` file completion never exposes real
+local project paths. The fan-out demo launches real SASE subprocesses, but the
 execution-provider override routes every model through deterministic `fakey`; no
 provider CLI or remote GitHub repository is contacted. Keep future demos on the same
 pattern: fixed data, fixed geometry, pinned seed directories, and no personal project
 names. Tapes should disable axe (`-x`), pin refresh timing, hide startup and teardown
 capture with VHS `Hide`/`Show`, and export `SASE_ACE_RELEASE_VERSION_TITLE=1` so
-editable installs render the clean release title in the ACE header.
+editable installs render the clean release title in sase's TUI header.
 
 Future compression work can add a small `ffmpeg`/`gifsicle` post-processing recipe after
 `gifsicle` is available.

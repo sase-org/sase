@@ -1,4 +1,4 @@
-"""ACE ace-run shard-watch coverage checks for ``sase doctor``."""
+"""TUI ace-run shard-watch coverage checks for ``sase doctor``."""
 
 from __future__ import annotations
 
@@ -47,13 +47,13 @@ def check_ace_run_watches(
         names = ", ".join(str(row["project"]) for row in starved)
         summary = (
             f"{len(starved)} enabled project(s) have live ace-run shards "
-            f"outside ACE's startup watch budget: {names}"
+            f"outside sase's TUI startup watch budget: {names}"
         )
     elif future_count:
         status = "WARN"
         summary = (
             f"{future_count} future-dated ace-run month shard(s) can starve "
-            "ACE's artifact watcher"
+            "sase's TUI artifact watcher"
         )
     elif not rows:
         status = "OK"
@@ -61,7 +61,7 @@ def check_ace_run_watches(
     else:
         status = "OK"
         summary = (
-            "live ace-run shards are inside ACE's startup watch budget for "
+            "live ace-run shards are inside sase's TUI startup watch budget for "
             f"{len(rows)} enabled project(s)"
         )
     next_steps = _ace_run_watch_next_steps(rows, live_month) if status == "WARN" else ()
@@ -69,7 +69,7 @@ def check_ace_run_watches(
         id="resources.ace_run_watches",
         group="resources",
         status=status,
-        title="ACE ace-run watch coverage",
+        title="TUI ace-run watch coverage",
         summary=summary,
         details=_ace_run_watch_details(rows),
         next_steps=next_steps,
@@ -173,7 +173,7 @@ def _ace_run_watch_next_steps(
         )
     if not steps:
         steps.append(
-            "Inspect ACE's inotify watch set and confirm the live ace-run "
+            "Inspect sase's TUI inotify watch set and confirm the live ace-run "
             "month and day shards are installed."
         )
     return tuple(steps)

@@ -80,7 +80,7 @@ def _config_schema(*, object_value: bool = False) -> dict[str, Any]:
                     "ace": {
                         "type": "object",
                         "additionalProperties": False,
-                        "description": "ACE TUI settings.",
+                        "description": "sase's TUI settings.",
                         "properties": {
                             "lumberjack": {
                                 "type": "object",

@@ -1,4 +1,4 @@
-"""Tests for ace TUI keymap defaults and source-of-truth consistency."""
+"""Tests for sase's TUI keymap defaults and source-of-truth consistency."""
 
 from dataclasses import fields
 from pathlib import Path

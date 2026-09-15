@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the populated Tools panel.
+"""sase's TUI PNG visual snapshots for the populated Tools panel.
 
 Covers the actual Agents-tab panel mode flow with a deterministic Codex
 ``tool_calls.jsonl`` fixture, so Codex stream-derived timelines stay protected

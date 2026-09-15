@@ -1,4 +1,4 @@
-"""Unit coverage for ACE TUI heap sampling."""
+"""Unit coverage for sase's TUI heap sampling."""
 
 from __future__ import annotations
 

@@ -48,7 +48,7 @@ is: inspect loaded context with `sase memory list`, have agents use `sase memory
 for audited reference reads, have agents route every memory write through
 `/sase_memory_write`.
 
-ACE's **Memory panel** is the interactive surface for browsing memory across every
+sase's TUI **Memory panel** is the interactive surface for browsing memory across every
 memory-bearing project plus Home. It can add/edit/delete flat-note metadata and
 add/delete web strands; note bodies, existing strand bodies, and web descriptors open in
 `$EDITOR`. From a prompt, press `gm` or `Ctrl+G m`; see
@@ -250,9 +250,9 @@ Every audited read requires a non-empty reason via `-r`/`--reason` and agent att
 the same way as [Audited Reads](#audited-reads) above, and the event records the
 requested selectors, every related strand the closure added, the depth limit, and the
 total bytes served. A `glossary:<keyword>` read also appears in the `GLOSSARY` lane of
-the agent metadata panel in [ACE](ace.md#agents-tab-metadata-panel) alongside any legacy
-pre-migration events; selecting that lane's numbered hint pages a generated report of
-the read's output.
+the agent metadata panel in [sase's TUI](ace.md#agents-tab-metadata-panel) alongside any
+legacy pre-migration events; selecting that lane's numbered hint pages a generated
+report of the read's output.
 
 `sase memory log --include glossary` folds in audit events recorded under the retired
 pre-web `sase glossary read` command, so historical reads stay visible; that legacy
@@ -261,8 +261,8 @@ exists.
 
 ### Browsing and editing strands
 
-ACE's [Memory panel](ace.md#memory-panel) is the browse-and-edit surface for webs and
-strands alongside flat notes: expand a web row to walk its strands, follow the same
+sase's TUI [Memory panel](ace.md#memory-panel) is the browse-and-edit surface for webs
+and strands alongside flat notes: expand a web row to walk its strands, follow the same
 relation chips `read`'s closure walks, and use `a`/`d` to add or delete a strand — `a`
 on a web row opens an add-strand form, `d` on a strand row confirms a delete after
 showing its aliases, body, source path, and reverse mention references. There is no CLI

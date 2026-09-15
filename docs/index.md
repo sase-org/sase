@@ -63,11 +63,11 @@ title: Structured Agentic Software Engineering
   <h3>I want a TUI for agent work</h3>
 
   <p>
-    Use ACE, the Agentic Change Explorer TUI, to navigate Patches, live agents, notifications, and automation
+    Use sase's TUI to navigate Patches, live agents, notifications, and automation
     state from one terminal interface.
   </p>
 
-<a href="ace/">Open the ACE guide</a>
+<a href="ace/">Open sase's TUI guide</a>
 
   </article>
 
@@ -87,7 +87,7 @@ title: Structured Agentic Software Engineering
   <h3>I need shared agent memory</h3>
 
   <p>
-    Use instruction memory loaded through AGENTS.md, audited reference reads, and the ACE Memory panel for
+    Use instruction memory loaded through AGENTS.md, audited reference reads, and sase's TUI Memory panel for
     flat-note changes plus memory-web strand creation and deletion.
   </p>
 
@@ -150,7 +150,7 @@ title: Structured Agentic Software Engineering
     <li><strong>ProjectSpecs and Patches</strong> track project lifecycle, PR-sized work, commits, review state, comments, mentors, and lifecycle transitions.</li>
     <li><strong>Beads</strong> provide git-native issue tracking for plans, executable epics, phase dependencies, and agent handoff.</li>
     <li><strong>XPrompts</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
-    <li><strong>ACE</strong> is the interactive control surface for daily work.</li>
+    <li><strong>sase's TUI</strong> is the interactive control surface for daily work.</li>
     <li><strong>Axe Automation</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
     <li><strong>Provider and workspace abstractions</strong> route agent launches, VCS operations, and workspace setup through plugin-backed boundaries.</li>
   </ul>
@@ -188,7 +188,7 @@ title: Structured Agentic Software Engineering
   <article class="sase-card sase-card--compact">
   <h3>Understand the system</h3>
 
-  <p>See how CLI, ACE, axe, workflows, providers, and the Rust core fit together.</p>
+  <p>See how CLI, sase's TUI, axe, workflows, providers, and the Rust core fit together.</p>
 
 <a href="architecture/">Open architecture</a>
 
@@ -213,11 +213,11 @@ title: Structured Agentic Software Engineering
   </article>
 
   <article class="sase-card sase-card--compact">
-  <h3>Start with ACE</h3>
+  <h3>Start with sase's TUI</h3>
 
   <p>Learn the terminal interface for day-to-day SASE work.</p>
 
-<a href="ace/">Open ACE</a>
+<a href="ace/">Open sase's TUI</a>
 
   </article>
 

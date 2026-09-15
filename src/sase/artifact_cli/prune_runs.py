@@ -144,7 +144,7 @@ def _print_plan(
     if not plan.selected:
         run_table.add_row("[dim]none[/dim]", "-", "-", "-", "-")
     title = (
-        f"ACE Run Prune Plan ({plan.counts.selected} run dirs selected, "
+        f"TUI Run Prune Plan ({plan.counts.selected} run dirs selected, "
         f"{_human_size(plan.reclaimable_bytes)} reclaimable"
         f"{f', {plan.counts.truncated} truncated' if plan.counts.truncated else ''})"
     )

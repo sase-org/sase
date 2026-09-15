@@ -1,4 +1,4 @@
-"""XPrompt selection modal with filtering for the ace TUI."""
+"""XPrompt selection modal with filtering for sase's TUI."""
 
 from __future__ import annotations
 

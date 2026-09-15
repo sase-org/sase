@@ -1,4 +1,4 @@
-"""Agent auto-approve action for the ace TUI app."""
+"""Agent auto-approve action for sase's TUI app."""
 
 from __future__ import annotations
 

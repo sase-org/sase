@@ -1,4 +1,4 @@
-"""Status selection modal for the ace TUI."""
+"""Status selection modal for sase's TUI."""
 
 import os
 import sys

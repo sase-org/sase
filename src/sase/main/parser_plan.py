@@ -293,7 +293,7 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "pending proposal must exist. The rejection response is written "
             "first; SASE then attempts to user-kill the matching planner agent "
             "and dismiss its Agents-tab row, the same cleanup path used by "
-            "the ACE TUI."
+            "sase's TUI."
         ),
         epilog=("examples:\n  sase plan reject\n  sase plan reject abcdef12"),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -411,8 +411,8 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
             "legacy marker path, a pending-approval id or unique prefix, a "
             "bare slug or `<shard>/<slug>`, or a bead id whose design points "
             "at a plan — to exactly one plan and render it as a colored, "
-            "section-structured detail view matching the ACE TUI's PLAN "
-            "lane. With no TARGET, show the sole visible pending plan "
+            "section-structured detail view matching the PLAN "
+            "lane in sase's TUI. With no TARGET, show the sole visible pending plan "
             "proposal, exactly as `sase plan approve`/`reject` treat an "
             "omitted SELECTOR. In auto mode the ladder is tried in this "
             "order: path, ref, proposal, name, then bead; `-t/--target` "

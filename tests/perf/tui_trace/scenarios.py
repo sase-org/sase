@@ -45,7 +45,7 @@ async def _run_scenario(
     gp_file: Path,
     large_reply_text: str | None,
 ) -> dict[str, Any]:
-    """Run one fixture-size scenario through the ACE TUI."""
+    """Run one fixture-size scenario through sase's TUI."""
     fixture = build_fixture(cs_count, agent_count, gp_file=gp_file)
     started_wall: dict[str, float] = {}
     finished_wall: dict[str, float] = {}

@@ -74,176 +74,6 @@
     "subcommands": [
       {
         "aliases": [],
-        "default_child": null,
-        "description_digest": "49b96897cd4cae1c",
-        "hidden": false,
-        "mutex_groups": [],
-        "name": "ace",
-        "options": [
-          {
-            "choices": null,
-            "dest": "help",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-h",
-              "--help"
-            ],
-            "takes_value": false
-          },
-          {
-            "choices": [
-              "large",
-              "small"
-            ],
-            "dest": "model_tier",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-m",
-              "--model-tier"
-            ],
-            "takes_value": true
-          },
-          {
-            "choices": [
-              "big",
-              "little"
-            ],
-            "dest": "model_size",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-M",
-              "--model-size"
-            ],
-            "takes_value": true
-          },
-          {
-            "choices": null,
-            "dest": "profile",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-p",
-              "--profile"
-            ],
-            "takes_value": true
-          },
-          {
-            "choices": null,
-            "dest": "refresh_interval",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-r",
-              "--refresh-interval"
-            ],
-            "takes_value": true
-          },
-          {
-            "choices": null,
-            "dest": "restart_axe",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-R",
-              "--restart-axe"
-            ],
-            "takes_value": false
-          },
-          {
-            "choices": null,
-            "dest": "sanity_refresh_interval",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-s",
-              "--sanity-refresh-interval"
-            ],
-            "takes_value": true
-          },
-          {
-            "choices": [
-              "artifacts",
-              "agents",
-              "axe"
-            ],
-            "dest": "tab",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-t",
-              "--tab"
-            ],
-            "takes_value": true
-          },
-          {
-            "choices": null,
-            "dest": "tmux",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-T",
-              "--tmux"
-            ],
-            "takes_value": false
-          },
-          {
-            "choices": null,
-            "dest": "no_axe",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-x",
-              "--no-axe"
-            ],
-            "takes_value": false
-          },
-          {
-            "choices": [
-              "git",
-              "hg",
-              "auto"
-            ],
-            "dest": "vcs_provider",
-            "hidden": false,
-            "kind": null,
-            "repeatable": false,
-            "strings": [
-              "-v",
-              "--vcs-provider"
-            ],
-            "takes_value": true
-          }
-        ],
-        "path": [
-          "ace"
-        ],
-        "positionals": [
-          {
-            "choices": null,
-            "dest": "query",
-            "is_remainder": false,
-            "kind": null,
-            "metavar": "query",
-            "nargs": "?"
-          }
-        ],
-        "subcommands": []
-      },
-      {
-        "aliases": [],
         "default_child": "list",
         "description_digest": "7e5d9337ebe39f81",
         "hidden": false,
@@ -24721,6 +24551,176 @@
             "is_remainder": false,
             "kind": null,
             "metavar": "<provider>",
+            "nargs": "?"
+          }
+        ],
+        "subcommands": []
+      },
+      {
+        "aliases": [],
+        "default_child": null,
+        "description_digest": "adfdceb9b3b0cf95",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "tui",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": [
+              "large",
+              "small"
+            ],
+            "dest": "model_tier",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-m",
+              "--model-tier"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": [
+              "big",
+              "little"
+            ],
+            "dest": "model_size",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-M",
+              "--model-size"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "profile",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-p",
+              "--profile"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "refresh_interval",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-r",
+              "--refresh-interval"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "restart_axe",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-R",
+              "--restart-axe"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "sanity_refresh_interval",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-s",
+              "--sanity-refresh-interval"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": [
+              "artifacts",
+              "agents",
+              "axe"
+            ],
+            "dest": "tab",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-t",
+              "--tab"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "tmux",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-T",
+              "--tmux"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "no_axe",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-x",
+              "--no-axe"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": [
+              "git",
+              "hg",
+              "auto"
+            ],
+            "dest": "vcs_provider",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-v",
+              "--vcs-provider"
+            ],
+            "takes_value": true
+          }
+        ],
+        "path": [
+          "tui"
+        ],
+        "positionals": [
+          {
+            "choices": null,
+            "dest": "query",
+            "is_remainder": false,
+            "kind": null,
+            "metavar": "query",
             "nargs": "?"
           }
         ],

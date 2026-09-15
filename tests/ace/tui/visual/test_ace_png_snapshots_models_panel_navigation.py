@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for Launch Control navigation and drill-in states."""
+"""sase's TUI PNG snapshots for Launch Control navigation and drill-in states."""
 
 from __future__ import annotations
 

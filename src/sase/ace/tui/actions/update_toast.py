@@ -1,4 +1,4 @@
-"""Automatic update-available checks and toast for the ace TUI."""
+"""Automatic update-available checks and toast for sase's TUI."""
 
 from __future__ import annotations
 

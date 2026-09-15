@@ -1,4 +1,4 @@
-"""Mentor management methods for the ace TUI app."""
+"""Mentor management methods for sase's TUI app."""
 
 from __future__ import annotations
 

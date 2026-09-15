@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for agent-related modals."""
+"""sase's TUI PNG visual snapshots for agent-related modals."""
 
 from __future__ import annotations
 

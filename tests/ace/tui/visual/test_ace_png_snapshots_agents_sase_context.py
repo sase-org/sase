@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Agents-tab SASE context metadata."""
+"""sase's TUI PNG visual snapshots for Agents-tab SASE context metadata."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tests for loading ace TUI keymap registries."""
+"""Tests for loading sase's TUI keymap registries."""
 
 from sase.ace.tui.keymaps import (
     BangModeKeymaps,

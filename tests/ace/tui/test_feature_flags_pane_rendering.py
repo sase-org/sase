@@ -181,7 +181,7 @@ def test_footer_changes_for_filter_and_mutation() -> None:
     ).plain
     assert "filter" in idle
     assert "toggle" in idle
-    assert "ACE + AXE" in idle
+    assert "TUI + AXE" in idle
     assert "close filter" in filtering
     assert "saving" in saving
 
@@ -195,7 +195,7 @@ def test_confirmation_copy_is_cancel_first_and_warns_on_shadowing() -> None:
         saved=True,
     )
     copy = build_toggle_confirmation(view, state_path="/tmp/feature_flags.json")
-    assert copy.message == "ACE and AXE restart after active procs finish."
+    assert copy.message == "sase's TUI and AXE restart after active procs finish."
     assert "OFF -> ON" in copy.subject
     assert "/tmp/feature_flags.json" in copy.subject
     assert "Forced for this process" in copy.subject

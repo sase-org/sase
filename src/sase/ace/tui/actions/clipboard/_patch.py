@@ -61,7 +61,7 @@ class ClipboardPatchMixin(ClipboardBase):
                 raise RuntimeError("failed to capture tmux pane")
             contents = [
                 ("Patch", cs_content.strip()),
-                ("`sase ace` Snapshot", snapshot_content.strip()),
+                ("`sase tui` Snapshot", snapshot_content.strip()),
             ]
             capped = format_multi_copy_content_capped(contents)
             state["truncated"] = capped.truncated

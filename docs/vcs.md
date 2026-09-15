@@ -2,7 +2,7 @@
 
 The **VCS provider layer** is an abstraction that lets sase commands work with both
 **Git** and **Mercurial** repositories. Commands and workflows that touch version
-control, including `sase stitch create`, `sase ace`, `sase axe`, `sase revert`, and
+control, including `sase stitch create`, `sase tui`, `sase axe`, `sase revert`, and
 `sase restore`, delegate to a provider interface rather than calling VCS commands
 directly.
 
@@ -97,18 +97,18 @@ The `SASE_VCS_PROVIDER` environment variable takes highest priority.
 SASE_VCS_PROVIDER=git sase stitch create my_feature
 
 # Force hg provider
-SASE_VCS_PROVIDER=hg sase ace
+SASE_VCS_PROVIDER=hg sase tui
 
 # Defer to next tier
 SASE_VCS_PROVIDER=auto sase stitch create my_feature
 ```
 
-The `--vcs-provider` CLI flag on `sase ace` and `sase axe` sets this variable
+The `--vcs-provider` CLI flag on `sase tui` and `sase axe` sets this variable
 internally:
 
 ```bash
-# Equivalent to SASE_VCS_PROVIDER=git sase ace
-sase ace --vcs-provider git
+# Equivalent to SASE_VCS_PROVIDER=git sase tui
+sase tui --vcs-provider git
 
 # Same for axe
 sase axe --vcs-provider hg start
@@ -166,7 +166,7 @@ configured/default sidecars and any materialized legacy separate SDD repository.
 Global discovery does not materialize missing workspaces. Sibling checkouts still appear
 as linked repositories of their owning projects; `--all --sdd` also includes every
 available sidecar from the registered projects. This CLI default is independent of the
-ACE Artifacts Stitches pane's configurable persistent query.
+sase's TUI Artifacts Stitches pane's configurable persistent query.
 
 A bare `sase stitch` prints
 `No subcommand provided for 'sase stitch'; delegating to 'sase stitch list'.` and then
@@ -310,9 +310,9 @@ sase stitch create -t propose -m "Try parser cleanup"         # create_proposal
 sase stitch create -t pr -n parser_cleanup -m "Update parser" # create_pull_request
 ```
 
-### `sase ace` TUI Actions
+### `sase tui` Actions
 
-The ace TUI provides interactive actions that use VCS operations:
+sase's TUI provides interactive actions that use VCS operations:
 
 #### Sync (`S` key)
 
@@ -415,12 +415,12 @@ for:
 - **Mentor checks** — Checking for changes via `has_local_changes()`
 - **Workspace sync** — Periodic sync via `sync_workspace()`
 
-The `--vcs-provider` flag works identically to `sase ace`.
+The `--vcs-provider` flag works identically to `sase tui`.
 
 ### `sase revert`
 
-Standalone command to revert a Patch. Performs the same operations as the ace TUI revert
-action:
+Standalone command to revert a Patch. Performs the same operations as the revert action
+in sase's TUI:
 
 1. Save diff via `diff_revision()` to `~/.sase/reverted/<name>.diff`
 2. Prune revision via `prune()`
@@ -677,12 +677,12 @@ export SASE_VCS_PROVIDER=hg
 
 ### CLI Flags
 
-Available on `sase ace` and `sase axe` only:
+Available on `sase tui` and `sase axe` only:
 
 ```bash
-sase ace --vcs-provider git
-sase ace --vcs-provider hg
-sase ace --vcs-provider auto
+sase tui --vcs-provider git
+sase tui --vcs-provider hg
+sase tui --vcs-provider auto
 
 sase axe start --vcs-provider git
 ```
@@ -786,7 +786,7 @@ GitHub PR operations (`get_change_url`, `mail`, `get_pr_number`) require the
 **Symptoms:**
 
 - `sase stitch create` completes but reports "Failed to retrieve change URL"
-- `sase ace` mail action fails with "gh pr create failed"
+- `sase tui` mail action fails with "gh pr create failed"
 - No PR URL shown after commit
 
 **Fix:** Install the GitHub CLI and authenticate:

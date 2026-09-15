@@ -97,7 +97,7 @@ def ensure_project_file_and_get_workspace_num(
     """Get project file and workspace num for the current directory.
 
     By default this bootstraps a missing project file (without a BUG field,
-    which can be added later via `sase ace`). Pass ``create_missing=False``
+    which can be added later via `sase tui`). Pass ``create_missing=False``
     to make the lookup read-only: when the inferred project has no existing
     ProjectSpec, nothing is created and ``(None, None, None)`` is returned.
 

@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the auto-hiding Agents FilterBar (sase-zf.4).
+"""sase's TUI PNG visual snapshots for the auto-hiding Agents FilterBar (sase-zf.4).
 
 Covers the two states that differ from the plain agent list already snapshot
 by ``test_ace_png_snapshots_agents.py``: an idle info-panel readout for a

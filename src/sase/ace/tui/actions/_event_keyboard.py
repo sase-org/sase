@@ -1,4 +1,4 @@
-"""Keyboard and input event handlers for the ACE TUI."""
+"""Keyboard and input event handlers for sase's TUI."""
 
 from __future__ import annotations
 

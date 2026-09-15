@@ -536,7 +536,7 @@ def test_plan_action_from_agent_meta_for_non_running_status(tmp_path: Path) -> N
 
     The status-mapping `_plan_enrichment_status` gate stays bound to RUNNING,
     but plan_action itself must be independently inspectable so the parent's
-    approved-status variant survives across `sase ace` restart.
+    approved-status variant survives across `sase tui` restart.
     """
     meta = {"pid": 1234, "plan_action": "tale"}
     (tmp_path / "agent_meta.json").write_text(json.dumps(meta))

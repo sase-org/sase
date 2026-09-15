@@ -1,4 +1,4 @@
-"""Navigation mixin for the ace TUI app."""
+"""Navigation mixin for sase's TUI app."""
 
 from ._advanced import AdvancedNavigationMixin
 from ._basic import BasicNavigationMixin

@@ -1,4 +1,4 @@
-"""Project/PR selection modal with filtering for the ace TUI."""
+"""Project/PR selection modal with filtering for sase's TUI."""
 
 import asyncio
 import os

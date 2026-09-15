@@ -1,7 +1,7 @@
 """Operation-count benchmark for the Agents-tab disk load path.
 
 This harness is intentionally count-based rather than time-based. It guards
-against monitor reconciliation returning to the synchronous ``sase ace`` disk
+against monitor reconciliation returning to the synchronous ``sase tui`` disk
 load by counting proc-store reads, artifact-index queries, and synchronous
 reconcile calls while loading synthetic monitor rows.
 

@@ -232,9 +232,9 @@ that state change separately.
 Configured linked repositories use hidden internal `PROJECT_STATE: sibling` backing
 records rather than a project lifecycle state. Agents prepare them through `/sase_repo`.
 In a SASE-launched agent session, the audited open records the repo name and kind in run
-artifacts and the durable repo-open log; ACE uses the artifact record for opened-repo
-context, and the commit finalizer enforces the linked or external repo the agent
-explicitly opened.
+artifacts and the durable repo-open log; sase's TUI uses the artifact record for
+opened-repo context, and the commit finalizer enforces the linked or external repo the
+agent explicitly opened.
 
 Non-wait launches allocate the next available numbered workspace for the project and set
 the VCS update target to the provider default revision. When registered workspace
@@ -457,9 +457,9 @@ Repository commands treat the repo as the object and the workspace as context.
 name, or an external provider ref such as `gh:owner/repo` (with `owner/repo` as GitHub
 shorthand). Run it from a managed checkout to infer both the host project and workspace,
 or pass `-p/--project` and `-w/--workspace` explicitly. Successful opens print the
-prepared path, write the agent artifact markers used by ACE and the commit finalizer,
-and append the project's durable repo-open audit event. Agents use this surface through
-`/sase_repo` and treat the printed path as authoritative.
+prepared path, write the agent artifact markers used by sase's TUI and the commit
+finalizer, and append the project's durable repo-open audit event. Agents use this
+surface through `/sase_repo` and treat the printed path as authoritative.
 
 Provider refs are resolved against the host project's configured repositories before
 SASE materializes an external checkout. For example, if a configured linked repo's

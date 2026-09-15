@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for Launch Control apostrophe entry-jump."""
+"""sase's TUI PNG snapshots for Launch Control apostrophe entry-jump."""
 
 from __future__ import annotations
 

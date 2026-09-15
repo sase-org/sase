@@ -59,8 +59,9 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
 - Agent cleanup planning plus deterministic cleanup mutations: dismissed-identity index
   writes, artifact-marker deletion, workspace-release text mutation, and
   hook/mentor/comment kill marking. These calls prefer Rust but retain cleanup-specific
-  Python compatibility paths for missing or stale bindings. In the current ACE host
-  path, dismissed-bundle JSON persistence and its summary SQLite index are Python-owned.
+  Python compatibility paths for missing or stale bindings. In the current sase's TUI
+  host path, dismissed-bundle JSON persistence and its summary SQLite index are
+  Python-owned.
 - Agent launch preparation, low-level detached spawn, timestamp allocation, fan-out
   planning, typed Agent/Proc launch-plan validation, admission-journal replay, `%if`
   condition evaluation, `%proc` script/argv/env preparation, and RUNNING-field
@@ -104,11 +105,11 @@ The intentionally Python-owned host surfaces include:
   user-facing launch callbacks. Rust owns deterministic launch planning/preparation and
   the low-level detached spawn binding.
 - LLM provider registration, selector policy, temporary alias-override precedence,
-  dispatch decisions, and ACE Launch Control provider-routing UI stay on the Python host
-  path. The provider-disable facade delegates durable state and mutation atomicity to
-  the Rust binding, but Python remains responsible for deciding how an active disable
-  affects aliases, completions, explicit requests, and already-running provider
-  processes.
+  dispatch decisions, and sase's TUI Launch Control provider-routing UI stay on the
+  Python host path. The provider-disable facade delegates durable state and mutation
+  atomicity to the Rust binding, but Python remains responsible for deciding how an
+  active disable affects aliases, completions, explicit requests, and already-running
+  provider processes.
 - Agent cleanup process signalling, dismissed-bundle persistence, dismissed-bundle
   summary indexing, and TUI orchestration stay on the Python host path. The Rust
   boundary owns reusable cleanup planning, compact dismissed-identity writes, artifact
@@ -130,8 +131,8 @@ The intentionally Python-owned host surfaces include:
   go through the Rust-backed `artifact_file_query_facade`. Separately, Rust owns the
   agent-run artifact scanner and its persistent agent index. Python owns best-effort
   lifecycle orchestration around the agent index: syncing dismissed-agent projection
-  inputs before ACE loads, refreshing rows after marker mutations, and dispatching
-  `sase agent index gc`.
+  inputs before sase's TUI loads, refreshing rows after marker mutations, and
+  dispatching `sase agent index gc`.
 
 ## Why a Rust Backend?
 
@@ -374,8 +375,8 @@ still take precedence over the cache.
 
 After the wheel step, `rust-install` chains `just rust-lsp-install` for the same venv.
 Both artifacts come from one checkout, so `sase-xprompt-lsp` can never lag the directive
-contract compiled into `sase_core_rs`; a stale binary would otherwise fail the ACE/LSP
-parity tests with a confusing completion diff. Re-running the target after a
+contract compiled into `sase_core_rs`; a stale binary would otherwise fail sase's
+TUI/LSP parity tests with a confusing completion diff. Re-running the target after a
 `../sase-core` update is the supported way to refresh an existing source install.
 
 Editable `sase update` uses `just rust-dev-install-uv-tool` instead. It builds with the
@@ -646,7 +647,7 @@ latency):**
   synthetic streams, but the end-to-end `git diff --name-status -z` workloads in
   `bench_git_query_ops` show parse is single-digit microseconds next to
   multi-millisecond subprocess cost.
-- `sase ace` cold open is ~19% slower under Rust on the synthetic Pilot harness. The
+- `sase tui` cold open is ~19% slower under Rust on the synthetic Pilot harness. The
   harness mocks `find_all_changespecs`, so the Rust scan/parse hot paths are not
   exercised; what remains is AceApp / Pilot constructor cost plus per-call PyO3 dispatch
   overhead at small inputs. Treat it as a known small-input dispatch tax, not a
@@ -767,10 +768,10 @@ equivalent change in the corresponding `sase-core` Rust parity test
 
 ## Editable Dev Prebuild Cache
 
-ACE can opportunistically prebuild editable `sase-core` Rust artifacts while an update
-is only being advertised. The producer runs detached from the automatic update-status
-worker when `ace.updates.prebuild_rust` is true (the default) and the cached status
-reports an editable core checkout behind its upstream. Set
+sase's TUI can opportunistically prebuild editable `sase-core` Rust artifacts while an
+update is only being advertised. The producer runs detached from the automatic
+update-status worker when `ace.updates.prebuild_rust` is true (the default) and the
+cached status reports an editable core checkout behind its upstream. Set
 `ace.updates.prebuild_rust: false` in config to disable it; `sase update` then always
 runs the normal `just rust-dev-install-uv-tool` build path.
 
@@ -789,8 +790,8 @@ directory manually:
 rm -rf ~/.sase/cache/rust-prebuild
 ```
 
-The next eligible ACE update check recreates it, and confirmed updates continue to fall
-back to the normal build path while the cache is empty or stale.
+The next eligible sase's TUI update check recreates it, and confirmed updates continue
+to fall back to the normal build path while the cache is empty or stale.
 
 ## Rollback
 

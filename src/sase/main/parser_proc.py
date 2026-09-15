@@ -70,7 +70,7 @@ def register_proc_parser(subparsers: argparse._SubParsersAction) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "List durable procs, newest first. By default this "
-            "shows procs for the current session — the ACE session of this "
+            "shows procs for the current session — the TUI session of this "
             "process, else the newest live one — plus procs that belong to no "
             "session; pass --all to see every session's work. Filter by "
             "named proc shell with -N/--shell; a bare name is derived "

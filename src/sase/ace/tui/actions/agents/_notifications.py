@@ -1,4 +1,4 @@
-"""Notification polling and display methods for the ace TUI app.
+"""Notification polling and display methods for sase's TUI app.
 
 This module is the compatibility entry point for notification behavior. The
 implementation lives in smaller focused mixins nearby.

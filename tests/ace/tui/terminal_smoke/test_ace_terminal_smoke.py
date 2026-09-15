@@ -1,4 +1,4 @@
-"""Optional real-terminal smoke coverage for the ACE TUI."""
+"""Optional real-terminal smoke coverage for sase's TUI."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def test_ace_cli_paints_patch_in_real_pty(tmp_path: Path) -> None:
-    """Launch `sase ace` in a PTY and assert a decoded terminal grid."""
+    """Launch `sase tui` in a PTY and assert a decoded terminal grid."""
     pexpect = pytest.importorskip("pexpect")
     pyte = pytest.importorskip("pyte")
 

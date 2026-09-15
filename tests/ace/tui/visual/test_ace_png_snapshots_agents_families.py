@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Agents-tab family list states."""
+"""sase's TUI PNG visual snapshots for Agents-tab family list states."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Mentor Review modal for the ace TUI.
+"""Mentor Review modal for sase's TUI.
 
 Displays mentor comments from the latest commit with navigation,
 acceptance toggling, and running mentor killing.

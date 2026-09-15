@@ -218,16 +218,16 @@ discover.
 
 When the editor advertises LSP `completionItem.snippetSupport`, the server also returns
 SASE snippets as ordinary `CompletionItemKind.Snippet` entries after bare trigger words
-such as `fix` or `review`. Snippet entries are loaded from the same registry as ACE:
-xprompts with `snippet` front matter plus user-defined `ace.snippets`, with
+such as `fix` or `review`. Snippet entries are loaded from the same registry as sase's
+TUI: xprompts with `snippet` front matter plus user-defined `ace.snippets`, with
 `ace.snippets` winning on trigger collisions. The registry also includes the generated
 initial-capital aliases (`foo` → `Foo`), so a completion for `Foo` appears wherever
 `foo` does. The editor does not need to shell out or parse SASE config to discover
 snippets.
 
 The Python helper operation `sase editor helper-bridge snippet-catalog` is the
-authoritative snippet registry because it matches ACE's xprompt composition behavior.
-The Rust server also has a native fallback for simple xprompt snippets and
+authoritative snippet registry because it matches sase's TUI xprompt composition
+behavior. The Rust server also has a native fallback for simple xprompt snippets and
 `ace.snippets` so completion can degrade gracefully if the helper is unavailable. That
 fallback intentionally skips xprompts that require complex Jinja or composition it
 cannot mirror exactly; when the helper is available, its response is preferred.
@@ -236,16 +236,16 @@ The LSP also consumes the project's `glossary` memory web, authored as strand fi
 under `sase/memory/glossary/`; see [Memory Webs](memory.md#memory-webs). A leading VCS
 workflow reference selects the glossary project for the document, otherwise the active
 workspace project is used. Glossary phrases are emitted as standard `type` semantic
-tokens, with the same case-insensitive, code-literal-skipping, longest-match scanner ACE
-uses. A phrase wrapped across one line break is emitted as one semantic token per line.
-Derived plurals of terms and aliases are matched like configured aliases. `sase-nvim`
-underlines those tokens by default through an overridable `SaseGlossaryTerm` highlight
-group. Hover returns Markdown for the canonical term, aliases, project, and source
-context, and go-to-definition targets the glossary strand file's definition range.
-Explicit xprompt and artifact references keep precedence over glossary matches. When the
-selected project is disabled, unknown, home, unreadable, or has an invalid glossary, the
-server suppresses glossary semantics for that context instead of falling back to another
-project's terms.
+tokens, with the same case-insensitive, code-literal-skipping, longest-match scanner
+sase's TUI uses. A phrase wrapped across one line break is emitted as one semantic token
+per line. Derived plurals of terms and aliases are matched like configured aliases.
+`sase-nvim` underlines those tokens by default through an overridable `SaseGlossaryTerm`
+highlight group. Hover returns Markdown for the canonical term, aliases, project, and
+source context, and go-to-definition targets the glossary strand file's definition
+range. Explicit xprompt and artifact references keep precedence over glossary matches.
+When the selected project is disabled, unknown, home, unreadable, or has an invalid
+glossary, the server suppresses glossary semantics for that context instead of falling
+back to another project's terms.
 
 See the [editor integration guide](editor.md) for setup, feature coverage, helper bridge
 usage, and troubleshooting.
@@ -342,14 +342,14 @@ Hello, {{ user_name }}! Welcome aboard.
 
 ### Front Matter Fields
 
-| Field         | Required | Description                                                                   |
-| ------------- | -------- | ----------------------------------------------------------------------------- |
-| `name`        | No       | XPrompt name (defaults to filename stem)                                      |
-| `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))               |
-| `snippet`     | No       | Opt-in to ACE snippet expansion (see [Snippet Field](#snippet-field) below)   |
-| `description` | No       | Human-readable one-line description of what the xprompt does                  |
-| `skill`       | No       | Marks this xprompt as an agent skill source for `sase skill init` (see below) |
-| `xprompts`    | No       | File-local helper xprompts whose names must start with `_`                    |
+| Field         | Required | Description                                                                        |
+| ------------- | -------- | ---------------------------------------------------------------------------------- |
+| `name`        | No       | XPrompt name (defaults to filename stem)                                           |
+| `input`       | No       | Input parameter definitions (see [Typed Inputs](#typed-inputs))                    |
+| `snippet`     | No       | Opt-in to sase's TUI snippet expansion (see [Snippet Field](#snippet-field) below) |
+| `description` | No       | Human-readable one-line description of what the xprompt does                       |
+| `skill`       | No       | Marks this xprompt as an agent skill source for `sase skill init` (see below)      |
+| `xprompts`    | No       | File-local helper xprompts whose names must start with `_`                         |
 
 If no front matter is present, the entire file content is the template body and the
 filename stem is the name.
@@ -388,13 +388,13 @@ prompts should use `#name`.
 | `#!name:arg`                  | Standalone workflow reference with one colon-style arg         |
 | `#!name!!` / `#!name??`       | Standalone workflow with an explicit HITL approval override    |
 
-ACE and editor clients that enable standard LSP on-type formatting smooth the
+sase's TUI and editor clients that enable standard LSP on-type formatting smooth the
 colon-to-parentheses transition while typing: with the caret immediately after an
 argument-opening colon, typing `(` removes that colon. For example, `%q:` becomes `%q()`
-in ACE, with the cursor between the parentheses, and `#review:` can become `#review()`.
-The rule is syntax-aware; ordinary prose colons, URLs, unknown directives, double-colon
-shorthand, fenced or inline code, disabled xprompt regions, prompt frontmatter, and
-Jinja tags are left alone.
+in sase's TUI, with the cursor between the parentheses, and `#review:` can become
+`#review()`. The rule is syntax-aware; ordinary prose colons, URLs, unknown directives,
+double-colon shorthand, fenced or inline code, disabled xprompt regions, prompt
+frontmatter, and Jinja tags are left alone.
 
 Examples:
 
@@ -413,8 +413,8 @@ A `#`-shaped token that matches no known xprompt, workspace ref, or plugin-provi
 reference is **not** an error: it is passed to the agent as literal text. Because a typo
 would otherwise be invisible, launching scans the prompt first and reports each
 unresolved name — `sase run` prints one warning per name (with a `did you mean '#…'?`
-suggestion when a close match exists, and a pointer to `sase xprompt list`), and ACE
-raises one aggregated toast,
+suggestion when a close match exists, and a pointer to `sase xprompt list`), and sase's
+TUI raises one aggregated toast,
 `Unknown xprompt reference(s): #foo - passed through as literal text`. The scan is a
 best-effort diagnostic: it never blocks or alters the launch, and references inside
 literal zones (inline code, fenced code, disabled regions) are ignored.
@@ -498,27 +498,27 @@ already matches the GitHub repo. Owner/repo fallback avoids basename routing whe
 duplicate GitHub basenames would make that ambiguous; direct `owner/repo` refs match the
 GitHub workspace path first, then only use a basename fallback when it is unambiguous.
 
-ACE and the xprompt LSP provide the same project/Patch completion helper for these
-references. Type `+query` at absolute prompt offset zero or immediately after a literal
-ASCII space to open a picker of enabled launchable projects and active PR-sized Patches
-in `WIP`, `Draft`, `Ready`, or `Mailed` status. The token extends to the next whitespace
-boundary, and `#+query`, line-start `+query` without a preceding space, tab-delimited
-forms, and plus signs glued to other text are not project triggers. Accepting a project
-row inserts a tag such as `#gh:sase`; accepting a Patch row inserts a tag such as
-`#gh:my_change`. The helper filters by `PROJECT_NAME`, directory-key project name,
-project alias, or Patch name prefix, and it ignores system-managed `home`, disabled
-projects, sibling records, and non-launchable projects.
+sase's TUI and the xprompt LSP provide the same project/Patch completion helper for
+these references. Type `+query` at absolute prompt offset zero or immediately after a
+literal ASCII space to open a picker of enabled launchable projects and active PR-sized
+Patches in `WIP`, `Draft`, `Ready`, or `Mailed` status. The token extends to the next
+whitespace boundary, and `#+query`, line-start `+query` without a preceding space,
+tab-delimited forms, and plus signs glued to other text are not project triggers.
+Accepting a project row inserts a tag such as `#gh:sase`; accepting a Patch row inserts
+a tag such as `#gh:my_change`. The helper filters by `PROJECT_NAME`, directory-key
+project name, project alias, or Patch name prefix, and it ignores system-managed `home`,
+disabled projects, sibling records, and non-launchable projects.
 
-ACE and the xprompt LSP also provide token-local completion at the root of registered
-VCS workflow refs. Typing `:` or `(` after a workflow tag, such as `#gh:` or `#git(`,
-opens project and active PR-sized Patch rows scoped to that provider. Providers can add
-fast local namespace rows; the GitHub plugin derives organization rows from enabled
-GitHub project records and `github_orgs`. Accepting a project or Patch completes the
-current token, for example `#gh:sase ` or `#gh(sase)`. Accepting a namespace inserts a
-trailing slash such as `#gh:sase-org/` without closing the token, so repository
+sase's TUI and the xprompt LSP also provide token-local completion at the root of
+registered VCS workflow refs. Typing `:` or `(` after a workflow tag, such as `#gh:` or
+`#git(`, opens project and active PR-sized Patch rows scoped to that provider. Providers
+can add fast local namespace rows; the GitHub plugin derives organization rows from
+enabled GitHub project records and `github_orgs`. Accepting a project or Patch completes
+the current token, for example `#gh:sase ` or `#gh(sase)`. Accepting a namespace inserts
+a trailing slash such as `#gh:sase-org/` without closing the token, so repository
 completion can immediately take over.
 
-ACE and the xprompt LSP also complete repositories inside provider refs after the
+sase's TUI and the xprompt LSP also complete repositories inside provider refs after the
 namespace slash. Typing `#gh:bbugyi200/` asks the registered GitHub workspace plugin for
 repositories owned by `bbugyi200`; typing `#gh:bbugyi200/sa` narrows the menu toward
 matching repository names. Accepting a row rewrites only the current ref value, so colon
@@ -707,8 +707,8 @@ change argument parsing or compact input signatures; rich surfaces such as catal
 explain output, argument help, and editor documentation can use them as human-facing
 help text.
 
-ACE can synthesize required `text` inputs from raw `<placeholder>` tags when saving a
-prompt-bar draft as a new global or frontmatter-local xprompt. See
+sase's TUI can synthesize required `text` inputs from raw `<placeholder>` tags when
+saving a prompt-bar draft as a new global or frontmatter-local xprompt. See
 [Raw Prompt Placeholders](#raw-prompt-placeholders) for the launch-time collection,
 save-time conversion, and literal-zone rules.
 
@@ -727,16 +727,17 @@ save-time conversion, and literal-zone rules.
 | `code`  | --        | Structured source plus language (default language bash) |
 
 A `code` input is not a plain string with a convention. Binding yields a structured
-`CodeValue` (source, language, digest, preview). Unlabelled values default to Bash; ACE
-and the xprompt LSP treat the field as code rather than a scalar. Completing the type as
-an input is gated with the `typed_launch_units` beta flag, same as `%if` / `%proc`.
+`CodeValue` (source, language, digest, preview). Unlabelled values default to Bash;
+sase's TUI and the xprompt LSP treat the field as code rather than a scalar. Completing
+the type as an input is gated with the `typed_launch_units` beta flag, same as `%if` /
+`%proc`.
 
 ### Enum Choices
 
 An `enum` input must declare a non-empty `choices` list; every other type must leave
 `choices` unset. Choices are either plain scalars or `{value, label}` mappings — `label`
-is optional display text a rich surface (ACE, Gate Debug, editor completion) can show in
-place of the raw value, while the value itself is always what gets passed to the
+is optional display text a rich surface (sase's TUI, Gate Debug, editor completion) can
+show in place of the raw value, while the value itself is always what gets passed to the
 template:
 
 ```yaml
@@ -862,14 +863,14 @@ substitution is used.
 
 ## Raw Prompt Placeholders
 
-ACE recognizes valid single-line `<label>` tags as raw placeholders. A label must be
-nonempty, contain no leading or trailing whitespace, and be at most 100 characters. Raw
-placeholders are highlighted in prompt panes, participate in placeholder completion, and
-feed the saved common-placeholder history described in
-[ACE completion](ace.md#completion). Repeated tags with the same exact, case-sensitive
-inner text are one logical placeholder. Tags inside inline code, fenced code blocks, or
-`%xprompts_enabled:false` regions stay literal and are excluded from highlighting,
-completion history, launch-time collection, and conversion.
+sase's TUI recognizes valid single-line `<label>` tags as raw placeholders. A label must
+be nonempty, contain no leading or trailing whitespace, and be at most 100 characters.
+Raw placeholders are highlighted in prompt panes, participate in placeholder completion,
+and feed the saved common-placeholder history described in
+[sase's TUI completion](ace.md#completion). Repeated tags with the same exact,
+case-sensitive inner text are one logical placeholder. Tags inside inline code, fenced
+code blocks, or `%xprompts_enabled:false` regions stay literal and are excluded from
+highlighting, completion history, launch-time collection, and conversion.
 
 Classification is syntactic rather than HTML-aware: `<div>`, `</div>`, and an
 angle-bracket link destination outside a code zone are placeholders too, and a preceding
@@ -877,9 +878,9 @@ backslash does not escape them. Keep literal angle-bracket markup in an inline o
 code zone, place it in a disabled xprompt region, or use the launch panel's keep-literal
 control.
 
-By default, submitting a prompt from ACE opens **Fill in this prompt** whenever the
-prompt body contains a live raw placeholder. The panel shows raw placeholders first and
-then any frontmatter-declared inputs, so both kinds are resolved before the agents
+By default, submitting a prompt from sase's TUI opens **Fill in this prompt** whenever
+the prompt body contains a live raw placeholder. The panel shows raw placeholders first
+and then any frontmatter-declared inputs, so both kinds are resolved before the agents
 launch. Enter one value per distinct label to replace every matching occurrence across
 all segments, or press `Ctrl+L` on a placeholder field to keep that tag literal. YAML
 frontmatter itself is not scanned. Set
@@ -888,9 +889,9 @@ collection and launch the tags unchanged; declared
 [`input:`](#frontmatter-declared-inputs) values are still collected. Non-interactive
 `sase run` does not collect raw placeholders.
 
-When an ACE draft is saved through the whole-stack xprompt flow (`gX` or `Ctrl+G X` in
-xprompt mode), live raw placeholders are converted before the save preview into required
-`text` inputs:
+When an sase's TUI draft is saved through the whole-stack xprompt flow (`gX` or
+`Ctrl+G X` in xprompt mode), live raw placeholders are converted before the save preview
+into required `text` inputs:
 
 ```text
 Deploy <service> to <target file>
@@ -1009,10 +1010,10 @@ Source: `src/sase/xprompt/tags.py`, `src/sase/xprompt/models.py`
 
 ## Snippet Field
 
-XPrompts can opt-in to ACE TUI snippet expansion by setting the `snippet` field in their
-front matter. When set, the xprompt's content is converted into a snippet template and
-merged into the ACE snippet registry at startup, so users can expand it by typing the
-trigger word and pressing `Tab`.
+XPrompts can opt-in to sase's TUI snippet expansion by setting the `snippet` field in
+their front matter. When set, the xprompt's content is converted into a snippet template
+and merged into sase's TUI snippet registry at startup, so users can expand it by typing
+the trigger word and pressing `Tab`.
 
 ```markdown
 ---
@@ -1068,11 +1069,11 @@ both spellings can be referenced with `#[foo]` / `#[Foo]`. The aliases are runti
 See [docs/ace.md — Capitalized aliases](ace.md#capitalized-aliases) for the complete
 rule.
 
-Snippets saved from the ACE prompt panel become available immediately to all prompt
+Snippets saved from sase's TUI prompt panel become available immediately to all prompt
 inputs in that running TUI. With `use_chezmoi` enabled, this includes a snippet written
-only to the chezmoi source tree: ACE keeps a session overlay until the applied config
-catches up. The optional confirmed commit/push flow applies chezmoi; saving by itself
-does not apply unconfirmed source changes.
+only to the chezmoi source tree: sase's TUI keeps a session overlay until the applied
+config catches up. The optional confirmed commit/push flow applies chezmoi; saving by
+itself does not apply unconfirmed source changes.
 
 Editor clients receive the same templates through `sase lsp` when they support LSP
 snippets. To troubleshoot the raw registry, run:
@@ -1083,13 +1084,13 @@ printf '{"schema_version":1}\n' | sase editor helper-bridge snippet-catalog
 
 See [docs/ace.md — Snippets](ace.md#snippets) for snippet usage in the prompt input
 widget and editor completion, and [docs/ace.md — Snippets panel](ace.md#snippets-panel)
-for the ACE browse-and-edit panel (`gT` / `Ctrl+G T`).
+for sase's TUI browse-and-edit panel (`gT` / `Ctrl+G T`).
 
 ### Snippet CLI
 
-`sase snippet` inspects the same composed catalog ACE and the editor helper use. Bare
-`sase snippet` defaults to `sase snippet list`. `-p/--project` accepts a display name,
-alias, or project key, and output always renders the configured project name.
+`sase snippet` inspects the same composed catalog sase's TUI and the editor helper use.
+Bare `sase snippet` defaults to `sase snippet list`. `-p/--project` accepts a display
+name, alias, or project key, and output always renders the configured project name.
 
 ```bash
 sase snippet list
@@ -1214,11 +1215,11 @@ reference, a `slash` row, and a `skill · /<name>` chip.
 
 The `description` field provides a human-readable summary shown in `sase xprompt list`
 and `sase skill list` output. The structured catalog also marks these entries with
-`is_skill: true`; ACE and editor clients use that flag together with `skill_name` to
-offer slash-skill completions such as `/sase_plan` while keeping ordinary xprompts out
-of slash completion results. `#` completion inserts `#skill/sase_plan`, `/` completion
-inserts `/sase_plan`, and both resolve the same source definition for argument hints,
-hover, and definition navigation.
+`is_skill: true`; sase's TUI and editor clients use that flag together with `skill_name`
+to offer slash-skill completions such as `/sase_plan` while keeping ordinary xprompts
+out of slash completion results. `#` completion inserts `#skill/sase_plan`, `/`
+completion inserts `/sase_plan`, and both resolve the same source definition for
+argument hints, hover, and definition navigation.
 
 The optional `log_skill_use` boolean field controls the generated audit directive. It
 defaults to `true`, so generated skills instruct the agent to run
@@ -1229,7 +1230,7 @@ that are also marked as skills.
 
 **Workflow:** Edit packaged skill sources in `src/sase/xprompts/skills/`, or add a
 source to a project's `sase/skills/` or your `~/sase/skills/` directory. Saving a draft
-that declares `skill:` from ACE only offers those canonical directories, and the
+that declares `skill:` from sase's TUI only offers those canonical directories, and the
 ordinary xprompt and config writers refuse a request that would smuggle a skill
 definition into `sase/xprompts/`. Do not include the `sase skill use` directive
 yourself; the generator injects it unless `log_skill_use: false` is set. Then run
@@ -1249,7 +1250,7 @@ commits, pushes, and applies the generated files unless passed `--no-commit`,
 for a later full deployment. Do not edit deployed `SKILL.md` files directly.
 `sase init skills` is a compatibility alias for `sase skill init`.
 
-Editing an existing skill source from the ACE TUI targets it like any other xprompt
+Editing an existing skill source from sase's TUI targets it like any other xprompt
 definition, and saving it offers `sase skill init` in place of a bare commit/push, since
 that command already commits, pushes, and deploys for you — see
 [Editing an Existing XPrompt from the TUI](ace.md#editing-an-existing-xprompt-from-the-tui).
@@ -1338,7 +1339,7 @@ access recorded. This is explicit prompt composition only — it does not restor
 retired dynamic-memory runtime, so there is no keyword matching, prompt scanning, or
 automatic context injection.
 
-Editing an existing note from the ACE TUI targets it like any other xprompt definition,
+Editing an existing note from sase's TUI targets it like any other xprompt definition,
 and saving it offers `sase memory init` in place of a bare commit/push, since that
 command already regenerates `AGENTS.md` and the provider instruction shims and commits
 and pushes for you — see
@@ -1477,7 +1478,7 @@ Literal `#xprompt` text inside answers is protected so it does not expand accide
 
 Glossary note: this feature uses the runner's double-dash plan-chain family model —
 agents such as `foo--0`, `foo--plan`, and `foo--code` share the pure family container
-`foo`. Dot-separated names such as `foo.bar` are agent hoods/neighbors in the ACE TUI, a
+`foo`. Dot-separated names such as `foo.bar` are agent hoods/neighbors in sase's TUI, a
 distinct grouping concept. See [Agent Clans, Families, and Tribes](agent_families.md)
 for the full family model.
 
@@ -1594,7 +1595,7 @@ The retired `%tribe` and `%t` directives also raise a migration error. Use
 
 ### Directive Completion Matrix
 
-ACE and the xprompt LSP use the same Rust directive contract for names, aliases,
+sase's TUI and the xprompt LSP use the same Rust directive contract for names, aliases,
 argument syntax, keyword names, fixed values, full-form snippet recipes, and replacement
 ranges. Name completion advertises every enabled user-facing directive, including
 `%final`; `%if` and `%proc` appear only when the `typed_launch_units` beta flag is
@@ -1679,15 +1680,15 @@ agent prompt prose; `%id:<name>` gives that process unit a shell name.
 
 Execution depends on who initiated the launch:
 
-- User-initiated submissions from `sase run` and ACE execute directly through durable
-  typed admission. They freeze the same immutable typed plan and digest used after
-  approval, then the admission coordinator waits for prerequisites, evaluates `%if`, and
-  dispatches eligible units — agent units through the established agent launch path, and
-  `%proc` units as native `proc-shell` records with origin `xprompt-proc`. A direct user
-  submission does not create a LaunchApproval notification. If a wait remains
-  unresolved, the `sase run` / ACE launch proc can finish while a detached coordinator
-  continues waiting; the coordinator writes a completion receipt and attempts a separate
-  notification when admission settles.
+- User-initiated submissions from `sase run` and sase's TUI execute directly through
+  durable typed admission. They freeze the same immutable typed plan and digest used
+  after approval, then the admission coordinator waits for prerequisites, evaluates
+  `%if`, and dispatches eligible units — agent units through the established agent
+  launch path, and `%proc` units as native `proc-shell` records with origin
+  `xprompt-proc`. A direct user submission does not create a LaunchApproval
+  notification. If a wait remains unresolved, the `sase run` / sase's TUI launch proc
+  can finish while a detached coordinator continues waiting; the coordinator writes a
+  completion receipt and attempts a separate notification when admission settles.
 - Agent-initiated launches still require LaunchApproval. Approval freezes the typed plan
   and digest before the gate is shown. After approval, the same coordinator admits
   units.
@@ -1766,11 +1767,11 @@ stay unresolved, matching ordinary launch-time keyed-marker rules.
 
 Coordinator restarts replay the journal: a persisted terminal condition result is not
 re-run, a reserved proc id is not duplicated, and agent/proc dispatch uses the stable
-request fingerprint written at approval. CLI and ACE notifications report the same
-counts the receipt stores — total, eligible, launched, skipped, condition errors, and
-launch errors.
+request fingerprint written at approval. CLI and sase's TUI notifications report the
+same counts the receipt stores — total, eligible, launched, skipped, condition errors,
+and launch errors.
 
-Stand-alone proc shells created this way appear in ACE's Agents tab as their own
+Stand-alone proc shells created this way appear in sase's TUI Agents tab as their own
 top-level rows (never nested under an agent family), each marked with a `▣` glyph
 alongside its shell name or short proc id, an optional `label`, a Bash/Python language
 badge, the current phase/status, elapsed time, and project. Panel titles report a
@@ -1908,10 +1909,11 @@ complete ordering, execution, and persistence details.
 The `%model` directive also supports automatic provider resolution: known model names
 (e.g., `opus`, `o3`, `qwen3.6-plus`, `muse-spark-1.2`) are automatically mapped to their
 provider. See [Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for
-the full model-to-provider mapping. ACE and the xprompt LSP complete `%model:` / `%m:`
-values from the same model catalog used for provider resolution. The inserted value is a
-canonical model name, a configured alias, or a qualified `provider/model` value selected
-from a provider-scoped menu; provider short aliases are only filter/display hints.
+the full model-to-provider mapping. sase's TUI and the xprompt LSP complete `%model:` /
+`%m:` values from the same model catalog used for provider resolution. The inserted
+value is a canonical model name, a configured alias, or a qualified `provider/model`
+value selected from a provider-scoped menu; provider short aliases are only
+filter/display hints.
 
 Model aliases are listed beneath the concrete model names. Each alias row shows its kind
 (`role` or `custom`), the `PROVIDER(model)` target it currently resolves to — with an
@@ -1919,24 +1921,24 @@ Model aliases are listed beneath the concrete model names. Each alias row shows 
 `implicit → @fallback`, `override`, plus a `· pool 2/3` chip for round-robin selectors).
 Typing `@` right after the colon (`%m:@`) narrows the menu to aliases only; a bare
 partial such as `me` still matches `@medium` through its bare name, but always after the
-model rows. The ACE menu reflects active temporary alias overrides, while the LSP's
+model rows. sase's TUI menu reflects active temporary alias overrides, while the LSP's
 catalog is a launch-time snapshot that does not — restart the LSP to pick up config
-changes, and use the ACE [Launch Control](ace.md#launch-control) (`,m`) to inspect live
-override state.
+changes, and use sase's TUI [Launch Control](ace.md#launch-control) (`,m`) to inspect
+live override state.
 
 ### Equals model shortcuts
 
-ACE and the xprompt LSP also complete leading `=alias` and `==model` tokens into
+sase's TUI and the xprompt LSP also complete leading `=alias` and `==model` tokens into
 canonical `%m:` expansions through shared Rust filters and edit plans. Typing `=` in an
 xprompt-aware editor is an LSP completion trigger; manual completion works in the same
-valid equals token. The ACE-only `ace.prompt_completion.auto_directive_menu` setting
+valid equals token. sase's TUI-only `ace.prompt_completion.auto_directive_menu` setting
 does not change an editor client's trigger policy.
 
 A marker is recognized only at prompt offset zero, at the start of a logical line, or
 immediately after an ASCII space, with the caret after the equals marker. Escaped or
 embedded equals signs, Markdown-style `=text=` / `==text==` marker pairs, paths, inline
 and fenced code, disabled prompt regions, frontmatter, Jinja, placeholders, and
-directive-owned input are excluded, matching ACE. The old `*alias` and `**model`
+directive-owned input are excluded, matching sase's TUI. The old `*alias` and `**model`
 spellings are ordinary prompt text. The `=alias` shortcut lists only effective built-in,
 plugin, and user aliases (`implicit_alias` and `user_alias`) from the same catalog
 `%model:` uses, in catalog order, with case-insensitive prefix matching. The `==model`
@@ -1953,8 +1955,8 @@ shortcut list rather than unrelated completion. Unaccepted equals text has no
 launch-time meaning.
 
 The LSP reads the launcher-materialized catalog snapshot, so restart the editor session
-after alias or provider config changes. ACE's live prompt bar can additionally overlay
-temporary alias overrides for `=alias`; see the ACE
+after alias or provider config changes. sase's TUI live prompt bar can additionally
+overlay temporary alias overrides for `=alias`; see sase's TUI
 [model shortcut](ace.md#prompt-input-widget) and the
 [editor integration](editor.md#equals-model-shortcuts) notes.
 
@@ -1993,9 +1995,9 @@ not ahead of it. Dispatch requests are durable and idempotent; if acceptance is
 uncertain, retrying the same request does not intentionally create a second remote
 launch.
 
-ACE and the xprompt LSP complete configured machine aliases after `%dispatch:`. See the
-[Remote Dispatch Runbook](remote_dispatch.md) for gateway setup, enrollment, status, and
-remote-agent controls.
+sase's TUI and the xprompt LSP complete configured machine aliases after `%dispatch:`.
+See the [Remote Dispatch Runbook](remote_dispatch.md) for gateway setup, enrollment,
+status, and remote-agent controls.
 
 ### Launch-Scoped Model Alias Overrides
 
@@ -2273,8 +2275,8 @@ hold zero capacity while waiting for a human, and their follow-up work must eith
 transfer a live claim or re-enter admission. Workflow Python/bash steps and axe Patch
 runners are outside this budget.
 
-Roll out this change by replacing long-lived ACE/AXE and runner processes, or by letting
-old work drain before launching weighted workloads. Records written before
+Roll out this change by replacing long-lived sase's TUI/AXE and runner processes, or by
+letting old work drain before launching weighted workloads. Records written before
 `queue_weight` existed remain readable as `1.0`; that compatibility is for storage, not
 for safely mixing old admission binaries with new weighted scheduling.
 
@@ -2398,8 +2400,8 @@ and must be answered explicitly.
 Fix the lint errors in the codebase.
 ```
 
-ACE and the xprompt LSP suggest `plan`, `tale`, and `epic` as compatibility arguments
-for plan workflows; those suggestions are not a parser allowlist. `%auto:plan`
+sase's TUI and the xprompt LSP suggest `plan`, `tale`, and `epic` as compatibility
+arguments for plan workflows; those suggestions are not a parser allowlist. `%auto:plan`
 explicitly selects normal approval for an authored tale plan, `%auto:tale` auto-approves
 and commits an authored tale, and `%auto:epic` follows the authored epic path. The plan
 adapter rejects unknown arguments and tier-changing combinations such as `%auto:epic` on
@@ -2422,7 +2424,7 @@ Tidy up the logging module.
 ### Editor Review Marker (` @`)
 
 The old `%edit` directive has been removed. To compose a prompt in `$EDITOR` (via
-`Ctrl+G`) and then review or tweak it in the ACE prompt bar instead of launching
+`Ctrl+G`) and then review or tweak it in sase's TUI prompt bar instead of launching
 immediately, end any line of the editor buffer with the exact suffix ` @` (a space
 followed by `@`):
 
@@ -2441,11 +2443,11 @@ When at least one line ends with ` @`, the marker is stripped from every matchin
 and the cleaned text is loaded back into the prompt input bar; the agent is not launched
 until you press Enter there. The returned text loads with editor-file semantics: real
 multi-agent `---` segment separators (outside fenced blocks and leading YAML
-frontmatter) split the ACE prompt stack into one editable pane per agent segment, and
+frontmatter) split sase's TUI prompt stack into one editable pane per agent segment, and
 any leading xprompt frontmatter is lifted into the prompt properties panel above the top
 pane. Because the strip runs before this parsing, a marked separator line such as
 `--- @` becomes a real `---` separator. See [Prompt Stacks](ace.md#prompt-stacks) in the
-ACE docs for the full review flow.
+sase's TUI docs for the full review flow.
 
 ### Plan Approval and Coder Follow-up {#plan-directive}
 
@@ -2491,8 +2493,8 @@ the matching SDD tier and launches the bead follow-up; `commit` records the appr
 plan in SDD without launching a coder. `-m/--model` picks the follow-up agent's model,
 while `-p/--prompt` adds extra coder instructions for the `approve` and `tale` paths.
 Tale and epic approvals validate the target schema first and leave an invalid proposal
-pending. CLI rejection writes the same no-feedback rejection response as ACE, then
-attempts to dismiss and user-kill the matching planner when it can be found.
+pending. CLI rejection writes the same no-feedback rejection response as sase's TUI,
+then attempts to dismiss and user-kill the matching planner when it can be found.
 
 When an agent launched with `%auto:epic` later submits a plan with `/sase_plan` or
 `sase plan propose`, sase follows the same epic path as the TUI Epic action: it writes
@@ -2846,19 +2848,19 @@ predecessor name is not known yet, SASE records the predecessor artifact identit
 waits on that agent or family completion instead of resolving bare `%wait` against the
 global latest agent.
 
-### Frontmatter Panel (ACE TUI)
+### Frontmatter Panel (sase's TUI)
 
-In the `sase ace` prompt input, ad hoc prompt frontmatter has a structured **Frontmatter
+In the `sase tui` prompt input, ad hoc prompt frontmatter has a structured **Frontmatter
 Panel** above the prompt stack, with the same field set an xprompt `.md` file supports
 (`name`, `description`, `tags`, `input`, `xprompts`, `skill`, `snippet`). Open or focus
 it with the prompt NORMAL-mode `g=` keymap; in the panel's rows mode, `g=` runs the
 deactivate/apply path. `q` or `Esc` in rows mode—or from NORMAL mode inside any panel
 sub-editor—returns focus to the prompt pane you entered from; an invalid raw-YAML buffer
 remains open so it cannot be discarded accidentally. In rows mode, `gj` jumps directly
-to the top prompt pane and `gk` to the bottom pane. The panel also auto-shows when ACE
-has lifted leading frontmatter into the stack, such as a multi-agent prompt load or an
-editor-file return from a ` @` review marker / whole-stack `Ctrl+G`. A single prompt
-recalled from history with leading frontmatter but no segment separator stays one
+to the top prompt pane and `gk` to the bottom pane. The panel also auto-shows when
+sase's TUI has lifted leading frontmatter into the stack, such as a multi-agent prompt
+load or an editor-file return from a ` @` review marker / whole-stack `Ctrl+G`. A single
+prompt recalled from history with leading frontmatter but no segment separator stays one
 verbatim pane instead of auto-opening the panel. Typing `---` in the prompt body is
 passive during live editing: at the very start it stays literal text, and after content
 it does not split the active pane. Add a top-level property with `a` (an inline picker
@@ -2877,11 +2879,11 @@ bounded multiline editor in the panel. A `#_helper` declared here lights up
 `<ctrl+t>`/`<ctrl+l>` completion and argument hints in every prompt pane exactly like a
 global xprompt — define a helper in the panel and it is instantly usable below.
 
-ACE can also author existing definitions without `$EDITOR`. In the XPrompt Browser,
-`Enter` loads a simple Markdown or config-backed definition as raw body plus structured
-frontmatter; `E` keeps the external-editor path, and YAML workflow graphs remain
-editor-only. A loaded definition is bound to its source: the prompt title shows the
-source and a dirty dot, `gw` writes it atomically, and an external-change conflict
+sase's TUI can also author existing definitions without `$EDITOR`. In the XPrompt
+Browser, `Enter` loads a simple Markdown or config-backed definition as raw body plus
+structured frontmatter; `E` keeps the external-editor path, and YAML workflow graphs
+remain editor-only. A loaded definition is bound to its source: the prompt title shows
+the source and a dirty dot, `gw` writes it atomically, and an external-change conflict
 offers overwrite, reload, or save-as. `gd` on a `#name` reference loads that definition
 after stashing the current draft. `gX` is a one-screen save-as view with name, location,
 resolved path, and a live collision/overwrite preview.
@@ -2932,7 +2934,7 @@ Refactor the {{ service }} module ({{ retries }} retries, dry_run={{ dry_run }})
 ```
 
 When a prompt with required (default-less) inputs or live raw placeholders is submitted
-in `sase ace`, the **Fill in this prompt** panel opens after the whole-stack submit.
+in `sase tui`, the **Fill in this prompt** panel opens after the whole-stack submit.
 Raw-placeholder fields appear first, followed by typed, live-validated required inputs;
 optional inputs stay collapsed behind a reveal toggle and show their defaults when
 opened. `Enter` advances through visible fields and launches from the last one once
@@ -3036,7 +3038,7 @@ munging, so dotted, hyphenated, and digit-leading names all work via bracket acc
 → `{{ agents["0n.cld"].report_path }}`. Identifier-safe keys also support attribute
 access such as `{{ agents.build.report_path }}`. `agents` is a reserved agent-run Jinja
 name; a workflow input named `agents` collides and fails clearly. Output variables are
-persisted in the producer's `agent_meta.json` and also appear in ACE's Agents-tab
+persisted in the producer's `agent_meta.json` and also appear in sase's TUI Agents-tab
 `OUTPUT VARIABLES` metadata section and Telegram agent-completion messages. They are
 visible metadata, not secret storage.
 
@@ -3066,17 +3068,18 @@ Implement the plan at {{ agents["planner--plan"].plan_file }}.
 the synthesized value, and any other output variables the planner sets are preserved
 alongside it.
 
-ACE renders loaded literal `---` multi-agent prompts as a prompt stack: each top-level
-segment becomes an editable pane, while prompt-level frontmatter and fenced-code
-separators keep the same parsing rules described below. A `#name` xprompt swarm
-invocation remains a single pane until launch. During live editing, typed `---` lines
-are ordinary prompt text; add panes explicitly from the prompt-stack controls. Stash
-restore and marked-agent kill-and-edit can also seed multiple panes, but those paths
-preserve each selected draft or agent prompt as one pane. Use `Enter` to choose how to
-submit stacked panes, `g<enter>` to launch the selected pane directly, or `Ctrl+S` to
-stash the active pane. Inside the `Enter` submit chooser, `a` or `Ctrl+S` submits all
-panes top-to-bottom. See the [ACE prompt-stack guide](ace.md#prompt-stacks) for the
-editing keybindings and the default active-pane behavior.
+sase's TUI renders loaded literal `---` multi-agent prompts as a prompt stack: each
+top-level segment becomes an editable pane, while prompt-level frontmatter and
+fenced-code separators keep the same parsing rules described below. A `#name` xprompt
+swarm invocation remains a single pane until launch. During live editing, typed `---`
+lines are ordinary prompt text; add panes explicitly from the prompt-stack controls.
+Stash restore and marked-agent kill-and-edit can also seed multiple panes, but those
+paths preserve each selected draft or agent prompt as one pane. Use `Enter` to choose
+how to submit stacked panes, `g<enter>` to launch the selected pane directly, or
+`Ctrl+S` to stash the active pane. Inside the `Enter` submit chooser, `a` or `Ctrl+S`
+submits all panes top-to-bottom. See the
+[sase's TUI prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and
+the default active-pane behavior.
 
 ### Rules
 
@@ -3227,7 +3230,7 @@ workflows, control flow, parallel execution, and human-in-the-loop approval.
 If a launch prompt contains an unknown `#name` reference, SASE warns before launch and
 passes the text through literally. This is non-blocking so prose hashtags can still be
 used, but typos such as `#reviewww` are visible at `sase run`, `sase xprompt expand`,
-and from the `sase ace` prompt bar.
+and from the `sase tui` prompt bar.
 
 If a definition file is malformed, run:
 

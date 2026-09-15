@@ -1,4 +1,4 @@
-"""Widget message handlers for the ACE TUI."""
+"""Widget message handlers for sase's TUI."""
 
 from __future__ import annotations
 

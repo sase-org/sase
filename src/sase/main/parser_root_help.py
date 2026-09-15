@@ -32,7 +32,7 @@ _COMPACT_ROOT_COMMANDS: tuple[CompactRootCommand, ...] = (
         "Show the exact SASE host, Rust core, and plugin packages loaded by this process.",
     ),
     CompactRootCommand(
-        "ace",
+        "tui",
         "Open the interactive control surface for agents, projects, notifications, "
         "automation, and Patches.",
     ),
@@ -90,7 +90,7 @@ _COMPACT_ROOT_EXAMPLES: tuple[str, ...] = (
     "sase doctor",
     "sase init -c",
     'sase run "#git:home summarize this repository; do not change files"',
-    "sase ace",
+    "sase tui",
     "sase agent list",
     "sase --full-help",
 )

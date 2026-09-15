@@ -1,4 +1,4 @@
-"""Shared :class:`AcePage` lifetimes for related ACE TUI tests."""
+"""Shared :class:`AcePage` lifetimes for related sase's TUI tests."""
 
 from __future__ import annotations
 

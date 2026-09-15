@@ -1,4 +1,4 @@
-"""Non-default temporary-override indicator for the ace TUI top bar.
+"""Non-default temporary-override indicator for sase's TUI top bar.
 
 A concise, uniform sidecar to :class:`LLMOverrideIndicator`. Where that
 widget renders the gold launch-default override pill, this one surfaces

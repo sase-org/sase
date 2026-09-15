@@ -45,8 +45,8 @@ normal success postprocessing. In practice this means the process has
 `SASE_AGENT_TIMESTAMP` set. The finalizer checks the main workspace for uncommitted
 changes through the active VCS provider. It enforces configured linked repositories at
 their host-scoped workspace paths. Repositories opened through `/sase_repo`, including
-external repos, are also recorded for ACE context and the durable repo-open audit log
-and become finalizer candidates. It does not scan arbitrary same-remote numbered
+external repos, are also recorded for sase's TUI context and the durable repo-open audit
+log and become finalizer candidates. It does not scan arbitrary same-remote numbered
 workspaces just because their paths appear in run artifacts. If everything is clean, the
 agent response is postprocessed normally.
 

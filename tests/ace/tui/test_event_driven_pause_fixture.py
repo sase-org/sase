@@ -1,4 +1,4 @@
-"""Regression coverage for ACE TUI raw pilot pause settling."""
+"""Regression coverage for sase's TUI raw pilot pause settling."""
 
 from __future__ import annotations
 

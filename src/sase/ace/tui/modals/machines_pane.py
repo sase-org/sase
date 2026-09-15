@@ -342,7 +342,7 @@ class MachinesPane(OptionListNavigationMixin, Vertical):
                             self._last_success_by_alias[status.alias] = checked_at
                 self._flow = MachineFlow(
                     title=f"Status checked: {alias}",
-                    body=("Status results were recorded in this ACE session.",),
+                    body=("Status results were recorded in this TUI session.",),
                     commands=(f"sase machine status {alias}",),
                 )
         elif event.state == WorkerState.ERROR:

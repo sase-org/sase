@@ -13,14 +13,14 @@ pdf: false
 
 The redesigned hero is suitable for the repository README and documentation homepage. It
 replaces the former light, dense architecture diagram with a concise dark banner that
-matches the ACE demo GIFs and tells the intended five-beat story: one developer, one
+matches sase's TUI demo GIFs and tells the intended five-beat story: one developer, one
 prompt, parallel agents, durable state, and reviewable outcomes.
 
 ## Accuracy Review
 
 The final deterministic labels match the current product model:
 
-1. `ACE TUI` is the interactive control surface and `AXE` is the scheduled/background
+1. `sase's TUI` is the interactive control surface and `AXE` is the scheduled/background
    surface.
 2. Prompt, XPrompt, and Workflow are grouped as reusable inputs rather than peer runtime
    modules.
@@ -44,7 +44,7 @@ for:
 - clear fan-out from one prompt to three workspaces;
 - a durable-state rail that feeds the shared outcome spine;
 - strong contrast against the near-black slate background;
-- consistent use of ACE teal, light blue, coral, amber, and green accents; and
+- consistent use of sase's TUI teal, light blue, coral, amber, and green accents; and
 - absence of model-generated text, pseudo-text, logos, fake screenshots, gradients, and
   watermarks.
 
@@ -59,4 +59,4 @@ for:
   display width.
 - Added deterministic DejaVu Sans labels over a text-free generated base.
 
-Final SHA-256: `5c2ef949d060f5239eacaf8e86e1962aa9def546a84765bfe1dc4fc72c190547`.
+Final SHA-256: `114751fdb705be27aeb47b85499ab28d3e186852d993fc285a46a95941fe114e`.

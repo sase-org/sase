@@ -223,7 +223,7 @@ class ClipboardCoreMixin(ClipboardBase):
             snapshot_content = capture_tmux_pane()
             if snapshot_content is None:
                 raise RuntimeError("failed to capture tmux pane")
-            contents = [("`sase ace` Snapshot", snapshot_content.strip())]
+            contents = [("`sase tui` Snapshot", snapshot_content.strip())]
             capped = format_multi_copy_content_capped(contents)
             total = cap_copy_content("\n" + capped.value)
             state["truncated"] = capped.truncated or total.truncated

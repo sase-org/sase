@@ -56,13 +56,13 @@ contract names (no double-booked `o`), and that every OFF capability has an audi
 verdict.
 
 Host-owned list paging is not a pane capability. Every pane with `filter_session`
-accepts a `limit:N` token that caps how many matched rows the list shows. ACE extracts
-it before dialect parse, then slices. Startup writes `limit:<ace.page_size>` into each
-pane's default query when no `limit:` is present; `limit:all` is the unlimited synonym
-on every pane, and the shared parser also accepts `limit:0` for the same state. `Ctrl+J`
-(`artifacts_load_more`) raises the cap by one page and `Ctrl+K` (`artifacts_unload`)
-lowers it, never dropping below one page. See [ACE Artifacts](ace.md) for the
-user-facing keys and coverage badges.
+accepts a `limit:N` token that caps how many matched rows the list shows. sase's TUI
+extracts it before dialect parse, then slices. Startup writes `limit:<ace.page_size>`
+into each pane's default query when no `limit:` is present; `limit:all` is the unlimited
+synonym on every pane, and the shared parser also accepts `limit:0` for the same state.
+`Ctrl+J` (`artifacts_load_more`) raises the cap by one page and `Ctrl+K`
+(`artifacts_unload`) lowers it, never dropping below one page. See
+[sase's TUI Artifacts](ace.md) for the user-facing keys and coverage badges.
 
 ## Declarative `ref.pane`
 

@@ -40,7 +40,7 @@ async def test_yi_single_quote_searches_forward_on_line() -> None:
 
 
 async def test_ci_backtick_changes_inside_backticks() -> None:
-    async with PromptPage("run `sase ace` now", cursor=(0, 6)) as page:
+    async with PromptPage("run `sase tui` now", cursor=(0, 6)) as page:
         await page.press("c", "i", "`")
 
         assert page.mode == "insert"

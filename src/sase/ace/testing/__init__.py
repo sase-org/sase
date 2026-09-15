@@ -1,4 +1,4 @@
-"""Playwright-inspired testing DSL for the ace TUI."""
+"""Playwright-inspired testing DSL for sase's TUI."""
 
 from ._startup import (
     _plugins_browser_pane as _plugins_browser_pane,

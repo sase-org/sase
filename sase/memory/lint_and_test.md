@@ -54,7 +54,7 @@ the ones least often fixed correctly by deleting the reported symbol.
 
 ## PNG Snapshot Tests
 
-Run `just test-visual` for the dedicated ACE PNG snapshot suite; goldens live in
+Run `just test-visual` for the dedicated TUI PNG snapshot suite; goldens live in
 `tests/ace/tui/visual/snapshots/png/`. On failures, inspect `.pytest_cache/sase-visual/`
 for actual/expected/diff/source artifacts, and use `--sase-update-visual-snapshots` to
 accept intentional visual changes. Local runs use exact pixel equality by default, while

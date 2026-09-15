@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for the Admin Center Tasks tab."""
+"""sase's TUI PNG visual snapshot coverage for the Admin Center Tasks tab."""
 
 from __future__ import annotations
 

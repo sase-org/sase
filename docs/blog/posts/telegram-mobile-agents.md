@@ -68,7 +68,7 @@ working while free-form text is logged and ignored.
 ## Outbound Notifications
 
 Outbound sends unread, non-silent SASE notifications to Telegram using the same
-notification store ACE reads. Plan approvals, HITL requests, user questions, and
+notification store sase's TUI reads. Plan approvals, HITL requests, user questions, and
 completion notices arrive as Telegram messages with inline keyboards or attachments when
 applicable.
 
@@ -96,8 +96,8 @@ workspace number, a prompt snippet, and four buttons: **Resume**, **Wait**, **Ki
 **Retry**. Resume and Wait are copy-text buttons — pressing them copies a pre-filled
 command to your clipboard so the next interaction can happen in-terminal if you want it
 to. Kill and Retry stay inside Telegram. The result is that an agent launched from the
-chat has the same control surface as one launched from ACE, just rendered as buttons
-instead of keystrokes.
+chat has the same control surface as one launched from sase's TUI, just rendered as
+buttons instead of keystrokes.
 
 ## Approving Plans, Answering Questions, Reviewing Images
 
@@ -159,11 +159,11 @@ check.
 
 `/update` is the operationally interesting built-in. It detaches the shared chat update
 worker and runs `sase update --json` through the same managed-versus-dev update planner
-as ACE. The updater performs any AXE restart required by an actual code update; after
-the command succeeds or fails, the worker independently ensures AXE is running. The
-completion message that arrives on the next inbound sweep reports success or the failure
-exit code and includes the worker log path. The phone becomes, in effect, a remote
-control for keeping the local install fresh.
+as sase's TUI. The updater performs any AXE restart required by an actual code update;
+after the command succeeds or fails, the worker independently ensures AXE is running.
+The completion message that arrives on the next inbound sweep reports success or the
+failure exit code and includes the worker log path. The phone becomes, in effect, a
+remote control for keeping the local install fresh.
 
 ## What This Replaces (And What It Doesn't)
 
@@ -176,10 +176,10 @@ infrastructure that is already on every developer's phone:
   question." Plan approvals, HITL requests, user questions, kill/retry, and launching
   new prompts all work from the chat. Generated images come back inline. Plans that
   don't fit inline come back as rendered PDFs.
-- **What it doesn't replace:** ACE's two-dimensional view of every agent across every
-  workspace, the keybinding-driven PR navigation, multi-line plan editing. The phone is
-  a control surface, not a development environment, and sase-telegram is deliberately
-  scoped to fit that.
+- **What it doesn't replace:** sase's TUI two-dimensional view of every agent across
+  every workspace, the keybinding-driven PR navigation, multi-line plan editing. The
+  phone is a control surface, not a development environment, and sase-telegram is
+  deliberately scoped to fit that.
 
 If you operate the same SASE install from multiple machines and one of them shouldn't be
 allowed to launch agents on your behalf, that's exactly what

@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the ``@`` project-select pop-up.
+"""sase's TUI PNG visual snapshots for the ``@`` project-select pop-up.
 
 Locks in the compact, centered pop-up layout introduced for the custom-agent
 picker: icon'd title with a live match count, prominent filter bar, hint line,

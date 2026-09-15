@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for the Launch Control override-until modal."""
+"""sase's TUI PNG snapshots for the Launch Control override-until modal."""
 
 from __future__ import annotations
 

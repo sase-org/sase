@@ -1,4 +1,4 @@
-"""Countdown timer handlers for the ACE TUI."""
+"""Countdown timer handlers for sase's TUI."""
 
 from __future__ import annotations
 

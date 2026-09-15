@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Config Center edit modal states."""
+"""sase's TUI PNG visual snapshots for Config Center edit modal states."""
 
 from __future__ import annotations
 

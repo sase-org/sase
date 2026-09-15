@@ -3,7 +3,7 @@
 Loads ``default_config.yml`` (bundled in the package) as the base layer, then
 plugin defaults, ``~/.config/sase/sase.yml``, machine-selected overlays, and
 finally the current project's config.  Local config can be disabled with
-``set_include_local_config(False)`` for processes such as ``sase ace``.
+``set_include_local_config(False)`` for processes such as ``sase tui``.
 
 Low-level source IO and merging live in :mod:`sase.config.loading`; raw owner
 selection lives in :mod:`sase.config.identity`; owner projections live in
@@ -166,7 +166,7 @@ _agent_owner_config_cache: tuple[tuple[Any, ...], AgentOwnerConfigSnapshot] | No
 
 # Explicit clears increment the generation so rapid same-size edits cannot
 # retain an otherwise-identical filesystem token.
-# Keep this above the ACE TUI's one-second countdown tick so periodic UI
+# Keep this above the one-second countdown tick in sase's TUI so periodic UI
 # refreshes revalidate cached config on a slower cadence than they repaint.
 _CONFIG_TOKEN_REFRESH_INTERVAL_SECONDS = 5.0
 CONFIG_TOKEN_REFRESH_THREAD_NAME = "sase-config-token-refresh"

@@ -1,6 +1,6 @@
-"""Synthetic-data benchmark entry point for the ace TUI.
+"""Synthetic-data benchmark entry point for sase's TUI.
 
-Drives the ace TUI through ``Pilot`` with ``SASE_TUI_TRACE=1`` (and the
+Drives sase's TUI through ``Pilot`` with ``SASE_TUI_TRACE=1`` (and the
 existing ``SASE_TUI_PERF=1`` for j/k key-to-paint samples) enabled. The
 implementation lives in ``tests.perf.tui_trace``; this module keeps the
 existing pytest and standalone-script interfaces.

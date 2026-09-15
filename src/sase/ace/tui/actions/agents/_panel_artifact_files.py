@@ -1,4 +1,4 @@
-"""Agent artifact-file viewer actions for the ace TUI app.
+"""Agent artifact-file viewer actions for sase's TUI app.
 
 This compatibility module keeps the historical ``AgentPanelArtifactFileMixin``
 import path while the implementation lives in smaller, responsibility-focused

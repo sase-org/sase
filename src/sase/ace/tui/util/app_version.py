@@ -1,4 +1,4 @@
-"""App title / version helpers for the ACE TUI header.
+"""App title / version helpers for the TUI header.
 
 The header title shows the running ``sase`` version. Resolution is two-phased so
 the title is instant at ``__init__`` (I/O-free) yet refines to a git-derived dev
@@ -57,5 +57,5 @@ def _release_version_title_requested() -> bool:
 
 
 def format_app_title(version: str) -> str:
-    """Return the ACE header title for ``version`` (e.g. ``sase ace (v0.7.1)``)."""
-    return f"sase ace (v{version})"
+    """Return the TUI header title for ``version`` (e.g. ``sase tui (v0.7.1)``)."""
+    return f"sase tui (v{version})"

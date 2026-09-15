@@ -1,4 +1,4 @@
-"""Direct user-initiated typed launches from ACE and ``sase run``.
+"""Direct user-initiated typed launches from sase's TUI and ``sase run``.
 
 A direct submission is already authorized. This module writes a durable
 bundle the admission coordinator can reopen, then dispatches through

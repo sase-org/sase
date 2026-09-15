@@ -333,7 +333,7 @@ class PluginInstallActionsMixin:
                 argv=tuple(index_plan.argv),
                 summary=install_summary(index_plan),
                 details=(
-                    "ACE restarts after a successful install to load the new plugin.",
+                    "sase's TUI restarts after a successful install to load the new plugin.",
                 ),
             )
         ]
@@ -346,7 +346,7 @@ class PluginInstallActionsMixin:
                     argv=tuple(git_plan.argv),
                     summary=install_summary(git_plan),
                     details=(
-                        "ACE restarts after a successful install to load the new plugin.",
+                        "sase's TUI restarts after a successful install to load the new plugin.",
                     ),
                 )
             )
@@ -389,7 +389,7 @@ class PluginInstallActionsMixin:
                     ),
                     skipped=skipped,
                     details=(
-                        "ACE restarts after a successful install to load the plugins.",
+                        "sase's TUI restarts after a successful install to load the plugins.",
                     ),
                 )
             ],

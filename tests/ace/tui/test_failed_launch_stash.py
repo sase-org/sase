@@ -1,4 +1,4 @@
-"""Failed-launch stash coverage for the ACE TUI launch boundaries.
+"""Failed-launch stash coverage for sase's TUI launch boundaries.
 
 These pin that a failed agent launch which still holds the submitted prompt
 preserves it in the per-user prompt stash so it stays recoverable through

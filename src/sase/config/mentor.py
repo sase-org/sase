@@ -14,7 +14,7 @@ from sase.config.core import (
 logger = logging.getLogger(__name__)
 
 # Process-wide caches.  Mentor profile parsing/validation is the second-largest
-# cost on the `sase ace` tab-switch path (after YAML re-parses) — caching the
+# cost on the `sase tui` tab-switch path (after YAML re-parses) — caching the
 # parsed dataclasses on the same token shape eliminates it.
 _mentor_profiles_cache_token: tuple[Any, ...] | None = None
 _mentor_profiles_cache_value: list["MentorProfileConfig"] | None = None
@@ -120,7 +120,7 @@ def _load_mentor_profiles() -> list[MentorProfileConfig]:
     """Load all mentor profile configurations from the config file.
 
     Memoized on the merged-config token (same shape as ``load_merged_config``'s
-    cache key) so repeat calls during a single `sase ace` render skip the
+    cache key) so repeat calls during a single `sase tui` render skip the
     profile parsing/validation loop entirely.
 
     Returns:

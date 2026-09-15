@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot for the ``:`` command palette."""
+"""sase's TUI PNG visual snapshot for the ``:`` command palette."""
 
 from __future__ import annotations
 

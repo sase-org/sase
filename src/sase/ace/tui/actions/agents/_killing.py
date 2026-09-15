@@ -1,4 +1,4 @@
-"""Agent killing methods for the ace TUI app.
+"""Agent killing methods for sase's TUI app.
 
 This module remains the public import and compatibility surface for agent
 killing. Implementation lives in focused mixins so individual files stay small,

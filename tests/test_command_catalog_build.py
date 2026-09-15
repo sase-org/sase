@@ -1,4 +1,4 @@
-"""Tests for assembling and presenting the ace TUI command catalog."""
+"""Tests for assembling and presenting sase's TUI command catalog."""
 
 from __future__ import annotations
 

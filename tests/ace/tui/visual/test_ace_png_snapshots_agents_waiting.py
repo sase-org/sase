@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for Agents-tab waiting-agent rows."""
+"""sase's TUI PNG visual snapshot coverage for Agents-tab waiting-agent rows."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Data models for the ace TUI."""
+"""Data models for sase's TUI."""
 
 from .agent import Agent, AgentChildLinkage, AgentType
 from ._fold_filter import filter_agents_by_fold_state

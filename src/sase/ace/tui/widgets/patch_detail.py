@@ -1,4 +1,4 @@
-"""Patch detail widget for the ace TUI."""
+"""Patch detail widget for sase's TUI."""
 
 from pathlib import Path
 import sys

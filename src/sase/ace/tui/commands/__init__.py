@@ -1,4 +1,4 @@
-"""Command catalog and palette subsystem for the ace TUI.
+"""Command catalog and palette subsystem for sase's TUI.
 
 Phase 1 deliverables (see ``sdd/tales/202604/tui_command_palette.md``):
 build a single source-of-truth command catalog for every configurable

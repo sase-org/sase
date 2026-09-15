@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Agents-tab panel selection and folding."""
+"""sase's TUI PNG visual snapshots for Agents-tab panel selection and folding."""
 
 from __future__ import annotations
 

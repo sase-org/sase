@@ -27,7 +27,7 @@ def main() -> int:
         "sender": "test-image-notification",
         "notes": [
             "Test notification with a checked-in GPT-generated image.",
-            "Use this to inspect image previews in the ACE notification modal.",
+            "Use this to inspect image previews in the TUI notification modal.",
         ],
         "files": [str(IMAGE_PATH)],
         "action": None,

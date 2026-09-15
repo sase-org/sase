@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for effort and runner-limit picker card modals."""
+"""sase's TUI PNG snapshots for effort and runner-limit picker card modals."""
 
 from __future__ import annotations
 

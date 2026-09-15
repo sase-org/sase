@@ -497,14 +497,14 @@ another successor. Ineligible monitors print the precise eligible resume command
 one exists.
 
 Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
-ACE Agents tab refresh path, and the axe scheduler look for running monitor shells whose
-supervisor identity is no longer alive. Same-boot dead supervisors are reconciled to
-`failed`: SASE kills the recorded process group, finalizes the log, disposes the
-workspace claim, and launches or records the follow-up disposition. Pre-reboot
-supervisors reconcile to `lost`; their command effects are unknown, so the follow-up is
-recorded as not launched.
+sase's TUI Agents tab refresh path, and the axe scheduler look for running monitor
+shells whose supervisor identity is no longer alive. Same-boot dead supervisors are
+reconciled to `failed`: SASE kills the recorded process group, finalizes the log,
+disposes the workspace claim, and launches or records the follow-up disposition.
+Pre-reboot supervisors reconcile to `lost`; their command effects are unknown, so the
+follow-up is recorded as not launched.
 
-## In the ACE TUI
+## In sase's TUI
 
 A monitor row renders with an amber `⚙` glyph beside the agent list's bash/python step
 glyphs and omits a left-side title — identity is the right-hand `%id` (`<family>--mon`),
@@ -664,6 +664,6 @@ necessary. See the `/sase_pipe` skill for the command's flags and hazards.
 - [Agent Clans, Families, and Tribes](agent_families.md) for how a monitor shell fits
   into a sequential agent family.
 - [CLI Reference](cli.md) for the full `sase monitor` command table.
-- [ACE TUI User Guide](ace.md) for how monitor rows render in the Agents tab.
+- [sase's TUI User Guide](ace.md) for how monitor rows render in the Agents tab.
 - [Agent queued for a runner slot](troubleshooting/runner-slots.md) for occupancy versus
   admission, including why a monitor still counts against `max_running_agents`.

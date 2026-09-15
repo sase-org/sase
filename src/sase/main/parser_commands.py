@@ -442,8 +442,8 @@ def register_run_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Launch a detached background agent from a prompt or workflow",
         description=(
             "Launch a detached background coding-agent run from a prompt, "
-            "xprompt, or workflow. Runs use the same launch machinery as ACE "
-            "and appear in the ACE Agents tab."
+            "xprompt, or workflow. Runs use the same launch machinery as "
+            "sase's TUI and appear in the Agents tab there."
         ),
         epilog=(
             "Examples:\n"

@@ -1,4 +1,4 @@
-"""Mount-time setup helpers for the ACE TUI."""
+"""Mount-time setup helpers for sase's TUI."""
 
 from __future__ import annotations
 

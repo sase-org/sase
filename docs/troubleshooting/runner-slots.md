@@ -9,7 +9,7 @@ weight. An authored `%queue(capacity=N)` replaces the global budget for that lau
 own admission decision: occupied weighted load plus the candidate's own weight must fit
 within the authored positive-integer budget.
 
-The ACE Agents header summarizes the same global capacity state as `C/L` before the
+sase's TUI Agents header summarizes the same global capacity state as `C/L` before the
 status strip, for example `8.0/10.0 [8 running · 1 queued]`: occupied capacity units,
 effective limit, and live waiters at the runner-capacity admission gate. The effective
 value is an active machine-wide override from `~/.sase/max_running_agents_override.json`
@@ -19,12 +19,12 @@ authored `capacity=` waits.
 Admission starts the first waiter that fits its own admission budget, ordered by lower
 numeric `%queue(priority=N)` first and then first-in, first-out within the same
 priority. Non-fitting waiters are skipped instead of blocking later waiters that can
-run. ACE shows currently eligible waiters first, then parked waiters by current blocker
-severity, with priority/FIFO preserved inside each group. Priority defaults to `10` and
-does not age, so sustained higher-priority arrivals can starve default- or
+run. sase's TUI shows currently eligible waiters first, then parked waiters by current
+blocker severity, with priority/FIFO preserved inside each group. Priority defaults to
+`10` and does not age, so sustained higher-priority arrivals can starve default- or
 lower-priority waiters. Parallel family members wait for their own capacity even when
-ACE renders them as nested rows. Serial members ride a family claim that is already
-live; after a processless gate releases capacity, the successor must transfer a
+sase's TUI renders them as nested rows. Serial members ride a family claim that is
+already live; after a processless gate releases capacity, the successor must transfer a
 still-live claim or reacquire capacity normally. Workflow Python/bash steps and axe
 Patch runners hold none of this capacity.
 
@@ -34,7 +34,7 @@ units once its rendered phase-DAG, bead-dependency, or other waits resolve. A pr
 user, config, or plugin override of any bundled xprompt supplies its own body and may
 choose a different priority or weight.
 
-Selecting a ranked waiter in ACE also shows a bounded `QUEUE` ladder in that same
+Selecting a ranked waiter in sase's TUI also shows a bounded `QUEUE` ladder in that same
 capacity-aware order. Its `N ahead` count is the number of earlier ladder entries.
 Entries whose capacity or global-budget condition is not currently satisfied use a
 parked amethyst accent wherever they appear; the accent is display context, not a
@@ -70,17 +70,17 @@ The agent's own log records the transition with a single
 `Deferring for up to Ns (priority N)` line, and `waiting.json` carries `eligible_since`
 for the window currently in progress.
 
-An explicit priority is also visible in ACE, which is usually the fastest way to confirm
-which value the queue actually used. `QUEUED` rows with authored capacity show the `cN`
-badge beside their rank and priority (`QUEUED #4/4 c9 p20`), and the agent detail pane
-appends `· priority N` to its `capacity: N/M in use · queue #P of Q` line, where `M` is
-that row's admission budget. The queue ladder shows any normalized non-default priority
-as `pN` beside the entry it reordered. Press `w` on the agent to open the wait modal and
-edit the priority in place.
+An explicit priority is also visible in sase's TUI, which is usually the fastest way to
+confirm which value the queue actually used. `QUEUED` rows with authored capacity show
+the `cN` badge beside their rank and priority (`QUEUED #4/4 c9 p20`), and the agent
+detail pane appends `· priority N` to its `capacity: N/M in use · queue #P of Q` line,
+where `M` is that row's admission budget. The queue ladder shows any normalized
+non-default priority as `pN` beside the entry it reordered. Press `w` on the agent to
+open the wait modal and edit the priority in place.
 
 To diagnose a wait:
 
-1. Check active, queued, and waiting agents with `sase agent list` or the ACE Agents
+1. Check active, queued, and waiting agents with `sase agent list` or sase's TUI Agents
    tab.
 2. Inspect the launch's `waiting.json`. `queue_capacity` is the persisted spelling of an
    authored per-launch capacity budget; older `wait_runners` records still read as the
@@ -104,11 +104,11 @@ slot-participating launches become admitted before primary and linked-workspace
 preparation; dependency, time, and fork waiters do not consume a slot until those
 prerequisites resolve.
 
-After upgrading from a build that did not enforce weighted capacity, restart ACE and
-AXE, then let old runner processes drain or relaunch them. The new runtime treats legacy
-records with absent `queue_weight` as `1.0`, but that storage compatibility does not
-make a mixed old/new scheduler fleet safe: an old runner binary cannot enforce weighted
-claims for new work.
+After upgrading from a build that did not enforce weighted capacity, restart sase's TUI
+and AXE, then let old runner processes drain or relaunch them. The new runtime treats
+legacy records with absent `queue_weight` as `1.0`, but that storage compatibility does
+not make a mixed old/new scheduler fleet safe: an old runner binary cannot enforce
+weighted claims for new work.
 
 A modern unanswered `QUESTION` is a gate shell and consumes no runner capacity. On
 answer, its next family member transfers or reacquires the family capacity claim through

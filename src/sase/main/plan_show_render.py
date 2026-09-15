@@ -1,6 +1,6 @@
 """Rich renderers for ``sase plan show``.
 
-``full`` and ``compact`` share the exact palette and row styling the ACE TUI's
+``full`` and ``compact`` share the exact palette and row styling the TUI's
 PLAN lane uses (:mod:`sase.sdd.plan_display`) so the two surfaces read as one
 visual family; ``compact`` matches the row :mod:`sase.main.plan_search_render`
 prints for the same plan. ``json``/``raw`` are handled directly by

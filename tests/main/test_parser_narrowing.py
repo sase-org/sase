@@ -112,6 +112,7 @@ def test_stitch_parser_supports_canonical_command_and_legacy_alias(
         (["sase", "bead"], "bead"),
         (["sase", "patch"], "patch"),
         (["sase", "stitch"], "stitch"),
+        (["sase", "tui"], "tui"),
         (["sase", "vcs"], "vcs"),
         (["sase", "usage"], "usage"),
         (["sase", "-p", "bead"], "bead"),
@@ -120,6 +121,7 @@ def test_stitch_parser_supports_canonical_command_and_legacy_alias(
         (["sase", "-pfref_sync_gesture", "flag"], "flag"),
         (["sase", "-fp", "flag"], "flag"),
         (["sase", "-ppx", "bead"], None),
+        (["sase", "ace"], None),
         (["sase", "commit"], None),
         (["sase"], None),
         (["sase", "--help"], None),
@@ -149,6 +151,22 @@ def test_sase_commit_invocation_exits_as_unknown_command(
 
     assert actual_exit.value.code == 2
     assert "invalid choice: 'commit'" in output.err
+
+
+def test_sase_ace_invocation_exits_as_unknown_command(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A real ``sase ace`` invocation uses the normal unknown-command path."""
+    from sase.main import entry
+
+    monkeypatch.setattr(sys, "argv", ["sase", "ace"])
+    with pytest.raises(SystemExit) as actual_exit:
+        entry.main()
+    output = capsys.readouterr()
+
+    assert actual_exit.value.code == 2
+    assert "invalid choice: 'ace'" in output.err
 
 
 @pytest.mark.parametrize("argv", [[], ["--help"], ["-H"], ["bogus"]])

@@ -35,7 +35,7 @@ def launch_query(query: str) -> None:
         names = ", ".join(missing_inputs)
         message = (
             f"Prompt declares required input(s) without defaults: {names}. "
-            "Interactive input collection is only available in `sase ace`; "
+            "Interactive input collection is only available in `sase tui`; "
             "add a default to each input or launch from the TUI."
         )
         print_status(message, "error")

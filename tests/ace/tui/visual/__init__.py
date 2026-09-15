@@ -1,1 +1,1 @@
-"""Visual regression test helpers for the ACE TUI."""
+"""Visual regression test helpers for sase's TUI."""

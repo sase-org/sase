@@ -94,15 +94,15 @@ sidecar.
 This write is launch-only. Validation, xprompt display and expansion previews, editor
 catalogs, and other discovery paths remain read-only and never clone a missing sidecar.
 Materialize the role explicitly when one of those surfaces needs a local inventory —
-`sase repo path <role> --ensure` is the CLI form, and typing `@<kind>::` in the ACE
+`sase repo path <role> --ensure` is the CLI form, and typing `@<kind>::` in sase's TUI
 prompt (empty payload, immediately after the kind's colon) is the in-prompt equivalent:
 it syncs or first-clones that kind's sidecar, rebuilds the completion catalog, and
 reopens the payload menu with the newly-arrived rows badged. Pointer kinds such as
 `@plan:` and `@research:` never auto-materialize at launch (see above), but they are
-reachable this way — `@research::` clones the sidecar on first use. See [ACE](ace.md)
-for the full gesture, its status row, and its `ref_sync_gesture` feature flag.
-References inside inline code, fenced code, or disabled xprompt regions stay literal and
-do not trigger materialization.
+reachable this way — `@research::` clones the sidecar on first use. See
+[sase's TUI](ace.md) for the full gesture, its status row, and its `ref_sync_gesture`
+feature flag. References inside inline code, fenced code, or disabled xprompt regions
+stay literal and do not trigger materialization.
 
 ## Allow-Listed Files
 

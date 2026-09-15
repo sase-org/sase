@@ -70,7 +70,7 @@ as:
 sase doctor
 sase run "#git:home summarize this scratch environment"
 sase agent list
-sase ace
+sase tui
 ```
 
 Optional `GH_TOKEN`, `GITHUB_TOKEN`, and `TELEGRAM_BOT_TOKEN` values in `.env` are

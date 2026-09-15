@@ -1,4 +1,4 @@
-"""Proposal and rebase action methods for the ace TUI app."""
+"""Proposal and rebase action methods for sase's TUI app."""
 
 from __future__ import annotations
 

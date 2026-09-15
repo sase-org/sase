@@ -1,4 +1,4 @@
-"""Context-aware command palette modal for the ace TUI.
+"""Context-aware command palette modal for sase's TUI.
 
 Phase 2 of the command palette plan (see
 ``sdd/tales/202604/tui_command_palette.md``). Renders a filterable list of

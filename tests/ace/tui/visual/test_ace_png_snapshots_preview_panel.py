@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the prompt preview panel."""
+"""sase's TUI PNG visual snapshots for the prompt preview panel."""
 
 from __future__ import annotations
 

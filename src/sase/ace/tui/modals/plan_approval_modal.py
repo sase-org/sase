@@ -1,4 +1,4 @@
-"""Plan approval modal for the ace TUI.
+"""Plan approval modal for sase's TUI.
 
 This module owns the modal itself: its layout, its scrolling and copy
 shortcuts, and how it is wired to the shared gate machinery. The pieces that

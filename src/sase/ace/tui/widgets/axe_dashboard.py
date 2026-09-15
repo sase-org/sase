@@ -1,4 +1,4 @@
-"""Axe dashboard widget for the ace TUI."""
+"""Axe dashboard widget for sase's TUI."""
 
 from typing import TYPE_CHECKING, Any
 

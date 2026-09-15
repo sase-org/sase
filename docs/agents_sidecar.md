@@ -297,7 +297,7 @@ prompt's agents-sidecar publication completes before its back-reference drain be
 not immediately resolve and the full-reconciliation command for hoods with no recent
 commit. A non-fast-forward rejection triggers one pull/recompute/commit/push retry.
 Conflicted rebases are aborted and reported; a failure in one project does not prevent
-the others from running. The Updates pane's `a` action is the ACE equivalent for all
+the others from running. The Updates pane's `a` action is sase's TUI equivalent for all
 enabled projects.
 
 Use `--json` to audit the complete schema-version-2 result. Each project reports the
@@ -381,9 +381,9 @@ checking out remote content. `--refresh` is rejected unless `--check` is also pr
 Use `--json` to inspect project state, cached ahead/behind counts, last fetch time,
 errors, details, and publication `quarantine_diagnostics`.
 
-## ACE integration
+## sase's TUI integration
 
-ACE does not detect, display, preview, or apply incoming agent imports. The
+sase's TUI does not detect, display, preview, or apply incoming agent imports. The
 comprehensive `,U` Update panel covers SASE/core/plugins and providers only.
 
 For an explicit full network publication/reconciliation, open SASE Admin Center's

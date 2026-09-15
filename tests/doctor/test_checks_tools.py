@@ -24,8 +24,8 @@ def test_tmux_check_warns_without_blocking_agent_runtime(monkeypatch) -> None:
     check = checks_tools._check_tmux()
 
     assert check.status == "WARN"
-    assert "`sase ace --tmux` exits with code 2" in check.details[0]
-    assert check.next_steps == ("Install `tmux` or run ACE without `--tmux`.",)
+    assert "`sase tui --tmux` exits with code 2" in check.details[0]
+    assert check.next_steps == ("Install `tmux` or run `sase tui` without `--tmux`.",)
     assert check.data["required_for_agents"] is False
 
 

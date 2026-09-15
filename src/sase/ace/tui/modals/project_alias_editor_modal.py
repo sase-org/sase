@@ -1,4 +1,4 @@
-"""Project alias editor modal for the ace TUI."""
+"""Project alias editor modal for sase's TUI."""
 
 from __future__ import annotations
 

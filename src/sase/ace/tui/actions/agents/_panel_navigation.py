@@ -1,4 +1,4 @@
-"""Tribe-panel focus navigation actions for the ace TUI app."""
+"""Tribe-panel focus navigation actions for sase's TUI app."""
 
 from __future__ import annotations
 

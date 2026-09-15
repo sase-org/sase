@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the prompt cursor line/column readout."""
+"""sase's TUI PNG visual snapshots for the prompt cursor line/column readout."""
 
 from __future__ import annotations
 

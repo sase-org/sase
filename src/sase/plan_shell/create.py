@@ -158,7 +158,7 @@ def create_plan_gate_shell(
 
         prefix = get_tmux_prefix()
         send_desktop_notification(
-            f"{prefix} Plan Complete", "Plan ready for review in sase ace"
+            f"{prefix} Plan Complete", "Plan ready for review in sase tui"
         )
 
     return creation

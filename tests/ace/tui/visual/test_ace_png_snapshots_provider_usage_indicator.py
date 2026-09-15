@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshot: top-bar indicators plus usage attention."""
+"""sase's TUI PNG snapshot: top-bar indicators plus usage attention."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Default keybindings for the ace TUI app."""
+"""Default keybindings for sase's TUI app."""
 
 import os
 

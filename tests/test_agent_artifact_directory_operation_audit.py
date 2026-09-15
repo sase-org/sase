@@ -13,7 +13,7 @@ from tests._agent_artifact_marker_audit_helpers import (
 _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
     "src/sase/ace/tui/bgcmd.py:clear_slot": DirOpReview(
         exemption=(
-            "bgcmd slot directory under the ace TUI workspace, not a tracked "
+            "bgcmd slot directory under sase's TUI workspace, not a tracked "
             "agent artifact directory."
         ),
     ),

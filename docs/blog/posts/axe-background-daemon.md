@@ -25,7 +25,7 @@ agents finish, fail, or wait.
 
 <!-- more -->
 
-[Getting Started](../../getting_started.md) names AXE as the third tab in the ACE TUI;
+[Getting Started](../../getting_started.md) names AXE as the third tab in sase's TUI;
 this post explains what is actually running behind that tab.
 
 ## The Architecture in One Paragraph
@@ -35,8 +35,8 @@ of **Lumberjacks**; each lumberjack is a scheduler loop that runs one or more **
 (jobs) on its own interval. The orchestrator holds a lifecycle lock, forwards `SIGTERM`
 to its children on shutdown, and restarts any lumberjack that crashes. The default
 lumberjacks and their cadences are: `hooks` (5s), `waits` (10s), `checks` (5m),
-`comments` (1m), and `housekeeping` (1h). ACE auto-starts AXE the first time it opens
-unless you pass `--no-axe`.
+`comments` (1m), and `housekeeping` (1h). sase's TUI auto-starts AXE the first time it
+opens unless you pass `--no-axe`.
 
 ## The Hooks Chop Is Most of the Work
 
@@ -84,14 +84,14 @@ submitted upstream, plus a slower backstop pass of `stale_running_cleanup`.
 The `housekeeping` lumberjack (1-hour interval) runs four maintenance chops.
 `error_digest` summarizes recent errors into
 `~/.sase/axe/error_digests/digest_<timestamp>.txt` and posts a notification with a
-`ViewErrorReport` action that opens the digest in `$EDITOR` when selected from the ACE
-notification modal. The relevant errors are tracked in `~/.sase/axe/recent_errors.json`
-(last 100), so the digest is not reconstructed from logs. `managed_tmp_reap` bounds
-SASE-managed scratch, `bead_stale_cleanup` batches stale sub-threshold ready tasks into
-a human cleanup gate, and `artifact_link_backfill` derives and reconciles typed links,
-drains audited reads after agent publication, and repairs refs after Git renames. Each
-is bounded so a neglected backlog converges across ticks without turning the hourly lane
-into an unbounded scan.
+`ViewErrorReport` action that opens the digest in `$EDITOR` when selected from sase's
+TUI notification modal. The relevant errors are tracked in
+`~/.sase/axe/recent_errors.json` (last 100), so the digest is not reconstructed from
+logs. `managed_tmp_reap` bounds SASE-managed scratch, `bead_stale_cleanup` batches stale
+sub-threshold ready tasks into a human cleanup gate, and `artifact_link_backfill`
+derives and reconciles typed links, drains audited reads after agent publication, and
+repairs refs after Git renames. Each is bounded so a neglected backlog converges across
+ticks without turning the hourly lane into an unbounded scan.
 
 ## The Lumberjack Control Surface
 
@@ -136,7 +136,7 @@ supervise, not compute.
 ## What To Read Next
 
 - [AXE reference](../../axe.md) — chop definitions, lumberjack configuration, state
-  directory layout, agent completion artifacts, ACE integration.
+  directory layout, agent completion artifacts, sase's TUI integration.
 - [Notifications](../../notifications.md) — how AXE's error digests, plan approvals, and
   workflow completions surface to the operator.
 - [\[04\] Beads and SDD — Planning Multi-Agent Work That Actually Lands](beads-and-sdd.md)

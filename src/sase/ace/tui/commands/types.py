@@ -1,4 +1,4 @@
-"""Type definitions for the ace TUI command catalog and palette.
+"""Type definitions for sase's TUI command catalog and palette.
 
 Defines the small data classes that the rest of the command subsystem
 revolves around:

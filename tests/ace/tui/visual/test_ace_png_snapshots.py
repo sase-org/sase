@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for the Patches tab and footer.
+"""sase's TUI PNG visual snapshot coverage for the Patches tab and footer.
 
 Other PNG snapshot coverage lives in feature-specific siblings:
 ``test_ace_png_snapshots_agents*`` (Agents tab),

@@ -271,7 +271,7 @@ def write_error_report(
                     "",
                     f"Workspace #{held_workspace_num} is held for this failed run. "
                     "Inspect or commit its changes, then dismiss the failed agent "
-                    "in `sase ace` to release it.",
+                    "in `sase tui` to release it.",
                 ]
             )
 

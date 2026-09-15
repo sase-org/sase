@@ -1,4 +1,4 @@
-"""Tests for ace TUI help-modal display of leader-mode and config overrides.
+"""Tests for sase's TUI help-modal display of leader-mode and config overrides.
 
 Covers leader-mode prefix/key overrides, contextual query/help rebindings,
 and the Admin Center / Projects / PRs sections shared across all three

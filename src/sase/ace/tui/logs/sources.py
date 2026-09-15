@@ -104,7 +104,7 @@ def log_sources() -> list[LogSource]:
         LogSource(
             id="tui",
             title="TUI Diagnostics",
-            description="Catch-all warnings and errors from the ace TUI",
+            description="Catch-all warnings and errors from sase's TUI",
             path=tui_log_path(),
             render="text",
         ),

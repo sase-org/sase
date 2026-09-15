@@ -125,7 +125,7 @@ def _require_raw_prompt(name: str, artifacts_dir: Path) -> str:
                 "rebuild its launch prompt."
             ),
             hint=(
-                "ACE's ,x (kill-and-edit) can still reconstruct a prompt for "
+                "The ,x (kill-and-edit) action in sase's TUI can still reconstruct a prompt for "
                 "historical rows that only have *_prompt.md."
             ),
         )
@@ -143,7 +143,7 @@ def _refuse_multi_segment(name: str, raw_prompt: str) -> None:
                 f"Agent '{name}' stored a multi-segment prompt; refusing to "
                 "relaunch a fan-out under one name."
             ),
-            hint="Relaunch the segments separately, or use ACE's ,x.",
+            hint="Relaunch the segments separately, or use the ,x action in sase's TUI.",
         )
 
 
@@ -232,7 +232,7 @@ def _plan_name_reuse(
                 f"Agent '{presented_name}' stored a fan-out prompt; it has "
                 "no single agent to restart."
             ),
-            hint="Relaunch the variants separately, or use ACE's ,x.",
+            hint="Relaunch the variants separately, or use the ,x action in sase's TUI.",
         )
     injected = ensure_forced_name_reuse(rewritten, meta_name)
     force_reuse_plan = _plan_force_reuse(plan_force_reuse_launch, injected)

@@ -12,7 +12,7 @@ categories:
 slug: hello-sase-your-first-15-minutes
 links:
   - "SASE: Structured Agentic Software Engineering": blog/posts/structured-agentic-software-engineering.md
-  - ACE TUI: ace.md
+  - sase's TUI: ace.md
   - Spec-Driven Development: sdd.md
   - View on GitHub: https://github.com/sase-org/sase
 ---
@@ -106,15 +106,15 @@ visible handle for that record while the model is thinking or after it finishes.
 **What you just did.** Dispatched a read-only coding-agent run inside an explicit
 [workspace](../../workspace.md), then looked up the resulting SASE agent record.
 
-## Step 4 — Open ACE and find the result (≈3 minutes)
+## Step 4 — Open sase's TUI and find the result (≈3 minutes)
 
-ACE is the TUI control surface. Open it:
+sase's TUI is the TUI control surface. Open it:
 
 ```bash
-sase ace
+sase tui
 ```
 
-ACE has three top-level tabs:
+sase's TUI has three top-level tabs:
 
 - **Agents** — live and recent agent records. Find the run you just launched: prompt,
   reply transcript, workspace path, status, retry chain.
@@ -127,12 +127,12 @@ ACE has three top-level tabs:
   read-only run should not have created one yet; editable committed work is where
   Patches appear.
 - **Axe** — the background daemon's view: scheduled jobs, hooks waiting to complete,
-  mentor launches, error digests. ACE auto-starts AXE the first time it opens, so this
-  tab is already ticking before you click it.
+  mentor launches, error digests. sase's TUI auto-starts AXE the first time it opens, so
+  this tab is already ticking before you click it.
 
 **What you just did.** Observed one `sase run` produce a persistent agent artifact
-visible in [ACE](../../ace.md), with [AXE](../../axe.md) handling lifecycle work in the
-background.
+visible in [sase's TUI](../../ace.md), with [AXE](../../axe.md) handling lifecycle work
+in the background.
 
 ## Step 5 — Try one tiny edit (≈3 minutes, plus model time)
 
@@ -146,7 +146,7 @@ sase agent list
 Now the agent has permission to make a visible diff in its isolated numbered workspace.
 Your own repositories and the `home` primary checkout stay untouched unless you
 explicitly bring changes back. When the agent commits its work, SASE's commit workflow
-records a Patch that you can review in ACE's Artifacts tab, under Patches, before
+records a Patch that you can review in sase's TUI Artifacts tab, under Patches, before
 landing or submitting anything.
 
 For your own repositories, use `#git:<name>` to target a managed project or
@@ -222,8 +222,8 @@ work units.
 
 The names you'll keep bumping into, in one place:
 
-- **[ACE](../../ace.md)** — the TUI control surface for Patches, agents, notifications,
-  and automation.
+- **[sase's TUI](../../ace.md)** — the TUI control surface for Patches, agents,
+  notifications, and automation.
 - **[AXE](../../axe.md)** — the background automation daemon. Runs hooks, mentor
   launches, comment polling, dependency unblocking, error digests.
 - **`sase run`** — the entry point that launches an agent or workflow. See the

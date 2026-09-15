@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for core AXE tab states.
+"""sase's TUI PNG snapshots for core AXE tab states.
 
 Description, chop-run, and layout snapshots live in the neighboring
 ``test_ace_png_snapshots_axe_*`` modules. Shared data builders live in

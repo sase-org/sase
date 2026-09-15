@@ -3,13 +3,13 @@ title: "SASE: Structured Agentic Software Engineering"
 date: 2026-07-08
 description: >-
   From a tmux full of coding agents to an operating layer around them: agent CLIs,
-  XPrompts, the ACE Agents tab, and a practical install path for SASE.
+  XPrompts, sase's TUI Agents tab, and a practical install path for SASE.
 categories:
   - Agentic Software Engineering
 slug: structured-agentic-software-engineering
 image: images/blog/agents_observability_still.png
 links:
-  - ACE TUI: ace.md
+  - sase's TUI: ace.md
   - XPrompts: xprompt.md
   - Initialization: init.md
   - Configuration: configuration.md
@@ -59,15 +59,15 @@ a screen you can read.
 - 😇 Notifications tell you when a plan, question, failure, or launch request needs
   attention.
 - 😇 XPrompts make repeated prompts reusable and composable.
-- 😇 ACE gives one control surface for many agents.
+- 😇 sase's TUI gives one control surface for many agents.
 - 😇 Alternations and multi-prompt syntax launch many agents from one prompt.
 - 😇 Plan and launch approvals put gates back where the human still matters.
 
 This post is the front door: how SASE wraps agent CLIs instead of model APIs, how
-XPrompts work, how the Agents tab in ACE changes the day-to-day UX, and how to install
-and initialize the system. The deeper engineering pieces get their own posts.
+XPrompts work, how the Agents tab in sase's TUI changes the day-to-day UX, and how to
+install and initialize the system. The deeper engineering pieces get their own posts.
 
-<!-- DIAGRAM: window_farm_vs_control_tower.prompt.md — placeholder for a diagram brief contrasting tmux windows with the ACE control surface. -->
+<!-- DIAGRAM: window_farm_vs_control_tower.prompt.md — placeholder for a diagram brief contrasting tmux windows with sase's TUI control surface. -->
 
 ## SASE Wraps Agent CLIs, Not Models
 
@@ -94,7 +94,7 @@ those are model labels, not a separate `gemini` command or provider. Muse Code i
 explicit-only: SASE never auto-detects the generic `muse` executable name, so select it
 with `llm_provider.provider: muse`, `SASE_MUSE_PATH`, or a `%model:muse/...` directive.
 This distinction matters because provider names show up in commands, config, model
-routing, skills, and ACE rows.
+routing, skills, and sase's TUI rows.
 
 Provider and model selection is still flexible per prompt. You can write
 `%model:codex/o3`, `%model:claude/opus`, `%m:agy/gemini-3.7-flash-high`,
@@ -119,10 +119,10 @@ still prefer that bargain. The agent CLIs are where the provider-specific work i
 fastest, and SASE is more useful as a durable control plane around them than as a
 second-rate replacement for them.
 
-![ACE launching one GitHub prompt as three live Claude, Codex, and Antigravity agents, then killing them](../../images/blog/sase_ace_multi_model_fanout.gif)
+![sase's TUI launching one GitHub prompt as three live Claude, Codex, and Antigravity agents, then killing them](../../images/blog/sase_ace_multi_model_fanout.gif)
 
 _One GitHub prompt fans out to Claude, Codex, and Antigravity. All three agents run in
-isolated workspaces and remain controllable from the same ACE view._
+isolated workspaces and remain controllable from the same sase's TUI view._
 
 <!-- DIAGRAM: one_prompt_provider_clis.prompt.md — placeholder for a diagram brief showing one SASE operating layer routing to supported provider CLIs. -->
 
@@ -149,7 +149,7 @@ definitions win when names collide. The full discovery table has more tiers for 
 and built-ins, but day one is simple: put reusable prompts near the work, then move them
 outward when they become personal tools.
 
-![ACE prompt input expanding an XPrompt reference with workspace and file completion](../../images/blog/sase_ace_prompt_input.gif)
+![sase's TUI prompt input expanding an XPrompt reference with workspace and file completion](../../images/blog/sase_ace_prompt_input.gif)
 
 _ACE prompt input expands an XPrompt reference, offers completion, and keeps the
 workspace prefix visible._
@@ -240,27 +240,26 @@ conversation by name. Workspace refs such as `#git:home`, `#git:<project>`, and
 a prompt like `#gh:sase #sase/sync` can target a repo and expand a project-specific
 prompt.
 
-You type the same language in several places. `sase run` accepts it directly. The ACE
+You type the same language in several places. `sase run` accepts it directly. sase's TUI
 prompt input adds completion (`Ctrl+T`), fuzzy file search (`Ctrl+R`), snippets,
 vim-style NORMAL mode, prompt history (`Ctrl+K`), and prompt stash (`Ctrl+S`). The
 [sase-nvim plugin](https://github.com/sase-org/sase-nvim) and `sase lsp` bring the same
 catalog to an editor through completion, hover, diagnostics, and jump-to-definition.
 
-![ACE prompt history and stash modals recovering a previous launch prompt](../../images/blog/sase_ace_prompt_history_stash.gif)
+![sase's TUI prompt history and stash modals recovering a previous launch prompt](../../images/blog/sase_ace_prompt_history_stash.gif)
 
 _Prompt history and stashes make useful launches recoverable instead of leaving them in
 shell history._
 
 <!-- DIAGRAM: prompt_burrito.prompt.md — placeholder for a funny diagram brief showing directives, workspace refs, XPrompts, and prompt text as layers. -->
 
-## The Agents Tab In ACE
+## The Agents Tab In sase's TUI
 
-`sase ace` opens ACE, the Agentic Change Explorer. It has three top-level tabs:
-**Agents**, **Artifacts**, and **Axe**. Agents is the startup default. Artifacts has
-views for the historical Agent catalog, Stitches, Patches, Beads, configured document
-providers, and Files. Its Patches view owns durable PR-sized Patch records. Axe is the
-background daemon view. This post stays on Agents because that is the tmux-window-farm
-replacement.
+`sase tui` opens sase's TUI. It has three top-level tabs: **Agents**, **Artifacts**, and
+**Axe**. Agents is the startup default. Artifacts has views for the historical Agent
+catalog, Stitches, Patches, Beads, configured document providers, and Files. Its Patches
+view owns durable PR-sized Patch records. Axe is the background daemon view. This post
+stays on Agents because that is the tmux-window-farm replacement.
 
 The first difference is observability. The Agents tab groups runs by project, date, or
 status; folds and unfolds the tree with `h`/`l` and `H`/`L`; and shows a metric strip
@@ -274,12 +273,12 @@ State you used to keep in your head becomes a display. Which agent is waiting? W
 failed? Which one produced a plan? Which completed row is still unread? Which
 provider/model did it use? The row already knows.
 
-![ACE Agents tab grouping runs with status, provider, model, and artifact details](../../images/blog/sase_ace_agents_observability.gif)
+![sase's TUI Agents tab grouping runs with status, provider, model, and artifact details](../../images/blog/sase_ace_agents_observability.gif)
 
 _The Agents tab groups runs, shows status/provider/model cues, and keeps the selected
 agent's artifacts nearby._
 
-![Static ACE Agents tab frame showing families, model metadata, and tool call details](../../images/blog/agents_observability_still.png)
+![Static sase's TUI Agents tab frame showing families, model metadata, and tool call details](../../images/blog/agents_observability_still.png)
 
 _A still frame makes the family grouping, selected model, and detail pane easier to
 inspect than the loop._
@@ -294,7 +293,7 @@ jumps among visible ancestors, descendants, and same-namespace neighbors. Tribes
 own sake. It is being able to collapse, revive, search, wait on, or dismiss a coherent
 set of agents instead of playing guess-the-window.
 
-ACE is also where you steer. When an agent submits a plan through `/sase_plan` or
+sase's TUI is also where you steer. When an agent submits a plan through `/sase_plan` or
 `sase plan propose`, the row enters PLAN status and the notification carries
 provider/model metadata. The plan approval modal uses single keys: `a` approve and run
 the coder, `r` reject, `f` request feedback, `e` edit, `t` save as a tale, and `E` make
@@ -387,19 +386,19 @@ sase run "#git:home summarize what this repository does; do not change files"
 sase run "%model:muse/muse-spark-1.2 #git:home summarize what this repository does; do not change files"
 # Then:
 sase agent list
-sase ace
+sase tui
 ```
 
 That is enough to see the loop: a prompt becomes an agent record, the record appears in
-the CLI and ACE, and the transcript and artifacts survive the terminal window that
-launched it. For the guided path, use [Getting Started](../../getting_started.md).
+the CLI and sase's TUI, and the transcript and artifacts survive the terminal window
+that launched it. For the guided path, use [Getting Started](../../getting_started.md).
 
 ## What's Next
 
-This post covered SASE's front door: provider CLIs, XPrompts, ACE's Agents tab, and the
-installation path. The parts that make it an engineering system deserve their own posts:
-Beads and Spec-Driven Development, Patches, hooks, mentors, review comments, memory,
-Telegram/mobile control, and SASE's plugin architecture.
+This post covered SASE's front door: provider CLIs, XPrompts, sase's TUI Agents tab, and
+the installation path. The parts that make it an engineering system deserve their own
+posts: Beads and Spec-Driven Development, Patches, hooks, mentors, review comments,
+memory, Telegram/mobile control, and SASE's plugin architecture.
 
 The quick start is still the same:
 

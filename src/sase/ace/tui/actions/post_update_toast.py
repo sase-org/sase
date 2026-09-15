@@ -1,4 +1,4 @@
-"""Post-restart update confirmation toast for the ace TUI."""
+"""Post-restart update confirmation toast for sase's TUI."""
 
 from __future__ import annotations
 

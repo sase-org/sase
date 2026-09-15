@@ -1,4 +1,4 @@
-"""Clipboard action mixin for the ace TUI app.
+"""Clipboard action mixin for sase's TUI app.
 
 The ``ClipboardMixin`` is composed of one mixin per tab plus a core mixin that
 handles copy-mode lifecycle and per-tab key dispatch. All TUI clipboard writes

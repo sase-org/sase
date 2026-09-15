@@ -1,4 +1,4 @@
-"""Phase 4 guard regression tests for the ace TUI command catalog.
+"""Phase 4 guard regression tests for sase's TUI command catalog.
 
 These tests lock in the cross-surface invariants laid out in
 ``sdd/plans/202604/tui_command_palette.md`` Phase 4:

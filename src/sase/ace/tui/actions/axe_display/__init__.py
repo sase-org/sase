@@ -1,4 +1,4 @@
-"""Axe display and state management mixin for the ace TUI app."""
+"""Axe display and state management mixin for sase's TUI app."""
 
 from ._data import (
     AxeCollectedData,

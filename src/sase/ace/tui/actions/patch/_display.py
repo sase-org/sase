@@ -1,4 +1,4 @@
-"""Patch display refresh logic for the ace TUI app."""
+"""Patch display refresh logic for sase's TUI app."""
 
 from __future__ import annotations
 
@@ -497,7 +497,8 @@ class PatchDisplayMixin(PatchOnboardingMixin):
             position, len(self.patches), len(self.marked_indices)
         )
         info_panel.update_hidden_counts(
-            self._hidden_reverted_count, self._hidden_submitted_count
+            getattr(self, "_hidden_reverted_count", 0),
+            getattr(self, "_hidden_submitted_count", 0),
         )
         cs_mode: PatchGroupingMode = getattr(
             self, "_patch_grouping_mode", PatchGroupingMode.BY_PROJECT

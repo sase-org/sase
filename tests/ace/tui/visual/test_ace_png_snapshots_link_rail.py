@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for the app-level link rail (``bead:sase-ug.6``).
+"""sase's TUI PNG snapshots for the app-level link rail (``bead:sase-ug.6``).
 
 The rail is yielded once at the ``AppLayoutMixin.compose`` seam between the
 main container and the footer, so the point of these goldens is that it lands

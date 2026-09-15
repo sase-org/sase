@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for stand-alone proc shells in the Agents tab.
+"""sase's TUI PNG visual snapshots for stand-alone proc shells in the Agents tab.
 
 Stand-alone `%proc` launch units are top-level work rows backed only by the proc
 store: they never indent under a family, never take an agent slot, and never

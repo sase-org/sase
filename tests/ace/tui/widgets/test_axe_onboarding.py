@@ -18,7 +18,7 @@ def test_axe_onboarding_content_describes_axe_chops_bgcmds_and_docs() -> None:
 
     assert "Automation, always on" in rendered
     assert "Axe is the daemon" in rendered
-    assert "Axe starts automatically with sase ace" in rendered
+    assert "Axe starts automatically with sase tui" in rendered
     assert "start or stop Axe (with the Axe row selected)" in rendered
     assert "lumberjack" in rendered
     assert "chops" in rendered

@@ -1,4 +1,4 @@
-"""Background command mixin for the ace TUI app."""
+"""Background command mixin for sase's TUI app."""
 
 from __future__ import annotations
 

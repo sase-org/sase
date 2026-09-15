@@ -65,7 +65,7 @@ def resource_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
         CheckSpec(
             id="resources.ace_run_watches",
             group="resources",
-            title="ACE ace-run watch coverage",
+            title="TUI ace-run watch coverage",
             runner=lambda: check_ace_run_watches(context),
         ),
     )

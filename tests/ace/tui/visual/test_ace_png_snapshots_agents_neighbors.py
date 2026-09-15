@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Agents-tab neighbor interactions."""
+"""sase's TUI PNG visual snapshots for Agents-tab neighbor interactions."""
 
 from __future__ import annotations
 

@@ -56,7 +56,7 @@ def register_artifact_link_parser(
         epilog=(
             "examples:\n"
             "  sase artifact link add plan:a.md related plan:b.md "
-            '"shares the ACE-TUI flake root cause"\n'
+            '"shares the TUI flake root cause"\n'
             "  sase artifact link add @plan:a.md supersedes @plan:b.md "
             '"replaced by the v2 design"'
         ),

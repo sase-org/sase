@@ -1,6 +1,6 @@
 """Steady-state harness for j/k key-to-paint latency.
 
-Drives the ace TUI through ``Pilot`` with ``SASE_TUI_PERF=1`` enabled,
+Drives sase's TUI through ``Pilot`` with ``SASE_TUI_PERF=1`` enabled,
 captures key-to-paint samples to a JSONL file, and prints a p50/p95/max
 table per scenario. Marked ``slow`` so it does not run as part of the
 default ``just test`` suite -- run explicitly with::

@@ -12,18 +12,19 @@ artifacts saved with `sase artifact create` are appended after generated media w
 agent completion notification is sent. Notification plugins can then deliver those files
 from `Notification.files` without re-scanning the workspace.
 
-ACE is SASE's terminal UI. It has two image surfaces: lightweight in-panel previews for
-notification and file-panel attachments, and the separate `a` artifact viewer for
-opening completed agent artifacts.
+sase's TUI is SASE's terminal UI. It has two image surfaces: lightweight in-panel
+previews for notification and file-panel attachments, and the separate `a` artifact
+viewer for opening completed agent artifacts.
 
-ACE can also surface media files referenced in saved prompt artifacts (`raw_xprompt.md`
-and `*_prompt.md`) even when the media itself was not part of the agent's git diff. For
-current successful runs, those prompt-referenced media files are persisted alongside the
-other default generated-media artifacts — as byte copies or as byte-free version-control
-references, per [VCS-Backed Artifact Files](#vcs-backed-artifact-files) — so the
-Agents-tab artifact picker can still open them after a workspace is cleaned up. Legacy
-runs without persisted default artifacts fall back to prompt-file discovery at view
-time. Prompt-referenced media are not notification delivery attachments unless they also
+sase's TUI can also surface media files referenced in saved prompt artifacts
+(`raw_xprompt.md` and `*_prompt.md`) even when the media itself was not part of the
+agent's git diff. For current successful runs, those prompt-referenced media files are
+persisted alongside the other default generated-media artifacts — as byte copies or as
+byte-free version-control references, per
+[VCS-Backed Artifact Files](#vcs-backed-artifact-files) — so the Agents-tab artifact
+picker can still open them after a workspace is cleaned up. Legacy runs without
+persisted default artifacts fall back to prompt-file discovery at view time.
+Prompt-referenced media are not notification delivery attachments unless they also
 appear in `done.json.image_paths`, appear in `done.json.video_paths`, or were saved
 explicitly with `sase artifact create`.
 
@@ -83,17 +84,17 @@ and the file does not need to appear in the agent's git diff. These candidates c
 origin `mentioned` into the capture policy, so a mentioned repo file the run neither
 authored nor can reproduce from version control gets no row at all. Images and GIFs are
 added as `image` artifacts. Prompt-referenced videos are added as ordinary `file`
-artifacts; ACE detects the video suffix at view time and opens them with the video
-preview path.
+artifacts; sase's TUI detects the video suffix at view time and opens them with the
+video preview path.
 
 This is useful when a prompt asks an agent to inspect or transform an existing
 screenshot, mockup, reference image, or reference video and the resulting run should
-keep that source media one keypress away in ACE.
+keep that source media one keypress away in sase's TUI.
 
-Prompt-referenced media are ACE artifact-list entries, not notification delivery
+Prompt-referenced media are sase's TUI artifact-list entries, not notification delivery
 attachments. Current runs persist them to the global artifact index during finalization;
-legacy runs can still synthesize them from prompt artifacts when ACE loads the row.
-Downstream notification plugins should continue to use `done.json.image_paths` and
+legacy runs can still synthesize them from prompt artifacts when sase's TUI loads the
+row. Downstream notification plugins should continue to use `done.json.image_paths` and
 `done.json.video_paths` for the generated-media notification contract.
 
 Source: `src/sase/core/artifact_file_defaults.py`
@@ -232,7 +233,7 @@ single Python entry point:
 - `@file:` references in a prompt expand to prose naming the materialized path
   (`the <path> file`); a failure fails the launch loudly rather than handing an agent a
   dangling path.
-- The ACE Files pane renders a `PROVENANCE` section instead of a stored path and
+- sase's TUI Files pane renders a `PROVENANCE` section instead of a stored path and
   materializes off the UI thread.
 - `sase artifact show` and `sase artifact list` need no materialization; `show` reports
   `stored_path_status: vcs-backed (<locator>)`.
@@ -337,7 +338,7 @@ media, and keeping the v1 vocabulary to four values leaves later lineage work ad
 
 SASE logs every reference that successfully expands in rewrite mode. It does not log
 validation-only checks, failed expansion passes, `sase artifact open`,
-`sase artifact path`, ACE browsing, or LSP completion. Within one expansion pass
+`sase artifact path`, sase's TUI browsing, or LSP completion. Within one expansion pass
 duplicate references collapse to one event by canonical `ref`; later launches, retries,
 and workflow steps append new events because they are separate consumptions.
 
@@ -534,11 +535,11 @@ fail the agent run; failed sources are omitted. Successful PDF paths are persist
 completion handling for the user-facing skip note.
 
 While PDFs are being prepared, the runner writes `workflow_state.json.pdf_status` plus a
-compact `activity` label. ACE loads the activity during refresh and shows messages such
-as `Preparing PDFs from Markdown...`, `PDF 2/4 <path>`, or `PDFs done 3/4 (1 skipped)`
-only in the prompt/detail header's labeled `Activity:` field. This status is transient
-finalization state; the durable output remains `done.json.markdown_pdf_paths` and
-`markdown_pdfs/index.json`.
+compact `activity` label. sase's TUI loads the activity during refresh and shows
+messages such as `Preparing PDFs from Markdown...`, `PDF 2/4 <path>`, or
+`PDFs done 3/4 (1 skipped)` only in the prompt/detail header's labeled `Activity:`
+field. This status is transient finalization state; the durable output remains
+`done.json.markdown_pdf_paths` and `markdown_pdfs/index.json`.
 
 Markdown PDFs use a built-in small-screen layout by default: a narrow portrait page,
 small margins, larger readable body text, and wrapping-friendly CSS for code blocks,
@@ -549,8 +550,8 @@ same page size, margin, font size, and line-height defaults through Pandoc varia
 When a discovered Markdown source starts with usable, non-empty YAML frontmatter, the
 rendered PDF replaces the raw metadata block with a styled **Properties** card; the
 original Markdown file is not changed. Labels and property ordering use the same helpers
-as ACE's plan-detail presentation, while the PDF renders nested mappings and sequences
-as indented lines. HTML-sensitive property text is escaped. On the preferred
+as sase's TUI plan-detail presentation, while the PDF renders nested mappings and
+sequences as indented lines. HTML-sensitive property text is escaped. On the preferred
 `wkhtmltopdf` path, Pandoc's document-title metadata uses the frontmatter `title` value
 converted to text, or the source filename stem when `title` is absent. Empty, malformed,
 or absent frontmatter leaves the render input unchanged, and a preprocessing failure
@@ -611,12 +612,12 @@ The CLI command is intended for agent processes: it requires `SASE_AGENT=1` and
 `SASE_ARTIFACTS_DIR` so SASE knows which run owns the artifact, and it exits non-zero
 with an explanatory message when either is missing or the source path is not a file. It
 copies the source file into persistent SASE artifact storage, records an association
-with the current agent, and lets ACE show the artifact even after the agent is dismissed
-and later revived. During completion notification delivery, SASE appends existing
-explicit artifact files after chat, diff, generated Markdown PDFs, generated image
-attachments, and generated video attachments. Duplicate stored paths and artifacts whose
-source is already attached are ignored, missing files are skipped, and explicit-artifact
-index failures do not fail the completion path.
+with the current agent, and lets sase's TUI show the artifact even after the agent is
+dismissed and later revived. During completion notification delivery, SASE appends
+existing explicit artifact files after chat, diff, generated Markdown PDFs, generated
+image attachments, and generated video attachments. Duplicate stored paths and artifacts
+whose source is already attached are ignored, missing files are skipped, and
+explicit-artifact index failures do not fail the completion path.
 
 Sources:
 
@@ -634,16 +635,16 @@ file:
 - Telegram integrations can send static images as photos, GIFs as animations, videos as
   videos, and keep markdown/diff files as documents.
 - Google Chat integrations can upload image files directly into the completion thread.
-- The ACE notification modal can still open attached files in `$EDITOR` with `e` and
+- sase's TUI notification modal can still open attached files in `$EDITOR` with `e` and
   cycle them with `Ctrl+N` / `Ctrl+P`.
 
 See [`notifications.md`](notifications.md) for the notification model and modal
 keybindings.
 
-## ACE Artifact Viewer
+## sase's TUI Artifact Viewer
 
 The Agents tab exposes completed agent artifacts through the `a` key. When artifacts
-exist, ACE opens the artifact panel for selection. Chat transcripts, plan files,
+exist, sase's TUI opens the artifact panel for selection. Chat transcripts, plan files,
 generated Markdown PDFs, generated images, generated videos, prompt-referenced media,
 and explicit artifacts created with
 `sase artifact create [-k <kind>] [-l <label>] [-m] -p <path>` all use the same list.
@@ -669,16 +670,17 @@ Copied paths are workspace-relative when possible and fall back to home-relative
 When multiple artifacts are opened together, the terminal viewer adds `n`/`p` navigation
 between artifacts in addition to page navigation.
 
-When ACE is running inside tmux, the artifact viewer launches in a right-side tmux pane
-and the Agents list collapses while the pane is live. Press `l` from the Agents tab to
-focus the tracked artifact pane, or press `a` again to close it. Row-changing navigation
-is guarded while the pane is open so the TUI does not drift to a different agent than
-the viewer. Outside tmux, ACE suspends and opens the viewer in the current terminal
-pane. The viewer chooses its mode from the artifact kind and file extension: supported
-images are displayed directly, supported videos play with mpv, PDFs are converted to PNG
-pages, and Markdown is rendered to PDF before paging. The page loop uses `j`/`k` to move
-between pages, wrapping at the first and last page, `n`/`p` to move between artifacts in
-a sequence, `r` to refresh or replay the current artifact, and `q` to close the viewer.
+When sase's TUI is running inside tmux, the artifact viewer launches in a right-side
+tmux pane and the Agents list collapses while the pane is live. Press `l` from the
+Agents tab to focus the tracked artifact pane, or press `a` again to close it.
+Row-changing navigation is guarded while the pane is open so the TUI does not drift to a
+different agent than the viewer. Outside tmux, sase's TUI suspends and opens the viewer
+in the current terminal pane. The viewer chooses its mode from the artifact kind and
+file extension: supported images are displayed directly, supported videos play with mpv,
+PDFs are converted to PNG pages, and Markdown is rendered to PDF before paging. The page
+loop uses `j`/`k` to move between pages, wrapping at the first and last page, `n`/`p` to
+move between artifacts in a sequence, `r` to refresh or replay the current artifact, and
+`q` to close the viewer.
 
 Only one plan artifact is listed for each agent. If run metadata contains both an
 archived plan path and an SDD tale path, committed plans prefer the SDD path;
@@ -687,18 +689,18 @@ uncommitted plans prefer the archived path unless only the SDD path is available
 Viewer dependencies are intentionally outside the agent completion path. `kitten` is
 required for image/PDF/Markdown terminal display, `mpv` is required for terminal video
 playback, `pdftoppm` is required for PDF/Markdown paging, and Markdown rendering also
-needs `pandoc` plus one supported PDF engine. If a dependency is missing, ACE shows a
-warning instead of failing the TUI or changing the stored artifact list.
+needs `pandoc` plus one supported PDF engine. If a dependency is missing, sase's TUI
+shows a warning instead of failing the TUI or changing the stored artifact list.
 
 Source: `src/sase/ace/tui/graphics/viewer.py`
 
 ### Video Preview
 
-ACE plays `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the same artifact viewer used
-for images and PDFs. Inside tmux, selecting a video opens the tracked right-side
-artifact pane; outside tmux, ACE suspends and plays in the current terminal. Playback
-uses `mpv --vo=kitty` by default, bounded to the same cell area used for image
-artifacts.
+sase's TUI plays `.mp4`, `.m4v`, `.mov`, and `.webm` artifacts in the same artifact
+viewer used for images and PDFs. Inside tmux, selecting a video opens the tracked
+right-side artifact pane; outside tmux, sase's TUI suspends and plays in the current
+terminal. Playback uses `mpv --vo=kitty` by default, bounded to the same cell area used
+for image artifacts.
 
 While mpv is running, mpv owns playback keys: `space` pauses or resumes, arrow keys
 seek, `m` toggles mute, and `q` stops playback. After playback exits, the artifact
@@ -726,7 +728,7 @@ flags after SASE defaults. SASE launches mpv with `--no-config` so user mpv prof
 cannot break the curated terminal preview; put viewer-specific customization in the SASE
 config instead.
 
-## ACE Image Preview Foundation
+## sase's TUI Image Preview Foundation
 
 The notification modal and Agents tab file panel route supported image extensions
 through the preview layer before attempting text decoding.
@@ -746,12 +748,12 @@ image protocol support. Preview quality depends on the visible pane size and ter
 color depth: larger panes provide more sampled cells, and truecolor terminals preserve
 colors better than 256-color terminals.
 
-ACE checks only terminal color depth from the environment. When `COLORTERM=truecolor`,
-`COLORTERM=24bit`, or a truecolor marker in `TERM` is present, previews use 24-bit
-color; otherwise they use 256-color approximations. Missing files, unsupported
-extensions, decode errors, missing Pillow, and images above the renderer guardrails show
-a concise text fallback with the file path, byte size when available, and the relevant
-editor or artifact action. Use `e` in notifications, `E` on the Agents tab, or the `a`
-artifact viewer whenever full-fidelity viewing is needed.
+sase's TUI checks only terminal color depth from the environment. When
+`COLORTERM=truecolor`, `COLORTERM=24bit`, or a truecolor marker in `TERM` is present,
+previews use 24-bit color; otherwise they use 256-color approximations. Missing files,
+unsupported extensions, decode errors, missing Pillow, and images above the renderer
+guardrails show a concise text fallback with the file path, byte size when available,
+and the relevant editor or artifact action. Use `e` in notifications, `E` on the Agents
+tab, or the `a` artifact viewer whenever full-fidelity viewing is needed.
 
 Source: `src/sase/ace/tui/graphics/`

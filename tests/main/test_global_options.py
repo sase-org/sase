@@ -365,7 +365,7 @@ def test_consume_unknown_key_exits_2(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr(sys, "argv", ["sase", "-f", "bogus_key", "ace"])
+    monkeypatch.setattr(sys, "argv", ["sase", "-f", "bogus_key", "tui"])
 
     with pytest.raises(SystemExit) as exc:
         consume_global_options()
@@ -375,7 +375,7 @@ def test_consume_unknown_key_exits_2(
     assert err.startswith("sase: error:")
     assert "bogus_key" in err
     assert "sase flag list" in err
-    assert sys.argv == ["sase", "-f", "bogus_key", "ace"]
+    assert sys.argv == ["sase", "-f", "bogus_key", "tui"]
 
 
 def test_consume_both_sides_exits_2(
@@ -385,7 +385,7 @@ def test_consume_both_sides_exits_2(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["sase", "-f", REGISTERED_ENABLE_KEY, "-F", REGISTERED_ENABLE_KEY, "ace"],
+        ["sase", "-f", REGISTERED_ENABLE_KEY, "-F", REGISTERED_ENABLE_KEY, "tui"],
     )
 
     with pytest.raises(SystemExit) as exc:

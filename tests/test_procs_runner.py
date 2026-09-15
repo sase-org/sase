@@ -366,7 +366,7 @@ def test_store_kill_rejects_tui_owned_procs(monkeypatch: Any, tmp_path: Path) ->
     )
     append_proc(mirrored)
 
-    with pytest.raises(ProcControlError, match="owning ACE session"):
+    with pytest.raises(ProcControlError, match="owning sase's TUI session"):
         kill_proc(mirrored.proc_id)
 
     assert get_proc(mirrored.proc_id) == mirrored

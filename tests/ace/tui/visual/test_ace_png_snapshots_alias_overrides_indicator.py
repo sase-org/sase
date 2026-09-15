@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for the non-default override pill.
+"""sase's TUI PNG visual snapshot coverage for the non-default override pill.
 
 Phase 4 (epic sase-5e): pin how the top-bar ``AliasOverridesIndicator`` renders
 temporary overrides on *non-*``default`` aliases — the concise violet pill that

@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Agents-tab clan tree states."""
+"""sase's TUI PNG visual snapshots for Agents-tab clan tree states."""
 
 from __future__ import annotations
 

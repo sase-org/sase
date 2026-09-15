@@ -1,4 +1,4 @@
-"""Dismissed agent selection modal for the ace TUI."""
+"""Dismissed agent selection modal for sase's TUI."""
 
 from __future__ import annotations
 

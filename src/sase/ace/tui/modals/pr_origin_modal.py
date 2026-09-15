@@ -1,4 +1,4 @@
-"""PR_ORIGIN selection modal for the ace TUI."""
+"""PR_ORIGIN selection modal for sase's TUI."""
 
 from textual.app import ComposeResult
 from textual.containers import Container

@@ -1,4 +1,4 @@
-"""Tests for relaunch prompt loading in the ace TUI."""
+"""Tests for relaunch prompt loading in sase's TUI."""
 
 from __future__ import annotations
 

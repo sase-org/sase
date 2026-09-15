@@ -1,4 +1,4 @@
-"""Handler for the 'sase ace' command."""
+"""Handler for the 'sase tui' command."""
 
 import argparse
 import asyncio
@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _RESTART_FILTER_FLAGS = frozenset(("-R", "--restart-axe", "-T", "--tmux"))
+_TUI_COMMAND = "tui"
+_LEGACY_ACE_COMMAND = "ace"
 
 
 def _profile_output_path(profile_arg: str) -> str:
@@ -54,7 +56,9 @@ def _write_profile_output(profiler: Any, profile_arg: str) -> str:
 
 
 def _build_ace_restart_argv(*, restart_axe: bool, argv: list[str]) -> list[str]:
-    """Build ``sase ace`` argv for a TUI restart."""
+    """Build ``sase tui`` argv for a TUI restart."""
+    from sase.main.parser_root_args import root_command_index
+
     forwarded: list[str] = []
     after_separator = False
     for arg in argv:
@@ -66,8 +70,21 @@ def _build_ace_restart_argv(*, restart_axe: bool, argv: list[str]) -> list[str]:
             continue
         forwarded.append(arg)
 
-    if not forwarded or forwarded[0] != "ace":
-        forwarded = ["ace", *forwarded]
+    command_index = root_command_index(forwarded)
+    if command_index is None:
+        forwarded = [_TUI_COMMAND, *forwarded]
+    elif forwarded[command_index] == _LEGACY_ACE_COMMAND:
+        forwarded = [
+            *forwarded[:command_index],
+            _TUI_COMMAND,
+            *forwarded[command_index + 1 :],
+        ]
+    elif forwarded[command_index] != _TUI_COMMAND:
+        forwarded = [
+            *forwarded[:command_index],
+            _TUI_COMMAND,
+            *forwarded[command_index:],
+        ]
 
     if restart_axe:
         try:
@@ -80,7 +97,7 @@ def _build_ace_restart_argv(*, restart_axe: bool, argv: list[str]) -> list[str]:
 
 
 def _exec_ace_restart_if_requested(exit_action: "AceExitAction | None") -> None:
-    """Re-exec ``sase ace`` for restart exit actions."""
+    """Re-exec ``sase tui`` for restart exit actions."""
     from sase.ace.tui.exit_action import AceExitAction
 
     if exit_action is None or exit_action == AceExitAction.QUIT:
@@ -94,12 +111,12 @@ def _exec_ace_restart_if_requested(exit_action: "AceExitAction | None") -> None:
     try:
         os.execv(sys.executable, exec_args)
     except OSError as exc:
-        print(f"sase ace restart failed: {exc}", file=sys.stderr)
+        print(f"sase tui restart failed: {exc}", file=sys.stderr)
         sys.exit(1)
 
 
 def _run_ace_app(app: Any) -> None:
-    """Run ACE without waiting for asyncio's default executor at teardown.
+    """Run the TUI without waiting for asyncio's default executor at teardown.
 
     Textual's ``run_async`` restores the terminal before returning. Owning the
     loop here lets the command bypass ``asyncio.run``'s mandatory executor
@@ -116,7 +133,7 @@ def _run_ace_app(app: Any) -> None:
 
 
 def _log_live_exit_threads() -> None:
-    """Warn when ACE must abandon known non-daemon worker threads."""
+    """Warn when the TUI must abandon known non-daemon worker threads."""
     worker_names = sorted(
         thread.name
         for thread in threading.enumerate()
@@ -127,7 +144,7 @@ def _log_live_exit_threads() -> None:
     )
     if worker_names:
         log.warning(
-            "ACE exiting with live worker threads: %s",
+            "TUI exiting with live worker threads: %s",
             ", ".join(worker_names),
         )
 
@@ -141,12 +158,12 @@ def _hard_exit_ace(exit_code: int) -> NoReturn:
         try:
             flush()
         except Exception:
-            log.debug("ACE exit flush failed", exc_info=True)
+            log.debug("TUI exit flush failed", exc_info=True)
     os._exit(exit_code)
 
 
 def handle_ace_command(args: argparse.Namespace) -> None:
-    """Handle the 'sase ace' command."""
+    """Handle the 'sase tui' command."""
     if getattr(args, "tmux", False):
         from sase.main.ace_tmux import launch_ace_in_tmux
 
@@ -161,7 +178,7 @@ def handle_ace_command(args: argparse.Namespace) -> None:
     # Don't load repo-level sase.yml for the TUI — local config should
     # only apply to agent runs (which are separate processes).
     set_include_local_config(False)
-    # Pin flags only after local config is disabled; otherwise ACE would
+    # Pin flags only after local config is disabled; otherwise the TUI would
     # inherit project-local feature_flags that are meant for agent runs.
     install_process_feature_flags(defer_cleanup=True)
 

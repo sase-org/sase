@@ -1,4 +1,4 @@
-"""ACE TUI PNG coverage for the saved PR query chooser."""
+"""sase's TUI PNG coverage for the saved PR query chooser."""
 
 from __future__ import annotations
 

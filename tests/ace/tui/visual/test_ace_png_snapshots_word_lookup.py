@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for word lookup panels."""
+"""sase's TUI PNG visual snapshots for word lookup panels."""
 
 from __future__ import annotations
 

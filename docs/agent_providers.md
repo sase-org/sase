@@ -252,8 +252,8 @@ Canonical docs: <https://antigravity.google/docs/cli-install>
 
 The deterministic `fakey` CLI is bundled with SASE for launch, failure, retry, and UI
 testing. It requires no separate installation or authentication and is deliberately
-placed last in provider autodetection. It is also hidden from the ACE model picker and
-`%model` completion menu, so select it explicitly with a model such as
+placed last in provider autodetection. It is also hidden from sase's TUI model picker
+and `%model` completion menu, so select it explicitly with a model such as
 `%model:fakey-large` or `llm_provider.provider: fakey`; do not use it for production
 coding work.
 
@@ -309,8 +309,9 @@ sase usage list -p codex --verbose
 sase usage refresh
 ```
 
-ACE exposes the same cache from Launch Control: press `u`, or choose **Open Providers ·
-Usage** from the command palette. See [Providers · Usage](ace.md#providers-usage).
+sase's TUI exposes the same cache from Launch Control: press `u`, or choose **Open
+Providers · Usage** from the command palette. See
+[Providers · Usage](ace.md#providers-usage).
 
 Observations are dated best-effort readings from each provider's own CLI, not guarantees
 of remaining capacity. Collection is on by default; opt out with
@@ -379,7 +380,7 @@ binary landed and whether that directory is on `PATH`, and prints the exact expo
 to add when it is not. **SASE never edits your shell startup files.**
 
 Runs from `sase agent-cli install` and `sase agent-cli update` are journaled with the
-same bounded history used by ACE, `,U`, and `,E` at
+same bounded history used by sase's TUI, `,U`, and `,E` at
 `~/.sase/logs/agent_cli_updates.jsonl`. Set `SASE_AGENT_CLI_UPDATE_JOURNAL_MAX_BYTES` to
 override that file's maximum size; runs where no command reaches a terminal outcome are
 not recorded.
@@ -387,6 +388,6 @@ not recorded.
 This command manages the provider CLIs only. Use [`sase update`](cli.md) to upgrade SASE
 itself and its plugins.
 
-The same inventory is available inside ACE, as the **Agent CLIs** section of the SASE
-Admin Center's Updates tab, which adds marked multi-select updates and confirmation
+The same inventory is available inside sase's TUI, as the **Agent CLIs** section of the
+SASE Admin Center's Updates tab, which adds marked multi-select updates and confirmation
 previews. See the [Updates tab](ace.md#updates-tab) for that surface.

@@ -38,8 +38,8 @@ just lint          # Run ruff, mypy, pyscripts, symvision, toobig, and keep-sort
 just test          # Fast parallel test run, excluding slow and PNG visual snapshot tests
 just test-cost     # Fast suite with cost attribution and committed budget checks
 just test-slow     # Slow pytest subset only
-just test-visual   # ACE PNG visual regression snapshots only; the sole visual execution
-just test-terminal-smoke  # Optional real-terminal ACE smoke test
+just test-visual   # sase's TUI PNG visual regression snapshots only; the sole visual execution
+just test-terminal-smoke  # Optional real-terminal sase's TUI smoke test
 just test-cov      # Parallel test run with coverage + 50% gate, excluding visual snapshots
 just test-contexts # Record the per-test coverage baseline the selector consumes, and cache it host-locally
 just test-ace-page-group-isolated  # Rerun AcePageGroup modules with fresh AcePage checkouts
@@ -148,7 +148,7 @@ probe taxes exactly the numbers that table is for.
 The report has three parts: summary totals, cause attribution, and top files. The
 summary budgets guard total per-test wall seconds, idle seconds, collection seconds, and
 peak worker RSS. Cause budgets guard the hot buckets this suite has historically
-regressed: ACE app/page startup, full parser builds, YAML reparses, and avoidable
+regressed: sase's TUI app/page startup, full parser builds, YAML reparses, and avoidable
 subprocess round-trips. Local runs use a narrower tolerance than CI so host noise does
 not make shared runners brittle.
 
@@ -161,7 +161,7 @@ tools/test_cost_report --top 20
 ```
 
 New tests should treat bare `pilot.pause()`, positive fixed sleeps without an inline
-`# sase-test-wait: <reason>` pragma, one-app-per-assertion ACE boots, full
+`# sase-test-wait: <reason>` pragma, one-app-per-assertion sase's TUI boots, full
 `create_parser()` builds when a narrower command tree is enough, and CLI subprocesses
 used only to inspect stdout as defects. Use observable wait helpers, shared or cached
 test helpers with explicit reset semantics, and in-process entry points unless the
@@ -544,7 +544,7 @@ moved out of the fast lane.
 Coverage parity used the same 19,921-item selection with `just test-cov`: 19,915 tests
 passed, 7 were skipped, total branch coverage was 80.07%, and the unchanged 50% gate
 passed. `just test-cov` shares `just test`'s marker selection, which at the time of this
-measurement still included the ACE PNG visual regression tests. Both recipes exclude
+measurement still included sase's TUI PNG visual regression tests. Both recipes exclude
 those tests today; see [Visual Snapshot Workflow](#visual-snapshot-workflow).
 
 Sustained real-host demand also exercised the pool while these measurements were
@@ -606,8 +606,8 @@ YAML keep-sorted blocks. Runtime, test, install, and mypy recipes still use `.ve
 the full `_setup` path because they need the installed application environment and Rust
 binding validation.
 
-Default test runs select `not slow and not visual`, so the ACE PNG snapshot regression
-tests do not run in `just test`, `just test-cov`, or `just test-scoped`.
+Default test runs select `not slow and not visual`, so sase's TUI PNG snapshot
+regression tests do not run in `just test`, `just test-cov`, or `just test-scoped`.
 `just test-visual` is the only recipe that executes them; it installs the optional PNG
 rasterizer dependencies when they are missing. The real-PTY smoke tests carry both
 `terminal_smoke` and `slow`, so that same expression excludes them too —
@@ -615,13 +615,13 @@ rasterizer dependencies when they are missing. The real-PTY smoke tests carry bo
 the identical default expression from `pyproject.toml` unless you pass your own `-m`
 selector.
 
-Use `just test-terminal-smoke` only when you need to verify the ACE startup path through
-a real PTY. It installs `pexpect` and `pyte`, runs the optional `terminal_smoke` marker,
-and stays out of default tests and CI until that path has proved stable. The recipe uses
-the shared pytest runner's private disk-backed temp root and leak guard, but it is
-always serial and never leases xdist worker tokens; `SASE_PYTEST_DIST` is therefore
-ignored. Set `SASE_PYTEST_TMPDIR` to override its scratch root while diagnosing
-temp-path behavior.
+Use `just test-terminal-smoke` only when you need to verify sase's TUI startup path
+through a real PTY. It installs `pexpect` and `pyte`, runs the optional `terminal_smoke`
+marker, and stays out of default tests and CI until that path has proved stable. The
+recipe uses the shared pytest runner's private disk-backed temp root and leak guard, but
+it is always serial and never leases xdist worker tokens; `SASE_PYTEST_DIST` is
+therefore ignored. Set `SASE_PYTEST_TMPDIR` to override its scratch root while
+diagnosing temp-path behavior.
 
 ### The Master Gate (`SASE_TEST_SHARD`)
 
@@ -897,9 +897,9 @@ not over all commits.
 
 ## Visual Snapshot Workflow
 
-ACE visual tests live under `tests/ace/tui/visual/` and compare deterministic Textual
-screenshots against committed PNG goldens. The renderer stack is exact-pinned in the
-`visual` optional-dependency group in `pyproject.toml`, and
+sase's TUI visual tests live under `tests/ace/tui/visual/` and compare deterministic
+Textual screenshots against committed PNG goldens. The renderer stack is exact-pinned in
+the `visual` optional-dependency group in `pyproject.toml`, and
 `tests/ace/tui/visual/renderer_env.json` records those package versions plus hashes of
 the bundled fonts. A session-scoped fixture checks that fingerprint before any snapshot
 runs, so a skewed environment fails once with an installation or upgrade instruction
@@ -952,10 +952,11 @@ Sans is bundled purely as the fallback resvg reaches for on a codepoint Fira Cod
 Without it, symbol marks such as the notification tab icons would rasterize as
 missing-glyph boxes in every golden while rendering correctly in a real terminal, and no
 reviewer could tell the two apart by eye. `tests/ace/tui/visual/test_tab_icon_glyphs.py`
-makes that check mechanical: it fails if the bundled fonts stop covering an icon ACE can
-pick without configuration. PNG comparison is byte-exact by default locally and in every
-visual-bearing CI lane; together with the fixture-level terminal and timezone pins, a
-mismatch is a real rendering change or an unpinned environment defect to investigate.
+makes that check mechanical: it fails if the bundled fonts stop covering an icon sase's
+TUI can pick without configuration. PNG comparison is byte-exact by default locally and
+in every visual-bearing CI lane; together with the fixture-level terminal and timezone
+pins, a mismatch is a real rendering change or an unpinned environment defect to
+investigate.
 
 Rasterization can still differ by a small, bounded amount on macOS arm64. The tolerance
 environment variables remain available only as explicit escape hatches for local
@@ -1096,7 +1097,7 @@ boundaries, and docs/tests:
 | Path                           | Purpose                                                                                                |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `src/sase/main/`               | CLI parser registration and subcommand handlers.                                                       |
-| `src/sase/ace/`                | ACE TUI, Patch rendering, query integration, actions, widgets, and TUI state.                          |
+| `src/sase/ace/`                | sase's TUI, Patch rendering, query integration, actions, widgets, and TUI state.                       |
 | `src/sase/agent/`              | Agent launch, detached spawn, prompt fan-out, running-agent metadata, artifact lookup, and naming.     |
 | `src/sase/axe/`                | Axe orchestrator, lumberjacks, chop execution, scheduled jobs, maintenance mode, and automation state. |
 | `src/sase/xprompt/`            | XPrompt expansion, directives, workflow loading, execution, tracing, explaining, and graphing.         |
@@ -1165,9 +1166,9 @@ SORT title
 Each research agent is expected to use `/bob_query` to run that query against Bryan's
 Bob vault, treat every returned title and URL entry as already-known, and only then
 search for new reading candidates. The three researchers and the final consolidator
-share one invocation-specific `reads-<token>` clan, so ACE groups them together while
-simultaneous invocations remain distinct. A normal invocation can rely on the default
-query:
+share one invocation-specific `reads-<token>` clan, so sase's TUI groups them together
+while simultaneous invocations remain distinct. A normal invocation can rely on the
+default query:
 
 ```text
 #!sase/reads(agent memory systems)
@@ -1175,9 +1176,9 @@ query:
 
 Some repository workflows are marked `hidden: true` because they are automation helpers,
 such as docs refresh, recent bug/improvement audits, and Python line-limit splitting.
-That flag hides workflow run rows in ACE; it does not mean the workflow is unavailable.
-Use `sase xprompt list` or the ACE xprompt browser from a source checkout when you need
-the exact current catalog.
+That flag hides workflow run rows in sase's TUI; it does not mean the workflow is
+unavailable. Use `sase xprompt list` or sase's TUI xprompt browser from a source
+checkout when you need the exact current catalog.
 
 ## Documentation Workflow
 

@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for the host-owned link-reveal lens chip."""
+"""sase's TUI PNG snapshots for the host-owned link-reveal lens chip."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Tribe-scoped agent cleanup chooser for the ace TUI."""
+"""Tribe-scoped agent cleanup chooser for sase's TUI."""
 
 from __future__ import annotations
 

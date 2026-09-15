@@ -9,21 +9,21 @@ reviewed, retried, and handed off through stable project artifacts.
 
 ## System Boundary
 
-| Area         | Responsibility                                                                                                                | Main References                                                    |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                               | [CLI reference](cli.md)                                            |
-| ACE          | Interactive TUI for Patches, agents, notifications, artifacts, and axe status.                                                | [ACE TUI](ace.md)                                                  |
-| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                        | [Axe](axe.md)                                                      |
-| XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                      | [XPrompts](xprompt.md)                                             |
-| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                               | [Workflow spec](workflow_spec.md)                                  |
-| Gates        | Durable, command-backed user decisions and processless family-shell handoffs.                                                 | [Notifications](notifications.md#command-backed-interaction-gates) |
-| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                             | [Patches](change_spec.md)                                          |
-| Memory       | Always-loaded and on-demand context, explicit flat-note xprompt inclusion, audited reads, and ACE-backed note/strand changes. | [Memory](memory.md)                                                |
-| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                           | [SDD](sdd.md)                                                      |
-| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                      | [Beads](beads.md)                                                  |
-| Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                | [Plugins](plugins.md)                                              |
-| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch prep, and bead data operations. | [Rust backend](rust_backend.md)                                    |
-| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                      | [Integrations](integrations.md)                                    |
+| Area         | Responsibility                                                                                                                       | Main References                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                      | [CLI reference](cli.md)                                            |
+| sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and axe status.                                                       | [sase's TUI](ace.md)                                               |
+| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                               | [Axe](axe.md)                                                      |
+| XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                             | [XPrompts](xprompt.md)                                             |
+| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                      | [Workflow spec](workflow_spec.md)                                  |
+| Gates        | Durable, command-backed user decisions and processless family-shell handoffs.                                                        | [Notifications](notifications.md#command-backed-interaction-gates) |
+| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                    | [Patches](change_spec.md)                                          |
+| Memory       | Always-loaded and on-demand context, explicit flat-note xprompt inclusion, audited reads, and sase's TUI-backed note/strand changes. | [Memory](memory.md)                                                |
+| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                  | [SDD](sdd.md)                                                      |
+| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                             | [Beads](beads.md)                                                  |
+| Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                       | [Plugins](plugins.md)                                              |
+| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch prep, and bead data operations.        | [Rust backend](rust_backend.md)                                    |
+| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                             | [Integrations](integrations.md)                                    |
 
 The Python host owns user-facing orchestration, plugin calls, subprocess handling,
 filesystem context, TUI rendering, and workflow side effects. Rust owns reusable
@@ -32,9 +32,9 @@ cross-frontend consistency.
 
 ## Agent Launch Flow
 
-Most agent work enters through `sase run`, ACE, validated axe chop proposals, bead epic
-execution, or mobile/editor helper bridges. The launch path follows the same shape
-across those entry points:
+Most agent work enters through `sase run`, sase's TUI, validated axe chop proposals,
+bead epic execution, or mobile/editor helper bridges. The launch path follows the same
+shape across those entry points:
 
 1. Parse prompt text, directives, and optional multi-prompt separators, then
    canonicalize ProjectSpec aliases in launch-bound VCS refs. For example, `#gh:bob`
@@ -55,22 +55,22 @@ across those entry points:
 6. Stream subprocess output, write chat history, and persist launch metadata.
 7. Record agent artifacts such as prompts, diffs, generated Markdown PDFs, images,
    plans, and explicit files.
-8. Emit notifications and update ACE-visible status.
+8. Emit notifications and update sase's TUI-visible status.
 9. Hand review, revert, restore, or commit work to the VCS and workspace provider layers
    when requested.
 
-When the `typed_launch_units` beta flag is enabled, user-initiated ACE and `sase run`
-submissions, approved LaunchApproval requests, and typed AXE chop proposal batches share
-one typed admission path. Recursive xprompt expansion and fan-out still happen first,
-keyed `{@<id>}` agent-name markers resolve once across that expanded batch, then Rust
-builds an immutable `LaunchPlan` of tagged Agent or Proc units with stable logical IDs,
-the complete `%id`/`%clan` identity binding, waits, optional `%if` predicates, and code
-digests. Dispatch reconstructs grouping directives from that binding instead of a
-positional name alone. Direct user submissions persist that plan in a durable bundle and
-dispatch immediately; agent-initiated launches freeze the same digest behind
-LaunchApproval; AXE chop batches containing an active `%if`/`%proc` directive dispatch
-through the same durable bundle under a distinct `axe_chop` source surface, with the
-originating chop run owning the bundle across process restarts (see
+When the `typed_launch_units` beta flag is enabled, user-initiated sase's TUI and
+`sase run` submissions, approved LaunchApproval requests, and typed AXE chop proposal
+batches share one typed admission path. Recursive xprompt expansion and fan-out still
+happen first, keyed `{@<id>}` agent-name markers resolve once across that expanded
+batch, then Rust builds an immutable `LaunchPlan` of tagged Agent or Proc units with
+stable logical IDs, the complete `%id`/`%clan` identity binding, waits, optional `%if`
+predicates, and code digests. Dispatch reconstructs grouping directives from that
+binding instead of a positional name alone. Direct user submissions persist that plan in
+a durable bundle and dispatch immediately; agent-initiated launches freeze the same
+digest behind LaunchApproval; AXE chop batches containing an active `%if`/`%proc`
+directive dispatch through the same durable bundle under a distinct `axe_chop` source
+surface, with the originating chop run owning the bundle across process restarts (see
 [Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals)).
 Within an AXE chop clan, dispatch — not planning — owns the declarer decision: the first
 surviving (eligible, dispatched) member of an undeclared clan claims it durably, so a
@@ -91,11 +91,11 @@ Agent units still use the established agent launch path; eligible `%proc` units 
 as native `proc-shell` records with origin `xprompt-proc`. Restarts replay the journal
 instead of re-running settled predicates or duplicating reserved identities.
 
-Detached launches appear in the agent registry and ACE Agents tab. Multi-prompt launches
-create a sequence of detached agents. Stand-alone `%proc` shells appear in the same
-Agents tab as top-level `▣` rows backed only by the proc store, counted separately from
-agents. Workflow launches persist step state so ACE and axe can inspect progress and
-recover meaningful output.
+Detached launches appear in the agent registry and sase's TUI Agents tab. Multi-prompt
+launches create a sequence of detached agents. Stand-alone `%proc` shells appear in the
+same Agents tab as top-level `▣` rows backed only by the proc store, counted separately
+from agents. Workflow launches persist step state so sase's TUI and axe can inspect
+progress and recover meaningful output.
 
 ## Agent, Monitor, and Gate Shells
 
@@ -136,7 +136,7 @@ The project-adjacent taxonomy has three non-overlapping roles:
 | ----------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ProjectSpecs      | `<project>/<project>.sase` under `~/.sase/projects/`                             | Enabled/disabled lifecycle, primary repo, aliases, claims, and embedded Patches.                                                                                                               |
 | Agent metadata    | Agent artifact directories under `~/.sase/`                                      | Running/completed status, prompt files, output, diffs, workflow state, and attachments.                                                                                                        |
-| Agent archives    | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/`               | Dismissed-agent recovery bundles and named groups for later ACE revival.                                                                                                                       |
+| Agent archives    | `~/.sase/dismissed_bundles/` and `~/.sase/dismissed_agent_groups/`               | Dismissed-agent recovery bundles and named groups for later sase's TUI revival.                                                                                                                |
 | SDD artifacts     | Provider-resolved `sdd/`, `.sase/sdd/`, or split sidecar roots                   | Plans, executable epics, research notes, and links to canonical agents-sidecar prompts; resolve with `sase repo path plans` or `research`.                                                     |
 | Beads             | The resolved SDD beads directory                                                 | Issue graph, JSONL export, SQLite query cache, and epic execution metadata; current split stores use the root of a dedicated `--beads` sidecar, while schema-2 stores retain `--plans/beads/`. |
 | Project content   | `sase/sase.yml`, `sase/xprompts/`, `sase/skills/`, `sase/memory/`, `sase/repos/` | Source-controlled project settings/context plus ignored workspace-scoped repository checkouts.                                                                                                 |
@@ -156,8 +156,8 @@ The canonical project/home namespace and legacy read boundary are documented in
 state, package resources, and plugin resources deliberately remain outside that
 namespace.
 
-This model lets ACE, CLI commands, axe, and future frontends read the same engineering
-state without depending on one terminal session.
+This model lets sase's TUI, CLI commands, axe, and future frontends read the same
+engineering state without depending on one terminal session.
 
 ## Provider Boundaries
 
@@ -212,7 +212,7 @@ complete operation list and facade map.
 | ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Command discovery                        | [CLI reference](cli.md)                                                                              |
 | Contributor setup and source orientation | [Development](development.md)                                                                        |
-| Runtime operations                       | [ACE](ace.md), [Axe](axe.md), [notifications](notifications.md)                                      |
+| Runtime operations                       | [sase's TUI](ace.md), [Axe](axe.md), [notifications](notifications.md)                               |
 | Durable work records                     | [Patches](change_spec.md), [memory](memory.md), [SDD](sdd.md), [beads](beads.md)                     |
 | Prompt and workflow execution            | [XPrompts](xprompt.md), [workflow spec](workflow_spec.md)                                            |
 | Extension boundaries                     | [Plugins](plugins.md), [LLM providers](llms.md), [VCS providers](vcs.md), [workspaces](workspace.md) |

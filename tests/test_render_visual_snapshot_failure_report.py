@@ -10,6 +10,7 @@ import base64
 import importlib.machinery
 import importlib.util
 import json
+import shlex
 import struct
 import subprocess
 import sys
@@ -207,7 +208,7 @@ def test_render_html_empty(script: types.ModuleType) -> None:
     html = script.render_html(
         [], context=script.RenderContext(repo=None, sha=None, report_url=None)
     )
-    assert "No ACE PNG snapshot failures" in html
+    assert "No sase's TUI PNG snapshot failures" in html
     assert "<html" in html
 
 
@@ -260,7 +261,7 @@ def test_render_summary_contains_blob_and_anchor_links(
 
     summary = script.render_summary(records, context=context)
 
-    assert "# ACE PNG snapshot failures" in summary
+    assert "# sase's TUI PNG snapshot failures" in summary
     assert (
         "https://github.com/owner/name/blob/deadbeef/"
         "tests/_snapshots/png/widget_a.png" in summary
@@ -330,13 +331,16 @@ def test_render_annotations_escapes_workflow_command_specials(
     assert "%0A" in annotations  # newline
     # The message body keeps the colon in the snapshot name, but newlines
     # and CR are still escaped.
-    assert "ACE PNG snapshot mismatch" in annotations
+    assert "TUI PNG snapshot mismatch" in annotations
     assert "line=42" in annotations
     # No literal newline inside any echo argument.
     for line in annotations.splitlines():
         if line.startswith("echo"):
-            # Only one logical line per echo (no embedded raw \n in payload).
-            assert line.count("'") % 2 == 0
+            parts = shlex.split(line)
+            assert parts[0] == "echo"
+            assert len(parts) == 2
+            assert "\n" not in parts[1]
+            assert "\r" not in parts[1]
 
 
 def test_render_annotations_empty_records_yields_safe_script(
@@ -363,7 +367,7 @@ def test_render_annotations_missing_golden_title(
     records = list(script.discover_records(artifact_root))
     annotations = script.render_annotations(records)
 
-    assert "ACE PNG snapshot missing golden" in annotations
+    assert "TUI PNG snapshot missing golden" in annotations
 
 
 # ---------------------------------------------------------------------------
@@ -439,11 +443,11 @@ def test_write_outputs_no_records_writes_empty_outputs(
     script.write_outputs([], output_dir=output_dir, context=context)
 
     html_text = (output_dir / "visual-failure-report.html").read_text()
-    assert "No ACE PNG snapshot failures" in html_text
+    assert "No sase's TUI PNG snapshot failures" in html_text
     assert (
         (output_dir / "summary.md")
         .read_text()
-        .startswith("# ACE PNG snapshot failures")
+        .startswith("# sase's TUI PNG snapshot failures")
     )
     assert (output_dir / "annotations.sh").read_text().startswith("#!/usr/bin/env bash")
     assert (output_dir / "manifest.jsonl").read_text() == ""

@@ -1,4 +1,4 @@
-"""Prompt catalog snapshots for the ACE TUI.
+"""Prompt catalog snapshots for sase's TUI.
 
 This module keeps disk/config loading out of Textual event handlers. The app
 asks workers to build immutable-enough snapshots here, then swaps the finished

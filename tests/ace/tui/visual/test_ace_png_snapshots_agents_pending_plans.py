@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for pending plan-review statuses."""
+"""sase's TUI PNG snapshots for pending plan-review statuses."""
 
 from __future__ import annotations
 

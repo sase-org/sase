@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot for the empty PRs-tab onboarding view."""
+"""sase's TUI PNG visual snapshot for the empty PRs-tab onboarding view."""
 
 from __future__ import annotations
 

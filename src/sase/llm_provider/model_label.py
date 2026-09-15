@@ -1,6 +1,6 @@
 """Uniform ``Model: PROVIDER(model) @ <effort> ← @<alias>`` Rich rendering.
 
-Shared by the ACE TUI agent panels and the ``sase agent show`` CLI so the
+Shared by sase's TUI agent panels and the ``sase agent show`` CLI so the
 effective model / provider / reasoning-effort reads identically regardless of
 which surface renders it. Alias provenance is a launch-time fact recorded in
 metadata and never re-resolved here. This module is intentionally free of

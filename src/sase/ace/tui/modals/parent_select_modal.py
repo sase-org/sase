@@ -1,4 +1,4 @@
-"""Parent selection modal for the ace TUI rebase feature."""
+"""Parent selection modal for sase's TUI rebase feature."""
 
 from textual.app import ComposeResult
 from textual.containers import Container

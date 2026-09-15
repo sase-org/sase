@@ -195,8 +195,8 @@ selection entirely, before query evaluation — SASE automation never acts on th
 [AXE](axe.md).
 
 **Setting it:** `sase patch set-origin <name> <sase|external|unknown>` (see
-[CLI Reference](cli.md#work-tracking-and-planning)), or press `o` on a PR row in ACE's
-Patches sub-tab (see [PR Origin Chip](ace.md#pr-origin-chip)).
+[CLI Reference](cli.md#work-tracking-and-planning)), or press `o` on a PR row in sase's
+TUI Patches sub-tab (see [PR Origin Chip](ace.md#pr-origin-chip)).
 
 **Example:**
 
@@ -411,14 +411,14 @@ for a single Patch from the current VCS state. Optional `-p`/`--project-file` an
 `-w`/`--workspace-dir` flags override the inferred defaults. The legacy
 `sase changespec sync-deltas -c <name>` spelling remains accepted.
 
-In ACE, `DELTAS` renders with colored glyphs. The section has two semantic fold states:
-folded and unfolded. The folded state shows the header plus a one-line file and
+In sase's TUI, `DELTAS` renders with colored glyphs. The section has two semantic fold
+states: folded and unfolded. The folded state shows the header plus a one-line file and
 line-count summary; the unfolded state shows the full alphabetical entry list.
 
 ### HOOKS
 
 Defines lifecycle hooks attached to this Patch: shell commands that run automatically at
-specific points, such as after commit or before mail. Hooks are managed via ACE.
+specific points, such as after commit or before mail. Hooks are managed via sase's TUI.
 
 **Entry format:**
 
@@ -434,14 +434,15 @@ with `| `. A leading `!` on a hook command means failed runs should skip fix-hoo
 a leading `$` means the hook is not run for proposal stitches and is not subject to the
 normal runner limit. Prefixes can be combined, for example `!$just presubmit`.
 
-ACE leaves a running hook's output file untouched. When ACE observes the completion
-marker, large captures are atomically compacted for manual viewing while completion
-parsing, metahook matching, and failure summarization still inspect the full output.
+sase's TUI leaves a running hook's output file untouched. When sase's TUI observes the
+completion marker, large captures are atomically compacted for manual viewing while
+completion parsing, metahook matching, and failure summarization still inspect the full
+output.
 
 ### COMMENTS
 
-Stores review comments and discussion threads. Comments are added via ACE or through the
-review workflow.
+Stores review comments and discussion threads. Comments are added via sase's TUI or
+through the review workflow.
 
 **Entry format:**
 

@@ -1,4 +1,4 @@
-"""Prompt history selection modal with filtering for the ace TUI."""
+"""Prompt history selection modal with filtering for sase's TUI."""
 
 import asyncio
 from dataclasses import dataclass

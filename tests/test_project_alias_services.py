@@ -156,7 +156,7 @@ def test_load_project_alias_map_drops_alias_shadowed_by_real_project(
     )
 
     # A ref shadowed by a real project name self-resolves instead of
-    # crashing read paths (e.g. `sase ace` startup).
+    # crashing read paths (e.g. `sase tui` startup).
     assert load_project_alias_map(projects_root) == {}
     assert resolve_project_alias_ref("bob", projects_root) == "bob"
 
@@ -543,7 +543,7 @@ def test_load_project_alias_map_keeps_valid_refs_next_to_dropped_ones(
     """The crash scenario: PROJECT_NAME shadowed by a phantom real project.
 
     The shadowed ref is dropped but every other ref still resolves, so
-    ``sase ace`` keeps working instead of crashing at startup.
+    ``sase tui`` keeps working instead of crashing at startup.
     """
     sase_file = _write_project(
         projects_root,

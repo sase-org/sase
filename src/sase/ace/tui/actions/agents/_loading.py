@@ -1,4 +1,4 @@
-"""Agent loading and filtering logic for the ace TUI app.
+"""Agent loading and filtering logic for sase's TUI app.
 
 The pure-data compute helpers (``_compute_loader_cleanup``,
 ``_compute_apply_loaded_agents``) live in :mod:`._loading_compute` so

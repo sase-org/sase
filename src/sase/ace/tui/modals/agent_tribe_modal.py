@@ -1,4 +1,4 @@
-"""Agent tribe modal for the ace TUI Agents tab."""
+"""Agent tribe modal for sase's TUI Agents tab."""
 
 from __future__ import annotations
 

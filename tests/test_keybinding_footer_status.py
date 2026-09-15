@@ -1,4 +1,4 @@
-"""Tests for the ace TUI keybinding footer status utilities and axe state."""
+"""Tests for sase's TUI keybinding footer status utilities and axe state."""
 
 from sase.ace.tui.widgets import KeybindingFooter
 

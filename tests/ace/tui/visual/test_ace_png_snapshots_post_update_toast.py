@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot for the post-update toast."""
+"""sase's TUI PNG visual snapshot for the post-update toast."""
 
 from __future__ import annotations
 

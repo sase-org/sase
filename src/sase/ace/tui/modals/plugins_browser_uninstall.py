@@ -189,7 +189,7 @@ class PluginUninstallActionsMixin:
                 argv=tuple(plan.argv),
                 summary=uninstall_summary(plan),
                 details=(
-                    "ACE restarts after a successful uninstall to unload the plugin.",
+                    "sase's TUI restarts after a successful uninstall to unload the plugin.",
                 ),
             )
         ]

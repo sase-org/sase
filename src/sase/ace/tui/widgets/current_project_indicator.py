@@ -1,4 +1,4 @@
-"""Current-project chip for the ACE TUI top bar.
+"""Current-project chip for sase's TUI top bar.
 
 Renders ``+<display_name>`` in the project's accent color immediately after
 the provider-disables pill. Empty (zero width) when no project resolves or

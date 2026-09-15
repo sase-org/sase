@@ -38,7 +38,7 @@ DAG.
 - [CLI Commands](#cli-commands)
 - [Rust Backend](#rust-backend)
 - [Current Checkout Source Of Truth](#current-checkout-source-of-truth)
-- [ACE TUI Integration](#ace-tui-integration)
+- [sase's TUI Integration](#ace-tui-integration)
 
 ## Quick Start
 
@@ -147,8 +147,8 @@ that lists the agent-creatable slugs.
 The generic `sase bead update <task-id> --design <path>` command currently accepts
 design metadata on a task, even though task creation does not. That metadata does not
 give the task a parent or make task launch plan-backed: `sase bead work` still sends the
-task description and notes to one worker. ACE's Plans pane shows the stored reference
-but does not load its document into the task detail.
+task description and notes to one worker. sase's TUI Plans pane shows the stored
+reference but does not load its document into the task detail.
 
 Plan beads carry a tier. The paths below are relative to the effective plans root. Use
 `sase repo path plans` or `SASE_SDD_PLANS_DIR` to locate it without depending on the
@@ -213,9 +213,10 @@ matter how many layers have already overridden the slug. A machine-global entry 
 `~/.config/sase/sase.yml` applies to every project on the machine, and a project's own
 `sase/sase.yml` entry wins over it.
 
-Every CLI, ACE, bead-page, and gate-preview surface routes the colored type chip through
-one presentation module. Builtins use hand-tuned glyphs (`⨯` bug, `⚙` ci, `✦` feature,
-`≈` flake, `▤` memory); a type that declares none gets a stable hash-derived color.
+Every CLI, sase's TUI, bead-page, and gate-preview surface routes the colored type chip
+through one presentation module. Builtins use hand-tuned glyphs (`⨯` bug, `⚙` ci, `✦`
+feature, `≈` flake, `▤` memory); a type that declares none gets a stable hash-derived
+color.
 
 <a id="per-type-triage-bar"></a>
 
@@ -437,10 +438,10 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    title, description, and notes. **Launch** accepts optional feedback and submits one
    global unattributed proc that runs `sase bead work <task-id> --yes-to-all`; **Close**
    requires feedback and closes the bead with `resolution=canceled` and that feedback as
-   the reason. The detached launch survives ACE, CLI, Telegram, or mobile client exit
-   and appears in `sase proc list` and ACE's Procs tab. **Snooze** requires a wake time,
-   accepts an optional `+N` wake threshold and reason, and defers the task until either
-   condition is met.
+   the reason. The detached launch survives sase's TUI, CLI, Telegram, or mobile client
+   exit and appears in `sase proc list` and sase's TUI Procs tab. **Snooze** requires a
+   wake time, accepts an optional `+N` wake threshold and reason, and defers the task
+   until either condition is met.
 
    Only one pending gate is kept per task. If the task leaves stored status `ready`, AXE
    cancels the pending gate. If a request is answered, canceled, or missing while the
@@ -450,7 +451,7 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    pending `TaskTriage` or `BeadSnooze` gate. A cancellation failure does not undo or
    fail the close; the next five-minute scan remains the backstop. Choosing **Launch**
    in that gate answers it through the normal gate workflow, and a successful launch
-   submission from ACE's Beads pane explicitly cancels the matching gate. A direct
+   submission from sase's TUI Beads pane explicitly cancels the matching gate. A direct
    `sase bead work` command changes the task's status but does not settle an existing
    gate itself; the scheduled scan remains its cleanup backstop.
 
@@ -624,9 +625,9 @@ Every surface that shows a bead's status also shows its reopen history:
 
 - The `↺N` badge sits next to the `+N` corroboration badge on `sase bead show`,
   `sase bead list`, `sase bead ready`, `sase bead blocked`, `sase bead search` rows, the
-  ACE beads pane, and the generated bead page lineage roster.
+  sase's TUI beads pane, and the generated bead page lineage roster.
 - A closed task with stale post-close evidence shows a `+1 after close` badge next to
-  its normal `+N` corroboration badge; the same post-close marker appears in ACE,
+  its normal `+N` corroboration badge; the same post-close marker appears in sase's TUI,
   generated bead pages, and task-triage previews.
 - `sase bead show --format full` renders a `PREVIOUSLY CLOSED` section — placed where
   `RESOLUTION` sits, above `DESCRIPTION` — with one entry per record, newest first, and
@@ -638,9 +639,9 @@ Every surface that shows a bead's status also shows its reopen history:
   `reopened_bead` boolean for the `+1` entry that actually reopened the task.
 - `sase bead search` indexes archived close reasons, resolutions, and timestamps, so a
   reason recorded before a reopen is still findable.
-- The ACE beads pane shows the `↺N` badge on list rows, a "Previously closed" property
-  and a `## Previously Closed` body section in the detail pane, and a `has:reopened`
-  filter label.
+- sase's TUI beads pane shows the `↺N` badge on list rows, a "Previously closed"
+  property and a `## Previously Closed` body section in the detail pane, and a
+  `has:reopened` filter label.
 - Generated bead pages render a `## Previously Closed` section and a `**↺ Reopened:**`
   primary fact.
 - The `TaskTriage` gate preview — the highest-value surface, since **Launch** is its
@@ -827,11 +828,12 @@ Three density tiers, selected per surface:
 - **Data** — the raw stored ISO string, unformatted, on JSON/wire surfaces.
 
 **The live-vs-persisted rule** governs which form a surface may use: a relative age may
-appear only on surfaces that are re-rendered on every read (ACE panes, the BEAD lane,
-CLI terminal output). Any surface whose bytes are persisted, hashed, or reconstructed
-for validation — the TaskTriage gate preview, bead pages, JSON, the mobile wire —
-renders the absolute timestamp only (`relative=False`), because a relative age would
-make those bytes drift as the bead ages and break byte-stability or gate validation.
+appear only on surfaces that are re-rendered on every read (sase's TUI panes, the BEAD
+lane, CLI terminal output). Any surface whose bytes are persisted, hashed, or
+reconstructed for validation — the TaskTriage gate preview, bead pages, JSON, the mobile
+wire — renders the absolute timestamp only (`relative=False`), because a relative age
+would make those bytes drift as the bead ages and break byte-stability or gate
+validation.
 
 Unparseable or empty values render an honest `unknown` placeholder rather than a
 fabricated time; elapsed time is clamped at zero so clock skew renders `now` instead of
@@ -1517,9 +1519,9 @@ explicit `--limit` still wins.
 
 Creation-date filters accept `Nh`/`Nd`/`Nw`, `today`, `yesterday`, `YYYY-MM-DD`, and
 `YYYY-MM-DDTHH:MM`; day-granular `--until` bounds include the full named day. These CLI
-flags bound bead creation time, unlike ACE's `since:` and `until:` filter tokens, which
-bound last activity. A bead with no usable creation timestamp is omitted whenever a
-creation-date bound is present.
+flags bound bead creation time, unlike sase's TUI `since:` and `until:` filter tokens,
+which bound last activity. A bead with no usable creation timestamp is omitted whenever
+a creation-date bound is present.
 
 ### `sase bead note <id> [<text>]`
 
@@ -2009,7 +2011,7 @@ single worker prompt without changing the bead or agent registry. A real launch:
 
 A launch that can only run on a **hard**-disabled provider is refused with a
 provider-and-expiry diagnostic before any runner starts — the same fail-closed guard
-`sase run` and ACE use. A **soft** disable does not refuse the launch. See
+`sase run` and sase's TUI use. A **soft** disable does not refuse the launch. See
 [Provider routing](ace.md#provider-routing-controls).
 
 The `TaskTriage` gate's default Launch branch submits this command as an unattributed
@@ -2273,12 +2275,12 @@ Cross-project helper surfaces, such as mobile/editor bead pickers, may inspect o
 canonical store per known project, but they still do not merge numbered sibling
 workspaces or legacy bead stores for the same project.
 
-## ACE TUI Integration
+## sase's TUI Integration
 
 ### Plan File Linking
 
 When creating a plan bead with `--type plan(PATH)`, the file path is stored in the
-`design` field. The ACE TUI can navigate from a bead to its linked SDD file.
+`design` field. sase's TUI can navigate from a bead to its linked SDD file.
 
 For SDD-generated epics, `PATH` should be the shared plan reference emitted by the plan
 approval flow: `sdd/plans/...` in in-tree mode, `.sase/sdd/plans/...` in local and
@@ -2289,32 +2291,33 @@ ambiguous than guessing which relative prefix applies.
 
 ### Task Bead Surfaces
 
-ACE's Artifacts → Plans pane renders standalone task beads in their own section with an
-orchid `◆` type marker and mint `◇ ready` state. The detail view labels the type as
-`task`. The `s` action only changes status; it cycles a task through
+sase's TUI Artifacts → Plans pane renders standalone task beads in their own section
+with an orchid `◆` type marker and mint `◇ ready` state. The detail view labels the type
+as `task`. The `s` action only changes status; it cycles a task through
 `open → ready → in_progress → closed → open` (`claimed → ready`) but does not launch a
 worker when it reaches `in_progress`. The `e` action edits its title and description.
 The pane's `w` action remains epic-only; launch tasks from their `TaskTriage`
 notification or with `sase bead work <task-id>`.
 
 Generated bead pages and the mobile bead bridge expose the same literal type and status.
-Default non-closed mobile listings include ready tasks. ACE's task detail exposes stored
-metadata and each dependency's status, but it does not show a reverse blocker list. When
-task design metadata is present, the pane shows its plan reference without loading the
-linked document. Its shared phase/task presentation also shows the `small` fallback for
-a task with no stored size.
+Default non-closed mobile listings include ready tasks. sase's TUI task detail exposes
+stored metadata and each dependency's status, but it does not show a reverse blocker
+list. When task design metadata is present, the pane shows its plan reference without
+loading the linked document. Its shared phase/task presentation also shows the `small`
+fallback for a task with no stored size.
 
 ### Plan Approval Flow
 
-The plan approval popup in ACE includes normal approval and **E** (Epic) actions. Normal
-approval saves to the resolved SDD `plans/` directory with `tier: tale`. Every epic
-approval surface behaves the same way — ACE, `sase plan approve --kind epic`, Telegram,
-and bare gate responses all hand `sase bead work <plan-file> --yes-to-all` to a detached
-supervisor that runs it from the project's primary workspace, then record that the host
-owns the launch in the planner response. Epic Custom Approval exposes an optional
-Capacity control (`c`) beside Wait: Default means omission, and `0` is an explicit drain
-threshold. The durable approve result retains that integer so launch argv can emit
-`--capacity N`; tale, reject, and feedback actions never submit it.
+The plan approval popup in sase's TUI includes normal approval and **E** (Epic) actions.
+Normal approval saves to the resolved SDD `plans/` directory with `tier: tale`. Every
+epic approval surface behaves the same way — sase's TUI,
+`sase plan approve --kind epic`, Telegram, and bare gate responses all hand
+`sase bead work <plan-file> --yes-to-all` to a detached supervisor that runs it from the
+project's primary workspace, then record that the host owns the launch in the planner
+response. Epic Custom Approval exposes an optional Capacity control (`c`) beside Wait:
+Default means omission, and `0` is an explicit drain threshold. The durable approve
+result retains that integer so launch argv can emit `--capacity N`; tale, reject, and
+feedback actions never submit it.
 
 The preferred handoff is a [monitor](monitors.md) shell under the planner's own agent
 family, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while

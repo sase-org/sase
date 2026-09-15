@@ -1,4 +1,4 @@
-"""Fold-mode navigation actions for the ace TUI app."""
+"""Fold-mode navigation actions for sase's TUI app."""
 
 from __future__ import annotations
 

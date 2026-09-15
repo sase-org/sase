@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for multi-agent prompt stack layout."""
+"""sase's TUI PNG visual snapshots for multi-agent prompt stack layout."""
 
 from __future__ import annotations
 

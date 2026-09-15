@@ -1,4 +1,4 @@
-"""Background command list widget for the ace TUI.
+"""Background command list widget for sase's TUI.
 
 Renders the AXE-tab left sidebar as an operational tree of lumberjacks
 and their chops, with user/background commands grouped visually below.

@@ -1,4 +1,4 @@
-"""Two-tab help modal for the ace TUI."""
+"""Two-tab help modal for sase's TUI."""
 
 from __future__ import annotations
 
@@ -206,7 +206,7 @@ class HelpModal(CopyModeForwardingMixin, ModalScreen[None]):
         text = Text()
         text.append("  ", style="")
         text.append("\u2726 ", style="bold #FFD700")
-        text.append("sase ace Help", style="bold white")
+        text.append("sase tui Help", style="bold white")
         text.append(" \u2726", style="bold #FFD700")
         text.append("\n")
         tab_name = TAB_DISPLAY_NAMES.get(self._current_tab, self._current_tab)

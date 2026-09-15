@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for shared confirmation dialogs."""
+"""sase's TUI PNG visual snapshot coverage for shared confirmation dialogs."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for the Config Flags pane."""
+"""sase's TUI PNG snapshots for the Config Flags pane."""
 
 from __future__ import annotations
 

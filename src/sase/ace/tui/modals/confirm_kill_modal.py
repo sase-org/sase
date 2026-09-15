@@ -1,4 +1,4 @@
-"""Confirm kill / dismiss-all modals for the ace TUI."""
+"""Confirm kill / dismiss-all modals for sase's TUI."""
 
 from __future__ import annotations
 

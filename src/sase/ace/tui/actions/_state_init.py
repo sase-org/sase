@@ -1,4 +1,4 @@
-"""State initialization for the ACE TUI app's startup mixin."""
+"""State initialization for the TUI app's startup mixin."""
 
 from __future__ import annotations
 

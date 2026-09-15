@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Config Center Updates tab list states."""
+"""sase's TUI PNG visual snapshots for Config Center Updates tab list states."""
 
 from __future__ import annotations
 

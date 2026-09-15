@@ -1,4 +1,4 @@
-"""Hook editing methods for the ace TUI app."""
+"""Hook editing methods for sase's TUI app."""
 
 from __future__ import annotations
 

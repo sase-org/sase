@@ -1,4 +1,4 @@
-"""Agent detail panel viewing, navigation, and tmux actions for the ace TUI app."""
+"""Agent detail panel viewing, navigation, and tmux actions for sase's TUI app."""
 
 from __future__ import annotations
 

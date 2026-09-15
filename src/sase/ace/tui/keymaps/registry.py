@@ -1,4 +1,4 @@
-"""Construct and validate the complete ace TUI keymap registry."""
+"""Construct and validate the complete sase's TUI keymap registry."""
 
 import logging
 from dataclasses import fields

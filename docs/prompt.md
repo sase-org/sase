@@ -1,11 +1,11 @@
 # Prompt History
 
-Prompts you launch with `sase run` or from [ACE](ace.md) are recorded in prompt history
-when they are useful to replay. Normal launch writes skip prompts shorter than five
-words (terse scraps like `y`, `ok`, or `fix the bug` are not worth replaying), while
-recovery paths — and a few launch surfaces that opt in with `allow_short` — can still
-preserve a short submitted prompt when a launch fails. Current installs write monthly
-JSON shards under `~/.sase/prompt_history/YYMM.json`, with unparseable last-used
+Prompts you launch with `sase run` or from [sase's TUI](ace.md) are recorded in prompt
+history when they are useful to replay. Normal launch writes skip prompts shorter than
+five words (terse scraps like `y`, `ok`, or `fix the bug` are not worth replaying),
+while recovery paths — and a few launch surfaces that opt in with `allow_short` — can
+still preserve a short submitted prompt when a launch fails. Current installs write
+monthly JSON shards under `~/.sase/prompt_history/YYMM.json`, with unparseable last-used
 timestamps grouped into `unknown.json`. If an old `~/.sase/prompt_history.json` file is
 found before a shard directory exists, it is migrated on first read or write and kept as
 a `legacy-imported-<timestamp>.json.bak` backup inside the shard directory. The
@@ -271,16 +271,17 @@ sase prompt save ph_8f3a9c0d12ab -p bob   # namespace under ~/sase/xprompts/bob/
 With no `--name`, `save` derives a deterministic slug from the prompt preview. It never
 overwrites an existing xprompt file unless you pass `--force`.
 
-For drafts that have not been submitted to prompt history yet, ACE's prompt bar can save
-directly to xprompt storage. Use `gX` in prompt NORMAL mode, or use `Ctrl+G X` in INSERT
-or NORMAL mode. The unified save panel starts in xprompt mode; press `Ctrl+X` there to
-switch to snippet mode and choose which config file should hold the new `ace.snippets`
-entry. Prompt-input `Ctrl+T` remains completion. If the prompt bar contains a stack, ACE
-saves the non-empty panes as one `---`-separated xprompt body, while snippet mode saves
-only the active pane. When you want to author or retarget exactly one simple xprompt in
-a focused prompt pane, use `gx`, `Ctrl+G x`, or `Ctrl+G Ctrl+X`. When you already know
-you're authoring a snippet trigger, `gt`/`Ctrl+G t` opens a faster, dedicated snippet
-pane instead of this general save panel — see
+For drafts that have not been submitted to prompt history yet, sase's TUI prompt bar can
+save directly to xprompt storage. Use `gX` in prompt NORMAL mode, or use `Ctrl+G X` in
+INSERT or NORMAL mode. The unified save panel starts in xprompt mode; press `Ctrl+X`
+there to switch to snippet mode and choose which config file should hold the new
+`ace.snippets` entry. Prompt-input `Ctrl+T` remains completion. If the prompt bar
+contains a stack, sase's TUI saves the non-empty panes as one `---`-separated xprompt
+body, while snippet mode saves only the active pane. When you want to author or retarget
+exactly one simple xprompt in a focused prompt pane, use `gx`, `Ctrl+G x`, or
+`Ctrl+G Ctrl+X`. When you already know you're authoring a snippet trigger,
+`gt`/`Ctrl+G t` opens a faster, dedicated snippet pane instead of this general save
+panel — see
 [Authoring a snippet from the prompt bar](ace.md#authoring-a-snippet-from-the-prompt-bar).
 To browse or edit the composed catalog, `gT`/`Ctrl+G T` opens the
 [Snippets panel](ace.md#snippets-panel); the lowercase and uppercase chords coexist.

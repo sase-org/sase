@@ -122,7 +122,7 @@ async def test_usage_header_centers_title_on_screen(
         assert abs(content_center - header_center) <= 1
 
         assert header.scroll_offset.x == 0
-        assert str(page.app.title).startswith("sase ace")
+        assert str(page.app.title).startswith("sase tui")
         if width >= 120:
             assert "🎭" in usage.render().plain
             assert "·" in usage.render().plain or "45%" in usage.render().plain
@@ -145,7 +145,7 @@ async def test_short_and_long_titles_and_subtitles_reflow_usage(
         assert usage.region.x + usage.region.width == usage_right
         assert page.app.sub_title == "workspace"
 
-        page.app.title = "sase ace (" + "v0.8.0+9.gdeadbee.dirty" + ")"
+        page.app.title = "sase tui (" + "v0.8.0+9.gdeadbee.dirty" + ")"
         await _settle(page)
         assert title.region.x == title_origin
         assert usage.region.x + usage.region.width == usage_right
@@ -160,7 +160,7 @@ async def test_late_version_title_change_shrinks_usage_budget(
         await _settle(page)
         _header, _icon, _title, usage = _header_widgets(page)
         before = usage._usage_budget
-        page.app.title = "sase ace (v0.8.0+99.gabcdefgh.dirty-workspace)"
+        page.app.title = "sase tui (v0.8.0+99.gabcdefgh.dirty-workspace)"
         await _settle(page)
         assert usage._usage_budget <= before
 
@@ -320,7 +320,7 @@ async def test_fallback_clicks_open_usage(
     async with AcePage(size=(40, 24)) as page:
         await _settle(page)
         _header, _icon, title, usage = _header_widgets(page)
-        page.app.title = "sase ace " + ("n" * 24)
+        page.app.title = "sase tui " + ("n" * 24)
         await _settle(page)
         rendered = usage.render().plain.strip()
         assert (
@@ -445,7 +445,7 @@ async def test_overlong_title_ellipsizes_but_stays_centered_with_tooltip(
     async with AcePage(size=(60, 24)) as page:
         await _settle(page)
         header, icon, title, usage = _header_widgets(page)
-        page.app.title = "sase ace " + ("n" * 80)
+        page.app.title = "sase tui " + ("n" * 80)
         await _settle(page)
 
         inner = int(header.content_size.width)

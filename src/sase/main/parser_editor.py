@@ -36,9 +36,9 @@ def register_editor_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Return configured %%final completion rows as compact JSON",
         description=(
             "Read one JSON request from stdin and write one compact JSON "
-            "finalizer completion catalog to stdout. ACE and the xprompt LSP "
-            "use this catalog to complete %%final selectors from effective "
-            "trusted configuration without loading provider code."
+            "finalizer completion catalog to stdout. sase's TUI and the "
+            "xprompt LSP use this catalog to complete %%final selectors from "
+            "effective trusted configuration without loading provider code."
         ),
         epilog=(
             "Request JSON:\n"

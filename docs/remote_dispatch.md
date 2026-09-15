@@ -216,13 +216,13 @@ allowed, and `%dispatch:local` is reserved — omit the directive for a local la
 remote launch does not combine with `%wait`, `%queue`, or `%clan`. The controller strips
 only the dispatch selector, so other launch directives are processed on the target.
 
-In ACE, `gD` from prompt NORMAL mode or `Ctrl+G D` from INSERT mode opens the **Launch
-Target** picker. It lists `here` plus every enrolled alias. Local enrollment data labels
-each non-quarantined remote `ok` and enables it; quarantined rows remain visible but
-disabled. This is an eligibility label, not a gateway-health result—the picker performs
-no network probe. Choosing a remote inserts or replaces the single dispatch selector;
-choosing `here` removes it. The prompt's Target/Source context line makes the selected
-owner and portable source explicit before submission.
+In sase's TUI, `gD` from prompt NORMAL mode or `Ctrl+G D` from INSERT mode opens the
+**Launch Target** picker. It lists `here` plus every enrolled alias. Local enrollment
+data labels each non-quarantined remote `ok` and enables it; quarantined rows remain
+visible but disabled. This is an eligibility label, not a gateway-health result—the
+picker performs no network probe. Choosing a remote inserts or replaces the single
+dispatch selector; choosing `here` removes it. The prompt's Target/Source context line
+makes the selected owner and portable source explicit before submission.
 
 Remote launch carries portable project evidence rather than the controller's local
 paths. A trusted launch integration can supply a Patch reference or explicit revision in
@@ -235,9 +235,9 @@ resolved launch units, attachments, files, and images — are rejected before su
 A submitted request is durable and idempotent; an acceptance-uncertain response can be
 retried without intentionally duplicating the launch.
 
-ACE consumes the same fleet records. `sase ace --tmux` prints the tmux target for the
-session. Open Admin Center with `#` and press `3` for the **Machines** tab: it reads the
-local controller and enrolled aliases without probing the network, and `s` runs a
+sase's TUI consumes the same fleet records. `sase tui --tmux` prints the tmux target for
+the session. Open Admin Center with `#` and press `3` for the **Machines** tab: it reads
+the local controller and enrolled aliases without probing the network, and `s` runs a
 bounded authenticated hello only for the selected remote. Its connect, repair, rename,
 and remove actions show persistent CLI guidance rather than mutating immediately;
 `Enter` returns to Agents with a `machine:<alias>` filter.
@@ -251,8 +251,8 @@ carry a `here` chip. Group with `o` until the header says **by machine** to rend
   failures visible as diagnostics rather than hiding healthy hosts.
 - Remote rows show the owning machine's authored capacity and weight as `cN` / `wN`
   badges and `Capacity:` / `Weight:` detail lines, including `c0` for a persisted legacy
-  zero-capacity record. Their load is never added to the ACE header's `C/L` capacity
-  total, which counts only the controller's own runners.
+  zero-capacity record. Their load is never added to the `C/L` capacity in sase's TUI
+  header total, which counts only the controller's own runners.
 - Remote stop, retry, fork, bounded content, machine status, launch-outcome checks, and
   pending question/gate actions appear only when the selected row advertises the
   matching capability.
@@ -262,17 +262,17 @@ carry a `here` chip. Group with `o` until the header says **by machine** to rend
   [Remote Attention](notifications.md#remote-attention).
 
 Prompt submission first validates portable source proof off the TUI event loop. A
-preflight failure keeps and refocuses the draft. After preflight passes, ACE shows a
-provisional `QUEUED` owner row before the background launch settles. A structured
-accepted response keeps it `QUEUED`, while a settled response changes it to `STARTING`.
-When the launch finishes without a structured dispatch result—including the current
-rejection and failed-receipt paths—the row becomes outcome-unknown `WAITING`; run
-**Agents: check dispatch launch outcome** from the command palette. The provisional
+preflight failure keeps and refocuses the draft. After preflight passes, sase's TUI
+shows a provisional `QUEUED` owner row before the background launch settles. A
+structured accepted response keeps it `QUEUED`, while a settled response changes it to
+`STARTING`. When the launch finishes without a structured dispatch result—including the
+current rejection and failed-receipt paths—the row becomes outcome-unknown `WAITING`;
+run **Agents: check dispatch launch outcome** from the command palette. The provisional
 disappears when the target's authoritative fleet row arrives with the matching logical
 or exact locator.
 
 Those operations are journaled through `sase machine agent` and
-`sase machine attention`. Use the ACE command palette or configure the corresponding
+`sase machine attention`. Use sase's TUI command palette or configure the corresponding
 `ace.keymaps.app` fields for direct keys.
 
 To prove restart resilience, restart the target gateway service, then rerun:

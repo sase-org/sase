@@ -1,4 +1,4 @@
-"""Binding metadata for configurable ace TUI keymaps."""
+"""Binding metadata for configurable sase's TUI keymaps."""
 
 # Binding metadata: (action_name, description, priority)
 # Order matches the original hardcoded BINDINGS in app.py.

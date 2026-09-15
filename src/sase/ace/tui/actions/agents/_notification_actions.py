@@ -1,4 +1,4 @@
-"""Notification action handlers for the ace TUI app.
+"""Notification action handlers for sase's TUI app.
 
 Re-exports from split submodules for backwards compatibility.
 """

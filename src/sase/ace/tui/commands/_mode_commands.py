@@ -1,4 +1,4 @@
-"""Mode command builders for the ace TUI command catalog."""
+"""Mode command builders for sase's TUI command catalog."""
 
 from __future__ import annotations
 

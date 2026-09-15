@@ -1,10 +1,10 @@
 """Surface-neutral agent-family plan/bead preview value and formatters.
 
-Both the ACE TUI prompt-input completion menu and the external-editor agent
+Both sase's TUI prompt-input completion menu and the external-editor agent
 catalog render the same "preview ladder" for a family completion entry: an
 authored plan's tier and title, a bead's type and title, or nothing. This
 module holds the shared value type and text formatters so the wording cannot
-drift between surfaces; it intentionally has no ACE TUI model imports so the
+drift between surfaces; it intentionally has no sase's TUI model imports so the
 editor helper (a separate process) can use it too.
 """
 

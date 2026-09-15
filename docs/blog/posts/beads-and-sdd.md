@@ -149,10 +149,10 @@ is episodic evidence. The plan that lands on disk should be something a reviewer
 trust six months later without needing to re-read the conversation that produced it.
 
 In practice, SDD enforces this shape by writing the plan only when it is submitted via
-`sase plan propose` (which touches `~/.sase/.ace_refresh_pulse` so any running ACE TUI
-flips the agent into the `PLAN` status immediately) and by appending Q&A exchanges, when
-present, as a single merged `### Questions and Answers` section with monotonic numbering
-across rounds. The proposal can then be promoted from ACE or with
+`sase plan propose` (which touches `~/.sase/.ace_refresh_pulse` so any running sase's
+TUI flips the agent into the `PLAN` status immediately) and by appending Q&A exchanges,
+when present, as a single merged `### Questions and Answers` section with monotonic
+numbering across rounds. The proposal can then be promoted from sase's TUI or with
 `sase plan approve <id-prefix> --kind tale|epic`; the promoted plan is what links to the
 bead, while the chat stays as a `CHAT:` drawer on the eventual commit.
 

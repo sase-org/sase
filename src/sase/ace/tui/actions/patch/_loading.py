@@ -1,4 +1,4 @@
-"""Patch loading, filtering, and reload logic for the ace TUI app."""
+"""Patch loading, filtering, and reload logic for sase's TUI app."""
 
 from __future__ import annotations
 

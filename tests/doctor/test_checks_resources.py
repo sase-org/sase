@@ -366,7 +366,7 @@ def test_inotify_warns_when_watch_or_instance_limits_are_low(tmp_path: Path) -> 
     check = _check_inotify(platform="linux", proc_dir=tmp_path)
 
     assert check.status == "WARN"
-    assert "force ACE event refresh back to polling" in check.summary
+    assert "force sase's TUI event refresh back to polling" in check.summary
     assert any("max_user_watches=256" in detail for detail in check.details)
     assert any("max_user_instances=2" in detail for detail in check.details)
 
@@ -442,4 +442,4 @@ def test_ace_run_watches_warns_when_live_shard_is_not_selected(
 
     assert check.status == "WARN"
     assert check.data["starved_projects"] == ("proj",)
-    assert "outside ACE's startup watch budget" in check.summary
+    assert "outside sase's TUI startup watch budget" in check.summary

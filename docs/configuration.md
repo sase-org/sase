@@ -80,8 +80,8 @@ escape the user config directory. A project-local `sase/sase.yml` at the detecte
 project root usually takes highest priority. A root-level `sase.yml` remains an
 exclusive read fallback during the
 [layout compatibility window](content_layout.md#compatibility-and-collisions); if both
-files exist, SASE reports a collision instead of merging them. The ACE TUI deliberately
-disables project-local config loading for its own process so opening `sase ace` inside a
+files exist, SASE reports a collision instead of merging them. sase's TUI deliberately
+disables project-local config loading for its own process so opening `sase tui` inside a
 repo does not inherit that repo's agent-run settings. See
 [Deep-Merge System](#deep-merge-system) below.
 
@@ -161,15 +161,15 @@ import/publication commands, and recovery.
 
 ## SASE Admin Center (interactive editor)
 
-Press `#` in the `sase ace` TUI to open **SASE Admin Center**. The first press always
+Press `#` in the `sase tui` TUI to open **SASE Admin Center**. The first press always
 starts on its lightweight home page, where the working sections—**Config**, **Logs**,
 **Machines**, **Procs**, **Projects**, **Statistics**, and **Updates**—are introduced
 without loading their data. Config's nested catalog is alphabetized. With the default-on
 `admin_center_flags` sunset flag it is **All**, **Flags**, **Launch**, **Memory**,
 **Snippets**, and **XPrompts**, labeled `01` through `06`. Disabling that flag omits
 Flags and numbers the remaining five children `01` through `05`. While home is visible,
-press `#` again to resume the last section that was successfully active in this ACE
-process. Before the first section visit, the repeated key leaves home unchanged and
+press `#` again to resume the last section that was successfully active in this sase's
+TUI process. Before the first section visit, the repeated key leaves home unchanged and
 constructs no pane. Press `1`–`7` or click the numbered tab strip to enter a section:
 `1` Config, `2` Logs, `3` Machines, `4` Procs, `5` Projects, `6` Statistics, and `7`
 Updates. From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a working
@@ -189,12 +189,12 @@ commands such as **Open logs panel**, **Open procs panel**, **Open statistics**,
 update actions still open their requested pane immediately and make that successfully
 mounted section the next resume target. Closing and reopening with one `#` still returns
 to home; only a second press while home is visible resumes. The top-level resume target
-and alternate are persisted machine-locally and survive ACE process restarts. Entry
-bookmarks for Config, Logs, Machines, Projects, Procs, and Updates last only for the
-current ACE process. They restore by stable identity, along with minimal scope or
-sub-tab context when needed, but reset when ACE restarts. Filters, marks, scroll
-positions, loaded data, pane instances, Statistics controls, and other pane-local state
-are never carried between modal lifetimes.
+and alternate are persisted machine-locally and survive sase's TUI process restarts.
+Entry bookmarks for Config, Logs, Machines, Projects, Procs, and Updates last only for
+the current sase's TUI process. They restore by stable identity, along with minimal
+scope or sub-tab context when needed, but reset when sase's TUI restarts. Filters,
+marks, scroll positions, loaded data, pane instances, Statistics controls, and other
+pane-local state are never carried between modal lifetimes.
 
 ### Config tab
 
@@ -211,10 +211,11 @@ without changing the visible default badges.
 **Flags** is a keyboard-first control surface for every code-owned SASE feature flag. It
 does not edit `~/.config/sase/sase.yml`, overlays, project-local `sase.yml`, or chezmoi
 source. Enable and disable write a SASE-owned machine-state file under `SASE_HOME`
-(normally `~/.sase/feature_flags.json`) and then restart ACE and AXE so new processes
-see the saved value. See [feature_flags](#feature_flags) for precedence, corruption
-behavior, and the CLI equivalent, and the [Config Flags pane](ace.md#config-flags-pane)
-for layout, keys, confirmation, and self-disable recovery.
+(normally `~/.sase/feature_flags.json`) and then restart sase's TUI and AXE so new
+processes see the saved value. See [feature_flags](#feature_flags) for precedence,
+corruption behavior, and the CLI equivalent, and the
+[Config Flags pane](ace.md#config-flags-pane) for layout, keys, confirmation, and
+self-disable recovery.
 
 - **Browse / inspect** (read-only): a source rail lists each config layer with
   loaded/missing/invalid/read-only badges; the field tree is generated from the schema
@@ -247,22 +248,23 @@ for layout, keys, confirmation, and self-disable recovery.
   candidate config. The write is source-preserving (comments, key order, and quoting are
   kept) and is remapped to the chezmoi source tree when `use_chezmoi` is enabled.
 
-For a chezmoi-remapped write, ACE first applies the changed target; an apply failure
-leaves the source edit in place and keeps the editor open. After a successful write and
-any targeted apply, ACE checks the file that was actually changed. If that file is dirty
-inside a git repository, it offers to **commit and push** the change as a tracked proc.
-Confirming stages that config file, commits the repository's current index, pulls with
-rebase, and pushes; pre-existing staged changes are therefore included in the same
-commit. The repository is discovered from the written file, so a remapped edit uses the
-chezmoi source repository. When `use_chezmoi` is enabled, a successful push is followed
-by a full `chezmoi apply`. Each failure stops the sequence at that step, without undoing
-the written config change. Skipping the offer—or editing a file outside git—also leaves
-the successful write in place. The [Launch Control](ace.md#persistent-edits) uses the
-same workflow for persistent alias edits, while its fixed `Ctrl+E` binding previews and
-writes `llm_provider.default_effort` specifically to the user-base layer. `Ctrl+E` is
-local to Launch Control modal (including bucket rows), not a configurable leader-key
-entry. Choosing Provider default writes the empty schema sentinel; a currently active
-temporary effort override remains effective until expiry or clear.
+For a chezmoi-remapped write, sase's TUI first applies the changed target; an apply
+failure leaves the source edit in place and keeps the editor open. After a successful
+write and any targeted apply, sase's TUI checks the file that was actually changed. If
+that file is dirty inside a git repository, it offers to **commit and push** the change
+as a tracked proc. Confirming stages that config file, commits the repository's current
+index, pulls with rebase, and pushes; pre-existing staged changes are therefore included
+in the same commit. The repository is discovered from the written file, so a remapped
+edit uses the chezmoi source repository. When `use_chezmoi` is enabled, a successful
+push is followed by a full `chezmoi apply`. Each failure stops the sequence at that
+step, without undoing the written config change. Skipping the offer—or editing a file
+outside git—also leaves the successful write in place. The
+[Launch Control](ace.md#persistent-edits) uses the same workflow for persistent alias
+edits, while its fixed `Ctrl+E` binding previews and writes
+`llm_provider.default_effort` specifically to the user-base layer. `Ctrl+E` is local to
+Launch Control modal (including bucket rows), not a configurable leader-key entry.
+Choosing Provider default writes the empty schema sentinel; a currently active temporary
+effort override remains effective until expiry or clear.
 
 The deprecated `linked_repos` and `sibling_repos` keys remain readable as compatibility
 aliases for [`repos.linked`](#repos), but the Config tab no longer offers a one-key
@@ -274,11 +276,11 @@ edits a built-in or plugin default (those layers are read-only).
 ### Logs tab
 
 The Logs tab lists each log source and a colorized tail of the selected file. After a
-launch or chop failure, ACE toasts a leader chord (`,L` by default) that opens this tab
-on that failure's source, highlights the matching header line, and scrolls the detail
-pane to it. The jump target is session-scoped: it is the most recent error toast in this
-ACE process, not a durable pointer, and it degrades to the ordinary tail with an in-pane
-notice if the entry has rotated out of the log.
+launch or chop failure, sase's TUI toasts a leader chord (`,L` by default) that opens
+this tab on that failure's source, highlights the matching header line, and scrolls the
+detail pane to it. The jump target is session-scoped: it is the most recent error toast
+in this sase's TUI process, not a durable pointer, and it degrades to the ordinary tail
+with an in-pane notice if the entry has rotated out of the log.
 
 ### Machines tab
 
@@ -396,7 +398,7 @@ upstream instead of PyPI. Update actions route editable packages through the
 `uv` path. Blocked editable states appear as dim reasons such as `dev · local changes`,
 `dev · diverged`, `dev · detached HEAD`, `dev · no upstream`, or `dev · offline`.
 
-ACE computes one composite SASE/plugin/agent-CLI snapshot after first paint. The
+sase's TUI computes one composite SASE/plugin/agent-CLI snapshot after first paint. The
 existing ten-minute session tick only revalidates that cached snapshot and locally
 probes provider names already present in it. A full inventory/network recompute is
 eligible on the longer `ace.updates.recompute_interval_minutes` cadence (one hour by
@@ -441,12 +443,13 @@ Agent CLI commands first and the SASE/core/plugin leg second, reporting independ
 partial failures. `A` previews every exact agent-CLI command and every skip with its
 reason and docs URL; it uses the marked subset from anywhere in the pane, otherwise it
 targets every safely updatable installed CLI. Agent-CLI commands execute sequentially as
-one tracked proc and refresh the browser without restarting ACE; new agent launches
-naturally use the updated binaries. Installable plugins use `I` / `Space` marks, while
-updatable agent CLIs use `Space`, in one shared mark set; `Esc` clears every mark, of
-either kind and regardless of the active filter, before closing. All slow work runs off
-the event loop. Core/plugin code changes retain the existing automatic ACE/axe restart
-behavior after the other legs finish. The context-sensitive keymaps are:
+one tracked proc and refresh the browser without restarting sase's TUI; new agent
+launches naturally use the updated binaries. Installable plugins use `I` / `Space`
+marks, while updatable agent CLIs use `Space`, in one shared mark set; `Esc` clears
+every mark, of either kind and regardless of the active filter, before closing. All slow
+work runs off the event loop. Core/plugin code changes retain the existing automatic
+sase's TUI/axe restart behavior after the other legs finish. The context-sensitive
+keymaps are:
 
 | Key                 | Action                                                                                                      |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -680,7 +683,7 @@ Source: `src/sase/config/core.py`, `src/sase/config/sase.schema.json`,
 
 ### ace
 
-Configures the ACE TUI behavior. Defaults are provided by `src/sase/default_config.yml`.
+Configures sase's TUI behavior. Defaults are provided by `src/sase/default_config.yml`.
 
 ```yaml
 ace:
@@ -781,18 +784,18 @@ ace:
 
 | Field                      | Type         | Default   | Description                                                                                                                                                |
 | -------------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `artifacts`                | dict         | see below | Per-pane settings for ACE's Artifacts tab.                                                                                                                 |
+| `artifacts`                | dict         | see below | Per-pane settings for sase's TUI Artifacts tab.                                                                                                            |
 | `axe_description_expanded` | bool         | `true`    | State the Axe-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                          |
 | `current_project`          | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                           |
 | `keymaps`                  | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
 | `page_size`                | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1. Launch Control alias history uses a fixed 10-run step instead.          |
-| `prompt_completion`        | dict         | see below | Live soft-completion settings for the ACE prompt input.                                                                                                    |
+| `prompt_completion`        | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                 |
 | `prompt_inputs`            | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
-| `prompt_spellcheck`        | dict         | see below | Sticky misspelling highlight settings for the ACE prompt input.                                                                                            |
+| `prompt_spellcheck`        | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                         |
 | `repro_output_dir`         | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippet_config_path`      | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                              |
 | `snippets`                 | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
-| `tribes`                   | dict         | see below | Per-tribe ACE TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                      |
+| `tribes`                   | dict         | see below | Per-tribe sase's TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                   |
 | `updates`                  | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
 
 #### `ace.artifacts`
@@ -814,8 +817,8 @@ ace:
 The Stitches pane validates this value with its live query parser. Invalid runtime
 configuration produces a warning and falls back to the bundled query. An empty
 configured query is valid and includes sidecars; the visible canonical row renders that
-state as `sidecar:true merges:hide`. At startup, an explicit project from the ACE query
-takes precedence over a `project:` in this setting, which takes precedence over
+state as `sidecar:true merges:hide`. At startup, an explicit project from sase's TUI
+query takes precedence over a `project:` in this setting, which takes precedence over
 read-only current registered-project inference. The selected project is merged into the
 query before the pane is composed. `project:` is singular and cannot be negated or
 contain an unquoted comma list. It accepts a configured project name, ProjectSpec
@@ -827,8 +830,8 @@ projects** removes it while preserving the rest of the query.
 Startup injects `limit:<ace.page_size>` (default 100) when this query has no `limit:`
 token. An explicit `limit:` in the configured string — including `limit:all` — is left
 alone, and deleting the token at runtime leaves the list uncapped. When a numeric cap
-clips the result, ACE keeps the token visible and shows a lower-bound total such as
-`[1/40+]` in the repository legend while the filter row says `capped`. The legend's
+clips the result, sase's TUI keeps the token visible and shows a lower-bound total such
+as `[1/40+]` in the repository legend while the filter row says `capped`. The legend's
 `[P/N]` form means selected one-based position over displayed matched entries.
 `limit:all` is accepted as an unlimited synonym but is omitted from canonical query
 text. Day-granular `until:` values include the full named day. This setting is
@@ -837,13 +840,13 @@ independent of the `sase stitch list` CLI's sidecar opt-in and limit contract.
 #### `ace.axe_description_expanded`
 
 Sets whether the Axe-tab description panel starts expanded (`true`, the default) or
-collapsed to its summary line in each `sase ace` session. The `toggle_axe_description`
+collapsed to its summary line in each `sase tui` session. The `toggle_axe_description`
 keymap action — `d` by default, configurable under `ace.keymaps.app` — flips the state
 in memory for the rest of the session; it never writes the toggle back to configuration,
 so this key is the only durable setting. Descriptions themselves follow the
 [AXE description grammar](axe.md#description-grammar), and the panel's layout, height
 budget, and overflow row are described in
-[ACE — Description Panel](ace.md#description-panel).
+[sase's TUI — Description Panel](ace.md#description-panel).
 
 Because the Axe tab claims `d`, the `show_diff` action is active only on the Patches
 sub-tab.
@@ -854,11 +857,11 @@ The current project is derived from the head of the VCS xprompt MRU store — th
 you last launched an agent on. `sase project set-current` and the Projects tab perform
 the same MRU promotion without a launch.
 
-| Field               | Type | Default | Description                                                                                                                                                                                                                           |
-| ------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `indicator`         | bool | `true`  | Show the `+<project>` chip in the ACE top bar, right of the default-model indicator. Governs the top-bar chip only; the Admin Center [Projects tab](ace.md#projects-tab) always shows the current project regardless of this setting. |
-| `seed_filters`      | bool | `true`  | Seed project filters that have no value yet. Never overrides an explicit choice or an already-open surface.                                                                                                                           |
-| `seed_agents_query` | bool | `false` | Also seed the active Agents-tab query dialect with the current project's exact `project:` term when no submitted Agents query, including explicit empty, is remembered.                                                               |
+| Field               | Type | Default | Description                                                                                                                                                                                                                              |
+| ------------------- | ---- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `indicator`         | bool | `true`  | Show the `+<project>` chip in sase's TUI top bar, right of the default-model indicator. Governs the top-bar chip only; the Admin Center [Projects tab](ace.md#projects-tab) always shows the current project regardless of this setting. |
+| `seed_filters`      | bool | `true`  | Seed project filters that have no value yet. Never overrides an explicit choice or an already-open surface.                                                                                                                              |
+| `seed_agents_query` | bool | `false` | Also seed the active Agents-tab query dialect with the current project's exact `project:` term when no submitted Agents query, including explicit empty, is remembered.                                                                  |
 
 `seed_agents_query` is **off by default** on purpose. The Agents tab is the primary
 at-a-glance view, and its structured query is also read by unread-jump candidates and
@@ -882,38 +885,38 @@ to carry a `description`; the other fields are optional:
 | Field                | Type | Default    | Description                                                                                                                                                                                               |
 | -------------------- | ---- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `icon`               | str  | `""`       | Short glyph on structured identity surfaces that already include an icon. Set `""` to remove an icon inherited from defaults.                                                                             |
-| `color`              | str  | `""`       | `#RRGGBB` foreground for structured tribe icons and names throughout the TUI. Set `""` to restore ACE's gold fallback.                                                                                    |
+| `color`              | str  | `""`       | `#RRGGBB` foreground for structured tribe icons and names throughout the TUI. Set `""` to restore sase's TUI gold fallback.                                                                               |
 | `initially_expanded` | bool | `true`     | State applied every time the Agents-tab panel comes into existence.                                                                                                                                       |
 | `description`        | str  | _required_ | One-line explanation of the tribe, 1-160 characters. Shown as an unlabeled row beneath the header fields (`Name`/`Status`/`Composition`/`Runtime`/`Fold`) when that tribe's Agents-tab panel is selected. |
 
 The bundled defaults use ⌂ in sky blue for `default`, ▲ in lavender-purple for `epic`,
 and † in amber-orange for `chop`. They also use ◆ for `pinned` and ◉ for `review`, whose
-identities retain ACE's gold fallback; `chop` starts collapsed. Because config entries
-merge deeply, setting `color: ""` explicitly clears an inherited color without replacing
-that tribe's other defaults — overriding only `icon` or `color` on a bundled tribe still
-inherits its bundled `description`. A manual panel expand/collapse lasts only while that
-panel remains live in the current ACE session. On restart, or when a tribe panel
-disappears and later returns, `initially_expanded` is applied again.
+identities retain sase's TUI gold fallback; `chop` starts collapsed. Because config
+entries merge deeply, setting `color: ""` explicitly clears an inherited color without
+replacing that tribe's other defaults — overriding only `icon` or `color` on a bundled
+tribe still inherits its bundled `description`. A manual panel expand/collapse lasts
+only while that panel remains live in the current sase's TUI session. On restart, or
+when a tribe panel disappears and later returns, `initially_expanded` is applied again.
 
 SASE bundles display config only for the tribes its own source assigns (`default`,
 `epic`, `chop`, `pinned`, `review`); a tribe your own xprompts assign with `%tribe:` has
-no bundled entry, renders with ACE's gold fallback and no icon until you configure it
-under `ace.tribes`, and — once configured — requires a `description` like any other
+no bundled entry, renders with sase's TUI gold fallback and no icon until you configure
+it under `ace.tribes`, and — once configured — requires a `description` like any other
 entry.
 
 A missing or blank `description` on any configured tribe is an error-severity config
-diagnostic: the ACE Config Center refuses to write _any_ change while it is present, not
-just an edit to that tribe. Run `sase doctor -C config.tribes` to list every tribe
+diagnostic: sase's TUI Config Center refuses to write _any_ change while it is present,
+not just an edit to that tribe. Run `sase doctor -C config.tribes` to list every tribe
 missing a description and the exact `ace.tribes.<name>.description` key to set.
 
-Identity colors apply only where ACE already has a structured tribe value. They do not
-scan free-form `@...` text or recolor selection markers, fold controls, counts,
+Identity colors apply only where sase's TUI already has a structured tribe value. They
+do not scan free-form `@...` text or recolor selection markers, fold controls, counts,
 statuses, headings, or explanatory copy. Icons likewise appear only on identity surfaces
 that already include them; configuring an icon does not add one to compact name-only
 rows.
 
-ACE reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and user
-overlays), not project-local `sase/sase.yml`.
+sase's TUI reads this TUI setting from the user-level `~/.config/sase/sase.yml` (and
+user overlays), not project-local `sase/sase.yml`.
 
 #### `ace.notification_tabs`
 
@@ -931,24 +934,24 @@ name such as `beads`, or a notification tag.
 | `grouping` | str  | `""`    | Row grouping strategy for the notification modal. `""` uses the built-in default, and `recent` opts out to a flat newest-first list. |
 
 Colors resolve by precedence, highest first: this setting, then a color the sending gate
-declared through `presentation.color`, then the built-in default for a tab ACE ships
-knowing about, and finally a stable auto-palette entry derived from the tab key. The
-last rung means a brand-new tag tab is never colorless and keeps the same color across
-restarts. The bundled defaults are amber-orange `hitl`, sky-blue `attention`, red
+declared through `presentation.color`, then the built-in default for a tab sase's TUI
+ships knowing about, and finally a stable auto-palette entry derived from the tab key.
+The last rung means a brand-new tag tab is never colorless and keeps the same color
+across restarts. The bundled defaults are amber-orange `hitl`, sky-blue `attention`, red
 `errors`, lavender-purple `beads`, gold `general`, grey `snoozed`, and teal `muted`.
 
 Icons resolve through the same shape, with one deliberate difference at the last rung:
 this setting, then an icon the sending gate declared through `presentation.panel_icon`,
-then the built-in default for a tab ACE ships knowing about, then a default keyed by the
-tab's own kind (`panel` or `tag`, so an unrecognized panel or tag tab still gets a glyph
-that means something about what kind of tab it is), and finally `•` for a tab with no
-kind at all. Unlike color, an icon never falls back to a hashed auto-palette entry — an
-arbitrary glyph would teach the reader something false, so the chain always bottoms out
-at a meaningful or honestly generic mark instead. The bundled defaults are `⚑` `hitl`,
-`?` `attention`, `✖` `errors`, `◈` `beads`, `✉` `general`, `☾` `snoozed`, and `⊘`
-`muted`.
+then the built-in default for a tab sase's TUI ships knowing about, then a default keyed
+by the tab's own kind (`panel` or `tag`, so an unrecognized panel or tag tab still gets
+a glyph that means something about what kind of tab it is), and finally `•` for a tab
+with no kind at all. Unlike color, an icon never falls back to a hashed auto-palette
+entry — an arbitrary glyph would teach the reader something false, so the chain always
+bottoms out at a meaningful or honestly generic mark instead. The bundled defaults are
+`⚑` `hitl`, `?` `attention`, `✖` `errors`, `◈` `beads`, `✉` `general`, `☾` `snoozed`,
+and `⊘` `muted`.
 
-Configured icons are explicit choices and are never overridden. ACE guarantees
+Configured icons are explicit choices and are never overridden. sase's TUI guarantees
 distinctness only for SASE-chosen generic icons from the kind and last-resort rungs: on
 collision it derives an unused ASCII letter or digit from the tab key, and if the key is
 exhausted it keeps the generic mark rather than inventing one. Run
@@ -969,8 +972,8 @@ Grouping controls section headers in the notification modal, not tab membership.
 shipped strategy is `bead_type` for the `beads` tab, grouping task-bead notifications by
 task type with Due, Cleanup, and Other fallback buckets. Set
 `ace.notification_tabs.beads.grouping: recent` to open Beads flat by default. Press `S`
-in the notification modal to toggle the active tab for the current ACE process without
-rewriting config.
+in the notification modal to toggle the active tab for the current sase's TUI process
+without rewriting config.
 
 #### `ace.notification_indicator_max_counts`
 
@@ -980,7 +983,7 @@ remaining tabs collapse into a single dim `+N` chip. Must be at least 1; default
 
 #### `ace.page_size`
 
-Integer step used by Ctrl+J (load more) and Ctrl+K (unload) on ACE lists, and the
+Integer step used by Ctrl+J (load more) and Ctrl+K (unload) on sase's TUI lists, and the
 default Artifacts `limit:` value when a pane has no explicit cap. Must be at least 1;
 defaults to `100`. Invalid or missing values fall back to 100. Changing this changes the
 chord step and any default query that had no explicit `limit:`; it does not rewrite a
@@ -994,7 +997,7 @@ Ctrl+J / Ctrl+K there always step by 10 runs, independently of this setting and 
 | --------------------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `startup_toast`                         | bool   | `true`  | Show the startup toast when cached status reports SASE, plugin, or supported agent-CLI updates.                                   |
 | `startup_toast_max_commits`             | int    | `20`    | Maximum total incoming commit subjects shown across all repositories in the startup toast.                                        |
-| `post_update_toast`                     | bool   | `true`  | Show a one-shot combined result after an update changes SASE code and restarts ACE.                                               |
+| `post_update_toast`                     | bool   | `true`  | Show a one-shot combined result after an update changes SASE code and restarts sase's TUI.                                        |
 | `post_update_toast_diffstat`            | bool   | `true`  | Show per-repository applied file and line-change statistics when available.                                                       |
 | `post_update_toast_commits`             | bool   | `true`  | Show applied commits grouped by repository when available.                                                                        |
 | `post_update_toast_max_commits`         | int    | `5`     | Maximum applied commit subjects shown per repository; `0` keeps totals but hides subjects.                                        |
@@ -1005,15 +1008,15 @@ Ctrl+J / Ctrl+K there always step by 10 runs, independently of this setting and 
 | `incoming_commits.enabled`              | bool   | `true`  | Fetch and show incoming commit subjects for SASE core and plugin repositories.                                                    |
 | `incoming_commits.max_per_repo`         | int    | `7`     | Maximum incoming commit subjects to show per repository in Updates-tab details.                                                   |
 | `incoming_commits.confirm_max_per_repo` | int    | `250`   | Maximum subjects fetched per repository in update confirmations; larger ranges show an explicit `+N more` marker.                 |
-| `check_interval_minutes`                | number | `10`    | Interval between local cached-snapshot revalidation attempts in a running ACE session.                                            |
+| `check_interval_minutes`                | number | `10`    | Interval between local cached-snapshot revalidation attempts in a running sase's TUI session.                                     |
 | `check_ttl_minutes`                     | number | `10`    | Minimum age before a startup update check recomputes cached status; this bundled default always wins over the legacy hours key.   |
 | `check_ttl_hours`                       | number | unset   | Deprecated and schema-valid, but currently has no effect in a normal merged config because `check_ttl_minutes` is always present. |
 | `recompute_interval_minutes`            | number | `60`    | Minimum snapshot age before a full SASE/plugin/agent-CLI network recompute; intervening checks only revalidate locally.           |
 
 Set `check_ttl_minutes` to change the startup cache TTL. Although `check_ttl_hours`
-remains accepted for compatibility, ACE resolves the merged `check_ttl_minutes` value
-first; the bundled 10-minute default therefore prevents an hours-only override from
-taking effect.
+remains accepted for compatibility, sase's TUI resolves the merged `check_ttl_minutes`
+value first; the bundled 10-minute default therefore prevents an hours-only override
+from taking effect.
 
 #### `ace.keymaps`
 
@@ -1193,7 +1196,7 @@ Like gate, statistics, and memory keys, Projects-tab keys are scoped to the pane
 overlap app-level bindings.
 
 **`machines`** — focused Admin Center Machines-tab keybindings. These bindings are
-scoped to the Machines pane and do not become app-level ACE shortcuts.
+scoped to the Machines pane and do not become app-level sase's TUI shortcuts.
 
 | Field             | Default         | Action                                                      |
 | ----------------- | --------------- | ----------------------------------------------------------- |
@@ -1216,8 +1219,8 @@ resume key; it does not add a second keymap action or setting.
 
 The Artifacts split actions are remappable as `cycle_artifacts_split` and
 `cycle_artifacts_split_reverse`. Their defaults use `right_curly_bracket` (`}`) and
-`left_curly_bracket` (`{`); both curly-bracket key names are accepted anywhere an ACE
-keybinding is configured.
+`left_curly_bracket` (`{`); both curly-bracket key names are accepted anywhere an sase's
+TUI keybinding is configured.
 
 The [Artifacts pane brief](ace.md#pane-description-brief) cycles with
 `cycle_artifacts_description`, default `D`. It shares that key with the Agents-only
@@ -1370,7 +1373,7 @@ ace:
 ```
 
 Templates can contain `$1`, `$2`, ... tabstops plus `$0` for the final cursor position.
-In the ACE prompt input, `Tab` advances through those stops and `Shift+Tab` retreats
+In sase's TUI prompt input, `Tab` advances through those stops and `Shift+Tab` retreats
 through stops already visited. Expanding a trigger inside an active snippet nests the
 new snippet's tabstops before the remaining outer stops. Templates can also splice
 another merged snippet with `#[trigger]`; use `#[trigger(value)]` or `#[trigger:value]`
@@ -1393,10 +1396,10 @@ Source: `src/sase/ace/tui/widgets/prompt_text_area.py`
 #### `ace.prompt_completion`
 
 Controls automatic non-disruptive suggestions and manual prompt-local and prompt-history
-word completion in the ACE prompt input. Suggestions appear in the prompt-bar subtitle
-and are accepted with `Ctrl+L`; `Enter` still submits the prompt as typed. Manual
-structured/path `Ctrl+T` completion is independent of the automatic settings, and the
-`Ctrl+R` recursive fuzzy file finder is always manual.
+word completion in sase's TUI prompt input. Suggestions appear in the prompt-bar
+subtitle and are accepted with `Ctrl+L`; `Enter` still submits the prompt as typed.
+Manual structured/path `Ctrl+T` completion is independent of the automatic settings, and
+the `Ctrl+R` recursive fuzzy file finder is always manual.
 
 ```yaml
 ace:
@@ -1435,11 +1438,11 @@ ace:
 | `placeholder_ranking_signals` | bool        | `true`  | Whether smart-ranked saved-placeholder rows render the score meter, dominant-reason chip, and panel legend.                         |
 
 The minimum applies to the complete candidate, so a shorter typed prefix can still
-complete an eligible word. Prompt-local words below the threshold are skipped before ACE
-considers the prompt-history fallback. Candidates from history retain their original
-spelling and, under the default `word_ranking: smart`, are ordered by a weighted
-composite of how strongly each word relates to the words already in the prompt (`0.50`),
-how recently it was used (`0.30`), and how often it was used (`0.20`). Setting
+complete an eligible word. Prompt-local words below the threshold are skipped before
+sase's TUI considers the prompt-history fallback. Candidates from history retain their
+original spelling and, under the default `word_ranking: smart`, are ordered by a
+weighted composite of how strongly each word relates to the words already in the prompt
+(`0.50`), how recently it was used (`0.30`), and how often it was used (`0.20`). Setting
 `word_ranking: recent` restores plain most-recently-used order. The warm cache holds the
 prompt-word index off-thread and is rebuilt when history shards or the shared minimum
 change, while `Ctrl+D` deletions apply at query time without a rebuild. Setting
@@ -1449,8 +1452,8 @@ meter, reason chip, and legend that `word_ranking_signals` controls.
 
 Common placeholders are stored at `sase_home()/prompt_placeholders.json` and are learned
 from complete raw `<foobar>` tags outside literal zones in submitted, failed-launch, and
-cancelled prompt drafts. When the store is first created, ACE seeds it once from bounded
-prompt history so existing tags can appear immediately. Retention evicts
+cancelled prompt drafts. When the store is first created, sase's TUI seeds it once from
+bounded prompt history so existing tags can appear immediately. Retention evicts
 least-recently-used entries down to `common_placeholder_count`. By default
 (`placeholder_ranking: smart`) the `<` menu ranks saved tags by relation to the prompt
 being edited, recency, and frequency; `placeholder_ranking: recent` restores the stored
@@ -1475,7 +1478,7 @@ bare `@`). The panel's `[^T] files` hint marks that state; the first `Ctrl+T` re
 files without completing the kind, and a later press completes normally. Queries with no
 kind prefix match show file rows automatically. File rows preserve the `@` sigil on
 insertion, directories drill down, and dotfiles are hidden unless the typed path segment
-starts with `.`. A cold path inventory can briefly show a loading row while ACE
+starts with `.`. A cold path inventory can briefly show a loading row while sase's TUI
 refreshes it off-thread. Document, chat, indexed-file, bead, and agent payloads use
 bounded project-scoped catalogs; commit and bug candidates are projected only from
 already-loaded Artifacts-pane snapshots.
@@ -1508,10 +1511,10 @@ Source: `src/sase/ace/tui/widgets/prompt_completion.py`,
 
 #### `ace.prompt_spellcheck`
 
-Controls the sticky misspelling highlight in the ACE prompt input. Every word `K` proves
-misspelled (an aspell `misspelled` verdict) is remembered durably and underlined in
-every prompt input from then on; `K` on a word already remembered is what teaches ACE
-about it, not a background spell-checker.
+Controls the sticky misspelling highlight in sase's TUI prompt input. Every word `K`
+proves misspelled (an aspell `misspelled` verdict) is remembered durably and underlined
+in every prompt input from then on; `K` on a word already remembered is what teaches
+sase's TUI about it, not a background spell-checker.
 
 ```yaml
 ace:
@@ -1539,8 +1542,8 @@ Source: `src/sase/history/prompt_misspellings.py`, `src/sase/core/word_lookup.py
 
 #### `ace.prompt_inputs`
 
-Controls how ACE treats raw `<placeholder>` tags when a prompt is submitted or saved as
-an xprompt.
+Controls how sase's TUI treats raw `<placeholder>` tags when a prompt is submitted or
+saved as an xprompt.
 
 ```yaml
 ace:
@@ -1551,7 +1554,7 @@ ace:
 
 | Field                      | Type | Default | Current behavior                                                                                                                                                                           |
 | -------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `collect_raw_placeholders` | bool | `true`  | When true, submitting an ACE prompt opens **Fill in this prompt** for each live raw placeholder. When false, raw tags launch unchanged; declared `input:` collection still works.          |
+| `collect_raw_placeholders` | bool | `true`  | When true, submitting an sase's TUI prompt opens **Fill in this prompt** for each live raw placeholder. When false, raw tags launch unchanged; declared `input:` collection still works.   |
 | `xprompt_placeholder_args` | bool | `true`  | When false, `gX`, `gL`, and fresh `gx` extraction keep live raw tags as literal text and mint no placeholder-derived `text` inputs. Jinja-variable input inference for `gL` is unaffected. |
 
 Raw placeholders in YAML frontmatter, inline code, fenced code, or
@@ -1648,9 +1651,9 @@ predicates to `0` leaves a policy that selects nothing.
 
 `keep_recent_run_months` drives `sase artifact prune-runs`, which previews and, with
 `--apply`, removes old terminal `artifacts/ace-run/` directories plus empty
-month/day/run shards outside ACE's startup watch window, walked bottom-up so a nested
-empty run directory no longer leaves its parent day/month shard behind. It protects
-recent months, incomplete runs, referenced agent names or paths, artifact-file
+month/day/run shards outside sase's TUI startup watch window, walked bottom-up so a
+nested empty run directory no longer leaves its parent day/month shard behind. It
+protects recent months, incomplete runs, referenced agent names or paths, artifact-file
 producers, and runs tied to non-closed beads, and it revalidates every protection source
 immediately before each deletion rather than trusting the preview snapshot.
 `empty_shard_removal_budget` bounds how many empty shard directories one apply pass
@@ -1740,7 +1743,7 @@ llm_provider:
 | `llm_provider.model_alias_history_limit` | int    | `10`        | Maximum prior runs returned per alias for the Launch Control agent-history panel. Must be at least `1`; malformed runtime values defensively fall back to `10`.                                                                   |
 | `llm_provider.model_aliases.builtin`     | dict   | -           | Overrides for the five built-in size aliases (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar, `\|` round-robin pools, `\|\|` ordered fallbacks, or `(A \| B) \|\| C` last-resort.          |
 | `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                                          |
-| `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only ACE Launch Control bucket descriptions.                                                                                                                                                                     |
+| `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only sase's TUI Launch Control bucket descriptions.                                                                                                                                                              |
 
 Model aliases are resolved when an agent launches, so reusable xprompts can point at
 names such as `%model:@medium` or `%model:@blogger` while each user's `sase.yml`
@@ -1763,7 +1766,7 @@ Ordered fallback is based on CLI installation plus temporary provider-disable st
 later model/runtime success, and preserves its first candidate for normal diagnostics
 when none are available. Members may carry a trailing effort. Selectors cannot be
 nested, and selectors are not accepted in `%model` directives or launch-scoped/temporary
-overrides. In ACE Launch Control, the pool row reports the available/total count,
+overrides. In sase's TUI Launch Control, the pool row reports the available/total count,
 selector member lists mark the current selection with `→`, and active temporary
 overrides label selection suspended unless their provider is **hard**-disabled; then the
 override is paused and the underlying alias resolves. A **soft** disable does not pause
@@ -1943,7 +1946,7 @@ llm_provider:
 | `llm_provider.usage_metrics.refresh_seconds`                          | number | `300`                           | Background refresh cadence in seconds. Must be finite and at least `60`.                                                                          |
 | `llm_provider.usage_metrics.warn_percent`                             | number | `75`                            | Percentage _used_ that classifies a window as low. Must satisfy `0 <= warn_percent < critical_percent <= 100`. UI copy uses percentage left.      |
 | `llm_provider.usage_metrics.critical_percent`                         | number | `90`                            | Percentage _used_ that classifies a window as very low.                                                                                           |
-| `llm_provider.usage_metrics.indicator.enabled`                        | bool   | `true`                          | Show ACE header usage indicators. False hides display entries while collection and Providers · Usage remain active.                               |
+| `llm_provider.usage_metrics.indicator.enabled`                        | bool   | `true`                          | Show sase's TUI header usage indicators. False hides display entries while collection and Providers · Usage remain active.                        |
 | `llm_provider.usage_metrics.indicator.default`                        | policy | `{below_remaining_percent: 20}` | Fallback display policy for windows that do not match a more specific display override.                                                           |
 | `llm_provider.usage_metrics.indicator.weekly_all`                     | policy | `always`                        | Display policy for positively classified weekly all-model windows after exact-window and provider defaults.                                       |
 | `llm_provider.usage_metrics.indicator.providers.<name>.default`       | policy | inherit                         | Optional display policy for all observed windows from one provider. This map is separate from the sibling collection `providers` map.             |
@@ -1987,9 +1990,9 @@ precedence than the exact window key.
 
 Invalid indicator config is diagnosed with its config path, ignored at the smallest
 invalid override, and inherited/default policy is used instead of resetting unrelated
-valid usage settings. ACE display settings are cached by the merged-config token, so
-config changes reload on the normal usage refresh cadence even when the usage-state file
-does not change.
+valid usage settings. sase's TUI display settings are cached by the merged-config token,
+so config changes reload on the normal usage refresh cadence even when the usage-state
+file does not change.
 
 Routing-disabled providers still refresh when collection is otherwise eligible, because
 reset information remains useful for them.
@@ -2201,9 +2204,9 @@ Source: `src/sase/default_config.yml`, `src/sase/config/_settings.py`,
 Declares linked and sidecar repositories related to a project. Git linked-repo worktrees
 are eligible for commit-finalizer checks at their resolved `workspace_dir`. Agents use
 `/sase_repo` to prepare them; its audited `sase repo open` command records manually
-opened linked workspaces in run artifacts for ACE context and appends a durable audit
-event. SASE materializes a hidden sibling-state ProjectSpec for the linked repo when
-needed. Entries can live in user config or a project-local `sase/sase.yml`; local
+opened linked workspaces in run artifacts for sase's TUI context and appends a durable
+audit event. SASE materializes a hidden sibling-state ProjectSpec for the linked repo
+when needed. Entries can live in user config or a project-local `sase/sase.yml`; local
 entries are resolved relative to the project's primary workspace directory.
 
 Linked repositories are lazy by default. Set `auto_clone: true` for a repository that
@@ -2253,9 +2256,9 @@ The roles `plans`, `beads`, and `agents` are reserved and are configured under
 prompt-artifact archive. Every other enabled role lives under `repos.sidecar.custom` and
 is a document sidecar: a `<YYYYMM>/*.md` corpus whose kind label is the role name.
 Document roles receive clone/store resolution, `sase repo path <role>`, doctor
-validation, commit routing, `SASE_SDD_<ROLE>_DIR`, plan-search visibility, and an ACE
-Plans kind. `research` is simply the default-seeded document role; only its illustrated
-README/directory-map preset is name-specific.
+validation, commit routing, `SASE_SDD_<ROLE>_DIR`, plan-search visibility, and an sase's
+TUI Plans kind. `research` is simply the default-seeded document role; only its
+illustrated README/directory-map preset is name-specific.
 
 The `agents` role is intrinsically hidden from agent workflows. It never appears in
 generated memory, launch metadata, linked-repository environment variables, or a
@@ -2419,10 +2422,10 @@ them after inventory names in two forms:
   workspace provider under `sase/repos/external/gh/<owner>/<repo>`.
 
 Successful external opens are idempotent, audited, and included in `sase repo list`,
-commit-finalizer enforcement, ACE file and commit deltas, and revert. Agents must use
-`/sase_repo` before reading or modifying any external repo and must use the path printed
-by the skill rather than locating or cloning the repo themselves. External repos are
-workspace-local and do not create project registry records.
+commit-finalizer enforcement, sase's TUI file and commit deltas, and revert. Agents must
+use `/sase_repo` before reading or modifying any external repo and must use the path
+printed by the skill rather than locating or cloning the repo themselves. External repos
+are workspace-local and do not create project registry records.
 
 ### dispatch
 
@@ -2545,12 +2548,12 @@ vcs_repo_completion:
 
 | Field                                   | Type | Default | Description                                                                                 |
 | --------------------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------- |
-| `vcs_repo_completion.enabled`           | bool | `true`  | Enable ACE and helper-bridge repository completion for registered VCS workflow refs.        |
+| `vcs_repo_completion.enabled`           | bool | `true`  | Enable sase's TUI and helper-bridge repository completion for registered VCS workflow refs. |
 | `vcs_repo_completion.cache_ttl_seconds` | int  | `600`   | Freshness window for the shared on-disk repository candidate cache, in seconds.             |
 | `vcs_repo_completion.max_repos`         | int  | `200`   | Maximum repository candidates kept from a provider response and returned to completion UIs. |
 
-When disabled, ACE does not detect repository-completion triggers, and the editor helper
-bridge returns an empty catalog. Repository candidates are listed through
+When disabled, sase's TUI does not detect repository-completion triggers, and the editor
+helper bridge returns an empty catalog. Repository candidates are listed through
 workspace-provider hooks, so provider-specific authentication and network requirements
 belong to the installed plugin. For GitHub, the `sase-github` plugin uses the `gh` CLI
 and can return private repositories visible to the authenticated user.
@@ -2567,14 +2570,14 @@ vcs_ref_completion:
   enabled: true
 ```
 
-| Field                        | Type | Default | Description                                                             |
-| ---------------------------- | ---- | ------- | ----------------------------------------------------------------------- |
-| `vcs_ref_completion.enabled` | bool | `true`  | Enable ACE and xprompt LSP completion at the root of VCS workflow refs. |
+| Field                        | Type | Default | Description                                                                    |
+| ---------------------------- | ---- | ------- | ------------------------------------------------------------------------------ |
+| `vcs_ref_completion.enabled` | bool | `true`  | Enable sase's TUI and xprompt LSP completion at the root of VCS workflow refs. |
 
-When disabled, ACE does not detect VCS ref-root completion triggers and the materialized
-xprompt LSP VCS catalog omits namespace rows. Project and Patch candidates come from
-local ProjectSpecs; provider namespace rows come from fast local workspace-provider
-hooks.
+When disabled, sase's TUI does not detect VCS ref-root completion triggers and the
+materialized xprompt LSP VCS catalog omits namespace rows. Project and Patch candidates
+come from local ProjectSpecs; provider namespace rows come from fast local
+workspace-provider hooks.
 
 Source: `src/sase/default_config.yml`, `src/sase/xprompt/vcs_ref_completion.py`
 
@@ -2914,7 +2917,7 @@ axe:
             Plans whole-run ace-run retention without deleting anything. The preview keeps the newest
             artifacts.retention.keep_recent_run_months calendar months whole, protects runs referenced by
             artifact files, text refs, agent names, and non-closed beads, and reports empty month/day shards
-            outside ACE's startup watch window. When unchanged candidates or protection problems remain, it
+            outside sase's TUI startup watch window. When unchanged candidates or protection problems remain, it
             upserts one deduplicated Axe report notification that names the explicit prune-runs command; the
             hourly preview never applies artifact deletion by itself.
 ```
@@ -3028,16 +3031,16 @@ agents, including waiting members; it never infers clans from dotted names.
 `agent_runners.max` defaults to `0` and inhibits while more than that many participating
 agent lanes are occupied, a participating-lane count distinct from the weighted
 `%queue(capacity=N)` admission budget. Weighted capacity is tracked separately by the
-runner-capacity snapshot and ACE header. A `STARTING` agent has not yet been admitted
-and does not count; an agent parked on a question has yielded its capacity and does not
-count. `trigger` accepts `always`, `git.commits_since`, or `fs`; the git provider
-requires `project` and `threshold`, and its checkpoint policy is `on_observation`,
-`on_action_accepted`, or `on_action_success`. The `fs` provider requires `paths` (bare
-path strings or `{path, glob}` objects, stat'd shallowly — no recursion, no content
-reads) and a positive `max_quiet` duration, fires when its computed state token changes
-or `max_quiet` elapses since the last fire, always uses `on_observation` checkpoint
-semantics, and fails open (fires without advancing its checkpoint) on an unreadable
-path. See
+runner-capacity snapshot and sase's TUI header. A `STARTING` agent has not yet been
+admitted and does not count; an agent parked on a question has yielded its capacity and
+does not count. `trigger` accepts `always`, `git.commits_since`, or `fs`; the git
+provider requires `project` and `threshold`, and its checkpoint policy is
+`on_observation`, `on_action_accepted`, or `on_action_success`. The `fs` provider
+requires `paths` (bare path strings or `{path, glob}` objects, stat'd shallowly — no
+recursion, no content reads) and a positive `max_quiet` duration, fires when its
+computed state token changes or `max_quiet` elapses since the last fire, always uses
+`on_observation` checkpoint semantics, and fails open (fires without advancing its
+checkpoint) on an unreadable path. See
 [AXE — Triggers, Guards, Dedupe, and Targets](axe.md#triggers-guards-dedupe-and-targets)
 for the full contract. Skips are recorded with reasons. Manual runs bypass the trigger
 but honor guards; with `agent_runners`, a manual run while participating lanes are
@@ -3242,7 +3245,7 @@ Enforcement is graded by blast radius:
 | `sase memory init`, `sase validate`                              | Hard error, raised before any memory-drift comparison so a missing plugin never looks like drift |
 | `sase bead create -T 'task(<slug>)'` for a missing plugin's slug | Hard error naming the plugin and `sase plugin install <name>`                                    |
 | `sase doctor -C plugins.required`                                | `ERROR` severity, listing each missing requirement and the install command                       |
-| Interactive human CLI and ACE                                    | A `PluginsRequired` gate offering to install                                                     |
+| Interactive human CLI and sase's TUI                             | A `PluginsRequired` gate offering to install                                                     |
 | Agent / non-interactive contexts                                 | Fail closed with the human-directed command; never auto-install                                  |
 | `sase bead show` / `list` of an unknown type                     | Degraded render, never a failure                                                                 |
 
@@ -3320,8 +3323,8 @@ must be provided per profile.
 
 Mentors run automatically on Patches with Ready or Mailed status when their matching
 criteria are met. Mentor comments are structured JSON with severity levels (error,
-warning, suggestion) that can be reviewed and applied through the ACE TUI's Mentor
-Review modal (`,C`).
+warning, suggestion) that can be reviewed and applied through the Mentor Review modal in
+sase's TUI (`,C`).
 
 Source: `src/sase/config/mentor.py`
 
@@ -3528,11 +3531,11 @@ budget, replacing the global budget for that launch only. Once admitted, the lau
 holds an ordinary weighted claim, so occupied capacity can honestly exceed the global
 budget until work drains.
 
-When upgrading from an unweighted scheduler build, restart ACE and AXE and let already
-running agent processes finish or relaunch them under the new binary. Legacy records
-without `queue_weight` still read as `1.0`, but mixed old and new admission processes do
-not provide a safe weighted-capacity rollout because old binaries do not enforce
-weighted claims.
+When upgrading from an unweighted scheduler build, restart sase's TUI and AXE and let
+already running agent processes finish or relaunch them under the new binary. Legacy
+records without `queue_weight` still read as `1.0`, but mixed old and new admission
+processes do not provide a safe weighted-capacity rollout because old binaries do not
+enforce weighted claims.
 
 ### max_agent_pipe_chain
 
@@ -3689,7 +3692,7 @@ managed_tmp:
 | `managed_tmp.horizons.command_scratch_seconds`        | int  | `43200`       | `0`     | Age horizon for scratch whose reader is the command that wrote it (editors, wrappers).        |
 | `managed_tmp.horizons.handoff_seconds`                | int  | `259200`      | `0`     | Age horizon for files handed to a child process that may re-read them mid-run.                |
 | `managed_tmp.horizons.build_scratch_seconds`          | int  | `259200`      | `0`     | Age horizon for Cargo and other build scratch created for one launched agent.                 |
-| `managed_tmp.horizons.run_artifact_seconds`           | int  | `1209600`     | `0`     | Age horizon for run artifacts the ACE Agents tab reads back long after the run finished.      |
+| `managed_tmp.horizons.run_artifact_seconds`           | int  | `1209600`     | `0`     | Age horizon for run artifacts sase's TUI Agents tab reads back long after the run finished.   |
 | `managed_tmp.max_removals`                            | int  | `2000`        | `1`     | Removal budget for one reaper invocation, so a long-neglected root converges over passes.     |
 | `managed_tmp.pressure.max_bytes`                      | int  | `17179869184` | `0`     | Managed-root size that triggers pressure pruning of aged build scratch. `0` disables it.      |
 | `managed_tmp.pressure.target_bytes`                   | int  | `8589934592`  | `0`     | Managed-root size the pressure pass tries to return to.                                       |
@@ -3879,7 +3882,7 @@ tmux_agent:
 | `tmux_agent.effort`                              | string  | `""`    | Effort applied to launches. `""` follows `llm_provider.default_effort`; `"off"` passes no effort flags. |
 | `tmux_agent.clear_screen`                        | bool    | `true`  | Run `clear` in the new window before starting the CLI.                                                  |
 | `tmux_agent.after_close_command`                 | string  | `""`    | Extra shell command run after an agent CLI window closes, alongside SASE's own window renumbering.      |
-| `tmux_agent.providers.<name>.enabled`            | bool    | `true`  | `false` hides the provider from both the tmux menu and the ACE panel.                                   |
+| `tmux_agent.providers.<name>.enabled`            | bool    | `true`  | `false` hides the provider from both the tmux menu and sase's TUI panel.                                |
 | `tmux_agent.providers.<name>.key`                | string  | `""`    | Override the single-key menu shortcut. Must be exactly one printable non-whitespace character.          |
 | `tmux_agent.providers.<name>.model`              | string  | `""`    | Pin a model (substituted into the provider's `model_args`).                                             |
 | `tmux_agent.providers.<name>.effort`             | string  | `""`    | Per-provider effort; `""` inherits the global `tmux_agent.effort`; `"off"` disables effort flags.       |
@@ -4180,13 +4183,13 @@ unknown keys at runtime.
 
 The registered `typed_launch_units` beta flag defaults to `false`. Enabling it exposes
 the experimental `%if` and `%proc` parser, completion, and launch-plan contract.
-User-initiated ACE and `sase run` submissions execute those directives through durable
-typed admission without a LaunchApproval gate. The frozen plan keeps the complete `%id`
-and `%clan` identity binding, and keyed `{@<id>}` markers resolve once at batch
-creation. Agent-initiated launches still freeze the typed plan for LaunchApproval; after
-approval, the same admission coordinator resolves waits, evaluates `%if`, and dispatches
-eligible units — agent units through the established agent launch path, and `%proc`
-units through native stand-alone proc-shell dispatch; see
+User-initiated sase's TUI and `sase run` submissions execute those directives through
+durable typed admission without a LaunchApproval gate. The frozen plan keeps the
+complete `%id` and `%clan` identity binding, and keyed `{@<id>}` markers resolve once at
+batch creation. Agent-initiated launches still freeze the typed plan for LaunchApproval;
+after approval, the same admission coordinator resolves waits, evaluates `%if`, and
+dispatches eligible units — agent units through the established agent launch path, and
+`%proc` units through native stand-alone proc-shell dispatch; see
 [Experimental typed launch units](xprompt.md#experimental-typed-launch-units).
 
 #### Saved machine preferences
@@ -4214,14 +4217,14 @@ reads return no preferences plus a diagnostic, mutations fail with the path and 
 recovery-oriented message, and registered flags still resolve from lower layers.
 
 Valid unknown keys in the machine-state file are tolerated by registry-neutral reads and
-writes, but installing process-wide feature flags for ACE, AXE, or an agent runner
-reconciles that file against the running SASE registry and removes saved entries that
-are no longer registered. ACE defers the disk transaction until the initially visible
-surface is ready, then shows one cleanup toast; AXE and agent runners report the same
-cleanup on stderr. Clean starts do not rewrite the file or emit cleanup prose. If
-another process already removed the stale keys, ACE reports that the previously
-unregistered saved keys are already absent. If cleanup fails or the file becomes
-unusable, SASE preserves the file, keeps the diagnostic, and retries on the next
+writes, but installing process-wide feature flags for sase's TUI, AXE, or an agent
+runner reconciles that file against the running SASE registry and removes saved entries
+that are no longer registered. sase's TUI defers the disk transaction until the
+initially visible surface is ready, then shows one cleanup toast; AXE and agent runners
+report the same cleanup on stderr. Clean starts do not rewrite the file or emit cleanup
+prose. If another process already removed the stale keys, sase's TUI reports that the
+previously unregistered saved keys are already absent. If cleanup fails or the file
+becomes unusable, SASE preserves the file, keeps the diagnostic, and retries on the next
 startup.
 
 This means downgrading or misspelling a saved flag no longer preserves that saved key
@@ -4245,15 +4248,15 @@ registry default
 
 Plugin config layers never flip first-party flag defaults. A local-config entry for any
 feature flag is ignored with a `scope_violation` warning: a feature flag cannot be set
-from the `local` config layer, because ACE disables project-local config and flags must
-resolve consistently across frontends.
+from the `local` config layer, because sase's TUI disables project-local config and
+flags must resolve consistently across frontends.
 
 The Flags pane and `sase flag list` / `show` report **effective** state and **saved**
 state separately. Provenance `SAVED` means the machine-state file won. If environment or
 root CLI overrides still shadow the saved choice, the UI shows a “forced for this
 process” warning rather than pretending the toggle already controls this process. Saving
-still restarts ACE and AXE; the saved value takes effect once that higher source is
-removed.
+still restarts sase's TUI and AXE; the saved value takes effect once that higher source
+is removed.
 
 Root-level `-f/--enable-feature` and `-F/--disable-feature` force a registered flag on
 or off for one `sase` invocation. They must appear before the subcommand
@@ -4268,8 +4271,8 @@ value is a startup error for that process. SASE-launched children inherit a reso
 snapshot through the same variable, so `sase flag list` marks env provenance
 prominently. CLI overrides are marked the same way (`CLI:--enable-feature` /
 `CLI:--disable-feature`). After a successful save, SASE merges the chosen key into
-`SASE_FEATURE_FLAGS` so an ACE `execv` restart does not inherit the old pinned snapshot
-above the new saved value.
+`SASE_FEATURE_FLAGS` so an sase's TUI `execv` restart does not inherit the old pinned
+snapshot above the new saved value.
 
 #### Enable, disable, and restart
 
@@ -4280,16 +4283,16 @@ sase flag disable <flag>
 
 Both commands persist the choice in the machine-state file and, on success, restart AXE
 when it is already running. A stopped AXE daemon is left stopped. They never start a
-daemon the user had stopped, and they never signal an ACE session in another terminal —
-restart any separately running ACE yourself. Repeating an already-saved enable or
-disable is idempotent for the store but still retries that AXE restart. A restart
-failure does not roll back the saved preference: rich and JSON output distinguish
-`mutation` from `restart` so a partial success is safe to retry. Unknown flags are usage
-errors (exit `2`); store or restart failures use exit `1`. `--json` emits one versioned
-document with separate `mutation` and `restart` objects.
+daemon the user had stopped, and they never signal an sase's TUI session in another
+terminal — restart any separately running sase's TUI yourself. Repeating an
+already-saved enable or disable is idempotent for the store but still retries that AXE
+restart. A restart failure does not roll back the saved preference: rich and JSON output
+distinguish `mutation` from `restart` so a partial success is safe to retry. Unknown
+flags are usage errors (exit `2`); store or restart failures use exit `1`. `--json`
+emits one versioned document with separate `mutation` and `restart` objects.
 
 From Config > Flags, a confirmed toggle uses the same mutation path, then waits for
-tracked background procs and performs one controlled ACE+AXE restart. Disabling
+tracked background procs and performs one controlled sase's TUI+AXE restart. Disabling
 `admin_center_flags` from its own row is supported: the pane disappears after restart,
 and `sase flag enable admin_center_flags` restores it. The CLI commands are not gated by
 that flag.
@@ -4324,7 +4327,7 @@ workspace:
 | `workspace.project_key`         | string | `""`          | Override the per-project namespace under managed roots. Empty derives a stable key from a single git remote slug or the primary-path basename plus a short hash.                                                                               |
 | `workspace.share_git_objects`   | bool   | `true`        | Borrow the primary checkout's Git object database for numbered managed clones. Disable for standalone clones; `sase workspace repair` dissociates existing SASE-managed borrowers while preserving non-SASE alternate entries.                 |
 | `workspace.cleanup_ttl_days`    | int    | `14`          | Minimum age (in days) of an unclaimed managed checkout before `sase workspace cleanup --stale` will remove it.                                                                                                                                 |
-| `workspace.held_claim_ttl_days` | int    | `14`          | Minimum age (in days) of a pinned dead-PID workspace claim before the stale sweep releases it. Artifacts are kept so the failed run stays dismissible in ACE; only the workspace hold is dropped. `0` disables age-based release.              |
+| `workspace.held_claim_ttl_days` | int    | `14`          | Minimum age (in days) of a pinned dead-PID workspace claim before the stale sweep releases it. Artifacts are kept so the failed run stays dismissible in sase's TUI; only the workspace hold is dropped. `0` disables age-based release.       |
 
 Platform defaults for the `xdg-state` policy:
 
@@ -4504,7 +4507,7 @@ disables it by default; `SASE_MUSE_SANDBOX=on` keeps the sandbox with
 Muse's `muse-spark-1.2-contributor` model carries a **model advisory**: Meta uses its
 inputs and outputs to train and improve Meta's AI models. SASE keeps it fully reachable
 by name but never routes a tier map or any built-in size alias to it automatically. The
-advisory renders in the ACE model picker, in `%model` completion detail, and in the
+advisory renders in sase's TUI model picker, in `%model` completion detail, and in the
 resolved model label, and `sase doctor -C llm.model_advisory` warns when a configured
 default or model alias resolves to any advisory-flagged model. See
 [LLM Providers — Model advisories](llms.md#model-advisories).
@@ -4649,7 +4652,7 @@ subcommand. They do not steal `-f`/`-F` or `-p` from commands such as
 | `-f, --enable-feature`  | registered flag key | -       | Force a registered feature flag on for this invocation and every process it launches. Repeatable. Outranks config layers, a saved machine preference, and an inherited `SASE_FEATURE_FLAGS` value.  |
 | `-p, --print-command`   | flag                | -       | Print a shell-quoted `sase ...` header to stderr before running the command. The displayed invocation omits the root print switch.                                                                  |
 
-### `sase ace`
+### `sase tui`
 
 | Flag                     | Values                                                 | Default                          | Description                                                                                                                                                                                                                       |
 | ------------------------ | ------------------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -4660,7 +4663,7 @@ subcommand. They do not steal `-f`/`-F` or `-p` from commands such as
 | `-r, --refresh-interval` | int (seconds)                                          | `10`                             | Auto-refresh interval (0 to disable).                                                                                                                                                                                             |
 | `-R, --restart-axe`      | flag                                                   | -                                | Restart the axe daemon on startup (no-op if axe is not running).                                                                                                                                                                  |
 | `-t, --tab`              | `artifacts`, `changespecs`, `patches`, `agents`, `axe` | `agents`                         | Tab to focus on startup (`changespecs` and `patches` are legacy aliases for `artifacts`).                                                                                                                                         |
-| `-T, --tmux`             | flag                                                   | -                                | Launch ACE in a new tmux window named `sase_tmux_<N>` and print the session/window target for external control.                                                                                                                   |
+| `-T, --tmux`             | flag                                                   | -                                | Launch sase's TUI in a new tmux window named `sase_tmux_<N>` and print the session/window target for external control.                                                                                                            |
 | `-x, --no-axe`           | flag                                                   | -                                | Disable auto-starting the axe daemon.                                                                                                                                                                                             |
 | `-v, --vcs-provider`     | `git`, `hg`, `auto`                                    | -                                | Override VCS provider.                                                                                                                                                                                                            |
 
@@ -4887,10 +4890,11 @@ remain accepted. The system-managed `home` project cannot be mutated. Normal lau
 discovery surfaces default to enabled projects. `sibling` remains an internal
 backing-record marker for configured linked repos, not a third project state.
 
-ACE exposes the same lifecycle mutations through the **Projects** tab of the SASE Admin
-Center (press `#`). That tab also supports marks for bulk lifecycle operations, alias
-editing with `A`, ProjectSpec editing through `$EDITOR`, confirmed deletion of whole
-SASE project directories, and the Repos/Workspaces inventory sub-tabs described above.
+sase's TUI exposes the same lifecycle mutations through the **Projects** tab of the SASE
+Admin Center (press `#`). That tab also supports marks for bulk lifecycle operations,
+alias editing with `A`, ProjectSpec editing through `$EDITOR`, confirmed deletion of
+whole SASE project directories, and the Repos/Workspaces inventory sub-tabs described
+above.
 
 ### `sase repo`
 
@@ -4922,8 +4926,8 @@ describe the selected workspace context.
 `sase repo open REPO -r "<reason>"` resolves `REPO` in three tiers: a host-project
 inventory name, another registered SASE project name, then an external provider ref
 (`gh:owner/repo` or `owner/repo` GitHub shorthand). It materializes and prepares the
-repo, prints only its path to stdout, records the per-run artifact markers used by ACE
-and the commit finalizer, and appends an event to
+repo, prints only its path to stdout, records the per-run artifact markers used by
+sase's TUI and the commit finalizer, and appends an event to
 `~/.sase/projects/<project>/repo_opens.jsonl`. Run it inside a managed checkout to infer
 the host project and workspace. Reopening a valid external clone preserves its current
 contents and records a new open event.
@@ -4993,8 +4997,8 @@ disappearance, reappearance, and duplicate workflow parents.
 | `sase repro capture agents-tab` | `--output <dir>`, `--commit-safe`, `--no-commit-safe`, `--size`, `--json` | Capture a baseline bundle from current filesystem state. `--commit-safe` redaction is the default. |
 
 Use the in-TUI `,B` capture when a transient row-list bug has just happened in a live
-ACE session. The CLI capture path is out-of-band: it loads current filesystem state and
-cannot reconstruct refreshes that already passed through the running TUI.
+sase's TUI session. The CLI capture path is out-of-band: it loads current filesystem
+state and cannot reconstruct refreshes that already passed through the running TUI.
 
 ### `sase xprompt`
 
@@ -5086,23 +5090,23 @@ values. `init` always needs an interactive stdin for candidate and alias selecti
 reads the bundle from `-B/--bootstrap-file` or a hidden prompt. `add` and `repair` also
 accept a bundle on piped stdin when `--bootstrap-file` is omitted.
 
-| Form                                      | Flags                                                                  | Description                                                                                 |
-| ----------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `sase machine` / `machine list`           | `-j/--json`                                                            | List configured aliases without provider or gateway I/O.                                    |
-| `sase machine discover`                   | `-j/--json`, `-p/--provider`, `-t/--timeout`                           | Query configured or repeatably selected discovery providers.                                |
-| `sase machine bootstrap`                  | `-e/--expires`, `-j/--json`, `-s/--scope`                              | On the target, issue a scoped single-use bundle to stdout.                                  |
-| `sase machine init`                       | `-B/--bootstrap-file`, `-c/--check`, `-j`, `-t`                        | Interactively discover, enroll, reload, and verify; `--check` is offline.                   |
-| `sase machine add ALIAS [ENDPOINT]`       | `-B`, `-c/--candidate`, `-j`, `-p/--provider`, `-S/--ssh-target`, `-t` | Enroll a named HTTPS endpoint or discovered candidate, then activate.                       |
-| `sase machine show ALIAS`                 | `-j/--json`                                                            | Show one local machine record, including its effective SSH target.                          |
-| `sase machine status [ALIAS ...]`         | `-j/--json`, `-t/--timeout`                                            | Run authenticated hello checks; no aliases means all configured aliases.                    |
-| `sase machine repair ALIAS`               | `-B/--bootstrap-file`, `-j/--json`, `-t/--timeout`                     | Rotate a quarantined or mismatched enrollment and activate the replacement.                 |
-| `sase machine rename OLD NEW`             | `-j/--json`                                                            | Rename the viewer-local alias without changing gateway identity or credentials.             |
-| `sase machine remove ALIAS`               | `-j/--json`, `-y/--yes`                                                | Remove local config and its credential reference; interactive stdin prompts unless `--yes`. |
-| `sase machine agent {stop,retry,fork}`    | action-specific arguments, `-j`, `-t`                                  | Submit a journaled remote lifecycle mutation; ACE supplies revision-safe durable sidecars.  |
-| `sase machine attention {answer,approve}` | action-specific arguments, `-j`, `-t`                                  | Answer a remote question or approve a gate through the same durable operation path.         |
+| Form                                      | Flags                                                                  | Description                                                                                       |
+| ----------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `sase machine` / `machine list`           | `-j/--json`                                                            | List configured aliases without provider or gateway I/O.                                          |
+| `sase machine discover`                   | `-j/--json`, `-p/--provider`, `-t/--timeout`                           | Query configured or repeatably selected discovery providers.                                      |
+| `sase machine bootstrap`                  | `-e/--expires`, `-j/--json`, `-s/--scope`                              | On the target, issue a scoped single-use bundle to stdout.                                        |
+| `sase machine init`                       | `-B/--bootstrap-file`, `-c/--check`, `-j`, `-t`                        | Interactively discover, enroll, reload, and verify; `--check` is offline.                         |
+| `sase machine add ALIAS [ENDPOINT]`       | `-B`, `-c/--candidate`, `-j`, `-p/--provider`, `-S/--ssh-target`, `-t` | Enroll a named HTTPS endpoint or discovered candidate, then activate.                             |
+| `sase machine show ALIAS`                 | `-j/--json`                                                            | Show one local machine record, including its effective SSH target.                                |
+| `sase machine status [ALIAS ...]`         | `-j/--json`, `-t/--timeout`                                            | Run authenticated hello checks; no aliases means all configured aliases.                          |
+| `sase machine repair ALIAS`               | `-B/--bootstrap-file`, `-j/--json`, `-t/--timeout`                     | Rotate a quarantined or mismatched enrollment and activate the replacement.                       |
+| `sase machine rename OLD NEW`             | `-j/--json`                                                            | Rename the viewer-local alias without changing gateway identity or credentials.                   |
+| `sase machine remove ALIAS`               | `-j/--json`, `-y/--yes`                                                | Remove local config and its credential reference; interactive stdin prompts unless `--yes`.       |
+| `sase machine agent {stop,retry,fork}`    | action-specific arguments, `-j`, `-t`                                  | Submit a journaled remote lifecycle mutation; sase's TUI supplies revision-safe durable sidecars. |
+| `sase machine attention {answer,approve}` | action-specific arguments, `-j`, `-t`                                  | Answer a remote question or approve a gate through the same durable operation path.               |
 
 See the [Remote Dispatch Runbook](remote_dispatch.md) for gateway supervision, Tailscale
-Serve, enrollment, launch constraints, and ACE machine-row operation.
+Serve, enrollment, launch constraints, and sase's TUI machine-row operation.
 
 ### `sase memory agent-docs`
 
@@ -5508,13 +5512,13 @@ Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. 
 
 With no subcommand, `sase flag` defaults to `sase flag list`.
 
-| Form                | Flag or argument                                                                                                                                | Description                                                                                                                                                                                                                     |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase flag disable` | `<key>`, `-j/--json`                                                                                                                            | Persistently disable a registered flag in `$SASE_HOME/feature_flags.json`. Restarts running AXE; a stopped daemon is left stopped. Restart any separately running ACE. Restart failure does not roll back the saved preference. |
-| `sase flag enable`  | `<key>`, `-j/--json`                                                                                                                            | Persistently enable a registered flag in `$SASE_HOME/feature_flags.json`. Same AXE restart, ACE notice, JSON envelope, and partial-success contract as `disable`.                                                               |
-| `sase flag list`    | `-j, --json`                                                                                                                                    | List registered flags, resolved values, provenance, saved vs effective state, beads, and due state.                                                                                                                             |
-| `sase flag new`     | `<key>`, `--when-enabled`, `--when-disabled`, `--remove-when`, `-d/--description`, `-k/--kind` (`beta`/`sunset`), `-r/--remove-by`, `-z/--size` | Create a `flag` task bead and print the registry entry to paste.                                                                                                                                                                |
-| `sase flag show`    | `<key>`, `-j/--json`                                                                                                                            | Show one flag's full decision, saved value, bead thresholds, diagnostics, and call sites.                                                                                                                                       |
+| Form                | Flag or argument                                                                                                                                | Description                                                                                                                                                                                                                            |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase flag disable` | `<key>`, `-j/--json`                                                                                                                            | Persistently disable a registered flag in `$SASE_HOME/feature_flags.json`. Restarts running AXE; a stopped daemon is left stopped. Restart any separately running sase's TUI. Restart failure does not roll back the saved preference. |
+| `sase flag enable`  | `<key>`, `-j/--json`                                                                                                                            | Persistently enable a registered flag in `$SASE_HOME/feature_flags.json`. Same AXE restart, sase's TUI notice, JSON envelope, and partial-success contract as `disable`.                                                               |
+| `sase flag list`    | `-j, --json`                                                                                                                                    | List registered flags, resolved values, provenance, saved vs effective state, beads, and due state.                                                                                                                                    |
+| `sase flag new`     | `<key>`, `--when-enabled`, `--when-disabled`, `--remove-when`, `-d/--description`, `-k/--kind` (`beta`/`sunset`), `-r/--remove-by`, `-z/--size` | Create a `flag` task bead and print the registry entry to paste.                                                                                                                                                                       |
+| `sase flag show`    | `<key>`, `-j/--json`                                                                                                                            | Show one flag's full decision, saved value, bead thresholds, diagnostics, and call sites.                                                                                                                                              |
 
 Unknown keys on `enable`/`disable` exit `2`. Store or AXE-restart failures exit `1`;
 JSON then has `"ok": false` with the preference still recorded under `mutation`.
@@ -5579,7 +5583,7 @@ source metadata over stale installed distribution metadata, while `--verbose` an
 
 `sase var` inspects and publishes SASE agent output variables. Agents publish values
 with `sase var set`, which merges named JSON-shaped values into the current run's
-`agent_meta.json["output_variables"]`. The stored values appear in ACE's Agents-tab
+`agent_meta.json["output_variables"]`. The stored values appear in sase's TUI Agents-tab
 `OUTPUT VARIABLES` metadata panel, Telegram agent-completion messages, indexed agent
 history, and downstream `%wait` prompt contexts. Later agents that wait on a producer
 load that producer's stored values when they start and can render them through the
@@ -5606,7 +5610,7 @@ shell keeps them intact, for example `sase var get '<build>' --format json`. Use
 `--project PROJECT` to disambiguate repeated names across projects, where `PROJECT` may
 be a display name or alias and may be repeated. `--hidden` includes hidden indexed
 agents. An agent with no variables is an empty success; an unknown name is an error.
-`--format pretty` renders the same readable block form used in ACE, while
+`--format pretty` renders the same readable block form used in sase's TUI, while
 `--format json` emits the variable map as compact machine-readable JSON. Snapshot mode
 rejects selector-only `--format raw` / `jsonl` and an explicit `--limit`.
 
@@ -5714,7 +5718,7 @@ unblock. Downstream prompts read each producer's variables from the single `agen
 dictionary keyed by the producer's stable agent name, e.g.
 `{{ agents["build"].report_path }}` (or `{{ agents.build.report_path }}` for
 identifier-safe names). Do not store secrets; output variables are persisted in
-`agent_meta.json` and shown in ACE and Telegram completion messages.
+`agent_meta.json` and shown in sase's TUI and Telegram completion messages.
 
 `STOP` is a reserved output variable. `sase var set` stays generic and stores it like
 any other key, but repeat orchestration interprets it: setting `STOP` (e.g.
@@ -5769,7 +5773,7 @@ intentionally a fixed-operation bridge rather than a generic shell or filesystem
 | `sase editor helper-bridge agent-catalog`     | JSON object on stdin | Return active/recent agents and derived family, clan, and tribe prompt targets.                                  |
 | `sase editor helper-bridge finalizer-catalog` | JSON object on stdin | Return configured `%final` completion rows from effective finalizer config without loading providers.            |
 | `sase editor helper-bridge xprompt-catalog`   | JSON object on stdin | Return the structured xprompt catalog; accepts the same schema as the mobile `xprompt-catalog` helper operation. |
-| `sase editor helper-bridge snippet-catalog`   | JSON object on stdin | Return the composed ACE snippet registry used by `sase lsp` and editor completion clients.                       |
+| `sase editor helper-bridge snippet-catalog`   | JSON object on stdin | Return the composed sase's TUI snippet registry used by `sase lsp` and editor completion clients.                |
 | `sase editor helper-bridge vcs-repo-catalog`  | JSON object on stdin | Return repository completion candidates for a VCS workflow and namespace.                                        |
 
 The `finalizer-catalog` request is `{"schema_version":1}` with an optional `project`
@@ -5792,11 +5796,11 @@ ladder. The structured xprompt catalog includes insertion metadata (`insertion`,
 `reference_prefix`, `kind`), typed argument metadata, display/source fields, and
 `definition_path` when SASE can resolve a real file to jump to.
 
-The snippet catalog uses the same source ordering as ACE: xprompts marked with `snippet`
-front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on trigger
-collisions. It also includes the generated initial-capital aliases (`foo` → `Foo`), so
-editor completion and the native fallback expose exactly the same trigger/template pairs
-as the TUI.
+The snippet catalog uses the same source ordering as sase's TUI: xprompts marked with
+`snippet` front matter plus user-defined `ace.snippets`, with `ace.snippets` winning on
+trigger collisions. It also includes the generated initial-capital aliases (`foo` →
+`Foo`), so editor completion and the native fallback expose exactly the same
+trigger/template pairs as the TUI.
 
 ### `sase file`
 
@@ -6150,7 +6154,7 @@ than one file per prompt. Entries whose last-used timestamp cannot be parsed are
 directory on first read or write when the shard directory does not already exist, then
 preserved as a `legacy-imported-<timestamp>.json.bak` backup.
 
-ACE run artifacts also support a day-sharded physical layout under each project's
+sase's TUI run artifacts also support a day-sharded physical layout under each project's
 artifact root. Use `sase agent artifacts layout status` to inspect flat versus sharded
 `ace-run` directories, `migrate` to move legacy flat timestamp directories into shards
 while writing index aliases, `verify` to check the current or manifest-backed state, and
@@ -6214,8 +6218,9 @@ has no apply mode.
 ### Backing Up And Restoring
 
 Treat the kit's “offline” label as an operator requirement. Before capturing a backup,
-stop ACE, AXE, agents, procs, and any other process that can write the source tree; the
-backup command does not stop writers or acquire a tree-wide lock. A safe sequence is:
+stop sase's TUI, AXE, agents, procs, and any other process that can write the source
+tree; the backup command does not stop writers or acquire a tree-wide lock. A safe
+sequence is:
 
 1. Stop writers, preview the backup, and then repeat it with `--apply` (preferably with
    `--secondary`).

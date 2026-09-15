@@ -1,4 +1,4 @@
-"""User question modal for the ace TUI.
+"""User question modal for sase's TUI.
 
 Displays questions from Claude Code's AskUserQuestion tool in a two-pane
 layout: left pane shows short question summaries, right pane shows the

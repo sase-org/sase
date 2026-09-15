@@ -20,7 +20,7 @@ def check_inotify(
     platform: str | None = None,
     proc_dir: Path | None = None,
 ) -> DiagnosticCheck:
-    """Check Linux inotify sysctl limits used by ACE event refresh."""
+    """Check Linux inotify sysctl limits used by sase's TUI event refresh."""
     platform = platform or sys.platform
     proc_dir = proc_dir or _INOTIFY_PROC_DIR
     if not platform.startswith("linux"):
@@ -29,7 +29,7 @@ def check_inotify(
             group="resources",
             status="SKIP",
             title="Linux inotify limits",
-            summary="inotify is Linux-only; ACE will use polling fallback here",
+            summary="inotify is Linux-only; sase's TUI will use polling fallback here",
             data={"platform": platform, "proc_dir": str(proc_dir), "limits": []},
         )
 
@@ -49,9 +49,9 @@ def check_inotify(
     problems = _inotify_problems(rows)
     status: CheckStatus = "WARN" if problems else "OK"
     summary = (
-        "inotify limits look high enough for ACE event refresh"
+        "inotify limits look high enough for sase's TUI event refresh"
         if status == "OK"
-        else "inotify limits may force ACE event refresh back to polling"
+        else "inotify limits may force sase's TUI event refresh back to polling"
     )
     return DiagnosticCheck(
         id="resources.inotify",
@@ -120,18 +120,18 @@ def _inotify_problems(rows: list[dict[str, Any]]) -> list[str]:
     watches = by_name.get("max_user_watches", {}).get("value")
     if isinstance(watches, int) and watches < MAX_INOTIFY_WATCHES:
         problems.append(
-            f"max_user_watches={watches} is below ACE's {MAX_INOTIFY_WATCHES} watch ceiling"
+            f"max_user_watches={watches} is below sase's TUI {MAX_INOTIFY_WATCHES} watch ceiling"
         )
     instances = by_name.get("max_user_instances", {}).get("value")
     if isinstance(instances, int) and instances < _INOTIFY_MIN_USER_INSTANCES:
         problems.append(
-            f"max_user_instances={instances} leaves little room for concurrent ACE/prompt watchers"
+            f"max_user_instances={instances} leaves little room for concurrent TUI/prompt watchers"
         )
     return problems
 
 
 def _inotify_next_steps() -> tuple[str, ...]:
     return (
-        "Raise the reported `/proc/sys/fs/inotify/*` limit(s) with sysctl if ACE refreshes are falling back to polling.",
-        "Close unused ACE sessions to release inotify instances and watches.",
+        "Raise the reported `/proc/sys/fs/inotify/*` limit(s) with sysctl if sase's TUI refreshes are falling back to polling.",
+        "Close unused sase's TUI sessions to release inotify instances and watches.",
     )

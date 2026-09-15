@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for tier-aware plan/epic approval toasts."""
+"""sase's TUI PNG visual snapshots for tier-aware plan/epic approval toasts."""
 
 from __future__ import annotations
 

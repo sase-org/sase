@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the Config Center Projects tab.
+"""sase's TUI PNG visual snapshots for the Config Center Projects tab.
 
 The Projects pane is fed a deterministic spread of lifecycle records by
 overriding the ``conftest`` autouse stub via ``_patch_project_records`` so the

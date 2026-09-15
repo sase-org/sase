@@ -34,7 +34,7 @@ Formatting:
 
 ## Help Popup Maintenance
 
-**CRITICAL**: Whenever you modify a `sase ace` option (add, remove, or change behavior),
+**CRITICAL**: Whenever you modify a `sase tui` option (add, remove, or change behavior),
 you MUST update the `?` (help) popup content to keep the documentation in sync with the
 actual functionality.
 

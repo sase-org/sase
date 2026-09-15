@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for AXE chop-run and error status panels."""
+"""sase's TUI PNG snapshots for AXE chop-run and error status panels."""
 
 from __future__ import annotations
 

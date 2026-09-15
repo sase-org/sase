@@ -1,4 +1,4 @@
-"""Workspace input modal for the ace TUI."""
+"""Workspace input modal for sase's TUI."""
 
 from textual.app import ComposeResult
 from textual.containers import Container

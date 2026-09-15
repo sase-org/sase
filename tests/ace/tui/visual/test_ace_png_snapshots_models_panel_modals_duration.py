@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for Launch Control duration picker modals."""
+"""sase's TUI PNG snapshots for Launch Control duration picker modals."""
 
 from __future__ import annotations
 

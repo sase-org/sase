@@ -1,4 +1,4 @@
-"""Event handler mixin for the ace TUI app."""
+"""Event handler mixin for sase's TUI app."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ class EventHandlersMixin(
     EventCountdownMixin,
     EventRefreshMixin,
 ):
-    """Mixin combining ACE TUI event handlers and timer callbacks."""
+    """Mixin combining sase's TUI event handlers and timer callbacks."""
 
 
 __all__ = [

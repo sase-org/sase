@@ -1,6 +1,6 @@
 """Shared forced agent-name-reuse launch pipeline.
 
-Both ACE (the trusted TUI surface that confirms forced reuse) and the durable
+Both sase's TUI (the trusted surface that confirms forced reuse) and the durable
 ``sase run`` child process it submits need to run the same two-phase
 pipeline: plan (parse + validate, no mutation) then apply (wipe the reserved
 names). Keeping all parsing and syntax validation in the planning half before

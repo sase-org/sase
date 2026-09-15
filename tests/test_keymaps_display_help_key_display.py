@@ -1,4 +1,4 @@
-"""Tests for ace TUI key display formatting.
+"""Tests for sase's TUI key display formatting.
 
 Covers ``key_display_name`` / ``footer_key_display`` formatting rules and
 how the help modal surfaces those display strings for compound app

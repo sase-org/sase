@@ -1,4 +1,4 @@
-"""Tests for the ace TUI keybinding footer core bindings."""
+"""Tests for sase's TUI keybinding footer core bindings."""
 
 from unittest.mock import patch
 

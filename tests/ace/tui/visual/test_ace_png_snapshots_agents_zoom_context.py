@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for Agents-tab context zoom modals."""
+"""sase's TUI PNG visual snapshot coverage for Agents-tab context zoom modals."""
 
 from __future__ import annotations
 

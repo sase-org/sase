@@ -1,4 +1,4 @@
-"""Agent file panel widget for the ace TUI."""
+"""Agent file panel widget for sase's TUI."""
 
 from datetime import datetime
 from typing import Any

@@ -1,4 +1,4 @@
-"""Custom agent workflow mixin for the ace TUI app."""
+"""Custom agent workflow mixin for sase's TUI app."""
 
 from ._agent_launch import AgentLaunchMixin
 from ._editor import EditorMixin

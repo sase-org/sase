@@ -173,7 +173,7 @@ joins are added to `agent_catalog_query_entry`.
 
 ## Agent Artifact Startup
 
-Use this recipe when changing `sase ace` startup loading, dismissed archive queries,
+Use this recipe when changing `sase tui` startup loading, dismissed archive queries,
 revive, run-log loading, or artifact-index rebuilds.
 
 Capture cold-process timings from a checkout with the same `HOME` and artifact tree the

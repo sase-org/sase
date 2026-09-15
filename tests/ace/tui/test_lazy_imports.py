@@ -1,4 +1,4 @@
-"""Import-cost guards for broad ACE TUI package surfaces."""
+"""Import-cost guards for broad sase's TUI package surfaces."""
 
 from __future__ import annotations
 

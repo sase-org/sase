@@ -13,7 +13,7 @@ _MUTATION_PRECEDENCE = (
 _MUTATION_RESTART = (
     "On success, AXE is restarted when it is already running so new processes "
     "see the saved value. A stopped AXE daemon is left stopped. Any separately "
-    "running ACE session must be restarted in its own terminal. Repeating an "
+    "running sase's TUI session must be restarted in its own terminal. Repeating an "
     "already-saved enable or disable still retries that AXE restart. A restart "
     "failure does not roll back the saved preference."
 )

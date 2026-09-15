@@ -230,7 +230,7 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    # Pulse a file at a path the ACE inotify watcher actually sees.
+    # Pulse a file at a path the TUI inotify watcher actually sees.
     # ``ArtifactWatcher`` is non-recursive and only watches direct children of
     # ``<project>/artifacts/``; the marker write three levels deeper never
     # wakes it, so the Agents tab waits up to ``FULL_SANITY_REFRESH_SECONDS``

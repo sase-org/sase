@@ -1,4 +1,4 @@
-"""Command catalog construction for the ace TUI palette.
+"""Command catalog construction for sase's TUI palette.
 
 Builds a single source-of-truth list of :class:`CommandSpec` entries
 from a :class:`KeymapRegistry`. Coverage:

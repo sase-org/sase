@@ -1,4 +1,4 @@
-"""Mentor review and comment clearing for the ace TUI app."""
+"""Mentor review and comment clearing for sase's TUI app."""
 
 from __future__ import annotations
 

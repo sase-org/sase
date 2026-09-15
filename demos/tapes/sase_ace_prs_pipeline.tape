@@ -45,10 +45,11 @@ Type "clear"
 Enter
 Show
 
-Type "sase ace --refresh-interval 0 --tab artifacts -x"
+Type "sase tui --refresh-interval 0 --tab artifacts -x"
 Hide
 Enter
-Wait+Screen /PRs/
+Wait+Screen /STITCH/
+Type "3"
 Wait+Screen /Patch: 1\/5/
 Wait+Screen /group: by project/
 Wait+Screen /nova_prompt_input/

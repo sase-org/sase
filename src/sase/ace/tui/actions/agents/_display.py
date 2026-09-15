@@ -1,4 +1,4 @@
-"""Agent display and refresh methods for the ace TUI app.
+"""Agent display and refresh methods for sase's TUI app.
 
 Top-level orchestration: holds the panel-index cache, the public refresh
 entry points (``_refresh_agents_display`` and friends), and aggregates

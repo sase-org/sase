@@ -109,9 +109,9 @@ before `RUNNING:` or the first `NAME:` line and use one of the valid lowercase v
 by hand. If you edit it manually, keep it before `RUNNING:` or the first `NAME:` line
 and use the same syntax as SASE project names.
 
-`PROJECT_ALIASES` is managed by `sase project alias` and ACE's Projects tab (in the SASE
-Admin Center). If you edit it by hand, keep it before `RUNNING:` or the first `NAME:`
-line and use the same comma-separated form SASE writes.
+`PROJECT_ALIASES` is managed by `sase project alias` and sase's TUI Projects tab (in the
+SASE Admin Center). If you edit it by hand, keep it before `RUNNING:` or the first
+`NAME:` line and use the same comma-separated form SASE writes.
 
 ### Project Names and Aliases
 
@@ -180,11 +180,11 @@ sase project alias clear PROJECT
 Alias mutation uses the normal ProjectSpec lock and can target enabled, disabled, or
 sibling records. The system-managed `home` project cannot be mutated.
 
-ACE exposes aliases in the Projects tab of the SASE Admin Center (press `#`). Rows show
-compact alias information, the detail pane shows the full list, the text filter matches
-`PROJECT_NAME` and aliases, and `A` opens the alias editor for the highlighted project.
-Alias edits replace the selected project's alias set; marked bulk operations remain
-lifecycle-only.
+sase's TUI exposes aliases in the Projects tab of the SASE Admin Center (press `#`).
+Rows show compact alias information, the detail pane shows the full list, the text
+filter matches `PROJECT_NAME` and aliases, and `A` opens the alias editor for the
+highlighted project. Alias edits replace the selected project's alias set; marked bulk
+operations remain lifecycle-only.
 
 ### Current Project
 
@@ -195,14 +195,14 @@ store (`~/.sase/vcs_xprompt_mru.json`) that maps to an enabled project. A Patch 
 that store yields its owning project.
 
 Launching an agent on a project — or on a Patch owned by that project — promotes it to
-that head. So do `sase project set-current <project>` and the ACE Projects tab `c` key,
-without a launch. The working directory never sets it, and there may be none.
+that head. So do `sase project set-current <project>` and sase's TUI Projects tab `c`
+key, without a launch. The working directory never sets it, and there may be none.
 
-It supplies display and defaults only: the ACE top-bar `+<project>` chip and the
+It supplies display and defaults only: sase's TUI top-bar `+<project>` chip and the
 first-open value of project filters. It never overrides an explicit `project:` / `+name`
 term, a pick you already made this session, project lifecycle state, or what a command
 targets. `sase project current` prints the resolved project, or explains that nothing
-resolves and exits 0. See [ACE: Current project](ace.md#current-project) and
+resolves and exits 0. See [sase's TUI: Current project](ace.md#current-project) and
 [`ace.current_project`](configuration.md#acecurrent_project).
 
 ### Project Lifecycle
@@ -249,16 +249,16 @@ compatibility. Disabling refuses projects with live `RUNNING` claims or active a
 markers unless `--force` is passed. The system-managed `home` project cannot be mutated
 through this command.
 
-ACE exposes the same lifecycle operations through the Projects tab of the SASE Admin
-Center (press `#`). The tab shows enabled and disabled non-system projects together,
-with enabled rows first. Its single text filter also matches the literal state name. The
-tab supports marks for bulk enable/disable operations and bulk full-directory deletion,
-and uses the same blocked-operation checks before disabling a project. It can also open
-the selected ProjectSpec in `$EDITOR`. Its delete action removes the whole SASE project
-directory under `~/.sase/projects/` after confirmation, including ProjectSpecs,
-project-local config, and artifacts; it does not remove workspace checkouts. This is
-broader than `Ctrl+D` in project launch pickers, which only removes an empty project's
-ProjectSpec files.
+sase's TUI exposes the same lifecycle operations through the Projects tab of the SASE
+Admin Center (press `#`). The tab shows enabled and disabled non-system projects
+together, with enabled rows first. Its single text filter also matches the literal state
+name. The tab supports marks for bulk enable/disable operations and bulk full-directory
+deletion, and uses the same blocked-operation checks before disabling a project. It can
+also open the selected ProjectSpec in `$EDITOR`. Its delete action removes the whole
+SASE project directory under `~/.sase/projects/` after confirmation, including
+ProjectSpecs, project-local config, and artifacts; it does not remove workspace
+checkouts. This is broader than `Ctrl+D` in project launch pickers, which only removes
+an empty project's ProjectSpec files.
 
 Common workflows:
 
@@ -271,14 +271,14 @@ Common workflows:
 - Re-enable from the CLI: `sase project enable old-project`
 - Add a short project alias: `sase project alias add bob-cli bob`
 - Inspect project aliases as JSON: `sase project alias list bob-cli --json`
-- Make a project current from ACE: press `#`, switch to the Projects tab (`5`),
+- Make a project current from sase's TUI: press `#`, switch to the Projects tab (`5`),
   highlight the project, then press `c`
-- Re-enable from ACE: press `#`, switch to the Projects tab, highlight the project, then
-  press `a`
-- Edit aliases from ACE: press `#`, switch to the Projects tab, highlight the project,
-  then press `A`
-- Bulk-disable from ACE: press `#`, switch to the Projects tab, mark projects with `m`,
-  then press `d`
+- Re-enable from sase's TUI: press `#`, switch to the Projects tab, highlight the
+  project, then press `a`
+- Edit aliases from sase's TUI: press `#`, switch to the Projects tab, highlight the
+  project, then press `A`
+- Bulk-disable from sase's TUI: press `#`, switch to the Projects tab, mark projects
+  with `m`, then press `d`
 
 Maintenance and agent-history scans intentionally keep reading all project directories.
 This keeps live `RUNNING` claims, stale-claim cleanup, dismissed-agent recovery,

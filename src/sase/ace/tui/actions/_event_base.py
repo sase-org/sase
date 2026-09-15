@@ -1,4 +1,4 @@
-"""Shared types and helpers for ACE TUI event handlers."""
+"""Shared types and helpers for sase's TUI event handlers."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Startup/mount mixin for the ace TUI app.
+"""Startup/mount mixin for sase's TUI app.
 
 ``StartupMixin`` is the public mixin imported by ``actions.__init__`` and
 ``AceApp``. Its implementation is split across focused private mixins so this

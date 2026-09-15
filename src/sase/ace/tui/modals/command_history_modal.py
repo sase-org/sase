@@ -1,4 +1,4 @@
-"""Command history selection modal with filtering for the ace TUI."""
+"""Command history selection modal with filtering for sase's TUI."""
 
 from dataclasses import dataclass
 

@@ -1,4 +1,4 @@
-"""Agent revival methods for the ace TUI app.
+"""Agent revival methods for sase's TUI app.
 
 This module remains the public import facade for :class:`AgentRevivalMixin`.
 The implementation lives in smaller focused mixins nearby.

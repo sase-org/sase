@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual coverage for retry and fallback agent states."""
+"""sase's TUI PNG visual coverage for retry and fallback agent states."""
 
 from __future__ import annotations
 

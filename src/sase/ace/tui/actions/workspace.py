@@ -1,4 +1,4 @@
-"""Workspace (tmux/checkout) action methods for the ace TUI app."""
+"""Workspace (tmux/checkout) action methods for sase's TUI app."""
 
 from __future__ import annotations
 

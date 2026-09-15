@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for Config Center plugin action previews."""
+"""sase's TUI PNG visual snapshots for Config Center plugin action previews."""
 
 from __future__ import annotations
 

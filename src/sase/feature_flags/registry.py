@@ -38,7 +38,7 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         key=FeatureFlag.ace_refresh_tokens,
         kind="sunset",
         description=(
-            "Gate ACE and proc refreshes on per-surface stat-only change tokens."
+            "Gate sase's TUI and proc refreshes on per-surface stat-only change tokens."
         ),
         bead="sase-wr",
     ),
@@ -65,7 +65,7 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         key=FeatureFlag.agent_sudo_requests,
         kind="beta",
         description=(
-            "Gate the typed sudo request workflow while the runner, ACE modal, "
+            "Gate the typed sudo request workflow while the runner, TUI modal, "
             "skill guard, and SSH relay phases land."
         ),
         bead="sase-111",

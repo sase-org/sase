@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for the Launch Control tmux Agent modal."""
+"""sase's TUI PNG snapshots for the Launch Control tmux Agent modal."""
 
 from __future__ import annotations
 

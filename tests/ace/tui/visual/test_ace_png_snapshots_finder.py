@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for the recursive file finder modal.
+"""sase's TUI PNG visual snapshot coverage for the recursive file finder modal.
 
 Patches-tab and footer snapshots live in ``test_ace_png_snapshots``.
 Shared fixtures live in ``_ace_png_snapshot_helpers``.

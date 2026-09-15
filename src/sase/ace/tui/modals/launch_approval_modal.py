@@ -1,4 +1,4 @@
-"""Launch approval modal for the ace TUI."""
+"""Launch approval modal for sase's TUI."""
 
 from __future__ import annotations
 

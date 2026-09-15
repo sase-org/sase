@@ -1,4 +1,4 @@
-"""Hint-based action methods for the ace TUI app."""
+"""Hint-based action methods for sase's TUI app."""
 
 from ._accept import AcceptMailMixin
 from ._files import FileViewingMixin

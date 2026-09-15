@@ -99,12 +99,12 @@ the threat model, and rollback steps for the path that exists today.
 
 ## Web
 
-Web is the analogous shape: an HTTP surface that doesn't require terminal-native ACE.
-The unresolved design question is whether the web frontend reuses the mobile gateway
-(which would mean carrying the gateway's product-shaped APIs into a different client) or
-stands up its own, browser-aware backend (which would mean a second control surface to
-keep aligned with the TUI). Either way, the goal is the same: code review and agent
-supervision should be reachable without learning a TUI first.
+Web is the analogous shape: an HTTP surface that doesn't require terminal-native sase's
+TUI. The unresolved design question is whether the web frontend reuses the mobile
+gateway (which would mean carrying the gateway's product-shaped APIs into a different
+client) or stands up its own, browser-aware backend (which would mean a second control
+surface to keep aligned with the TUI). Either way, the goal is the same: code review and
+agent supervision should be reachable without learning a TUI first.
 
 ## The Throughline
 

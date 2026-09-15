@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for AXE lumberjack and chop descriptions."""
+"""sase's TUI PNG snapshots for AXE lumberjack and chop descriptions."""
 
 from __future__ import annotations
 

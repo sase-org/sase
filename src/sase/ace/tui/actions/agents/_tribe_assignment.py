@@ -1,4 +1,4 @@
-"""Agent tribe-assignment actions for the ace TUI Agents tab.
+"""Agent tribe-assignment actions for sase's TUI Agents tab.
 
 Wires the ``N`` keymap to a small modal that sets or clears the tribe on
 the currently focused agent (or, if any agent marks exist, on every

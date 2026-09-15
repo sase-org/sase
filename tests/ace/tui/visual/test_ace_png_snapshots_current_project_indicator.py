@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot coverage for the current-project chip.
+"""sase's TUI PNG visual snapshot coverage for the current-project chip.
 
 Phase polish (epic sase-pw): pin how the top-bar ``CurrentProjectIndicator``
 renders a resolved ``+<project>`` chip beside the gold default-model pill.

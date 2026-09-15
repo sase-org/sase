@@ -122,7 +122,7 @@ class AxeOnboarding(VerticalScroll):
         text = Text()
         append_section_heading(text, "Background automation loop", accent=_ACCENT)
         text.append("Axe starts automatically with ")
-        text.append("sase ace", style="bold #FFD700")
+        text.append("sase tui", style="bold #FFD700")
         text.append(
             " and cycles through hooks, mentors, workflow checks, pending "
             "checks, and zombie cleanup."
@@ -199,7 +199,7 @@ class AxeOnboarding(VerticalScroll):
         assert isinstance(run_cmd_key, str)
         text = Text()
         append_section_heading(
-            text, "Run shell commands without leaving ACE", accent=_ACCENT
+            text, "Run shell commands without leaving sase's TUI", accent=_ACCENT
         )
         append_keycap(text, key_sequence_display(bang.prefix, run_cmd_key))
         text.append(

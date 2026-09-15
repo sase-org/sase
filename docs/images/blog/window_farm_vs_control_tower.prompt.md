@@ -14,7 +14,7 @@ pdf: false
 
 ## Intended Alt Text
 
-Diagram contrasting separate tmux agent windows with one SASE ACE control surface that
+Diagram contrasting separate tmux agent windows with one sase's TUI control surface that
 tracks agents, notifications, and approval gates.
 
 ## Final GPT Image Prompt
@@ -34,11 +34,11 @@ Composition: split into two balanced halves with a clear before/after flow. Left
 several overlapping terminal windows arranged like a messy grid, each representing a
 separate coding-agent CLI session; add visual hints of missing state such as loose
 scrollback strips, repeated prompt cards, and small unattended alert dots. Right half:
-one calm ACE control surface with grouped agent rows, a notification bell, a plan
+one calm sase's TUI control surface with grouped agent rows, a notification bell, a plan
 approval gate, and durable artifact cards feeding into a single dashboard. Use subtle
 arrows from the loose windows toward the organized control surface. Leave blank label
-zones for deterministic labels such as "tmux windows", "manual monitoring", "ACE Agents
-tab", and "tracked runs".
+zones for deterministic labels such as "tmux windows", "manual monitoring", "sase's TUI
+Agents tab", and "tracked runs".
 
 Tone: dry, practical, and slightly humorous, but still appropriate for product
 documentation. The image should make the reader understand the article's thesis in one

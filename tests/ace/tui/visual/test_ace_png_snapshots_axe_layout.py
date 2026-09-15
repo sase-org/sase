@@ -1,4 +1,4 @@
-"""ACE TUI PNG snapshots for responsive AXE sidebar layout."""
+"""sase's TUI PNG snapshots for responsive AXE sidebar layout."""
 
 from __future__ import annotations
 

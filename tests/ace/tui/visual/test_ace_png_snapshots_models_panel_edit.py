@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshot for the Launch Control's alias edit preview.
+"""sase's TUI PNG visual snapshot for the Launch Control's alias edit preview.
 
 Phase 3 (epic sase-5e): pin how :class:`AliasEditPreviewModal` renders the
 persistent-edit preview — the operation summary, target file, effective

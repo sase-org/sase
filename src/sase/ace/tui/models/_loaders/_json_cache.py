@@ -1,6 +1,6 @@
 """Mtime-keyed JSON parse cache for artifact loaders.
 
-The ace TUI re-reads the same JSON artifact files on every refresh. Most of
+sase's TUI re-reads the same JSON artifact files on every refresh. Most of
 those files are immutable once written (done.json, completed
 workflow_state.json, prompt_step_*.json, dismissed bundles), so parsing them
 repeatedly is pure waste. This module provides a small LRU cache keyed on

@@ -1,4 +1,4 @@
-"""Mode and navigation state initialized before the ACE TUI mounts."""
+"""Mode and navigation state initialized before the TUI mounts."""
 
 from __future__ import annotations
 
@@ -211,3 +211,4 @@ def init_navigation_state(self: Any) -> None:
     self._patch_query_index_generation = 0
     self._patch_query_result_cache = OrderedDict()
     self._hidden_reverted_count = 0  # Count of filtered reverted Patches
+    self._hidden_submitted_count = 0  # Count of filtered submitted Patches

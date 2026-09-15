@@ -124,11 +124,11 @@ stored as link sidecars:
   `chop:<lumberjack>/<chop> launched agent:<name>`.
 
 Projected rows carry `origin: projected` and a `created_by: projection:<rule>` marker.
-They appear in `sase artifact link list`, `sase artifact doctor`, and ACE alongside
-durable links, but they are recomputed read-model data: `link rm` and the ACE remove
-action cannot delete them. Change the durable source evidence instead, then refresh or
-repair the aggregate. The health check compares the aggregate against both durable
-sidecar truth and these expected projections.
+They appear in `sase artifact link list`, `sase artifact doctor`, and sase's TUI
+alongside durable links, but they are recomputed read-model data: `link rm` and sase's
+TUI remove action cannot delete them. Change the durable source evidence instead, then
+refresh or repair the aggregate. The health check compares the aggregate against both
+durable sidecar truth and these expected projections.
 
 ## Rendering
 
@@ -147,13 +147,13 @@ Patches use generated pages, so agents should update their underlying stores wit
 commands and never hand-edit those generated pages. Stitches have no page of their own;
 links to a stitch render on the other artifact.
 
-## Browsing links in ACE
+## Browsing links in sase's TUI
 
-When the selected Agent, Artifact, or AXE chop has links, ACE shows a contextual link
-rail. Press `$` to arm it, then `$` again for the first link, `1`-`9` for a numbered
-link, or `0` for the complete links panel. A projected group may occupy one rail entry;
-choosing it opens a panel scoped to that group instead of guessing which member to
-follow.
+When the selected Agent, Artifact, or AXE chop has links, sase's TUI shows a contextual
+link rail. Press `$` to arm it, then `$` again for the first link, `1`-`9` for a
+numbered link, or `0` for the complete links panel. A projected group may occupy one
+rail entry; choosing it opens a panel scoped to that group instead of guessing which
+member to follow.
 
 The panel explains relation direction, provenance, rationale, and missing targets, and
 warns when the aggregate is stale. `a`-`z` follow the first 26 rows directly, Enter

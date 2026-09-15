@@ -336,7 +336,7 @@ def test_get_local_config_path_returns_none_when_cwd_missing() -> None:
 
 
 def test_get_local_config_path_returns_none_when_disabled(tmp_path: Path) -> None:
-    """Returns None when _include_local_config is False (e.g. sase ace)."""
+    """Returns None when _include_local_config is False (e.g. sase tui)."""
     local_config = tmp_path / "sase.yml"
     local_config.write_text(yaml.dump({"key": "local"}))
 

@@ -2,15 +2,15 @@
 
 The Patch query language filters Patches using boolean expressions that combine string
 matching, property filters, and operational shorthands. It is used by the Patches
-sub-tab in `sase ace [query]` and by other Patch filters such as
+sub-tab in `sase tui [query]` and by other Patch filters such as
 `sase axe start --query`.
 
 ## Host-owned `limit:` cap
 
 Every Artifacts pane — Agent, Patches, Stitches, Beads, Files, and every
 document-provider pane — accepts `limit:N` / `limit:all` as a **host-owned presentation
-cap**, not a row-matching field. ACE extracts the token before dialect parse and Rust
-evaluation, matches rows against the remainder, then slices the visible list.
+cap**, not a row-matching field. sase's TUI extracts the token before dialect parse and
+Rust evaluation, matches rows against the remainder, then slices the visible list.
 Completions offer `40`, `100`, `200`, and `all`. Startup injects `limit:<ace.page_size>`
 (default 100) into each pane's default query when no `limit:` is present. An explicit
 token is left alone; deleting it leaves that pane uncapped. `limit:all` is the unlimited
@@ -23,8 +23,8 @@ field on Beads, Plans, Files, Patches, or provider dialects; Stitches already tr
 as a cap and strips it before row eval.
 
 Normal query surfaces use enabled-project Patch discovery. Disabled projects are omitted
-from CLI search and day-to-day ACE/axe scans. Views that are specifically about agent
-history or old artifacts opt into all project lifecycle states explicitly.
+from CLI search and day-to-day sase's TUI/axe scans. Views that are specifically about
+agent history or old artifacts opt into all project lifecycle states explicitly.
 
 This page documents Patch queries. Agent filtering uses the shared Boolean profile
 dialect instead: the top-level Agents tab uses the live `agents-live` profile, while
@@ -32,8 +32,8 @@ Artifacts -> Agent and `sase agent search` use the catalog profile with archive 
 artifact-link fields. The grammar is the same across both Agent profiles; the live tab
 adds operational fields such as `machine`, `pinned`, `unread`, `needs`, and `source` and
 deliberately omits archive-only fields such as `state`, `dismissed`, `relation`, and
-`artifact`. See [ACE: Agent Pane](ace.md#agent-pane) and
-[ACE: Agent Search](ace.md#agent-search).
+`artifact`. See [sase's TUI: Agent Pane](ace.md#agent-pane) and
+[sase's TUI: Agent Search](ace.md#agent-search).
 
 In the Patches sub-tab, the canonical form of the active query stays visible in a
 persistent filter row. Press `/` (or the local `f`) to edit it. Typing previews each
@@ -43,16 +43,17 @@ your selection. A parse error is reported inline and leaves the visible list on 
 valid query. `Tab` accepts completions for property keys and values, shorthand sigils,
 predicates, and macros — and, while the row is empty, saved-query slots. A leading `#`
 saves or deletes a slot without changing the active query; see
-[ACE: Editing Queries](ace.md#editing-queries).
+[sase's TUI: Editing Queries](ace.md#editing-queries).
 
 Agent, Stitches, Beads, Plans, Files, and document-provider panes use the same idle
 chrome -- the committed query stays visible without opening an editor -- but each pane
 has its own query profile and previews against **that pane's** loaded snapshot, not the
 Patch snapshot. Shared keys such as `/` and `f` still focus the row; the tokens you can
 type are documented per pane in
-[ACE Artifacts](ace.md#filtering-agent-patches-stitches-beads-and-plans). The top-level
-Agents tab hides its filter bar when idle; press `/` or `f` to edit the live Agent query
-there. `,/` searches the selected agent's metadata and does not edit the query.
+[sase's TUI Artifacts](ace.md#filtering-agent-patches-stitches-beads-and-plans). The
+top-level Agents tab hides its filter bar when idle; press `/` or `f` to edit the live
+Agent query there. `,/` searches the selected agent's metadata and does not edit the
+query.
 
 ## String Matching
 

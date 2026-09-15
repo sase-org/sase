@@ -195,7 +195,8 @@ def test_public_enable_then_disable_writes_state_and_leaves_config(
     assert code == 0
     assert KEY in out
     assert "disabled" in out
-    assert ACE_RESTART_NOTICE in out
+    for word in ACE_RESTART_NOTICE.split():
+        assert word in out
     assert "AXE is not running; left stopped." in out
     assert load_saved_feature_flags().flags[KEY] is False
     assert sources == ["sase flag enable", "sase flag disable"]

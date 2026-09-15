@@ -1,4 +1,4 @@
-"""Agent tools panel widget for the ace TUI."""
+"""Agent tools panel widget for sase's TUI."""
 
 from __future__ import annotations
 

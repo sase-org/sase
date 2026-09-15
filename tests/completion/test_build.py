@@ -61,10 +61,10 @@ def test_compat_option_strings_are_omitted_from_spec() -> None:
     assert "--cl" not in strings
 
 
-def test_ace_tab_omits_legacy_choices() -> None:
+def test_tui_tab_omits_legacy_choices() -> None:
     spec = build_spec()
-    ace = _by_path(spec.root, ("ace",))
-    tab = next(option for option in ace.options if option.dest == "tab")
+    tui = _by_path(spec.root, ("tui",))
+    tab = next(option for option in tui.options if option.dest == "tab")
     assert tab.choices is not None
     assert "artifacts" in tab.choices
     assert "agents" in tab.choices

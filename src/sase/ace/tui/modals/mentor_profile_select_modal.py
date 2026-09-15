@@ -1,4 +1,4 @@
-"""Mentor profile selection modal for the ace TUI.
+"""Mentor profile selection modal for sase's TUI.
 
 Allows users to pick a mentor profile to run from the Mentor Review modal.
 """

@@ -1,4 +1,4 @@
-"""Hint input bar widget for the ace TUI."""
+"""Hint input bar widget for sase's TUI."""
 
 from typing import TYPE_CHECKING, Any, Literal
 

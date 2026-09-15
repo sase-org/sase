@@ -1,4 +1,4 @@
-"""Hook hint input processing for the ace TUI app."""
+"""Hook hint input processing for sase's TUI app."""
 
 from __future__ import annotations
 

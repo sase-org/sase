@@ -197,7 +197,7 @@ responses, and chat fallback. A missing prompt does not hide an available reply.
 content gets a quiet placeholder; unreadable content gets a retry message. Press `r` to
 pick up new prompts or replies while keeping your current section.
 
-A host embedding the pager (such as `sase ace`'s Agents-tab metadata document, opened
+A host embedding the pager (such as `sase tui`'s Agents-tab metadata document, opened
 with `V`) may wire a refresh provider instead of leaving `r` to recompose the frozen
 document. The provider re-snapshots the live source — a still-running agent's status,
 timestamps, paths, and conversation — on a background thread and returns a fresh

@@ -1,4 +1,4 @@
-"""Lazy export table for ace TUI modal dialogs."""
+"""Lazy export table for sase's TUI modal dialogs."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Startup recent-dismissal cache initialization for the ACE TUI.
+"""Startup recent-dismissal cache initialization for sase's TUI.
 
 Locks the cold-start contract from
 ``sdd/plans/202606/recent_restore_perf_fix.md``: ``__init__`` must not read the

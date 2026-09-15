@@ -1,4 +1,4 @@
-"""Lifecycle, quit, and selection-persistence methods for the ace TUI app."""
+"""Lifecycle, quit, and selection-persistence methods for sase's TUI app."""
 
 from __future__ import annotations
 

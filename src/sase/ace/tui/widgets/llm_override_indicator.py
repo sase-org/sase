@@ -1,4 +1,4 @@
-"""LLM model status indicator for the ace TUI top bar."""
+"""LLM model status indicator for sase's TUI top bar."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 """Identity-preserving selection restoration after list rebuilds.
 
-Every list-bearing tab in the ace TUI must satisfy this invariant after
+Every list-bearing tab in sase's TUI must satisfy this invariant after
 any data-source rebuild: *the cursor lands on the same logical entry the
 user had selected, or on the nearest valid neighbor if that entry is
 gone.* :func:`restore_selection_by_identity` is the one helper that

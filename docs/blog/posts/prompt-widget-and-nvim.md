@@ -11,7 +11,7 @@ categories:
   - Plugins
 slug: prompt-widget-and-nvim
 links:
-  - ACE TUI: ace.md
+  - sase's TUI: ace.md
   - XPrompts: xprompt.md
   - Plugins: plugins.md
   - "[07] Driving SASE From Your Phone — Telegram as the Mobile Control Surface": blog/posts/telegram-mobile-agents.md
@@ -22,9 +22,9 @@ links:
 
 Every agent run starts as a few characters typed into a box.
 [\[02\]](xprompts-in-depth.md) covered the prompt _language_; this post covers the
-surface you type that language into: the ACE prompt input widget, and the **sase-nvim**
-plugin that lets the same language live inside Neovim with syntax highlighting,
-completion, and go-to-definition.
+surface you type that language into: sase's TUI prompt input widget, and the
+**sase-nvim** plugin that lets the same language live inside Neovim with syntax
+highlighting, completion, and go-to-definition.
 
 <!-- more -->
 
@@ -37,7 +37,7 @@ the prompt input widget.
 ## What The Widget Actually Is
 
 The prompt input is a multiline Textual `TextArea` subclass — `PromptTextArea` in
-`src/sase/ace/tui/widgets/prompt_text_area.py` — anchored at the bottom of the ACE TUI.
+`src/sase/ace/tui/widgets/prompt_text_area.py` — anchored at the bottom of sase's TUI.
 It auto-grows with wrapped content, shows line numbers once you spill onto a second
 line, and renders Markdown syntax highlighting for headings, code fences, lists, bold,
 and italics. The container around it, `prompt_input_bar.py`, owns the surrounding label,
@@ -76,10 +76,10 @@ cursor:
 Path completion is rooted in the prompt when possible. Registered workspace-provider
 refs and known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can make
 relative path candidates come from that project checkout instead of from whatever
-directory launched ACE. For broader search, `Ctrl+R` opens a recursive fuzzy finder. A
-path token like `src/alp` uses `src/` as the root and `alp` as the initial fuzzy query;
-when the `Ctrl+T` panel is already open on a file/path candidate, the highlighted entry
-seeds the recursive root.
+directory launched sase's TUI. For broader search, `Ctrl+R` opens a recursive fuzzy
+finder. A path token like `src/alp` uses `src/` as the root and `alp` as the initial
+fuzzy query; when the `Ctrl+T` panel is already open on a file/path candidate, the
+highlighted entry seeds the recursive root.
 
 Inside a known xprompt argument position, `Ctrl+T` flips to argument completion: `path`
 inputs delegate to file completion, `bool` inputs offer `true` / `false`, and inside
@@ -103,12 +103,12 @@ for anything xprompts already do better.
 
 Prompt history is the third reuse path. Press `Ctrl+K` from the input bar to open the
 prompt history modal when the current prompt is a single line; that text pre-fills the
-modal filter. `,.` opens the same modal from the main ACE UI. The modal loads prior
-prompts by most recent use, with `PageDown` fetching older rows. `Enter` submits the
-highlighted prompt directly; `Ctrl+G` loads it into your editor first; `Ctrl+I` loads it
-into the input widget for tweaking (pressing `Tab` does the same thing). Normal launch
-writes skip trivial one-token prompts (`y`, `ok`) so they do not clutter the list, while
-failed-launch recovery can still preserve a short submitted prompt.
+modal filter. `,.` opens the same modal from the main sase's TUI UI. The modal loads
+prior prompts by most recent use, with `PageDown` fetching older rows. `Enter` submits
+the highlighted prompt directly; `Ctrl+G` loads it into your editor first; `Ctrl+I`
+loads it into the input widget for tweaking (pressing `Tab` does the same thing). Normal
+launch writes skip trivial one-token prompts (`y`, `ok`) so they do not clutter the
+list, while failed-launch recovery can still preserve a short submitted prompt.
 
 `Ctrl+P` and `Ctrl+N` cycle most-recently-used workspace references (such as `#git:foo`,
 `#gh:org/repo`, and refs from other installed providers) through one ring with a
@@ -143,10 +143,10 @@ language a proper editor surface. It ships three things:
 
 1. **Filetype detection and syntax highlighting** for
    `~/.sase/projects/<project>/<project>.sase` Patch files, with colors that match the
-   `sase ace` rendering — field labels (`NAME:`, `STATUS:`, `HOOKS:`, `WORKSPACE_DIR:`),
+   `sase tui` rendering — field labels (`NAME:`, `STATUS:`, `HOOKS:`, `WORKSPACE_DIR:`),
    status values colored by lifecycle stage (WIP → Draft → Ready → Mailed → Submitted),
    inline process states (RUNNING/PASSED/FAILED/DEAD/KILLED), timestamps, URLs, file
-   paths, and the suffix badges ACE uses for errors and running agents.
+   paths, and the suffix badges sase's TUI uses for errors and running agents.
 2. **A `<C-t>` completion dispatcher** that mirrors the widget's `Ctrl+T`: on `#token`
    it completes xprompts, on `/skill` it completes skills, on `%directive` it completes
    directives, on a path-like token it completes files, and on empty input it falls back
@@ -160,14 +160,14 @@ language a proper editor surface. It ships three things:
 The completion backend has two modes. When the SASE xprompt LSP is reachable —
 `sase lsp` or `sase-xprompt-lsp` — the plugin attaches an LSP client and gets
 server-driven completion, go-to-definition on `#foo` references, and snippet completion
-sourced from the same registry the ACE widget uses (so xprompts marked `snippet: true`
-and `ace.snippets` entries appear in both places). When the LSP isn't available, the
-plugin falls back to legacy pickers backed by `sase xprompt list` and a local
-file-history reader. The behavior the user sees stays the same; only the source of truth
-shifts.
+sourced from the same registry sase's TUI widget uses (so xprompts marked
+`snippet: true` and `ace.snippets` entries appear in both places). When the LSP isn't
+available, the plugin falls back to legacy pickers backed by `sase xprompt list` and a
+local file-history reader. The behavior the user sees stays the same; only the source of
+truth shifts.
 
-The `#@` insert-mode trigger from the ACE widget is mirrored too. Typing `#` then `@` in
-a Neovim buffer opens an xprompt picker modal driven by the same catalog; the
+The `#@` insert-mode trigger from sase's TUI widget is mirrored too. Typing `#` then `@`
+in a Neovim buffer opens an xprompt picker modal driven by the same catalog; the
 `:SaseXPrompts` command opens it manually. `<C-d>` in the recent-files picker removes
 the highlighted entry from `~/.sase/file_reference_history.json` — the same on-disk
 store the widget uses, edited from the other side.
@@ -175,7 +175,7 @@ store the widget uses, edited from the other side.
 ## Two Surfaces, One Language
 
 The throughline is that the prompt language is the contract, and the editing surface is
-interchangeable. ACE's input widget is optimized for short, fast, in-TUI launches;
+interchangeable. sase's TUI input widget is optimized for short, fast, in-TUI launches;
 sase-nvim is optimized for long prompts, multi-file context, and the muscle memory of an
 editor you already use for code. Both speak the same xprompt names, the same directive
 aliases, the same slash-skill catalog, the same recent-files store. A prompt drafted in
@@ -194,4 +194,4 @@ catalog make them the same input system from two different front doors.
   `<C-t>` dispatcher table, LSP configuration, and the YAML schema registration.
 - [XPrompts reference](../../xprompt.md) — the language the widget and the plugin both
   speak.
-- [ACE TUI guide](../../ace.md) — the rest of the TUI the prompt widget sits inside.
+- [sase's TUI guide](../../ace.md) — the rest of the TUI the prompt widget sits inside.

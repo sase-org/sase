@@ -1,4 +1,4 @@
-"""Leader mode handling for the ace TUI app."""
+"""Leader mode handling for sase's TUI app."""
 
 from __future__ import annotations
 

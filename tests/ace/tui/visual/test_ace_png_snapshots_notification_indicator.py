@@ -1,4 +1,4 @@
-"""ACE TUI PNG visual snapshots for the per-tab notification indicator.
+"""sase's TUI PNG visual snapshots for the per-tab notification indicator.
 
 Between the three badges every built-in glyph, every kind default, and the
 last-resort mark reaches a golden; the tab strip's own icons are covered by

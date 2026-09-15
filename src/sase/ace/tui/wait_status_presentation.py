@@ -1,4 +1,4 @@
-"""Shared ACE TUI presentation for wait dependency statuses."""
+"""Shared sase's TUI presentation for wait dependency statuses."""
 
 from __future__ import annotations
 

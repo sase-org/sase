@@ -1,4 +1,4 @@
-"""Runtime and refresh state initialized before the ACE TUI mounts."""
+"""Runtime and refresh state initialized before sase's TUI mounts."""
 
 from __future__ import annotations
 

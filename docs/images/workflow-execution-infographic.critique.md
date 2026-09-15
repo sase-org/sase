@@ -111,7 +111,7 @@ These are checked against `docs/workflow_spec.md` (the embedding doc) and the sh
 `infographic-style-brief.md`.
 
 1. **`hidden` is a modifier, not an execution type.** `workflow_spec.md` §"Hidden Steps"
-   says: "Any step can be marked `hidden: true` to suppress it from the ACE TUI Agents
+   says: "Any step can be marked `hidden: true` to suppress it from sase's TUI Agents
    tab. Hidden steps execute normally but don't appear as visible agents." The brief
    enumerates `hidden` in its step-type list, but the brief is itself imprecise here;
    the spec is authoritative. Showing `hidden` as a distinct row with its own output
@@ -192,7 +192,7 @@ its post-processing label script, scoped to the diagram only.
    `agent`, `prompt_part`, `bash`, `python`, `parallel`. `prompt_part` becomes a peer
    row (still styled as a "text fragment" icon, not an LLM/process icon) so all five
    mutually-exclusive types are visible together.
-2. **Render `hidden` as a small badge** ("hidden: true — suppressed from ACE TUI")
+2. **Render `hidden` as a small badge** ("hidden: true — suppressed from sase's TUI")
    attached to one example row (e.g. the `python` row), demonstrating that any step can
    carry the modifier rather than depicting it as its own row.
 3. **Render `HITL` as an approval gate symbol** straddling the boundary between a step

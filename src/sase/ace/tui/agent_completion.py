@@ -1,4 +1,4 @@
-"""Shared visible-agent completion API for the ACE TUI.
+"""Shared visible-agent completion API for sase's TUI.
 
 The implementation is split by responsibility across focused private modules;
 this facade preserves the established import surface for TUI callers.
