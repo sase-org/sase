@@ -47,7 +47,7 @@ def test_bead_link_target_resolves_foreign_bead(
 ) -> None:
     from sase.artifact_refs import parse_artifact_ref
     from sase.bead import cross_project
-    from sase.bead.cross_project import BeadStoreOrigin
+    from sase.bead.cross_project import BeadStoreOrigin, BeadStoreSnapshot
     from sase.bead.model import Issue, IssueType
     from sase.pager import beads
     from sase.pager.beads import bead_link_resolution
@@ -93,7 +93,20 @@ def test_bead_link_target_resolves_foreign_bead(
         "_open_contextual_store",
         lambda _stack, _context: None,
     )
-    monkeypatch.setattr(cross_project, "origin_for_bead_id", lambda _id: origin)
+    assert origin.beads_dir is not None
+    monkeypatch.setattr(
+        cross_project,
+        "enabled_project_store_snapshots",
+        lambda: (
+            BeadStoreSnapshot(
+                origin=origin,
+                store_key=str(origin.beads_dir),
+                issue_ids=frozenset({"bob-cli-1"}),
+                issue_prefix="bob-cli",
+                project_refs=frozenset({"bob-cli", "gh_acme__bob-cli"}),
+            ),
+        ),
+    )
     monkeypatch.setattr(
         "sase.bead.cli_show_router.open_bead_project_for_beads_dir",
         lambda _path: foreign,

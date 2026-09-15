@@ -11,7 +11,7 @@ import pytest
 
 from sase.bead import cli as bead_cli
 from sase.bead import cross_project
-from sase.bead.cross_project import AmbiguousBeadProjectError, BeadStoreOrigin
+from sase.bead.cross_project import BeadStoreOrigin, BeadStoreSnapshot
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.main.parser import create_parser
 
@@ -85,8 +85,38 @@ def _install(
         lambda *_a: None,
     )
     monkeypatch.setattr("sase.bead.cli_query.resolve_bead_page_url", lambda *_a: None)
-    if origin is not None:
-        monkeypatch.setattr(cross_project, "origin_for_bead_id", lambda _id: origin)
+    if origin is None:
+        monkeypatch.setattr(
+            cross_project,
+            "enabled_project_store_snapshots",
+            lambda: (),
+        )
+    else:
+        issue_ids = (
+            frozenset(foreign.issues)
+            if foreign is not None and origin.beads_dir is not None
+            else frozenset()
+        )
+        monkeypatch.setattr(
+            cross_project,
+            "enabled_project_store_snapshots",
+            lambda: (
+                BeadStoreSnapshot(
+                    origin=origin,
+                    store_key=(
+                        str(origin.beads_dir)
+                        if origin.beads_dir is not None
+                        else f"project:{origin.project_key}"
+                    ),
+                    issue_ids=issue_ids,
+                    issue_prefix=origin.project_label,
+                    project_refs=frozenset({origin.project_key, origin.project_label}),
+                    unavailable_reason=(
+                        "not materialized" if origin.beads_dir is None else None
+                    ),
+                ),
+            ),
+        )
         monkeypatch.setattr(
             cross_project,
             "origin_for_project_ref",
@@ -235,7 +265,6 @@ def test_unknown_prefix_preserves_issue_not_found_message(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     _install(monkeypatch, local=_View({}))
-    monkeypatch.setattr(cross_project, "origin_for_bead_id", lambda _id: None)
     args = create_parser().parse_args(
         ["bead", "show", "bob-cli-1", "--format", "compact", "--pager", "never"]
     )
@@ -260,8 +289,7 @@ def test_known_project_without_materialized_store_is_actionable(
         primary_workspace=tmp_path / "bob-cli",
         beads_dir=None,
     )
-    _install(monkeypatch, local=_View({}))
-    monkeypatch.setattr(cross_project, "origin_for_bead_id", lambda _id: origin)
+    _install(monkeypatch, local=_View({}), origin=origin)
     args = create_parser().parse_args(
         ["bead", "show", "bob-cli-1", "--format", "compact", "--pager", "never"]
     )
@@ -289,15 +317,27 @@ def test_ambiguous_prefix_names_candidates(
         beads_dir=tmp_path / "other" / "sdd" / "beads",
     )
 
-    def ambiguous(_id: str) -> object:
-        raise AmbiguousBeadProjectError(
-            "bob-cli",
-            [first, second],
-            subject="bead prefix",
-        )
-
     _install(monkeypatch, local=_View({}))
-    monkeypatch.setattr(cross_project, "origin_for_bead_id", ambiguous)
+    monkeypatch.setattr(
+        cross_project,
+        "enabled_project_store_snapshots",
+        lambda: (
+            BeadStoreSnapshot(
+                origin=first,
+                store_key="first",
+                issue_ids=frozenset({"bob-cli-1"}),
+                issue_prefix="bob-cli",
+                project_refs=frozenset({"bob-cli", "gh_acme__bob-cli"}),
+            ),
+            BeadStoreSnapshot(
+                origin=second,
+                store_key="second",
+                issue_ids=frozenset({"bob-cli-1"}),
+                issue_prefix="bob-cli",
+                project_refs=frozenset({"bob-cli", "other"}),
+            ),
+        ),
+    )
     args = create_parser().parse_args(
         ["bead", "show", "bob-cli-1", "--format", "compact", "--pager", "never"]
     )
@@ -307,7 +347,7 @@ def test_ambiguous_prefix_names_candidates(
 
     captured = capsys.readouterr()
     assert excinfo.value.code == 1
-    assert "ambiguous bead prefix 'bob-cli'" in captured.err
+    assert "ambiguous bead ID 'bob-cli-1'" in captured.err
     assert "gh_acme__bob-cli" in captured.err
     assert "other" in captured.err
     assert "-P/--project" in captured.err

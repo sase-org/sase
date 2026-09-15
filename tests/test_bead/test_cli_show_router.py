@@ -10,7 +10,7 @@ import pytest
 from sase.bead import cross_project
 from sase.bead.cli_show_batch import resolve_show_batch
 from sase.bead.cli_show_router import ShowStoreRouter, ShowStoreRoutingError
-from sase.bead.cross_project import BeadStoreOrigin
+from sase.bead.cross_project import BeadStoreOrigin, BeadStoreSnapshot
 from sase.bead.model import Issue, IssueType
 
 
@@ -48,12 +48,14 @@ def test_resolve_show_batch_consults_local_view_first(
     local = _View({local_issue.id: local_issue})
     calls = 0
 
-    def fail_if_called(_bead_id: str) -> object:
+    def fail_if_called() -> object:
         nonlocal calls
         calls += 1
         raise AssertionError("cross-project routing should not run")
 
-    monkeypatch.setattr(cross_project, "origin_for_bead_id", fail_if_called)
+    monkeypatch.setattr(
+        cross_project, "enabled_project_store_snapshots", fail_if_called
+    )
 
     batch = resolve_show_batch(
         local,
@@ -83,7 +85,19 @@ def test_router_opens_each_foreign_store_once_and_closes_it(
     )
     opened: list[Path] = []
 
-    monkeypatch.setattr(cross_project, "origin_for_bead_id", lambda _id: origin)
+    monkeypatch.setattr(
+        cross_project,
+        "enabled_project_store_snapshots",
+        lambda: (
+            BeadStoreSnapshot(
+                origin=origin,
+                store_key=str(beads_dir),
+                issue_ids=frozenset({foreign_issue.id, "bob-cli-2"}),
+                issue_prefix="bob-cli",
+                project_refs=frozenset({"bob-cli"}),
+            ),
+        ),
+    )
 
     def fake_open(path: Path) -> _View:
         opened.append(path)
@@ -115,7 +129,20 @@ def test_router_reports_unmaterialized_store(
         primary_workspace=tmp_path / "bob",
         beads_dir=None,
     )
-    monkeypatch.setattr(cross_project, "origin_for_bead_id", lambda _id: origin)
+    monkeypatch.setattr(
+        cross_project,
+        "enabled_project_store_snapshots",
+        lambda: (
+            BeadStoreSnapshot(
+                origin=origin,
+                store_key="project:bob-cli",
+                issue_ids=frozenset(),
+                issue_prefix=None,
+                project_refs=frozenset({"bob-cli"}),
+                unavailable_reason="not materialized",
+            ),
+        ),
+    )
 
     with ShowStoreRouter(_View({})) as router:
         with pytest.raises(ShowStoreRoutingError) as excinfo:

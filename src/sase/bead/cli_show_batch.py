@@ -272,28 +272,17 @@ def _resolve_existing_issue_store(
     router: ShowStoreRouter,
     requested_id: str,
 ) -> tuple[RoutedShowStore, Issue]:
-    primary_error: ShowStoreRoutingError | None = None
+    routed = router.route_target(requested_id)
     try:
-        primary = router.primary_store()
-    except ShowStoreRoutingError as exc:
-        if router.is_project_pinned:
+        return routed.store, routed.store.view.show(routed.resolved_id)
+    except KeyError as local_miss:
+        if router.is_project_pinned or routed.store.origin is not None:
             raise
-        primary_error = exc
-    else:
         try:
-            return primary, primary.view.show(requested_id)
+            routed = router.foreign_target_for_bead_id(requested_id)
         except KeyError:
-            if router.is_project_pinned:
-                raise
-
-    if not router.is_project_pinned:
-        foreign = router.foreign_store_for_bead_id(requested_id)
-        if foreign is None:
-            if primary_error is not None:
-                raise primary_error
-            raise KeyError(requested_id)
-        return foreign, foreign.view.show(requested_id)
-    raise KeyError(requested_id)
+            raise local_miss from None
+        return routed.store, routed.store.view.show(routed.resolved_id)
 
 
 def _resolve_show_request(
@@ -311,38 +300,27 @@ def _resolve_show_request(
             include_links=include_links,
         )
 
-    primary_error: ShowStoreRoutingError | None = None
+    routed = router.route_target(request.requested_id)
     try:
-        primary = router.primary_store()
-    except ShowStoreRoutingError as exc:
-        if router.is_project_pinned:
-            raise
-        primary_error = exc
-    else:
-        try:
-            return _resolve_in_store(
-                primary,
-                request.requested_id,
-                format_name=format_name,
-                include_links=include_links,
-            )
-        except KeyError:
-            if router.is_project_pinned:
-                raise
-
-    if not router.is_project_pinned:
-        foreign = router.foreign_store_for_bead_id(request.requested_id)
-        if foreign is None:
-            if primary_error is not None:
-                raise primary_error
-            raise KeyError(request.requested_id)
         return _resolve_in_store(
-            foreign,
-            request.requested_id,
+            routed.store,
+            routed.resolved_id,
             format_name=format_name,
             include_links=include_links,
         )
-    raise KeyError(request.requested_id)
+    except KeyError as local_miss:
+        if router.is_project_pinned or routed.store.origin is not None:
+            raise
+        try:
+            routed = router.foreign_target_for_bead_id(request.requested_id)
+        except KeyError:
+            raise local_miss from None
+        return _resolve_in_store(
+            routed.store,
+            routed.resolved_id,
+            format_name=format_name,
+            include_links=include_links,
+        )
 
 
 def _resolve_in_store(
