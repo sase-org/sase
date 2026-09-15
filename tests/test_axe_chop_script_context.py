@@ -39,6 +39,9 @@ class TestChopScriptContextRoundTrip:
         write_chop_context(ctx, path)
         loaded = read_chop_context(path)
         assert loaded == ctx
+        raw = json.loads((tmp_path / "ctx.json").read_text(encoding="utf-8"))
+        assert raw["routine_name"] == "hooks"
+        assert raw["verbose_routine_diagnostics"] is False
 
     def test_legacy_context_defaults_source_and_dry_run(self, tmp_path):
         path = tmp_path / "legacy.json"
@@ -88,6 +91,33 @@ class TestChopScriptContextRoundTrip:
 
         assert loaded.source == "manual"
         assert loaded.dry_run is True
+        assert loaded.routine_name == "hooks"
+
+    def test_context_rejects_conflicting_routine_aliases(self, tmp_path):
+        path = tmp_path / "conflict.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "max_hook_runners": 3,
+                    "max_agent_runners": 3,
+                    "zombie_timeout_seconds": 600,
+                    "query": "",
+                    "lumberjack_name": "hooks",
+                    "routine_name": "checks",
+                    "state_dir": "/tmp/axe/lumberjacks/hooks",
+                    "all_patches_file": "/tmp/all.json",
+                    "filtered_patches_file": "/tmp/filtered.json",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        try:
+            read_chop_context(str(path))
+        except ValueError as exc:
+            assert "lumberjack_name and routine_name differ" in str(exc)
+        else:
+            raise AssertionError("expected conflicting routine aliases to fail")
 
     def test_prepare_chop_run_context_adds_run_fields(self, tmp_path):
         base = tmp_path / "base.json"
@@ -121,6 +151,8 @@ class TestChopScriptContextRoundTrip:
         assert result == str(destination)
         loaded = read_chop_context(str(destination))
         assert loaded.result_file == "/tmp/result.json"
+        assert loaded.routine_name == "hooks"
+        assert loaded.verbose_routine_diagnostics is False
         assert loaded.source == "manual"
         assert loaded.dry_run is True
         assert loaded.target == {"repo": "sase"}

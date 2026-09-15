@@ -32,6 +32,8 @@ def test_scrub_chop_context_env_removes_only_chop_family() -> None:
     env = {
         "SASE_CHOP_NAME": "workflow_checks",
         "SASE_CHOP_RUN_ID": "run-1",
+        "SASE_JOB_NAME": "workflow_checks",
+        "SASE_JOB_RUN_ID": "run-1",
         "SASE_CHOPPER": "keep",
         "SASE_AGENT_NAME": "keep",
     }

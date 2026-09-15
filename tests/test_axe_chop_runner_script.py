@@ -220,6 +220,9 @@ def test_run_configured_chop_once_propagates_chop_env(
     # Chop identity env is also injected for downstream agent records.
     assert env["SASE_CHOP_LUMBERJACK"] == "hooks"
     assert env["SASE_CHOP_NAME"] == "env_chop"
+    assert env["SASE_JOB_ROUTINE"] == "hooks"
+    assert env["SASE_JOB_NAME"] == "env_chop"
+    assert env["SASE_JOB_RUN_ID"] == env["SASE_CHOP_RUN_ID"]
 
 
 @pytest.mark.parametrize(
@@ -263,6 +266,9 @@ def test_run_configured_chop_once_exports_source_and_dry_run(
     env = mock_stream.call_args.kwargs["env"]
     assert env["SASE_CHOP_SOURCE"] == source
     assert env["SASE_CHOP_DRY_RUN"] == dry_run_env
+    assert env["SASE_JOB_SOURCE"] == source
+    assert env["SASE_JOB_DRY_RUN"] == dry_run_env
+    assert env["SASE_JOB_RESULT_FILE"] == env["SASE_CHOP_RESULT_FILE"]
 
     context = json.loads(
         chop_run_context_path("hooks", "env_chop", outcome.run_id).read_text(
@@ -271,6 +277,7 @@ def test_run_configured_chop_once_exports_source_and_dry_run(
     )
     assert context["source"] == source
     assert context["dry_run"] is dry_run
+    assert context["routine_name"] == "hooks"
 
 
 def test_run_configured_chop_once_resolves_secrets_and_exports_target_env(
@@ -313,6 +320,9 @@ def test_run_configured_chop_once_resolves_secrets_and_exports_target_env(
     assert env["SASE_CHOP_TARGET_KEY"] == "sase"
     assert env["SASE_CHOP_TARGET_NAME"] == "sase"
     assert env["SASE_CHOP_TARGET_PRIORITY"] == "2"
+    assert env["SASE_JOB_TARGET_KEY"] == "sase"
+    assert env["SASE_JOB_TARGET_NAME"] == "sase"
+    assert env["SASE_JOB_TARGET_PRIORITY"] == "2"
 
 
 def test_run_configured_chop_once_records_unresolved_secret_as_check_error(

@@ -69,6 +69,10 @@ def test_chop_target_env_is_stable_and_rejects_name_collisions() -> None:
         "SASE_CHOP_TARGET_METADATA": '{"a":2,"b":1}',
         "SASE_CHOP_TARGET_NAME": "sase-core",
         "SASE_CHOP_TARGET_PRIORITY": "2",
+        "SASE_JOB_TARGET_KEY": "sase-core",
+        "SASE_JOB_TARGET_METADATA": '{"a":2,"b":1}',
+        "SASE_JOB_TARGET_NAME": "sase-core",
+        "SASE_JOB_TARGET_PRIORITY": "2",
     }
 
     with pytest.raises(ValueError, match="collide"):

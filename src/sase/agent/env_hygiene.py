@@ -11,9 +11,9 @@ def scrub_agent_identity_env(env: MutableMapping[str, str]) -> None:
 
 
 def scrub_chop_context_env(env: MutableMapping[str, str]) -> None:
-    """Remove ambient per-chop context variables from *env*."""
+    """Remove ambient per-chop/job context variables from *env*."""
     for key in list(env):
-        if key.startswith("SASE_CHOP_"):
+        if key.startswith(("SASE_CHOP_", "SASE_JOB_")):
             env.pop(key, None)
 
 

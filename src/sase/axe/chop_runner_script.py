@@ -11,7 +11,7 @@ from sase.ace.hooks.processes import is_process_running
 from sase.core.time import get_timezone
 
 from .chop_agents import build_chop_launch_env
-from .chop_env import chop_target_env, resolve_chop_env
+from .chop_env import add_job_env_aliases, chop_target_env, resolve_chop_env
 from .chop_lifecycle import finalize_launched_chop_runs
 from .chop_policy import (
     ChopPreflight,
@@ -241,6 +241,7 @@ def run_script_chop_once(
     )
     if chop_verbose or axe_config.verbose_lumberjack_diagnostics:
         env["SASE_CHOP_VERBOSE"] = "1"
+    add_job_env_aliases(env)
 
     start_entry = ChopRunEntry(
         run_id=run_id,
@@ -294,6 +295,7 @@ def run_script_chop_once(
     env["SASE_CHOP_RESULT_FILE"] = str(result_path)
     env["SASE_CHOP_SOURCE"] = source
     env["SASE_CHOP_DRY_RUN"] = "1" if dry_run else "0"
+    add_job_env_aliases(env)
     try:
         context_file = prepare_chop_run_context(
             context_file,

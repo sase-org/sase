@@ -30,7 +30,10 @@ def test_chop_inventory_resolves_scripts_and_available_unconfigured(
     python_executable = python_bin / "python"
     python_executable.write_text("", encoding="utf-8")
     _make_executable(python_bin / "sase_chop_available")
-    _make_executable(python_bin / "sase_chop_unconfigured")
+    unconfigured = python_bin / "sase_chop_unconfigured"
+    _make_executable(unconfigured)
+    (python_bin / "sase_job_unconfigured").symlink_to(unconfigured)
+    _make_executable(python_bin / "sase_chop_legacy_only")
 
     monkeypatch.setattr(
         "sase.axe.chop_inventory.sys.executable", str(python_executable)
@@ -77,11 +80,13 @@ def test_chop_inventory_resolves_scripts_and_available_unconfigured(
     assert aliased.script == "sase_chop_available"
     assert aliased.resolved_path == str(python_bin / "sase_chop_available")
 
-    available = inventory.available_unconfigured
-    assert len(available) == 1
-    assert available[0].name == "sase_chop_unconfigured"
-    assert available[0].source == "python_bin"
-    assert available[0].executable == str(python_bin / "sase_chop_unconfigured")
+    available = {script.name: script for script in inventory.available_unconfigured}
+    assert set(available) == {"sase_chop_legacy_only", "sase_job_unconfigured"}
+    assert available["sase_job_unconfigured"].source == "python_bin"
+    assert available["sase_job_unconfigured"].executable == str(
+        python_bin / "sase_job_unconfigured"
+    )
+    assert available["sase_chop_legacy_only"].source == "python_bin"
 
 
 def test_chop_inventory_to_dict_is_json_safe() -> None:

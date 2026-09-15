@@ -12,6 +12,7 @@ from sase.version._models import (
     CORE_DISTRIBUTION_NAME,
     HOST_DISTRIBUTION_NAME,
     SASE_CHOP_SCRIPT_PREFIX,
+    SASE_JOB_SCRIPT_PREFIX,
 )
 from sase.version._sources import distribution_name
 from sase.version._utils import (
@@ -191,7 +192,7 @@ def console_script_signal(name: str, value: str) -> str:
 
 
 def is_sase_plugin_console_script(name: str, distribution_name: str) -> bool:
-    if name.startswith(SASE_CHOP_SCRIPT_PREFIX):
+    if name.startswith((SASE_CHOP_SCRIPT_PREFIX, SASE_JOB_SCRIPT_PREFIX)):
         return True
     if not is_sase_plugin_distribution_name(distribution_name):
         return False

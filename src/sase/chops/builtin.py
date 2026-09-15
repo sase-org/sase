@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal
 
 from sase.axe.chop_script_context import (
     ChopScriptContext,
@@ -132,13 +134,20 @@ def run_builtin_chop(name: str, argv: Sequence[str] | None = None) -> None:
     except KeyError as error:
         raise RuntimeError(f"unknown builtin chop: {name}") from error
 
-    invocation = load_chop_invocation(argv, description=f"Run the {name} axe chop")
+    surface: Literal["chop", "job"] = (
+        "job" if sys.argv and Path(sys.argv[0]).name.startswith("sase_job_") else "chop"
+    )
+    invocation = load_chop_invocation(
+        argv,
+        description=f"Run the {name} axe {surface}",
+        surface=surface,
+    )
     runtime = BuiltinChopRuntime(
         name=name,
         context=invocation.context,
         log=invocation.logger,
     )
-    runtime.log.debug(f"chop={name} context={invocation.arguments.context}")
+    runtime.log.debug(f"{surface}={name} context={invocation.arguments.context}")
     result = handler(runtime)
     if result is None:
         result = _result_from_summary(name, runtime.log.last_summary)

@@ -6,7 +6,7 @@ import json
 import os
 import re
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Mapping, MutableMapping
 from pathlib import Path
 
 type ChopSecretReference = dict[str, str]
@@ -14,10 +14,70 @@ type ChopEnvValue = str | ChopSecretReference
 
 _PASS_TIMEOUT_SECONDS = 15
 _TARGET_ENV_INVALID = re.compile(r"[^A-Za-z0-9_]+")
+CHOP_ENV_ALIASES: dict[str, str] = {
+    "SASE_CHOP_LUMBERJACK": "SASE_JOB_ROUTINE",
+    "SASE_CHOP_NAME": "SASE_JOB_NAME",
+    "SASE_CHOP_RUN_ID": "SASE_JOB_RUN_ID",
+    "SASE_CHOP_PROMPT_HASH": "SASE_JOB_PROMPT_HASH",
+    "SASE_CHOP_ADMISSION_LOGICAL_ID": "SASE_JOB_ADMISSION_LOGICAL_ID",
+    "SASE_CHOP_ADMISSION_FINGERPRINT": "SASE_JOB_ADMISSION_FINGERPRINT",
+    "SASE_CHOP_PROPOSAL_INDEX": "SASE_JOB_PROPOSAL_INDEX",
+    "SASE_CHOP_PROPOSAL_ID": "SASE_JOB_PROPOSAL_ID",
+    "SASE_CHOP_RESULT_FILE": "SASE_JOB_RESULT_FILE",
+    "SASE_CHOP_VERBOSE": "SASE_JOB_VERBOSE",
+    "SASE_CHOP_SOURCE": "SASE_JOB_SOURCE",
+    "SASE_CHOP_DRY_RUN": "SASE_JOB_DRY_RUN",
+}
 
 
 class _ChopSecretResolutionError(ValueError):
     """Raised when a configured chop secret reference cannot be resolved."""
+
+
+def _paired_job_env_name(chop_name: str) -> str | None:
+    """Return the public job env alias for a legacy chop env name."""
+    if chop_name.startswith("SASE_CHOP_TARGET_"):
+        return "SASE_JOB_TARGET_" + chop_name.removeprefix("SASE_CHOP_TARGET_")
+    return CHOP_ENV_ALIASES.get(chop_name)
+
+
+def resolve_aliased_env_value(
+    values: Mapping[str, str],
+    legacy_name: str,
+    public_name: str,
+    *,
+    label: str,
+) -> str | None:
+    """Resolve one legacy/public env alias pair, rejecting conflicting values."""
+    legacy_value = values.get(legacy_name)
+    public_value = values.get(public_name)
+    if legacy_value and public_value and legacy_value != public_value:
+        raise ValueError(
+            f"conflicting {label} environment aliases: "
+            f"{legacy_name} and {public_name} are both set"
+        )
+    return public_value or legacy_value
+
+
+def add_job_env_aliases(env: MutableMapping[str, str]) -> None:
+    """Mirror documented ``SASE_CHOP_*`` controls into ``SASE_JOB_*`` aliases."""
+    for legacy_name, public_name in CHOP_ENV_ALIASES.items():
+        value = resolve_aliased_env_value(
+            env,
+            legacy_name,
+            public_name,
+            label="job",
+        )
+        if value is not None:
+            env[legacy_name] = value
+            env[public_name] = value
+
+
+def with_job_env_aliases(values: Mapping[str, str]) -> dict[str, str]:
+    """Return a copy of *values* with documented job/chop aliases mirrored."""
+    result = dict(values)
+    add_job_env_aliases(result)
+    return result
 
 
 def resolve_chop_env(
@@ -49,7 +109,7 @@ def secret_reference_description(value: ChopEnvValue) -> str | None:
 
 
 def chop_target_env(target_key: str, target: Mapping[str, object]) -> dict[str, str]:
-    """Project target fields into deterministic ``SASE_CHOP_TARGET_*`` vars."""
+    """Project target fields into deterministic chop and job target vars."""
     result = {"SASE_CHOP_TARGET_KEY": target_key}
     for raw_name in sorted(target):
         suffix = _TARGET_ENV_INVALID.sub("_", raw_name).strip("_").upper()
@@ -73,6 +133,10 @@ def chop_target_env(target_key: str, target: Mapping[str, object]) -> dict[str, 
         else:
             rendered = json.dumps(value, sort_keys=True, separators=(",", ":"))
         result[env_name] = rendered
+    for chop_name, value in list(result.items()):
+        job_name = _paired_job_env_name(chop_name)
+        if job_name is not None:
+            result[job_name] = value
     return result
 
 
@@ -144,9 +208,13 @@ def _resolve_chop_env_value(
 
 
 __all__ = [
+    "CHOP_ENV_ALIASES",
     "ChopEnvValue",
     "ChopSecretReference",
+    "add_job_env_aliases",
     "chop_target_env",
+    "resolve_aliased_env_value",
     "resolve_chop_env",
     "secret_reference_description",
+    "with_job_env_aliases",
 ]

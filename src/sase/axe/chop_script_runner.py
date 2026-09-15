@@ -16,6 +16,9 @@ from pathlib import Path
 from sase.agent.env_hygiene import scrub_agent_identity_env
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
+CHOP_SCRIPT_PREFIX = "sase_chop_"
+JOB_SCRIPT_PREFIX = "sase_job_"
+
 
 def _compose_chop_subprocess_env(
     environ: Mapping[str, str],
@@ -70,6 +73,47 @@ def discover_chop_script(name: str, search_dirs: list[str]) -> Path | None:
         return Path(on_path)
 
     return None
+
+
+def _script_prefix_candidate(name: str) -> bool:
+    return name.startswith((CHOP_SCRIPT_PREFIX, JOB_SCRIPT_PREFIX))
+
+
+def _paired_job_script_name(name: str) -> str | None:
+    if not name.startswith(CHOP_SCRIPT_PREFIX):
+        return None
+    suffix = name.removeprefix(CHOP_SCRIPT_PREFIX)
+    return f"{JOB_SCRIPT_PREFIX}{suffix}" if suffix else None
+
+
+def _entry_point_targets() -> dict[str, str]:
+    try:
+        from importlib.metadata import entry_points
+
+        group = entry_points(group="console_scripts")
+    except Exception:
+        return {}
+    return {item.name: item.value for item in group}
+
+
+def prefer_job_script_alias(
+    legacy_name: str,
+    public_name: str,
+    legacy_path: Path,
+    public_path: Path,
+) -> bool:
+    """Return whether a job script alias should replace a legacy chop alias."""
+    if _paired_job_script_name(legacy_name) != public_name:
+        return False
+    try:
+        if legacy_path.samefile(public_path):
+            return True
+    except OSError:
+        pass
+    targets = _entry_point_targets()
+    legacy_target = targets.get(legacy_name)
+    public_target = targets.get(public_name)
+    return bool(legacy_target and public_target and legacy_target == public_target)
 
 
 def run_chop_script(
@@ -247,8 +291,8 @@ def list_chop_scripts(search_dirs: list[str]) -> list[str]:
     """List all available chop scripts.
 
     Scans *search_dirs* for executables by their bare filename and ``$PATH``
-    for legacy ``sase_chop_*`` executables as a discovery convenience.
-    Returned names are always full executable names.
+    for ``sase_job_*`` and legacy ``sase_chop_*`` executables as a discovery
+    convenience. Returned names are always full executable names.
 
     Args:
         search_dirs: Directories to scan.
@@ -256,7 +300,7 @@ def list_chop_scripts(search_dirs: list[str]) -> list[str]:
     Returns:
         Sorted list of unique chop script names.
     """
-    names: set[str] = set()
+    names: dict[str, Path] = {}
 
     # Scan configured directories
     for d in search_dirs:
@@ -265,9 +309,9 @@ def list_chop_scripts(search_dirs: list[str]) -> list[str]:
             continue
         for entry in dir_path.iterdir():
             if entry.is_file() and os.access(entry, os.X_OK):
-                names.add(entry.name)
+                names.setdefault(entry.name, entry)
 
-    # Scan PATH for sase_chop_* executables
+    # Scan PATH for packaged job/chop executables.
     path_dirs = os.environ.get("PATH", "").split(os.pathsep)
     for d in path_dirs:
         dir_path = Path(d)
@@ -280,9 +324,25 @@ def list_chop_scripts(search_dirs: list[str]) -> list[str]:
                 continue
             if (
                 is_file
-                and entry.name.startswith("sase_chop_")
+                and _script_prefix_candidate(entry.name)
                 and os.access(entry, os.X_OK)
             ):
-                names.add(entry.name)
+                names.setdefault(entry.name, entry)
 
-    return sorted(names)
+    return sorted(_dedupe_script_aliases(names))
+
+
+def _dedupe_script_aliases(names: Mapping[str, Path]) -> set[str]:
+    result = set(names)
+    for legacy_name, legacy_path in names.items():
+        public_name = _paired_job_script_name(legacy_name)
+        if public_name is None or public_name not in names:
+            continue
+        if prefer_job_script_alias(
+            legacy_name,
+            public_name,
+            legacy_path,
+            names[public_name],
+        ):
+            result.discard(legacy_name)
+    return result

@@ -59,6 +59,10 @@ def test_spawn_agent_subprocess_preserves_chop_linkage_for_retry_continuation(
     assert env[ENV_CHOP_RUN_ID] == "run-1"
     assert env[ENV_CHOP_PROMPT_HASH] == "prompt-hash"
     assert "SASE_CHOP_RESULT_FILE" not in env
+    assert env["SASE_JOB_ROUTINE"] == "hooks"
+    assert env["SASE_JOB_NAME"] == "split"
+    assert env["SASE_JOB_RUN_ID"] == "run-1"
+    assert "SASE_JOB_RESULT_FILE" not in env
     records = get_chop_agent_records("hooks", chop_name="split", run_id="run-1")
     assert [record.pid for record in records] == [4321]
     mock_transfer.assert_called_once()
@@ -136,6 +140,9 @@ def test_spawn_agent_subprocess_records_chop_launch_and_detaches(
     assert child_env[ENV_CHOP_LUMBERJACK] == "hooks"
     assert child_env[ENV_CHOP_NAME] == "split"
     assert child_env[ENV_CHOP_RUN_ID] == "run-1"
+    assert child_env["SASE_JOB_ROUTINE"] == "hooks"
+    assert child_env["SASE_JOB_NAME"] == "split"
+    assert child_env["SASE_JOB_RUN_ID"] == "run-1"
     records = get_chop_agent_records("hooks", chop_name="split")
     assert len(records) == 1
     assert records[0].pid == 4321

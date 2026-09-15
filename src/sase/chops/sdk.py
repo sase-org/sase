@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, TextIO
 
+from sase.axe.chop_env import resolve_aliased_env_value
 from sase.axe.chop_script_context import ChopScriptContext, read_chop_context
 from sase.core.axe_chop_facade import (
     CHOP_RESULT_SCHEMA_VERSION,
@@ -61,15 +62,35 @@ def _env_truthy(value: str | None) -> bool:
     return bool(value and value.strip().lower() not in {"0", "false", "no", "off"})
 
 
+def _aliased_env_truthy(legacy_name: str, public_name: str, *, label: str) -> bool:
+    legacy_value = os.getenv(legacy_name)
+    public_value = os.getenv(public_name)
+    if (
+        legacy_value is not None
+        and public_value is not None
+        and _env_truthy(legacy_value) != _env_truthy(public_value)
+    ):
+        raise ValueError(
+            f"conflicting {label} environment aliases: "
+            f"{legacy_name} and {public_name} are both set"
+        )
+    return _env_truthy(public_value if public_value is not None else legacy_value)
+
+
 def parse_chop_arguments(
     argv: Sequence[str] | None = None,
     *,
     description: str | None = None,
+    surface: Literal["chop", "job"] = "chop",
 ) -> ChopArguments:
     """Parse the common ``--context`` and verbose arguments for a chop."""
 
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--context", required=True, help="Path to chop context JSON")
+    parser.add_argument(
+        "--context",
+        required=True,
+        help=f"Path to {surface} context JSON",
+    )
     parser.add_argument(
         "-V",
         "--verbose",
@@ -79,7 +100,12 @@ def parse_chop_arguments(
     parsed = parser.parse_args(argv)
     return ChopArguments(
         context=str(parsed.context),
-        verbose=bool(parsed.verbose) or _env_truthy(os.getenv("SASE_CHOP_VERBOSE")),
+        verbose=bool(parsed.verbose)
+        or _aliased_env_truthy(
+            "SASE_CHOP_VERBOSE",
+            "SASE_JOB_VERBOSE",
+            label="verbose",
+        ),
     )
 
 
@@ -143,10 +169,15 @@ def load_chop_invocation(
     argv: Sequence[str] | None = None,
     *,
     description: str | None = None,
+    surface: Literal["chop", "job"] = "chop",
 ) -> ChopInvocation:
     """Parse common arguments, load context, and construct the shared logger."""
 
-    arguments = parse_chop_arguments(argv, description=description)
+    arguments = parse_chop_arguments(
+        argv,
+        description=description,
+        surface=surface,
+    )
     context = read_chop_context(arguments.context)
     verbose = arguments.verbose or context.verbose_lumberjack_diagnostics
     return ChopInvocation(
@@ -399,15 +430,20 @@ def resolve_chop_result_file(
 ) -> Path | None:
     """Resolve the runner-provided result file from env or chop context."""
 
-    configured = os.getenv("SASE_CHOP_RESULT_FILE")
+    configured = resolve_aliased_env_value(
+        os.environ,
+        "SASE_CHOP_RESULT_FILE",
+        "SASE_JOB_RESULT_FILE",
+        label="result file",
+    )
     if not configured and context is not None:
         configured = context.result_file
     if configured:
         return Path(configured)
     if required:
         raise RuntimeError(
-            "No chop result path configured; set SASE_CHOP_RESULT_FILE or "
-            "provide context.result_file"
+            "No job result path configured; set SASE_JOB_RESULT_FILE or "
+            "SASE_CHOP_RESULT_FILE, or provide context.result_file"
         )
     return None
 

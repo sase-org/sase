@@ -36,12 +36,30 @@ class ChopScriptContext:
     state_dir: str
     all_patches_file: str
     filtered_patches_file: str
+    routine_name: str = ""
     verbose_lumberjack_diagnostics: bool = False
+    verbose_routine_diagnostics: bool | None = None
     source: str = "scheduled"
     dry_run: bool = False
     result_file: str = ""
     target: dict[str, Any] | None = None
     vars: dict[str, Any] | None = None
+
+    def __post_init__(self) -> None:
+        if self.routine_name and self.routine_name != self.lumberjack_name:
+            raise ValueError(
+                "conflicting chop context aliases: lumberjack_name and "
+                "routine_name differ"
+            )
+        if not self.routine_name:
+            self.routine_name = self.lumberjack_name
+        if self.verbose_routine_diagnostics is None:
+            self.verbose_routine_diagnostics = self.verbose_lumberjack_diagnostics
+        elif self.verbose_routine_diagnostics != self.verbose_lumberjack_diagnostics:
+            raise ValueError(
+                "conflicting chop context aliases: verbose_lumberjack_diagnostics "
+                "and verbose_routine_diagnostics differ"
+            )
 
 
 def _atomic_json_write(data: object, path: str) -> None:
@@ -90,6 +108,7 @@ def read_chop_context(path: str) -> ChopScriptContext:
         data = json.load(f)
     if not isinstance(data, dict):
         raise ValueError(f"chop context must be a JSON object: {path}")
+    _normalize_context_aliases(data)
     known_fields = {field.name for field in fields(ChopScriptContext)}
     filtered = {key: value for key, value in data.items() if key in known_fields}
     return ChopScriptContext(**filtered)
@@ -118,6 +137,7 @@ def prepare_chop_run_context(
         data = json.load(f)
     if not isinstance(data, dict):
         raise ValueError(f"chop context must be a JSON object: {context_file}")
+    _normalize_context_aliases(data)
     data["result_file"] = result_file
     data["source"] = source
     data["dry_run"] = dry_run
@@ -125,6 +145,35 @@ def prepare_chop_run_context(
     data["vars"] = dict(vars or {})
     _atomic_json_write(data, destination)
     return destination
+
+
+def _normalize_context_aliases(data: dict[str, Any]) -> None:
+    lumberjack_name = data.get("lumberjack_name")
+    routine_name = data.get("routine_name")
+    if lumberjack_name and routine_name and lumberjack_name != routine_name:
+        raise ValueError(
+            "conflicting chop context aliases: lumberjack_name and routine_name differ"
+        )
+    if not lumberjack_name and routine_name:
+        data["lumberjack_name"] = routine_name
+    elif lumberjack_name and not routine_name:
+        data["routine_name"] = lumberjack_name
+
+    legacy_verbose = data.get("verbose_lumberjack_diagnostics")
+    public_verbose = data.get("verbose_routine_diagnostics")
+    if (
+        legacy_verbose is not None
+        and public_verbose is not None
+        and bool(legacy_verbose) != bool(public_verbose)
+    ):
+        raise ValueError(
+            "conflicting chop context aliases: verbose_lumberjack_diagnostics and "
+            "verbose_routine_diagnostics differ"
+        )
+    if legacy_verbose is None and public_verbose is not None:
+        data["verbose_lumberjack_diagnostics"] = bool(public_verbose)
+    elif legacy_verbose is not None and public_verbose is None:
+        data["verbose_routine_diagnostics"] = bool(legacy_verbose)
 
 
 def serialize_patches(patches: list[Patch], path: str) -> None:

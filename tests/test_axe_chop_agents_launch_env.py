@@ -9,8 +9,13 @@ from sase.axe.chop_agents import (
     ENV_CHOP_NAME,
     ENV_CHOP_PROMPT_HASH,
     ENV_CHOP_RUN_ID,
+    ENV_JOB_NAME,
+    ENV_JOB_PROMPT_HASH,
+    ENV_JOB_ROUTINE,
+    ENV_JOB_RUN_ID,
     agent_meta_from_chop_env,
     build_chop_launch_env,
+    extract_chop_launch_env,
 )
 
 
@@ -25,10 +30,14 @@ def test_build_chop_launch_env() -> None:
     assert env[ENV_CHOP_LUMBERJACK] == "recurring"
     assert env[ENV_CHOP_NAME] == "my_agent"
     assert env[ENV_CHOP_RUN_ID]
+    assert env[ENV_JOB_ROUTINE] == "recurring"
+    assert env[ENV_JOB_NAME] == "my_agent"
+    assert env[ENV_JOB_RUN_ID] == env[ENV_CHOP_RUN_ID]
     assert (
         env[ENV_CHOP_PROMPT_HASH]
         == hashlib.sha256(b"Review the repository.").hexdigest()
     )
+    assert env[ENV_JOB_PROMPT_HASH] == env[ENV_CHOP_PROMPT_HASH]
     assert "SASE_AGENT_AUTO_DISMISS" not in env
 
 
@@ -54,3 +63,39 @@ def test_agent_meta_from_chop_env() -> None:
         "chop_name": "split",
         "chop_run_id": "run-1",
     }
+
+
+def test_extract_chop_launch_env_accepts_job_aliases() -> None:
+    metadata = extract_chop_launch_env(
+        {
+            ENV_JOB_ROUTINE: "hooks",
+            ENV_JOB_NAME: "split",
+            ENV_JOB_RUN_ID: "run-1",
+        }
+    )
+
+    assert metadata is not None
+    assert metadata[ENV_CHOP_LUMBERJACK] == "hooks"
+    assert metadata[ENV_CHOP_NAME] == "split"
+    assert metadata[ENV_CHOP_RUN_ID] == "run-1"
+    assert metadata[ENV_JOB_ROUTINE] == "hooks"
+    assert metadata[ENV_JOB_NAME] == "split"
+    assert metadata[ENV_JOB_RUN_ID] == "run-1"
+
+
+def test_extract_chop_launch_env_rejects_conflicting_job_aliases() -> None:
+    try:
+        extract_chop_launch_env(
+            {
+                ENV_CHOP_LUMBERJACK: "hooks",
+                ENV_JOB_ROUTINE: "checks",
+                ENV_CHOP_NAME: "split",
+                ENV_JOB_NAME: "split",
+                ENV_CHOP_RUN_ID: "run-1",
+                ENV_JOB_RUN_ID: "run-1",
+            }
+        )
+    except ValueError as exc:
+        assert "SASE_CHOP_LUMBERJACK and SASE_JOB_ROUTINE" in str(exc)
+    else:
+        raise AssertionError("expected conflicting launch aliases to fail")

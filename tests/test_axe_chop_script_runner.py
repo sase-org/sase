@@ -24,6 +24,7 @@ def test_compose_chop_env_strips_agent_identity_without_extras() -> None:
         "SASE_AGENT_PLANNED_NAME": "parent",
         "SASE_AGENT_AUTO_APPROVE": "1",
         "SASE_CHOP_NAME": "workflow_checks",
+        "SASE_JOB_NAME": "workflow_checks",
     }
 
     result = _compose_chop_subprocess_env(environ)
@@ -31,6 +32,7 @@ def test_compose_chop_env_strips_agent_identity_without_extras() -> None:
     assert result == {
         "PATH": "/bin",
         "SASE_CHOP_NAME": "workflow_checks",
+        "SASE_JOB_NAME": "workflow_checks",
         "PYTHONUNBUFFERED": "1",
     }
     assert environ["SASE_AGENT_NAME"] == "parent"
@@ -317,3 +319,20 @@ class TestListChopScripts:
         monkeypatch.setenv("PATH", "")
         result = list_chop_scripts([str(tmp_path)])
         assert result == []
+
+    def test_job_prefix_is_discovered_and_same_file_alias_is_deduped(
+        self,
+        tmp_path,
+        monkeypatch,
+    ):
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir()
+        job = bin_dir / "sase_job_delta"
+        _make_executable(job)
+        (bin_dir / "sase_chop_delta").symlink_to(job)
+        _make_executable(bin_dir / "sase_chop_legacy")
+        monkeypatch.setenv("PATH", str(bin_dir))
+
+        result = list_chop_scripts([])
+
+        assert result == ["sase_chop_legacy", "sase_job_delta"]

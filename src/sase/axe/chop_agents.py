@@ -20,6 +20,7 @@ from sase.core.time import get_timezone
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
 
 from . import state
+from .chop_env import resolve_aliased_env_value, with_job_env_aliases
 
 ENV_CHOP_LUMBERJACK = "SASE_CHOP_LUMBERJACK"
 ENV_CHOP_NAME = "SASE_CHOP_NAME"
@@ -29,6 +30,14 @@ ENV_CHOP_ADMISSION_LOGICAL_ID = "SASE_CHOP_ADMISSION_LOGICAL_ID"
 ENV_CHOP_ADMISSION_FINGERPRINT = "SASE_CHOP_ADMISSION_FINGERPRINT"
 ENV_CHOP_PROPOSAL_INDEX = "SASE_CHOP_PROPOSAL_INDEX"
 ENV_CHOP_PROPOSAL_ID = "SASE_CHOP_PROPOSAL_ID"
+ENV_JOB_ROUTINE = "SASE_JOB_ROUTINE"
+ENV_JOB_NAME = "SASE_JOB_NAME"
+ENV_JOB_RUN_ID = "SASE_JOB_RUN_ID"
+ENV_JOB_PROMPT_HASH = "SASE_JOB_PROMPT_HASH"
+ENV_JOB_ADMISSION_LOGICAL_ID = "SASE_JOB_ADMISSION_LOGICAL_ID"
+ENV_JOB_ADMISSION_FINGERPRINT = "SASE_JOB_ADMISSION_FINGERPRINT"
+ENV_JOB_PROPOSAL_INDEX = "SASE_JOB_PROPOSAL_INDEX"
+ENV_JOB_PROPOSAL_ID = "SASE_JOB_PROPOSAL_ID"
 
 _PROCESS_REGISTRY_LOCKS: dict[Path, threading.RLock] = {}
 _PROCESS_REGISTRY_LOCKS_GUARD = threading.Lock()
@@ -36,7 +45,7 @@ _PROCESS_REGISTRY_LOCKS_GUARD = threading.Lock()
 
 def is_chop_launch_env(env: Mapping[str, str] | None) -> bool:
     """Return whether an environment marks a machine-generated chop launch."""
-    return bool(env and env.get(ENV_CHOP_NAME))
+    return bool(env and (env.get(ENV_CHOP_NAME) or env.get(ENV_JOB_NAME)))
 
 
 @dataclass(frozen=True)
@@ -98,7 +107,7 @@ def build_chop_launch_env(
         env[ENV_CHOP_PROPOSAL_INDEX] = str(proposal_index)
     if proposal_id:
         env[ENV_CHOP_PROPOSAL_ID] = proposal_id
-    return env
+    return with_job_env_aliases(env)
 
 
 def extract_chop_launch_env(
@@ -106,9 +115,24 @@ def extract_chop_launch_env(
 ) -> dict[str, str] | None:
     """Return the complete chop-linkage environment from *env*, if present."""
     source = os.environ if env is None else env
-    lumberjack_name = source.get(ENV_CHOP_LUMBERJACK)
-    chop_name = source.get(ENV_CHOP_NAME)
-    run_id = source.get(ENV_CHOP_RUN_ID)
+    lumberjack_name = resolve_aliased_env_value(
+        source,
+        ENV_CHOP_LUMBERJACK,
+        ENV_JOB_ROUTINE,
+        label="chop launch routine",
+    )
+    chop_name = resolve_aliased_env_value(
+        source,
+        ENV_CHOP_NAME,
+        ENV_JOB_NAME,
+        label="chop launch job",
+    )
+    run_id = resolve_aliased_env_value(
+        source,
+        ENV_CHOP_RUN_ID,
+        ENV_JOB_RUN_ID,
+        label="chop launch run id",
+    )
     if not lumberjack_name or not chop_name or not run_id:
         return None
     result = {
@@ -116,17 +140,45 @@ def extract_chop_launch_env(
         ENV_CHOP_NAME: chop_name,
         ENV_CHOP_RUN_ID: run_id,
     }
-    if source.get(ENV_CHOP_PROMPT_HASH):
-        result[ENV_CHOP_PROMPT_HASH] = source[ENV_CHOP_PROMPT_HASH]
-    for key in (
-        ENV_CHOP_ADMISSION_LOGICAL_ID,
-        ENV_CHOP_ADMISSION_FINGERPRINT,
-        ENV_CHOP_PROPOSAL_INDEX,
-        ENV_CHOP_PROPOSAL_ID,
+    prompt_hash_value = resolve_aliased_env_value(
+        source,
+        ENV_CHOP_PROMPT_HASH,
+        ENV_JOB_PROMPT_HASH,
+        label="chop launch prompt hash",
+    )
+    if prompt_hash_value:
+        result[ENV_CHOP_PROMPT_HASH] = prompt_hash_value
+    for legacy_key, public_key, label in (
+        (
+            ENV_CHOP_ADMISSION_LOGICAL_ID,
+            ENV_JOB_ADMISSION_LOGICAL_ID,
+            "chop launch admission logical id",
+        ),
+        (
+            ENV_CHOP_ADMISSION_FINGERPRINT,
+            ENV_JOB_ADMISSION_FINGERPRINT,
+            "chop launch admission fingerprint",
+        ),
+        (
+            ENV_CHOP_PROPOSAL_INDEX,
+            ENV_JOB_PROPOSAL_INDEX,
+            "chop launch proposal index",
+        ),
+        (
+            ENV_CHOP_PROPOSAL_ID,
+            ENV_JOB_PROPOSAL_ID,
+            "chop launch proposal id",
+        ),
     ):
-        if source.get(key):
-            result[key] = source[key]
-    return result
+        value = resolve_aliased_env_value(
+            source,
+            legacy_key,
+            public_key,
+            label=label,
+        )
+        if value:
+            result[legacy_key] = value
+    return with_job_env_aliases(result)
 
 
 def agent_meta_from_chop_env(

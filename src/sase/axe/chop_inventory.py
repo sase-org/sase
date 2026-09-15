@@ -13,7 +13,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from sase.axe.chop_script_runner import discover_chop_script
+from sase.axe.chop_script_runner import (
+    CHOP_SCRIPT_PREFIX,
+    JOB_SCRIPT_PREFIX,
+    discover_chop_script,
+    prefer_job_script_alias,
+)
 from sase.axe.config import AxeConfig, ChopConfig, load_axe_config
 from sase.axe.chop_env import ChopEnvValue
 from sase.axe.state import ChopRunStatus, read_chop_run, read_chop_run_index
@@ -254,7 +259,7 @@ def _available_chop_scripts(
 
     if python_bin_dir.is_dir():
         for entry in _iter_dir(python_bin_dir):
-            if entry.name.startswith("sase_chop_") and _is_executable_file(entry):
+            if _script_prefix_candidate(entry.name) and _is_executable_file(entry):
                 _add_available(
                     by_name,
                     name=entry.name,
@@ -272,7 +277,7 @@ def _available_chop_scripts(
         if not dir_path.is_dir():
             continue
         for entry in _iter_dir(dir_path):
-            if entry.name.startswith("sase_chop_") and _is_executable_file(entry):
+            if _script_prefix_candidate(entry.name) and _is_executable_file(entry):
                 _add_available(
                     by_name,
                     name=entry.name,
@@ -281,7 +286,15 @@ def _available_chop_scripts(
                     configured_scripts=configured_scripts,
                 )
 
-    return tuple(sorted(by_name.values(), key=lambda script: script.name))
+    return tuple(
+        sorted(
+            _dedupe_available_script_aliases(
+                by_name,
+                configured_scripts=configured_scripts,
+            ).values(),
+            key=lambda script: script.name,
+        )
+    )
 
 
 def _add_available(
@@ -300,6 +313,53 @@ def _add_available(
         source=source,
         configured=name in configured_scripts,
     )
+
+
+def _script_prefix_candidate(name: str) -> bool:
+    return name.startswith((CHOP_SCRIPT_PREFIX, JOB_SCRIPT_PREFIX))
+
+
+def _paired_job_script_name(name: str) -> str | None:
+    if not name.startswith(CHOP_SCRIPT_PREFIX):
+        return None
+    suffix = name.removeprefix(CHOP_SCRIPT_PREFIX)
+    return f"{JOB_SCRIPT_PREFIX}{suffix}" if suffix else None
+
+
+def _dedupe_available_script_aliases(
+    by_name: dict[str, _AvailableChopScriptRecord],
+    *,
+    configured_scripts: set[str],
+) -> dict[str, _AvailableChopScriptRecord]:
+    result = dict(by_name)
+    for legacy_name, legacy_record in by_name.items():
+        public_name = _paired_job_script_name(legacy_name)
+        if public_name is None:
+            continue
+        public_record = by_name.get(public_name)
+        if public_record is None:
+            continue
+        if not prefer_job_script_alias(
+            legacy_name,
+            public_name,
+            Path(legacy_record.executable),
+            Path(public_record.executable),
+        ):
+            continue
+        configured = (
+            legacy_record.configured
+            or public_record.configured
+            or legacy_name in configured_scripts
+            or public_name in configured_scripts
+        )
+        result[public_name] = _AvailableChopScriptRecord(
+            name=public_record.name,
+            executable=public_record.executable,
+            source=public_record.source,
+            configured=configured,
+        )
+        result.pop(legacy_name, None)
+    return result
 
 
 def _iter_dir(path: Path) -> tuple[Path, ...]:

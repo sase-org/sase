@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,16 @@ from sase.chops.sdk import (
     launch_proposal,
     parse_chop_arguments,
     parse_summary,
+    resolve_chop_result_file,
+)
+from sase.jobs import (
+    JOB_RESULT_SCHEMA_VERSION,
+    JobLogger,
+    JobReport,
+    JobResultBuilder,
+    parse_job_arguments,
+    resolve_job_result_file,
+    write_job_result,
 )
 
 
@@ -32,6 +43,9 @@ def _isolate_chop_result_file(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep an outer chop runner from overriding each test context."""
 
     monkeypatch.delenv("SASE_CHOP_RESULT_FILE", raising=False)
+    monkeypatch.delenv("SASE_JOB_RESULT_FILE", raising=False)
+    monkeypatch.delenv("SASE_CHOP_VERBOSE", raising=False)
+    monkeypatch.delenv("SASE_JOB_VERBOSE", raising=False)
 
 
 def _context(tmp_path: Path, *, result_file: Path) -> Path:
@@ -286,6 +300,54 @@ def test_common_arguments_and_debug_logging_honor_verbose_env(
 
     assert args.verbose is True
     assert stderr.getvalue() == "expanded proposal\n"
+
+
+def test_jobs_facade_reexports_existing_sdk_with_job_env_names(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    assert JOB_RESULT_SCHEMA_VERSION == 1
+    assert JobLogger is ChopLogger
+    assert JobReport is ChopReport
+    assert JobResultBuilder is ChopResultBuilder
+
+    monkeypatch.setenv("SASE_JOB_VERBOSE", "1")
+    args = parse_job_arguments(["--context", "context.json"])
+    assert args.verbose is True
+
+    result_path = tmp_path / "job-result.json"
+    monkeypatch.setenv("SASE_JOB_RESULT_FILE", str(result_path))
+    assert resolve_job_result_file() == result_path
+    document = write_job_result(JobResultBuilder(summary="job: ok=1"))
+
+    assert document["summary"] == "job: ok=1"
+    assert json.loads(result_path.read_text(encoding="utf-8")) == document
+
+
+def test_result_file_env_alias_conflict_is_rejected(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("SASE_CHOP_RESULT_FILE", str(tmp_path / "old.json"))
+    monkeypatch.setenv("SASE_JOB_RESULT_FILE", str(tmp_path / "new.json"))
+
+    with pytest.raises(
+        ValueError, match="SASE_CHOP_RESULT_FILE and SASE_JOB_RESULT_FILE"
+    ):
+        resolve_chop_result_file()
+
+
+def test_job_console_scripts_alias_every_builtin_chop_entrypoint() -> None:
+    pyproject = Path(__file__).parents[1] / "pyproject.toml"
+    scripts = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["scripts"]
+    chop_scripts = {
+        name: value for name, value in scripts.items() if name.startswith("sase_chop_")
+    }
+
+    assert chop_scripts
+    for chop_name, target in chop_scripts.items():
+        job_name = chop_name.replace("sase_chop_", "sase_job_", 1)
+        assert scripts[job_name] == target
 
 
 def test_builtin_registry_derives_result_from_existing_summary(tmp_path: Path) -> None:

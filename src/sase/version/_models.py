@@ -11,6 +11,7 @@ HOST_DISTRIBUTION_NAME = "sase"
 CORE_DISTRIBUTION_NAME = "sase-core-rs"
 CONSOLE_SCRIPT_ENTRY_POINT_GROUP = "console_scripts"
 SASE_CHOP_SCRIPT_PREFIX = "sase_chop_"
+SASE_JOB_SCRIPT_PREFIX = "sase_job_"
 
 PackageRole = Literal["host", "core", "plugin"]
 InstallType = Literal["editable", "wheel", "unknown"]

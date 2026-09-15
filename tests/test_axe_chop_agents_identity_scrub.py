@@ -94,14 +94,20 @@ def test_spawn_agent_subprocess_scrubs_ambient_chop_context_without_recording(
     monkeypatch.setenv(ENV_CHOP_NAME, "split")
     monkeypatch.setenv(ENV_CHOP_RUN_ID, "run-1")
     monkeypatch.setenv(ENV_CHOP_PROMPT_HASH, "prompt-hash")
+    monkeypatch.setenv("SASE_JOB_ROUTINE", "hooks")
+    monkeypatch.setenv("SASE_JOB_NAME", "split")
+    monkeypatch.setenv("SASE_JOB_RUN_ID", "run-1")
     monkeypatch.setenv("SASE_CHOP_RESULT_FILE", "/tmp/ambient-result.json")
+    monkeypatch.setenv("SASE_JOB_RESULT_FILE", "/tmp/ambient-result.json")
 
     _spawn_agent_for_env_test(
         tmp_path=tmp_path, monkeypatch=monkeypatch, mock_spawn=mock_spawn
     )
 
     env = mock_spawn.call_args.kwargs["env"]
-    chop_keys = sorted(key for key in env if key.startswith("SASE_CHOP_"))
+    chop_keys = sorted(
+        key for key in env if key.startswith(("SASE_CHOP_", "SASE_JOB_"))
+    )
     assert not chop_keys, chop_keys
     assert get_chop_agent_records("hooks", chop_name="split") == []
 
