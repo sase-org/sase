@@ -452,6 +452,31 @@ def test_validate_sase_core_rs_requires_telemetry_bindings() -> None:
         )
 
 
+def test_validate_sase_core_rs_requires_disk_inventory_bindings() -> None:
+    validator = load_validate_sase_core_rs()
+    disk_inventory_bindings = {
+        "disk_inventory_wire_schema_version",
+        "classify_disk_inventory",
+    }
+
+    assert disk_inventory_bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in disk_inventory_bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+
+
+def test_validate_sase_core_rs_requires_disk_inventory_wire_schema() -> None:
+    validator = load_validate_sase_core_rs()
+
+    assert validator._validate_disk_inventory_wire_schema(
+        SimpleNamespace(disk_inventory_wire_schema_version=lambda: 1)
+    )
+    assert not validator._validate_disk_inventory_wire_schema(
+        SimpleNamespace(disk_inventory_wire_schema_version=lambda: 2)
+    )
+
+
 def test_validate_sase_core_rs_requires_proc_store_bindings() -> None:
     validator = load_validate_sase_core_rs()
     proc_bindings = {

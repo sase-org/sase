@@ -24,6 +24,7 @@ from sase.core.disk_footprint_models import (
     DiskReapResult,
     DiskReapStep,
 )
+from sase.core.disk_inventory import classify_disk_inventory
 from sase.core.disk_footprint_utils import (
     format_horizon_seconds,
     is_relative_to,
@@ -54,6 +55,9 @@ _managed_tmp_reap_step = _reap.managed_tmp_reap_step
 _managed_tmp_rows = _inventory.managed_tmp_rows
 _proc_runtime_reap_step = _reap.proc_runtime_reap_step
 _resolve_sase_core_dir = _inventory.resolve_sase_core_dir
+_resolve_sase_core_dirs = _inventory.resolve_sase_core_dirs
+_ORIGINAL_RESOLVE_SASE_CORE_DIR = _resolve_sase_core_dir
+_ORIGINAL_RESOLVE_SASE_CORE_DIRS = _resolve_sase_core_dirs
 _resolve_soft = resolve_soft
 _rust_target_rows = _inventory.rust_target_rows
 _sase_state_rows = _inventory.sase_state_rows
@@ -152,6 +156,19 @@ def _sync_inventory_patchables() -> None:
     _inventory.rust_target_rows = _rust_target_rows
     _inventory.cargo_stray_rows = _cargo_stray_rows
     _inventory.resolve_sase_core_dir = _resolve_sase_core_dir
+    if (
+        _resolve_sase_core_dir is not _ORIGINAL_RESOLVE_SASE_CORE_DIR
+        and _resolve_sase_core_dirs is _ORIGINAL_RESOLVE_SASE_CORE_DIRS
+    ):
+        _inventory.resolve_sase_core_dirs = _resolve_sase_core_dirs_from_single
+    else:
+        _inventory.resolve_sase_core_dirs = _resolve_sase_core_dirs
+    _inventory.classify_disk_inventory = classify_disk_inventory
+
+
+def _resolve_sase_core_dirs_from_single() -> tuple[Path, ...]:
+    core_dir = _resolve_sase_core_dir()
+    return (core_dir,) if core_dir is not None else ()
 
 
 def _sync_reap_patchables() -> None:

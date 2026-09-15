@@ -57,32 +57,58 @@ def _print_disk_report(report: DiskFootprintReport) -> None:
     table.add_column("OWNER")
     table.add_column("SECTION")
     table.add_column("SIZE", justify="right")
+    table.add_column("COVERAGE")
     table.add_column("HORIZON")
     table.add_column("PATH")
     for row in report.rows:
         owner = row.owner
         style = None
+        coverage = row.coverage
         if row.status == "unowned":
             owner = "unowned"
             style = "red"
+        elif row.coverage != "complete":
+            style = "yellow"
         elif row.size_bytes >= 10 * 1024**3:
             style = "yellow"
+        size_text = format_bytes(row.size_bytes)
+        if (
+            row.exclusive_size_bytes is not None
+            and row.exclusive_size_bytes != row.size_bytes
+        ):
+            size_text = (
+                f"{size_text} ({format_bytes(row.exclusive_size_bytes)} counted)"
+            )
         table.add_row(
             owner,
             row.section,
-            format_bytes(row.size_bytes),
+            size_text,
+            coverage,
             row.horizon,
             row.path,
             style=style,
         )
     if not report.rows:
-        table.add_row("[dim]none[/dim]", "-", "-", "-", "-")
+        table.add_row("[dim]none[/dim]", "-", "-", "-", "-", "-")
+    total = f"total listed: {format_bytes(report.total_bytes)} physical"
+    if (
+        report.logical_total_bytes is not None
+        and report.logical_total_bytes != report.total_bytes
+    ):
+        total += f"; {format_bytes(report.logical_total_bytes)} logical rows"
+    total += f"; coverage {report.coverage_status}"
     console.print(table)
     console.print(
-        f"[dim]total listed: {format_bytes(report.total_bytes)}"
+        f"[dim]{total}"
         f"; stray scan visited {report.stray_scan_visited} dirs"
         f"{' (truncated)' if report.stray_scan_truncated else ''}[/dim]"
     )
+    if report.unresolved_owner_coverage:
+        console.print(
+            "[yellow]unresolved owner coverage: "
+            + "; ".join(report.unresolved_owner_coverage)
+            + "[/yellow]"
+        )
     for diagnostic in report.scan_diagnostics:
         console.print(f"[yellow]partial scan: {diagnostic}[/yellow]")
 

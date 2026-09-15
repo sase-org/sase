@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 
+DISK_COVERAGE_COMPLETE = "complete"
+DISK_COVERAGE_PARTIAL = "partial"
+DISK_COVERAGE_UNRESOLVED = "unresolved"
+
 
 @dataclass(frozen=True)
 class DiskFootprintRow:
@@ -17,6 +21,12 @@ class DiskFootprintRow:
     horizon: str
     status: str = "owned"
     reclaim: str | None = None
+    physical_path: str | None = None
+    exclusive_size_bytes: int | None = None
+    coverage: str = DISK_COVERAGE_COMPLETE
+    diagnostics: tuple[str, ...] = ()
+    overlap_parent_path: str | None = None
+    overlap_paths: tuple[str, ...] = ()
 
     def to_json_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -31,12 +41,30 @@ class DiskFootprintReport:
     stray_scan_truncated: bool = False
     stray_scan_visited: int = 0
     scan_diagnostics: tuple[str, ...] = ()
+    physical_total_bytes: int | None = None
+    logical_total_bytes: int | None = None
+    owned_total_bytes: int | None = None
+    unowned_total_bytes: int | None = None
+    coverage_status: str = DISK_COVERAGE_COMPLETE
+    unresolved_owner_coverage: tuple[str, ...] = ()
 
     @property
     def total_bytes(self) -> int:
-        return sum(row.size_bytes for row in self.rows)
+        if self.physical_total_bytes is not None:
+            return self.physical_total_bytes
+        return sum(
+            row.exclusive_size_bytes
+            if row.exclusive_size_bytes is not None
+            else row.size_bytes
+            for row in self.rows
+        )
 
     def to_json_dict(self) -> dict[str, object]:
+        logical_total = (
+            self.logical_total_bytes
+            if self.logical_total_bytes is not None
+            else sum(row.size_bytes for row in self.rows)
+        )
         return {
             "generated_at": self.generated_at,
             "rows": [row.to_json_dict() for row in self.rows],
@@ -44,6 +72,18 @@ class DiskFootprintReport:
             "stray_scan_visited": self.stray_scan_visited,
             "scan_diagnostics": list(self.scan_diagnostics),
             "total_bytes": self.total_bytes,
+            "physical_total_bytes": self.total_bytes,
+            "logical_total_bytes": logical_total,
+            "owned_total_bytes": (
+                self.owned_total_bytes
+                if self.owned_total_bytes is not None
+                else self.total_bytes
+            ),
+            "unowned_total_bytes": (
+                self.unowned_total_bytes if self.unowned_total_bytes is not None else 0
+            ),
+            "coverage_status": self.coverage_status,
+            "unresolved_owner_coverage": list(self.unresolved_owner_coverage),
         }
 
 
@@ -93,6 +133,9 @@ class DiskReapResult:
 
 
 __all__ = [
+    "DISK_COVERAGE_COMPLETE",
+    "DISK_COVERAGE_PARTIAL",
+    "DISK_COVERAGE_UNRESOLVED",
     "DiskFootprintReport",
     "DiskFootprintRow",
     "DiskReapResult",

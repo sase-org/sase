@@ -51,6 +51,7 @@ class _WorkspaceProjectInfo:
     primary_workspace_dir: str
     registry_path: str
     cleanup_ttl_days: int
+    share_git_objects: bool = True
 
     def to_json_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -254,6 +255,7 @@ def _collect_project_workspaces(
         primary_workspace_dir=store.primary_workspace_dir,
         registry_path=registry_file,
         cleanup_ttl_days=store.cleanup_ttl_days,
+        share_git_objects=store.share_git_objects,
     )
     try:
         registry = load_registry(store, strict=True)

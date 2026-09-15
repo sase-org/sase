@@ -89,11 +89,14 @@ def _observation_payload(row: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _owner_row_payload(row: Mapping[str, Any]) -> dict[str, Any]:
+    size_bytes = row.get("exclusive_size_bytes")
+    if size_bytes is None:
+        size_bytes = row.get("size_bytes") or 0
     return {
         "section": str(row.get("section") or ""),
         "name": str(row.get("name") or ""),
         "path": str(row.get("path") or ""),
-        "size_bytes": int(row.get("size_bytes") or 0),
+        "size_bytes": int(size_bytes),
         "owner": str(row.get("owner") or ""),
         "status": str(row.get("status") or "owned"),
     }

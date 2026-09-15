@@ -255,6 +255,12 @@ def _default_horizons() -> dict[str, float]:
     }
 
 
+def current_managed_tmp_horizons() -> dict[str, float]:
+    """Return the live managed-temp bucket horizons used by the reaper."""
+
+    return _default_horizons()
+
+
 def reap_managed_tmpdir(
     root: Path | None = None,
     *,
@@ -477,5 +483,6 @@ __all__ = [
     "RUN_ARTIFACT_HORIZON_SECONDS",
     "LaunchScratchLiveness",
     "LaunchScratchRequest",
+    "current_managed_tmp_horizons",
     "reap_managed_tmpdir",
 ]

@@ -8,6 +8,8 @@ from pathlib import Path
 
 from sase.core.disk_footprint import collect_disk_footprint, run_disk_reap
 from sase.core.disk_footprint_models import DiskReapStep
+from sase.core.disk_footprint_inventory import cargo_stray_rows
+from sase.core.disk_footprint_utils import InventoryScanBudget
 from sase.core.disk_footprint_reap import managed_tmp_reap_step
 
 
@@ -17,11 +19,20 @@ class _ProjectInfo:
     project_key: str
     root_dir: str
     cleanup_ttl_days: int
+    primary_workspace_dir: str | None = None
+    share_git_objects: bool = True
+
+
+@dataclass(frozen=True)
+class _Issue:
+    project: str
+    message: str
 
 
 @dataclass(frozen=True)
 class _Inventory:
     projects: tuple[_ProjectInfo, ...]
+    issues: tuple[_Issue, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -120,6 +131,146 @@ def test_collect_disk_footprint_attributes_owned_paths_and_strays(
     assert rows_by_path[stray].status == "unowned"
     assert repo_target not in rows_by_path
     assert all(row.owner and row.horizon for row in report.rows)
+
+
+def test_collect_disk_footprint_uses_configured_managed_tmp_horizons(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    managed = tmp_path / "managed-tmp"
+    sase_home = tmp_path / ".sase"
+    _write(managed / "muse-prompts" / "prompt", "prompt")
+    monkeypatch.setattr("sase.core.disk_footprint.managed_tmpdir_root", lambda: managed)
+    monkeypatch.setattr("sase.core.disk_footprint.sase_home", lambda: sase_home)
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.procs_dir", lambda: sase_home / "procs"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.sase_projects_dir",
+        lambda: sase_home / "projects",
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_inventory.current_managed_tmp_horizons",
+        lambda: {"muse-prompts": 7 * 24 * 3600},
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_inventory.get_managed_tmp_handoff_horizon_seconds",
+        lambda: 3 * 24 * 3600,
+    )
+    monkeypatch.setattr("sase.core.disk_footprint._resolve_sase_core_dir", lambda: None)
+
+    report = collect_disk_footprint(
+        include_strays=False,
+        tree_size_fn=lambda _path: 0,
+        workspace_inventory_fn=lambda **_kwargs: _Inventory(projects=()),
+    )
+
+    row = next(row for row in report.rows if row.path == str(managed / "muse-prompts"))
+    assert row.horizon == "7d"
+
+
+def test_workspace_inventory_failures_remain_visible(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    managed = tmp_path / "managed-tmp"
+    sase_home = tmp_path / ".sase"
+    monkeypatch.setattr("sase.core.disk_footprint.managed_tmpdir_root", lambda: managed)
+    monkeypatch.setattr("sase.core.disk_footprint.sase_home", lambda: sase_home)
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.procs_dir", lambda: sase_home / "procs"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.sase_projects_dir",
+        lambda: sase_home / "projects",
+    )
+    monkeypatch.setattr("sase.core.disk_footprint._resolve_sase_core_dir", lambda: None)
+
+    def fail_inventory(**_kwargs):
+        raise RuntimeError("registry offline")
+
+    report = collect_disk_footprint(
+        include_strays=False,
+        tree_size_fn=lambda _path: 0,
+        workspace_inventory_fn=fail_inventory,
+    )
+
+    row = next(row for row in report.rows if row.name == "<workspace inventory>")
+    assert row.coverage == "unresolved"
+    assert report.coverage_status == "partial"
+    assert report.unresolved_owner_coverage
+    assert any(
+        "registry offline" in diagnostic for diagnostic in report.scan_diagnostics
+    )
+
+
+def test_overlapping_workspace_and_primary_rows_count_once(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    workspace_root = tmp_path / "workspaces" / "proj"
+    primary = workspace_root / "primary"
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.managed_tmpdir_root", lambda: tmp_path / "managed"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.sase_home", lambda: tmp_path / ".sase"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.procs_dir", lambda: tmp_path / ".sase" / "procs"
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint.sase_projects_dir",
+        lambda: tmp_path / ".sase" / "projects",
+    )
+    monkeypatch.setattr("sase.core.disk_footprint._resolve_sase_core_dir", lambda: None)
+
+    def sizes(path: Path) -> int:
+        if path == workspace_root:
+            return 100
+        if path == primary:
+            return 40
+        return 0
+
+    report = collect_disk_footprint(
+        include_strays=False,
+        tree_size_fn=sizes,
+        workspace_inventory_fn=lambda **_kwargs: _Inventory(
+            projects=(
+                _ProjectInfo(
+                    project="SASE",
+                    project_key="proj",
+                    root_dir=str(workspace_root),
+                    primary_workspace_dir=str(primary),
+                    cleanup_ttl_days=14,
+                    share_git_objects=True,
+                ),
+            )
+        ),
+    )
+
+    rows_by_path = {Path(row.path): row for row in report.rows if row.path}
+    assert rows_by_path[workspace_root].exclusive_size_bytes == 60
+    assert rows_by_path[primary].exclusive_size_bytes == 40
+    assert rows_by_path[primary].overlap_parent_path == str(workspace_root)
+    assert report.logical_total_bytes == 140
+    assert report.total_bytes == 100
+
+
+def test_cargo_stray_scan_shares_a_bounded_listing_budget(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    for index in range(20):
+        _write(home / f"wide-{index}" / "target" / ".rustc_info.json", "{}")
+
+    _rows, visited, truncated = cargo_stray_rows(
+        home,
+        excludes=(),
+        tree_size_fn=lambda _path: 0,
+        budget=InventoryScanBudget(max_nodes=4, max_seconds=60.0),
+    )
+
+    assert truncated is True
+    assert visited <= 2
 
 
 def test_disk_reap_proc_preview_uses_runtime_owner(monkeypatch) -> None:

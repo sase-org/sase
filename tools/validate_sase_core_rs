@@ -245,6 +245,8 @@ REQUIRED_BINDINGS = (
     "telemetry_query_range",
     "telemetry_prune",
     "telemetry_store_stats",
+    "disk_inventory_wire_schema_version",
+    "classify_disk_inventory",
     "vcs_log_wire_schema_version",
     "parse_merge_summary",
     "classify_commit_types",
@@ -678,6 +680,21 @@ def _validate_vcs_log_wire_schema(module: ModuleType) -> bool:
             )
             valid = False
     return valid
+
+
+def _validate_disk_inventory_wire_schema(module: ModuleType) -> bool:
+    try:
+        actual_version = int(module.disk_inventory_wire_schema_version())
+    except Exception as exc:
+        _error(f"disk_inventory_wire_schema_version() probe failed: {exc}")
+        return False
+    if actual_version != 1:
+        _error(
+            "disk_inventory_wire_schema_version() returned stale schema: "
+            f"got {actual_version}, expected 1"
+        )
+        return False
+    return True
 
 
 def _validate_finalizer_contract(module: ModuleType) -> bool:
@@ -2493,6 +2510,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_artifact_link_event_contract(module):
         return 1
     if not _validate_vcs_log_wire_schema(module):
+        return 1
+    if not _validate_disk_inventory_wire_schema(module):
         return 1
     if not _validate_finalizer_contract(module):
         return 1
