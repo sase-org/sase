@@ -43,6 +43,10 @@ landing an epic's combined tree, when the change touches the broadening set, or 
 taking a long time. [[decisions/two-speed-verification]] has the host capacity
 measurements that make this rule non-negotiable.
 
+Before handing `just check` or `just check-full` to a verify monitor, run `just fix`
+inline first (or at minimum `just fmt`); it takes seconds and prevents common avoidable
+formatting and keep-sorted monitor failures.
+
 **IMPORTANT**: SASE agents run from ephemeral `sase_<N>` workspace clones that each own
 an isolated virtualenv, so you MAY need to run `just install` before `just check` — this
 workspace may have sat unused while pinned dependencies changed.
