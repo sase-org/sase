@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +36,48 @@ PUBLIC_JOB_TRIBE = "job"
 
 class InvalidTribeError(ValueError):
     """Raised when an agent tribe name fails validation."""
+
+
+@dataclass(frozen=True, slots=True)
+class _AgentTribeIdentityResolution:
+    """Source-aware public-name resolution for one tribe input."""
+
+    tribe: str | None
+    display_keys: dict[str, str]
+    diagnostics: tuple[dict[str, Any], ...]
+
+    @classmethod
+    def from_wire(cls, payload: dict[str, Any]) -> _AgentTribeIdentityResolution:
+        raw_diagnostics = payload.get("diagnostics")
+        raw_display_keys = payload.get("display_keys")
+        tribe = payload.get("tribe")
+        return cls(
+            tribe=tribe if isinstance(tribe, str) else None,
+            display_keys={
+                str(key): str(value)
+                for key, value in (
+                    raw_display_keys.items()
+                    if isinstance(raw_display_keys, dict)
+                    else ()
+                )
+                if isinstance(key, str) and isinstance(value, str)
+            },
+            diagnostics=tuple(
+                item for item in raw_diagnostics if isinstance(item, dict)
+            )
+            if isinstance(raw_diagnostics, list)
+            else (),
+        )
+
+    def require_tribe(self) -> str:
+        if self.tribe is not None:
+            return self.tribe
+        detail = "; ".join(
+            diagnostic.get("message", "")
+            for diagnostic in self.diagnostics
+            if isinstance(diagnostic.get("message"), str)
+        )
+        raise InvalidTribeError(detail or "tribe name is ambiguous")
 
 
 def _tribe_binding(name: str) -> Any:
@@ -70,8 +113,45 @@ def validate_tribe_name(tribe: str) -> str:
         raise _tribe_value_error(exc) from exc
 
 
-def canonicalize_public_tribe_name(tribe: str) -> str:
+def _resolve_agent_tribe_identity(
+    tribe: str,
+    *,
+    layers: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+    stored_tribes: list[str] | tuple[str, ...] = (),
+    current_tribe: str | None = None,
+) -> _AgentTribeIdentityResolution:
+    """Resolve a public tribe name with optional config/store context."""
+    try:
+        result = _tribe_binding("resolve_agent_tribe_identity")(
+            {
+                "tribe": tribe,
+                "layers": list(layers),
+                "stored_tribes": list(stored_tribes),
+                "current_tribe": current_tribe,
+            }
+        )
+    except ValueError as exc:
+        raise _tribe_value_error(exc) from exc
+    if not isinstance(result, dict):
+        raise TypeError("sase_core_rs returned non-dict tribe identity resolution")
+    return _AgentTribeIdentityResolution.from_wire(result)
+
+
+def canonicalize_public_tribe_name(
+    tribe: str,
+    *,
+    layers: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+    stored_tribes: list[str] | tuple[str, ...] = (),
+    current_tribe: str | None = None,
+) -> str:
     """Return the stable stored tribe identity for a public tribe name."""
+    if layers or stored_tribes or current_tribe is not None:
+        return _resolve_agent_tribe_identity(
+            tribe,
+            layers=layers,
+            stored_tribes=stored_tribes,
+            current_tribe=current_tribe,
+        ).require_tribe()
     try:
         return str(_tribe_binding("canonicalize_public_tribe_name")(tribe))
     except ValueError as exc:
@@ -83,8 +163,23 @@ def public_tribe_name(tribe: str) -> str:
     return str(_tribe_binding("public_tribe_name")(tribe))
 
 
-def parse_tribe_reference(value: str) -> str | None:
+def parse_tribe_reference(
+    value: str,
+    *,
+    layers: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+    stored_tribes: list[str] | tuple[str, ...] = (),
+    current_tribe: str | None = None,
+) -> str | None:
     """Return the validated bare tribe from ``@<tribe>``, else ``None``."""
+    if layers or stored_tribes or current_tribe is not None:
+        if not value.startswith("@"):
+            return None
+        return canonicalize_public_tribe_name(
+            value[1:],
+            layers=layers,
+            stored_tribes=stored_tribes,
+            current_tribe=current_tribe,
+        )
     try:
         result = _tribe_binding("parse_tribe_reference")(value)
     except ValueError as exc:

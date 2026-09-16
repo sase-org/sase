@@ -243,3 +243,16 @@ def test_legacy_posthoc_agent_tag_assignment_enrolls_entity(tmp_path: Path) -> N
     candidate = index.tribe_candidate("epic", newer_than="20260718020000")
     assert candidate is not None
     assert candidate.name == "builder"
+
+
+def test_job_wait_reference_uses_stored_job_identity_when_present(
+    tmp_path: Path,
+) -> None:
+    _agent(tmp_path, "20260718021000", "built-in", outcome=None, tribe="chop")
+    _agent(tmp_path, "20260718022000", "historical", tribe="job")
+    index = _index(tmp_path)
+
+    assert index.is_resolved("@job", newer_than="20260718020000")
+    candidate = index.tribe_candidate("job", newer_than="20260718020000")
+    assert candidate is not None
+    assert candidate.name == "historical"

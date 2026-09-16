@@ -123,6 +123,22 @@ def test_public_job_assignment_persists_existing_chop_identity(
     ]
 
 
+def test_same_name_historical_job_assignment_stays_job(tmp_path: Path) -> None:
+    canonical = tmp_path / "agent_tribes.json"
+    legacy = tmp_path / "agent_tags.json"
+    identity = (AgentType.RUNNING, "automation", "ts")
+
+    canonical_patch, legacy_patch = _paths(canonical, legacy)
+    with canonical_patch, legacy_patch:
+        assert save_agent_tribes({identity: "job"})
+        assert not update_agent_tribe_assignment(identity, "job")
+        assert load_agent_tribes() == {identity: "job"}
+
+    assert json.loads(canonical.read_text()) == [
+        {"id": ["run", "automation", "ts"], "tribe": "job"}
+    ]
+
+
 def test_historical_stored_job_metadata_is_not_reassigned_to_chop() -> None:
     payload = {"tag": "chop", "tribe": "job"}
 

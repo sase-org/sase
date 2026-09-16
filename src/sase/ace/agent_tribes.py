@@ -107,7 +107,6 @@ def update_agent_tribe(
     tribe: str,
 ) -> bool:
     """Atomically set one assignment, importing legacy state if necessary."""
-    tribe = canonicalize_public_tribe_name(tribe)
     try:
         with _agent_tribes_file_lock():
             store = load_agent_tribes()
@@ -122,8 +121,6 @@ def update_agent_tribe_assignment(
     tribe: str | None,
 ) -> bool:
     """Atomically set or clear one canonical tribe assignment."""
-    if tribe is not None:
-        tribe = canonicalize_public_tribe_name(tribe)
     try:
         with _agent_tribes_file_lock():
             store = load_agent_tribes()
@@ -145,7 +142,11 @@ def set_tribe(
     tribe: str,
 ) -> str:
     """Set *identity* to a validated tribe, replacing its prior value."""
-    tribe = canonicalize_public_tribe_name(tribe)
+    tribe = canonicalize_public_tribe_name(
+        tribe,
+        stored_tribes=tuple(tribes_by_identity.values()),
+        current_tribe=tribes_by_identity.get(identity),
+    )
     tribes_by_identity[identity] = tribe
     return tribe
 

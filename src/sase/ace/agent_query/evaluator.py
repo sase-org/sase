@@ -126,7 +126,11 @@ def _match_tribe(prop: PropertyMatch, agent: Agent) -> bool:
     if not prop.value:
         return bool(agent_tribe)
     try:
-        expected = canonicalize_public_tribe_name(prop.value).casefold()
+        expected = canonicalize_public_tribe_name(
+            prop.value,
+            stored_tribes=(agent.tribe,) if agent.tribe else (),
+            current_tribe=agent.tribe,
+        ).casefold()
     except ValueError:
         expected = prop.value.casefold()
     return agent_tribe in {expected, prop.value.casefold()}

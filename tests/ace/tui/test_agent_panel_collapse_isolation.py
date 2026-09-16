@@ -306,8 +306,8 @@ def test_panel_switch_skips_config_collapsed_panel(
 
     monkeypatch.setattr(
         tribe_display,
-        "_tribe_displays",
-        lambda: {"alpha": tribe_display._TribeDisplay(initially_expanded=False)},
+        "_tribe_displays_for_token",
+        lambda _token: {"alpha": tribe_display._TribeDisplay(initially_expanded=False)},
     )
     app = AgentPanelCollapseApp(make_multi_panel_agents(), focused_key=None)
     app._sync_panel_group()

@@ -253,7 +253,10 @@ class WaitDependencyIndexQueries(
     ) -> bool:
         if name.startswith("@"):
             try:
-                tribe = parse_tribe_reference(name)
+                tribe = parse_tribe_reference(
+                    name,
+                    stored_tribes=tuple(self.tribes),
+                )
             except InvalidTribeError:
                 return False
             assert tribe is not None

@@ -14,9 +14,11 @@ import sase.ace.tui.models.tribe_display as display
 @pytest.fixture(autouse=True)
 def _clear_display_cache() -> Iterator[None]:
     display._tribe_displays_for_token.cache_clear()
+    display._tribe_display_resolution_for_token.cache_clear()
     display._tribe_display_diagnostics_for_token.cache_clear()
     yield
     display._tribe_displays_for_token.cache_clear()
+    display._tribe_display_resolution_for_token.cache_clear()
     display._tribe_display_diagnostics_for_token.cache_clear()
 
 
@@ -32,6 +34,22 @@ def _install_config(
         lambda: {"ace": {"tribes": tribes}},
     )
     monkeypatch.setattr(display, "current_config_token", lambda: token)
+
+    def _layers() -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "test",
+                "kind": "user",
+                "path": "/tmp/sase.yml",
+                "value": {"ace": {"tribes": tribes}},
+                "list_strategy": "replace",
+                "writable": True,
+                "exists": True,
+                "error": None,
+            }
+        ]
+
+    monkeypatch.setattr("sase.config.inventory.discover_layer_inputs", _layers)
 
 
 def test_default_panel_mapping_and_unknown_fallback(
@@ -138,6 +156,35 @@ def test_job_chop_alias_collision_reports_source_diagnostic(
     assert "agent_tribe_job_alias_collision" in caplog.text
     assert "/tmp/sase.yml:ace.tribes.chop" in caplog.text
     assert "/tmp/sase.yml:ace.tribes.job" in caplog.text
+
+
+def test_display_key_uses_source_resolution_for_equivalent_aliases(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    same_display = {"icon": "J", "color": "#FFAF5F"}
+    _install_config(monkeypatch, {"chop": same_display, "job": same_display})
+
+    def _layers() -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "user",
+                "kind": "user",
+                "path": "/tmp/sase.yml",
+                "value": {
+                    "ace": {
+                        "tribes": {"chop": same_display, "job": same_display},
+                    }
+                },
+                "list_strategy": "replace",
+                "writable": True,
+                "exists": True,
+                "error": None,
+            }
+        ]
+
+    monkeypatch.setattr("sase.config.inventory.discover_layer_inputs", _layers)
+
+    assert display._tribe_config_key("chop", display._tribe_displays()) == "job"
 
 
 def test_empty_and_hostile_icons_are_sanitized(
@@ -271,6 +318,27 @@ def test_resolution_is_memoized_per_config_token(
         display,
         "current_config_token",
         lambda: ("config", token[0]),
+    )
+    monkeypatch.setattr(
+        "sase.config.inventory.discover_layer_inputs",
+        lambda: [
+            {
+                "name": "test",
+                "kind": "user",
+                "path": "/tmp/sase.yml",
+                "value": {
+                    "ace": {
+                        "tribes": {
+                            "chop": {"icon": "1", "color": "#000001"},
+                        }
+                    }
+                },
+                "list_strategy": "replace",
+                "writable": True,
+                "exists": True,
+                "error": None,
+            }
+        ],
     )
 
     assert display.tribe_display_for("chop").icon == "1"

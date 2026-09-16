@@ -125,13 +125,36 @@ def _tribe_displays() -> dict[str, _TribeDisplay]:
 
 
 def _tribe_config_key(
-    panel_key: PanelKey, displays: Mapping[str, _TribeDisplay] | None = None
+    panel_key: PanelKey,
+    displays: Mapping[str, _TribeDisplay] | None = None,
+    *,
+    token: tuple[Any, ...] | None = None,
 ) -> str:
     """Return the ``ace.tribes`` config key for *panel_key*."""
     if panel_key is None:
         return "default"
+    resolution = _tribe_display_resolution_for_token(token or current_config_token())
+    display_keys = resolution.get("display_keys")
+    if isinstance(display_keys, dict):
+        resolved = display_keys.get(panel_key)
+        if isinstance(resolved, str):
+            return resolved
     configured_keys = tuple(displays or _tribe_displays())
     return agent_tribe_display_key(panel_key, configured_keys)
+
+
+@lru_cache(maxsize=1)
+def _tribe_display_resolution_for_token(
+    _token: tuple[Any, ...],
+) -> dict[str, Any]:
+    """Return source-aware display alias resolution once per config token."""
+    try:
+        from sase.config.inventory import discover_layer_inputs
+
+        resolution = resolve_agent_tribe_display_config(discover_layer_inputs())
+    except Exception:
+        return {}
+    return resolution if isinstance(resolution, dict) else {}
 
 
 @lru_cache(maxsize=1)
@@ -139,13 +162,7 @@ def _tribe_display_diagnostics_for_token(
     _token: tuple[Any, ...],
 ) -> tuple[dict[str, Any], ...]:
     """Return source-aware display alias diagnostics once per config token."""
-    try:
-        from sase.config.inventory import discover_layer_inputs
-
-        resolution = resolve_agent_tribe_display_config(discover_layer_inputs())
-    except Exception:
-        return ()
-    diagnostics = resolution.get("diagnostics")
+    diagnostics = _tribe_display_resolution_for_token(_token).get("diagnostics")
     if not isinstance(diagnostics, list):
         return ()
     return tuple(item for item in diagnostics if isinstance(item, dict))
@@ -153,8 +170,12 @@ def _tribe_display_diagnostics_for_token(
 
 def tribe_display_for(panel_key: PanelKey) -> _TribeDisplay:
     """Return display settings for *panel_key*, mapping no-tribe to default."""
-    displays = _tribe_displays()
-    return displays.get(_tribe_config_key(panel_key, displays), DEFAULT_TRIBE_DISPLAY)
+    token = current_config_token()
+    displays = _tribe_displays_for_token(token)
+    return displays.get(
+        _tribe_config_key(panel_key, displays, token=token),
+        DEFAULT_TRIBE_DISPLAY,
+    )
 
 
 def tribe_identity_color(panel_key: PanelKey) -> str:
@@ -166,11 +187,13 @@ def tribe_identity_colors(
     panel_keys: Collection[PanelKey],
 ) -> dict[PanelKey, str]:
     """Resolve effective identity colors once for the distinct *panel_keys*."""
-    displays = _tribe_displays()
+    token = current_config_token()
+    displays = _tribe_displays_for_token(token)
     colors: dict[PanelKey, str] = {}
     for panel_key in panel_keys:
         display = displays.get(
-            _tribe_config_key(panel_key, displays), DEFAULT_TRIBE_DISPLAY
+            _tribe_config_key(panel_key, displays, token=token),
+            DEFAULT_TRIBE_DISPLAY,
         )
         colors[panel_key] = display.color or TRIBE_IDENTITY_FALLBACK_COLOR
     return colors
@@ -178,11 +201,16 @@ def tribe_identity_colors(
 
 def named_tribe_identity_colors(tribe_names: Collection[str]) -> dict[str, str]:
     """Resolve effective identity colors once for bare tribe names."""
-    displays = _tribe_displays()
+    token = current_config_token()
+    displays = _tribe_displays_for_token(token)
     return {
         tribe_name: (
             displays.get(
-                _tribe_config_key(canonicalize_public_tribe_name(tribe_name), displays),
+                _tribe_config_key(
+                    canonicalize_public_tribe_name(tribe_name),
+                    displays,
+                    token=token,
+                ),
                 DEFAULT_TRIBE_DISPLAY,
             ).color
             or TRIBE_IDENTITY_FALLBACK_COLOR
@@ -233,7 +261,8 @@ def effective_collapsed_panel_keys(
     """Compute effective collapsed panels without materializing config defaults."""
     collapsed = set(collapsed_intent)
     expanded = set(expanded_intent)
-    displays = _tribe_displays()
+    token = current_config_token()
+    displays = _tribe_displays_for_token(token)
     if panel_keys is None:
         candidates = collapsed | expanded
         candidates.update(
@@ -249,7 +278,7 @@ def effective_collapsed_panel_keys(
         or (
             key not in expanded
             and not displays.get(
-                _tribe_config_key(key, displays),
+                _tribe_config_key(key, displays, token=token),
                 DEFAULT_TRIBE_DISPLAY,
             ).initially_expanded
         )

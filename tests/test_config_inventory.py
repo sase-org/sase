@@ -182,6 +182,23 @@ def _axe_alias_schema() -> dict[str, Any]:
     }
 
 
+def _tribe_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "ace": {
+                "type": "object",
+                "properties": {
+                    "tribes": {
+                        "type": "object",
+                        "additionalProperties": {"type": "object"},
+                    }
+                },
+            }
+        },
+    }
+
+
 def _axe_alias_layers() -> list[ConfigLayer]:
     return [
         ConfigLayer(
@@ -391,6 +408,38 @@ def test_inventory_emits_deprecated_key_diagnostic() -> None:
         d.code == "deprecated_key" and d.layer == "user" and d.path == "sibling_repos"
         for d in inventory.diagnostics
     )
+
+
+def test_inventory_surfaces_agent_tribe_alias_collision() -> None:
+    layers = [
+        ConfigLayer(
+            name="user",
+            path="/home/u/.config/sase/sase.yml",
+            exists=True,
+            list_strategy="replace",
+            data={
+                "ace": {
+                    "tribes": {
+                        "chop": {"icon": "C"},
+                        "job": {"icon": "J"},
+                    }
+                }
+            },
+        )
+    ]
+    with patch("sase.config.inventory.load_config_layers", return_value=layers):
+        inventory = build_config_inventory(schema=_tribe_schema())
+
+    diagnostic = next(
+        item
+        for item in inventory.diagnostics
+        if item.code == "agent_tribe_job_alias_collision"
+    )
+    assert diagnostic.severity == "error"
+    assert diagnostic.layer == "user"
+    assert diagnostic.path == "ace.tribes.chop|ace.tribes.job"
+    assert "ace.tribes.chop" in diagnostic.message
+    assert "ace.tribes.job" in diagnostic.message
 
 
 # --- Layer serialization --------------------------------------------------
