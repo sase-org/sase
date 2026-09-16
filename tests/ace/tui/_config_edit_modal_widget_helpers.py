@@ -50,6 +50,11 @@ _SCHEMA: dict[str, Any] = {
                     "items": {"type": "string"},
                     "default": [],
                 },
+                "job_script_dirs": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "default": [],
+                },
             },
         },
         "ace": {

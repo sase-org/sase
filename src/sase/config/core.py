@@ -499,6 +499,38 @@ def load_merged_config() -> dict[str, Any]:
     return result
 
 
+def load_public_merged_config() -> dict[str, Any]:
+    """Return the effective config projected for public display surfaces."""
+    result = dict(load_merged_config())
+
+    from sase.config.inventory import serialize_config_layer
+    from sase.core.rust import require_rust_binding
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    layer_inputs = [serialize_config_layer(layer) for layer in load_config_layers()]
+    if not any(
+        isinstance(layer.get("value"), dict) and "axe" in layer["value"]
+        for layer in layer_inputs
+    ):
+        return result
+    binding = require_rust_binding("axe_config_compose")
+    payload = binding(
+        {
+            "layers": layer_inputs,
+            "require_descriptions": False,
+            "require_description_shape": False,
+            "routine_job_contract": current_flags().enabled(
+                FeatureFlag.axe_routine_job_contract
+            ),
+        }
+    )
+    public_config = payload.get("public_config")
+    public_axe = public_config.get("axe") if isinstance(public_config, dict) else None
+    if isinstance(public_axe, dict):
+        result["axe"] = public_axe
+    return result
+
+
 def load_config_layers() -> list[ConfigLayer]:
     """Load config-layer metadata without merging the layers."""
     local_path = get_local_config_path()

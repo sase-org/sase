@@ -2534,6 +2534,8 @@
         },
         "chop_script_dirs": {
           "type": "array",
+          "deprecated": true,
+          "deprecated_replacement": "axe.job_script_dirs",
           "description": "Legacy alias for job_script_dirs. Additional directories to search for job scripts (searched before PATH lookup)",
           "items": {
             "type": "string"
@@ -2550,6 +2552,8 @@
         },
         "lumberjack_log_max_bytes": {
           "type": "integer",
+          "deprecated": true,
+          "deprecated_replacement": "axe.routine_log_max_bytes",
           "description": "Legacy alias for routine_log_max_bytes. Maximum bytes retained for each bounded routine log.",
           "default": 52428800,
           "minimum": 1
@@ -2562,6 +2566,8 @@
         },
         "lumberjack_log_temp_max_age_seconds": {
           "type": "integer",
+          "deprecated": true,
+          "deprecated_replacement": "axe.routine_log_temp_max_age_seconds",
           "description": "Minimum age in seconds before orphaned bounded-log rotation temp files are removed.",
           "default": 300,
           "minimum": 1
@@ -2574,6 +2580,8 @@
         },
         "lumberjack_restart_backoff_max_seconds": {
           "type": "integer",
+          "deprecated": true,
+          "deprecated_replacement": "axe.routine_restart_backoff_max_seconds",
           "description": "Legacy alias for routine_restart_backoff_max_seconds. Maximum delay between retries for a crashing routine.",
           "default": 60,
           "minimum": 1
@@ -2586,6 +2594,8 @@
         },
         "verbose_lumberjack_diagnostics": {
           "type": "boolean",
+          "deprecated": true,
+          "deprecated_replacement": "axe.verbose_routine_diagnostics",
           "description": "Legacy alias for verbose_routine_diagnostics. Include verbose routine diagnostics in job script contexts.",
           "default": false
         },
@@ -2596,6 +2606,8 @@
         },
         "lumberjacks": {
           "type": "object",
+          "deprecated": true,
+          "deprecated_replacement": "axe.routines",
           "description": "Legacy alias for routines. Each key is a routine name with interval and jobs config.",
           "additionalProperties": {
             "type": "object",
@@ -2616,6 +2628,8 @@
               },
               "chop_timeout": {
                 "type": "string",
+                "deprecated": true,
+                "deprecated_replacement": "job_timeout",
                 "description": "Legacy alias for job_timeout. Default positive compound duration controlling the maximum runtime for jobs in this routine",
                 "minLength": 2,
                 "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
@@ -2637,6 +2651,8 @@
               },
               "chops": {
                 "type": ["array", "object"],
+                "deprecated": true,
+                "deprecated_replacement": "jobs",
                 "description": "Legacy alias for jobs. List or composable map of job scripts to run on each tick",
                 "additionalProperties": { "$ref": "#/definitions/axeChop" },
                 "items": {

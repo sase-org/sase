@@ -1,5 +1,6 @@
 """Tests for the centralized config module."""
 
+import argparse
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,12 +16,14 @@ from sase.config.core import (
     get_local_config_path,
     load_config_layers,
     load_merged_config,
+    load_public_merged_config,
     load_xprompts_by_source,
     require_agent_owner_identity,
     require_machine_name,
     set_include_local_config,
 )
 from sase.core.paths import machine_name_path
+from sase.feature_flags import override_flags
 
 
 # --- _deep_merge tests ---
@@ -386,6 +389,119 @@ def test_load_merged_config_local_concatenates_lists(tmp_path: Path) -> None:
         result = load_merged_config()
 
     assert result["items"] == [1, 2, 3]
+
+
+def test_load_merged_config_normalizes_axe_aliases_through_rust(
+    tmp_path: Path,
+) -> None:
+    """Generic runtime loading sees one internal AXE tree, not alias twins."""
+    global_config = tmp_path / "global"
+    global_config.mkdir()
+    (global_config / "sase.yml").write_text(
+        yaml.dump({"axe": {"routines": {"checks": {"interval": 19}}}}),
+        encoding="utf-8",
+    )
+    default = {
+        "axe": {
+            "lumberjacks": {
+                "checks": {
+                    "description": "Run checks",
+                    "interval": 5,
+                    "chops": {},
+                }
+            }
+        }
+    }
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_config),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core._load_default_config", return_value=default),
+        patch("sase.config.core._load_plugin_configs", return_value=[]),
+    ):
+        merged = load_merged_config()
+
+    assert merged["axe"]["lumberjacks"]["checks"]["interval"] == 19
+    assert "routines" not in merged["axe"]
+
+
+def test_load_public_merged_config_projects_axe_by_rollout_state(
+    tmp_path: Path,
+) -> None:
+    """Public config views use canonical AXE keys only while the flag is on."""
+    global_config = tmp_path / "global"
+    global_config.mkdir()
+    (global_config / "sase.yml").write_text(
+        yaml.dump({"axe": {"routines": {"checks": {"interval": 19}}}}),
+        encoding="utf-8",
+    )
+    default = {
+        "axe": {
+            "lumberjacks": {
+                "checks": {
+                    "description": "Run checks",
+                    "interval": 5,
+                    "chops": {},
+                }
+            }
+        }
+    }
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_config),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core._load_default_config", return_value=default),
+        patch("sase.config.core._load_plugin_configs", return_value=[]),
+    ):
+        with override_flags(axe_routine_job_contract=True):
+            canonical = load_public_merged_config()
+        with override_flags(axe_routine_job_contract=False):
+            legacy = load_public_merged_config()
+
+    assert canonical["axe"]["routines"]["checks"]["interval"] == 19
+    assert "lumberjacks" not in canonical["axe"]
+    assert legacy["axe"]["lumberjacks"]["checks"]["interval"] == 19
+    assert "routines" not in legacy["axe"]
+
+
+def test_config_show_projects_public_axe_contract(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """``sase config show`` prints the public AXE contract, not raw aliases."""
+    global_config = tmp_path / "global"
+    global_config.mkdir()
+    (global_config / "sase.yml").write_text(
+        yaml.dump({"axe": {"routines": {"checks": {"interval": 19}}}}),
+        encoding="utf-8",
+    )
+    default = {
+        "axe": {
+            "lumberjacks": {
+                "checks": {
+                    "description": "Run checks",
+                    "interval": 5,
+                    "chops": {},
+                }
+            }
+        }
+    }
+
+    from sase.main.config_handler import handle_config_command
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", global_config),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "no_local"),
+        patch("sase.config.core._load_default_config", return_value=default),
+        patch("sase.config.core._load_plugin_configs", return_value=[]),
+        override_flags(axe_routine_job_contract=True),
+        pytest.raises(SystemExit) as exit_info,
+    ):
+        handle_config_command(argparse.Namespace(config_subcommand="show", key="axe"))
+
+    assert exit_info.value.code == 0
+    shown = yaml.safe_load(capsys.readouterr().out)
+    assert shown["axe"]["routines"]["checks"]["interval"] == 19
+    assert "lumberjacks" not in shown["axe"]
 
 
 def test_load_xprompts_by_source_includes_local_config(tmp_path: Path) -> None:

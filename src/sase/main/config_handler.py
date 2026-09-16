@@ -135,11 +135,11 @@ def handle_config_command(args: argparse.Namespace) -> None:
         sys.exit(0)
 
     elif config_sub == "show":
-        from sase.config.core import load_merged_config
+        from sase.config.core import load_public_merged_config
 
         import yaml  # type: ignore[import-untyped]
 
-        merged = load_merged_config()
+        merged = load_public_merged_config()
         key = getattr(args, "key", None)
         if key:
             if key not in merged:

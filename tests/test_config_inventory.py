@@ -19,6 +19,7 @@ from sase.config.inventory import (
     discover_layer_inputs,
     load_config_schema,
 )
+from sase.feature_flags import override_flags
 
 
 # The merged config produced by folding the fixture layer stack through the
@@ -149,6 +150,80 @@ def _inventory_schema() -> dict[str, Any]:
     }
 
 
+def _axe_alias_schema() -> dict[str, Any]:
+    """Small concrete AXE schema that exposes one routine/job field path."""
+    routine = {
+        "type": "object",
+        "properties": {
+            "interval": {"type": "integer", "default": 1},
+            "chop_timeout": {"type": "string"},
+            "job_timeout": {"type": "string"},
+            "chops": {"type": "object"},
+            "jobs": {"type": "object"},
+        },
+    }
+    routines = {
+        "type": "object",
+        "properties": {"checks": routine},
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "axe": {
+                "type": "object",
+                "properties": {
+                    "chop_script_dirs": {"type": "array", "items": {"type": "string"}},
+                    "job_script_dirs": {"type": "array", "items": {"type": "string"}},
+                    "lumberjacks": routines,
+                    "routines": routines,
+                },
+            }
+        },
+    }
+
+
+def _axe_alias_layers() -> list[ConfigLayer]:
+    return [
+        ConfigLayer(
+            name="default",
+            path=None,
+            exists=True,
+            list_strategy="concatenate",
+            data={
+                "axe": {
+                    "chop_script_dirs": ["/legacy/bin"],
+                    "lumberjacks": {
+                        "checks": {
+                            "description": "Run checks",
+                            "interval": 5,
+                            "chop_timeout": "30s",
+                            "chops": {"hook": {"script": "sase_chop_hook"}},
+                        }
+                    },
+                }
+            },
+        ),
+        ConfigLayer(
+            name="user",
+            path="/home/u/.config/sase/sase.yml",
+            exists=True,
+            list_strategy="replace",
+            data={
+                "axe": {
+                    "job_script_dirs": ["/jobs/bin"],
+                    "routines": {
+                        "checks": {
+                            "interval": 19,
+                            "job_timeout": "2m",
+                            "jobs": {"hook": {"script": "sase_job_hook"}},
+                        }
+                    },
+                }
+            },
+        ),
+    ]
+
+
 def _build_fixture_inventory() -> Any:
     with patch(
         "sase.config.inventory.load_config_layers",
@@ -182,7 +257,8 @@ def test_deep_merge_fold_matches_rust_golden() -> None:
 
 def test_inventory_effective_values_match_merge_golden() -> None:
     """Per-field effective values from the Rust inventory match the golden."""
-    inventory = _build_fixture_inventory()
+    with override_flags(axe_routine_job_contract=False):
+        inventory = _build_fixture_inventory()
     assert inventory.field("timezone").effective_value == "US/Pacific"
     assert inventory.field("use_chezmoi").effective_value is True
     assert inventory.field("axe.max_hook_runners").effective_value == 5
@@ -196,6 +272,48 @@ def test_inventory_effective_values_match_merge_golden() -> None:
         {"name": "overlay"},
         {"name": "local"},
     ]
+
+
+def test_inventory_projects_canonical_axe_aliases_when_contract_enabled() -> None:
+    with (
+        patch(
+            "sase.config.inventory.load_config_layers",
+            return_value=_axe_alias_layers(),
+        ),
+        override_flags(axe_routine_job_contract=True),
+    ):
+        inventory = build_config_inventory(schema=_axe_alias_schema())
+
+    interval = inventory.field("axe.routines.checks.interval")
+    assert interval is not None
+    assert interval.effective_value == 19
+    assert [c.raw_value for c in interval.contributions] == [5, 19]
+    assert interval.contributions[-1].winning is True
+    assert inventory.field("axe.job_script_dirs").effective_value == ["/jobs/bin"]
+
+    legacy_interval = inventory.field("axe.lumberjacks.checks.interval")
+    assert legacy_interval is not None
+    assert legacy_interval.has_effective is False
+
+
+def test_inventory_keeps_legacy_view_when_contract_disabled() -> None:
+    with (
+        patch(
+            "sase.config.inventory.load_config_layers",
+            return_value=_axe_alias_layers(),
+        ),
+        override_flags(axe_routine_job_contract=False),
+    ):
+        inventory = build_config_inventory(schema=_axe_alias_schema())
+
+    interval = inventory.field("axe.lumberjacks.checks.interval")
+    assert interval is not None
+    assert interval.effective_value == 19
+    assert [c.raw_value for c in interval.contributions] == [5, 19]
+
+    canonical_interval = inventory.field("axe.routines.checks.interval")
+    assert canonical_interval is not None
+    assert canonical_interval.has_effective is False
 
 
 # --- Provenance & source rail ---------------------------------------------
@@ -337,6 +455,12 @@ def test_config_field_model_flattens_real_schema() -> None:
     assert by_path["linked_repos"].kind == "array"
     assert "pager.syntax" in by_path
     assert by_path["pager.syntax"].enum_values == ("auto", "never")
+    assert by_path["axe.chop_script_dirs"].deprecated is True
+    assert by_path["axe.chop_script_dirs"].deprecated_replacement == (
+        "axe.job_script_dirs"
+    )
+    assert by_path["axe.lumberjacks"].deprecated is True
+    assert by_path["axe.lumberjacks"].deprecated_replacement == "axe.routines"
 
 
 def test_load_config_schema_returns_object_schema() -> None:

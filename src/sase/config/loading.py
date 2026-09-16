@@ -13,11 +13,61 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sase._yaml_safe import yaml_safe_load_cached_text
+from sase.core.rust import require_rust_binding
 from sase.config.identity import AgentOwnerConfigSnapshot
 from sase.config.layers import without_retired_sdd_selectors
 
 
 log = logging.getLogger(__name__)
+
+
+def _layer_input(
+    *,
+    name: str,
+    kind: str,
+    path: Path | None,
+    value: dict[str, Any],
+    list_strategy: Literal["concatenate", "replace"],
+    exists: bool = True,
+) -> dict[str, Any]:
+    """Serialize one merge contribution for Rust config-domain requests."""
+    return {
+        "name": name,
+        "kind": kind,
+        "path": str(path) if path is not None else None,
+        "value": without_retired_sdd_selectors(value),
+        "list_strategy": list_strategy,
+        "writable": path is not None,
+        "exists": exists,
+        "error": None,
+    }
+
+
+def _with_rust_normalized_axe(
+    result: dict[str, Any], layer_inputs: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Replace the merged AXE subtree with Rust-normalized AXE semantics."""
+    if not any(
+        isinstance(layer.get("value"), dict) and "axe" in layer["value"]
+        for layer in layer_inputs
+    ):
+        return result
+    binding = require_rust_binding("axe_config_compose")
+    payload = binding(
+        {
+            "layers": layer_inputs,
+            "require_descriptions": False,
+            "require_description_shape": False,
+            "routine_job_contract": False,
+        }
+    )
+    effective = payload.get("effective_config")
+    axe = effective.get("axe") if isinstance(effective, dict) else None
+    if not isinstance(axe, dict):
+        return result
+    normalized = dict(result)
+    normalized["axe"] = axe
+    return normalized
 
 
 def deep_merge(
@@ -155,28 +205,51 @@ def merge_config_sources(
     yaml_loader: Callable[[Path], dict[str, Any] | None],
 ) -> dict[str, Any]:
     """Load and merge the already-discovered config source chain."""
-    result = dict(_without_owner_identity(default_config, source="default"))
+    default_contribution = _without_owner_identity(default_config, source="default")
+    layer_inputs = [
+        _layer_input(
+            name="default",
+            kind="builtin",
+            path=None,
+            value=default_contribution,
+            list_strategy="concatenate",
+        )
+    ]
+    result = dict(default_contribution)
     log.debug("Loading layer 'default' (keys: %s)", ", ".join(result.keys()))
 
     for index, plugin_config in enumerate(plugin_configs, start=1):
         log.debug("Loading layer 'plugin' (keys: %s)", ", ".join(plugin_config))
-        result = deep_merge(
-            result,
-            _without_owner_identity(plugin_config, source=f"plugin #{index}"),
+        contribution = _without_owner_identity(plugin_config, source=f"plugin #{index}")
+        layer_inputs.append(
+            _layer_input(
+                name=f"plugin:{index}",
+                kind="plugin",
+                path=None,
+                value=contribution,
+                list_strategy="concatenate",
+            )
         )
+        result = deep_merge(result, contribution)
 
     user_base = yaml_loader(user_base_path)
     if user_base:
+        contribution = _without_owner_identity(user_base, source=str(user_base_path))
+        layer_inputs.append(
+            _layer_input(
+                name="user",
+                kind="user",
+                path=user_base_path,
+                value=contribution,
+                list_strategy="replace",
+            )
+        )
         log.debug(
             "Loading layer 'user' from %s (keys: %s) [list_strategy=replace]",
             user_base_path,
             ", ".join(user_base),
         )
-        result = deep_merge(
-            result,
-            _without_owner_identity(user_base, source=str(user_base_path)),
-            list_strategy="replace",
-        )
+        result = deep_merge(result, contribution, list_strategy="replace")
 
     selected_identity: dict[str, Any] | None = None
     for overlay_path in overlay_paths:
@@ -198,22 +271,39 @@ def merge_config_sources(
             contribution.pop("machine_name", None)
         else:
             contribution = _without_owner_identity(overlay, source=str(overlay_path))
+        layer_inputs.append(
+            _layer_input(
+                name=f"overlay:{overlay_path.name}",
+                kind="overlay",
+                path=overlay_path,
+                value=contribution,
+                list_strategy="concatenate",
+            )
+        )
         result = deep_merge(result, contribution)
 
     if local_path:
         local_config = yaml_loader(local_path)
         if local_config:
+            contribution = _without_owner_identity(local_config, source=str(local_path))
+            layer_inputs.append(
+                _layer_input(
+                    name="local",
+                    kind="local",
+                    path=local_path,
+                    value=contribution,
+                    list_strategy="concatenate",
+                )
+            )
             log.debug(
                 "Loading layer 'local' from %s (keys: %s) [list_strategy=concatenate]",
                 local_path,
                 ", ".join(local_config),
             )
-            result = deep_merge(
-                result,
-                _without_owner_identity(local_config, source=str(local_path)),
-            )
+            result = deep_merge(result, contribution)
 
     result = without_retired_sdd_selectors(result)
+    result = _with_rust_normalized_axe(result, layer_inputs)
     if selected_identity is not None:
         # Restore the raw selected identity after all ordinary merge layers.
         result["id"] = selected_identity

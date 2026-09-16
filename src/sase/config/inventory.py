@@ -39,6 +39,15 @@ from sase.core.rust import require_rust_binding
 _schema_cache: dict[str, Any] | None = None
 
 
+def routine_job_contract_enabled(value: bool | None = None) -> bool:
+    """Return the effective routine/job public-config projection flag."""
+    if value is not None:
+        return value
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.axe_routine_job_contract)
+
+
 class ConfigBackendError(RuntimeError):
     """Raised when the config backend cannot satisfy a request."""
 
@@ -437,7 +446,10 @@ def overlay_layer_input(name: str) -> dict[str, Any]:
 
 
 def inventory_with_new_overlay(
-    inventory: ConfigInventory, name: str
+    inventory: ConfigInventory,
+    name: str,
+    *,
+    routine_job_contract: bool | None = None,
 ) -> tuple[ConfigInventory, str]:
     """Return a rebuilt inventory that includes a new overlay named *name*.
 
@@ -465,6 +477,7 @@ def inventory_with_new_overlay(
         "layers": layers,
         "deprecations": dict(DEPRECATED_TOP_LEVEL_KEYS),
         "unsupported": sorted(UNSUPPORTED_TOP_LEVEL_KEYS),
+        "routine_job_contract": routine_job_contract_enabled(routine_job_contract),
     }
     binding = require_rust_binding("config_inventory")
     payload = binding(request)
@@ -478,6 +491,7 @@ def build_config_inventory(
     *,
     schema: dict[str, Any] | None = None,
     local_paths: tuple[str | Path, ...] | list[str | Path] = (),
+    routine_job_contract: bool | None = None,
 ) -> ConfigInventory:
     """Build the config inventory from the discovered layer stack.
 
@@ -499,6 +513,7 @@ def build_config_inventory(
         "layers": layer_inputs,
         "deprecations": dict(DEPRECATED_TOP_LEVEL_KEYS),
         "unsupported": sorted(UNSUPPORTED_TOP_LEVEL_KEYS),
+        "routine_job_contract": routine_job_contract_enabled(routine_job_contract),
     }
     binding = require_rust_binding("config_inventory")
     payload = binding(request)

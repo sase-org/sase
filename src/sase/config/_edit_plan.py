@@ -26,7 +26,11 @@ from sase.config.core import (
     clear_config_cache,
     get_use_chezmoi,
 )
-from sase.config.inventory import ConfigDiagnostic, ConfigInventory
+from sase.config.inventory import (
+    ConfigDiagnostic,
+    ConfigInventory,
+    routine_job_contract_enabled,
+)
 from sase.config.targets import resolve_write_path
 from sase.core.rust import require_rust_binding
 
@@ -57,6 +61,7 @@ def plan_config_edit(
     *,
     key_path: tuple[str, ...] | list[str] | None = None,
     use_chezmoi: bool | None = None,
+    routine_job_contract: bool | None = None,
 ) -> EditPlanResult:
     """Plan a single set/unset edit against *target* layer for field *path*.
 
@@ -64,6 +69,9 @@ def plan_config_edit(
     preview, and validation, then computes the target-file text diff in memory.
     No file is written during planning.
     """
+    project_public_contract = routine_job_contract_enabled(routine_job_contract)
+    if path is None and key_path is not None:
+        project_public_contract = False
     request: dict[str, object] = {
         "schema": inventory.schema,
         "layers": list(inventory.layer_inputs),
@@ -71,6 +79,7 @@ def plan_config_edit(
         "op": op.to_wire(),
         "deprecations": dict(DEPRECATED_TOP_LEVEL_KEYS),
         "unsupported": sorted(UNSUPPORTED_TOP_LEVEL_KEYS),
+        "routine_job_contract": project_public_contract,
     }
     if path is not None:
         request["path"] = path

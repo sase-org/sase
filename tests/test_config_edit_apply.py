@@ -16,11 +16,37 @@ from sase.config.edit import (
     apply_config_edit,
     plan_config_edit,
 )
+from sase.feature_flags import override_flags
 from tests._config_edit_helpers import (
     config_inventory,
     config_layer,
     user_file_inventory,
 )
+
+
+def _axe_edit_schema() -> dict[str, object]:
+    routine = {
+        "type": "object",
+        "properties": {
+            "interval": {"type": "integer"},
+        },
+    }
+    routines = {
+        "type": "object",
+        "properties": {"checks": routine},
+    }
+    return {
+        "type": "object",
+        "properties": {
+            "axe": {
+                "type": "object",
+                "properties": {
+                    "lumberjacks": routines,
+                    "routines": routines,
+                },
+            }
+        },
+    }
 
 
 def test_apply_config_edit_writes_previewed_text(tmp_path: Path) -> None:
@@ -46,6 +72,50 @@ def test_apply_config_edit_writes_previewed_text(tmp_path: Path) -> None:
     assert "# keep me" in written
     assert "# runners" in written
     assert yaml.safe_load(written)["axe"]["max_hook_runners"] == 9
+
+
+def test_apply_canonical_axe_edit_preserves_legacy_source_subtree(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "sase.yml"
+    target.write_text(
+        "# keep\naxe:\n  lumberjacks:\n    checks:\n      interval: 5\n",
+        encoding="utf-8",
+    )
+    layers = [
+        config_layer(
+            "user",
+            path=str(target),
+            strategy="replace",
+            data=yaml.safe_load(target.read_text(encoding="utf-8")),
+        )
+    ]
+    inventory = config_inventory(layers, schema=_axe_edit_schema())
+
+    with override_flags(axe_routine_job_contract=True):
+        plan = plan_config_edit(
+            inventory,
+            "axe.routines.checks.interval",
+            "user",
+            ConfigEditOp.set_value(19),
+            use_chezmoi=False,
+        )
+
+    assert plan.write_plan.key_path == (
+        "axe",
+        "lumberjacks",
+        "checks",
+        "interval",
+    )
+    assert plan.effective_preview.before == 5
+    assert plan.effective_preview.after == 19
+    apply_config_edit(plan)
+
+    written = target.read_text(encoding="utf-8")
+    assert "# keep" in written
+    data = yaml.safe_load(written)
+    assert data["axe"]["lumberjacks"]["checks"]["interval"] == 19
+    assert "routines" not in data["axe"]
 
 
 def test_apply_config_edit_creates_missing_file(tmp_path: Path) -> None:
