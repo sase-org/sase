@@ -16,7 +16,7 @@ import pytest
 from sase.core.paths import sase_projects_dir
 from sase.monitor.models import MonitorError
 from sase.monitor.start import StartMonitorRequest, start_monitor
-from sase.procs.service import ProcSubmitError
+from sase.procs.submission import ProcSubmitError
 from sase.running_field import WorkspaceClaim
 
 from ._fixtures import make_starter_agent, patch_project_records, write_project_file

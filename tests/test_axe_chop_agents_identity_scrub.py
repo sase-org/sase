@@ -14,6 +14,7 @@ from sase.axe.chop_agents import (
     ENV_CHOP_RUN_ID,
     get_chop_agent_records,
 )
+from sase.detach_scope import _DetachScopeCommand
 from sase.running_field import ClaimResult
 from sase.xprompt.used_xprompts import SASE_LAUNCH_SWARM_XPROMPTS
 
@@ -203,3 +204,26 @@ def test_spawn_agent_subprocess_scopes_swarm_provenance_to_explicit_launch(
         mock_spawn.call_args.kwargs["env"][SASE_LAUNCH_SWARM_XPROMPTS]
         == '["child_swarm"]'
     )
+
+
+@patch("sase.running_field.claim_workspace", return_value=ClaimResult(success=True))
+@patch("sase.core.agent_launch_facade.spawn_prepared_agent_process")
+def test_spawn_agent_subprocess_wraps_prepared_argv_with_detach_scope(
+    mock_spawn: MagicMock,
+    mock_claim: MagicMock,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_detach_scope(argv: list[str], **_kwargs: object) -> _DetachScopeCommand:
+        return _DetachScopeCommand(["scope", *argv], start_new_session=True)
+
+    monkeypatch.setattr("sase.agent.launch_spawn.detach_scope", fake_detach_scope)
+
+    _spawn_agent_for_env_test(
+        tmp_path=tmp_path,
+        monkeypatch=monkeypatch,
+        mock_spawn=mock_spawn,
+    )
+
+    prepared = mock_spawn.call_args.args[0]
+    assert prepared.argv[0] == "scope"

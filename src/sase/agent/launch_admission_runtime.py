@@ -347,7 +347,7 @@ def call_proc_dispatcher(
 def stop_proc_identity(identity: str) -> None:
     try:
         from sase.procs.models import TERMINAL_PROC_STATUSES
-        from sase.procs.service import stop_proc_shell
+        from sase.procs.submission import stop_proc_shell
         from sase.procs.store import get_proc
 
         proc = get_proc(identity)

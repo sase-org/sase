@@ -1,4 +1,4 @@
-"""Typed proc-shell service over the Rust lifecycle and detached supervisor."""
+"""Typed proc-shell submission over the Rust lifecycle and detached supervisor."""
 
 from __future__ import annotations
 

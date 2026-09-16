@@ -121,7 +121,7 @@ def test_list_monitors_keeps_full_history_listing_query(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import sase.monitor.store as store_module
-    import sase.procs.service as proc_service
+    import sase.procs.submission as proc_service
 
     index_path = tmp_path / "agent_artifact_index.sqlite"
     index_path.touch()

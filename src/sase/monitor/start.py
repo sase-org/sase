@@ -28,7 +28,7 @@ from sase.bead.epic_launch_handoff import MONITOR_ARTIFACTS_ENV
 from sase.logs._bounded import log_file_lock
 from sase.procs.models import ARTIFACTS_LOG_OWNER
 from sase.procs.request import ProcSubmitRequest
-from sase.procs.service import ProcSubmitError, submit_proc_request
+from sase.procs.submission import ProcSubmitError, submit_proc_request
 from sase.procs.spawn import SUPERVISOR_LOG_NAME, DetachedSupervisor
 
 from . import naming, store_lane

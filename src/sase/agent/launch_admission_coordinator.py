@@ -26,6 +26,7 @@ from sase.agent.launch_admission import (
     run_coordinator_in_bundle,
 )
 from sase.agent.launch_request_types import LaunchRequestError
+from sase.detach_scope import detach_scope
 
 _ACK_POLL_SECONDS = 0.05
 _PID_WAIT_SECONDS = 5.0
@@ -44,18 +45,23 @@ def start_detached_coordinator(response_dir: Path) -> int:
     scrub_chop_context_env(env)
     env[COORDINATOR_ENV] = "1"
     log_path = root / COORDINATOR_LOG_FILENAME
+    launch = detach_scope(
+        [
+            sys.executable,
+            "-m",
+            "sase.agent.launch_admission_coordinator",
+            str(response_dir),
+        ],
+        description="SASE launch admission coordinator",
+        unit_prefix="sase-launch-admission",
+    )
     with log_path.open("ab") as log_file:
         child = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "sase.agent.launch_admission_coordinator",
-                str(response_dir),
-            ],
+            launch.argv,
             stdin=subprocess.DEVNULL,
             stdout=log_file,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
+            start_new_session=launch.start_new_session,
             close_fds=True,
             env=env,
         )

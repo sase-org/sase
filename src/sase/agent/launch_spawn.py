@@ -3,9 +3,11 @@
 import logging
 import os
 import sys
+from dataclasses import replace
 from functools import lru_cache
 
 from sase.agent.launch_types import AgentLaunchResult
+from sase.detach_scope import detach_scope
 from sase.core.paths import sase_projects_dir
 from sase.env_contracts import SASE_LAUNCH_SCRATCH_KEY_ENV
 
@@ -329,6 +331,14 @@ def spawn_agent_subprocess(
                 workspace_dir=workspace_dir,
             ),
         )
+    with timer.stage("detach_scope"):
+        scoped_launch = detach_scope(
+            prepared.argv,
+            description="SASE agent runner",
+            unit_prefix="sase-agent",
+        )
+        if scoped_launch.argv != prepared.argv:
+            prepared = replace(prepared, argv=scoped_launch.argv)
 
     # Linkage is intentionally scoped to runner-owned launches and continuation
     # respawns.  Never infer linkage from the fully merged child environment:

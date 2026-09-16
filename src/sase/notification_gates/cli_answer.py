@@ -42,7 +42,7 @@ from sase.notification_gates.models import GateError
 from sase.ops.cli import emit_operation_result, load_request
 from sase.ops.names import GATE_ANSWER
 from sase.procs.request import ProcSubmitRequest
-from sase.procs.service import submit_proc_request
+from sase.procs.submission import submit_proc_request
 from sase.xprompt.models import InputType
 
 _TRUE_WORDS = frozenset({"1", "on", "true", "yes", "y"})

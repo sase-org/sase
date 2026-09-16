@@ -268,7 +268,7 @@ def test_barrier_timeout_does_not_run_the_command(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
     monkeypatch.setenv("SASE_PROC_LAUNCH_BARRIER_TIMEOUT_SECONDS", "0.2")
     monkeypatch.setattr(
-        "sase.procs.service.write_launch_barrier", lambda *_a, **_k: None
+        "sase.procs.submission.write_launch_barrier", lambda *_a, **_k: None
     )
     marker = tmp_path / "ran"
     proc = submit_proc(
@@ -333,7 +333,7 @@ def test_wait_for_proc_recovers_after_an_early_settlement_reconcile(
         probes += 1
         return probes == 1
 
-    monkeypatch.setattr("sase.procs.service.supervisor_is_alive", stale_alive_once)
+    monkeypatch.setattr("sase.procs.submission.supervisor_is_alive", stale_alive_once)
     assert reconcile_running_procs() == []
     if settling.pid is not None:
         _wait_for_process_exit(settling.pid)

@@ -191,7 +191,7 @@ def test_mixin_surfaces_collision_without_failure_rollback(
     )
     from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
     from sase.core.time import local_now
-    from sase.procs.service import ProcSubmitError
+    from sase.procs.submission import ProcSubmitError
 
     def boom(**kwargs: Any) -> Any:
         raise ProcSubmitError("concurrency key already reserved")

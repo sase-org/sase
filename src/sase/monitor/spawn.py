@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from sase.agent.env_hygiene import scrub_agent_identity_env
+from sase.detach_scope import detach_scope
 
 from .identity import supervisor_is_alive
 from .transaction import MONITOR_START_ACK_TIMEOUT_SECONDS, monitor_started_path
@@ -29,6 +30,7 @@ SUPERVISOR_LOG_NAME = "supervisor.log"
 _SUPERVISOR_BOOTSTRAP_PID_TIMEOUT_SECONDS = 5.0
 _SUPERVISOR_STOP_POLL_SECONDS = 0.05
 _SUPERVISOR_ACK_POLL_SECONDS = 0.05
+_SUPERVISOR_BOOTSTRAP_PID_FILE_NAME = ".monitor_supervisor_bootstrap_pid"
 
 
 class SupervisorSpawnError(RuntimeError):
@@ -112,29 +114,65 @@ def _spawn_bootstrap(
     env: dict[str, str],
     stdout: int | BinaryIO,
 ) -> DetachedSupervisor:
-    read_fd, write_fd = os.pipe()
+    read_fd = -1
+    write_fd = -1
     launcher: subprocess.Popen[bytes] | None = None
     try:
-        launcher = subprocess.Popen(
+        pid_file = _supervisor_pid_file(artifacts_dir)
+        pid_file.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            pid_file.unlink()
+        except FileNotFoundError:
+            pass
+        file_launch = detach_scope(
             [
                 sys.executable,
                 str(Path(__file__).with_name("supervisor_bootstrap.py")),
                 "--artifacts-dir",
                 artifacts_dir,
-                "--pid-fd",
-                str(write_fd),
+                "--pid-file",
+                str(pid_file),
             ],
+            description="SASE monitor supervisor",
+            unit_prefix="sase-monitor",
+        )
+        use_pid_file = file_launch.method == "systemd-run"
+        if use_pid_file:
+            launch = file_launch
+            pass_fds: tuple[int, ...] = ()
+        else:
+            read_fd, write_fd = os.pipe()
+            launch = detach_scope(
+                [
+                    sys.executable,
+                    str(Path(__file__).with_name("supervisor_bootstrap.py")),
+                    "--artifacts-dir",
+                    artifacts_dir,
+                    "--pid-fd",
+                    str(write_fd),
+                ],
+                description="SASE monitor supervisor",
+                unit_prefix="sase-monitor",
+            )
+            pass_fds = (write_fd,)
+        launcher = subprocess.Popen(
+            launch.argv,
             stdin=subprocess.DEVNULL,
             stdout=stdout,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
+            start_new_session=launch.start_new_session,
             close_fds=True,
-            pass_fds=(write_fd,),
+            pass_fds=pass_fds,
             env=env,
         )
-        os.close(write_fd)
-        write_fd = -1
-        pid = _read_supervisor_pid(read_fd, launcher)
+        if write_fd >= 0:
+            os.close(write_fd)
+            write_fd = -1
+        pid = (
+            _read_supervisor_pid_file(pid_file, launcher)
+            if use_pid_file
+            else _read_supervisor_pid(read_fd, launcher)
+        )
         _wait_for_bootstrap_exit(launcher)
         return DetachedSupervisor(pid)
     finally:
@@ -146,6 +184,14 @@ def _spawn_bootstrap(
                     pass
         if launcher is not None and launcher.poll() is None:
             _terminate_bootstrap(launcher)
+        try:
+            _supervisor_pid_file(artifacts_dir).unlink()
+        except OSError:
+            pass
+
+
+def _supervisor_pid_file(artifacts_dir: str) -> Path:
+    return Path(artifacts_dir) / _SUPERVISOR_BOOTSTRAP_PID_FILE_NAME
 
 
 def _read_supervisor_pid(
@@ -170,6 +216,37 @@ def _read_supervisor_pid(
             break
 
     raw = b"".join(chunks).splitlines()[0] if chunks else b""
+    return _parse_supervisor_pid_payload(raw, launcher)
+
+
+def _read_supervisor_pid_file(
+    pid_file: Path,
+    launcher: subprocess.Popen[bytes],
+) -> int:
+    deadline = time.monotonic() + _SUPERVISOR_BOOTSTRAP_PID_TIMEOUT_SECONDS
+    while True:
+        try:
+            raw = pid_file.read_bytes().splitlines()[0]
+        except (FileNotFoundError, IndexError, OSError):
+            raw = b""
+        if raw:
+            return _parse_supervisor_pid_payload(raw, launcher)
+        returncode = launcher.poll()
+        if returncode not in (None, 0):
+            detail = _bootstrap_exit_detail(launcher)
+            raise SupervisorSpawnError(
+                f"bootstrap exited without reporting a pid{detail}"
+            )
+        if time.monotonic() >= deadline:
+            _terminate_bootstrap(launcher)
+            raise SupervisorSpawnError("timed out waiting for supervisor pid")
+        time.sleep(_SUPERVISOR_ACK_POLL_SECONDS)
+
+
+def _parse_supervisor_pid_payload(
+    raw: bytes,
+    launcher: subprocess.Popen[bytes],
+) -> int:
     if not raw:
         detail = _bootstrap_exit_detail(launcher)
         raise SupervisorSpawnError(f"bootstrap exited without reporting a pid{detail}")

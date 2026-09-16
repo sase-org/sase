@@ -236,7 +236,7 @@ def submit_via_lease(
     prior monitor-start attempt acquired.
     """
 
-    from sase.procs.service import submit_proc_request
+    from sase.procs.submission import submit_proc_request
 
     transferred = False
 

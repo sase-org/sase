@@ -57,7 +57,7 @@ def stop_monitor(record: MonitorRecord) -> MonitorRecord:
     """
     if record.monitor_state != "running":
         return record
-    from sase.procs.service import stop_proc_shell
+    from sase.procs.submission import stop_proc_shell
     from sase.procs.store import get_proc
 
     proc = get_proc(record.monitor_id)
@@ -155,7 +155,7 @@ def list_monitors(*, project: str | None = None) -> list[MonitorRecord]:
     every project, mirroring how ``sase agent list`` scans across projects
     when no ``--project`` filter is given.
     """
-    from sase.procs.service import reconcile_proc_shells
+    from sase.procs.submission import reconcile_proc_shells
     from sase.procs.store import read_proc_snapshot
 
     reconcile_proc_shells()

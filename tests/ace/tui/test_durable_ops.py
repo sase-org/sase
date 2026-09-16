@@ -11,7 +11,7 @@ from sase.ace.tui.durable_ops import (
     patch_concurrency_key,
     sase_command_argv,
 )
-from sase.procs.service import ProcSubmitError
+from sase.procs.submission import ProcSubmitError
 
 
 def test_sase_command_argv_uses_python_module_form() -> None:

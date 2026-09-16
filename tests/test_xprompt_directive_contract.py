@@ -14,7 +14,7 @@ from sase.xprompt._directive_types import (
 )
 from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 
-_SPECIAL_RUNTIME_DIRECTIVES = frozenset({"alt", "xprompts_enabled"})
+_SPECIAL_RUNTIME_DIRECTIVES = frozenset({"alt", "hold", "xprompts_enabled"})
 
 
 def test_runtime_directive_vocabulary_matches_core_contract() -> None:
@@ -34,7 +34,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
     assert _contract_aliases(contract) == expected_aliases
     assert {
         name for name, row in contract.items() if bool(row["allows_multiple"])
-    } == set(_MULTI_VALUE_DIRECTIVES) | {"alt", "xprompts_enabled", "queue", "hold"}
+    } == set(_MULTI_VALUE_DIRECTIVES) | {"alt", "hold", "xprompts_enabled", "queue"}
     assert _contract_keywords(contract) == {
         "alt": (),
         "auto": (),
@@ -87,8 +87,8 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "xprompts_enabled": ("colon",),
     }
     assert contract["if"].get("feature_flag") is None
-    assert contract["proc"]["feature_flag"] == "typed_launch_units"
     assert contract["hold"]["feature_flag"] == "agent_holds"
+    assert contract["proc"]["feature_flag"] == "typed_launch_units"
     assert contract["queue"].get("feature_flag") is None
     assert contract["queue"]["alias"] == "q"
     assert contract["hold"].get("alias") is None

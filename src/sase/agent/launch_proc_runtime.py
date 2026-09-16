@@ -43,7 +43,7 @@ from sase.procs.runtime import (
     read_json_object,
     write_json_atomic,
 )
-from sase.procs.service import ProcSubmitError, submit_proc_request
+from sase.procs.submission import ProcSubmitError, submit_proc_request
 from sase.procs.store import get_proc, update_proc
 
 XPROMPT_PROC_ORIGIN = "xprompt-proc"

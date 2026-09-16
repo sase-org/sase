@@ -445,7 +445,7 @@ class TestDurableSubmission:
         transferred = MagicMock()
         released = MagicMock()
         monkeypatch.setattr(
-            "sase.procs.service.submit_proc_request",
+            "sase.procs.submission.submit_proc_request",
             _submit,
         )
         monkeypatch.setattr(
@@ -482,7 +482,7 @@ class TestDurableSubmission:
 
         released = MagicMock()
         monkeypatch.setattr(
-            "sase.procs.service.submit_proc_request",
+            "sase.procs.submission.submit_proc_request",
             _submit,
         )
         monkeypatch.setattr(

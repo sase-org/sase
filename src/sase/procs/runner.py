@@ -21,7 +21,7 @@ from .models import (
 )
 from .identity import supervisor_is_alive
 from .request import ProcSubmitRequest
-from .service import (
+from .submission import (
     ProcControlError,
     ProcSubmitError,
     reconcile_proc_shells,

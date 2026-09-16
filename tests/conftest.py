@@ -130,6 +130,18 @@ def pytest_collection_finish(session: pytest.Session) -> None:
 
 
 @pytest.fixture(scope="session", autouse=True)
+def _disable_detach_scope_by_default() -> Iterator[None]:
+    """Keep ordinary tests from spawning real transient systemd scopes."""
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setenv("SASE_DETACH_SCOPE_DISABLE", "1")
+    monkeypatch.setenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", "1")
+    try:
+        yield
+    finally:
+        monkeypatch.undo()
+
+
+@pytest.fixture(scope="session", autouse=True)
 def _configure_test_git_identity(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Iterator[None]:

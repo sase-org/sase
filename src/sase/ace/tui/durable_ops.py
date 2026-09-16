@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.patch.project_spec_path import project_spec_basename
-from sase.procs.service import ProcSubmitError
+from sase.procs.submission import ProcSubmitError
 
 # Payload keys that must never enter argv, labels, logs, or raw fingerprints.
 _SENSITIVE_FINGERPRINT_KEYS = frozenset(
