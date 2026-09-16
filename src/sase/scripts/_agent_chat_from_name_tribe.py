@@ -48,7 +48,9 @@ def resolve_tribe_fork_source(reference: str) -> ForkSource:
 
     index = _build_all_projects_wait_index()
     try:
-        tribe = parse_tribe_reference(reference, stored_tribes=tuple(index.tribes))
+        tribe = parse_tribe_reference(
+            reference, stored_tribes=index.stored_tribe_names()
+        )
     except InvalidTribeError as exc:
         raise RuntimeError(
             f"Invalid '#fork' tribe reference {reference!r}: {exc}"

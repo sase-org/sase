@@ -77,7 +77,23 @@ def _append_clan_wait_members(
     value.append(")", style="dim #AF87FF")
 
 
-def _tribe_target(reference: str) -> str | None:
+def _tribe_target(
+    reference: str,
+    *,
+    tribe_wait_bindings: Mapping[tuple[object, str], TribeWaitBinding] | None = None,
+    identity: object = None,
+) -> str | None:
+    """Return the resolved tribe for one wait reference, else ``None``.
+
+    A binding already resolved with full config/store context (the same one
+    ``collect_agent_wait_status_maps`` computed) wins over the cheap
+    context-free parse below, so an independent stored ``job`` identity
+    renders as ``job`` here too instead of the alias-collapsed ``chop``.
+    """
+    if tribe_wait_bindings is not None:
+        binding = tribe_wait_bindings.get((identity, reference))
+        if binding is not None:
+            return binding.tribe
     try:
         return parse_tribe_reference(reference)
     except InvalidTribeError:
@@ -103,13 +119,20 @@ def build_wait_lanes(
     wait_agent = wait_display_agent(agent)
     lanes: list[WaitLane] = []
 
+    def _resolved_tribe(name: str) -> str | None:
+        return _tribe_target(
+            name,
+            tribe_wait_bindings=tribe_wait_bindings,
+            identity=wait_agent.identity,
+        )
+
     ordinary_targets = tuple(
-        name for name in wait_agent.waiting_for if _tribe_target(name) is None
+        name for name in wait_agent.waiting_for if _resolved_tribe(name) is None
     )
     tribe_targets = tuple(
         (name, tribe)
         for name in wait_agent.waiting_for
-        if (tribe := _tribe_target(name)) is not None
+        if (tribe := _resolved_tribe(name)) is not None
     )
 
     if ordinary_targets:

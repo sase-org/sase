@@ -199,26 +199,31 @@ def tribe_identity_colors(
     return colors
 
 
-def named_tribe_identity_colors(tribe_names: Collection[str]) -> dict[str, str]:
+def named_tribe_identity_colors(
+    tribe_names: Collection[str],
+    *,
+    stored_tribes: Collection[str] | None = None,
+) -> dict[str, str]:
     """Resolve effective identity colors once for bare tribe names.
 
-    *tribe_names* is itself the already-loaded evidence of which stored
-    tribes are actually in use, so it doubles as ``stored_tribes`` context:
-    a public ``job`` entry alongside an independent stored ``job`` entry
-    resolves to that independent identity's own color instead of always
-    collapsing to the built-in ``chop`` color. No extra I/O — the set is
-    already in memory.
+    *stored_tribes* is the already-loaded evidence of which stored tribes are
+    actually in use, so a public ``job`` entry alongside an independent
+    stored ``job`` entry resolves to that independent identity's own color
+    instead of always collapsing to the built-in ``chop`` color. When the
+    caller has no narrower evidence, ``tribe_names`` doubles as its own
+    context — but a caller whose *tribe_names* are derived public labels
+    (not themselves stored-tribe evidence, for example a per-panel display
+    label) must pass the real evidence explicitly instead. No extra I/O —
+    the set is already in memory.
     """
     token = current_config_token()
     displays = _tribe_displays_for_token(token)
-    stored_tribes = tuple(tribe_names)
+    stored = tuple(tribe_names) if stored_tribes is None else tuple(stored_tribes)
     return {
         tribe_name: (
             displays.get(
                 _tribe_config_key(
-                    canonicalize_public_tribe_name(
-                        tribe_name, stored_tribes=stored_tribes
-                    ),
+                    canonicalize_public_tribe_name(tribe_name, stored_tribes=stored),
                     displays,
                     token=token,
                 ),
@@ -268,16 +273,26 @@ def effective_collapsed_panel_keys(
     *,
     collapsed_intent: Collection[PanelKey] = (),
     expanded_intent: Collection[PanelKey] = (),
+    stored_tribes: Collection[str] = (),
 ) -> set[PanelKey]:
-    """Compute effective collapsed panels without materializing config defaults."""
+    """Compute effective collapsed panels without materializing config defaults.
+
+    *stored_tribes* disambiguates a configured public alias (``job``) against
+    an independent stored identity of the same name when *panel_keys* is
+    ``None`` and every configured tribe name must be canonicalized without a
+    caller-supplied candidate set to draw context from.
+    """
     collapsed = set(collapsed_intent)
     expanded = set(expanded_intent)
     token = current_config_token()
     displays = _tribe_displays_for_token(token)
     if panel_keys is None:
+        stored = tuple(stored_tribes)
         candidates = collapsed | expanded
         candidates.update(
-            None if name == "default" else canonicalize_public_tribe_name(name)
+            None
+            if name == "default"
+            else canonicalize_public_tribe_name(name, stored_tribes=stored)
             for name in displays
         )
     else:

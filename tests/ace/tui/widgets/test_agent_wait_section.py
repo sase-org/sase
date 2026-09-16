@@ -199,6 +199,44 @@ def test_bound_tribe_wait_names_entity_and_status() -> None:
     assert "?" not in text.plain
 
 
+def test_bound_job_tribe_wait_uses_the_resolved_identitys_own_color(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The lane color must follow the binding's resolved tribe, not a
+    context-free parse of ``@job`` that always alias-collapses onto
+    ``chop`` regardless of whether an independent ``job`` identity exists.
+    """
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_wait_section."
+        "named_tribe_identity_colors",
+        lambda names: {
+            name: ("#111111" if name == "chop" else "#222222") for name in names
+        },
+    )
+    agent = make_agent(
+        status="WAITING",
+        raw_suffix="20260728120000",
+        waiting_for=["@job"],
+    )
+    binding = TribeWaitBinding(
+        tribe="job",
+        state="bound",
+        kind="agent",
+        name="independent-job",
+    )
+
+    text = ResponsiveWaitSection(
+        _lanes(
+            agent,
+            agent_status_buckets={"independent-job": "Done"},
+            tribe_wait_bindings={(agent.identity, "@job"): binding},
+        )
+    ).logical_text
+
+    assert text.plain == "Wait: [tribes] @job → independent-job ✓\n"
+    assert "bold #222222" in _styles_covering(text, "@job")
+
+
 def test_rendered_wrap_keeps_hanging_indent() -> None:
     dependencies = [f"dependency-{index}" for index in range(12)]
     lanes = _lanes(

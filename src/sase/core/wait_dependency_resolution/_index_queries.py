@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from sase.core.agent_tribe import InvalidTribeError, parse_tribe_reference
+from sase.core.agent_tribe import (
+    InvalidTribeError,
+    RawAgentTribeIdentity,
+    parse_tribe_reference,
+)
 from sase.plan_chain import planner_row_name
 
 from ._index_entities import WaitDependencyEntityQueries
@@ -30,9 +34,29 @@ class WaitDependencyIndexQueries(
     clans: dict[str, dict[str, list[ArtifactCandidate]]]
     tribes: dict[str, list[ArtifactCandidate]]
     effective_clan_tribes: dict[tuple[str, str], str]
+    agent_tribes: dict[RawAgentTribeIdentity, str]
     named: dict[str, WaitCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
     _tribe_member_rows_cache: list[TribeMemberRow] | None
+
+    def stored_tribe_names(self) -> tuple[str, ...]:
+        """Return the one stored-tribe evidence set wait, fork, and completion share.
+
+        Combines this index's own scanned artifact evidence — direct
+        per-agent assignments and each clan generation's *precedence-resolved*
+        effective tribe (never a raw, possibly-superseded per-member
+        ``clan_tribe`` value) — with the cross-project assignment store
+        already loaded alongside it, so a caller holding only a single
+        project's artifacts still recognizes an independent identity
+        assigned in another project, without an extra artifact scan.
+        """
+        return tuple(
+            {
+                *self.tribes,
+                *self.effective_clan_tribes.values(),
+                *self.agent_tribes.values(),
+            }
+        )
 
     def tribe_candidate(
         self,
@@ -255,7 +279,7 @@ class WaitDependencyIndexQueries(
             try:
                 tribe = parse_tribe_reference(
                     name,
-                    stored_tribes=tuple(self.tribes),
+                    stored_tribes=self.stored_tribe_names(),
                 )
             except InvalidTribeError:
                 return False

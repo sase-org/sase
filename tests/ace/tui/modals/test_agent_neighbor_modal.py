@@ -2,16 +2,57 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+
+import pytest
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.widgets import OptionList
 
+import sase.ace.tui.models.tribe_display as tribe_display
 from sase.ace.tui.modals.agent_neighbor_modal import (
     AgentNeighborChoice,
     AgentNeighborModal,
     _agent_neighbor_option_text,
     _agent_neighbor_selector_keys,
 )
+
+
+@pytest.fixture(autouse=True)
+def _clear_tribe_display_cache() -> Iterator[None]:
+    tribe_display._tribe_displays_for_token.cache_clear()
+    tribe_display._tribe_display_resolution_for_token.cache_clear()
+    tribe_display._tribe_display_diagnostics_for_token.cache_clear()
+    yield
+    tribe_display._tribe_displays_for_token.cache_clear()
+    tribe_display._tribe_display_resolution_for_token.cache_clear()
+    tribe_display._tribe_display_diagnostics_for_token.cache_clear()
+
+
+def _install_tribe_config(
+    monkeypatch: pytest.MonkeyPatch, tribes: dict[str, object]
+) -> None:
+    monkeypatch.setattr(
+        tribe_display,
+        "load_merged_config",
+        lambda: {"ace": {"tribes": tribes}},
+    )
+    monkeypatch.setattr(tribe_display, "current_config_token", lambda: ("config", 1))
+    monkeypatch.setattr(
+        "sase.config.inventory.discover_layer_inputs",
+        lambda: [
+            {
+                "name": "test",
+                "kind": "user",
+                "path": "/tmp/sase.yml",
+                "value": {"ace": {"tribes": tribes}},
+                "list_strategy": "replace",
+                "writable": True,
+                "exists": True,
+                "error": None,
+            }
+        ],
+    )
 
 
 class _TestApp(App[object | None]):
@@ -154,6 +195,31 @@ def test_agent_neighbor_modal_option_colors_structured_panel_identity() -> None:
 
     assert _style_at(configured, configured.plain.index("@review")) == "#123456"
     assert _style_at(fallback, fallback.plain.index("@review")) == "#FFD75F"
+
+
+def test_agent_neighbor_modal_resolves_public_job_label_to_stored_chop_color(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A ``@job`` panel label with no independent stored ``job`` identity
+    must style as the built-in ``chop`` panel's own color.
+
+    The modal's own colors must come from each choice's real stored tribe
+    identity, not the derived public labels being colored — otherwise a
+    public ``job`` alias with no independent stored ``job`` identity looks
+    up a nonexistent ``ace.tribes.job`` config entry instead of ``chop``'s.
+    """
+    _install_tribe_config(monkeypatch, {"chop": {"color": "#123456"}})
+    choice = AgentNeighborChoice(
+        agent_name="foo.agent",
+        display_name="demo",
+        status="RUNNING",
+        panel_label="@job",
+        stored_tribe="chop",
+    )
+
+    modal = AgentNeighborModal("foo", [choice])
+
+    assert modal._tribe_colors == {"job": "#123456"}
 
 
 def test_agent_neighbor_modal_option_text_tags_dismissed_rows() -> None:

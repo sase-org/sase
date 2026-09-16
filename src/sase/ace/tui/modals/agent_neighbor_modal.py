@@ -40,6 +40,7 @@ class AgentNeighborChoice:
     display_name: str
     status: str
     panel_label: str
+    stored_tribe: str | None = None
     time_hint: str = ""
     group: str = "neighbor"
     hood: str = ""
@@ -177,7 +178,10 @@ class AgentNeighborModal(
         self._agent_label = agent_label
         self._choices = choices
         self._tribe_colors = named_tribe_identity_colors(
-            {choice.panel_label.removeprefix("@") for choice in choices}
+            {choice.panel_label.removeprefix("@") for choice in choices},
+            stored_tribes={
+                choice.stored_tribe for choice in choices if choice.stored_tribe
+            },
         )
         selectors = _agent_neighbor_selector_keys(len(choices))
         self._selector_by_index = selectors

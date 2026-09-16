@@ -256,3 +256,51 @@ def test_job_wait_reference_uses_stored_job_identity_when_present(
     candidate = index.tribe_candidate("job", newer_than="20260718020000")
     assert candidate is not None
     assert candidate.name == "historical"
+
+
+def test_clan_only_job_identity_is_recognized_as_independent(tmp_path: Path) -> None:
+    """A clan whose only tribe evidence is ``clan_tribe`` still counts.
+
+    ``@job`` must disambiguate against this clan's effective assignment
+    the same way it does against a direct per-agent one, so this clan is
+    not silently mistaken for the built-in ``chop`` alias.
+    """
+    generation = "20260718020000"
+    _agent(
+        tmp_path,
+        "20260718020100",
+        "review.one",
+        clan="review",
+        generation=generation,
+        clan_tribe="job",
+    )
+    index = _index(tmp_path)
+
+    assert "job" in index.stored_tribe_names()
+    assert index.is_resolved("@job", newer_than="20260718010000")
+    candidate = index.tribe_candidate("job", newer_than="20260718010000")
+    assert candidate is not None
+    assert candidate.kind == "clan"
+
+
+def test_job_wait_reference_uses_cross_project_store_identity(
+    tmp_path: Path,
+) -> None:
+    """The runner's single-project index still recognizes another project's
+    independent ``job`` identity through the shared assignment store.
+
+    Without this, ``@job`` would fall back to the built-in ``chop`` alias
+    and incorrectly bind to this project's own ``chop``-tribe agent.
+    """
+    tribes_path = tmp_path / "agent-tribes.json"
+    tribes_path.write_text(
+        json.dumps(
+            [{"id": ["run", "other-project-agent", "20260718000000"], "tribe": "job"}]
+        ),
+        encoding="utf-8",
+    )
+    _agent(tmp_path, "20260718022000", "built-in", tribe="chop")
+    index = _index(tmp_path, tribes_path=tribes_path)
+
+    assert "job" in index.stored_tribe_names()
+    assert not index.is_resolved("@job", newer_than="20260718010000")

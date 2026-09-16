@@ -16,12 +16,22 @@ def effective_panel_collapses(
     """Return effective collapse state for a split Agents-panel collection."""
     if bool(getattr(owner, "_agent_panels_grouped", False)):
         return set()
+    from ...models.agent_panels import panel_keys_for
     from ...models.tribe_display import effective_collapsed_panel_keys
 
+    # Every configured tribe name is canonicalized against real stored-tribe
+    # evidence only when *panel_keys* is left to the full-config default;
+    # the loaded agents are already in memory, so this stays I/O-free.
+    stored_tribes = (
+        tuple(key for key in panel_keys_for(getattr(owner, "_agents", [])) if key)
+        if panel_keys is None
+        else ()
+    )
     return effective_collapsed_panel_keys(
         panel_keys,
         collapsed_intent=getattr(owner, "_collapsed_panel_keys", ()),
         expanded_intent=getattr(owner, "_expanded_panel_keys", ()),
+        stored_tribes=stored_tribes,
     )
 
 

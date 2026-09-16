@@ -14,9 +14,10 @@ def write_agent(
     done: dict[str, object] | None = None,
     meta: dict[str, object] | None = None,
     malformed_meta: bool = False,
+    project: str = "proj",
 ) -> Path:
     artifacts_dir = (
-        home / ".sase" / "projects" / "proj" / "artifacts" / "ace-run" / suffix
+        home / ".sase" / "projects" / project / "artifacts" / "ace-run" / suffix
     )
     artifacts_dir.mkdir(parents=True)
     if malformed_meta:

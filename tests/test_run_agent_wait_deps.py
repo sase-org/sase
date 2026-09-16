@@ -1,5 +1,6 @@
 """Focused tests for run-agent wait dependency helpers."""
 
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -139,6 +140,60 @@ def test_initial_dependencies_resolved_matches_terminal_outcome_semantics(
             artifacts_dir=str(waiter_dir),
         )
         is should_resolve
+    )
+
+
+def test_initial_dependencies_resolved_uses_cross_project_stored_job_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The runner's single-project fast path must not alias-collapse ``@job``.
+
+    An independent ``job`` identity assigned in a different project is
+    reachable only through the cross-project assignment store, not this
+    project's own artifacts. Without that shared evidence, ``@job`` falls
+    back to the built-in ``chop`` alias and incorrectly binds to this
+    project's own later ``chop``-tribe agent.
+    """
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, "@job", suffix="20260506010000")
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260506020000",
+        "built-in",
+        done=True,
+        outcome="completed",
+        extra_meta={"tribe": "chop"},
+    )
+    make_agent(
+        tmp_path,
+        "other-project",
+        "20260506015000",
+        "independent-job",
+        done=True,
+        outcome="completed",
+        extra_meta={"tribe": "job"},
+    )
+    tribes_path = tmp_path / ".sase" / "agent_tribes.json"
+    tribes_path.parent.mkdir(parents=True, exist_ok=True)
+    tribes_path.write_text(
+        json.dumps(
+            [
+                {
+                    "id": ["run", "independent-job", "20260506015000"],
+                    "tribe": "job",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    assert not initial_dependencies_resolved(
+        ["@job"],
+        [],
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
     )
 
 

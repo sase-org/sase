@@ -520,6 +520,11 @@ class AgentNeighborMixin:
                         if row.is_dismissed
                         else self._agent_neighbor_panel_label(target)
                     ),
+                    stored_tribe=(
+                        agent.tribe
+                        if row.is_dismissed
+                        else (target.panel_key if target is not None else None)
+                    ),
                     time_hint=self._agent_neighbor_time_hint(agent),
                     group=row.relation,
                     hood=row.hood,

@@ -321,6 +321,32 @@ def test_named_tribe_identity_colors_resolves_independent_stored_job(
     assert display.named_tribe_identity_colors({"job"}) == {"job": "#222222"}
 
 
+def test_named_tribe_identity_colors_explicit_stored_tribes_overrides_labels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller whose *tribe_names* are derived public labels — not stored
+    evidence — must pass the real evidence explicitly.
+
+    A public ``job`` panel label with no independent stored ``job`` identity
+    must still style as the built-in ``chop`` panel, even though the literal
+    string ``job`` is being colored.
+    """
+    _install_config(
+        monkeypatch,
+        {
+            "chop": {"color": "#111111"},
+            "job": {"color": "#222222"},
+        },
+    )
+
+    assert display.named_tribe_identity_colors({"job"}, stored_tribes=set()) == {
+        "job": "#111111"
+    }
+    assert display.named_tribe_identity_colors({"job"}, stored_tribes={"job"}) == {
+        "job": "#222222"
+    }
+
+
 def test_resolution_is_memoized_per_config_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -463,6 +489,29 @@ def test_explicit_intent_survives_later_config_flip(
             collapsed_intent={"research"},
             expanded_intent={"chop"},
         ) == {"research"}
+
+
+def test_effective_collapsed_panel_keys_none_branch_needs_stored_tribes_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The ``panel_keys is None`` branch canonicalizes every configured name.
+
+    Without real stored-tribe evidence, a configured public ``job`` alias
+    collapses onto ``chop`` and loses its own ``initially_expanded``
+    setting. Passing the real evidence keeps ``job`` a distinct panel.
+    """
+    _install_config(
+        monkeypatch,
+        {
+            "chop": {"initially_expanded": True},
+            "job": {"initially_expanded": False},
+        },
+    )
+
+    assert display.effective_collapsed_panel_keys(None) == set()
+    assert display.effective_collapsed_panel_keys(None, stored_tribes={"job"}) == {
+        "job"
+    }
 
 
 def test_newly_appearing_panel_uses_current_config(
