@@ -58,11 +58,10 @@ class ChopNotFoundError(LookupError):
 
     def __init__(self, chop_name: str, lumberjack_name: str | None = None) -> None:
         if lumberjack_name is None:
-            super().__init__(f"chop '{chop_name}' is not configured")
+            super().__init__(f"job '{chop_name}' is not configured")
         else:
             super().__init__(
-                f"chop '{chop_name}' is not configured under lumberjack "
-                f"'{lumberjack_name}'"
+                f"job '{chop_name}' is not configured under routine '{lumberjack_name}'"
             )
         self.chop_name = chop_name
         self.lumberjack_name = lumberjack_name
@@ -74,8 +73,8 @@ class AmbiguousChopError(LookupError):
     def __init__(self, chop_name: str, candidates: list[str]) -> None:
         joined = ", ".join(sorted(candidates))
         super().__init__(
-            f"chop '{chop_name}' is configured in multiple lumberjacks: {joined}"
-            " — pass --lumberjack to disambiguate"
+            f"job '{chop_name}' is configured in multiple routines: {joined}; "
+            "pass --routine to disambiguate"
         )
         self.chop_name = chop_name
         self.candidates = sorted(candidates)

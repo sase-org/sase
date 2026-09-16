@@ -54,7 +54,7 @@ def make_axe_chop_agent_dispatcher(
             return False, None, "not_an_agent_unit", []
         unit_meta = metadata.get(unit.logical_id)
         if unit_meta is None:
-            return False, None, f"missing AXE chop metadata for {unit.logical_id}", []
+            return False, None, f"missing AXE job metadata for {unit.logical_id}", []
 
         payload = unit.payload
         clan = _str_or_none(unit_meta.get("clan"))
@@ -318,7 +318,7 @@ def _agent_unit_launch_prompt(
     workspace_tag = _workspace_launch_tag(metadata)
     if workspace_tag is None:
         logical_id = _str_or_none(metadata.get("logical_id")) or "unknown"
-        return None, f"missing AXE chop workspace for {logical_id}"
+        return None, f"missing AXE job workspace for {logical_id}"
 
     prompt = agent_unit_dispatch_prompt(payload)
     prompt = _qualify_prompt_with_workspace(prompt, workspace_tag)

@@ -16,7 +16,12 @@ from sase.axe.chop_policy import (
 )
 from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
-from sase.axe.state import ChopRunEntry, read_chop_run, write_chop_run
+from sase.axe.state import (
+    ChopRunEntry,
+    read_chop_run,
+    read_chop_run_log_tail,
+    write_chop_run,
+)
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
@@ -137,6 +142,9 @@ def test_patch_guard_skips_scheduled_run_and_force_bypasses_it(
     assert entry is not None
     assert entry.status == "skipped"
     assert entry.reason == skipped.reason
+    tail = read_chop_run_log_tail("checks", "guarded", skipped.run_id)
+    assert "Job skipped:" in tail
+    assert "Chop skipped" not in tail
     inventory = collect_chop_inventory(
         AxeConfig(
             chop_script_dirs=config.chop_script_dirs,

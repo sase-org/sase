@@ -96,6 +96,7 @@ def test_extract_chop_launch_env_rejects_conflicting_job_aliases() -> None:
             }
         )
     except ValueError as exc:
+        assert "conflicting job launch routine environment aliases" in str(exc)
         assert "SASE_CHOP_LUMBERJACK and SASE_JOB_ROUTINE" in str(exc)
     else:
         raise AssertionError("expected conflicting launch aliases to fail")

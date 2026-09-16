@@ -260,6 +260,10 @@ def test_launch_chop_run_async_not_found_notifies_error() -> None:
 
     run_mock.assert_not_called()
     assert any(sev == "error" for _, sev in app.notifications)
+    message = app.notifications[-1][0]
+    assert message == "job 'ghost' is not configured under routine 'hooks'"
+    assert "chop" not in message
+    assert "lumberjack" not in message
 
 
 def test_launch_chop_run_async_ambiguous_error_notifies() -> None:
@@ -281,6 +285,10 @@ def test_launch_chop_run_async_ambiguous_error_notifies() -> None:
 
     run_mock.assert_not_called()
     assert any(sev == "error" for _, sev in app.notifications)
+    message = app.notifications[-1][0]
+    assert "job 'fast' is configured in multiple routines: checks, hooks" in message
+    assert "--routine" in message
+    assert "--lumberjack" not in message
 
 
 def test_launch_chop_run_async_not_found_via_find_notifies() -> None:
@@ -300,6 +308,9 @@ def test_launch_chop_run_async_not_found_via_find_notifies() -> None:
         _run_async(app._launch_chop_run_async("hooks", "ghost"))
     run_mock.assert_not_called()
     assert any(sev == "error" for _, sev in app.notifications)
+    message = app.notifications[-1][0]
+    assert message == "job 'ghost' is not configured"
+    assert "chop" not in message
 
 
 def test_launch_chop_run_async_passes_chop_timeout_default() -> None:

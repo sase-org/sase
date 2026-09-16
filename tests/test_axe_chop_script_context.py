@@ -115,9 +115,24 @@ class TestChopScriptContextRoundTrip:
         try:
             read_chop_context(str(path))
         except ValueError as exc:
+            assert "conflicting job context aliases" in str(exc)
             assert "lumberjack_name and routine_name differ" in str(exc)
+            assert "chop context" not in str(exc)
         else:
             raise AssertionError("expected conflicting routine aliases to fail")
+
+    def test_context_rejects_non_object_with_canonical_message(self, tmp_path):
+        path = tmp_path / "not-object.json"
+        path.write_text(json.dumps(["not", "a", "context"]), encoding="utf-8")
+
+        try:
+            read_chop_context(str(path))
+        except ValueError as exc:
+            assert "job context must be a JSON object" in str(exc)
+            assert str(path) in str(exc)
+            assert "chop context" not in str(exc)
+        else:
+            raise AssertionError("expected non-object context to fail")
 
     def test_prepare_chop_run_context_adds_run_fields(self, tmp_path):
         base = tmp_path / "base.json"

@@ -146,7 +146,7 @@ def test_typed_chop_dispatch_fails_closed_without_workspace_metadata() -> None:
 
     assert ok is False
     assert identity is None
-    assert message == "missing AXE chop workspace for unit-1"
+    assert message == "missing AXE job workspace for unit-1"
     assert results == []
 
 

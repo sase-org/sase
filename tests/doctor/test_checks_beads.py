@@ -384,6 +384,8 @@ def test_project_beads_warns_about_live_agent_whose_bead_is_unclaimed(
     assert check.status == "WARN"
     assert "sase-1.1 (sase-1.1)" in check.details[0]
     assert "bead_claim_checks" in check.details[0]
+    assert "job is running" in check.details[0]
+    assert "chop is running" not in check.details[0]
 
 
 def _stub_issues(monkeypatch, issues: list[Issue]) -> None:

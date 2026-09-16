@@ -94,14 +94,14 @@ def evaluate_chop_preflight(
     except Exception as exc:
         return ChopPreflight(
             outcome="check_error",
-            reason=f"declarative chop preflight failed: {exc}",
+            reason=f"declarative job preflight failed: {exc}",
         )
 
     outcome = str(decision.get("outcome"))
     if outcome not in {"fire", "skip", "check_error"}:
         return ChopPreflight(
             outcome="check_error",
-            reason=f"declarative chop preflight returned invalid outcome {outcome!r}",
+            reason=f"declarative job preflight returned invalid outcome {outcome!r}",
             decision=decision,
         )
     return ChopPreflight(

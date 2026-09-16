@@ -103,7 +103,7 @@ def run_script_chop_once(
         except Exception as exc:
             preflight = ChopPreflight(
                 outcome="check_error",
-                reason=f"could not build chop policy context: {exc}",
+                reason=f"could not build job policy context: {exc}",
             )
             return record_preflight_outcome(
                 lumberjack_name=lumberjack_name,
@@ -160,7 +160,7 @@ def run_script_chop_once(
             started_by=started_by,
             preflight=ChopPreflight(
                 outcome="check_error",
-                reason=f"could not persist chop checkpoint observation: {exc}",
+                reason=f"could not persist job checkpoint observation: {exc}",
             ),
             chop_verbose=chop_verbose,
         )
@@ -168,9 +168,7 @@ def run_script_chop_once(
     script_name = chop.script_name
     script = discover_chop_script_fn(script_name, axe_config.chop_script_dirs)
     if script is None:
-        error = RuntimeError(
-            f"Chop script not found: {script_name} (chop: {chop.name})"
-        )
+        error = RuntimeError(f"Job script not found: {script_name} (job: {chop.name})")
         finished_at = datetime.now(get_timezone())
         duration_ms = max(0, int((finished_at - started_at).total_seconds() * 1000))
         try:
@@ -219,7 +217,7 @@ def run_script_chop_once(
             started_by=started_by,
             preflight=ChopPreflight(
                 outcome="check_error",
-                reason=f"could not resolve chop environment: {exc}",
+                reason=f"could not resolve job environment: {exc}",
             ),
             chop_verbose=chop_verbose,
         )

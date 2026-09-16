@@ -78,7 +78,7 @@ def record_preflight_outcome(
         "skipped" if preflight.outcome == "skip" else "check_error"
     )
     error = RuntimeError(preflight.reason) if status == "check_error" else None
-    label = "Chop skipped" if status == "skipped" else "Chop preflight check error"
+    label = "Job skipped" if status == "skipped" else "Job preflight check error"
     output = f"{label}: {preflight.reason}\n"
     provider = (preflight.decision or {}).get("provider")
     advances_cadence = not (status == "skipped" and provider not in _TRIGGER_PROVIDERS)

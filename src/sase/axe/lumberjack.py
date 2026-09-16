@@ -150,7 +150,7 @@ class Lumberjack:
             self.config.chop_names,
         )
         if finalized_actions:
-            self._log(f"Finalized {finalized_actions} chop action lifecycle(s)")
+            self._log(f"Finalized {finalized_actions} job action lifecycle(s)")
         stale_marker = clear_stale_maintenance()
         if stale_marker is not None:
             self._log(
@@ -393,7 +393,7 @@ class Lumberjack:
             success=False,
             update_timestamp=False,
             log_lines=log_lines,
-            error=RuntimeError(f"unexpected chop run outcome: {outcome.status}"),
+            error=RuntimeError(f"unexpected job run outcome: {outcome.status}"),
             traceback=_TRACEBACK_UNAVAILABLE,
         )
 
@@ -524,9 +524,9 @@ class Lumberjack:
         self.scheduler.every(30).seconds.do(self._update_metrics)
 
         self._log(
-            f"Lumberjack '{self.name}' started (PID: {os.getpid()}, "
+            f"Routine '{self.name}' started (PID: {os.getpid()}, "
             f"interval: {self.config.interval}s, "
-            f"chops: {', '.join(self.config.chop_names)})"
+            f"jobs: {', '.join(self.config.chop_names)})"
         )
 
         # Write initial status
@@ -545,6 +545,6 @@ class Lumberjack:
             remove_lumberjack_pid(self.name)
             self._update_status()
             self._update_metrics()
-            self._log(f"Lumberjack '{self.name}' stopped")
+            self._log(f"Routine '{self.name}' stopped")
 
         return True

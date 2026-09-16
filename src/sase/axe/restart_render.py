@@ -120,7 +120,7 @@ def _stop_summary_text(result: AxeStopResult) -> str:
             label = f"{label} (pid {result.orchestrator_pid})"
         parts.append(label)
     if result.lumberjacks_stopped:
-        parts.append(f"{result.lumberjacks_stopped} lumberjack(s)")
+        parts.append(f"{result.lumberjacks_stopped} routine process(es)")
     if result.force_killed_processes:
         parts.append(f"{result.force_killed_processes} matched axe process(es)")
     if not parts:
@@ -175,10 +175,10 @@ def _verify_row(state: _RestartLiveState) -> Text:
     total = len(state.verify_fresh) + len(state.verify_pending)
     if not state.verify_pending:
         return Text(
-            f"✓ Verified {total}/{total} lumberjack heartbeats fresh", style="green"
+            f"✓ Verified {total}/{total} routine heartbeats fresh", style="green"
         )
     return Text(
-        f"◐ Verifying lumberjack heartbeats · {len(state.verify_fresh)}/{total} fresh"
+        f"◐ Verifying routine heartbeats · {len(state.verify_fresh)}/{total} fresh"
         f"   {state.verify_elapsed:.1f}s / {state.verify_timeout:g}s",
         style="cyan",
     )
@@ -239,7 +239,7 @@ def render_restart_settle_panel(
             style=_SUCCESS_STYLE,
         )
         body.append(
-            f"  {total}/{total} lumberjack heartbeats fresh: "
+            f"  {total}/{total} routine heartbeats fresh: "
             f"{', '.join(state.lumberjacks) or '-'}"
         )
         return Panel(body, title="AXE restarted", border_style="green", box=box.ROUNDED)
@@ -362,7 +362,7 @@ class RestartPlainRenderer:
             self._verify_announced = True
             noun = "heartbeat" if total == 1 else "heartbeats"
             self._console.print(
-                f"Verifying {total} lumberjack {noun} "
+                f"Verifying {total} routine {noun} "
                 f"(timeout {event.timeout_seconds:g}s)…"
             )
         newly_fresh = sorted(

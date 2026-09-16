@@ -347,7 +347,10 @@ def test_run_configured_chop_once_records_unresolved_secret_as_check_error(
 
     assert outcome.status == "check_error"
     assert outcome.reason is not None
+    assert "could not resolve job environment" in outcome.reason
+    assert "could not resolve job env TOKEN" in outcome.reason
     assert "MISSING_TOKEN" in outcome.reason
+    assert "chop environment" not in outcome.reason
 
 
 def test_run_configured_chop_once_missing_script(
@@ -368,6 +371,7 @@ def test_run_configured_chop_once_missing_script(
     entry = read_chop_run("hooks", "absent_chop", outcome.run_id)
     assert entry is not None
     assert entry.status == "missing_script"
+    assert entry.error == "Job script not found: absent_chop (job: absent_chop)"
 
 
 def test_run_configured_chop_once_dedupes_live_script_run(
@@ -447,7 +451,7 @@ def test_run_configured_chop_once_recovers_old_pidless_script_run(
     assert old_finalized is not None
     assert old_finalized.status == "failure"
     assert old_finalized.error == (
-        "stale running chop never recorded a pid after 90s grace window"
+        "stale running job never recorded a pid after 90s grace window"
     )
 
     index = read_chop_run_index("hooks", "hook_checks")

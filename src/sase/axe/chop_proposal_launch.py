@@ -133,7 +133,7 @@ def _resolve_typed_batch_project(
                 "invalid_request",
                 "workspace",
                 (
-                    "typed AXE chop proposal "
+                    "typed AXE job proposal "
                     f"{plan.proposal.index + 1} workspace "
                     f"{plan.proposal.workspace!r} does not resolve to a known project"
                 ),
@@ -159,7 +159,7 @@ def _resolve_typed_batch_project(
         raise LaunchRequestError(
             "invalid_request",
             "workspace",
-            f"typed AXE chop proposal batch spans multiple projects: {details}",
+            f"typed AXE job proposal batch spans multiple projects: {details}",
         )
     selected_project, source_cwd, project_file = next(iter(unique))
     return selected_project, source_cwd, project_file
@@ -239,7 +239,7 @@ def _plan_for_unit(
             "invalid_request",
             unit.logical_id,
             (
-                "typed AXE chop plan unit "
+                "typed AXE job plan unit "
                 f"{unit.logical_id} has invalid source_order {unit.source_order}"
             ),
         ) from exc

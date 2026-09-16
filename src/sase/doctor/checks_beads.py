@@ -268,7 +268,7 @@ def _claim_advisories(issues: list[Issue], projects_root: Path) -> list[str]:
     anywhere, a claimed bead whose owning agent is dead, a promoted
     ``in_progress`` bead whose runner died before closing it, and a live
     pre-launch agent whose bead is still ``open`` even though the
-    ``bead_claim_checks`` chop should have claimed it for that agent.
+    ``bead_claim_checks`` job should have claimed it for that agent.
     """
     claimed = [issue for issue in issues if issue.status == Status.CLAIMED]
     in_progress = [issue for issue in issues if issue.status == Status.IN_PROGRESS]
@@ -309,7 +309,7 @@ def _claim_advisories(issues: list[Issue], projects_root: Path) -> list[str]:
         rendered = ", ".join(f"{bead_id} ({agent})" for bead_id, agent in unclaimed)
         messages.append(
             "WARNING: live pre-launch agents own beads that are still open: "
-            f"{rendered}; check that the `bead_claim_checks` chop is running"
+            f"{rendered}; check that the `bead_claim_checks` job is running"
         )
     return messages
 

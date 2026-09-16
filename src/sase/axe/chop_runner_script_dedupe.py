@@ -75,7 +75,7 @@ def active_script_chop_run(
         if not is_process_running_fn(head.pid):
             _finalize_stale_script_chop_run(
                 head,
-                reason=f"stale running chop process exited: pid {head.pid}",
+                reason=f"stale running job process exited: pid {head.pid}",
             )
             return None
         return head
@@ -86,7 +86,7 @@ def active_script_chop_run(
         _finalize_stale_script_chop_run(
             head,
             reason=(
-                "stale running chop never recorded a pid after "
+                "stale running job never recorded a pid after "
                 f"{stale_after}s grace window"
             ),
         )

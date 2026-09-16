@@ -96,7 +96,7 @@ class AxeStopResult:
             else:
                 parts.append("orchestrator signaled")
         if self.lumberjacks_stopped:
-            parts.append(f"{self.lumberjacks_stopped} lumberjack(s)")
+            parts.append(f"{self.lumberjacks_stopped} routine process(es)")
         if self.force_killed_processes:
             parts.append(f"{self.force_killed_processes} matched axe process(es)")
         if parts:

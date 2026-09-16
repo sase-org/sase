@@ -95,10 +95,12 @@ def test_plain_renderer_prints_stop_started_verify_and_finish_lines() -> None:
     lines = _plain_lines(events)
 
     assert lines[0] == "Stopping AXE…"
-    assert lines[1] == "Stopped orchestrator (pid 41213) + 2 lumberjack(s) in 1.2s"
+    assert (
+        lines[1] == "Stopped orchestrator (pid 41213) + 2 routine process(es) in 1.2s"
+    )
     assert lines[2] == "Starting AXE (attempt 1/3)…"
     assert lines[3] == "Started orchestrator (pid 41890)"
-    assert lines[4] == "Verifying 2 lumberjack heartbeats (timeout 15s)…"
+    assert lines[4] == "Verifying 2 routine heartbeats (timeout 15s)…"
     assert lines[5] == "  agents fresh"
     assert lines[6] == "  hooks fresh"
     assert lines[-1] == "AXE restarted and verified (pid 41890) in 6.3s"
@@ -234,7 +236,7 @@ def test_live_panel_renders_stop_start_and_verify_rows() -> None:
     text = output.getvalue()
     assert "attempt 1/3" in text
     assert "0:04" in text
-    assert "Stopped orchestrator (pid 41213) + 1 lumberjack(s)" in text
+    assert "Stopped orchestrator (pid 41213) + 1 routine process(es)" in text
     assert "Started orchestrator (pid 41890)" in text
     assert "1/2 fresh" in text
     assert "agents" in text and "fresh" in text

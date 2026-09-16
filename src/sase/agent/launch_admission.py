@@ -232,7 +232,7 @@ def _agent_dispatcher_for_request(
             return (
                 False,
                 None,
-                f"missing AXE chop dispatch metadata for {unit.logical_id}",
+                f"missing AXE job dispatch metadata for {unit.logical_id}",
                 [],
             )
 

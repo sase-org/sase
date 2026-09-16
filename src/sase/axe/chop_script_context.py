@@ -48,7 +48,7 @@ class ChopScriptContext:
     def __post_init__(self) -> None:
         if self.routine_name and self.routine_name != self.lumberjack_name:
             raise ValueError(
-                "conflicting chop context aliases: lumberjack_name and "
+                "conflicting job context aliases: lumberjack_name and "
                 "routine_name differ"
             )
         if not self.routine_name:
@@ -57,7 +57,7 @@ class ChopScriptContext:
             self.verbose_routine_diagnostics = self.verbose_lumberjack_diagnostics
         elif self.verbose_routine_diagnostics != self.verbose_lumberjack_diagnostics:
             raise ValueError(
-                "conflicting chop context aliases: verbose_lumberjack_diagnostics "
+                "conflicting job context aliases: verbose_lumberjack_diagnostics "
                 "and verbose_routine_diagnostics differ"
             )
 
@@ -107,7 +107,7 @@ def read_chop_context(path: str) -> ChopScriptContext:
     with open(path) as f:
         data = json.load(f)
     if not isinstance(data, dict):
-        raise ValueError(f"chop context must be a JSON object: {path}")
+        raise ValueError(f"job context must be a JSON object: {path}")
     _normalize_context_aliases(data)
     known_fields = {field.name for field in fields(ChopScriptContext)}
     filtered = {key: value for key, value in data.items() if key in known_fields}
@@ -136,7 +136,7 @@ def prepare_chop_run_context(
     with source_path.open(encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, dict):
-        raise ValueError(f"chop context must be a JSON object: {context_file}")
+        raise ValueError(f"job context must be a JSON object: {context_file}")
     _normalize_context_aliases(data)
     data["result_file"] = result_file
     data["source"] = source
@@ -152,7 +152,7 @@ def _normalize_context_aliases(data: dict[str, Any]) -> None:
     routine_name = data.get("routine_name")
     if lumberjack_name and routine_name and lumberjack_name != routine_name:
         raise ValueError(
-            "conflicting chop context aliases: lumberjack_name and routine_name differ"
+            "conflicting job context aliases: lumberjack_name and routine_name differ"
         )
     if not lumberjack_name and routine_name:
         data["lumberjack_name"] = routine_name
@@ -167,7 +167,7 @@ def _normalize_context_aliases(data: dict[str, Any]) -> None:
         and bool(legacy_verbose) != bool(public_verbose)
     ):
         raise ValueError(
-            "conflicting chop context aliases: verbose_lumberjack_diagnostics and "
+            "conflicting job context aliases: verbose_lumberjack_diagnostics and "
             "verbose_routine_diagnostics differ"
         )
     if legacy_verbose is None and public_verbose is not None:

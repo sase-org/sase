@@ -150,19 +150,19 @@ def _resolve_chop_env_value(
         return value
     if not isinstance(value, dict) or len(value) != 1:
         raise _ChopSecretResolutionError(
-            f"could not resolve chop env {name}: invalid secret reference"
+            f"could not resolve job env {name}: invalid secret reference"
         )
 
     provider, reference = next(iter(value.items()))
     if not isinstance(reference, str) or not reference.strip():
         raise _ChopSecretResolutionError(
-            f"could not resolve chop env {name}: blank {provider} reference"
+            f"could not resolve job env {name}: blank {provider} reference"
         )
     if provider == "env":
         resolved = environ.get(reference, "")
         if not resolved:
             raise _ChopSecretResolutionError(
-                f"could not resolve chop env {name}: environment variable "
+                f"could not resolve job env {name}: environment variable "
                 f"{reference} is not set"
             )
         return resolved
@@ -172,12 +172,12 @@ def _resolve_chop_env_value(
             resolved = path.read_text(encoding="utf-8").rstrip("\r\n")
         except OSError as exc:
             raise _ChopSecretResolutionError(
-                f"could not resolve chop env {name}: file {path} could not be read: "
+                f"could not resolve job env {name}: file {path} could not be read: "
                 f"{exc.strerror or type(exc).__name__}"
             ) from exc
         if not resolved:
             raise _ChopSecretResolutionError(
-                f"could not resolve chop env {name}: file {path} is empty"
+                f"could not resolve job env {name}: file {path} is empty"
             )
         return resolved
     if provider == "pass":
@@ -191,19 +191,19 @@ def _resolve_chop_env_value(
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise _ChopSecretResolutionError(
-                f"could not resolve chop env {name}: pass entry {reference} "
+                f"could not resolve job env {name}: pass entry {reference} "
                 "could not be read"
             ) from exc
         first_line = completed.stdout.splitlines()[0] if completed.stdout else ""
         if completed.returncode != 0 or not first_line:
             raise _ChopSecretResolutionError(
-                f"could not resolve chop env {name}: pass entry {reference} "
+                f"could not resolve job env {name}: pass entry {reference} "
                 "is unavailable"
             )
         return first_line
 
     raise _ChopSecretResolutionError(
-        f"could not resolve chop env {name}: unknown secret provider {provider}"
+        f"could not resolve job env {name}: unknown secret provider {provider}"
     )
 
 

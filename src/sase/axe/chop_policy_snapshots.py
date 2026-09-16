@@ -194,7 +194,7 @@ def fs_snapshot(trigger: dict[str, Any]) -> dict[str, Any]:
 
 def patch_snapshots(context_file: str | None) -> list[dict[str, str]]:
     if not context_file:
-        raise ValueError("patch guard requires a chop context file")
+        raise ValueError("patch guard requires a job context file")
     try:
         context = json.loads(Path(context_file).read_text(encoding="utf-8"))
         patch_path = Path(str(context["all_patches_file"]))

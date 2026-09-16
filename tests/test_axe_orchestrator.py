@@ -236,7 +236,7 @@ def test_crash_loop_writes_error_and_notification_once(
     notify_workflow_complete.assert_called_once()
     notification = notify_workflow_complete.call_args.kwargs
     assert notification["sender"] == "axe"
-    assert "Lumberjack 'hooks'" in notification["notes"][0]
+    assert "Routine 'hooks'" in notification["notes"][0]
     assert "exit code 17" in notification["notes"][0]
     assert "boom traceback" in notification["notes"][1]
     assert "extra_files" not in notification

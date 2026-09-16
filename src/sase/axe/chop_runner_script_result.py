@@ -175,7 +175,7 @@ def process_script_chop_result(
             str(
                 structured_result.get("reason")
                 or structured_result.get("summary")
-                or "chop reported a degraded check"
+                or "job reported a degraded check"
             )
         )
         finalize_script_chop_run(

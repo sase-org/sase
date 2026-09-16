@@ -214,7 +214,7 @@ class Orchestrator:
         else:
             detail = f"failed to start ({spawn_error})"
         print(
-            f"Lumberjack '{name}' {detail}; retrying in {state.backoff_seconds:g}s...",
+            f"Routine '{name}' {detail}; retrying in {state.backoff_seconds:g}s...",
             file=sys.stderr,
         )
 
@@ -257,7 +257,7 @@ class Orchestrator:
         else:
             latest_failure = f"latest start failure: {spawn_error}"
         summary = (
-            f"Lumberjack '{name}' is crash-looping: {failure_count} failures "
+            f"Routine '{name}' is crash-looping: {failure_count} failures "
             f"within {int(_CRASH_LOOP_WINDOW_SECONDS)}s; {latest_failure}"
         )
         error_info = {
@@ -265,13 +265,13 @@ class Orchestrator:
             "lumberjack": name,
             "job": "orchestrator_restart",
             "error": summary,
-            "traceback": output_tail or "[no recent lumberjack output]",
+            "traceback": output_tail or "[no recent routine output]",
         }
         try:
             append_error(error_info)
         except Exception as exc:
             print(
-                f"Failed to record crash loop for lumberjack '{name}': {exc}",
+                f"Failed to record crash loop for routine '{name}': {exc}",
                 file=sys.stderr,
             )
 
@@ -284,13 +284,13 @@ class Orchestrator:
                 success=False,
                 notes=[
                     summary,
-                    f"Recent output:\n{output_tail or '[no recent lumberjack output]'}",
+                    f"Recent output:\n{output_tail or '[no recent routine output]'}",
                 ],
                 tags=["axe", "crash-loop"],
             )
         except Exception as exc:
             print(
-                f"Failed to notify about crash loop for lumberjack '{name}': {exc}",
+                f"Failed to notify about crash loop for routine '{name}': {exc}",
                 file=sys.stderr,
             )
 

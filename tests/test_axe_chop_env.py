@@ -57,6 +57,8 @@ def test_resolve_chop_env_fails_without_exposing_other_secret_values() -> None:
 
     assert "TOKEN" in str(exc_info.value)
     assert "MISSING_TOKEN" in str(exc_info.value)
+    assert "could not resolve job env TOKEN" in str(exc_info.value)
+    assert "chop env" not in str(exc_info.value)
     assert "do-not-leak-this" not in str(exc_info.value)
 
 

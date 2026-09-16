@@ -136,7 +136,7 @@ def finalize_launched_chop_runs(
                 lumberjack_name,
                 chop_name,
                 run_id,
-                f"\nChop action lifecycle: {status}: {detail}\n",
+                f"\nJob action lifecycle: {status}: {detail}\n",
             )
             finished_at = datetime.now(get_timezone())
             finish_chop_run(

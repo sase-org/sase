@@ -119,19 +119,19 @@ def extract_chop_launch_env(
         source,
         ENV_CHOP_LUMBERJACK,
         ENV_JOB_ROUTINE,
-        label="chop launch routine",
+        label="job launch routine",
     )
     chop_name = resolve_aliased_env_value(
         source,
         ENV_CHOP_NAME,
         ENV_JOB_NAME,
-        label="chop launch job",
+        label="job launch job",
     )
     run_id = resolve_aliased_env_value(
         source,
         ENV_CHOP_RUN_ID,
         ENV_JOB_RUN_ID,
-        label="chop launch run id",
+        label="job launch run id",
     )
     if not lumberjack_name or not chop_name or not run_id:
         return None
@@ -144,7 +144,7 @@ def extract_chop_launch_env(
         source,
         ENV_CHOP_PROMPT_HASH,
         ENV_JOB_PROMPT_HASH,
-        label="chop launch prompt hash",
+        label="job launch prompt hash",
     )
     if prompt_hash_value:
         result[ENV_CHOP_PROMPT_HASH] = prompt_hash_value
@@ -152,22 +152,22 @@ def extract_chop_launch_env(
         (
             ENV_CHOP_ADMISSION_LOGICAL_ID,
             ENV_JOB_ADMISSION_LOGICAL_ID,
-            "chop launch admission logical id",
+            "job launch admission logical id",
         ),
         (
             ENV_CHOP_ADMISSION_FINGERPRINT,
             ENV_JOB_ADMISSION_FINGERPRINT,
-            "chop launch admission fingerprint",
+            "job launch admission fingerprint",
         ),
         (
             ENV_CHOP_PROPOSAL_INDEX,
             ENV_JOB_PROPOSAL_INDEX,
-            "chop launch proposal index",
+            "job launch proposal index",
         ),
         (
             ENV_CHOP_PROPOSAL_ID,
             ENV_JOB_PROPOSAL_ID,
-            "chop launch proposal id",
+            "job launch proposal id",
         ),
     ):
         value = resolve_aliased_env_value(

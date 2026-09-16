@@ -22,7 +22,7 @@ def append_structured_result_summary(
     run_id: str,
     result: dict[str, Any],
 ) -> None:
-    parts = [f"Structured chop result: {result['status']}"]
+    parts = [f"Structured job result: {result['status']}"]
     if result.get("summary"):
         parts.append(str(result["summary"]))
     if result.get("reason"):

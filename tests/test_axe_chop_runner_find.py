@@ -19,8 +19,9 @@ def test_find_configured_chop_unique() -> None:
 
 def test_find_configured_chop_missing_raises() -> None:
     config = config_with(hooks=[ChopConfig(name="other", description="")])
-    with pytest.raises(ChopNotFoundError):
+    with pytest.raises(ChopNotFoundError) as exc_info:
         find_configured_chop(config, "missing")
+    assert str(exc_info.value) == "job 'missing' is not configured"
 
 
 def test_find_configured_chop_ignores_disabled_entries() -> None:
@@ -39,6 +40,10 @@ def test_find_configured_chop_ambiguous_without_lumberjack_raises() -> None:
     with pytest.raises(AmbiguousChopError) as exc_info:
         find_configured_chop(config, "dup")
     assert exc_info.value.candidates == ["comments", "hooks"]
+    message = str(exc_info.value)
+    assert "job 'dup' is configured in multiple routines: comments, hooks" in message
+    assert "--routine" in message
+    assert "lumberjack" not in message
 
 
 def test_find_configured_chop_ambiguous_with_lumberjack_succeeds() -> None:
@@ -53,5 +58,8 @@ def test_find_configured_chop_ambiguous_with_lumberjack_succeeds() -> None:
 def test_find_configured_chop_lumberjack_filter_misses_raises() -> None:
     chop = ChopConfig(name="hook_checks", description="")
     config = config_with(hooks=[chop])
-    with pytest.raises(ChopNotFoundError):
+    with pytest.raises(ChopNotFoundError) as exc_info:
         find_configured_chop(config, "hook_checks", lumberjack_name="comments")
+    assert str(exc_info.value) == (
+        "job 'hook_checks' is not configured under routine 'comments'"
+    )

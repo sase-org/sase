@@ -82,7 +82,7 @@ def test_active_script_chop_run_finalizes_dead_pid_and_returns_none(
     assert finalized is not None
     assert finalized.status == "failure"
     assert finalized.finished_at is not None
-    assert finalized.error == "stale running chop process exited: pid 12345"
+    assert finalized.error == "stale running job process exited: pid 12345"
 
 
 def test_active_script_chop_run_keeps_recent_pidless_running_entry(
@@ -131,7 +131,7 @@ def test_active_script_chop_run_finalizes_old_pidless_running_entry(
     assert finalized.status == "failure"
     assert finalized.finished_at is not None
     assert finalized.error == (
-        "stale running chop never recorded a pid after 90s grace window"
+        "stale running job never recorded a pid after 90s grace window"
     )
 
 

@@ -109,3 +109,37 @@ def test_log_projects_changespec_names_but_preserves_paths(
     assert project_display_case.patch_label in rendered
     assert project_display_case.patch_key not in rendered
     assert canonical_path in rendered
+
+
+def test_run_logs_canonical_routine_start_and_stop(
+    temp_state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    axe_config: AxeConfig,
+) -> None:
+    config = LumberjackConfig(
+        name="checks",
+        description="Run checks",
+        interval=60,
+        chops=[],
+    )
+    lumberjack = Lumberjack("checks", config, axe_config)
+
+    def _one_tick() -> None:
+        lumberjack._running = False
+
+    monkeypatch.setattr(lumberjack, "_run_tick", _one_tick)
+    monkeypatch.setattr("sase.axe.lumberjack.os.chdir", lambda _path: None)
+    monkeypatch.setattr(
+        "sase.axe.lumberjack.init_telemetry",
+        lambda *args, **kwargs: None,
+    )
+
+    assert lumberjack.run() is True
+
+    log_path = temp_state_dir / "lumberjacks" / "checks" / "logs" / "output.log"
+    rendered = Text.from_ansi(log_path.read_text(encoding="utf-8")).plain
+    assert "Routine 'checks' started" in rendered
+    assert "jobs: " in rendered
+    assert "Routine 'checks' stopped" in rendered
+    assert "Lumberjack 'checks' started" not in rendered
+    assert "chops:" not in rendered
