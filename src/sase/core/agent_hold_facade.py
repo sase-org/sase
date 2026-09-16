@@ -79,6 +79,20 @@ def find_agent_hold(
     return None
 
 
+def agent_hold_blocks_candidate(
+    record: Mapping[str, Any],
+    candidate: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """Evaluate the pure Rust hold predicate for one candidate."""
+    blocks = require_rust_binding("agent_hold_blocks_candidate")
+    value = blocks(dict(record), dict(candidate))
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise RuntimeError("agent_hold_blocks_candidate returned a non-object block")
+    return dict(value)
+
+
 def _list_and_reconcile_holds(
     records: Sequence[AgentArtifactRecordWire],
     *,
@@ -838,6 +852,7 @@ def candidate_created_at_from_timestamp(timestamp: str | None) -> float | None:
 __all__ = [
     "AgentHoldArmResult",
     "active_agent_hold_records",
+    "agent_hold_blocks_candidate",
     "arm_agent_hold",
     "candidate_created_at_from_timestamp",
     "current_armer_wire",

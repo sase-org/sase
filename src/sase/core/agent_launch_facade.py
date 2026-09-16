@@ -243,11 +243,22 @@ def next_admission_actions(
     plan: LaunchPlanWire,
     states: dict[str, dict[str, Any]],
     wait_facts: list[dict[str, Any]],
+    hold_blocks: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Return the next durable admission actions for *plan*."""
 
     binding = require_rust_binding("next_admission_actions")
-    payload = binding(agent_launch_wire_to_json_dict(plan), states, wait_facts)
+    plan_payload = agent_launch_wire_to_json_dict(plan)
+    try:
+        payload = binding(plan_payload, states, wait_facts, hold_blocks or [])
+    except TypeError as exc:
+        if hold_blocks:
+            raise RuntimeError(
+                "sase_core_rs.next_admission_actions with hold-block facts is "
+                "required for proc hold admission; rebuild sase_core_rs from "
+                "the matching sase-core checkout."
+            ) from exc
+        payload = binding(plan_payload, states, wait_facts)
     return [dict(item) for item in payload]
 
 

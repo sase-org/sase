@@ -15,7 +15,10 @@ def register_agent_hold_parser(agents_sub: argparse._SubParsersAction) -> None:
             "Create, inspect, release, and wrap durable admission holds. "
             "Running bare `sase agent hold` delegates to `sase agent hold list`."
         ),
-        help="Arm and manage reverse-wait admission holds (blocks WAITING/QUEUED/future agents)",
+        help=(
+            "Arm and manage reverse-wait admission holds "
+            "(blocks WAITING/QUEUED/future agents and undispatched procs)"
+        ),
     )
     hold_sub = hold_parser.add_subparsers(
         dest="hold_subcommand",
@@ -38,7 +41,7 @@ def _add_selector_arguments(parser: argparse.ArgumentParser) -> None:
         action="append",
         default=[],
         metavar="NAME",
-        help="Block this exact agent name (repeatable)",
+        help="Block this exact agent name or proc shell name (repeatable)",
     )
     parser.add_argument(
         "-t",
@@ -62,7 +65,7 @@ def _add_selector_arguments(parser: argparse.ArgumentParser) -> None:
         "-f",
         "--future",
         action="store_true",
-        help="Block agents launched after this hold is armed",
+        help="Block agents and undispatched procs submitted after this hold is armed",
     )
     parser.add_argument(
         "-p",
@@ -70,7 +73,8 @@ def _add_selector_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help=(
             "Freeze the WAITING/QUEUED agents in scope right now and block "
-            "only those (does not block agents launched later)"
+            "only those (does not capture undispatched procs or agents/procs "
+            "launched later)"
         ),
     )
 

@@ -51,6 +51,12 @@ def test_create_requires_no_positional_target() -> None:
     assert args.ttl is None
 
 
+def test_pending_help_documents_proc_limitation() -> None:
+    hold_sub = _hold_subparsers(_build())
+    help_text = hold_sub.choices["create"].format_help()
+    assert "does not capture undispatched procs" in " ".join(help_text.split())
+
+
 def test_run_command_words_capture_everything_after_dashdash() -> None:
     hold_sub = _hold_subparsers(_build())
     args = hold_sub.choices["run"].parse_args(["-f", "--", "just", "check"])

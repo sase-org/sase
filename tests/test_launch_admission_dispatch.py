@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from sase.agent.launch_types import AgentLaunchResult
+from sase.core.agent_hold_facade import arm_agent_hold, release_agent_hold
 from sase.core.agent_launch_wire import LaunchUnitWire
 from sase.axe import run_agent_wait_slots
 from tests._launch_admission_helpers import (
@@ -215,3 +217,119 @@ def test_authored_proc_weight_blocks_when_it_cannot_fit(
     assert progress.summary.launch_errors == 0
     assert progress.unit_results[0].outcome == "eligible"
     assert "capacity" in str(progress.unit_results[0].message)
+
+
+def test_agent_hold_named_proc_shell_blocks_until_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr("sase.core.agent_hold_facade._project_for_cwd", lambda: "sase")
+    hold = arm_agent_hold(
+        names=["checks"],
+        scope="host",
+        ttl_seconds=60.0,
+        pid_override=os.getpid(),
+    )
+    dispatched: list[str] = []
+    launch_plan = _plan(_proc_unit("unit-1", tmp_path, shell_name="checks"))
+
+    blocked, response_dir = _run_plan(
+        tmp_path,
+        launch_plan,
+        request_id="req-proc-hold",
+        proc_dispatcher=lambda unit, fingerprint: (
+            dispatched.append(fingerprint) or (True, "proc-1", None, [])
+        ),
+    )
+
+    assert blocked.admission_complete is False
+    assert blocked.summary is not None
+    assert blocked.summary.launched == 0
+    assert dispatched == []
+
+    assert release_agent_hold(hold.record["armer"]["key"])
+    admitted, replay_response_dir = _run_plan(
+        tmp_path,
+        launch_plan,
+        request_id="req-proc-hold",
+        proc_dispatcher=lambda unit, fingerprint: (
+            dispatched.append(fingerprint) or (True, "proc-1", None, [])
+        ),
+    )
+
+    assert replay_response_dir == response_dir
+    assert admitted.admission_complete is True
+    assert admitted.summary is not None
+    assert admitted.summary.launched == 1
+    assert len(dispatched) == 1
+
+
+def test_agent_hold_future_blocks_proc_submitted_after_arm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr("sase.core.agent_hold_facade._project_for_cwd", lambda: "sase")
+    arm_agent_hold(
+        future=True,
+        scope="host",
+        ttl_seconds=60.0,
+        pid_override=os.getpid(),
+    )
+    dispatched: list[str] = []
+
+    blocked, _ = _run_plan(
+        tmp_path,
+        _plan(_proc_unit("unit-1", tmp_path)),
+        request_id="req-proc-future-hold",
+        proc_dispatcher=lambda unit, fingerprint: (
+            dispatched.append(fingerprint) or (True, "proc-1", None, [])
+        ),
+    )
+
+    assert blocked.admission_complete is False
+    assert blocked.summary is not None
+    assert blocked.summary.launched == 0
+    assert dispatched == []
+
+
+def test_agent_hold_does_not_retouch_dispatched_proc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr("sase.core.agent_hold_facade._project_for_cwd", lambda: "sase")
+    dispatched: list[str] = []
+    launch_plan = _plan(_proc_unit("unit-1", tmp_path, shell_name="checks"))
+
+    first, _ = _run_plan(
+        tmp_path,
+        launch_plan,
+        request_id="req-proc-dispatched-hold",
+        proc_dispatcher=lambda unit, fingerprint: (
+            dispatched.append(fingerprint) or (True, "proc-1", None, [])
+        ),
+    )
+    assert first.admission_complete is True
+    assert len(dispatched) == 1
+
+    arm_agent_hold(
+        names=["checks"],
+        scope="host",
+        ttl_seconds=60.0,
+        pid_override=os.getpid(),
+    )
+    replay, _ = _run_plan(
+        tmp_path,
+        launch_plan,
+        request_id="req-proc-dispatched-hold",
+        proc_dispatcher=lambda unit, fingerprint: (
+            dispatched.append(fingerprint) or (True, "proc-1", None, [])
+        ),
+    )
+
+    assert replay.admission_complete is True
+    assert replay.summary is not None
+    assert replay.summary.launched == 1
+    assert len(dispatched) == 1

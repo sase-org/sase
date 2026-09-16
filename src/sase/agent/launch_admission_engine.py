@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import math
 import sys
 import time
 from collections.abc import Callable, Mapping
@@ -57,10 +59,13 @@ from sase.core.agent_launch_wire import (
     LaunchPlanWire,
     LaunchUnitResultWire,
     LaunchUnitWire,
+    ProcUnitWire,
     agent_launch_wire_to_json_dict,
     launch_plan_from_dict,
 )
 from sase.core.atomic_json import write_json_marker_atomic
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -107,7 +112,10 @@ class AdmissionEngine:
                 return self._progress(complete=True)
             states = self._states()
             actions = next_admission_actions(
-                self.plan, states, self._wait_facts(states)
+                self.plan,
+                states,
+                self._wait_facts(states),
+                self._hold_blocks(states),
             )
             if not actions:
                 progress = self._progress(complete=_all_terminal(self.plan, states))
@@ -172,6 +180,81 @@ class AdmissionEngine:
             now=self.clock(),
             waiting_since=self._waiting_since,
         )
+
+    def _hold_blocks(self, states: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+        """Return active hold blocks for pre-dispatch proc units.
+
+        Holds fail open on the admission path: a broken store or predicate must not
+        strand a proc that has no separate runner-slot marker to inspect.
+        """
+        proc_units = [
+            unit
+            for unit in self.plan.units
+            if isinstance(unit.payload, ProcUnitWire)
+            and str((states.get(unit.logical_id) or {}).get("phase") or "")
+            in {"waiting", "eligible"}
+        ]
+        if not proc_units:
+            return []
+        now_seconds = self.clock()
+        now_dt = datetime.fromtimestamp(now_seconds, UTC)
+        try:
+            from sase.core.agent_hold_facade import (
+                active_agent_hold_records,
+                agent_hold_blocks_candidate,
+            )
+
+            active_holds = active_agent_hold_records(now=now_dt)
+            if not active_holds:
+                return []
+            blocks: list[dict[str, Any]] = []
+            for unit in proc_units:
+                candidate = self._proc_hold_candidate(
+                    unit,
+                    states.get(unit.logical_id) or {},
+                    now_seconds=now_seconds,
+                )
+                for hold in active_holds:
+                    block = agent_hold_blocks_candidate(hold, candidate)
+                    if block is not None:
+                        blocks.append({"logical_id": unit.logical_id, "block": block})
+            return blocks
+        except Exception as exc:  # noqa: BLE001 - holds fail open by design.
+            LOGGER.warning("proc hold admission failed open: %s", exc)
+            return []
+
+    def _proc_hold_candidate(
+        self,
+        unit: LaunchUnitWire,
+        state: Mapping[str, Any],
+        *,
+        now_seconds: float,
+    ) -> dict[str, Any]:
+        payload = unit.payload
+        candidate: dict[str, Any] = {
+            "project": self._proc_hold_project(payload),
+            "created_at": _finite_float(state.get("first_recorded_at_unix"))
+            or now_seconds,
+            "artifact_dirs": [],
+        }
+        if isinstance(payload, ProcUnitWire) and payload.shell_name:
+            candidate["proc_shell"] = payload.shell_name
+        return candidate
+
+    def _proc_hold_project(self, payload: object) -> str:
+        if isinstance(payload, ProcUnitWire) and payload.selected_project:
+            return payload.selected_project
+        if self.plan.selected_project:
+            return self.plan.selected_project
+        try:
+            from sase.bead.project_name import infer_project_name_from_cwd
+
+            project = infer_project_name_from_cwd()
+            if project:
+                return project
+        except Exception:  # noqa: BLE001 - host-scoped holds can still match.
+            pass
+        return "unknown"
 
     def _apply_action(self, action: Mapping[str, Any]) -> str | None:
         kind = str(action.get("kind") or "")
@@ -611,6 +694,13 @@ def _unpack_agent_dispatch(
         dict(result[4]) if len(result) > 4 and isinstance(result[4], Mapping) else {}
     )
     return bool(ok), identity, message, list(spawned or []), extra
+
+
+def _finite_float(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
 
 
 def _all_terminal(

@@ -94,6 +94,7 @@ def proc_unit(
     cwd: Path,
     *,
     source_order: int = 0,
+    shell_name: str | None = None,
     condition: Any = None,
     queue_capacity: int | None = None,
     wait_priority: int | None = None,
@@ -105,6 +106,7 @@ def proc_unit(
         source_order=source_order,
         payload=ProcUnitWire(
             code=code(),
+            shell_name=shell_name,
             workspace=False,
             cwd=str(cwd),
             queue_capacity=queue_capacity,
