@@ -156,11 +156,23 @@ def test_handle_axe_chop_run_ambiguous_requires_lumberjack(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A duplicate chop name without --lumberjack exits with a clear error."""
-    config = _config_with(
-        hooks=[ChopConfig(name="dup", description="")],
-        comments=[ChopConfig(name="dup", description="")],
+    config = AxeConfig(
+        lumberjacks={
+            "lumberjack_hooks": LumberjackConfig(
+                name="lumberjack_hooks",
+                description="Run hook CLI test chops",
+                interval=10,
+                chops=[ChopConfig(name="chop-test", description="")],
+            ),
+            "comments": LumberjackConfig(
+                name="comments",
+                description="Run comment CLI test chops",
+                interval=10,
+                chops=[ChopConfig(name="chop-test", description="")],
+            ),
+        }
     )
-    args = argparse.Namespace(chop_name="dup", lumberjack=None)
+    args = argparse.Namespace(chop_name="chop-test", lumberjack=None)
     with (
         patch("sase.axe.cli.load_axe_config", return_value=config),
         pytest.raises(SystemExit) as exc_info,
@@ -171,6 +183,10 @@ def test_handle_axe_chop_run_ambiguous_requires_lumberjack(
     err = capsys.readouterr().err
     assert "multiple routines" in err
     assert "--routine" in err
+    assert "job 'chop-test'" in err
+    assert "lumberjack_hooks" in err
+    assert "job-test" not in err
+    assert "routine_hooks" not in err
 
 
 def test_handle_axe_chop_run_with_lumberjack_disambiguates(

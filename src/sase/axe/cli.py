@@ -131,7 +131,12 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
         chop_timeout_default = match.lumberjack.chop_timeout
         wait_runners_default = match.lumberjack.wait_runners
     except AmbiguousChopError as e:
-        print(f"Error: {_public_axe_text(str(e))}", file=sys.stderr)
+        print(
+            "Error: "
+            f"job '{e.chop_name}' is configured in multiple routines: "
+            f"{', '.join(e.candidates)}; pass --routine to disambiguate",
+            file=sys.stderr,
+        )
         sys.exit(2)
     except ChopNotFoundError:
         if lumberjack_override is not None:
@@ -424,21 +429,3 @@ def _emit_public_job_json(args: argparse.Namespace) -> bool:
     from sase.feature_flags import FeatureFlag, current_flags
 
     return current_flags().enabled(FeatureFlag.axe_routine_job_contract)
-
-
-def _public_axe_text(value: str) -> str:
-    replacements = (
-        ("--lumberjack", "--routine"),
-        ("lumberjacks", "routines"),
-        ("Lumberjacks", "Routines"),
-        ("lumberjack", "routine"),
-        ("Lumberjack", "Routine"),
-        ("chops", "jobs"),
-        ("Chops", "Jobs"),
-        ("chop", "job"),
-        ("Chop", "Job"),
-    )
-    result = value
-    for old, new in replacements:
-        result = result.replace(old, new)
-    return result

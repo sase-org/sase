@@ -569,6 +569,47 @@ def test_handle_axe_job_doctor_json_uses_public_contract_under_flag(
     assert payload["checks"][0]["id"].startswith("configured_job:")
 
 
+def test_handle_axe_job_doctor_json_preserves_exact_legacy_script_path(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = AxeConfig(
+        lumberjacks={
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run hook doctor checks",
+                interval=10,
+                chops=[
+                    ChopConfig(
+                        name="chop-test",
+                        description="",
+                        script="/tmp/sase_chop_test",
+                    )
+                ],
+            )
+        }
+    )
+    monkeypatch.setattr(
+        "sase.axe.chop_doctor.collect_chop_inventory",
+        lambda config_arg=None: collect_chop_inventory(config),
+    )
+    monkeypatch.setattr(cli, "load_axe_config", lambda: config)
+
+    args = argparse.Namespace(axe_subcommand="job", json=True, verbose=False)
+    with override_flags(axe_routine_job_contract=True):
+        with pytest.raises(SystemExit) as exc:
+            cli.handle_axe_chop_doctor(args)
+
+    assert exc.value.code == 1
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+    assert payload["checks"][0]["summary"] == (
+        "Configured job script /tmp/sase_chop_test cannot be resolved."
+    )
+    assert "script=/tmp/sase_chop_test" in payload["checks"][0]["details"]
+    assert "/tmp/sase_job_test" not in output
+
+
 def test_handle_axe_chop_doctor_exit_zero_when_clean(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

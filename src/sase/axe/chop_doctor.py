@@ -163,9 +163,9 @@ def chop_check_to_public_dict(check: ChopCheck) -> dict[str, Any]:
     return {
         "id": _public_check_id(check.id),
         "status": check.status,
-        "summary": _public_text(check.summary),
-        "details": [_public_text(detail) for detail in check.details],
-        "next_steps": [_public_text(step) for step in check.next_steps],
+        "summary": check.summary,
+        "details": list(check.details),
+        "next_steps": list(check.next_steps),
     }
 
 
@@ -186,27 +186,6 @@ def _public_check_id(check_id: str) -> str:
         .replace("declarative_chop", "declarative_job")
         .replace("available_unconfigured_chops", "available_unconfigured_jobs")
     )
-
-
-def _public_text(value: str) -> str:
-    replacements = (
-        ("sase axe chop doctor", "sase axe job doctor"),
-        ("axe.lumberjacks", "axe.routines"),
-        ("lumberjack", "routine"),
-        ("Lumberjack", "Routine"),
-        ("chop scripts", "job scripts"),
-        ("Chop scripts", "Job scripts"),
-        ("chop script", "job script"),
-        ("Chop script", "Job script"),
-        ("chops", "jobs"),
-        ("Chops", "Jobs"),
-        ("chop", "job"),
-        ("Chop", "Job"),
-    )
-    result = value
-    for old, new in replacements:
-        result = result.replace(old, new)
-    return result
 
 
 def _configured_chop_checks(inventory: ChopInventory) -> tuple[ChopCheck, ...]:
@@ -364,7 +343,7 @@ def _telegram_checks(
                 details=(
                     *token_details,
                     f"telegram_enabled={telegram_enabled}",
-                    f"configured_telegram_chops={_chop_names(configured_chops)}",
+                    f"configured_telegram_jobs={_chop_names(configured_chops)}",
                 ),
                 next_steps=(_TELEGRAM_TOKEN_NEXT_STEP,),
             )

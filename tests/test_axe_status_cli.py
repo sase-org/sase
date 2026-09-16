@@ -247,6 +247,46 @@ def test_json_public_contract_renames_routines_and_jobs_under_flag() -> None:
     ]
 
 
+def test_json_public_contract_preserves_names_paths_and_payload_values() -> None:
+    output = StringIO()
+    snapshot = replace(
+        _snapshot(),
+        state="error",
+        health="error",
+        exit_code=2,
+        summary=(
+            "AXE status collection failed: "
+            "failed to read /tmp/lumberjacks/chop-watch.log"
+        ),
+        lumberjacks=(
+            replace(
+                _lumberjack(name="chop-watch"),
+                configured_chops=("chop-test",),
+            ),
+        ),
+        collection_error=AxeStatusCollectionError(
+            code="read_failed",
+            message="failed to read /tmp/lumberjacks/chop-watch.log",
+        ),
+    )
+
+    with override_flags(axe_routine_job_contract=True):
+        status_render.render_axe_status_json(snapshot, stream=output)
+
+    payload = json.loads(output.getvalue())
+    text = output.getvalue()
+    assert payload["routines"][0]["name"] == "chop-watch"
+    assert payload["routines"][0]["routine_name"] == "chop-watch"
+    assert payload["routines"][0]["configured_jobs"] == ["chop-test"]
+    assert payload["collection_error"]["message"] == (
+        "failed to read /tmp/lumberjacks/chop-watch.log"
+    )
+    assert "/tmp/lumberjacks/chop-watch.log" in text
+    assert "job-watch" not in text
+    assert "job-test" not in text
+    assert "/tmp/routines/job-watch.log" not in text
+
+
 @pytest.mark.parametrize(
     ("state", "health", "has_attention"),
     [

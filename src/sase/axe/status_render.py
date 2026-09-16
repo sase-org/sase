@@ -12,6 +12,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from sase.core.rust import require_rust_binding
+
 from .state import (
     LumberjackMetrics,
     format_lumberjack_chop_load,
@@ -472,51 +474,8 @@ def _emit_public_status_json() -> bool:
 
 
 def _status_snapshot_to_public_wire(snapshot: AxeStatusSnapshot) -> dict[str, Any]:
-    payload = _public_status_value(snapshot.to_wire())
+    binding = require_rust_binding("project_axe_status_public")
+    payload = binding(snapshot.to_wire())
     if not isinstance(payload, dict):
         raise TypeError("AXE status wire projection must stay object-shaped")
-    payload["schema_version"] = 2
-    routines = payload.get("routines")
-    if isinstance(routines, list):
-        for routine in routines:
-            if isinstance(routine, dict) and "name" in routine:
-                routine.setdefault("routine_name", routine["name"])
     return payload
-
-
-def _public_status_value(value: Any) -> Any:
-    if isinstance(value, dict):
-        projected: dict[str, Any] = {}
-        for key, child in value.items():
-            projected[_public_status_key(str(key))] = _public_status_value(child)
-        return projected
-    if isinstance(value, list):
-        return [_public_status_value(item) for item in value]
-    if isinstance(value, str):
-        return _public_status_text(value)
-    return value
-
-
-def _public_status_key(key: str) -> str:
-    return {
-        "lumberjacks": "routines",
-        "configured_chops": "configured_jobs",
-        "lumberjack": "routine",
-        "lumberjack_name": "routine_name",
-    }.get(key, key)
-
-
-def _public_status_text(value: str) -> str:
-    replacements = (
-        ("sase axe lumberjack", "sase axe routine"),
-        ("lumberjack", "routine"),
-        ("Lumberjack", "Routine"),
-        ("chops", "jobs"),
-        ("Chops", "Jobs"),
-        ("chop", "job"),
-        ("Chop", "Job"),
-    )
-    result = value
-    for old, new in replacements:
-        result = result.replace(old, new)
-    return result
