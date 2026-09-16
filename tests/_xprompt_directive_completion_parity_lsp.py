@@ -8,6 +8,7 @@ import select
 import shlex
 import subprocess
 import sys
+import time
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,6 +46,15 @@ class LspCompletionList:
     is_incomplete: bool
     items: list[LspSurfaceRow]
     raw: Any = None
+
+
+@dataclass(frozen=True, slots=True)
+class LspSemanticToken:
+    line: int
+    start: int
+    length: int
+    token_type: str
+    modifiers: frozenset[str]
 
 
 def _surface_rows(rows: Iterable[SurfaceRow]) -> list[SurfaceRow]:
@@ -89,6 +99,8 @@ class LspSession:
         finalizer_catalog: dict[str, Any]
         | Sequence[Mapping[str, object]]
         | None = None,
+        xprompt_catalog: dict[str, Any] | Sequence[Mapping[str, object]] | None = None,
+        artifact_ref_catalog: Mapping[str, object] | None = None,
         model_catalog: Mapping[str, Any] | None = None,
         model_catalog_text: str | None = None,
         omit_model_catalog: bool = False,
@@ -96,13 +108,17 @@ class LspSession:
         self._tmp_path = tmp_path
         self._helper = helper
         self._finalizer_catalog = finalizer_catalog
+        self._xprompt_catalog = xprompt_catalog
+        self._artifact_ref_catalog = artifact_ref_catalog
         self._model_catalog = model_catalog
         self._model_catalog_text = model_catalog_text
         self._omit_model_catalog = omit_model_catalog
         self._proc: subprocess.Popen[bytes] | None = None
         self._version = 0
+        self._request_id = 10
         self._opened = False
         self._uri = "file:///tmp/sase_directive_parity.md"
+        self._buffered_messages: list[dict[str, Any]] = []
         self.initialize_result: dict[str, Any] = {}
 
     def __enter__(self) -> LspSession:
@@ -128,16 +144,29 @@ class LspSession:
             json.dumps(_finalizer_catalog_payload(self._finalizer_catalog)),
             encoding="utf-8",
         )
+        xprompt_catalog = self._tmp_path / "xprompt_catalog.json"
+        xprompt_catalog.write_text(
+            json.dumps(_xprompt_catalog_payload(self._xprompt_catalog)),
+            encoding="utf-8",
+        )
         env = os.environ.copy()
         env["SASE_MOBILE_HELPER_BRIDGE_COMMAND"] = shlex.join(
             [sys.executable, str(helper)]
         )
+        env["SASE_PARITY_XPROMPT_CATALOG"] = str(xprompt_catalog)
         if self._omit_model_catalog:
             env.pop("SASE_XPROMPT_MODEL_CATALOG", None)
         else:
             env["SASE_XPROMPT_MODEL_CATALOG"] = str(model_catalog)
         env["SASE_XPROMPT_MACHINE_CATALOG"] = str(machine_catalog)
         env["SASE_PARITY_FINALIZER_CATALOG"] = str(finalizer_catalog)
+        if self._artifact_ref_catalog is not None:
+            artifact_ref_catalog = self._tmp_path / "artifact_ref_catalog.json"
+            artifact_ref_catalog.write_text(
+                json.dumps(self._artifact_ref_catalog),
+                encoding="utf-8",
+            )
+            env["SASE_XPROMPT_ARTIFACT_REF_CATALOG"] = str(artifact_ref_catalog)
         _apply_typed_launch_units_flag(env)
         _apply_queue_capacity_budget_flag(env)
         from sase.feature_flags.registry import FeatureFlag
@@ -168,7 +197,13 @@ class LspSession:
                     "rootUri": None,
                     "capabilities": {
                         "textDocument": {
-                            "completion": {"completionItem": {"snippetSupport": False}}
+                            "completion": {"completionItem": {"snippetSupport": False}},
+                            "semanticTokens": {
+                                "requests": {"full": True},
+                                "formats": ["relative"],
+                                "tokenTypes": [],
+                                "tokenModifiers": [],
+                            },
                         }
                     },
                     "initializationOptions": initialization_options,
@@ -234,26 +269,8 @@ class LspSession:
         character: int | None = None,
         cursor: tuple[int, int] | None = None,
     ) -> LspCompletionList:
-        self._version += 1
-        method = "textDocument/didChange" if self._opened else "textDocument/didOpen"
-        params: dict[str, Any]
-        if self._opened:
-            params = {
-                "textDocument": {"uri": self._uri, "version": self._version},
-                "contentChanges": [{"text": text}],
-            }
-        else:
-            self._opened = True
-            params = {
-                "textDocument": {
-                    "uri": self._uri,
-                    "languageId": "sase",
-                    "version": self._version,
-                    "text": text,
-                }
-            }
-        self._send({"jsonrpc": "2.0", "method": method, "params": params})
-        request_id = self._version + 10
+        self._sync_text(text)
+        request_id = self._next_request_id()
         self._send(
             {
                 "jsonrpc": "2.0",
@@ -285,6 +302,115 @@ class LspSession:
             raw=result,
         )
 
+    def semantic_tokens(self, text: str) -> list[LspSemanticToken]:
+        self._sync_text(text)
+        request_id = self._next_request_id()
+        self._send(
+            {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "textDocument/semanticTokens/full",
+                "params": {"textDocument": {"uri": self._uri}},
+            }
+        )
+        response = self._read_response(request_id)
+        result = response.get("result")
+        data = result.get("data") if isinstance(result, dict) else []
+        raw_data = [int(item) for item in data] if isinstance(data, list) else []
+        token_types, token_modifiers = self.semantic_token_legend()
+        return _decode_semantic_tokens(
+            raw_data,
+            token_types=token_types,
+            token_modifiers=token_modifiers,
+        )
+
+    def semantic_token_legend(self) -> tuple[list[str], list[str]]:
+        capabilities = self.initialize_result.get("capabilities")
+        if not isinstance(capabilities, dict):
+            return ([], [])
+        provider = capabilities.get("semanticTokensProvider")
+        if not isinstance(provider, dict):
+            provider = capabilities.get("semantic_tokens_provider")
+        if not isinstance(provider, dict):
+            return ([], [])
+        legend = provider.get("legend")
+        if not isinstance(legend, dict):
+            return ([], [])
+        token_types = legend.get("tokenTypes")
+        if not isinstance(token_types, list):
+            token_types = legend.get("token_types")
+        token_modifiers = legend.get("tokenModifiers")
+        if not isinstance(token_modifiers, list):
+            token_modifiers = legend.get("token_modifiers")
+        return (
+            [str(item) for item in token_types]
+            if isinstance(token_types, list)
+            else [],
+            [str(item) for item in token_modifiers]
+            if isinstance(token_modifiers, list)
+            else [],
+        )
+
+    def published_diagnostics(
+        self,
+        text: str,
+        *,
+        expected_codes: frozenset[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        self._sync_text(text)
+        deadline = time.monotonic() + 10.0
+        latest: list[dict[str, Any]] = []
+        while time.monotonic() < deadline:
+            message = self._pop_buffered_message()
+            if message is None:
+                message = self._read_message()
+            params = message.get("params")
+            if (
+                message.get("method") != "textDocument/publishDiagnostics"
+                or not isinstance(params, dict)
+                or params.get("uri") != self._uri
+            ):
+                continue
+            diagnostics = params.get("diagnostics")
+            latest = (
+                [item for item in diagnostics if isinstance(item, dict)]
+                if isinstance(diagnostics, list)
+                else []
+            )
+            codes = {
+                str(code)
+                for item in latest
+                if (code := _diagnostic_code(item)) is not None
+            }
+            if expected_codes is None or expected_codes <= codes:
+                return latest
+        return latest
+
+    def _sync_text(self, text: str) -> None:
+        self._version += 1
+        method = "textDocument/didChange" if self._opened else "textDocument/didOpen"
+        params: dict[str, Any]
+        if self._opened:
+            params = {
+                "textDocument": {"uri": self._uri, "version": self._version},
+                "contentChanges": [{"text": text}],
+            }
+        else:
+            self._opened = True
+            params = {
+                "textDocument": {
+                    "uri": self._uri,
+                    "languageId": "sase",
+                    "version": self._version,
+                    "text": text,
+                }
+            }
+        self._send({"jsonrpc": "2.0", "method": method, "params": params})
+
+    def _next_request_id(self) -> int:
+        self._request_id += 1
+        return self._request_id
+
     def _send(self, payload: dict[str, Any]) -> None:
         assert self._proc is not None
         assert self._proc.stdin is not None
@@ -295,9 +421,16 @@ class LspSession:
 
     def _read_response(self, request_id: int) -> dict[str, Any]:
         while True:
-            message = self._read_message()
+            message = self._pop_buffered_message()
+            if message is None:
+                message = self._read_message()
             if message.get("id") == request_id:
                 return message
+
+    def _pop_buffered_message(self) -> dict[str, Any] | None:
+        if not self._buffered_messages:
+            return None
+        return self._buffered_messages.pop(0)
 
     def _read_message(self) -> dict[str, Any]:
         assert self._proc is not None
@@ -357,6 +490,34 @@ def _model_catalog_payload() -> dict[str, Any]:
     }
 
 
+def _xprompt_catalog_payload(
+    catalog: dict[str, Any] | Sequence[Mapping[str, object]] | None,
+) -> dict[str, Any]:
+    if isinstance(catalog, dict) and "schema_version" in catalog:
+        return catalog
+    entries = [] if catalog is None else [dict(entry) for entry in catalog]
+    return {
+        "schema_version": 1,
+        "result": {
+            "status": "success",
+            "message": "",
+            "warnings": [],
+            "skipped": [],
+            "partial_failure_count": None,
+        },
+        "context": {"project": None, "scope": "unspecified"},
+        "entries": entries,
+        "stats": {
+            "total_count": len(entries),
+            "project_count": 0,
+            "skill_count": 0,
+            "memory_count": 0,
+            "pdf_requested": False,
+        },
+        "catalog_attachment": None,
+    }
+
+
 def _machine_catalog_payload() -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -412,6 +573,48 @@ def _lsp_row_detail(item: dict[str, Any]) -> str:
 def _wait_readable(fd: int) -> bool:
     readable, _, _ = select.select([fd], [], [], 10.0)
     return bool(readable)
+
+
+def _decode_semantic_tokens(
+    data: list[int],
+    *,
+    token_types: Sequence[str],
+    token_modifiers: Sequence[str],
+) -> list[LspSemanticToken]:
+    tokens: list[LspSemanticToken] = []
+    line = 0
+    start = 0
+    for index in range(0, len(data), 5):
+        delta_line = data[index]
+        delta_start = data[index + 1]
+        length = data[index + 2]
+        token_type_index = data[index + 3]
+        modifiers = data[index + 4]
+        line += delta_line
+        start = start + delta_start if delta_line == 0 else delta_start
+        tokens.append(
+            LspSemanticToken(
+                line=line,
+                start=start,
+                length=length,
+                token_type=token_types[token_type_index]
+                if 0 <= token_type_index < len(token_types)
+                else str(token_type_index),
+                modifiers=frozenset(
+                    modifier
+                    for bit, modifier in enumerate(token_modifiers)
+                    if modifiers & (1 << bit)
+                ),
+            )
+        )
+    return tokens
+
+
+def _diagnostic_code(item: Mapping[str, object]) -> object | None:
+    code = item.get("code")
+    if isinstance(code, Mapping):
+        return code.get("value")
+    return code
 
 
 def _utf16_len(text: str) -> int:

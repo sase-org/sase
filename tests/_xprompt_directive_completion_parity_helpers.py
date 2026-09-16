@@ -155,20 +155,25 @@ if operation == "agent-catalog":
         ],
     }
 elif operation == "xprompt-catalog":
-    payload = {
-        "schema_version": 1,
-        "result": result(),
-        "context": context(),
-        "entries": [],
-        "stats": {
-            "total_count": 0,
-            "project_count": 0,
-            "skill_count": 0,
-            "memory_count": 0,
-            "pdf_requested": False,
-        },
-        "catalog_attachment": None,
-    }
+    catalog_path = os.environ.get("SASE_PARITY_XPROMPT_CATALOG")
+    if catalog_path:
+        with open(catalog_path, encoding="utf-8") as fh:
+            payload = json.load(fh)
+    else:
+        payload = {
+            "schema_version": 1,
+            "result": result(),
+            "context": context(),
+            "entries": [],
+            "stats": {
+                "total_count": 0,
+                "project_count": 0,
+                "skill_count": 0,
+                "memory_count": 0,
+                "pdf_requested": False,
+            },
+            "catalog_attachment": None,
+        }
 elif operation == "snippet-catalog":
     payload = {
         "schema_version": 1,
