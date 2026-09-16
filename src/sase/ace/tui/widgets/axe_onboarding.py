@@ -52,13 +52,13 @@ class AxeOnboarding(VerticalScroll):
         what.border_title = "What is Axe?"
         yield what
 
-        chops = Static(
+        jobs = Static(
             self._build_chops_card(self._registry),
             id="axe-onboarding-chops",
             classes="axe-onboarding-card",
         )
-        chops.border_title = "Lumberjacks own chops"
-        yield chops
+        jobs.border_title = "Routines own jobs"
+        yield jobs
 
         bgcmd = Static(
             self._build_bgcmd_card(self._registry),
@@ -154,9 +154,9 @@ class AxeOnboarding(VerticalScroll):
             text, "Scheduled work, inspectable output", accent=_ACCENT
         )
         text.append("A ")
-        text.append("lumberjack", style=LJ_NAME_STYLE)
+        text.append("routine", style=LJ_NAME_STYLE)
         text.append(" wakes on an interval; each owns ")
-        text.append("chops", style=CHOP_NAME_STYLE)
+        text.append("jobs", style=CHOP_NAME_STYLE)
         text.append(", the automation tasks it runs every cycle.")
         text.append("\n")
         append_keycap(text, key_display_name(app.next_patch))
@@ -164,29 +164,29 @@ class AxeOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.prev_patch))
         text.append("move through the sidebar.")
         append_keycap(text, key_display_name(app.run_workflow))
-        text.append("run the selected chop now.")
+        text.append("run the selected job now.")
         text.append("\n")
         append_keycap(text, key_display_name(app.add_axe_item))
-        text.append("add a lumberjack or chop.")
+        text.append("add a routine or job.")
         append_keycap(text, key_display_name(app.edit_spec))
         text.append("edit the selected AXE config.")
         text.append("\n")
         append_keycap(text, key_display_name(app.next_agent_file))
         text.append("/")
         append_keycap(text, key_display_name(app.prev_agent_file))
-        text.append("next or previous chop run.")
+        text.append("next or previous job run.")
         append_keycap(text, key_display_name(app.edit_panel))
         text.append("open recorded output.")
         text.append("\n")
         text.append(
-            "Run history keeps each chop's status, duration, and captured output.",
+            "Run history keeps each job's status, duration, and captured output.",
             style="dim",
         )
         text.append("\n")
         text.append("⚠ 2.4×", style="bold #FFAF5F")
         text.append(
-            " marks a chop that ran as long as its lumberjack's interval; "
-            "raise the interval or give it its own lumberjack.",
+            " marks a job that ran as long as its routine's interval; "
+            "raise the interval or give it its own routine.",
             style="dim",
         )
         return text
@@ -221,13 +221,13 @@ class AxeOnboarding(VerticalScroll):
         append_doc_link(
             text,
             _AXE_DOCS_URL,
-            "the full Axe guide: lumberjacks, chops & configuration.",
+            "the full Axe guide: routines, jobs & configuration.",
             accent=_ACCENT,
         )
         append_doc_link(
             text,
             _WORKFLOW_SPEC_DOCS_URL,
-            "author the workflows that hooks & chops launch.",
+            "author the workflows that hooks & jobs launch.",
             accent=_ACCENT,
         )
         append_doc_link(

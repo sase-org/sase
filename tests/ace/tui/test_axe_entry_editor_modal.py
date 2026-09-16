@@ -146,7 +146,7 @@ def test_new_seed_intentionally_touches_only_declared_initial_fields() -> None:
         ("script",)
     ]
     assert modal._mode == "cell"
-    assert modal._title_text().plain.startswith("Add AXE chop")
+    assert modal._title_text().plain.startswith("Add AXE job")
 
 
 def test_scope_path_collapses_home_and_preserves_both_ends() -> None:

@@ -97,7 +97,7 @@ def log_sources() -> list[LogSource]:
         LogSource(
             id="launch_failures",
             title="Launch & Fan-out Failures",
-            description="Every launch/fan-out/workflow/chop failure, with traceback",
+            description="Every launch/fan-out/workflow/job failure, with traceback",
             path=launch_failures_log_path(),
             render="text",
         ),

@@ -39,6 +39,9 @@ _BADGE_STYLES: dict[AxeEntrySheetRowState, str] = {
     "inherit": "inherit",
     "invalid": "invalid",
 }
+_FIELD_DISPLAY_NAMES = {
+    "chop_timeout": "job_timeout",
+}
 
 
 @dataclass(frozen=True)
@@ -47,6 +50,7 @@ class AxeEntrySheetRow:
 
     group: SchemaFieldGroup
     name: str
+    display_name: str
     required: bool
     value: str
     badge: str
@@ -110,6 +114,7 @@ def _sheet_row(
     return AxeEntrySheetRow(
         group=field.group,
         name=field.name,
+        display_name=field_display_name(field.name),
         required=field.required,
         value=_summarize_sheet_value(field.name, raw_value),
         badge=badge,
@@ -167,7 +172,7 @@ def sheet_column_widths(
     """Fit fixed name/badge columns while preserving a useful value column."""
     available = max(18, width - 2)
     required_width = max(
-        (len(row.name) + (2 if row.required else 0) for row in rows), default=8
+        (len(row.display_name) + (2 if row.required else 0) for row in rows), default=8
     )
     name_cap = 14 if narrow else 22
     name_width = max(8, min(name_cap, required_width + 2))
@@ -203,7 +208,7 @@ def detail_dock_lines(
         return ("No editable properties.", "", "")
     required = " *" if field.required else ""
     mode = f"  {vim_mode}" if vim_mode else ""
-    header = f"{field.name}{required}  {field.editor_kind}{mode}"
+    header = f"{field_display_name(field.name)}{required}  {field.editor_kind}{mode}"
     description = field.description or "No description available."
     effective = (
         _detail_value(field.effective_value) if field.has_effective else _EM_DASH
@@ -218,6 +223,11 @@ def detail_dock_lines(
         f'Inherits "{inherited}"'
     )
     return header, description, definitions
+
+
+def field_display_name(name: str) -> str:
+    """Return the public label for an internal AXE editor field name."""
+    return _FIELD_DISPLAY_NAMES.get(name, name)
 
 
 def status_line_text(
@@ -288,6 +298,7 @@ __all__ = [
     "AxeEntrySheetStage",
     "build_sheet_rows",
     "detail_dock_lines",
+    "field_display_name",
     "hint_text",
     "sheet_column_widths",
     "status_line_text",

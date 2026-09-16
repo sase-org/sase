@@ -94,7 +94,7 @@ class AxeConfigActionsMixin:
         names = tuple(getattr(self, "_axe_lumberjack_names", ()))
         if not names:
             self.notify(  # type: ignore[attr-defined]
-                "Add a lumberjack before adding a chop", severity="warning"
+                "Add a routine before adding a job", severity="warning"
             )
             return
 
@@ -182,7 +182,7 @@ class AxeConfigActionsMixin:
             if snapshot is not None and snapshot.generated:
                 generated_instance = key[2]
                 generated_warning = (
-                    f"Editing base chop {base_name!r} affects every generated instance."
+                    f"Editing base job {base_name!r} affects every generated instance."
                 )
         else:
             return
@@ -218,7 +218,7 @@ class AxeConfigActionsMixin:
         self.push_screen(  # type: ignore[attr-defined]
             AxeNewEntryIdentityModal(
                 kind="lumberjack",
-                initial_name="new_lumberjack",
+                initial_name="new_routine",
                 lumberjack_names=existing,
             ),
             identified,
@@ -230,8 +230,8 @@ class AxeConfigActionsMixin:
         def selected(choice: AxeScriptChoice | None) -> None:
             if choice is None:
                 return
-            script = choice.name if not choice.custom else "sase_chop_"
-            name = stable_chop_name(script) if not choice.custom else "new_chop"
+            script = choice.name if not choice.custom else "sase_job_"
+            name = stable_chop_name(script) if not choice.custom else "new_job"
             self._show_new_chop_identity(
                 inventory,
                 parent=parent,

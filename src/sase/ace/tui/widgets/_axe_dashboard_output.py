@@ -93,7 +93,7 @@ def _render_overrun_advisory(text: Text, chops: list[ChopSnapshot]) -> None:
                 else "—"
             )
             text.append(
-                f"⚠ {chop.chop_name} reached {ratio} this lumberjack's "
+                f"⚠ {chop.chop_name} reached {ratio} this routine's "
                 f"{interval_seconds}s interval on its last run.",
                 style="bold #FFAF5F",
             )
@@ -109,12 +109,12 @@ def _render_overrun_advisory(text: Text, chops: list[ChopSnapshot]) -> None:
                 else "—"
             )
             text.append(
-                f"⚠ {len(over_chops)} chops reached this lumberjack's "
+                f"⚠ {len(over_chops)} jobs reached this routine's "
                 f"{interval_seconds}s interval (worst {worst_ratio}: {worst.chop_name}).",
                 style="bold #FFAF5F",
             )
         if interval_source == "config":
-            text.append(" (configured interval — lumberjack not running)", style="dim")
+            text.append(" (configured interval — routine not running)", style="dim")
         text.append("\n")
 
     if intermittent_chops:
@@ -132,11 +132,11 @@ def _render_overrun_advisory(text: Text, chops: list[ChopSnapshot]) -> None:
             style="dim #FFAF5F",
         )
         if not over_chops and interval_source == "config":
-            text.append(" (configured interval — lumberjack not running)", style="dim")
+            text.append(" (configured interval — routine not running)", style="dim")
         text.append("\n")
 
     text.append(
-        "  Raise `interval` or move the chop into its own lumberjack.\n",
+        "  Raise `interval` or move the job into its own routine.\n",
         style="dim",
     )
 
@@ -239,12 +239,12 @@ class AxeOutputSection(Static):
         self.update(text)
 
     def update_empty_axe(self, add_key: str) -> None:
-        """Render the zero-lumberjack call to action from cached key metadata."""
+        """Render the zero-routine call to action from cached key metadata."""
         AxeOutputSection._clear_cached_lumberjack_overview(self)
-        text = Text("No lumberjacks configured.\n\n", style="dim italic")
+        text = Text("No routines configured.\n\n", style="dim italic")
         text.append("  ")
         text.append(add_key, style="bold reverse #FFD700")
-        text.append("  Add a lumberjack or chop to AXE.", style="#D7AF87")
+        text.append("  Add a routine or job to AXE.", style="#D7AF87")
         text.append("\n\nBackground commands remain available with !!.", style="dim")
         self.update(text)
 
@@ -299,7 +299,7 @@ class AxeOutputSection(Static):
 
         if metrics is not None:
             text.append(sep)
-            text.append("Chops run: ", style="bold #87D7FF")
+            text.append("Jobs run: ", style="bold #87D7FF")
             text.append(f"{metrics.chops_executed}", style="#00D7AF")
             text.append(sep)
             text.append("Spawns/min: ", style="bold #87D7FF")
@@ -313,10 +313,10 @@ class AxeOutputSection(Static):
 
         text.append("\n\n")
 
-        # Chops table — choose the wide table or the compact stack based on
+        # Jobs table — choose the wide table or the compact stack based on
         # the available width.
         chops = snapshot.chops
-        text.append("  CHOPS\n", style=_LJ_NAME_STYLE)
+        text.append("  JOBS\n", style=_LJ_NAME_STYLE)
         if is_narrow:
             _render_compact_chop_list(text, chops)
         else:
@@ -359,7 +359,7 @@ class AxeOutputSection(Static):
         """
         AxeOutputSection._clear_cached_lumberjack_overview(self)
         if not summaries:
-            text = Text("No lumberjacks configured.", style="dim italic")
+            text = Text("No routines configured.", style="dim italic")
             self.update(text)
             return
 
@@ -367,7 +367,7 @@ class AxeOutputSection(Static):
         is_narrow = width is not None and 0 < width < _NARROW_SUMMARY_WIDTH
 
         # Header
-        text.append("  JACK ACTIVITY\n", style=_LJ_NAME_STYLE)
+        text.append("  ROUTINE ACTIVITY\n", style=_LJ_NAME_STYLE)
         text.append("  " + "─" * 68 + "\n", style="dim")
 
         if is_narrow:
@@ -379,7 +379,7 @@ class AxeOutputSection(Static):
             text.append(f"{'NAME':<16}", style="bold #87D7FF")
             text.append(f"{'STATUS':<12}", style="bold #87D7FF")
             text.append(f"{'CYCLES':>8}", style="bold #87D7FF")
-            text.append(f"{'CHOPS':>8}", style="bold #87D7FF")
+            text.append(f"{'JOBS':>8}", style="bold #87D7FF")
             text.append(f"{'ERRORS':>8}", style="bold #87D7FF")
             text.append("  ")
             text.append(f"{'LAST CYCLE':<18}", style="bold #87D7FF")
@@ -457,6 +457,6 @@ class AxeOutputSection(Static):
         text.append("Ctrl+N", style="bold #00D7AF")
         text.append("/", style="dim")
         text.append("Ctrl+P", style="bold #00D7AF")
-        text.append(" to cycle through lumberjack views", style="dim")
+        text.append(" to cycle through routine views", style="dim")
 
         self.update(text)

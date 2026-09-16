@@ -477,7 +477,7 @@ def test_lumberjack_overview_renders_when_snapshot_has_no_metrics() -> None:
     # Header still names the status, even if it falls back to "unknown".
     assert "Status:" in plain
     # No chops means the placeholder message; no traceback.
-    assert "No chops configured" in plain
+    assert "No jobs configured" in plain
 
 
 # --- tab_indicator: PACE column, compact chip, advisory line ---
@@ -584,10 +584,10 @@ def test_advisory_line_single_over_chop() -> None:
     snap = _overview_snapshot(chops=[chop], interval=60)
     plain = _capture_overview(snap, width=120).plain
     assert (
-        "⚠ mentor_sweep reached 4.0× this lumberjack's 60s interval on its last run."
+        "⚠ mentor_sweep reached 4.0× this routine's 60s interval on its last run."
         in plain
     )
-    assert "Raise `interval` or move the chop into its own lumberjack." in plain
+    assert "Raise `interval` or move the job into its own routine." in plain
 
 
 def test_advisory_line_multiple_over_chops_collapse_to_worst() -> None:
@@ -602,7 +602,7 @@ def test_advisory_line_multiple_over_chops_collapse_to_worst() -> None:
     )
     snap = _overview_snapshot(chops=[worse, milder], interval=60)
     plain = _capture_overview(snap, width=120).plain
-    assert "⚠ 2 chops reached this lumberjack's 60s interval" in plain
+    assert "⚠ 2 jobs reached this routine's 60s interval" in plain
     assert "worst 6.0×: mentor_sweep" in plain
 
 
@@ -650,4 +650,4 @@ def test_advisory_line_appends_configured_interval_suffix() -> None:
     )
     snap = _overview_snapshot(chops=[chop], interval=60)
     plain = _capture_overview(snap, width=120).plain
-    assert "(configured interval — lumberjack not running)" in plain
+    assert "(configured interval — routine not running)" in plain

@@ -236,7 +236,7 @@ def render_wide_chop_table(text: Text, chops: list["ChopSnapshot"]) -> None:
     text.append("  " + "─" * 68 + "\n", style="dim")
 
     if not chops:
-        text.append("  No chops configured for this lumberjack.\n", style="dim italic")
+        text.append("  No jobs configured for this routine.\n", style="dim italic")
         return
 
     for chop in chops:
@@ -303,7 +303,7 @@ def render_compact_chop_list(text: Text, chops: list["ChopSnapshot"]) -> None:
     narrow right panel never truncates names or status mid-cell.
     """
     if not chops:
-        text.append("  No chops configured for this lumberjack.\n", style="dim italic")
+        text.append("  No jobs configured for this routine.\n", style="dim italic")
         return
 
     for chop in chops:
@@ -362,7 +362,7 @@ def render_compact_summary_row(
     text.append(" · ", style="dim")
     text.append(f"{cycles}c", style="#00D7AF")
     text.append(" · ", style="dim")
-    text.append(f"{chops_executed} chops", style="#00D7AF")
+    text.append(f"{chops_executed} jobs", style="#00D7AF")
     if errors:
         text.append(" · ", style="dim")
         text.append(f"{errors}e", style="bold red")

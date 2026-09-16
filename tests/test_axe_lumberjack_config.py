@@ -262,7 +262,7 @@ def test_default_builtin_chops_use_explicit_full_script_names() -> None:
     plugins_required = next(
         chop for chop in checks.chops if chop.name == "plugins_required"
     )
-    assert plugins_required.script == "sase_chop_plugins_required"
+    assert plugins_required.script == "sase_job_plugins_required"
     assert plugins_required.timeout == 120
     assert "cl_submitted_checks" not in checks.chop_names
     housekeeping = config.lumberjacks["housekeeping"]
@@ -271,12 +271,12 @@ def test_default_builtin_chops_use_explicit_full_script_names() -> None:
     stale_cleanup = next(
         chop for chop in housekeeping.chops if chop.name == "bead_stale_cleanup"
     )
-    assert stale_cleanup.script == "sase_chop_bead_stale_cleanup"
+    assert stale_cleanup.script == "sase_job_bead_stale_cleanup"
     assert stale_cleanup.timeout == 120
     compact = next(
         chop for chop in housekeeping.chops if chop.name == "notification_store_compact"
     )
-    assert compact.script == "sase_chop_notification_store_compact"
+    assert compact.script == "sase_job_notification_store_compact"
     assert compact.timeout == 120
     scripts = tomllib.loads(
         (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(
@@ -286,8 +286,9 @@ def test_default_builtin_chops_use_explicit_full_script_names() -> None:
     for lumberjack in config.lumberjacks.values():
         for chop in lumberjack.chops:
             assert chop.script is not None
-            assert chop.script.startswith("sase_chop_")
-            assert scripts[chop.script] == f"sase.scripts.{chop.script}:main"
+            assert chop.script.startswith("sase_job_")
+            module_name = chop.script.replace("sase_job_", "sase_chop_", 1)
+            assert scripts[chop.script] == f"sase.scripts.{module_name}:main"
 
 
 def test_axe_config_error_hints_at_stale_core_binding_for_advertised_provider() -> None:

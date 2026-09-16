@@ -276,19 +276,19 @@ def test_footer_surfaces_chop_run_keys_when_multiple_runs() -> None:
     footer = KeybindingFooter()
     # 2+ runs → binding shown.
     bindings = footer._compute_axe_bindings("axe", chop_run_total=3)
-    assert any("chop run" == label for _, label in bindings)
+    assert any("job run" == label for _, label in bindings)
     # 1 run or none → not shown.
     assert not any(
-        "chop run" == label
+        "job run" == label
         for _, label in footer._compute_axe_bindings("axe", chop_run_total=1)
     )
     assert not any(
-        "chop run" == label
+        "job run" == label
         for _, label in footer._compute_axe_bindings("axe", chop_run_total=0)
     )
     # Bgcmd row → not shown.
     assert not any(
-        "chop run" == label
+        "job run" == label
         for _, label in footer._compute_axe_bindings(1, chop_run_total=3)
     )
 

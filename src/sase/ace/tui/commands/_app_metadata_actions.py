@@ -64,14 +64,14 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         "Edit spec / chat / remote content / AXE config",
         "Patch Actions",
         ALL_TABS,
-        ("remote content", "edit lumberjack", "edit chop config"),
+        ("remote content", "edit routine", "edit job config"),
     ),
     (
         "add_axe_item",
-        "Add AXE lumberjack or chop",
+        "Add AXE routine or job",
         "Axe",
         AXE_ONLY,
-        ("new lumberjack", "new chop", "add chop"),
+        ("new routine", "new job", "add job"),
     ),
     (
         "toggle_axe_description",
@@ -290,10 +290,10 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ),
     (
         "edit_panel",
-        "Edit panel file / chop output",
+        "Edit panel file / job output",
         "Display",
         AGENTS_AXE,
-        ("recorded chop output", "open chop log"),
+        ("recorded job output", "open job log"),
     ),
     (
         "open_artifact_files",

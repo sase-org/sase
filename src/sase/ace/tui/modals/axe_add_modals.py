@@ -1,4 +1,4 @@
-"""Focused keyboard-first modals for adding AXE lumberjacks and chops."""
+"""Focused keyboard-first modals for adding AXE routines and jobs."""
 
 from __future__ import annotations
 
@@ -18,6 +18,15 @@ from .property_picker_modal import PropertyPickerItem, PropertyPickerModal
 
 
 AxeAddKind = Literal["lumberjack", "chop"]
+
+_AXE_KIND_LABELS: dict[AxeAddKind, str] = {
+    "lumberjack": "routine",
+    "chop": "job",
+}
+
+
+def _axe_kind_label(kind: AxeAddKind) -> str:
+    return _AXE_KIND_LABELS[kind]
 
 
 @dataclass(frozen=True)
@@ -42,9 +51,9 @@ class AxeNewEntryDraft:
 
 
 def stable_chop_name(script: str) -> str:
-    """Derive a deterministic editable chop identity from an executable."""
+    """Derive a deterministic editable job identity from an executable."""
     name = script.rsplit("/", 1)[-1]
-    return name.removeprefix("sase_chop_") or name
+    return name.removeprefix("sase_job_").removeprefix("sase_chop_") or name
 
 
 def validate_axe_new_entry_identity(
@@ -61,17 +70,17 @@ def validate_axe_new_entry_identity(
         return "identity cannot be empty"
     if kind == "lumberjack":
         if name in frozenset(lumberjack_names):
-            return f"lumberjack {name!r} already exists"
+            return f"routine {name!r} already exists"
         return None
     if (lumberjack, name) in frozenset(base_chop_identities):
-        return f"base chop {name!r} already exists under {lumberjack!r}"
+        return f"base job {name!r} already exists under {lumberjack!r}"
     if not script:
         return "executable cannot be empty"
     return None
 
 
 class AxeAddChooserModal(PropertyPickerModal):
-    """Choose between a contextual chop and a new lumberjack."""
+    """Choose between a contextual job and a new routine."""
 
     def __init__(self, contextual_lumberjack: str | None) -> None:
         self.contextual_lumberjack = contextual_lumberjack
@@ -79,20 +88,30 @@ class AxeAddChooserModal(PropertyPickerModal):
             properties = (
                 PropertyPickerItem(
                     "chop",
-                    f"Create a chop under {contextual_lumberjack}.",
+                    f"Create a job under {contextual_lumberjack}.",
                     "AXE entry",
+                    label="job",
                 ),
                 PropertyPickerItem(
-                    "lumberjack", "Create a new scheduled lane.", "AXE entry"
+                    "lumberjack",
+                    "Create a new scheduled routine.",
+                    "AXE entry",
+                    label="routine",
                 ),
             )
         else:
             properties = (
                 PropertyPickerItem(
-                    "lumberjack", "Create a new scheduled lane.", "AXE entry"
+                    "lumberjack",
+                    "Create a new scheduled routine.",
+                    "AXE entry",
+                    label="routine",
                 ),
                 PropertyPickerItem(
-                    "chop", "Pick a parent, then attach a chop.", "AXE entry"
+                    "chop",
+                    "Pick a parent, then attach a job.",
+                    "AXE entry",
+                    label="job",
                 ),
             )
         super().__init__(
@@ -104,24 +123,24 @@ class AxeAddChooserModal(PropertyPickerModal):
 
 
 class AxeLumberjackPickerModal(PropertyPickerModal):
-    """Pick a cached lumberjack parent without loading configuration."""
+    """Pick a cached routine parent without loading configuration."""
 
     def __init__(self, names: Iterable[str]) -> None:
         properties = [
-            PropertyPickerItem(name, "Attach the new chop here.", "lumberjack")
+            PropertyPickerItem(name, "Attach the new job here.", "routine")
             for name in names
         ]
         super().__init__(
             properties,
-            title="Choose lumberjack",
-            guidance="The selected lumberjack becomes the chop's immutable parent.",
-            empty_message="No lumberjacks are configured yet.",
+            title="Choose routine",
+            guidance="The selected routine becomes the job's immutable parent.",
+            empty_message="No routines are configured yet.",
             dom_prefix="axe-parent",
         )
 
 
 class AxeScriptPickerModal(PropertyPickerModal):
-    """Present installed chop scripts with source and resolution metadata."""
+    """Present installed job scripts with source and resolution metadata."""
 
     def __init__(self, inventory: ChopInventory) -> None:
         self.script_choices = tuple(
@@ -150,14 +169,14 @@ class AxeScriptPickerModal(PropertyPickerModal):
                     + (" · already configured" if choice.configured else "")
                 ),
                 choice.source,
-                example=choice.executable or "sase_chop_example",
+                example=choice.executable or "sase_job_example",
                 allowed_values=("configured" if choice.configured else "available"),
             )
             for choice in self.script_choices
         ]
         super().__init__(
             properties,
-            title="Choose chop script",
+            title="Choose job script",
             guidance="Installed scripts are discovered off-thread; Custom accepts any executable.",
             dom_prefix="axe-script",
         )
@@ -167,7 +186,7 @@ class AxeScriptPickerModal(PropertyPickerModal):
 
 
 class AxeNewEntryIdentityModal(ModalScreen[AxeNewEntryDraft | None]):
-    """Edit a new entry's mapping key and, for chops, executable name."""
+    """Edit a new entry's mapping key and, for jobs, executable name."""
 
     AUTO_FOCUS = None
     BINDINGS = [
@@ -196,7 +215,7 @@ class AxeNewEntryIdentityModal(ModalScreen[AxeNewEntryDraft | None]):
     def compose(self) -> ComposeResult:
         with Container(id="axe-identity-container"):
             yield Static(
-                "New AXE lumberjack" if self.kind == "lumberjack" else "New AXE chop",
+                f"New AXE {_axe_kind_label(self.kind)}",
                 id="axe-identity-title",
             )
             if self.kind == "chop":

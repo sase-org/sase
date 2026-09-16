@@ -420,33 +420,33 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 2000,
-          "description": "What this chop does. Line 1 is a summary of at most 100 characters; if a body follows, line 2 must be blank. At most 2000 characters."
+          "description": "What this job does. Line 1 is a summary of at most 100 characters; if a body follows, line 2 must be blank. At most 2000 characters."
         },
         "script": {
           "type": "string",
           "minLength": 1,
-          "description": "Exact installed console-script or executable name; defaults to the chop identity"
+          "description": "Exact installed console-script or executable name; defaults to the job identity"
         },
         "enabled": {
           "type": "boolean",
           "default": true,
-          "description": "Soft-disable this chop without deleting its keyed configuration"
+          "description": "Soft-disable this job without deleting its keyed configuration"
         },
         "run_every": {
           "type": "string",
-          "description": "Positive compound duration (for example '5m', '1h30m', or '1d') limiting how often this chop runs",
+          "description": "Positive compound duration (for example '5m', '1h30m', or '1d') limiting how often this job runs",
           "minLength": 2,
           "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
         },
         "timeout": {
           "type": "string",
-          "description": "Per-chop timeout duration overriding the lumberjack chop_timeout",
+          "description": "Per-job timeout duration overriding the routine job_timeout",
           "minLength": 2,
           "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
         },
         "env": {
           "$ref": "#/definitions/axeEnv",
-          "description": "Environment values merged over lumberjack env; accepts literals and env, file, or pass references"
+          "description": "Environment values merged over routine env; accepts literals and env, file, or pass references"
         },
         "inhibit_if": {
           "description": "Patch, agent-hood, agent-clan, or agent-runners guards evaluated before the script",
@@ -567,7 +567,7 @@
           ]
         },
         "for_each": {
-          "description": "Literal targets or a named target source expanded into stable chop instances",
+          "description": "Literal targets or a named target source expanded into stable job instances",
           "oneOf": [
             { "type": "array", "items": { "type": "object", "minProperties": 1 } },
             {
@@ -604,7 +604,7 @@
         },
         "vars": {
           "type": "object",
-          "description": "Arbitrary non-secret values copied into the chop context; builtin refresh_docs accepts prompt and polish_prompt string overrides",
+          "description": "Arbitrary non-secret values copied into the job context; builtin refresh_docs accepts prompt and polish_prompt string overrides",
           "additionalProperties": true
         }
       }
@@ -2534,7 +2534,7 @@
         },
         "chop_script_dirs": {
           "type": "array",
-          "description": "Additional directories to search for chop scripts (searched before PATH lookup)",
+          "description": "Legacy alias for job_script_dirs. Additional directories to search for job scripts (searched before PATH lookup)",
           "items": {
             "type": "string"
           },
@@ -2550,7 +2550,7 @@
         },
         "lumberjack_log_max_bytes": {
           "type": "integer",
-          "description": "Maximum bytes retained for each bounded lumberjack log.",
+          "description": "Legacy alias for routine_log_max_bytes. Maximum bytes retained for each bounded routine log.",
           "default": 52428800,
           "minimum": 1
         },
@@ -2574,7 +2574,7 @@
         },
         "lumberjack_restart_backoff_max_seconds": {
           "type": "integer",
-          "description": "Maximum delay between retries for a crashing lumberjack.",
+          "description": "Legacy alias for routine_restart_backoff_max_seconds. Maximum delay between retries for a crashing routine.",
           "default": 60,
           "minimum": 1
         },
@@ -2586,7 +2586,7 @@
         },
         "verbose_lumberjack_diagnostics": {
           "type": "boolean",
-          "description": "Include verbose lumberjack diagnostics in chop script contexts.",
+          "description": "Legacy alias for verbose_routine_diagnostics. Include verbose routine diagnostics in job script contexts.",
           "default": false
         },
         "verbose_routine_diagnostics": {
@@ -2596,7 +2596,7 @@
         },
         "lumberjacks": {
           "type": "object",
-          "description": "Named lumberjack definitions. Each key is a lumberjack name with interval and chops config.",
+          "description": "Legacy alias for routines. Each key is a routine name with interval and jobs config.",
           "additionalProperties": {
             "type": "object",
             "required": ["description"],
@@ -2606,17 +2606,17 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 2000,
-                "description": "The cadence and class of work this lumberjack owns. Line 1 is a summary of at most 100 characters; if a body follows, line 2 must be blank. At most 2000 characters."
+                "description": "The cadence and class of work this routine owns. Line 1 is a summary of at most 100 characters; if a body follows, line 2 must be blank. At most 2000 characters."
               },
               "interval": {
                 "type": "integer",
-                "description": "Tick interval in seconds for this lumberjack",
+                "description": "Tick interval in seconds for this routine",
                 "default": 1,
                 "minimum": 1
               },
               "chop_timeout": {
                 "type": "string",
-                "description": "Default positive compound duration (e.g., '30s', '1h30m', '1d') controlling the maximum runtime for chops in this lumberjack",
+                "description": "Legacy alias for job_timeout. Default positive compound duration controlling the maximum runtime for jobs in this routine",
                 "minLength": 2,
                 "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
               },
@@ -2633,11 +2633,11 @@
               },
               "env": {
                 "$ref": "#/definitions/axeEnv",
-                "description": "Environment values inherited by every chop in this lumberjack"
+                "description": "Environment values inherited by every job in this routine"
               },
               "chops": {
                 "type": ["array", "object"],
-                "description": "Legacy list or composable map of chop scripts to run on each tick",
+                "description": "Legacy alias for jobs. List or composable map of job scripts to run on each tick",
                 "additionalProperties": { "$ref": "#/definitions/axeChop" },
                 "items": {
                   "oneOf": [
@@ -2649,33 +2649,33 @@
                       "properties": {
                         "name": {
                           "type": "string",
-                          "description": "Name of the chop script"
+                          "description": "Name of the job script"
                         },
                         "description": {
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 2000,
-                          "description": "What this chop does. Line 1 is a summary of at most 100 characters; if a body follows, line 2 must be blank. At most 2000 characters."
+                          "description": "What this job does. Line 1 is a summary of at most 100 characters; if a body follows, line 2 must be blank. At most 2000 characters."
                         },
                         "script": {
                           "type": "string",
                           "minLength": 1,
-                          "description": "Exact installed console-script or executable name; defaults to the chop name"
+                          "description": "Exact installed console-script or executable name; defaults to the job name"
                         },
                         "enabled": {
                           "type": "boolean",
                           "default": true,
-                          "description": "Soft-disable this chop without deleting its configuration"
+                          "description": "Soft-disable this job without deleting its configuration"
                         },
                         "run_every": {
                           "type": "string",
-                          "description": "Positive compound duration (e.g., '60m', '1h30m', '1d') controlling how often this chop runs",
+                          "description": "Positive compound duration (e.g., '60m', '1h30m', '1d') controlling how often this job runs",
                           "minLength": 2,
                           "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
                         },
                         "env": {
                           "$ref": "#/definitions/axeEnv",
-                          "description": "Environment values merged over lumberjack env"
+                          "description": "Environment values merged over routine env"
                         },
                         "inhibit_if": {
                           "description": "Runner-evaluated patch, agent-hood, agent-clan, or agent-runners guards that inhibit dispatch when any provider matches",
@@ -2832,7 +2832,7 @@
                         },
                         "timeout": {
                           "type": "string",
-                          "description": "Positive compound duration (e.g., '30s', '1h30m', '1d') controlling the maximum runtime for this chop",
+                          "description": "Positive compound duration (e.g., '30s', '1h30m', '1d') controlling the maximum runtime for this job",
                           "minLength": 2,
                           "pattern": "^(?=[0-9dhms]*[1-9])(?:\\d+d)?(?:\\d+h)?(?:\\d+m)?(?:\\d+s)?$"
                         },
@@ -2846,9 +2846,17 @@
                     }
                   ]
                 }
+              },
+              "jobs": {
+                "$ref": "#/properties/axe/properties/lumberjacks/additionalProperties/properties/chops",
+                "description": "List or composable map of job scripts to run on each tick"
               }
             }
           }
+        },
+        "routines": {
+          "$ref": "#/properties/axe/properties/lumberjacks",
+          "description": "Named routine definitions. Each key is a routine name with interval and jobs config."
         }
       }
     },
@@ -3699,17 +3707,9 @@
                     "description": "Per-provider collection override. When omitted, the provider inherits llm_provider.usage_metrics.enabled."
                   }
                 }
-              },
-              "jobs": {
-                "$ref": "#/properties/axe/properties/lumberjacks/additionalProperties/properties/chops",
-                "description": "Legacy list or composable map of job scripts to run on each tick"
               }
             }
           }
-        },
-        "routines": {
-          "$ref": "#/properties/axe/properties/lumberjacks",
-          "description": "Named routine definitions. Each key is a routine name with interval and jobs config."
         }
       }
     },
@@ -4083,7 +4083,7 @@
             },
             "stale_cleanup_min_beads": {
               "type": "integer",
-              "description": "Stale beads required before bead_stale_cleanup raises its gate. Below this count the chop does nothing.",
+              "description": "Stale beads required before bead_stale_cleanup raises its gate. Below this count the job does nothing.",
               "default": 10,
               "minimum": 1
             }
@@ -4327,7 +4327,7 @@
     },
     "managed_tmp": {
       "type": "object",
-      "description": "Retention horizons and pressure thresholds for the managed SASE temp root reaped by `sase disk reap` / the hourly managed_tmp_reap chop.",
+      "description": "Retention horizons and pressure thresholds for the managed SASE temp root reaped by `sase disk reap` / the hourly managed_tmp_reap job.",
       "additionalProperties": false,
       "properties": {
         "horizons": {

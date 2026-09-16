@@ -161,6 +161,7 @@ def test_context_assembles_dynamic_document_role_and_namespaces(
         "bead",
         "agent",
         "file",
+        "job",
         "commit",
         "plans",
         "chat",

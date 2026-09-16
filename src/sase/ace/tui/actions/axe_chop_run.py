@@ -66,7 +66,7 @@ class AxeChopRunMixin:
         )
         if snapshot is not None and not snapshot.enabled:
             self.notify(  # type: ignore[attr-defined]
-                f"Chop '{item.chop_name}' is disabled; edit its config to enable it",
+                f"Job '{item.chop_name}' is disabled; edit its config to enable it",
                 severity="warning",
             )
             return
@@ -96,14 +96,14 @@ class AxeChopRunMixin:
         items = self._axe_items
         if not (0 <= self.current_idx < len(items)):
             self.notify(  # type: ignore[attr-defined]
-                "No chop selected", severity="warning"
+                "No job selected", severity="warning"
             )
             return
 
         item = items[self.current_idx]
         if not isinstance(item, ChopItem):
             self.notify(  # type: ignore[attr-defined]
-                "No chop output selected", severity="warning"
+                "No job output selected", severity="warning"
             )
             return
 
@@ -111,7 +111,7 @@ class AxeChopRunMixin:
         snap = self._axe_chop_snapshots.get(chop_key)
         if snap is None or not snap.runs:
             self.notify(  # type: ignore[attr-defined]
-                f"No runs recorded for chop '{item.chop_name}'",
+                f"No runs recorded for job '{item.chop_name}'",
                 severity="warning",
             )
             return
@@ -123,7 +123,7 @@ class AxeChopRunMixin:
         log_path = chop_run_log_path(item.lumberjack_name, item.chop_name, run.run_id)
         if not log_path.exists():
             self.notify(  # type: ignore[attr-defined]
-                f"No output log found for chop '{item.chop_name}'",
+                f"No output log found for job '{item.chop_name}'",
                 severity="warning",
             )
             return
@@ -168,7 +168,7 @@ class AxeChopRunMixin:
             )
 
         self.notify(  # type: ignore[attr-defined]
-            f"Running chop '{chop_name}' under '{lumberjack_name}'..."
+            f"Running job '{chop_name}' under routine '{lumberjack_name}'..."
         )
 
         try:
@@ -188,7 +188,7 @@ class AxeChopRunMixin:
             )
             notify_registered_error(
                 self,
-                f"Failed to launch chop '{chop_name}': {e}",
+                f"Failed to launch job '{chop_name}': {e}",
                 error_id=error_id,
             )
             # Even on failure the runner may have written a partial run
@@ -223,41 +223,41 @@ class AxeChopRunMixin:
 
         if outcome.status == "already_running":
             self.notify(  # type: ignore[attr-defined]
-                f"Chop '{chop}' is already running under '{lj}'",
+                f"Job '{chop}' is already running under routine '{lj}'",
                 severity="warning",
             )
         elif outcome.status == "success":
-            self.notify(f"Chop '{chop}' finished successfully")  # type: ignore[attr-defined]
+            self.notify(f"Job '{chop}' finished successfully")  # type: ignore[attr-defined]
         elif outcome.status == "skipped":
             reason = outcome.reason or "a declarative policy did not fire"
             self.notify(  # type: ignore[attr-defined]
-                f"Chop '{chop}' skipped: {reason}", severity="warning"
+                f"Job '{chop}' skipped: {reason}", severity="warning"
             )
         elif outcome.status == "no_op":
-            self.notify(f"Chop '{chop}' completed with no work to do")  # type: ignore[attr-defined]
+            self.notify(f"Job '{chop}' completed with no work to do")  # type: ignore[attr-defined]
         elif outcome.status == "launched":
             count = len(outcome.launches)
             self.notify(  # type: ignore[attr-defined]
-                f"Chop '{chop}' launched {count} agent action(s)"
+                f"Job '{chop}' launched {count} agent action(s)"
             )
         elif outcome.status == "action_succeeded":
-            self.notify(f"Chop '{chop}' action succeeded")  # type: ignore[attr-defined]
+            self.notify(f"Job '{chop}' action succeeded")  # type: ignore[attr-defined]
         elif outcome.status == "failure":
             exit_str = (
                 f" (exit {outcome.exit_code})" if outcome.exit_code is not None else ""
             )
-            _fail(f"Chop '{chop}' failed{exit_str}")
+            _fail(f"Job '{chop}' failed{exit_str}")
         elif outcome.status == "timeout":
-            _fail(f"Chop '{chop}' timed out")
+            _fail(f"Job '{chop}' timed out")
         elif outcome.status == "missing_script":
-            _fail(f"Chop '{chop}': script not found")
+            _fail(f"Job '{chop}': script not found")
         elif outcome.status == "check_error":
-            _fail(f"Chop '{chop}' check is degraded", severity="warning")
+            _fail(f"Job '{chop}' check is degraded", severity="warning")
         elif outcome.status == "action_failed":
-            _fail(f"Chop '{chop}' action failed")
+            _fail(f"Job '{chop}' action failed")
         else:
             self.notify(  # type: ignore[attr-defined]
-                f"Chop '{chop}': unexpected outcome '{outcome.status}'",
+                f"Job '{chop}': unexpected outcome '{outcome.status}'",
                 severity="warning",
             )
 
@@ -278,7 +278,7 @@ def _log_chop_failure_outcome(outcome: ChopRunOutcome) -> str:
 
     exc = outcome.error
     if exc is None:
-        exc = RuntimeError(f"Chop '{outcome.chop_name}' failed: {outcome.status}")
+        exc = RuntimeError(f"Job '{outcome.chop_name}' failed: {outcome.status}")
     return log_launch_failure(
         kind="chop",
         display_name=outcome.chop_name,

@@ -41,6 +41,32 @@ def test_config_schema_accepts_script_chops_and_compound_durations() -> None:
     )
 
 
+def test_config_schema_accepts_script_jobs_and_canonical_routines() -> None:
+    _validate(
+        {
+            "axe": {
+                "routines": {
+                    "checks": {
+                        "description": "Run automated schema checks",
+                        "interval": 1,
+                        "job_timeout": "1d2h30m",
+                        "wait_runners": 0,
+                        "jobs": [
+                            {
+                                "name": "custom_check",
+                                "description": "Run a custom schema check",
+                                "script": "sase_job_custom_check",
+                                "run_every": "1h30m",
+                                "timeout": "45s",
+                            }
+                        ],
+                    }
+                }
+            }
+        }
+    )
+
+
 def test_config_schema_rejects_negative_lumberjack_wait_runners() -> None:
     with pytest.raises(ValidationError):
         _validate(

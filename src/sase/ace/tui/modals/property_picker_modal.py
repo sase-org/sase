@@ -40,6 +40,7 @@ class PropertyPickerItem:
     kind: str
     example: str = ""
     allowed_values: str | None = None
+    label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -93,7 +94,7 @@ class PropertyPickerModal(ModalScreen[str | None]):
         self._empty_message = empty_message
         self._dom_prefix = dom_prefix
         self._name_width = min(
-            max((len(prop.name) for prop in self._properties), default=4),
+            max((len(_display_name(prop)) for prop in self._properties), default=4),
             14,
         )
 
@@ -218,6 +219,7 @@ class PropertyPickerModal(ModalScreen[str | None]):
 
     def _row_text(self, choice: PropertyPickerChoice, *, selected: bool) -> Text:
         item = choice.item
+        display_name = _display_name(item)
         marker = "▸" if selected else " "
         key_style = "bold reverse #87D7FF" if selected else "bold #87D7FF"
         kind_style = "bold #C6A0F6" if selected else "#C6A0F6"
@@ -226,7 +228,7 @@ class PropertyPickerModal(ModalScreen[str | None]):
         text.append(f"{marker} ", style="bold #87D7FF" if selected else "dim")
         text.append(f" {choice.key} ", style=key_style)
         text.append("  ")
-        text.append(f"{item.name:<{self._name_width}}", style="bold #87D7FF")
+        text.append(f"{display_name:<{self._name_width}}", style="bold #87D7FF")
         text.append("  ")
         text.append(f"{_kind_label(item.kind):<12}", style=kind_style)
         if description:
@@ -237,7 +239,7 @@ class PropertyPickerModal(ModalScreen[str | None]):
         if not self._choices:
             return Text(self._empty_message, style="dim")
         item = self._choices[self._selected].item
-        rule = f"── {item.name} "
+        rule = f"── {_display_name(item)} "
         rule += "─" * max(0, 66 - len(rule))
         text = Text(rule, style="#5FD7FF")
         if item.description:
@@ -270,7 +272,7 @@ def assign_property_accelerators(
     used: set[str] = set()
     choices: list[PropertyPickerChoice] = []
     for item in properties:
-        key = choose_property_accelerator(item.name, used)
+        key = choose_property_accelerator(_display_name(item), used)
         used.add(key)
         choices.append(PropertyPickerChoice(item=item, key=key))
     return choices
@@ -298,6 +300,10 @@ def choose_property_accelerator(name: str, used: set[str]) -> str:
 def _kind_label(kind: str) -> str:
     raw = getattr(kind, "value", kind)
     return _KIND_LABELS.get(str(raw), str(raw).replace("_", "|"))
+
+
+def _display_name(item: PropertyPickerItem) -> str:
+    return item.label or item.name
 
 
 def _ellipsize(value: str, width: int) -> str:

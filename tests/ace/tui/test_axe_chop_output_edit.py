@@ -174,7 +174,7 @@ def test_edit_panel_on_axe_non_chop_row_warns_without_crashing(
         app.action_edit_panel()
 
     mock_run.assert_not_called()
-    assert app.notifications == [("No chop output selected", "warning")]
+    assert app.notifications == [("No job output selected", "warning")]
 
 
 def test_edit_panel_on_axe_chop_with_no_runs_warns(tmp_path: Path) -> None:
@@ -187,7 +187,7 @@ def test_edit_panel_on_axe_chop_with_no_runs_warns(tmp_path: Path) -> None:
         app.action_edit_panel()
 
     mock_run.assert_not_called()
-    assert app.notifications == [("No runs recorded for chop 'fast'", "warning")]
+    assert app.notifications == [("No runs recorded for job 'fast'", "warning")]
 
 
 def test_edit_panel_on_axe_missing_log_warns(tmp_path: Path) -> None:
@@ -200,7 +200,7 @@ def test_edit_panel_on_axe_missing_log_warns(tmp_path: Path) -> None:
         app.action_edit_panel()
 
     mock_run.assert_not_called()
-    assert app.notifications == [("No output log found for chop 'fast'", "warning")]
+    assert app.notifications == [("No output log found for job 'fast'", "warning")]
 
 
 class _FakePatchApp(PatchMixin):

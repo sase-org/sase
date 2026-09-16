@@ -267,7 +267,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     # File cycling (agents tab)
     Binding("ctrl+n", "next_agent_file", "Next File", show=False),
     Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
-    Binding("E", "edit_panel", "Edit Panel / Chop Output", show=False),
+    Binding("E", "edit_panel", "Edit Panel / Job Output", show=False),
     # Jump to Patch from agent (agents tab)
     Binding("enter", "jump_to_agent_patch", "Go to Patch", show=False),
     Binding("V", "show_agent_run_log", "Agent Run Log", show=False),

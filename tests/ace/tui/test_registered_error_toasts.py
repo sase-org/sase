@@ -143,12 +143,12 @@ def test_chop_launch_exception_registers_and_toasts_chord() -> None:
         asyncio.run(app._launch_chop_run_async("lumber", "my-chop"))
 
     assert app.notifications[-1] == (
-        "Failed to launch chop 'my-chop': chop boom - press ,L for the log entry",
+        "Failed to launch job 'my-chop': chop boom - press ,L for the log entry",
         "error",
     )
     last = last_registered_error()
     assert last is not None
-    assert last.summary == "Failed to launch chop 'my-chop': chop boom"
+    assert last.summary == "Failed to launch job 'my-chop': chop boom"
     assert last.source_id == "launch_failures"
 
 

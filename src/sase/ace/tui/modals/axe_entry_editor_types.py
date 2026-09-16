@@ -16,6 +16,11 @@ from .schema_object_form import (
 
 AxeEntryKind = Literal["lumberjack", "chop"]
 
+_AXE_ENTRY_KIND_LABELS: dict[AxeEntryKind, str] = {
+    "lumberjack": "routine",
+    "chop": "job",
+}
+
 _BASICS_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {
     "lumberjack": ("description", "interval", "chop_timeout", "wait_runners"),
     "chop": ("description", "script", "enabled", "run_every", "timeout"),
@@ -28,6 +33,11 @@ _HIDDEN_BY_KIND: dict[AxeEntryKind, frozenset[str]] = {
     "lumberjack": frozenset({"chops", "jobs", "job_timeout"}),
     "chop": frozenset({"name"}),
 }
+
+
+def axe_entry_kind_label(kind: AxeEntryKind) -> str:
+    """Return the public display label for an internal AXE entry kind."""
+    return _AXE_ENTRY_KIND_LABELS[kind]
 
 
 @dataclass(frozen=True)
@@ -195,6 +205,7 @@ __all__ = [
     "AxeEntryKind",
     "AxeEntryMutationRequest",
     "AxeWritableScope",
+    "axe_entry_kind_label",
     "axe_entry_schema",
     "build_axe_entry_form",
 ]

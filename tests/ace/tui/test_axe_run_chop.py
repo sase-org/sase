@@ -200,7 +200,7 @@ def test_launch_chop_run_async_success_notifies_and_refreshes() -> None:
 
     assert app.refresh_count == 1
     msgs = [m for m, _ in app.notifications]
-    assert any("Running chop 'fast'" in m for m in msgs)
+    assert any("Running job 'fast'" in m for m in msgs)
     assert any("finished successfully" in m for m in msgs)
 
 
@@ -330,12 +330,12 @@ def test_launch_chop_run_async_passes_chop_timeout_default() -> None:
 
 
 def test_compute_axe_bindings_chop_selected_idle_shows_run_chop() -> None:
-    """An idle chop selection adds ``r run chop`` to the footer."""
+    """An idle chop selection adds ``r run job`` to the footer."""
     footer = KeybindingFooter()
     bindings = footer._compute_axe_bindings(
         "axe", chop_selected=True, chop_selected_running=False
     )
-    assert ("r", "run chop") in bindings
+    assert ("r", "run job") in bindings
 
 
 def test_compute_axe_bindings_chop_selected_running_shows_running() -> None:
@@ -345,7 +345,7 @@ def test_compute_axe_bindings_chop_selected_running_shows_running() -> None:
         "axe", chop_selected=True, chop_selected_running=True
     )
     assert ("r", "running") in bindings
-    assert ("r", "run chop") not in bindings
+    assert ("r", "run job") not in bindings
 
 
 def test_compute_axe_bindings_no_chop_no_r_binding() -> None:

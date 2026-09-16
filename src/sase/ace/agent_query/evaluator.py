@@ -16,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
 
+from sase.core.agent_tribe import canonicalize_public_tribe_name
+
 from .types import (
     AndExpr,
     DurationCompare,
@@ -120,10 +122,14 @@ def _match_tribe(prop: PropertyMatch, agent: Agent) -> bool:
     ``tribe:foo`` ⇔ ``agent.tribe == "foo"``. Bare ``tribe:`` (empty value)
     means "any agent in a tribe" — match any non-empty tribe.
     """
-    agent_tribe = (agent.tribe or "").lower()
+    agent_tribe = (agent.tribe or "").casefold()
     if not prop.value:
         return bool(agent_tribe)
-    return agent_tribe == prop.value.lower()
+    try:
+        expected = canonicalize_public_tribe_name(prop.value).casefold()
+    except ValueError:
+        expected = prop.value.casefold()
+    return agent_tribe == expected
 
 
 def _match_machine(prop: PropertyMatch, agent: Agent) -> bool:

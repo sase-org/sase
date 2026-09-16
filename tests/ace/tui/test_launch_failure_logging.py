@@ -124,7 +124,7 @@ def test_chop_failure_persists_record() -> None:
     assert record["chop"] == "my-chop"
     assert record["lumberjack"] == "lumber"
     assert app.notifications[-1] == (
-        "Failed to launch chop 'my-chop': chop boom - press ,L for the log entry",
+        "Failed to launch job 'my-chop': chop boom - press ,L for the log entry",
         "error",
     )
 
@@ -276,7 +276,7 @@ def test_chop_missing_script_outcome_persists_record() -> None:
         asyncio.run(app._launch_chop_run_async("lumber", "my-chop"))
 
     assert app.notifications[-1] == (
-        "Chop 'my-chop': script not found - press ,L for the log entry",
+        "Job 'my-chop': script not found - press ,L for the log entry",
         "error",
     )
     record = _assert_persisted("chop")

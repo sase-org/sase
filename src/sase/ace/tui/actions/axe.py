@@ -312,7 +312,7 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
                 self.notify("Output cleared")  # type: ignore[attr-defined]
             case ChopItem():
                 self.notify(  # type: ignore[attr-defined]
-                    "Chop run history is immutable from the TUI",
+                    "Job run history is immutable from the TUI",
                     severity="warning",
                 )
             case BgCmdItem(slot=slot):

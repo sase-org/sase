@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 from sase.agent.status_buckets import _NEEDS_INPUT_STATUSES, _STOPPED_STATUSES
 from sase.ace.query.profile_evaluator import ProfileFieldValue
 from sase.core.agent_types import AgentIdentity, AgentType
+from sase.core.agent_tribe import public_tribe_name
 from sase.core.time import get_timezone, local_now
 
 from ._agent_time_intervals import leaf_runtime_interval
@@ -249,7 +250,9 @@ def _machine_locator_values(locator: Mapping[str, Any] | None) -> tuple[str, ...
 
 
 def _tribe_values(agent: Agent) -> tuple[str, ...]:
-    return _distinct(agent.tribe, agent.clan_tribe, *agent.clan_tribes)
+    values = (agent.tribe, agent.clan_tribe, *agent.clan_tribes)
+    public_values = tuple(public_tribe_name(value) for value in values if value)
+    return _distinct(*values, *public_values)
 
 
 def _is_retrying(agent: Agent) -> bool:

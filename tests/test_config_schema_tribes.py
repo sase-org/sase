@@ -46,7 +46,7 @@ def test_bundled_ace_tribes_are_only_sase_assigned_tribes() -> None:
     assert set(data["ace"]["tribes"]) == {
         "default",
         "epic",
-        "chop",
+        "job",
         "pinned",
         "review",
     }

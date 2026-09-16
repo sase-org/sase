@@ -78,7 +78,7 @@ def test_default_test_fixture_disables_plugin_config() -> None:
     assert is_plugin_disabled("CONFIG") is True
     tribes = load_merged_config()["ace"]["tribes"]
     assert "research" not in tribes
-    assert set(tribes) == {"default", "epic", "chop", "pinned", "review"}
+    assert set(tribes) == {"default", "epic", "job", "pinned", "review"}
 
 
 def test_default_fixture_skips_discovering_sase_config_plugins(

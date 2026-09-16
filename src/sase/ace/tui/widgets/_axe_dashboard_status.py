@@ -446,9 +446,9 @@ class AxeStatusSection(Static):
                 text.append("Errors: ", style="bold #87D7FF")
                 text.append(f"{status.errors_encountered}", style="bold red")
 
-            # Chops count
+            # Jobs count
             text.append("  │  ", style="dim")
-            text.append("Chops: ", style="bold #87D7FF")
+            text.append("Jobs: ", style="bold #87D7FF")
             text.append(f"{len(status.chops)}", style="#00D7AF")
 
         # Countdown

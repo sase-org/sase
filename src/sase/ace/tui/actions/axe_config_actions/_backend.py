@@ -298,7 +298,7 @@ def _missing_script_warning(
         return None
     if discover_chop_script(script, list(inventory.chop_inventory.chop_script_dirs)):
         return None
-    return f"Executable {script!r} was not found; this chop cannot run until it is installed."
+    return f"Executable {script!r} was not found; this job cannot run until it is installed."
 
 
 def _plan_axe_editor_request(
@@ -325,7 +325,7 @@ def _plan_axe_editor_request(
     warnings: list[str] = []
     if mutation_plan.promoted_legacy_list:
         warnings.append(
-            "This edit promotes the target layer's legacy chop list to an exact-key mapping."
+            "This edit promotes the target layer's legacy job list to an exact-key mapping."
         )
     missing = _missing_script_warning(mutation_plan, inventory)
     if missing is not None:

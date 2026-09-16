@@ -37,8 +37,8 @@ NAV_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_ONLY,
         ("section", "heading", "ctrl+k"),
     ),
-    ("next_agent_file", "Next file / chop run", "Navigation", AGENTS_AXE, ()),
-    ("prev_agent_file", "Previous file / chop run", "Navigation", AGENTS_AXE, ()),
+    ("next_agent_file", "Next file / job run", "Navigation", AGENTS_AXE, ()),
+    ("prev_agent_file", "Previous file / job run", "Navigation", AGENTS_AXE, ()),
     ("jump_to_entry", "Jump to entry", "Navigation", ALL_TABS, ("hint",)),
     (
         "jump_to_entry_fast",

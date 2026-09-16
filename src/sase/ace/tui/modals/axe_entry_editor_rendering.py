@@ -18,10 +18,12 @@ from .axe_entry_sheet import (
     AxeEntrySheetRow,
     build_sheet_rows,
     detail_dock_lines,
+    field_display_name,
     hint_text,
     sheet_column_widths,
     status_line_text,
 )
+from .axe_entry_editor_types import axe_entry_kind_label
 from .config_edit_helpers import format_value_for_editor
 from .config_transaction_preview import (
     coerce_transaction_preview,
@@ -319,7 +321,7 @@ class AxeEntryEditorRenderingMixin:
 
         name_widget = self.query_one(f"#axe-editor-name-{index}", Static)
         name_widget.styles.width = columns.name
-        name_text = Text(row.name, style="bold #F0C674" if selected else "")
+        name_text = Text(row.display_name, style="bold #F0C674" if selected else "")
         if row.required:
             name_text.append(" *", style="#F0C674")
         name_widget.update(name_text)
@@ -355,7 +357,9 @@ class AxeEntryEditorRenderingMixin:
             header_text.append(header, style="dim")
         else:
             required = " *" if field.required else ""
-            header_text.append(f"{field.name}{required}", style="bold #F0C674")
+            header_text.append(
+                f"{field_display_name(field.name)}{required}", style="bold #F0C674"
+            )
             header_text.append(f"  {field.editor_kind}", style="#D7A85B")
             if mode:
                 header_text.append(f"  {mode}", style="bold #87AFD7")
@@ -397,7 +401,10 @@ class AxeEntryEditorRenderingMixin:
         identity = self._seed.identity
         text = Text()
         verb = "Add" if self._seed.new_entry else "Edit"
-        text.append(f"{verb} AXE {identity.kind}", style="bold #F0C674")
+        text.append(
+            f"{verb} AXE {axe_entry_kind_label(identity.kind)}",
+            style="bold #F0C674",
+        )
         text.append(" · ", style="#B87333")
         text.append(identity.label, style="bold #E6B450")
         return text

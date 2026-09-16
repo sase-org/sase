@@ -17,6 +17,7 @@ from pathlib import Path
 from sase.core.agent_tribe import (
     InvalidTribeError,
     canonical_agent_tribes_path,
+    canonicalize_public_tribe_name,
     legacy_agent_tags_path,
     load_raw_agent_tribes,
     validate_tribe_name,
@@ -106,7 +107,7 @@ def update_agent_tribe(
     tribe: str,
 ) -> bool:
     """Atomically set one assignment, importing legacy state if necessary."""
-    validate_tribe_name(tribe)
+    tribe = canonicalize_public_tribe_name(tribe)
     try:
         with _agent_tribes_file_lock():
             store = load_agent_tribes()
@@ -122,7 +123,7 @@ def update_agent_tribe_assignment(
 ) -> bool:
     """Atomically set or clear one canonical tribe assignment."""
     if tribe is not None:
-        validate_tribe_name(tribe)
+        tribe = canonicalize_public_tribe_name(tribe)
     try:
         with _agent_tribes_file_lock():
             store = load_agent_tribes()
@@ -144,7 +145,7 @@ def set_tribe(
     tribe: str,
 ) -> str:
     """Set *identity* to a validated tribe, replacing its prior value."""
-    validate_tribe_name(tribe)
+    tribe = canonicalize_public_tribe_name(tribe)
     tribes_by_identity[identity] = tribe
     return tribe
 

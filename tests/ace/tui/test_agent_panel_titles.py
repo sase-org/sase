@@ -31,7 +31,7 @@ def test_collapsed_panel_title_prepends_chevron_and_preserves_summary() -> None:
         collapsed=True,
     )
 
-    assert title.plain == "▸ @chop · 3 [R1 W2]"
+    assert title.plain == "▸ @job · 3 [R1 W2]"
 
 
 def test_panel_title_places_icon_before_tribe_label() -> None:
@@ -43,7 +43,7 @@ def test_panel_title_places_icon_before_tribe_label() -> None:
         icon="†",
     )
 
-    assert title.plain == "▸ † @chop · 3"
+    assert title.plain == "▸ † @job · 3"
 
     merged = agent_panel_border_title(
         None,
@@ -97,20 +97,20 @@ def test_panel_title_custom_color_preserves_hint_and_fold_chrome() -> None:
         color="#FFAF5F",
     )
 
-    assert title.plain == "[x] ▸ † @chop · 3"
+    assert title.plain == "[x] ▸ † @job · 3"
     _assert_title_span(title, start=0, end=4, style="bold #FFFF00", text="[x] ")
     _assert_title_span(title, start=4, end=6, style=_PANEL_COUNT_STYLE, text="▸ ")
     _assert_title_span(title, start=6, end=8, style="bold #FFAF5F", text="† ")
-    _assert_title_span(title, start=8, end=13, style="bold #FFAF5F", text="@chop")
-    _assert_title_span(title, start=13, end=16, style=_PANEL_COUNT_STYLE, text=" · ")
+    _assert_title_span(title, start=8, end=12, style="bold #FFAF5F", text="@job")
+    _assert_title_span(title, start=12, end=15, style=_PANEL_COUNT_STYLE, text=" · ")
 
 
 def test_panel_title_empty_color_keeps_legacy_tribe_style() -> None:
     title = agent_panel_border_title("chop", 3, icon="†", color="")
 
-    assert title.plain == "† @chop · 3"
+    assert title.plain == "† @job · 3"
     _assert_title_span(title, start=0, end=2, style="bold #FFD75F", text="† ")
-    _assert_title_span(title, start=2, end=7, style="bold #FFD75F", text="@chop")
+    _assert_title_span(title, start=2, end=6, style="bold #FFD75F", text="@job")
 
 
 def test_merged_panel_title_ignores_tribe_display_color() -> None:
@@ -143,7 +143,7 @@ def test_selected_expanded_panel_title_has_focus_marker() -> None:
         selected=True,
     )
 
-    assert title.plain == "❖ @chop · 21 [S1 R2 Q7 W3 F4 U5 D6]"
+    assert title.plain == "❖ @job · 21 [S1 R2 Q7 W3 F4 U5 D6]"
     selected_style = "#FFD75F"
     _assert_title_span(title, start=0, end=2, style=selected_style, text="❖ ")
     total_start = title.plain.index("21")
@@ -204,7 +204,7 @@ def test_panel_title_renders_proc_chip_before_monitor_chips() -> None:
         ),
     )
 
-    assert title.plain == "@chop · 16 [R1 D15] ⚙1 ⚙10 ⚙1"
+    assert title.plain == "@job · 16 [R1 D15] ⚙1 ⚙10 ⚙1"
     proc_start = title.plain.index("⚙1")
     running_start = title.plain.index("⚙10", proc_start + 1)
     settled_start = title.plain.index("⚙1", running_start + 1)
@@ -318,7 +318,7 @@ def test_panel_title_places_isolation_restore_marker_after_tribe_name() -> None:
         isolation_restore_marked=True,
     )
 
-    assert title.plain == "❖ @chop ↺ · 3 [R1 W2]"
+    assert title.plain == "❖ @job ↺ · 3 [R1 W2]"
     marker_start = title.plain.index("↺")
     _assert_title_span(
         title,
@@ -337,7 +337,7 @@ def test_panel_title_places_fold_restore_marker_count_after_tribe_name() -> None
         fold_restore_marked_count=3,
     )
 
-    assert title.plain == "@chop ▿3 · 3 [R1 W2]"
+    assert title.plain == "@job ▿3 · 3 [R1 W2]"
     marker_start = title.plain.index("▿3")
     _assert_title_span(
         title,
@@ -357,7 +357,7 @@ def test_panel_title_composes_isolation_and_fold_restore_markers() -> None:
         fold_restore_marked_count=3,
     )
 
-    assert title.plain == "@chop ↺ ▿3 · 3"
+    assert title.plain == "@job ↺ ▿3 · 3"
     isolation_start = title.plain.index("↺")
     fold_start = title.plain.index("▿3")
     _assert_title_span(
@@ -385,7 +385,7 @@ def test_collapsed_panel_title_prepends_yellow_jump_hint() -> None:
         jump_hint="x",
     )
 
-    assert title.plain == "[x] ▸ @chop · 3 [R1 W2]"
+    assert title.plain == "[x] ▸ @job · 3 [R1 W2]"
     _assert_title_span(
         title,
         start=0,
@@ -404,7 +404,7 @@ def test_panel_title_renders_two_character_jump_hint() -> None:
         jump_hint="0Z",
     )
 
-    assert title.plain == "[0Z] ▸ @chop · 3 [R1 W2]"
+    assert title.plain == "[0Z] ▸ @job · 3 [R1 W2]"
     _assert_title_span(
         title,
         start=0,

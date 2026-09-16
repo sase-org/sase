@@ -12,7 +12,7 @@ def _section_plain(sections: dict[str, Text], selector: str) -> str:
     return sections[selector].plain
 
 
-def test_axe_onboarding_content_describes_axe_chops_bgcmds_and_docs() -> None:
+def test_axe_onboarding_content_describes_axe_jobs_bgcmds_and_docs() -> None:
     sections = AxeOnboarding.render_content(load_keymap_registry({}))
     rendered = "\n".join(text.plain for text in sections.values())
 
@@ -20,13 +20,12 @@ def test_axe_onboarding_content_describes_axe_chops_bgcmds_and_docs() -> None:
     assert "Axe is the daemon" in rendered
     assert "Axe starts automatically with sase tui" in rendered
     assert "start or stop Axe (with the Axe row selected)" in rendered
-    assert "lumberjack" in rendered
-    assert "chops" in rendered
-    assert "add a lumberjack or chop" in rendered
+    assert "routine" in rendered
+    assert "jobs" in rendered
+    assert "add a routine or job" in rendered
     assert "edit the selected AXE config" in rendered
     assert (
-        "Run history keeps each chop's status, duration, and captured output"
-        in rendered
+        "Run history keeps each job's status, duration, and captured output" in rendered
     )
     assert "open recorded output" in rendered
     assert "runs any shell command in a background slot" in rendered

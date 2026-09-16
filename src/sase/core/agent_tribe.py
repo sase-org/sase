@@ -26,6 +26,11 @@ RESERVED_DEFAULT_TRIBE = "default"
 #: Every pseudo-tribe that exists only as a display identity.
 RESERVED_TRIBE_NAMES: frozenset[str] = frozenset({RESERVED_DEFAULT_TRIBE})
 
+# Historical AXE automation agents are stored as the built-in ``chop`` tribe.
+# Public surfaces now expose that same identity as ``job``.
+LEGACY_JOB_TRIBE = "chop"
+PUBLIC_JOB_TRIBE = "job"
+
 
 class InvalidTribeError(ValueError):
     """Raised when an agent tribe name fails validation."""
@@ -67,11 +72,22 @@ def validate_tribe_name(tribe: str) -> str:
     return tribe
 
 
+def canonicalize_public_tribe_name(tribe: str) -> str:
+    """Return the stable stored tribe identity for a public tribe name."""
+    validated = validate_tribe_name(tribe)
+    return LEGACY_JOB_TRIBE if validated == PUBLIC_JOB_TRIBE else validated
+
+
+def public_tribe_name(tribe: str) -> str:
+    """Return the public display spelling for a stored/effective tribe name."""
+    return PUBLIC_JOB_TRIBE if tribe == LEGACY_JOB_TRIBE else tribe
+
+
 def parse_tribe_reference(value: str) -> str | None:
     """Return the validated bare tribe from ``@<tribe>``, else ``None``."""
     if not value.startswith("@"):
         return None
-    return validate_tribe_name(value[1:])
+    return canonicalize_public_tribe_name(value[1:])
 
 
 def canonical_agent_tribes_path() -> Path:
@@ -184,22 +200,29 @@ def canonicalize_agent_tribe_metadata(data: dict[str, Any]) -> dict[str, Any]:
         legacy_tribe = _valid_stored_tribe(data.get("tag"))
         if legacy_tribe is not None:
             data["tribe"] = legacy_tribe
+    tribe = _valid_stored_tribe(data.get("tribe"))
+    if tribe is not None:
+        data["tribe"] = canonicalize_public_tribe_name(tribe)
     data.pop("tag", None)
     return data
 
 
 __all__ = [
     "InvalidTribeError",
+    "LEGACY_JOB_TRIBE",
+    "PUBLIC_JOB_TRIBE",
     "RESERVED_DEFAULT_TRIBE",
     "RESERVED_TRIBE_NAMES",
     "RawAgentTribeIdentity",
     "TRIBE_NAME_RE",
     "canonicalize_agent_tribe_metadata",
+    "canonicalize_public_tribe_name",
     "canonical_agent_tribes_path",
     "is_reserved_tribe_name",
     "legacy_agent_tags_path",
     "load_raw_agent_tribes",
     "parse_tribe_reference",
+    "public_tribe_name",
     "reserved_tribe_target_reason",
     "validate_tribe_name",
 ]

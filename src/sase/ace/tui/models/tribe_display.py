@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
@@ -13,6 +13,11 @@ from rich.cells import chop_cells
 
 from sase.config import load_merged_config
 from sase.config.core import current_config_token
+from sase.core.agent_tribe import (
+    LEGACY_JOB_TRIBE,
+    PUBLIC_JOB_TRIBE,
+    canonicalize_public_tribe_name,
+)
 
 from .agent_panels import PanelKey
 
@@ -105,14 +110,26 @@ def _tribe_displays() -> dict[str, _TribeDisplay]:
     return _tribe_displays_for_token(current_config_token())
 
 
-def _tribe_config_key(panel_key: PanelKey) -> str:
+def _tribe_config_key(
+    panel_key: PanelKey, displays: Mapping[str, _TribeDisplay] | None = None
+) -> str:
     """Return the ``ace.tribes`` config key for *panel_key*."""
-    return "default" if panel_key is None else panel_key
+    if panel_key is None:
+        return "default"
+    key = canonicalize_public_tribe_name(panel_key)
+    if (
+        displays is not None
+        and key == LEGACY_JOB_TRIBE
+        and PUBLIC_JOB_TRIBE in displays
+    ):
+        return PUBLIC_JOB_TRIBE
+    return key
 
 
 def tribe_display_for(panel_key: PanelKey) -> _TribeDisplay:
     """Return display settings for *panel_key*, mapping no-tribe to default."""
-    return _tribe_displays().get(_tribe_config_key(panel_key), DEFAULT_TRIBE_DISPLAY)
+    displays = _tribe_displays()
+    return displays.get(_tribe_config_key(panel_key, displays), DEFAULT_TRIBE_DISPLAY)
 
 
 def tribe_identity_color(panel_key: PanelKey) -> str:
@@ -127,7 +144,9 @@ def tribe_identity_colors(
     displays = _tribe_displays()
     colors: dict[PanelKey, str] = {}
     for panel_key in panel_keys:
-        display = displays.get(_tribe_config_key(panel_key), DEFAULT_TRIBE_DISPLAY)
+        display = displays.get(
+            _tribe_config_key(panel_key, displays), DEFAULT_TRIBE_DISPLAY
+        )
         colors[panel_key] = display.color or TRIBE_IDENTITY_FALLBACK_COLOR
     return colors
 
@@ -137,7 +156,10 @@ def named_tribe_identity_colors(tribe_names: Collection[str]) -> dict[str, str]:
     displays = _tribe_displays()
     return {
         tribe_name: (
-            displays.get(tribe_name, DEFAULT_TRIBE_DISPLAY).color
+            displays.get(
+                _tribe_config_key(canonicalize_public_tribe_name(tribe_name), displays),
+                DEFAULT_TRIBE_DISPLAY,
+            ).color
             or TRIBE_IDENTITY_FALLBACK_COLOR
         )
         for tribe_name in tribe_names
@@ -189,7 +211,10 @@ def effective_collapsed_panel_keys(
     displays = _tribe_displays()
     if panel_keys is None:
         candidates = collapsed | expanded
-        candidates.update(None if name == "default" else name for name in displays)
+        candidates.update(
+            None if name == "default" else canonicalize_public_tribe_name(name)
+            for name in displays
+        )
     else:
         candidates = set(panel_keys)
     return {
@@ -199,7 +224,7 @@ def effective_collapsed_panel_keys(
         or (
             key not in expanded
             and not displays.get(
-                _tribe_config_key(key),
+                _tribe_config_key(key, displays),
                 DEFAULT_TRIBE_DISPLAY,
             ).initially_expanded
         )

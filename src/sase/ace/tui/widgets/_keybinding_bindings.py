@@ -81,7 +81,7 @@ class KeybindingBindingsMixin:
         if selected_slot_done:
             bindings.append((self._kd("run_workflow"), "re-run"))
         elif chop_selected and chop_selected_enabled:
-            label = "running" if chop_selected_running else "run chop"
+            label = "running" if chop_selected_running else "run job"
             bindings.append((self._kd("run_workflow"), label))
         if config_row_selected:
             bindings.append((self._kd("edit_spec"), "edit config"))
@@ -97,7 +97,7 @@ class KeybindingBindingsMixin:
             bindings.append(
                 (
                     f"{self._kd('next_agent_file')}/{self._kd('prev_agent_file')}",
-                    "chop run",
+                    "job run",
                 )
             )
         return bindings

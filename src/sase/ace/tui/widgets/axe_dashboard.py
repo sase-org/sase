@@ -338,9 +338,9 @@ class AxeDashboard(Static):
             )
 
             if run is None:
-                # Empty state: configured chop with no recorded runs.
+                # Empty state: configured job with no recorded runs.
                 output_section.update(
-                    Text("No runs recorded for this chop yet.", style="dim italic")
+                    Text("No runs recorded for this job yet.", style="dim italic")
                 )
                 return
 
