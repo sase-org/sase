@@ -14,8 +14,6 @@ import sys
 import tempfile
 import threading
 import time
-from collections import deque
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import BinaryIO
 
@@ -26,6 +24,15 @@ from sase.telemetry.metrics import (
     AXE_LUMBERJACKS_ACTIVE,
 )
 from sase.core.state_write_guard import best_effort_test_state_write_allowed
+from sase.supervision import (
+    RestartPolicy,
+    RestartState,
+    pump_output,
+    record_started,
+    schedule_restart,
+    send_sigterm,
+    wait_with_escalation,
+)
 
 from . import state as axe_state
 from .config import AxeConfig
@@ -52,18 +59,9 @@ _CRASH_LOOP_FAILURE_THRESHOLD = 3
 _CRASH_LOOP_TAIL_LINES = 20
 _CRASH_LOOP_TAIL_MAX_BYTES = 8 * 1024
 
-
-@dataclass
-class _LumberjackRestartState:
-    """Per-lumberjack restart history and pending retry state."""
-
-    started_at: float | None = None
-    restart_at: float | None = None
-    backoff_seconds: float = 0.0
-    consecutive_failures: int = 0
-    recent_failures: deque[float] = field(default_factory=deque)
-    last_exit_code: int | None = None
-    alert_sent: bool = False
+# Backward-compatible alias: the restart-state dataclass now lives in the
+# shared sase.supervision library (see supervision-lib phase, sase-11y.3).
+_LumberjackRestartState = RestartState
 
 
 class Orchestrator:
@@ -73,9 +71,7 @@ class Orchestrator:
         self.config = config
         self._children: dict[str, subprocess.Popen[bytes]] = {}
         self._log_threads: dict[str, threading.Thread] = {}
-        self._restart_states = {
-            name: _LumberjackRestartState() for name in config.lumberjacks
-        }
+        self._restart_states = {name: RestartState() for name in config.lumberjacks}
         self._running = True
         self._shutdown_signal: int | None = None
 
@@ -135,28 +131,18 @@ class Orchestrator:
 
     def _stream_child_output(self, name: str, stream: BinaryIO) -> None:
         log_file = axe_state.axe_state_dir() / "logs" / f"lumberjack-{name}.log"
-        # BufferedReader.read() waits for the requested byte count or EOF on a
-        # pipe. read1() returns bytes already available from one raw read, so
-        # quiet lumberjacks reach the aggregate log promptly.
-        read_chunk = getattr(stream, "read1", stream.read)
-        try:
-            while True:
-                chunk = read_chunk(64 * 1024)
-                if not chunk:
-                    break
-                append_bounded_log(
-                    log_file,
-                    chunk,
-                    max_bytes=self.config.lumberjack_log_max_bytes,
-                    temp_max_age_seconds=(
-                        self.config.lumberjack_log_temp_max_age_seconds
-                    ),
-                )
-        finally:
-            stream.close()
+        pump_output(
+            stream,
+            lambda chunk: append_bounded_log(
+                log_file,
+                chunk,
+                max_bytes=self.config.lumberjack_log_max_bytes,
+                temp_max_age_seconds=self.config.lumberjack_log_temp_max_age_seconds,
+            ),
+        )
 
-    def _restart_state(self, name: str) -> _LumberjackRestartState:
-        return self._restart_states.setdefault(name, _LumberjackRestartState())
+    def _restart_state(self, name: str) -> RestartState:
+        return self._restart_states.setdefault(name, RestartState())
 
     def _record_lumberjack_started(
         self,
@@ -166,10 +152,7 @@ class Orchestrator:
         now: float,
     ) -> None:
         self._children[name] = proc
-        state = self._restart_state(name)
-        state.started_at = now
-        state.restart_at = None
-        state.last_exit_code = None
+        record_started(self._restart_state(name), now=now)
 
     def _schedule_lumberjack_restart(
         self,
@@ -181,33 +164,16 @@ class Orchestrator:
     ) -> float:
         """Record a failure and schedule the next bounded-backoff retry."""
         state = self._restart_state(name)
-        healthy_run = (
-            state.started_at is not None
-            and now - state.started_at >= _RESTART_HEALTHY_RUN_SECONDS
+        policy = RestartPolicy(
+            initial_backoff_seconds=_RESTART_BACKOFF_INITIAL_SECONDS,
+            healthy_run_seconds=_RESTART_HEALTHY_RUN_SECONDS,
+            max_backoff_seconds=float(
+                self.config.lumberjack_restart_backoff_max_seconds
+            ),
+            crash_loop_window_seconds=_CRASH_LOOP_WINDOW_SECONDS,
+            crash_loop_failure_threshold=_CRASH_LOOP_FAILURE_THRESHOLD,
         )
-        if healthy_run:
-            state.backoff_seconds = 0.0
-            state.consecutive_failures = 0
-            state.recent_failures.clear()
-            state.alert_sent = False
-
-        state.started_at = None
-        state.consecutive_failures += 1
-        if state.backoff_seconds == 0:
-            state.backoff_seconds = _RESTART_BACKOFF_INITIAL_SECONDS
-        else:
-            state.backoff_seconds *= 2
-        state.backoff_seconds = min(
-            state.backoff_seconds,
-            float(self.config.lumberjack_restart_backoff_max_seconds),
-        )
-        state.restart_at = now + state.backoff_seconds
-        state.last_exit_code = exit_code
-
-        cutoff = now - _CRASH_LOOP_WINDOW_SECONDS
-        while state.recent_failures and state.recent_failures[0] < cutoff:
-            state.recent_failures.popleft()
-        state.recent_failures.append(now)
+        crash_looping = schedule_restart(state, policy, now=now, exit_code=exit_code)
 
         if spawn_error is None:
             detail = f"exited (code {exit_code})"
@@ -218,11 +184,7 @@ class Orchestrator:
             file=sys.stderr,
         )
 
-        if (
-            len(state.recent_failures) >= _CRASH_LOOP_FAILURE_THRESHOLD
-            and not state.alert_sent
-        ):
-            state.alert_sent = True
+        if crash_looping:
             self._surface_crash_loop(
                 name,
                 exit_code=exit_code,
@@ -503,14 +465,7 @@ class Orchestrator:
             finally:
                 self._terminate_children()
                 # Wait for all children to exit (with escalation to SIGKILL)
-                deadline = time.monotonic() + 10
-                for _name, proc in self._children.items():
-                    remaining = max(0, deadline - time.monotonic())
-                    try:
-                        proc.wait(timeout=remaining)
-                    except subprocess.TimeoutExpired:
-                        proc.kill()
-                        proc.wait(timeout=5)
+                wait_with_escalation(self._children, term_timeout=10, kill_timeout=5)
                 if self._shutdown_signal is not None:
                     try:
                         signal_name = signal.Signals(self._shutdown_signal).name
@@ -537,9 +492,4 @@ class Orchestrator:
 
     def _terminate_children(self) -> None:
         """Send SIGTERM to all live child processes."""
-        for _name, proc in self._children.items():
-            if proc.poll() is None:
-                try:
-                    os.kill(proc.pid, signal.SIGTERM)
-                except (ProcessLookupError, PermissionError):
-                    pass
+        send_sigterm(self._children)
