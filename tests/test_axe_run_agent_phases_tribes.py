@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 
@@ -260,7 +260,60 @@ def test_extract_directives_persists_tribe_with_atomic_helper(
     update_agent_tribe.assert_called_once_with(
         (AgentType.WORKFLOW, "sample-cl", "20260506120000"),
         "sase-26",
+        layers=ANY,
     )
+
+
+def test_id_tribe_job_alias_collision_fails_the_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A same-layer ``ace.tribes.chop``/``ace.tribes.job`` collision must
+    reject the ``%id(tribe=job)`` launch instead of silently storing the
+    built-in ``chop`` identity."""
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir = tmp_path / "artifacts" / "20260506120000"
+    workspace_dir.mkdir()
+    artifacts_dir.mkdir(parents=True)
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+    colliding_layers = [
+        {
+            "name": "user",
+            "kind": "user",
+            "path": "/tmp/sase.yml",
+            "value": {
+                "ace": {
+                    "tribes": {
+                        "chop": {"icon": "C"},
+                        "job": {"icon": "J"},
+                    }
+                }
+            },
+        }
+    ]
+
+    with (
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.agent.names.claim_agent_name"),
+        patch(
+            "sase.config.inventory.discover_layer_inputs",
+            return_value=colliding_layers,
+        ),
+        pytest.raises(RuntimeError, match="ace.tribes.chop") as excinfo,
+    ):
+        extract_directives_and_write_meta(
+            "%id(taggy, tribe=job)\nDo work",
+            str(workspace_dir),
+            str(artifacts_dir),
+            cl_name="sample-cl",
+        )
+
+    assert "%id tribe='job'" in str(excinfo.value)
 
 
 def _extract_with_agent_tribes(

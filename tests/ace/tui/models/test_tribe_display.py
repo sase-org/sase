@@ -300,6 +300,27 @@ def test_effective_identity_colors_and_emphasis_use_one_fallback(
     )
 
 
+def test_named_tribe_identity_colors_resolves_independent_stored_job(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A caller passing an already-stored ``job`` identity keeps its own
+    color, rather than a plain (context-free) canonicalization collapsing it
+    onto the built-in ``chop`` panel's color.
+
+    ``tribe_names`` is itself the already-loaded evidence of which tribes are
+    actually in use, so it doubles as ``stored_tribes`` context here.
+    """
+    _install_config(
+        monkeypatch,
+        {
+            "chop": {"color": "#111111"},
+            "job": {"color": "#222222"},
+        },
+    )
+
+    assert display.named_tribe_identity_colors({"job"}) == {"job": "#222222"}
+
+
 def test_resolution_is_memoized_per_config_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

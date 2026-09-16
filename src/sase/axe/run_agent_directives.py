@@ -486,11 +486,18 @@ def extract_directives_and_write_meta(
     # Persist %id tribe= for the Agents tab's workflow identity.
     if directives.tribe and cl_name:
         from sase.ace.agent_tribes import update_agent_tribe
+        from sase.config.inventory import discover_layer_inputs
+        from sase.core.agent_tribe import InvalidTribeError
         from sase.core.agent_types import AgentType
 
         raw_suffix = os.path.basename(artifacts_dir.rstrip(os.sep)) or None
         identity_key = (AgentType.WORKFLOW, cl_name, raw_suffix)
-        update_agent_tribe(identity_key, directives.tribe)
+        try:
+            update_agent_tribe(
+                identity_key, directives.tribe, layers=discover_layer_inputs()
+            )
+        except InvalidTribeError as exc:
+            raise RuntimeError(f"%id tribe={directives.tribe!r}: {exc}") from exc
 
     auto_mode = directives.auto_mode
     return AgentInfo(

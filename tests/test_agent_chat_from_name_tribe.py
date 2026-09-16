@@ -194,6 +194,35 @@ def test_tribe_fork_reads_archived_clan_member_transcript(
     ]
 
 
+def test_tribe_fork_resolves_independent_stored_job_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fork on ``@job`` resolves the same independent stored identity a
+    preceding ``%wait(@job)`` binds, not the built-in ``job -> chop`` alias.
+
+    Without stored-tribe evidence, plain canonicalization always maps the
+    public ``@job`` spelling to the historical ``chop`` identity — which
+    would miss an agent independently and literally tribed ``job``.
+    """
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    current_dir = write_agent(tmp_path, "20260718020000", "waiter")
+    independent_chat = tmp_path / "independent.md"
+    write_agent(
+        tmp_path,
+        "20260718022000",
+        "independent-job",
+        done={"response_path": str(independent_chat), "outcome": "completed"},
+        meta={"tribe": "job"},
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(current_dir))
+
+    source = _resolve_agent_chat_sources(["@job"])[0]
+
+    assert source.kind == "agent"
+    assert source.name == "independent-job"
+    assert source.path == str(independent_chat)
+
+
 def test_tribe_fork_rejects_reserved_default_tribe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

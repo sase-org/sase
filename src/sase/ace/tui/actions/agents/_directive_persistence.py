@@ -292,8 +292,11 @@ def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
 
 def _patch_agent_tribe_store(patch: AgentTribeStorePatch) -> bool:
     from sase.ace.agent_tribes import update_agent_tribe_assignment
+    from sase.config.inventory import discover_layer_inputs
 
-    return update_agent_tribe_assignment(patch.identity, patch.tribe)
+    return update_agent_tribe_assignment(
+        patch.identity, patch.tribe, layers=discover_layer_inputs()
+    )
 
 
 def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> None:

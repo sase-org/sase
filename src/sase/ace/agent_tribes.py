@@ -13,6 +13,7 @@ import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 from sase.core.agent_tribe import (
     InvalidTribeError,
@@ -105,12 +106,20 @@ def _agent_tribes_file_lock() -> Iterator[None]:
 def update_agent_tribe(
     identity: tuple[AgentType, str, str | None],
     tribe: str,
+    *,
+    layers: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
 ) -> bool:
-    """Atomically set one assignment, importing legacy state if necessary."""
+    """Atomically set one assignment, importing legacy state if necessary.
+
+    *layers* carries config-layer provenance so a same-layer or cross-layer
+    ``ace.tribes.chop``/``ace.tribes.job`` collision is rejected instead of
+    silently storing the built-in ``chop`` identity. A caller that has no
+    config context (for example a non-interactive test) may omit it.
+    """
     try:
         with _agent_tribes_file_lock():
             store = load_agent_tribes()
-            set_tribe(store, identity, tribe)
+            set_tribe(store, identity, tribe, layers=layers)
             return save_agent_tribes(store)
     except OSError:
         return False
@@ -119,8 +128,13 @@ def update_agent_tribe(
 def update_agent_tribe_assignment(
     identity: tuple[AgentType, str, str | None],
     tribe: str | None,
+    *,
+    layers: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
 ) -> bool:
-    """Atomically set or clear one canonical tribe assignment."""
+    """Atomically set or clear one canonical tribe assignment.
+
+    See :func:`update_agent_tribe` for *layers*.
+    """
     try:
         with _agent_tribes_file_lock():
             store = load_agent_tribes()
@@ -128,7 +142,7 @@ def update_agent_tribe_assignment(
             if tribe is None:
                 unset_tribe(store, identity)
             else:
-                set_tribe(store, identity, tribe)
+                set_tribe(store, identity, tribe, layers=layers)
             if store.get(identity) == before:
                 return False
             return save_agent_tribes(store)
@@ -140,10 +154,18 @@ def set_tribe(
     tribes_by_identity: dict[tuple[AgentType, str, str | None], str],
     identity: tuple[AgentType, str, str | None],
     tribe: str,
+    *,
+    layers: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
 ) -> str:
-    """Set *identity* to a validated tribe, replacing its prior value."""
+    """Set *identity* to a validated tribe, replacing its prior value.
+
+    Raises :class:`InvalidTribeError` — leaving *tribes_by_identity*
+    unmodified — when *layers* carries an unresolved config-layer alias
+    collision for a public ``job`` input.
+    """
     tribe = canonicalize_public_tribe_name(
         tribe,
+        layers=layers,
         stored_tribes=tuple(tribes_by_identity.values()),
         current_tribe=tribes_by_identity.get(identity),
     )

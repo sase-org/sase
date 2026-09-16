@@ -200,14 +200,25 @@ def tribe_identity_colors(
 
 
 def named_tribe_identity_colors(tribe_names: Collection[str]) -> dict[str, str]:
-    """Resolve effective identity colors once for bare tribe names."""
+    """Resolve effective identity colors once for bare tribe names.
+
+    *tribe_names* is itself the already-loaded evidence of which stored
+    tribes are actually in use, so it doubles as ``stored_tribes`` context:
+    a public ``job`` entry alongside an independent stored ``job`` entry
+    resolves to that independent identity's own color instead of always
+    collapsing to the built-in ``chop`` color. No extra I/O — the set is
+    already in memory.
+    """
     token = current_config_token()
     displays = _tribe_displays_for_token(token)
+    stored_tribes = tuple(tribe_names)
     return {
         tribe_name: (
             displays.get(
                 _tribe_config_key(
-                    canonicalize_public_tribe_name(tribe_name),
+                    canonicalize_public_tribe_name(
+                        tribe_name, stored_tribes=stored_tribes
+                    ),
                     displays,
                     token=token,
                 ),

@@ -229,11 +229,12 @@ def collect_agent_wait_status_maps(
         )
 
     tribe_rows = _collect_tribe_member_rows(all_agents)
+    stored_tribes = tuple({row.tribe for row in tribe_rows if row.tribe})
     tribe_bindings: dict[tuple[object, str], TribeWaitBinding] = {}
     for agent in all_agents:
         wait_agent = wait_display_agent(agent)
         for reference in wait_agent.waiting_for:
-            tribe = _parse_tribe_target(reference)
+            tribe = _parse_tribe_target(reference, stored_tribes=stored_tribes)
             if tribe is None:
                 continue
             key = (wait_agent.identity, reference)
@@ -308,9 +309,18 @@ def _agent_clan_key(agent: Agent) -> tuple[str, str] | None:
     )
 
 
-def _parse_tribe_target(reference: str) -> str | None:
+def _parse_tribe_target(
+    reference: str, *, stored_tribes: tuple[str, ...] = ()
+) -> str | None:
+    """Resolve a wait target reference using the same rows the binding uses.
+
+    *stored_tribes* comes from the already-loaded ``tribe_rows`` snapshot, so
+    a public ``@job`` reference resolves to an independent historical ``job``
+    identity when one is present, matching the binding computed just below
+    from the same rows — no extra I/O beyond what this render already loaded.
+    """
     try:
-        return parse_tribe_reference(reference)
+        return parse_tribe_reference(reference, stored_tribes=stored_tribes)
     except InvalidTribeError:
         return None
 

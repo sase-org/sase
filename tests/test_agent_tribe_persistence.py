@@ -15,6 +15,7 @@ from sase.ace.agent_tribes import (
     set_tribe,
     unset_tribe,
     update_agent_tribe,
+    update_agent_tribe_assignment,
     validate_tribe_name,
 )
 from sase.ace.tui.models.agent import AgentType
@@ -136,3 +137,64 @@ def test_update_agent_tribe_validates_input(tmp_path: Path) -> None:
         with pytest.raises(InvalidTribeError):
             update_agent_tribe(identity, "bad tribe")
         assert load_agent_tribes() == {}
+
+
+def _colliding_job_alias_layers() -> list[dict[str, object]]:
+    """One layer authoring distinct ``chop``/``job`` tribe display records."""
+    return [
+        {
+            "name": "user",
+            "kind": "user",
+            "path": "/tmp/sase.yml",
+            "value": {
+                "ace": {
+                    "tribes": {
+                        "chop": {"icon": "C", "description": "Built-in"},
+                        "job": {"icon": "J", "description": "Independent"},
+                    }
+                }
+            },
+        }
+    ]
+
+
+def test_set_tribe_without_layers_ignores_config_collision() -> None:
+    """No config context means the cheap built-in ``job -> chop`` write stands."""
+    store: dict[tuple[AgentType, str, str | None], str] = {}
+    identity = (AgentType.RUNNING, "cl", "ts")
+
+    resolved = set_tribe(store, identity, "job")
+
+    assert resolved == "chop"
+    assert store[identity] == "chop"
+
+
+def test_set_tribe_rejects_layer_collision_and_leaves_store_unchanged() -> None:
+    """A same-layer ``chop``/``job`` alias collision must reject the mutation."""
+    store: dict[tuple[AgentType, str, str | None], str] = {
+        (AgentType.RUNNING, "other", "ts0"): "epic",
+    }
+    identity = (AgentType.RUNNING, "cl", "ts")
+
+    with pytest.raises(InvalidTribeError, match="ace.tribes.chop"):
+        set_tribe(store, identity, "job", layers=_colliding_job_alias_layers())
+
+    assert identity not in store
+    assert store == {(AgentType.RUNNING, "other", "ts0"): "epic"}
+
+
+def test_update_agent_tribe_assignment_rejects_layer_collision(
+    tmp_path: Path,
+) -> None:
+    """The durable assignment path surfaces the same collision, store untouched."""
+    store_path = tmp_path / "agent_tribes.json"
+    identity = (AgentType.WORKFLOW, "sample", "ts")
+    with _canonical_path(store_path):
+        assert save_agent_tribes({identity: "epic"})
+
+        with pytest.raises(InvalidTribeError):
+            update_agent_tribe_assignment(
+                identity, "job", layers=_colliding_job_alias_layers()
+            )
+
+        assert load_agent_tribes() == {identity: "epic"}

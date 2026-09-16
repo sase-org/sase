@@ -211,6 +211,53 @@ def test_tribe_set_replaces_existing_legacy_tag(tmp_path: Path) -> None:
     assert persisted == [{"id": ["run", "fix-bug", "ts"], "tribe": "beta"}]
 
 
+def test_tribe_set_rejects_config_layer_job_alias_collision(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A same-layer ``ace.tribes.chop``/``ace.tribes.job`` collision must surface
+    as a clean CLI diagnostic instead of silently storing the built-in ``chop``
+    identity or crashing with an uncaught traceback."""
+    canonical = tmp_path / "agent_tribes.json"
+    canonical_patch, legacy_patch = _store_paths(
+        canonical, tmp_path / "missing-agent-tags.json"
+    )
+    identity = (AgentType.RUNNING, "fix-bug", "20260425120000")
+    colliding_layers = [
+        {
+            "name": "user",
+            "kind": "user",
+            "path": "/tmp/sase.yml",
+            "value": {
+                "ace": {
+                    "tribes": {
+                        "chop": {"icon": "C"},
+                        "job": {"icon": "J"},
+                    }
+                }
+            },
+        }
+    ]
+    with (
+        patch(
+            "sase.agents.cli_tribe._resolve_identity_by_name",
+            return_value=identity,
+        ),
+        patch(
+            "sase.config.inventory.discover_layer_inputs",
+            return_value=colliding_layers,
+        ),
+        canonical_patch,
+        legacy_patch,
+        pytest.raises(SystemExit) as excinfo,
+    ):
+        handle_agents_tribe(_tribe_args(tribe="job"))
+
+    assert excinfo.value.code == 2
+    assert "ace.tribes.chop" in capsys.readouterr().err
+    assert not canonical.exists()
+
+
 def test_tribe_set_rejects_at_prefix(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as excinfo:
         handle_agents_tribe(_tribe_args(tribe="@release"))

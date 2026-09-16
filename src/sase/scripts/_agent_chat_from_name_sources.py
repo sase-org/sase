@@ -13,7 +13,6 @@ from sase.agent.names import (
     resolve_resume_agent_name,
 )
 from sase.agent.names._lookup_artifacts import is_success_outcome
-from sase.core.agent_tribe import parse_tribe_reference
 from sase.core.dismissed_agent_completion import FAILURE_OUTCOMES
 from sase.monitor_state import is_real_monitor_member
 from sase.procs import ProcRefError, read_procs, resolve_proc_ref
@@ -149,10 +148,16 @@ def _canonical_transcript_path(path: str) -> Path:
 
 
 def _resolve_fork_source(name: str) -> ForkSource:
-    """Resolve *name* to an agent, family, or complete clan source."""
-    tribe = parse_tribe_reference(name)
-    if tribe is not None:
-        return resolve_tribe_fork_source(name, tribe)
+    """Resolve *name* to an agent, family, or complete clan source.
+
+    Tribe-reference recognition stays syntactic here (``@`` prefix only): the
+    identity a public ``@job`` spelling maps to requires the stored-tribe
+    evidence that only the indexed resolver inside
+    :func:`resolve_tribe_fork_source` has, so canonicalization must not run
+    before that lookup.
+    """
+    if name.startswith("@"):
+        return resolve_tribe_fork_source(name)
 
     clan = find_agent_clan(name)
     if clan is not None:

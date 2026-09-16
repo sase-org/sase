@@ -133,8 +133,14 @@ def _handle_tribe_set(args: argparse.Namespace) -> None:
     cleaned = _validate_or_exit(raw_tribe)
     identity = _resolve_or_exit(name)
 
+    from sase.config.inventory import discover_layer_inputs
+
     store = load_agent_tribes()
-    set_tribe(store, identity, cleaned)
+    try:
+        set_tribe(store, identity, cleaned, layers=discover_layer_inputs())
+    except InvalidTribeError as exc:
+        print(f"Invalid tribe: {exc}", file=sys.stderr)
+        sys.exit(2)
     if not save_agent_tribes(store):
         print("Failed to write agent_tribes.json", file=sys.stderr)
         sys.exit(1)

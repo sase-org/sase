@@ -386,6 +386,33 @@ def test_tribe_time_and_runner_waits_do_not_enter_dependency_counts() -> None:
     assert wait_dependency_status_counts(waiter, maps) == WaitDependencyStatusCounts()
 
 
+def test_tribe_binding_resolves_independent_stored_job_identity() -> None:
+    """A live ``%wait(@job)`` binds an independent stored ``job`` identity.
+
+    With no ``chop``-tribed agent in the snapshot, plain (context-free)
+    canonicalization of ``@job`` would look for ``chop`` and never bind, even
+    though the already-loaded rows show a real ``job``-tribed completion.
+    """
+    waiter = make_agent(
+        status="WAITING",
+        waiting_for=["@job"],
+        raw_suffix="20260712120000",
+    )
+    target = make_agent(
+        agent_name="independent-job",
+        raw_suffix="20260712130000",
+        status="RUNNING",
+        status_bucket="Done",
+        tribe="job",
+    )
+
+    maps = collect_agent_wait_status_maps([waiter, target])
+
+    binding = maps.tribe_bindings[(waiter.identity, "@job")]
+    assert binding.state == "bound"
+    assert binding.name == "independent-job"
+
+
 def test_bead_status_tokens_are_semantically_readable() -> None:
     unknown = WAIT_UNKNOWN_GLYPH
     rendered_unknown = _format_wait_dependency_status_counts(

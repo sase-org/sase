@@ -20,23 +20,24 @@ from sase.scripts._agent_chat_from_name_models import (
 )
 
 
-def resolve_tribe_fork_source(reference: str, tribe: str) -> ForkSource:
+def resolve_tribe_fork_source(reference: str) -> ForkSource:
     """Resolve a tribe ref to the wait side's canonical next complete entity.
 
     The implied wait normally makes an unresolved result unreachable. Rebuilding
     the all-project index here preserves the wait check's entity aggregation and
     earliest-launch ordering when the fork workflow starts after the barrier.
+
+    The public ``@job`` spelling is resolved against this same index's stored
+    tribes, so a wait bound to an independent historical ``job`` identity is
+    followed by a fork that targets the same identity rather than silently
+    falling back to the built-in ``job -> chop`` alias.
     """
     from sase.core.agent_tribe import (
+        InvalidTribeError,
         is_reserved_tribe_name,
+        parse_tribe_reference,
         reserved_tribe_target_reason,
     )
-
-    if is_reserved_tribe_name(tribe):
-        raise RuntimeError(
-            f"Invalid '#fork' tribe reference {reference!r}: "
-            f"{reserved_tribe_target_reason(tribe)}"
-        )
 
     current_artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not current_artifacts_dir:
@@ -45,8 +46,24 @@ def resolve_tribe_fork_source(reference: str, tribe: str) -> ForkSource:
             "SASE_ARTIFACTS_DIR is not set"
         )
 
+    index = _build_all_projects_wait_index()
+    try:
+        tribe = parse_tribe_reference(reference, stored_tribes=tuple(index.tribes))
+    except InvalidTribeError as exc:
+        raise RuntimeError(
+            f"Invalid '#fork' tribe reference {reference!r}: {exc}"
+        ) from exc
+    if tribe is None:
+        raise RuntimeError(f"Not a tribe reference: {reference!r}")
+
+    if is_reserved_tribe_name(tribe):
+        raise RuntimeError(
+            f"Invalid '#fork' tribe reference {reference!r}: "
+            f"{reserved_tribe_target_reason(tribe)}"
+        )
+
     current = Path(current_artifacts_dir).expanduser().resolve(strict=False)
-    candidate = _build_all_projects_wait_index().tribe_candidate(
+    candidate = index.tribe_candidate(
         tribe,
         newer_than=current.name,
         exclude_artifact_dir=current,
