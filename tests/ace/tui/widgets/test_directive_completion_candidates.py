@@ -96,7 +96,7 @@ def test_deprecated_name_spellings_are_absent_from_completion() -> None:
 
 def test_directive_completion_includes_representative_descriptions() -> None:
     model, _ = single_directive_candidate("%mo")
-    agent_id, _ = single_directive_candidate("%i")
+    agent_id, _ = single_directive_candidate("%id")
     wait, _ = single_directive_candidate("%w")
     alt, _ = single_directive_candidate("%al")
     auto, _ = single_directive_candidate("%au")
@@ -252,11 +252,17 @@ def test_directive_completion_includes_contract_recipe_templates() -> None:
 
 
 def test_directive_completion_matches_aliases_to_canonical_insertions() -> None:
-    agent_id, _ = single_directive_candidate("%i")
+    id_candidates, _ = build_directive_completion_candidates("%i")
+    agent_id = next(
+        candidate
+        for candidate in id_candidates
+        if not directive_metadata(candidate).is_snippet and candidate.insertion == "%id"
+    )
     model, _ = single_directive_candidate("%m")
     repeat, _ = single_directive_candidate("%r")
     wait, _ = single_directive_candidate("%w")
 
+    assert canonical_insertions(id_candidates) == ["%id", "%if"]
     assert agent_id.insertion == "%id"
     assert directive_metadata(agent_id).aliases == ("i",)
     assert model.insertion == "%model"

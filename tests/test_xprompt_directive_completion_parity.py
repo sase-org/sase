@@ -82,7 +82,9 @@ def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
     )
     queue = next(row for row in ace_rows if row.label == "%queue")
     assert "capacity budget" in queue.documentation
-    assert "%if" not in expected_labels
+    assert "%if" in expected_labels
+    assert "%if(should_run=...)" in expected_labels
+    assert "%if:: bash" not in expected_labels
     assert "%proc" not in expected_labels
     assert "%dispatch" in expected_labels
 
@@ -98,6 +100,7 @@ def test_ace_and_lsp_include_typed_launch_directives_when_enabled(
             lsp_labels = {row.label for row in lsp.complete("%")}
 
     assert "%if" in ace_labels
+    assert "%if:: bash" in ace_labels
     assert "%proc" in ace_labels
     assert ace_labels == lsp_labels
 

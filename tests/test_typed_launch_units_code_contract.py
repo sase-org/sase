@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from sase.core.agent_launch_facade import plan_typed_launch_units
 from sase.feature_flags import FeatureFlag, override_flags
 from sase.xprompt.code_value import (
     TYPED_LAUNCH_UNITS_DISABLED_MESSAGE,
@@ -24,6 +25,41 @@ def test_flag_off_rejects_if_and_does_not_leak_to_cleaned_prompt() -> None:
 def test_flag_off_rejects_proc_paren_form() -> None:
     with pytest.raises(DirectiveError, match="typed_launch_units"):
         extract_prompt_directives('%proc("just check")\nReview')
+
+
+def test_flag_off_allows_static_boolean_if_and_strips_it() -> None:
+    cleaned, directives = extract_prompt_directives("%if(should_run=true)\nReview")
+
+    assert cleaned == "Review"
+    assert directives.if_code is None
+    assert directives.proc_code is None
+
+
+def test_static_boolean_if_false_omits_prompt() -> None:
+    cleaned, directives = extract_prompt_directives("%if(should_run=False)\nReview")
+
+    assert cleaned == ""
+    assert directives.if_code is None
+
+
+def test_static_boolean_if_filters_before_typed_unit_planning() -> None:
+    prompt = "First\n---\n%if(should_run=false)\n%id:gone\nGone\n---\n%wait\nSecond"
+
+    plan = plan_typed_launch_units(
+        prompt,
+        launch_kind="multi_prompt",
+        selected_project="sase",
+    )
+
+    assert [unit.logical_id for unit in plan.units] == ["unit-1", "unit-2"]
+    assert [unit.payload.prompt.strip() for unit in plan.units] == [
+        "First",
+        "Second",
+    ]
+    assert [[wait.logical_id for wait in unit.waits] for unit in plan.units] == [
+        [],
+        ["unit-1"],
+    ]
 
 
 def test_flag_on_preserves_prose_if_proc_mentions() -> None:
@@ -65,9 +101,9 @@ def test_flag_off_allows_prose_if_proc_mentions() -> None:
 @pytest.mark.parametrize(
     ("prompt", "message"),
     [
-        ("%if:cond\nReview", "requires %if::"),
-        ("%if(true)\nReview", "requires %if::"),
-        ("%if+\nReview", "requires %if::"),
+        ("%if:cond\nReview", "static omission"),
+        ("%if(true)\nReview", "parenthesized %if only supports should_run"),
+        ("%if+\nReview", "static omission"),
         ("%if:: echo hi\nReview", "requires %if::"),
         ("%proc:: echo hi\nReview", "requires a body"),
     ],
@@ -165,14 +201,14 @@ def test_code_input_type_is_structured() -> None:
     assert value.digest == make_code_value("print('hi')", "bash").digest
 
 
-def test_completion_hides_if_and_proc_while_flag_is_off() -> None:
+def test_completion_exposes_static_if_and_hides_proc_while_flag_is_off() -> None:
     from sase.ace.tui.widgets.directive_completion import (
         build_directive_completion_candidates,
     )
 
     candidates, _ = build_directive_completion_candidates("%")
     insertions = {candidate.insertion for candidate in candidates}
-    assert "%if" not in insertions
+    assert "%if" in insertions
     assert "%proc" not in insertions
     with override_flags(typed_launch_units=True):
         enabled, _ = build_directive_completion_candidates("%")

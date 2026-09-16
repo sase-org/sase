@@ -736,8 +736,8 @@ save-time conversion, and literal-zone rules.
 A `code` input is not a plain string with a convention. Binding yields a structured
 `CodeValue` (source, language, digest, preview). Unlabelled values default to Bash;
 sase's TUI and the xprompt LSP treat the field as code rather than a scalar. Completing
-the type as an input is gated with the `typed_launch_units` beta flag, same as `%if` /
-`%proc`.
+the type as an input is gated with the `typed_launch_units` beta flag, same as `%if::`
+and `%proc`.
 
 ### Enum Choices
 
@@ -1582,7 +1582,7 @@ are extracted and stripped from the prompt before further processing.
 | `%wait`             | `%w`  | Wait for agents, closed beads, and/or a time floor                    |
 | `%queue`            | `%q`  | Set per-launch capacity budget, queue priority, and/or claim weight   |
 | `%dispatch`         |       | Launch on one enrolled remote machine                                 |
-| `%if`               |       | Attach a beta condition to a typed launch unit                        |
+| `%if`               |       | Statically omit a segment, or attach a beta admission predicate       |
 | `%proc`             |       | Define and natively dispatch a beta stand-alone process unit          |
 | `%final`            |       | Select configured finalizer instances for this launch                 |
 | `%hide`             | `%h`  | Hide the agent from the default Agents tab display                    |
@@ -1605,26 +1605,27 @@ The retired `%tribe` and `%t` directives also raise a migration error. Use
 sase's TUI and the xprompt LSP use the same Rust directive contract for names, aliases,
 argument syntax, keyword names, fixed values, full-form snippet recipes, and replacement
 ranges. Name completion advertises every enabled user-facing directive, including
-`%final`; `%if` and `%proc` appear only when the `typed_launch_units` beta flag is
-enabled. Retired `%name` / `%n` and `%tribe` / `%t` forms are not completed.
+`%final` and the static `%if(should_run=...)` form. `%proc` and `%if::` code-form
+recipes appear only when the `typed_launch_units` beta flag is enabled. Retired `%name`
+/ `%n` and `%tribe` / `%t` forms are not completed.
 
-| Directive           | Completed forms                                             | Completed argument rows                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `%model` / `%m`     | `%model:...`, `%model(...)`                                 | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                                                                                                                                     |
-| `%effort` / `%e`    | `%effort:...`                                               | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                                                                                                                                      |
-| `%final`            | Bare `%final`, `%final:...`, `%final(...)`                  | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                                                              |
-| `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                           | `bead=`, `clan=`, `family=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, family, or tribe targets for those keyword values.                                                                                                                                                                                                                                                    |
-| `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                   | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                            |
-| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                     | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, and `time=` suggests `5m` and `1430`.                                                                                                                                                                        |
-| `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)` | Colon form completes only the positional positive-integer `capacity` value, suggesting `1`. Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=`; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
-| `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                           | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                        |
-| `%if`               | `%if::`; full Bash and Python fence recipes                 | No argument rows; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                                               |
-| `%proc`             | `%proc(...)`, `%proc::`; Bash/Python recipes                | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                            |
-| `%hide` / `%h`      | Bare flag and plus form                                     | No argument rows.                                                                                                                                                                                                                                                                                                                                                                                                |
-| `%auto` / `%a`      | Bare, plus, and `%auto:...`                                 | `plan`, `tale`, `epic`; gate-owned free-form values remain typable.                                                                                                                                                                                                                                                                                                                                              |
-| `%repeat` / `%r`    | `%repeat:...`                                               | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                                                                                                                                |
-| `%alt`              | `%{...}` shorthand, `%alt(...)`, `%alt:...`                 | No structured argument rows.                                                                                                                                                                                                                                                                                                                                                                                     |
-| `%xprompts_enabled` | `%xprompts_enabled:...`                                     | `false`, `true`.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Directive           | Completed forms                                                                         | Completed argument rows                                                                                                                                                                                                                                                                                                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `%model` / `%m`     | `%model:...`, `%model(...)`                                                             | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                                                                                                                                     |
+| `%effort` / `%e`    | `%effort:...`                                                                           | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                                                                                                                                      |
+| `%final`            | Bare `%final`, `%final:...`, `%final(...)`                                              | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                                                              |
+| `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                                                       | `bead=`, `clan=`, `family=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, family, or tribe targets for those keyword values.                                                                                                                                                                                                                                                    |
+| `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                                               | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                            |
+| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                                 | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, and `time=` suggests `5m` and `1430`.                                                                                                                                                                        |
+| `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                             | Colon form completes only the positional positive-integer `capacity` value, suggesting `1`. Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=`; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
+| `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                                                       | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                        |
+| `%if`               | `%if(should_run=...)`; with `typed_launch_units`, `%if::` Bash and Python fence recipes | `should_run=` with `true` and `false` is always available. The code-form recipes are shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                            |
+| `%proc`             | `%proc(...)`, `%proc::`; Bash/Python recipes                                            | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                            |
+| `%hide` / `%h`      | Bare flag and plus form                                                                 | No argument rows.                                                                                                                                                                                                                                                                                                                                                                                                |
+| `%auto` / `%a`      | Bare, plus, and `%auto:...`                                                             | `plan`, `tale`, `epic`; gate-owned free-form values remain typable.                                                                                                                                                                                                                                                                                                                                              |
+| `%repeat` / `%r`    | `%repeat:...`                                                                           | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                                                                                                                                |
+| `%alt`              | `%{...}` shorthand, `%alt(...)`, `%alt:...`                                             | No structured argument rows.                                                                                                                                                                                                                                                                                                                                                                                     |
+| `%xprompts_enabled` | `%xprompts_enabled:...`                                                                 | `false`, `true`.                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Keyword-name completion omits non-repeatable keywords that are already present and
 keywords that conflict with a selected keyword, but this is only a completion filter:
@@ -1636,16 +1637,55 @@ dynamic inventory fails, static directive names, aliases, keyword rows, and fixe
 still complete while model, agent, bead, or filesystem rows may be absent or stale
 according to the surface.
 
+### Static Conditional Segments
+
+`%if(should_run=true|false)` is a static xprompt and multi-prompt inclusion directive.
+It is not a typed-launch admission predicate and does not require a feature flag.
+
+```text
+Always launch this segment.
+---
+%if(should_run=false)
+This whole segment is omitted before nested xprompts, name allocation, waits, preview,
+approval, queue capacity, workspace selection, or dispatch see it.
+---
+%if(should_run=true)
+This segment is kept, and only the `%if(...)` line is removed from the model prompt.
+```
+
+The only supported parenthesized keyword is `should_run=`. After ordinary template
+rendering, its value must be exactly `true` or `false`, case-insensitive; this accepts
+Jinja-rendered `True` and `False` but rejects empty strings, numbers, `null`, misspelled
+values, and still-unrendered template expressions. Unknown keywords, duplicate keywords,
+duplicate active `%if` directives in one segment, malformed parentheses, and mixed
+static/script forms are hard errors. The whole expanded batch is validated before any
+surviving segment launches, so a bad condition in a later segment cannot partially
+dispatch an earlier one.
+
+Static `%if` acts like literal deletion of the disabled segment and its separator. A
+false first, middle, last, sole, or all-disabled batch is valid; an empty result is a
+zero-launch no-op, not a fallback blank agent. Bare `%wait` binds to the previous
+surviving unit exactly as if the omitted block had never been written, and surviving
+named waits keep their normal resolution behavior. Static conditions inside inline code,
+fenced code, directive-owned code bodies, or `%xprompts_enabled:false` regions are
+literal text.
+
+`%if(should_run=...)` cannot be combined with script admission syntax. For example,
+`%if(should_run=false)::` and `%if("test -f pyproject.toml", should_run=false)` both
+raise an error instead of dropping the segment silently.
+
 ### Experimental typed launch units
 
 `typed_launch_units` is a beta feature flag and defaults off. With the flag off, a
-syntactically active `%if` or `%proc` form is rejected with an instruction to run
+script `%if::` or `%proc` form is rejected with an instruction to run
 `sase flag enable typed_launch_units`; the directive is not forwarded to the model.
-Directive names used as prose are left alone: `stop un-admitted %if/%proc units` and
-line-leading text such as `%if is plain text` are literal in either flag state. A token
-becomes directive-like only when the name is followed by `(`, `:`, or `+`; the bare code
-form must be immediately followed by `::`. Enabling the flag exposes the completion rows
-and full Bash/Python snippet recipes, and lets the directive parser capture these forms:
+Static `%if(should_run=true|false)` works in both flag states and is resolved before
+typed launch planning. Directive names used as prose are left alone:
+`stop un-admitted %if/%proc units` and line-leading text such as `%if is plain text` are
+literal in either flag state. A token becomes directive-like only when the name is
+followed by `(`, `:`, or `+`; the bare code form must be immediately followed by `::`.
+Enabling the flag exposes the code-form completion rows and full Bash/Python snippet
+recipes, and lets the directive parser capture these forms:
 
 ````text
 %if::
@@ -1676,22 +1716,22 @@ just docs-check
 ```
 ````
 
-`%if` accepts only `%if::` followed by exactly one closed `bash` or `python` fence
+The script-admission form `%if::` accepts exactly one closed `bash` or `python` fence
 (intervening blank lines are allowed). `%proc` accepts one positional shell command, one
-`bash=` or `python=` body, or the fenced `::` form; only one `%if` and one `%proc` may
-appear in a launch unit. Code bodies are opaque: `%` directives, `#` references, YAML
-frontmatter, Jinja, and `$()` inside them are preserved literally. The parser strips
-each directive and its body from the model prompt. Each planned fanout slot is one
-launch unit. A slot containing `%proc` becomes a process unit and cannot also contain
-agent prompt prose; `%id:<name>` gives that process unit a shell name.
+`bash=` or `python=` body, or the fenced `::` form; only one script `%if` and one
+`%proc` may appear in a launch unit. Code bodies are opaque: `%` directives, `#`
+references, YAML frontmatter, Jinja, and `$()` inside them are preserved literally. The
+parser strips each directive and its body from the model prompt. Each planned fanout
+slot is one launch unit. A slot containing `%proc` becomes a process unit and cannot
+also contain agent prompt prose; `%id:<name>` gives that process unit a shell name.
 
 Execution depends on who initiated the launch:
 
 - User-initiated submissions from `sase run` and sase's TUI execute directly through
   durable typed admission. They freeze the same immutable typed plan and digest used
   after approval, then the admission coordinator waits for prerequisites, evaluates
-  `%if`, and dispatches eligible units — agent units through the established agent
-  launch path, and `%proc` units as native `proc-shell` records with origin
+  script `%if::`, and dispatches eligible units — agent units through the established
+  agent launch path, and `%proc` units as native `proc-shell` records with origin
   `xprompt-proc`. A direct user submission does not create a LaunchApproval
   notification. If a wait remains unresolved, the `sase run` / sase's TUI launch proc
   can finish while a detached coordinator continues waiting; the coordinator writes a
@@ -1700,9 +1740,9 @@ Execution depends on who initiated the launch:
   and digest before the gate is shown. After approval, the same coordinator admits
   units.
 
-For `%if`, exit `0` makes the unit eligible, exit `1` skips it, and any other exit,
-signal, timeout, cancellation, or execution failure records a condition error. For a
-selected managed project, admission waits first, then briefly claims and prepares a
+For script `%if::`, exit `0` makes the unit eligible, exit `1` skips it, and any other
+exit, signal, timeout, cancellation, or execution failure records a condition error. For
+a selected managed project, admission waits first, then briefly claims and prepares a
 numbered operational workspace, runs the predicate from that checkout, and releases the
 claim before any dispatch. The launch request's source cwd is not used as a project
 fallback after lease, materialization, or preparation failure; those failures record a
@@ -1719,10 +1759,10 @@ coordinator. There, bare `%wait` targets the preceding unit, `%wait(unit=unit-N)
 targets an exact logical unit, and `%wait(agent=<name>)` or `%wait(proc=<name-or-id>)`
 targets a matching unit in the same plan when possible, otherwise an existing agent or
 proc. A typed dependency is satisfied when the target settles, even if it was skipped or
-failed; that outcome is available in the `%if` context and does not automatically cancel
-the dependent unit.
+failed; that outcome is available in the `%if::` context and does not automatically
+cancel the dependent unit.
 
-An eligible `%proc` unit dispatches natively once its waits and `%if` pass: the
+An eligible `%proc` unit dispatches natively once its waits and `%if::` pass: the
 admission coordinator reserves a `proc-shell` (lifecycle `proc-shell`, origin
 `xprompt-proc`) and starts its detached supervisor. The supervisor then acquires an
 operational workspace lease when `workspace` is true, materializes the approved source
@@ -1760,11 +1800,11 @@ the positional `%id` name: `%id` keywords (`clan=`, `family=`, `tribe=`, `bead=`
 optional `%clan` declaration (`tribe=`, `summary=`, `summary_script=`), and force-reuse
 `!` prefixes all survive planning. Dispatch reconstructs the equivalent `%id` and
 `%clan` directives, then the existing model/effort/auto/final/hide/wait-runner
-directives, and still omits admission-only `%if` and logical dependency waits. Each unit
-also retains its own workspace reference and `%dispatch` machine target. An approved or
-coordinator-replayed remote unit is therefore dispatched to that machine from its
-resolved project workspace instead of silently falling back to a local launch; mixed
-local and remote units route independently.
+directives, and still omits admission-only `%if::` and logical dependency waits. Each
+unit also retains its own workspace reference and `%dispatch` machine target. An
+approved or coordinator-replayed remote unit is therefore dispatched to that machine
+from its resolved project workspace instead of silently falling back to a local launch;
+mixed local and remote units route independently.
 
 Keyed `{@<id>}` agent-name markers resolve once across the complete expanded typed batch
 before it is split into durable logical units. The concrete tokens are stored on the

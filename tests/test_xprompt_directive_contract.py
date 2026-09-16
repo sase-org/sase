@@ -48,7 +48,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "repeat": (),
         "wait": ("agent", "bead", "proc", "time", "unit"),
         "queue": ("capacity", "p", "priority", "w", "weight"),
-        "if": (),
+        "if": ("should_run",),
         "proc": (
             "bash",
             "python",
@@ -80,17 +80,18 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "repeat": ("colon",),
         "wait": ("colon", "parenthesized", "bare"),
         "queue": ("colon", "parenthesized"),
-        "if": ("double_colon",),
+        "if": ("parenthesized",),
         "proc": ("parenthesized", "double_colon"),
         "xprompts_enabled": ("colon",),
     }
-    assert contract["if"]["feature_flag"] == "typed_launch_units"
+    assert contract["if"].get("feature_flag") is None
     assert contract["proc"]["feature_flag"] == "typed_launch_units"
     assert contract["queue"].get("feature_flag") is None
     assert contract["queue"]["alias"] == "q"
     assert _suggested_values(contract["queue"]) == ("0", "1")
     assert contract["dispatch"].get("feature_flag") is None
-    assert contract["if"]["body_kind"] == "fenced_code"
+    assert _keyword_suggested_values(contract["if"], "should_run") == ("true", "false")
+    assert contract["if"]["body_kind"] == "optional_fenced_code"
     assert contract["proc"]["body_kind"] == "optional_fenced_code"
 
 
@@ -131,3 +132,16 @@ def _suggested_values(row: dict[str, Any]) -> tuple[str, ...]:
         for item in row.get("positional_suggestions", [])
         if isinstance(item, dict)
     )
+
+
+def _keyword_suggested_values(
+    row: dict[str, Any], keyword_name: str
+) -> tuple[str, ...]:
+    for keyword in row.get("keywords", []):
+        if isinstance(keyword, dict) and keyword.get("name") == keyword_name:
+            return tuple(
+                str(item["value"])
+                for item in keyword.get("suggested_values", [])
+                if isinstance(item, dict)
+            )
+    return ()

@@ -87,6 +87,10 @@ def build_preview_plan(prompt: str) -> tuple[str, Any]:
         multi.segments, multi.local_xprompts
     )
     expanded_segments = [record.prompt for record in expanded_records]
+    if not expanded_segments:
+        from sase.core.agent_launch_facade import plan_fake_fanout
+
+        return "", plan_fake_fanout("multi_prompt", [])
     if len(expanded_segments) > 1:
         from sase.core.agent_launch_facade import plan_fake_fanout
 

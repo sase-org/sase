@@ -3048,7 +3048,7 @@ occupied skips unless `sase axe chop run -f/--force` is used. `once_per` can be 
 template string or an object with `key` and bounded `capacity`; proposal-supplied
 `dedupe_key` values take precedence. `dedupe_key` is durable work identity, not a retry
 clock: it stays reserved after a successful no-op launch, so chops whose work can go
-stale between scans should recheck eligibility with a proposal `%if` predicate (see
+stale between scans should recheck eligibility with a proposal `%if::` predicate (see
 [Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals))
 instead of folding a repository revision into the key. When dedupe removes a proposal
 from a `wait_on` chain, AXE walks through the skipped dependencies to the nearest
@@ -4182,14 +4182,16 @@ can still read a config written by a newer SASE, but the resolver warns and igno
 unknown keys at runtime.
 
 The registered `typed_launch_units` beta flag defaults to `false`. Enabling it exposes
-the experimental `%if` and `%proc` parser, completion, and launch-plan contract.
-User-initiated sase's TUI and `sase run` submissions execute those directives through
+the experimental `%if::` script-admission and `%proc` parser, completion, and
+launch-plan contract. Static `%if(should_run=true|false)` segment omission is not
+feature-gated and works before typed launch planning in either flag state.
+User-initiated sase's TUI and `sase run` submissions execute typed directives through
 durable typed admission without a LaunchApproval gate. The frozen plan keeps the
 complete `%id` and `%clan` identity binding, and keyed `{@<id>}` markers resolve once at
 batch creation. Agent-initiated launches still freeze the typed plan for LaunchApproval;
-after approval, the same admission coordinator resolves waits, evaluates `%if`, and
-dispatches eligible units — agent units through the established agent launch path, and
-`%proc` units through native stand-alone proc-shell dispatch; see
+after approval, the same admission coordinator resolves waits, evaluates `%if::`
+predicates, and dispatches eligible units — agent units through the established agent
+launch path, and `%proc` units through native stand-alone proc-shell dispatch; see
 [Experimental typed launch units](xprompt.md#experimental-typed-launch-units).
 
 #### Saved machine preferences

@@ -56,6 +56,7 @@ def extract_prompt_directives(
     if "%" not in prompt:
         return prompt, PromptDirectives()
 
+    from sase.core.agent_launch_facade import filter_conditional_prompt_text
     from sase.xprompt.code_value import (
         raise_if_code_directive_scan_failed,
         reject_disabled_code_directives,
@@ -64,6 +65,10 @@ def extract_prompt_directives(
         typed_launch_units_enabled,
     )
 
+    prompt = filter_conditional_prompt_text(prompt)
+    if not prompt.strip():
+        return "", PromptDirectives()
+    original_prompt = prompt
     owned_scan = scan_directive_owned_fences(prompt)
     reject_disabled_code_directives(prompt, scan=owned_scan)
     if typed_launch_units_enabled():

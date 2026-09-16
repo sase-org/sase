@@ -244,7 +244,7 @@ def _mentions_code_directive(text: str) -> bool:
             cursor = index + 1
             continue
         rest = text[index + 1 :]
-        if _is_directive_token(rest, "if") or _is_directive_token(rest, "proc"):
+        if _is_directive_token(rest, "proc") or rest.startswith("if::"):
             return True
         cursor = index + 1
     return False

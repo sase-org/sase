@@ -255,27 +255,26 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
         expand_prompt_for_typed_launch("#research_swarm:: weighted queue acceptance"),
         selected_project="sase",
     )
-    assert len(default_plan.units) == 4
+    assert len(default_plan.units) == 3
     assert [
         (unit.payload.queue_weight, unit.payload.queue_weight_explicit)
         for unit in default_plan.units
-    ] == [(0.25, True)] * 4
-    assert [unit.payload.wait_runners for unit in default_plan.units] == [None] * 4
-    assert [unit.payload.wait_priority for unit in default_plan.units] == [None] * 4
+    ] == [(0.25, True)] * 3
+    assert [unit.payload.wait_runners for unit in default_plan.units] == [None] * 3
+    assert [unit.payload.wait_priority for unit in default_plan.units] == [None] * 3
     assert [
         [wait.logical_id for wait in unit.waits] for unit in default_plan.units
     ] == [
         [],
         [],
         ["unit-1", "unit-2"],
-        ["unit-3"],
     ]
 
     explicit_one_plan = plan_typed_launch_units(
         expand_prompt_for_typed_launch(
             "#research_swarm("
             "prompt='weighted queue acceptance', "
-            "runners=1, priority=0, wait='upstream'"
+            "runners=1, priority=0, wait='upstream', should_generate_image=true"
             ")"
         ),
         selected_project="sase",
@@ -295,11 +294,20 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
     with pytest.raises(ValueError, match="at least 1"):
         plan_typed_launch_units(
             expand_prompt_for_typed_launch(
-                "#research_swarm(prompt='weighted queue acceptance', runners=0)"
+                "#research_swarm(prompt='weighted queue acceptance', runners=0, "
+                "should_generate_image=true)"
             ),
             selected_project="sase",
         )
 
+    capacity_plan = plan_typed_launch_units(
+        expand_prompt_for_typed_launch(
+            "#research_swarm(prompt='weighted queue acceptance', "
+            "should_generate_image=true)"
+        ),
+        selected_project="sase",
+    )
+    assert len(capacity_plan.units) == 4
     harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
     agents = [
         harness.create_agent(
@@ -308,7 +316,7 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
             queue_weight=float(unit.payload.queue_weight),
             queue_weight_explicit=unit.payload.queue_weight_explicit,
         )
-        for index, unit in enumerate(default_plan.units)
+        for index, unit in enumerate(capacity_plan.units)
     ]
 
     for agent in agents:

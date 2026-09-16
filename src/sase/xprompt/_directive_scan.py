@@ -242,6 +242,8 @@ def has_typed_launch_directive(prompt: str) -> bool:
     protected = protect_disabled_regions(protected, disabled_regions)
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
+        if name == "if" and match.group(2) is not None:
+            continue
         if name in _TYPED_LAUNCH_DIRECTIVES:
             return True
     return False

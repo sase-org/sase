@@ -157,6 +157,36 @@ def plan_agent_launch_fanout(
     return launch_fanout_plan_from_dict(dict(payload))
 
 
+def _filter_conditional_launch_segments(prompt: str) -> list[str]:
+    """Return prompts surviving static ``%if(should_run=...)`` omission."""
+
+    from sase.xprompt._exceptions import DirectiveError
+
+    binding = require_rust_binding("filter_conditional_launch_segments")
+    try:
+        payload = dict(binding(prompt))
+    except ValueError as exc:
+        raise DirectiveError(str(exc)) from None
+    segments = payload.get("segments")
+    if not isinstance(segments, list):
+        return [prompt] if prompt.strip() else []
+    return [
+        str(segment.get("prompt") or "")
+        for segment in segments
+        if isinstance(segment, dict) and str(segment.get("prompt") or "").strip()
+    ]
+
+
+def filter_conditional_prompt_text(prompt: str) -> str:
+    """Return a multi-prompt text made from conditional survivor segments."""
+
+    import re
+
+    if not re.search(r"""(?:^|[\s(\[{"'])%if(?:\(|\+|:(?!:))""", prompt):
+        return prompt
+    return "\n---\n".join(_filter_conditional_launch_segments(prompt))
+
+
 def bind_batch_predecessor_waits(
     prompt: str,
     predecessor: BatchPredecessorContextWire,
@@ -184,8 +214,9 @@ def plan_typed_launch_units(
     from sase.agent.agent_name_keys import resolve_agent_name_key_markers
     from sase.xprompt.code_value import reject_disabled_code_directives
 
-    reject_disabled_code_directives(prompt)
-    resolved_prompt = resolve_agent_name_key_markers([prompt])[0]
+    filtered_prompt = filter_conditional_prompt_text(prompt)
+    reject_disabled_code_directives(filtered_prompt)
+    resolved_prompt = resolve_agent_name_key_markers([filtered_prompt])[0]
     from sase.xprompt.queue_directive import launch_feature_flag_keys
 
     binding = require_rust_binding("plan_typed_launch_units")
@@ -473,6 +504,7 @@ __all__ = [
     "classify_condition_status",
     "cleanup_proc_private_inputs",
     "evaluate_launch_condition",
+    "filter_conditional_prompt_text",
     "next_admission_actions",
     "parse_proc_duration_seconds",
     "plan_fake_fanout",

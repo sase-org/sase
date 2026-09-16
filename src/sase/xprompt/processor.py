@@ -213,6 +213,9 @@ def expand_single_xprompt(
     rendered = substitute_placeholders(
         xprompt.content, conv_positional, conv_named, xprompt.name, scope=render_scope
     )
+    rendered = _filter_conditional_xprompt_segments(rendered)
+    if not rendered.strip():
+        return ""
     rendered = _expand_local_xprompt_references(
         xprompt,
         rendered,
@@ -223,6 +226,9 @@ def expand_single_xprompt(
         defer_xprompt_names=defer_xprompt_names,
         raise_on_error=raise_on_error,
     )
+    rendered = _filter_conditional_xprompt_segments(rendered)
+    if not rendered.strip():
+        return ""
     if preserve_segment_separators:
         return rendered
 
@@ -234,6 +240,14 @@ def expand_single_xprompt(
 
     segments = split_segments_protecting_fences(rendered)
     return segments[0] if segments else ""
+
+
+def _filter_conditional_xprompt_segments(rendered: str) -> str:
+    if "%if(" not in rendered:
+        return rendered
+    from sase.core.agent_launch_facade import filter_conditional_prompt_text
+
+    return filter_conditional_prompt_text(rendered)
 
 
 def _skill_render_scope(

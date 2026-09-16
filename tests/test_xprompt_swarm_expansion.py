@@ -49,6 +49,26 @@ def test_expand_three_segment_xprompt() -> None:
     assert out == ["phase A", "phase B", "phase C"]
 
 
+def test_static_if_false_omits_swarm_segment_before_nested_expansion() -> None:
+    catalog = {
+        "outer": xp(
+            "outer",
+            "phase A\n---\n%if(should_run={{ include_nested }})\n#nested\n---\nphase C",
+            inputs=[
+                InputArg(name="include_nested", type=InputType.BOOL, default=False)
+            ],
+        ),
+        "nested": xp("nested", "SHOULD EXPAND\n---\nSHOULD ALSO EXPAND"),
+    }
+    with patch_catalog(catalog):
+        out = expand_xprompt_swarms(["#!outer"])
+    assert out == ["phase A", "phase C"]
+
+    with patch_catalog(catalog):
+        included = expand_xprompt_swarms(["#!outer(include_nested=true)"])
+    assert included == ["phase A", "SHOULD EXPAND", "SHOULD ALSO EXPAND", "phase C"]
+
+
 def test_expand_three_segment_xprompt_metadata_groups_one_invocation() -> None:
     catalog = {"three": xp("three", "phase A\n---\nphase B\n---\nphase C")}
     with patch_catalog(catalog):
