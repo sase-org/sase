@@ -126,7 +126,11 @@ def _print_reap_result(result: DiskReapResult) -> None:
         table.add_row(
             step.owner,
             step.mode,
-            format_bytes(step.reclaimed_bytes),
+            (
+                "unknown"
+                if step.reclaimed_bytes is None
+                else format_bytes(step.reclaimed_bytes)
+            ),
             step.summary,
             style=style,
         )

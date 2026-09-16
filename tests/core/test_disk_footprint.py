@@ -2,16 +2,19 @@
 
 from __future__ import annotations
 
+import json
 import os
+import subprocess
 from types import SimpleNamespace
 from dataclasses import dataclass
 from pathlib import Path
 
 from sase.core.disk_footprint import collect_disk_footprint, run_disk_reap
-from sase.core.disk_footprint_models import DiskReapStep
+from sase.core.disk_footprint_models import DiskReapResult, DiskReapStep
 from sase.core.disk_footprint_inventory import cargo_stray_rows
 from sase.core.disk_footprint_utils import InventoryScanBudget
 from sase.core.disk_footprint_reap import managed_tmp_reap_step
+from sase.procs import ProcLogRetentionResult
 
 
 @dataclass(frozen=True)
@@ -454,6 +457,225 @@ def test_proc_reap_apply_includes_pruned_runtime_effects(monkeypatch) -> None:
     assert step.exit_code == 1
     assert step.details["removed"] == 3
     assert step.details["errors"] == 1
+    assert len(step.details["phases"]) == 2
+
+
+def test_reap_result_uses_core_outcome_for_partial_failure() -> None:
+    result = DiskReapResult(
+        apply=True,
+        project=None,
+        steps=(
+            DiskReapStep(
+                owner="workspace_compact",
+                mode="apply",
+                summary="changed before failure",
+                reclaimed_bytes=512,
+                changed=True,
+                owner_error="workspace JSON reported errors",
+            ),
+            DiskReapStep(
+                owner="managed_tmp_reaper",
+                mode="apply",
+                summary="active scratch protected",
+                protective_skip="active scratch",
+            ),
+        ),
+    )
+
+    payload = result.to_json_dict()
+
+    assert result.failed is True
+    assert result.changed is True
+    assert result.reclaimed_bytes == 512
+    assert payload["status"] == "failed"
+    assert payload["cleanup_outcome"]["known_reclaimed_bytes"] == 512
+    assert payload["cleanup_outcome"]["protective_skips"] == 1
+
+
+def test_managed_tmp_reap_failure_is_a_step_and_group_continues(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from sase.core import disk_footprint_reap as reap
+
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.managed_tmp_reap_step",
+        managed_tmp_reap_step,
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.managed_tmpdir_root",
+        lambda: tmp_path / "managed",
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.reap_managed_tmpdir",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("scratch broken")),
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.proc_runtime_reap_step",
+        lambda *, apply: DiskReapStep(
+            owner="proc_runtime_sweep",
+            mode="apply" if apply else "dry_run",
+            summary="proc ok",
+        ),
+    )
+
+    result = reap.run_disk_reap(
+        apply=True,
+        include_artifact_runs=False,
+        include_workspace_compact=False,
+        filesystem_available_bytes=1,
+        managed_tmp_pressure_min_available_bytes=1,
+        managed_tmp_pressure_recovery_available_bytes=1,
+    )
+
+    assert [step.owner for step in result.steps] == [
+        "managed_tmp_reaper",
+        "proc_runtime_sweep",
+    ]
+    assert result.steps[0].owner_error is not None
+    assert result.failed is True
+
+
+def test_workspace_discovery_failure_is_not_empty_success(monkeypatch) -> None:
+    from sase.core.disk_footprint_reap import workspace_compact_steps
+
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.collect_workspace_inventory",
+        lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("registry offline")),
+    )
+
+    steps = workspace_compact_steps(
+        apply=False,
+        project=None,
+        subprocess_run=subprocess.run,
+    )
+
+    assert len(steps) == 1
+    assert steps[0].mode == "error"
+    assert "registry offline" in steps[0].summary
+    assert "no workspace projects found" not in steps[0].summary
+
+
+def test_workspace_json_errors_fail_but_preserve_effects() -> None:
+    from sase.core.disk_footprint_reap import workspace_compact_steps
+
+    def fake_run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(
+            args=["sase", "workspace", "compact"],
+            returncode=0,
+            stdout=json.dumps(
+                {
+                    "rows": [{"status": "compacted"}],
+                    "errors": 1,
+                    "reclaimed_bytes": 4096,
+                    "changed": True,
+                }
+            ),
+            stderr="",
+        )
+
+    step = workspace_compact_steps(
+        apply=True,
+        project="gh_sase-org__sase",
+        subprocess_run=fake_run,
+    )[0]
+
+    result = DiskReapResult(apply=True, project=None, steps=(step,))
+    assert step.changed is True
+    assert step.reclaimed_bytes == 4096
+    assert step.owner_error == "workspace compact reported 1 error(s)"
+    assert result.failed is True
+    assert result.changed is True
+    assert result.reclaimed_bytes == 4096
+
+
+def test_workspace_invalid_json_field_type_is_failed_step() -> None:
+    from sase.core.disk_footprint_reap import workspace_compact_steps
+
+    def fake_run(*_args, **_kwargs):
+        return subprocess.CompletedProcess(
+            args=["sase", "workspace", "compact"],
+            returncode=0,
+            stdout=json.dumps({"rows": [], "errors": "one"}),
+            stderr="",
+        )
+
+    step = workspace_compact_steps(
+        apply=False,
+        project="gh_sase-org__sase",
+        subprocess_run=fake_run,
+    )[0]
+
+    assert step.mode == "error"
+    assert step.invalid_result == "errors must be an integer"
+    assert DiskReapResult(apply=False, project=None, steps=(step,)).failed is True
+
+
+def test_proc_reap_preserves_pruned_effects_when_orphan_sweep_fails(
+    monkeypatch,
+) -> None:
+    from sase.core.disk_footprint_reap import proc_runtime_reap_step
+
+    log_retention = ProcLogRetentionResult(
+        log_root=Path("/tmp/proc-logs"),
+        apply=True,
+        scanned=2,
+        selected=1,
+        removed=1,
+        skipped=1,
+        reclaimable_bytes=10,
+        reclaimed_bytes=10,
+    )
+    runtime_retention = _ProcRuntimeRetentionStub(
+        runtime_root=Path("/tmp/runtime"),
+        apply=True,
+        scanned=1,
+        selected=1,
+        removed=1,
+        skipped=0,
+        errors=0,
+        reclaimable_bytes=20,
+        reclaimed_bytes=20,
+        capped=False,
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.prune_procs",
+        lambda: SimpleNamespace(
+            log_retention=log_retention,
+            runtime_retention=runtime_retention,
+            state_retention=SimpleNamespace(errors=()),
+        ),
+    )
+
+    def fake_sweep(*, apply):
+        if not apply:
+            return _ProcRuntimeRetentionStub(
+                runtime_root=Path("/tmp/runtime"),
+                apply=False,
+                scanned=0,
+                selected=0,
+                removed=0,
+                skipped=0,
+                errors=0,
+                reclaimable_bytes=0,
+                reclaimed_bytes=0,
+                capped=False,
+            )
+        raise RuntimeError("late orphan failure")
+
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.sweep_orphan_proc_runtime_dirs",
+        fake_sweep,
+    )
+
+    step = proc_runtime_reap_step(apply=True)
+
+    assert step.changed is True
+    assert step.reclaimed_bytes == 30
+    assert step.exit_code == 1
+    assert "late orphan failure" in step.owner_error
+    assert step.details["removed"] == 2
+    assert step.details["reclaimed_bytes"] == 30
     assert len(step.details["phases"]) == 2
 
 

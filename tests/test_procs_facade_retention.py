@@ -65,6 +65,12 @@ def test_retention_and_pruning_delete_corresponding_logs_and_runtime_dirs(
 
     assert outcome.pruned_proc_ids == [first.proc_id, artifact_owned.proc_id]
     assert outcome.pruned_log_proc_ids == [first.proc_id]
+    assert outcome.log_retention is not None
+    assert outcome.log_retention.removed == 1
+    assert outcome.runtime_retention is not None
+    assert outcome.runtime_retention.removed == 2
+    assert outcome.state_retention is not None
+    assert outcome.state_retention.failed is False
     assert [proc.proc_id for proc in outcome.snapshot.procs] == [
         second.proc_id,
         running.proc_id,

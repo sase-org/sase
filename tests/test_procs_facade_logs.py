@@ -53,9 +53,14 @@ def test_proc_log_tail_spans_rotation_and_delete(
     path.write_text("three\nfour\n", encoding="utf-8")
 
     assert read_proc_log_tail("proc-one", 3) == "two\nthree\nfour\n"
-    delete_proc_logs(["proc-one", "missing"])
+    outcome = delete_proc_logs(["proc-one", "missing"])
+
     assert not path.exists()
     assert not path.with_name(f"{path.name}.1").exists()
+    assert outcome.scanned == 4
+    assert outcome.selected == 2
+    assert outcome.removed == 2
+    assert outcome.reclaimed_bytes == len("one\ntwo\n") + len("three\nfour\n")
 
 
 def test_proc_log_path_rejects_traversal(monkeypatch: Any, tmp_path: Path) -> None:
@@ -72,9 +77,11 @@ def test_delete_proc_logs_skips_paths_outside_the_proc_log_root(
     outside.parent.mkdir(parents=True)
     outside.write_text("keep", encoding="utf-8")
 
-    delete_proc_logs(["escape-proc"], log_paths={"escape-proc": str(outside)})
+    outcome = delete_proc_logs(["escape-proc"], log_paths={"escape-proc": str(outside)})
 
     assert outside.read_text(encoding="utf-8") == "keep"
+    assert outcome.removed == 0
+    assert outcome.skipped == 1
 
 
 def test_read_proc_log_tail_follows_an_explicit_log_path(tmp_path: Path) -> None:

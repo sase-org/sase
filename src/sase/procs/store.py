@@ -16,7 +16,9 @@ from .models import (
     Proc,
     ProcAppendOutcome,
     ProcFinish,
+    ProcLogRetentionResult,
     ProcPruneOutcome,
+    ProcPrunedStateRetention,
     ProcReserve,
     ProcReserveOutcome,
     ProcSettlement,
@@ -109,6 +111,7 @@ def append_proc(
         outcome.pruned_log_proc_ids,
         outcome.pruned_proc_ids,
         path=path,
+        strict=True,
     )
     return outcome
 
@@ -134,6 +137,7 @@ def reserve_proc(
         outcome.pruned_log_proc_ids,
         outcome.pruned_proc_ids,
         path=path,
+        strict=True,
     )
     return outcome
 
@@ -235,12 +239,18 @@ def prune_procs(
         history_limit if history_limit is not None else get_proc_history_limit(),
     )
     outcome = ProcPruneOutcome.from_dict(payload)
-    runtime_retention = _delete_pruned_proc_state(
+    state_retention = _delete_pruned_proc_state(
         outcome.pruned_log_proc_ids,
         outcome.pruned_proc_ids,
         path=path,
+        strict=False,
     )
-    return replace(outcome, runtime_retention=runtime_retention)
+    return replace(
+        outcome,
+        log_retention=state_retention.log_retention,
+        runtime_retention=state_retention.runtime_retention,
+        state_retention=state_retention,
+    )
 
 
 def _delete_pruned_proc_state(
@@ -248,13 +258,36 @@ def _delete_pruned_proc_state(
     pruned_proc_ids: Sequence[str],
     *,
     path: Path | str | None,
-) -> Any:
-    delete_proc_logs(pruned_log_proc_ids)
-    return delete_proc_runtime_dirs(
-        pruned_proc_ids,
-        runtime_root=_runtime_root_for_store(path),
-        store_path=Path(path or proc_store_path()),
+    strict: bool,
+) -> ProcPrunedStateRetention:
+    errors: list[str] = []
+    log_retention: ProcLogRetentionResult | None = None
+    runtime_retention: Any | None = None
+    try:
+        log_retention = delete_proc_logs(pruned_log_proc_ids)
+    except Exception as exc:
+        errors.append(f"proc log retention failed: {type(exc).__name__}: {exc}")
+    else:
+        if strict and log_retention.errors:
+            errors.append(
+                f"proc log retention reported {log_retention.errors} error(s)"
+            )
+    try:
+        runtime_retention = delete_proc_runtime_dirs(
+            pruned_proc_ids,
+            runtime_root=_runtime_root_for_store(path),
+            store_path=Path(path or proc_store_path()),
+        )
+    except Exception as exc:
+        errors.append(f"proc runtime retention failed: {type(exc).__name__}: {exc}")
+    state_retention = ProcPrunedStateRetention(
+        log_retention=log_retention,
+        runtime_retention=runtime_retention,
+        errors=tuple(errors),
     )
+    if strict and errors:
+        raise RuntimeError("; ".join(errors))
+    return state_retention
 
 
 def _runtime_root_for_store(path: Path | str | None) -> Path:

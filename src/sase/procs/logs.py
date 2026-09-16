@@ -15,7 +15,7 @@ from sase.logs._bounded import (
 )
 from sase.logs.pipe import BoundedLogPipe
 
-from .models import STORE_LOG_OWNER
+from .models import STORE_LOG_OWNER, ProcLogRetentionEntry, ProcLogRetentionResult
 from .paths import proc_logs_dir
 
 ENV_MAX_BYTES = "SASE_PROC_LOG_MAX_BYTES"
@@ -97,24 +97,140 @@ def delete_proc_logs(
     *,
     log_paths: Mapping[str, str] | None = None,
     log_owners: Mapping[str, str] | None = None,
-) -> None:
-    """Delete store-owned logs that still live under the proc log root."""
+) -> ProcLogRetentionResult:
+    """Delete store-owned current/rotated logs under the proc log root."""
+    log_root = proc_logs_dir()
+    entries: list[ProcLogRetentionEntry] = []
+    scanned = 0
+    selected = 0
+    removed = 0
+    skipped = 0
+    errors = 0
+    reclaimable_bytes = 0
+    reclaimed_bytes = 0
+    byte_accounting_complete = True
     for proc_id in proc_ids:
         owner = (log_owners or {}).get(proc_id, STORE_LOG_OWNER)
         if owner != STORE_LOG_OWNER:
+            skipped += 1
+            entries.append(
+                ProcLogRetentionEntry(
+                    proc_id=proc_id,
+                    path="",
+                    status="skipped",
+                    reason=f"log owner {owner!r} is external",
+                    size_bytes=0,
+                )
+            )
             continue
         raw = (log_paths or {}).get(proc_id)
         try:
             path = _resolve_proc_log_path(proc_id, raw)
         except ValueError:
+            errors += 1
+            byte_accounting_complete = False
+            entries.append(
+                ProcLogRetentionEntry(
+                    proc_id=proc_id,
+                    path="",
+                    status="error",
+                    reason="invalid proc id for log path",
+                    size_bytes=None,
+                )
+            )
             continue
         if not _is_store_owned_log_path(path):
+            skipped += 1
+            entries.append(
+                ProcLogRetentionEntry(
+                    proc_id=proc_id,
+                    path=str(path),
+                    status="skipped",
+                    reason="log path is outside the proc log root",
+                    size_bytes=0,
+                )
+            )
             continue
         for candidate in (path, path.with_name(f"{path.name}.1")):
+            scanned += 1
+            try:
+                size = candidate.stat().st_size
+            except FileNotFoundError:
+                skipped += 1
+                entries.append(
+                    ProcLogRetentionEntry(
+                        proc_id=proc_id,
+                        path=str(candidate),
+                        status="skipped",
+                        reason="missing",
+                        size_bytes=0,
+                    )
+                )
+                continue
+            except OSError as exc:
+                errors += 1
+                byte_accounting_complete = False
+                entries.append(
+                    ProcLogRetentionEntry(
+                        proc_id=proc_id,
+                        path=str(candidate),
+                        status="error",
+                        reason=f"stat failed: {exc}",
+                        size_bytes=None,
+                    )
+                )
+                continue
+            selected += 1
+            reclaimable_bytes += size
             try:
                 candidate.unlink()
+                removed += 1
+                reclaimed_bytes += size
+                entries.append(
+                    ProcLogRetentionEntry(
+                        proc_id=proc_id,
+                        path=str(candidate),
+                        status="removed",
+                        reason="store-owned log pruned",
+                        size_bytes=size,
+                    )
+                )
             except FileNotFoundError:
-                pass
+                skipped += 1
+                entries.append(
+                    ProcLogRetentionEntry(
+                        proc_id=proc_id,
+                        path=str(candidate),
+                        status="skipped",
+                        reason="already missing",
+                        size_bytes=size,
+                    )
+                )
+            except OSError as exc:
+                errors += 1
+                byte_accounting_complete = False
+                entries.append(
+                    ProcLogRetentionEntry(
+                        proc_id=proc_id,
+                        path=str(candidate),
+                        status="error",
+                        reason=f"unlink failed: {exc}",
+                        size_bytes=size,
+                    )
+                )
+    return ProcLogRetentionResult(
+        log_root=log_root,
+        apply=True,
+        scanned=scanned,
+        selected=selected,
+        removed=removed,
+        skipped=skipped,
+        errors=errors,
+        reclaimable_bytes=reclaimable_bytes,
+        reclaimed_bytes=reclaimed_bytes,
+        byte_accounting_complete=byte_accounting_complete,
+        entries=tuple(entries),
+    )
 
 
 def proc_log_max_bytes() -> int:

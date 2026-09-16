@@ -74,6 +74,32 @@ def managed_tmp_reap_step(
     pressure_min_available_bytes: int | None = None,
     pressure_recovery_available_bytes: int | None = None,
 ) -> DiskReapStep:
+    try:
+        return _managed_tmp_reap_step_impl(
+            apply=apply,
+            filesystem_available_bytes=filesystem_available_bytes,
+            pressure_min_available_bytes=pressure_min_available_bytes,
+            pressure_recovery_available_bytes=pressure_recovery_available_bytes,
+        )
+    except Exception as exc:  # noqa: BLE001 - one owner must not crash the group.
+        return DiskReapStep(
+            owner="managed_tmp_reaper",
+            mode="error",
+            summary=f"managed tmp cleanup failed: {type(exc).__name__}: {exc}",
+            command=("sase", "disk", "reap", "--apply"),
+            exit_code=1,
+            owner_error=f"{type(exc).__name__}: {exc}",
+            byte_accounting_complete=False,
+        )
+
+
+def _managed_tmp_reap_step_impl(
+    *,
+    apply: bool,
+    filesystem_available_bytes: int | None = None,
+    pressure_min_available_bytes: int | None = None,
+    pressure_recovery_available_bytes: int | None = None,
+) -> DiskReapStep:
     root = _current_managed_tmpdir_root()
     if (
         filesystem_available_bytes is None
@@ -106,6 +132,24 @@ def managed_tmp_reap_step(
         reclaimed_bytes=result.removed_bytes if apply else result.selected_bytes,
         changed=apply and bool(result.removed),
         exit_code=1 if result.failed else None,
+        owner_error=(
+            f"managed tmp cleanup reported {result.failed} failure(s)"
+            if result.failed
+            else None
+        ),
+        required_observation_unavailable=bool(result.incomplete_observations),
+        incomplete_reason=(
+            f"{result.incomplete_observations} required observation(s) incomplete"
+            if result.incomplete_observations
+            else None
+        ),
+        byte_accounting_complete=not bool(result.incomplete_observations),
+        protective_skip=(
+            "; ".join(str(reason) for reason in result.skip_reasons)
+            if result.skip_reasons
+            else None
+        ),
+        capped=bool(getattr(result, "capped", False)),
         details=details,
     )
 
@@ -128,37 +172,77 @@ def proc_runtime_reap_step(*, apply: bool) -> DiskReapStep:
             exit_code=1,
         )
     if not apply:
+        details = _proc_retention_details(preview, phase="orphan_runtime_preview")
         return DiskReapStep(
             owner="proc_runtime_sweep",
             mode="dry_run",
             summary=preview.describe(),
             reclaimed_bytes=preview.reclaimable_bytes,
             exit_code=1 if preview.errors else None,
-            details=_proc_runtime_details(preview),
+            owner_error=(
+                f"proc runtime preview reported {preview.errors} error(s)"
+                if preview.errors
+                else None
+            ),
+            byte_accounting_complete=details["byte_accounting_complete"],
+            capped=bool(details["capped"]),
+            details=details,
         )
+    phase_errors: list[str] = []
+    prune_result = None
+    log_retention = None
+    pruned_runtime = None
     try:
         prune_result = prune_procs()
+    except Exception as exc:  # noqa: BLE001 - preserve later independent passes.
+        phase_errors.append(f"row prune failed: {type(exc).__name__}: {exc}")
+    else:
+        log_retention = getattr(prune_result, "log_retention", None)
         pruned_runtime = getattr(prune_result, "runtime_retention", None)
-        orphan_result = sweep_orphan_proc_runtime_dirs(apply=True)
-    except Exception as exc:  # noqa: BLE001 - report owner failure as a step.
-        return DiskReapStep(
-            owner="proc_runtime_sweep",
-            mode="error",
-            summary=f"proc runtime sweep failed: {exc}",
-            command=("sase", "disk", "reap", "--apply"),
-            exit_code=1,
+        state_retention = getattr(prune_result, "state_retention", None)
+        phase_errors.extend(
+            str(error) for error in getattr(state_retention, "errors", ())
         )
-    result = _combine_proc_runtime_results(pruned_runtime, orphan_result)
+    orphan_result = None
+    try:
+        orphan_result = sweep_orphan_proc_runtime_dirs(apply=True)
+    except Exception as exc:  # noqa: BLE001 - report after retaining prior effects.
+        phase_errors.append(f"orphan sweep failed: {type(exc).__name__}: {exc}")
+    result = _combine_proc_runtime_results(
+        log_retention,
+        pruned_runtime,
+        orphan_result,
+        errors=tuple(phase_errors),
+    )
+    owner_error = (
+        "; ".join(phase_errors)
+        if phase_errors
+        else (
+            f"proc cleanup reported {result['errors']} error(s)"
+            if result["errors"]
+            else None
+        )
+    )
     return DiskReapStep(
         owner="proc_runtime_sweep",
         mode="apply",
         summary=_proc_runtime_summary(
+            log_retention=log_retention,
             pruned_runtime=pruned_runtime,
             orphan_result=orphan_result,
+            errors=tuple(phase_errors),
         ),
         reclaimed_bytes=result["reclaimed_bytes"],
         changed=bool(result["removed"]),
         exit_code=1 if result["errors"] else None,
+        owner_error=owner_error,
+        byte_accounting_complete=result["byte_accounting_complete"],
+        incomplete_reason=(
+            "proc cleanup byte accounting incomplete"
+            if not result["byte_accounting_complete"]
+            else None
+        ),
+        capped=bool(result["capped"]),
         details=result,
     )
 
@@ -235,8 +319,11 @@ def artifact_run_reap_step(*, apply: bool, project: str | None) -> DiskReapStep:
             owner="artifact_run_retention",
             mode="blocked",
             summary="; ".join(execution.errors),
+            reclaimed_bytes=execution.bytes_reclaimed,
+            changed=bool(execution.removed_runs or execution.removed_empty_shards),
             command=("sase", "artifact", "prune-runs", "--apply"),
             exit_code=1,
+            blocked_reason="; ".join(execution.errors),
             details=details,
         )
     return DiskReapStep(
@@ -257,7 +344,27 @@ def workspace_compact_steps(
     subprocess_run: Callable[..., subprocess.CompletedProcess[str]],
     timeout_seconds: float = 120.0,
 ) -> tuple[DiskReapStep, ...]:
-    projects = (project,) if project else workspace_project_keys()
+    projects: tuple[str, ...]
+    if project:
+        projects = (project,)
+    else:
+        try:
+            inventory = collect_workspace_inventory(include_disabled=False)
+        except Exception as exc:  # noqa: BLE001 - one owner must not crash the group.
+            return (
+                DiskReapStep(
+                    owner="workspace_compact",
+                    mode="error",
+                    summary=(
+                        f"workspace discovery failed: {type(exc).__name__}: {exc}"
+                    ),
+                    command=("sase", "workspace", "compact", "--json"),
+                    exit_code=1,
+                    owner_error=f"{type(exc).__name__}: {exc}",
+                    byte_accounting_complete=False,
+                ),
+            )
+        projects = tuple(project.project_key for project in inventory.projects)
     steps: list[DiskReapStep] = []
     for project_key in projects:
         command = [
@@ -286,6 +393,8 @@ def workspace_compact_steps(
                     summary=f"{project_key}: {type(exc).__name__}: {exc}",
                     command=tuple(command),
                     exit_code=1,
+                    owner_error=f"{type(exc).__name__}: {exc}",
+                    byte_accounting_complete=False,
                 )
             )
             continue
@@ -299,6 +408,8 @@ def workspace_compact_steps(
                     command=tuple(command),
                     exit_code=124,
                     output=output,
+                    owner_error=f"timed out after {timeout_seconds:g}s",
+                    byte_accounting_complete=False,
                     details={
                         "project": project_key,
                         "timeout_seconds": timeout_seconds,
@@ -317,14 +428,32 @@ def workspace_compact_steps(
                     command=tuple(command),
                     exit_code=completed.returncode or 1,
                     output=output,
+                    invalid_result="invalid workspace compact JSON",
+                    byte_accounting_complete=False,
                     details={"project": project_key},
                 )
             )
             continue
-        rows = tuple(row for row in payload.get("rows", ()) if isinstance(row, dict))
-        failed = int(payload.get("errors") or 0)
-        reclaimed = int(payload.get("reclaimed_bytes") or 0)
-        changed = bool(payload.get("changed"))
+        parsed = _workspace_compact_fields(payload)
+        if isinstance(parsed, str):
+            steps.append(
+                DiskReapStep(
+                    owner="workspace_compact",
+                    mode="error",
+                    summary=f"{project_key}: invalid workspace compact result: {parsed}",
+                    command=tuple(command),
+                    exit_code=completed.returncode or 1,
+                    output=output,
+                    invalid_result=parsed,
+                    byte_accounting_complete=False,
+                    details={"project": project_key, "payload": payload},
+                )
+            )
+            continue
+        rows, failed, reclaimed, changed = parsed
+        owner_error = (
+            f"workspace compact reported {failed} error(s)" if failed else None
+        )
         steps.append(
             DiskReapStep(
                 owner="workspace_compact",
@@ -337,10 +466,12 @@ def workspace_compact_steps(
                     reclaimed_bytes=reclaimed,
                 ),
                 reclaimed_bytes=reclaimed,
-                changed=apply and completed.returncode == 0 and changed,
+                changed=apply and changed,
                 command=tuple(command),
                 exit_code=completed.returncode,
                 output=output,
+                owner_error=owner_error,
+                byte_accounting_complete=True,
                 details=payload,
             )
         )
@@ -398,56 +529,97 @@ def _managed_tmp_details(result: Any) -> dict[str, Any]:
     }
 
 
-def _proc_runtime_details(result: Any) -> dict[str, Any]:
-    return {
-        "runtime_root": str(result.runtime_root),
-        "apply": result.apply,
-        "scanned": result.scanned,
-        "selected": result.selected,
-        "removed": result.removed,
-        "skipped": result.skipped,
-        "errors": result.errors,
-        "reclaimable_bytes": result.reclaimable_bytes,
-        "reclaimed_bytes": result.reclaimed_bytes,
-        "capped": result.capped,
+def _proc_retention_details(result: Any, *, phase: str) -> dict[str, Any]:
+    root = getattr(result, "runtime_root", None)
+    log_root = getattr(result, "log_root", None)
+    entries = getattr(result, "entries", ())
+    details = {
+        "phase": phase,
+        "apply": bool(getattr(result, "apply", False)),
+        "scanned": int(getattr(result, "scanned", 0)),
+        "selected": int(getattr(result, "selected", 0)),
+        "removed": int(getattr(result, "removed", 0)),
+        "skipped": int(getattr(result, "skipped", 0)),
+        "errors": int(getattr(result, "errors", 0)),
+        "reclaimable_bytes": int(getattr(result, "reclaimable_bytes", 0)),
+        "reclaimed_bytes": int(getattr(result, "reclaimed_bytes", 0)),
+        "byte_accounting_complete": bool(
+            getattr(result, "byte_accounting_complete", True)
+        ),
+        "capped": bool(getattr(result, "capped", False)),
+        "entries": [
+            entry.to_dict() if hasattr(entry, "to_dict") else entry for entry in entries
+        ],
     }
+    if root is not None:
+        details["runtime_root"] = str(root)
+    if log_root is not None:
+        details["log_root"] = str(log_root)
+    return details
 
 
-def _combine_proc_runtime_results(*results: Any) -> dict[str, Any]:
+def _combine_proc_runtime_results(
+    *results: Any,
+    errors: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    phase_names = (
+        "pruned_logs",
+        "pruned_row_runtime",
+        "orphan_runtime",
+    )
     details = [
-        _proc_runtime_details(result) for result in results if result is not None
+        _proc_retention_details(result, phase=phase_names[index])
+        for index, result in enumerate(results)
+        if result is not None
     ]
+    error_count = sum(int(detail["errors"]) for detail in details) + len(errors)
+    byte_accounting_complete = all(
+        bool(detail["byte_accounting_complete"]) for detail in details
+    )
     return {
         "phases": details,
         "scanned": sum(int(detail["scanned"]) for detail in details),
         "selected": sum(int(detail["selected"]) for detail in details),
         "removed": sum(int(detail["removed"]) for detail in details),
         "skipped": sum(int(detail["skipped"]) for detail in details),
-        "errors": sum(int(detail["errors"]) for detail in details),
+        "errors": error_count,
+        "error_details": list(errors),
         "reclaimable_bytes": sum(
             int(detail["reclaimable_bytes"]) for detail in details
         ),
         "reclaimed_bytes": sum(int(detail["reclaimed_bytes"]) for detail in details),
+        "byte_accounting_complete": byte_accounting_complete,
         "capped": any(bool(detail["capped"]) for detail in details),
     }
 
 
 def _proc_runtime_summary(
     *,
+    log_retention: Any,
     pruned_runtime: Any,
     orphan_result: Any,
+    errors: tuple[str, ...] = (),
 ) -> str:
-    combined = _combine_proc_runtime_results(pruned_runtime, orphan_result)
+    combined = _combine_proc_runtime_results(
+        log_retention,
+        pruned_runtime,
+        orphan_result,
+        errors=errors,
+    )
     suffixes = []
+    if log_retention is not None and log_retention.removed:
+        suffixes.append(f"logs={log_retention.removed}")
     if pruned_runtime is not None and pruned_runtime.removed:
         suffixes.append(f"row-pruned={pruned_runtime.removed}")
-    if orphan_result.removed:
+    if orphan_result is not None and orphan_result.removed:
         suffixes.append(f"orphans={orphan_result.removed}")
     if combined["errors"]:
         suffixes.append(f"errors={combined['errors']}")
+    if not combined["byte_accounting_complete"]:
+        suffixes.append("byte-accounting=incomplete")
     suffix = "; " + ", ".join(suffixes) if suffixes else ""
     return (
-        f"removed {combined['removed']} proc runtime dir(s); "
+        f"removed {combined['removed']} proc cleanup artifact(s); "
         f"scanned={combined['scanned']}, "
         f"reclaimable={combined['reclaimable_bytes']}, "
         f"reclaimed={combined['reclaimed_bytes']}{suffix}"
@@ -474,6 +646,61 @@ def _timeout_output(exc: subprocess.TimeoutExpired) -> str:
     if isinstance(stderr, bytes):
         stderr = stderr.decode(errors="replace")
     return (str(stdout) + str(stderr)).strip()
+
+
+def _workspace_compact_fields(
+    payload: dict[str, Any],
+) -> tuple[tuple[dict[str, Any], ...], int, int, bool] | str:
+    raw_rows = payload.get("rows", ())
+    if raw_rows is None:
+        raw_rows = ()
+    if not isinstance(raw_rows, list | tuple):
+        return "rows must be a list"
+    rows: list[dict[str, Any]] = []
+    for index, row in enumerate(raw_rows):
+        if not isinstance(row, dict):
+            return f"rows[{index}] must be an object"
+        rows.append(row)
+    errors = _nonnegative_int_field(payload, "errors", default=0)
+    if isinstance(errors, str):
+        return errors
+    reclaimed = _nonnegative_int_field(payload, "reclaimed_bytes", default=0)
+    if isinstance(reclaimed, str):
+        return reclaimed
+    changed = _bool_field(payload, "changed", default=False)
+    if isinstance(changed, str):
+        return changed
+    return (tuple(rows), errors, reclaimed, changed)
+
+
+def _nonnegative_int_field(
+    payload: dict[str, Any],
+    name: str,
+    *,
+    default: int,
+) -> int | str:
+    value = payload.get(name, default)
+    if value is None:
+        value = default
+    if isinstance(value, bool) or not isinstance(value, int):
+        return f"{name} must be an integer"
+    if value < 0:
+        return f"{name} must be nonnegative"
+    return value
+
+
+def _bool_field(
+    payload: dict[str, Any],
+    name: str,
+    *,
+    default: bool,
+) -> bool | str:
+    value = payload.get(name, default)
+    if value is None:
+        value = default
+    if not isinstance(value, bool):
+        return f"{name} must be a boolean"
+    return value
 
 
 def _workspace_compact_payload(stdout: str) -> dict[str, Any] | None:
