@@ -95,6 +95,10 @@ def proc_unit(
     *,
     source_order: int = 0,
     condition: Any = None,
+    queue_capacity: int | None = None,
+    wait_priority: int | None = None,
+    queue_weight: float | None = None,
+    queue_weight_explicit: bool = False,
 ) -> LaunchUnitWire:
     return LaunchUnitWire(
         logical_id=logical_id,
@@ -103,6 +107,10 @@ def proc_unit(
             code=code(),
             workspace=False,
             cwd=str(cwd),
+            queue_capacity=queue_capacity,
+            wait_priority=wait_priority,
+            queue_weight=queue_weight,
+            queue_weight_explicit=queue_weight_explicit,
         ),
         condition=condition,
     )

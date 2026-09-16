@@ -92,6 +92,14 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
             proc_payload["cwd"] = record.cwd
         if record.selected_project is not None:
             proc_payload["selected_project"] = record.selected_project
+        if record.queue_capacity is not None:
+            proc_payload["queue_capacity"] = record.queue_capacity
+        if record.wait_priority is not None:
+            proc_payload["wait_priority"] = record.wait_priority
+        if record.queue_weight is not None:
+            proc_payload["queue_weight"] = record.queue_weight
+        if record.queue_weight_explicit:
+            proc_payload["queue_weight_explicit"] = True
         return proc_payload
     if isinstance(record, LaunchConditionWire):
         condition = {

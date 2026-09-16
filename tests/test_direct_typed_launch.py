@@ -214,6 +214,66 @@ def test_direct_proc_forms_yield_proc_unit(
     assert isinstance(plan.units[0].payload, ProcUnitWire)
 
 
+def test_direct_proc_queue_fields_round_trip_from_rust(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    captured = _run_launch_query(
+        monkeypatch,
+        tmp_path,
+        '%q(1, priority=4, weight=0.25)\n%proc("just check")',
+    )
+    assert captured["exit"].code == 0
+    plan = launch_plan_from_dict(captured["typed_data"]["typed_plan"])
+    payload = plan.units[0].payload
+    assert isinstance(payload, ProcUnitWire)
+    assert payload.queue_capacity == 1
+    assert payload.wait_priority == 4
+    assert payload.queue_weight == 0.25
+    assert payload.queue_weight_explicit is True
+    assert "queue=(capacity=1, priority=4, weight=0.25)" in "\n".join(
+        plan.approval_preview
+    )
+
+
+def test_legacy_proc_payload_hydrates_without_queue_fields() -> None:
+    plan = launch_plan_from_dict(
+        {
+            "schema_version": 1,
+            "launch_kind": "auto",
+            "selected_project": "sase",
+            "units": [
+                {
+                    "logical_id": "unit-1",
+                    "source_order": 0,
+                    "waits": [],
+                    "payload": {
+                        "kind": "proc",
+                        "code": {
+                            "schema_version": 1,
+                            "source": "just check",
+                            "language": "bash",
+                            "digest": "b" * 64,
+                            "preview": "just check",
+                        },
+                        "workspace": False,
+                    },
+                }
+            ],
+            "approval_preview": ["LaunchPlan v1"],
+            "content_digest": "d" * 64,
+            "diagnostics": [],
+        }
+    )
+    payload = plan.units[0].payload
+    assert isinstance(payload, ProcUnitWire)
+    assert payload.queue_capacity is None
+    assert payload.wait_priority is None
+    assert payload.queue_weight is None
+    assert payload.queue_weight_explicit is False
+    assert "queue_weight" not in agent_launch_wire_to_json_dict(payload)
+
+
 def test_direct_if_admits_agent_unit(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

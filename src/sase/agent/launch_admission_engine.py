@@ -7,6 +7,7 @@ import sys
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -26,6 +27,12 @@ from sase.agent.launch_condition_workspace import (
     ConditionWorkspaceUnavailable,
     acquire_condition_workspace,
     settle_condition_workspace,
+)
+from sase.agent.proc_capacity_admission import (
+    ProcCapacityAdmission,
+    evaluate_proc_capacity_admission,
+    iso_from_unix,
+    proc_requires_capacity_admission,
 )
 from sase.agent.launch_admission_store import (
     POLL_SECONDS,
@@ -85,6 +92,8 @@ class AdmissionEngine:
     safe_inputs: dict[str, Any] = field(default_factory=dict)
     results: list[AgentLaunchResult] = field(default_factory=list)
     _waiting_since: dict[str, float] = field(default_factory=dict)
+    _proc_capacity_requested_at: dict[str, str] = field(default_factory=dict)
+    _proc_capacity_eligible_since: dict[str, str] = field(default_factory=dict)
     _next_seq: int = 1
 
     def run(self, *, until_blocked: bool = False) -> AdmissionProgress:
@@ -185,9 +194,32 @@ class AdmissionEngine:
             return None
         if kind == "dispatch":
             fingerprint = str(action.get("fingerprint") or "")
-            self._journal(logical_id, "dispatching", fingerprint=fingerprint)
             unit = _unit(self.plan, logical_id)
             if str(action.get("unit_kind") or "") == "proc":
+                capacity = self._proc_capacity_admission(unit)
+                if capacity is not None:
+                    if capacity.invalid:
+                        self._journal(
+                            logical_id,
+                            "launch_error",
+                            fingerprint=fingerprint,
+                            message=capacity.message
+                            or "proc capacity admission failed",
+                        )
+                        return None
+                    if not capacity.admitted:
+                        prior_waited = (self._states().get(logical_id) or {}).get(
+                            "waited_outcomes"
+                        ) or []
+                        self._journal(
+                            logical_id,
+                            "eligible",
+                            waited_outcomes=list(prior_waited),
+                            message=capacity.message
+                            or "proc blocked by runner capacity",
+                        )
+                        return "blocked"
+                self._journal(logical_id, "dispatching", fingerprint=fingerprint)
                 proc_dispatcher = self.proc_dispatcher or dispatch_proc_unit
                 ok, identity, message, spawned = call_proc_dispatcher(
                     proc_dispatcher,
@@ -197,10 +229,12 @@ class AdmissionEngine:
                 )
                 extra: dict[str, Any] = {}
             elif self.agent_dispatcher is None:
+                self._journal(logical_id, "dispatching", fingerprint=fingerprint)
                 ok, identity, message, spawned, extra = _unpack_agent_dispatch(
                     dispatch_agent_unit(unit, fingerprint)
                 )
             else:
+                self._journal(logical_id, "dispatching", fingerprint=fingerprint)
                 ok, identity, message, spawned, extra = _unpack_agent_dispatch(
                     self.agent_dispatcher(unit, fingerprint)
                 )
@@ -259,6 +293,34 @@ class AdmissionEngine:
             identity = str(action.get("identity") or logical_id)
             self._journal(logical_id, "launched", identity=identity)
         return None
+
+    def _proc_capacity_admission(
+        self, unit: LaunchUnitWire
+    ) -> ProcCapacityAdmission | None:
+        if not proc_requires_capacity_admission(unit):
+            return None
+        now_seconds = self.clock()
+        requested_at = self._proc_capacity_requested_at.setdefault(
+            unit.logical_id, iso_from_unix(now_seconds)
+        )
+        now_dt = datetime.fromtimestamp(now_seconds, UTC)
+        now = now_dt.isoformat()
+        decision = evaluate_proc_capacity_admission(
+            unit,
+            admission_dir=self.admission_dir,
+            request_id=self.request_id,
+            selected_project=self.plan.selected_project,
+            requested_at=requested_at,
+            eligible_since=self._proc_capacity_eligible_since.get(unit.logical_id),
+            now=now_dt,
+        )
+        if any(
+            blocker.get("code") == "deference-window" for blocker in decision.blockers
+        ):
+            self._proc_capacity_eligible_since.setdefault(unit.logical_id, now)
+        elif unit.logical_id in self._proc_capacity_eligible_since:
+            self._proc_capacity_eligible_since.pop(unit.logical_id, None)
+        return decision
 
     def _apply_check(self, action: Mapping[str, Any]) -> str:
         logical_id = str(action.get("logical_id") or "")

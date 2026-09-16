@@ -201,6 +201,18 @@ class ProcUnitWire:
     workspace: bool = False
     workspace_explicit: bool = False
     selected_project: str | None = None
+    queue_capacity: int | None = None
+    wait_priority: int | None = None
+    queue_weight: float | None = None
+    queue_weight_explicit: bool = False
+
+    def has_authored_queue_fields(self) -> bool:
+        return (
+            self.queue_capacity is not None
+            or self.wait_priority is not None
+            or self.queue_weight is not None
+            or self.queue_weight_explicit
+        )
 
 
 @dataclass(frozen=True)

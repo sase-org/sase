@@ -84,6 +84,10 @@ def _runner_slot_lock_path() -> Path:
     return sase_home() / "runner_slots.lock"
 
 
+def runner_slot_lock_path() -> Path:
+    return _runner_slot_lock_path()
+
+
 def _collect_runner_slot_records() -> list[AgentArtifactRecordWire]:
     from sase.core.agent_scan_facade import scan_agent_artifacts
 
@@ -95,6 +99,10 @@ def _scan_runner_slot_records() -> list[AgentArtifactRecordWire]:
         _collect_runner_slot_records,
         max_age=float(_RUNNER_SLOT_POLL_INTERVAL),
     )
+
+
+def scan_runner_slot_records() -> list[AgentArtifactRecordWire]:
+    return _scan_runner_slot_records()
 
 
 def _record_liveness_probe() -> Callable[[AgentArtifactRecordWire], bool]:
@@ -132,6 +140,10 @@ def _record_liveness_probe() -> Callable[[AgentArtifactRecordWire], bool]:
     return is_live
 
 
+def record_liveness_probe() -> Callable[[AgentArtifactRecordWire], bool]:
+    return _record_liveness_probe()
+
+
 def _try_claim_runner_slot(
     *,
     artifacts_dir: str,
@@ -152,7 +164,7 @@ def _try_claim_runner_slot(
     blocked or limit-unavailable decision leaves no waiting marker and
     returns ``(None, False)`` so the caller may proceed unclaimed.
     """
-    lock_path = _runner_slot_lock_path()
+    lock_path = runner_slot_lock_path()
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("a+", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
@@ -216,7 +228,7 @@ def _try_claim_runner_slot(
                     else None
                 ),
             )
-            records = _scan_runner_slot_records()
+            records = scan_runner_slot_records()
             queue_weight_error = candidate_scan_queue_weight_error(
                 records,
                 artifacts_dir,
@@ -224,7 +236,7 @@ def _try_claim_runner_slot(
             if queue_weight_error is not None:
                 raise queue_weight_error
             candidate = enrich_candidate_from_records(candidate, records)
-            is_live = _record_liveness_probe()
+            is_live = record_liveness_probe()
             now = datetime.now(UTC)
             snapshot = runner_capacity_snapshot(
                 records,
@@ -395,7 +407,7 @@ def wait_for_runner_slot(
             token=runner_slot_state_token,
         )
 
-    lock_path = _runner_slot_lock_path()
+    lock_path = runner_slot_lock_path()
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     with lock_path.open("a+", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)

@@ -241,6 +241,22 @@ def _launch_unit_payload_from_dict(
                 if data.get("selected_project") is None
                 else str(data["selected_project"])
             ),
+            queue_capacity=(
+                None
+                if data.get("queue_capacity") is None
+                else int(data["queue_capacity"])
+            ),
+            wait_priority=(
+                None
+                if data.get("wait_priority") is None
+                else int(data["wait_priority"])
+            ),
+            queue_weight=(
+                None
+                if data.get("queue_weight") is None
+                else float(data["queue_weight"])
+            ),
+            queue_weight_explicit=bool(data.get("queue_weight_explicit", False)),
         )
     raise ValueError(f"unknown launch unit payload kind: {kind!r}")
 
