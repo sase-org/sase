@@ -4,10 +4,21 @@ import asyncio
 from dataclasses import dataclass
 
 from sase.ace.config import get_ace_page_size
+from sase.core.prompt_history_filter_wire import (
+    CompiledPromptHistoryQuery,
+    PromptHistoryRowFacts,
+    PromptHistorySeed,
+)
 from sase.history.prompt import (
     PromptHistoryPage,
     PromptHistoryPageCursor,
     load_prompt_record_page,
+)
+from sase.history.prompt_history_project_filter import (
+    PromptHistoryProjectCatalog,
+    build_prompt_history_seed_from_draft,
+    filtered_prompt_history_row_indices,
+    prepare_prompt_history_row_facts,
 )
 from sase.history.prompt_metadata import (
     summarize_prompt_for_list,
@@ -94,18 +105,36 @@ class PromptHistoryModal(
         self,
         show_cancelled: bool = False,
         initial_filter: str = "",
+        prompt_seed: str | None = None,
     ) -> None:
         """Initialize the prompt history modal.
 
         Args:
             show_cancelled: Whether to show cancelled prompts by default.
-            initial_filter: Text to pre-fill in the modal filter.
+            initial_filter: An already-authored query to pre-fill in the
+                modal filter.
+            prompt_seed: An unauthored prompt draft (Ctrl+K) resolved into
+                the initial ``project:`` + text query asynchronously, once
+                the project-identity snapshot loads. Mutually exclusive with
+                *initial_filter*.
         """
+        if initial_filter and prompt_seed is not None:
+            raise ValueError(
+                "PromptHistoryModal accepts either initial_filter or "
+                "prompt_seed, never both"
+            )
         super().__init__()
         self._all_items: list[_PromptDisplayItem] = []
         self._filtered_items: list[_PromptDisplayItem] = []
+        self._row_facts: list[PromptHistoryRowFacts] = []
         self._show_cancelled = show_cancelled
         self._initial_filter = initial_filter
+        self._prompt_seed = prompt_seed
+        self._catalog: PromptHistoryProjectCatalog | None = None
+        self._last_compiled_query: CompiledPromptHistoryQuery | None = None
+        self._filter_edit_generation = 0
+        self._seed_hint_text: str | None = None
+        self._seed_applied_value: str | None = None
         self._last_preview_width_budget = _FALLBACK_PREVIEW_WIDTH
         self._next_cursor: PromptHistoryPageCursor | None = None
         self._history_exhausted = False
@@ -133,13 +162,21 @@ class PromptHistoryModal(
     def _append_page(self, page: PromptHistoryPage) -> None:
         """Append a loaded page to modal state."""
         resume_cursor = self._next_cursor
+        catalog = self._catalog or PromptHistoryProjectCatalog(entries=())
         for record in page.records:
             entry = record.to_entry()
+            display_text = humanize_vcs_refs_in_text(entry.text)
+            index = len(self._all_items)
             self._all_items.append(
                 _PromptDisplayItem(
                     entry=entry,
                     marker="x" if entry.cancelled else " ",
-                    display_text=humanize_vcs_refs_in_text(entry.text),
+                    display_text=display_text,
+                )
+            )
+            self._row_facts.append(
+                prepare_prompt_history_row_facts(
+                    index, entry.text, display_text, catalog
                 )
             )
         if not hasattr(self, "_loaded_pages"):
@@ -162,6 +199,10 @@ class PromptHistoryModal(
                 value=self._initial_filter,
                 placeholder="Type to filter loaded prompts...",
                 id="prompt-history-filter-input",
+            )
+            yield Static(
+                self._default_scope_hint_text(),
+                id="prompt-history-scope-hint",
             )
             with Horizontal(id="prompt-history-panels"):
                 with Vertical(id="prompt-history-list-panel"):
@@ -187,6 +228,67 @@ class PromptHistoryModal(
                 self._hints_text(),
                 id="prompt-history-hints",
             )
+
+    @staticmethod
+    def _default_scope_hint_text() -> Text:
+        """Return the muted default hint teaching the ``project:`` grammar."""
+        return Text(
+            "Type project:<name> text to scope results to one project.",
+            style="dim",
+        )
+
+    def _update_scope_hint(self) -> None:
+        """Refresh the helper line beneath the filter input from the last query."""
+        try:
+            widget = self.query_one("#prompt-history-scope-hint", Static)
+        except Exception:
+            return
+
+        widget.remove_class("-error")
+        widget.remove_class("-scoped")
+        query = self._last_compiled_query
+
+        if query is not None and (not query.valid or query.diagnostic):
+            widget.update(
+                query.diagnostic or "Project filter needs a value after project:."
+            )
+            widget.add_class("-error")
+            return
+
+        if query is not None and query.raw_project_value is not None:
+            label = query.project_label or query.raw_project_value
+            text = Text(f"Project: {label}")
+            text.append(
+                "  ·  Remove the project filter to search all loaded prompts",
+                style="dim",
+            )
+            widget.update(text)
+            widget.add_class("-scoped")
+            return
+
+        try:
+            filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
+            current_value: str | None = filter_input.value
+        except Exception:
+            current_value = None
+
+        if (
+            self._seed_hint_text is not None
+            and current_value is not None
+            and current_value == self._seed_applied_value
+        ):
+            widget.update(Text(self._seed_hint_text, style="dim"))
+            return
+
+        widget.update(self._default_scope_hint_text())
+
+    def _apply_seed(self, seed: PromptHistorySeed) -> None:
+        """Pre-fill the filter input from a resolved Ctrl+K prompt seed."""
+        filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
+        filter_input.value = seed.seed_text
+        filter_input.cursor_position = len(seed.seed_text)
+        self._seed_hint_text = seed.hint
+        self._seed_applied_value = seed.seed_text
 
     def _hints_text(self) -> str:
         """Return the footer hint line using the configured page size."""
@@ -214,6 +316,17 @@ class PromptHistoryModal(
     def _loading_option() -> Option:
         """Return the disabled placeholder shown during the initial page load."""
         return Option(Text("Loading prompt history...", style="dim"), disabled=True)
+
+    def _empty_result_option(self) -> Option:
+        """Return the disabled placeholder shown for a loaded-but-empty result."""
+        if self._history_exhausted:
+            message = "No matching prompts"
+        else:
+            message = (
+                f"No matches in loaded prompts · ^j +{self._resolved_page_size()}"
+                " older · remove the project filter to search all loaded prompts"
+            )
+        return Option(Text(message, style="dim"), disabled=True)
 
     def _create_options(
         self,
@@ -265,6 +378,8 @@ class PromptHistoryModal(
         if not self._filtered_items:
             if not self._history_loaded_once:
                 option_list.add_option(self._loading_option())
+            else:
+                option_list.add_option(self._empty_result_option())
             return
         if preserve_highlight and highlighted is not None:
             option_list.highlighted = min(highlighted, len(self._filtered_items) - 1)
@@ -307,21 +422,44 @@ class PromptHistoryModal(
         label.update(self._history_count_label())
 
     def _get_filtered_items(self, filter_text: str) -> list[_PromptDisplayItem]:
-        """Get items that match the filter text."""
-        if not filter_text:
-            if self._show_cancelled:
-                return self._all_items.copy()
-            return [item for item in self._all_items if not item.entry.cancelled]
+        """Get items that match the filter text, honoring a ``project:`` scope.
 
-        filter_lower = filter_text.lower()
+        A malformed qualifier (``self._last_compiled_query.valid`` is
+        ``False``) selects nothing until it is fixed, so submit/edit/load/copy
+        never act on a stale selection.
+        """
+        catalog = getattr(self, "_catalog", None)
+        if catalog is None:
+            # A fast keystroke landing before the identity snapshot loads (or
+            # a unit test built via ``object.__new__``, bypassing __init__):
+            # degrade to the legacy substring behavior rather than block.
+            self._last_compiled_query = None
+            if not filter_text:
+                if self._show_cancelled:
+                    return self._all_items.copy()
+                return [item for item in self._all_items if not item.entry.cancelled]
+            filter_lower = filter_text.lower()
+            return [
+                item
+                for item in self._all_items
+                if (self._show_cancelled or not item.entry.cancelled)
+                and (
+                    filter_lower in _display_text_for_item(item).lower()
+                    or filter_lower in item.entry.text.lower()
+                )
+            ]
+
+        compiled = catalog.compile_query(filter_text)
+        self._last_compiled_query = compiled
+        if not compiled.valid:
+            return []
+
+        matched_indices = filtered_prompt_history_row_indices(compiled, self._row_facts)
         return [
             item
-            for item in self._all_items
-            if (self._show_cancelled or not item.entry.cancelled)
-            and (
-                filter_lower in _display_text_for_item(item).lower()
-                or filter_lower in item.entry.text.lower()
-            )
+            for idx, item in enumerate(self._all_items)
+            if idx in matched_indices
+            and (self._show_cancelled or not item.entry.cancelled)
         ]
 
     def _get_selected_prompt_text(self) -> str | None:
@@ -361,15 +499,38 @@ class PromptHistoryModal(
             self.action_toggle_cancelled()
 
     def on_mount(self) -> None:
-        """Focus immediately and load the initial page outside the modal pump."""
+        """Focus immediately and load identity + the first page outside the pump."""
         filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
         filter_input.focus()
         filter_input.cursor_position = len(filter_input.value)
         self.run_worker(
-            self._load_more_async(preserve_highlight=False),
+            self._open_history_async(),
             exclusive=True,
             group="prompt-history-load",
         )
+
+    async def _open_history_async(self) -> None:
+        """Load the identity snapshot, resolve a pending seed, then page one.
+
+        Escape and typing stay responsive throughout: this coroutine only
+        awaits off-thread work and never blocks the event loop. A pending
+        Ctrl+K seed is applied only if ``_filter_edit_generation`` has not
+        advanced since right after the snapshot loaded, so a keystroke (or a
+        deliberate clear) that lands during the awaited resolution wins over
+        the seed instead of being clobbered by it.
+        """
+        self._catalog = await asyncio.to_thread(PromptHistoryProjectCatalog.load)
+        if self._prompt_seed is not None:
+            generation_at_snapshot = self._filter_edit_generation
+            seed = await asyncio.to_thread(
+                build_prompt_history_seed_from_draft,
+                self._prompt_seed,
+                self._catalog,
+            )
+            unedited = self._filter_edit_generation == generation_at_snapshot
+            if self.is_mounted and unedited:
+                self._apply_seed(seed)
+        await self._load_more_async(preserve_highlight=False)
 
     def on_resize(self, _event: events.Resize) -> None:
         """Recompute adaptive row widths after terminal resize/layout changes."""
@@ -394,6 +555,7 @@ class PromptHistoryModal(
         filter_input = self.query_one("#prompt-history-filter-input", FilterInput)
         self._filtered_items = self._get_filtered_items(filter_input.value)
         self._update_history_count_label()
+        self._update_scope_hint()
         self._refresh_options(preserve_highlight=preserve_highlight)
         if self._filtered_items:
             option_list = self.query_one("#prompt-history-list", OptionList)
@@ -426,6 +588,7 @@ class PromptHistoryModal(
         last = pages.pop()
         if last.item_count:
             del self._all_items[-last.item_count :]
+            del self._row_facts[-last.item_count :]
         self._next_cursor = last.resume_cursor
         self._history_exhausted = False
         try:
@@ -435,6 +598,7 @@ class PromptHistoryModal(
             filter_text = ""
         self._filtered_items = self._get_filtered_items(filter_text)
         self._update_history_count_label()
+        self._update_scope_hint()
         try:
             self._refresh_options(preserve_highlight=True)
         except Exception:
@@ -451,8 +615,10 @@ class PromptHistoryModal(
 
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle input change - update the option list."""
+        self._filter_edit_generation += 1
         self._filtered_items = self._get_filtered_items(event.value)
         self._update_history_count_label()
+        self._update_scope_hint()
         self._refresh_options()
         # Update preview for first filtered item
         if self._filtered_items:

@@ -326,6 +326,10 @@ class HistoryRequested(Message, namespace="prompt_input_bar"):
       used as a staleness check -- a prompt-stack rebuild remounts panes under a
       fresh id, so a captured id that no longer resolves means the origin pane
       is gone.
+    - ``prompt_seed``: an unauthored prompt draft the modal resolves into its
+      initial ``project:`` + text query asynchronously (Ctrl+K). Distinct from
+      ``initial_filter``, which is an already-authored query string other
+      callers may still pass verbatim. Supplying both is a caller bug.
     """
 
     def __init__(
@@ -338,7 +342,13 @@ class HistoryRequested(Message, namespace="prompt_input_bar"):
         origin_bar: PromptInputBar | None = None,
         origin_text_area: PromptTextArea | None = None,
         origin_pane_id: str = "",
+        prompt_seed: str | None = None,
     ) -> None:
+        if initial_filter and prompt_seed is not None:
+            raise ValueError(
+                "HistoryRequested accepts either initial_filter or "
+                "prompt_seed, never both"
+            )
         super().__init__()
         self.vcs_prefix = vcs_prefix
         self.show_cancelled = show_cancelled
@@ -347,6 +357,7 @@ class HistoryRequested(Message, namespace="prompt_input_bar"):
         self.origin_bar = origin_bar
         self.origin_text_area = origin_text_area
         self.origin_pane_id = origin_pane_id
+        self.prompt_seed = prompt_seed
 
 
 class SnippetRequested(Message, namespace="prompt_input_bar"):

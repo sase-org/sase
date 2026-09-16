@@ -41,7 +41,8 @@ async def test_ctrl_k_requests_history_with_single_line_filter() -> None:
 
     assert len(app.history_requests) == 1
     request = app.history_requests[0]
-    assert request.initial_filter == "fix failing auth test"
+    assert request.prompt_seed == "fix failing auth test"
+    assert request.initial_filter == ""
     assert request.preserve_prompt_bar is True
     assert request.show_cancelled is False
     assert app.submissions == []

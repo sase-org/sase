@@ -95,11 +95,11 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         PromptInputBar = prompt_bar_class()
         bar.post_message(
             PromptInputBar.HistoryRequested(
-                initial_filter=self.text,
                 preserve_prompt_bar=True,
                 origin_bar=bar,
                 origin_text_area=cast("PromptTextArea", self),
                 origin_pane_id=self.id or "",
+                prompt_seed=self.text,
             )
         )
 

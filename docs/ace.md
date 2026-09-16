@@ -6788,12 +6788,14 @@ always apply to whole selected lines regardless of the cursor column.
 ## Prompt History Modal
 
 Press `Ctrl+K` from the prompt input to open the prompt history modal. That shortcut is
-available when the current prompt is a single logical line; that line pre-fills the
-modal filter. Press `,.` (leader + `.`) to open the same modal from the main sase's TUI
-UI. The modal loads prompts previously launched from sase's TUI or `sase run` in recency
-pages of `ace.page_size` rows (default 100). Normal launch writes skip trivial one-token
-prompts (e.g. `y`, `ok`) so they do not clutter the list, while failed-launch recovery
-can still preserve a short submitted prompt.
+available when the current prompt is a single logical line; that line's first active
+workspace reference (e.g. `#gh:sase`) becomes an initial `project:<name>` filter scope
+once the project-identity snapshot resolves, with the remaining text preserved as a
+literal search (see Filtering below). Press `,.` (leader + `.`) to open the same modal
+unscoped from the main sase's TUI UI. The modal loads prompts previously launched from
+sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default 100). Normal
+launch writes skip trivial one-token prompts (e.g. `y`, `ok`) so they do not clutter the
+list, while failed-launch recovery can still preserve a short submitted prompt.
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace
@@ -6819,10 +6821,33 @@ the most recent entry and `Ctrl+N` starts at the oldest one.
 
 ### Filtering
 
-Type in the search box to filter the prompts that have already been loaded by text.
+Type in the search box to filter the prompts that have already been loaded. The grammar
+is deliberately small: one optional **leading** `project:<value>` qualifier, followed by
+an optional literal text substring matched case-insensitively against the prompt's
+canonical or humanized text — the plain-substring behavior is unchanged when no
+qualifier is typed. `project:` and its value are case-insensitive; a value ends at
+whitespace, or use a double-quoted value (with `\"`/`\\` escapes) to include spaces. A
+`project:` written anywhere other than the leading position is treated as ordinary
+search text, not a qualifier. Write `\project:...` to search for literal text that
+starts with `project:`.
+
+The value resolves against every loaded project's canonical key, configured display
+name, and registered aliases (including disabled projects and `home`) — never by
+splitting a displayed basename or guessing from a Patch name prefix. A resolved scope
+matches complete project identity (`project:sase` excludes `sase-core` and prose that
+merely mentions "sase"); for a multi-prompt entry, any segment belonging to the project
+is enough. An unknown value still matches a prompt whose own historical reference is
+that exact unresolved text, so a deleted or renamed project stays searchable. A label
+shared by more than one project is ambiguous and is reported in the helper line below
+the filter box instead of matching either one silently; an empty or unterminated quoted
+value is also reported there and selects nothing until fixed. The current scope (or the
+ambiguous/malformed hint) is shown on that helper line; clearing the `project:` prefix
+returns to searching every loaded prompt.
+
 Press `Ctrl+J` to load older pages, `Ctrl+K` to unload the last page, and `Ctrl+X` to
 toggle cancelled prompts on or off — when enabled, cancelled prompts appear in the
-results with an `x` marker.
+results with an `x` marker. The `project:` scope only ever considers prompts already
+loaded into the modal; it does not search the whole history archive.
 
 Prompt-history rows are compact single-line entries: cancelled marker, last-used
 timestamp (`MM-DD HH:MM` when parseable), and a first-line prompt preview. The preview

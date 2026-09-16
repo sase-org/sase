@@ -128,6 +128,31 @@ def test_ctrl_k_history_cancel_refocuses_prompt_bar_without_unmounting() -> None
     assert harness._prompt_context is not None
 
 
+def test_prompt_seed_routes_to_the_modal_unscoped_from_initial_filter() -> None:
+    harness = _HistoryRequestHarness()
+    event = PromptInputBar.HistoryRequested(
+        preserve_prompt_bar=True,
+        prompt_seed="#gh:sase fix parser",
+    )
+
+    harness.on_prompt_input_bar_history_requested(event)
+    modal, _callback = harness.pushed[0]
+
+    assert modal._prompt_seed == "#gh:sase fix parser"
+    assert modal._initial_filter == ""
+
+
+def test_leader_open_history_stays_unscoped_with_no_seed_or_filter() -> None:
+    harness = _HistoryRequestHarness()
+    event = PromptInputBar.HistoryRequested(preserve_prompt_bar=True)
+
+    harness.on_prompt_input_bar_history_requested(event)
+    modal, _callback = harness.pushed[0]
+
+    assert modal._prompt_seed is None
+    assert modal._initial_filter == ""
+
+
 def test_load_without_conflict_calls_load_prompt_into_pane_once() -> None:
     harness = _HistoryRequestHarness()
 

@@ -198,6 +198,7 @@ class PromptBarRequestsMixin:
             PromptHistoryModal(
                 show_cancelled=event.show_cancelled,
                 initial_filter=event.initial_filter,
+                prompt_seed=event.prompt_seed,
             ),
             on_history_select,
         )
