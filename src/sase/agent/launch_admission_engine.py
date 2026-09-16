@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
-import math
 import sys
 import time
 from collections.abc import Callable, Mapping
@@ -20,15 +18,21 @@ from sase.agent.launch_admission_runtime import (
     call_proc_dispatcher,
     dispatch_agent_unit,
     dispatch_proc_unit,
-    evaluate_launch_condition,
     resolve_external_wait_facts,
     stop_proc_identity,
 )
-from sase.agent.launch_condition_workspace import (
-    ConditionWorkspaceError,
-    ConditionWorkspaceUnavailable,
-    acquire_condition_workspace,
-    settle_condition_workspace,
+from sase.agent.launch_admission_engine_conditions import AdmissionConditionMixin
+from sase.agent.launch_admission_engine_helpers import (
+    all_terminal,
+    unit_by_logical_id,
+    unpack_agent_dispatch,
+)
+from sase.agent.launch_admission_engine_holds import proc_hold_blocks
+from sase.agent.launch_admission_request_data import (
+    request_project_file,
+    request_safe_inputs,
+    request_source_cwd,
+    typed_plan_from_request,
 )
 from sase.agent.proc_capacity_admission import (
     ProcCapacityAdmission,
@@ -45,7 +49,6 @@ from sase.agent.launch_admission_store import (
     read_journal,
     write_unit_receipt,
 )
-from sase.agent.launch_request_types import LaunchRequestError
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_facade import (
     admission_unit_results,
@@ -59,13 +62,9 @@ from sase.core.agent_launch_wire import (
     LaunchPlanWire,
     LaunchUnitResultWire,
     LaunchUnitWire,
-    ProcUnitWire,
     agent_launch_wire_to_json_dict,
-    launch_plan_from_dict,
 )
 from sase.core.atomic_json import write_json_marker_atomic
-
-LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -78,7 +77,7 @@ class AdmissionProgress:
 
 
 @dataclass
-class AdmissionEngine:
+class AdmissionEngine(AdmissionConditionMixin):
     """In-process admission driver with injectable wait/dispatch hooks."""
 
     plan: LaunchPlanWire
@@ -118,7 +117,7 @@ class AdmissionEngine:
                 self._hold_blocks(states),
             )
             if not actions:
-                progress = self._progress(complete=_all_terminal(self.plan, states))
+                progress = self._progress(complete=all_terminal(self.plan, states))
                 if progress.complete or until_blocked:
                     return progress
                 self.sleep(self.poll_seconds)
@@ -182,79 +181,7 @@ class AdmissionEngine:
         )
 
     def _hold_blocks(self, states: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
-        """Return active hold blocks for pre-dispatch proc units.
-
-        Holds fail open on the admission path: a broken store or predicate must not
-        strand a proc that has no separate runner-slot marker to inspect.
-        """
-        proc_units = [
-            unit
-            for unit in self.plan.units
-            if isinstance(unit.payload, ProcUnitWire)
-            and str((states.get(unit.logical_id) or {}).get("phase") or "")
-            in {"waiting", "eligible"}
-        ]
-        if not proc_units:
-            return []
-        now_seconds = self.clock()
-        now_dt = datetime.fromtimestamp(now_seconds, UTC)
-        try:
-            from sase.core.agent_hold_facade import (
-                active_agent_hold_records,
-                agent_hold_blocks_candidate,
-            )
-
-            active_holds = active_agent_hold_records(now=now_dt)
-            if not active_holds:
-                return []
-            blocks: list[dict[str, Any]] = []
-            for unit in proc_units:
-                candidate = self._proc_hold_candidate(
-                    unit,
-                    states.get(unit.logical_id) or {},
-                    now_seconds=now_seconds,
-                )
-                for hold in active_holds:
-                    block = agent_hold_blocks_candidate(hold, candidate)
-                    if block is not None:
-                        blocks.append({"logical_id": unit.logical_id, "block": block})
-            return blocks
-        except Exception as exc:  # noqa: BLE001 - holds fail open by design.
-            LOGGER.warning("proc hold admission failed open: %s", exc)
-            return []
-
-    def _proc_hold_candidate(
-        self,
-        unit: LaunchUnitWire,
-        state: Mapping[str, Any],
-        *,
-        now_seconds: float,
-    ) -> dict[str, Any]:
-        payload = unit.payload
-        candidate: dict[str, Any] = {
-            "project": self._proc_hold_project(payload),
-            "created_at": _finite_float(state.get("first_recorded_at_unix"))
-            or now_seconds,
-            "artifact_dirs": [],
-        }
-        if isinstance(payload, ProcUnitWire) and payload.shell_name:
-            candidate["proc_shell"] = payload.shell_name
-        return candidate
-
-    def _proc_hold_project(self, payload: object) -> str:
-        if isinstance(payload, ProcUnitWire) and payload.selected_project:
-            return payload.selected_project
-        if self.plan.selected_project:
-            return self.plan.selected_project
-        try:
-            from sase.bead.project_name import infer_project_name_from_cwd
-
-            project = infer_project_name_from_cwd()
-            if project:
-                return project
-        except Exception:  # noqa: BLE001 - host-scoped holds can still match.
-            pass
-        return "unknown"
+        return proc_hold_blocks(self.plan, states, now_seconds=self.clock())
 
     def _apply_action(self, action: Mapping[str, Any]) -> str | None:
         kind = str(action.get("kind") or "")
@@ -277,7 +204,7 @@ class AdmissionEngine:
             return None
         if kind == "dispatch":
             fingerprint = str(action.get("fingerprint") or "")
-            unit = _unit(self.plan, logical_id)
+            unit = unit_by_logical_id(self.plan, logical_id)
             if str(action.get("unit_kind") or "") == "proc":
                 capacity = self._proc_capacity_admission(unit)
                 if capacity is not None:
@@ -313,12 +240,12 @@ class AdmissionEngine:
                 extra: dict[str, Any] = {}
             elif self.agent_dispatcher is None:
                 self._journal(logical_id, "dispatching", fingerprint=fingerprint)
-                ok, identity, message, spawned, extra = _unpack_agent_dispatch(
+                ok, identity, message, spawned, extra = unpack_agent_dispatch(
                     dispatch_agent_unit(unit, fingerprint)
                 )
             else:
                 self._journal(logical_id, "dispatching", fingerprint=fingerprint)
-                ok, identity, message, spawned, extra = _unpack_agent_dispatch(
+                ok, identity, message, spawned, extra = unpack_agent_dispatch(
                     self.agent_dispatcher(unit, fingerprint)
                 )
             self.results.extend(spawned)
@@ -405,101 +332,6 @@ class AdmissionEngine:
             self._proc_capacity_eligible_since.pop(unit.logical_id, None)
         return decision
 
-    def _apply_check(self, action: Mapping[str, Any]) -> str:
-        logical_id = str(action.get("logical_id") or "")
-        waited = list(action.get("waited_outcomes") or [])
-        unit = _unit(self.plan, logical_id)
-        context = self._condition_context(unit.logical_id, waited)
-        work_dir = Path(str(context["work_dir"]))
-        lease_acquired = False
-        if self._uses_condition_workspace(unit):
-            try:
-                lease = acquire_condition_workspace(
-                    project=str(self.plan.selected_project),
-                    request_id=self.request_id,
-                    plan_digest=self.plan.content_digest,
-                    logical_id=unit.logical_id,
-                    work_dir=work_dir,
-                    project_file=self.project_file,
-                )
-            except ConditionWorkspaceUnavailable:
-                return "blocked"
-            except ConditionWorkspaceError as exc:
-                self._journal(
-                    logical_id,
-                    "condition_error",
-                    waited_outcomes=waited,
-                    message=str(exc),
-                )
-                return "replan"
-            lease_acquired = True
-            context.update(lease.context_payload())
-        self._journal(logical_id, "checking", waited_outcomes=waited)
-        try:
-            verdict, message = self._evaluate_condition(unit, waited, context)
-        except Exception as exc:
-            verdict, message = "condition_error", f"condition evaluator failed: {exc}"
-        finally:
-            if lease_acquired:
-                settle_condition_workspace(work_dir)
-        phase = {
-            "eligible": "eligible",
-            "skipped": "skipped",
-            "condition_error": "condition_error",
-        }.get(verdict, "condition_error")
-        self._journal(
-            logical_id,
-            phase,
-            waited_outcomes=waited,
-            message=message or verdict,
-        )
-        return "replan"
-
-    def _evaluate_condition(
-        self,
-        unit: LaunchUnitWire,
-        waited: list[dict[str, Any]],
-        context: Mapping[str, Any] | None = None,
-    ) -> tuple[str, str | None]:
-        evaluator = self.condition_evaluator or evaluate_launch_condition
-        return evaluator(
-            unit,
-            waited,
-            context or self._condition_context(unit.logical_id, waited),
-        )
-
-    def _recover_condition(self, logical_id: str) -> tuple[str, str | None] | None:
-        from sase.agent.launch_condition_runtime import recover_launch_condition
-
-        work_dir = self.admission_dir / UNITS_DIRNAME / logical_id
-        try:
-            return recover_launch_condition(
-                work_dir,
-                cancelled=self.cancelled,
-            )
-        finally:
-            settle_condition_workspace(work_dir)
-
-    def _condition_context(
-        self,
-        logical_id: str,
-        waited: list[dict[str, Any]],
-    ) -> dict[str, Any]:
-        return {
-            "logical_unit": logical_id,
-            "request_id": self.request_id,
-            "plan_digest": self.plan.content_digest,
-            "project_file": self.project_file,
-            "selected_project": self.plan.selected_project,
-            "waited_outcomes": waited,
-            "safe_inputs": dict(self.safe_inputs),
-            "source_cwd": self.source_cwd,
-            "admission_dir": str(self.admission_dir),
-            "work_dir": str(self.admission_dir / UNITS_DIRNAME / logical_id),
-            "cancelled": self.cancelled,
-            "supervise": self.condition_evaluator is None,
-        }
-
     def _proc_context(
         self, unit: LaunchUnitWire, action: Mapping[str, Any]
     ) -> dict[str, Any]:
@@ -549,14 +381,6 @@ class AdmissionEngine:
                 fingerprint=(fingerprint if isinstance(fingerprint, str) else None),
                 message="cancelled",
             )
-
-    def _uses_condition_workspace(self, unit: LaunchUnitWire) -> bool:
-        if self.condition_evaluator is not None:
-            return False
-        if unit.condition is None:
-            return False
-        project = self.plan.selected_project
-        return isinstance(project, str) and bool(project.strip())
 
     def _journal(
         self,
@@ -624,96 +448,11 @@ class AdmissionEngine:
         )
 
 
-def typed_plan_from_request(data: Mapping[str, Any]) -> LaunchPlanWire:
-    raw = data.get("typed_plan")
-    if not isinstance(raw, dict):
-        raise LaunchRequestError(
-            "invalid_request",
-            "typed_plan",
-            "typed launch plan is missing",
-        )
-    plan = launch_plan_from_dict(raw)
-    # An approval authorizes exactly the plan the user was shown, identified by
-    # its content digest. Admitting a plan whose digest no longer matches would
-    # dispatch unapproved units.
-    digest = data.get("plan_digest")
-    if digest not in (None, "") and str(digest) != plan.content_digest:
-        raise LaunchRequestError(
-            "plan_digest_mismatch",
-            "plan_digest",
-            "approved launch plan digest does not match typed_plan.content_digest",
-        )
-    return plan
-
-
-def request_source_cwd(data: Mapping[str, Any]) -> str | None:
-    dispatch = data.get("dispatch")
-    if not isinstance(dispatch, Mapping):
-        return None
-    cwd = dispatch.get("cwd")
-    return None if cwd is None else str(cwd)
-
-
-def request_project_file(data: Mapping[str, Any]) -> str | None:
-    raw = data.get("project_file")
-    return str(raw) if raw else None
-
-
-def request_safe_inputs(data: Mapping[str, Any]) -> dict[str, Any]:
-    raw = data.get("safe_inputs")
-    if isinstance(raw, Mapping):
-        return {str(key): value for key, value in raw.items()}
-    request = data.get("launch_request")
-    if isinstance(request, Mapping) and isinstance(request.get("inputs"), Mapping):
-        return {str(key): value for key, value in request["inputs"].items()}
-    return {}
-
-
-def _unit(plan: LaunchPlanWire, logical_id: str) -> LaunchUnitWire:
-    for unit in plan.units:
-        if unit.logical_id == logical_id:
-            return unit
-    raise LaunchRequestError(
-        "invalid_request",
-        logical_id,
-        f"typed launch plan has no unit {logical_id}",
-    )
-
-
-def _unpack_agent_dispatch(
-    result: Any,
-) -> tuple[bool, str | None, str | None, list[AgentLaunchResult], dict[str, Any]]:
-    if not isinstance(result, tuple) or len(result) < 4:
-        raise LaunchRequestError(
-            "invalid_request",
-            "dispatch",
-            "agent dispatcher returned an invalid result",
-        )
-    ok, identity, message, spawned = result[0], result[1], result[2], result[3]
-    extra = (
-        dict(result[4]) if len(result) > 4 and isinstance(result[4], Mapping) else {}
-    )
-    return bool(ok), identity, message, list(spawned or []), extra
-
-
-def _finite_float(value: object) -> float | None:
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    number = float(value)
-    return number if math.isfinite(number) else None
-
-
-def _all_terminal(
-    plan: LaunchPlanWire, states: Mapping[str, Mapping[str, Any]]
-) -> bool:
-    terminal = {
-        "launched",
-        "skipped",
-        "condition_error",
-        "launch_error",
-        "cancelled",
-    }
-    return all(
-        str((states.get(unit.logical_id) or {}).get("phase") or "") in terminal
-        for unit in plan.units
-    )
+__all__ = [
+    "AdmissionEngine",
+    "AdmissionProgress",
+    "request_project_file",
+    "request_safe_inputs",
+    "request_source_cwd",
+    "typed_plan_from_request",
+]
