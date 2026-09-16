@@ -1,15 +1,24 @@
-"""Fail-open Python runtime adapter for durable agent holds."""
+"""Python runtime adapter for durable agent holds.
+
+Admission-path readers (:func:`active_agent_hold_records` and friends) stay
+fail-open by design: a broken hold store must never strand a waiter. The
+CLI/directive-facing service functions below it -- :func:`arm_agent_hold`,
+:func:`release_agent_hold`, :func:`list_current_agent_holds` -- are the
+opposite: they are direct user actions, so Rust validation and lock-timeout
+errors propagate instead of being swallowed.
+"""
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from sase.agent.names import is_process_alive
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.paths import sase_home, sase_projects_dir
 from sase.core.rust import require_rust_binding
@@ -20,6 +29,8 @@ if TYPE_CHECKING:
 
 LOGGER = logging.getLogger(__name__)
 
+_AGENT_HOLD_SENDER = "agent_hold"
+
 
 def active_agent_hold_records(
     records: Sequence[AgentArtifactRecordWire] | None = None,
@@ -28,21 +39,68 @@ def active_agent_hold_records(
 ) -> list[dict[str, Any]]:
     """Return validated active holds, or an empty list on hold-store failures."""
     try:
-        snapshot = _list_holds({}, now=now)
-        holds = _validated_holds(snapshot)
-        if not holds:
-            return []
-        liveness = _liveness_facts_for_holds(
-            holds,
-            records or (),
-            allow_index_scan=records is None,
-            now=now,
+        before, after = _list_and_reconcile_holds(
+            records or (), allow_index_scan=records is None, now=now
         )
-        snapshot = _list_holds(liveness, now=now)
-        return _validated_holds(snapshot)
     except Exception as exc:  # noqa: BLE001 - holds fail open by design.
         LOGGER.warning("agent hold snapshot failed open: %s", exc)
         return []
+    _notify_liveness_dropped_holds(before, after, now=now)
+    return after
+
+
+def list_current_agent_holds(
+    records: Sequence[AgentArtifactRecordWire] | None = None,
+    *,
+    now: datetime | float | None = None,
+) -> list[dict[str, Any]]:
+    """Return validated active holds for CLI/directive-facing callers.
+
+    Unlike :func:`active_agent_hold_records`, failures propagate: a CLI
+    command should report a broken hold store clearly instead of silently
+    showing an empty list.
+    """
+    before, after = _list_and_reconcile_holds(
+        records or (), allow_index_scan=records is None, now=now
+    )
+    _notify_liveness_dropped_holds(before, after, now=now)
+    return after
+
+
+def find_agent_hold(
+    armer_key: str,
+    *,
+    now: datetime | float | None = None,
+) -> dict[str, Any] | None:
+    """Return the one active hold armed by *armer_key*, if any."""
+    for hold in list_current_agent_holds(now=now):
+        if _mapping(hold.get("armer")).get("key") == armer_key:
+            return hold
+    return None
+
+
+def _list_and_reconcile_holds(
+    records: Sequence[AgentArtifactRecordWire],
+    *,
+    allow_index_scan: bool,
+    now: datetime | float | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return ``(before, after)`` validated holds across a liveness pass.
+
+    ``before`` has expired/malformed rows pruned but no per-armer liveness
+    facts applied; ``after`` additionally prunes armers the current
+    liveness facts say are dead. Both raise on genuine store failures --
+    callers decide whether to fail open.
+    """
+    snapshot = _list_holds({}, now=now)
+    before = _validated_holds(snapshot)
+    if not before:
+        return [], []
+    liveness = _liveness_facts_for_holds(
+        before, records, allow_index_scan=allow_index_scan, now=now
+    )
+    snapshot = _list_holds(liveness, now=now)
+    return before, _validated_holds(snapshot)
 
 
 def _release_agent_hold_key(
@@ -113,6 +171,397 @@ def reconcile_agent_holds_for_artifact(
             exc,
         )
     return released
+
+
+class _AgentHoldServiceError(RuntimeError):
+    """Raised when a CLI/directive-facing hold action can't resolve its context."""
+
+
+@dataclass(frozen=True)
+class _PendingCapture:
+    """WAITING/QUEUED artifact dirs frozen as a ``pending`` selector at arm time."""
+
+    artifact_dirs: tuple[str, ...]
+    waiting_count: int
+    queued_count: int
+    skipped_running_count: int
+
+
+@dataclass(frozen=True)
+class AgentHoldArmResult:
+    """The armed record plus the pending snapshot that produced its selectors."""
+
+    record: dict[str, Any]
+    capture: _PendingCapture | None
+
+
+def current_armer_wire(
+    *,
+    pid_override: int | None = None,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Build the armer wire payload for the process invoking a hold action.
+
+    Uses the current agent's metadata when ``SASE_ARTIFACTS_DIR`` is set,
+    and a standalone ``cli``-kind armer otherwise.
+    """
+    current_env = env if env is not None else os.environ
+    artifacts_dir = (current_env.get("SASE_ARTIFACTS_DIR") or "").strip()
+    if artifacts_dir:
+        return _agent_armer_wire(artifacts_dir)
+    return _cli_armer_wire(pid_override=pid_override)
+
+
+def _agent_armer_wire(artifacts_dir: str) -> dict[str, Any]:
+    meta = _read_json_mapping(Path(artifacts_dir) / "agent_meta.json")
+    name = meta.get("name")
+    if not isinstance(name, str) or not name.strip():
+        raise _AgentHoldServiceError(
+            f"cannot determine agent identity from {artifacts_dir}/agent_meta.json"
+        )
+    name = name.strip()
+    pid = meta.get("pid")
+    family = meta.get("agent_family")
+    clan = meta.get("agent_clan")
+    return {
+        "kind": "agent",
+        "key": f"agent:{name}",
+        "display": name,
+        "project": _project_for_artifacts_dir(artifacts_dir),
+        "agent_name": name,
+        "family": family if isinstance(family, str) and family else None,
+        "clan": clan if isinstance(clan, str) and clan else None,
+        "pid": pid if isinstance(pid, int) else None,
+        "done_marker_path": str(Path(artifacts_dir) / "done.json"),
+    }
+
+
+def _cli_armer_wire(*, pid_override: int | None) -> dict[str, Any]:
+    import getpass
+    import socket
+
+    # A bare CLI invocation exits the moment `create` returns, so anchoring
+    # liveness to its own pid would prune the hold before the caller's next
+    # command runs. `run` passes the wrapped command's pid explicitly; a
+    # bare `create`/`release` pair anchors to the parent shell instead, so
+    # the hold survives for the invoking terminal session (and self-cleans
+    # once that session ends), matching the durable-until-TTL-or-release
+    # contract manual arm/release scripting depends on.
+    pid = pid_override if pid_override is not None else os.getppid()
+    from sase.config.core import get_machine_name
+
+    host = get_machine_name() or socket.gethostname() or "local"
+    try:
+        user = getpass.getuser()
+    except (KeyError, OSError):
+        user = "unknown"
+    return {
+        "kind": "cli",
+        "key": f"cli:{host}:{pid}",
+        "display": f"{user}@{host} (pid {pid})",
+        "project": _project_for_cwd(),
+        "pid": pid,
+    }
+
+
+def _project_for_artifacts_dir(artifacts_dir: str) -> str:
+    from sase.core.agent_artifact_paths import parse_agent_artifact_path
+
+    try:
+        parsed = parse_agent_artifact_path(artifacts_dir)
+    except (OSError, RuntimeError, ValueError):
+        parsed = None
+    if parsed is not None and parsed.project_name:
+        return parsed.project_name
+    return _project_for_cwd()
+
+
+def _project_for_cwd() -> str:
+    from sase.bead.project_name import infer_project_name_from_cwd
+
+    project = infer_project_name_from_cwd()
+    if not project:
+        raise _AgentHoldServiceError(
+            "cannot determine the current project; run from inside a SASE "
+            "project checkout, or from an agent shell with SASE_ARTIFACTS_DIR set"
+        )
+    return project
+
+
+def _read_json_mapping(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _hold_scope_wire(scope: str, *, project: str) -> dict[str, Any]:
+    """Build the scope wire payload for ``--scope project|host``."""
+    if scope == "host":
+        return {"kind": "host"}
+    return {"kind": "project", "project": project}
+
+
+def _hold_selectors_wire(
+    *,
+    names: Sequence[str] = (),
+    tribes: Sequence[str] = (),
+    hoods: Sequence[str] = (),
+    future: bool = False,
+    artifact_dirs: Sequence[str] = (),
+) -> dict[str, Any]:
+    """Build the selectors wire payload from CLI-facing selector inputs."""
+    return {
+        "artifact_dirs": list(artifact_dirs),
+        "names": list(names),
+        "hoods": list(hoods),
+        "tribes": [_normalize_tribe(tribe) for tribe in tribes],
+        "future": bool(future),
+    }
+
+
+def _normalize_tribe(value: str) -> str:
+    stripped = value.strip()
+    return stripped[1:] if stripped.startswith("@") else stripped
+
+
+def _capture_pending_targets(*, project: str | None) -> _PendingCapture:
+    """Snapshot WAITING/QUEUED artifact dirs to freeze as a ``pending`` selector.
+
+    ``project`` scopes the snapshot the same way the hold's own scope will:
+    a project-scoped hold only freezes that project's pending agents, while
+    a host-scoped hold (``project=None``) freezes every project's.
+    """
+    from sase.agent.status_buckets import QUEUED_STATUS
+    from sase.integrations.agent_list_entries import agent_list_entries
+
+    artifact_dirs: list[str] = []
+    waiting_count = 0
+    queued_count = 0
+    skipped_running_count = 0
+    for entry in agent_list_entries(project=project):
+        if entry.status == "WAITING":
+            waiting_count += 1
+            if entry.artifacts_dir:
+                artifact_dirs.append(entry.artifacts_dir)
+        elif entry.status == QUEUED_STATUS:
+            queued_count += 1
+            if entry.artifacts_dir:
+                artifact_dirs.append(entry.artifacts_dir)
+        else:
+            skipped_running_count += 1
+    return _PendingCapture(
+        artifact_dirs=tuple(artifact_dirs),
+        waiting_count=waiting_count,
+        queued_count=queued_count,
+        skipped_running_count=skipped_running_count,
+    )
+
+
+def arm_agent_hold(
+    *,
+    names: Sequence[str] = (),
+    tribes: Sequence[str] = (),
+    hoods: Sequence[str] = (),
+    future: bool = False,
+    pending: bool = False,
+    scope: str = "project",
+    ttl_seconds: float,
+    pid_override: int | None = None,
+    now: datetime | float | None = None,
+) -> AgentHoldArmResult:
+    """Arm a durable hold and upsert its "armed" lifecycle notification.
+
+    Errors propagate: this is a direct CLI/directive action, not an
+    admission-path read, so Rust validation and lock-timeout failures must
+    reach the caller instead of being swallowed.
+    """
+    armer = current_armer_wire(pid_override=pid_override)
+    scope_wire = _hold_scope_wire(scope, project=armer["project"])
+    capture: _PendingCapture | None = None
+    artifact_dirs: tuple[str, ...] = ()
+    if pending:
+        capture = _capture_pending_targets(
+            project=armer["project"] if scope == "project" else None
+        )
+        artifact_dirs = capture.artifact_dirs
+    selectors = _hold_selectors_wire(
+        names=names,
+        tribes=tribes,
+        hoods=hoods,
+        future=future,
+        artifact_dirs=artifact_dirs,
+    )
+    arm = require_rust_binding("agent_hold_arm_relative")
+    record = dict(
+        arm(
+            str(sase_home()),
+            armer,
+            scope_wire,
+            selectors,
+            float(ttl_seconds),
+            {},
+            _epoch_seconds(now),
+        )
+    )
+    _upsert_hold_armed_notification(record, capture, now=now)
+    return AgentHoldArmResult(record=record, capture=capture)
+
+
+def release_agent_hold(
+    armer_key: str,
+    *,
+    now: datetime | float | None = None,
+    display: str | None = None,
+    reason: str = "Released explicitly",
+) -> bool:
+    """Release one hold by armer key, surfacing failures to the caller.
+
+    This is the CLI/service counterpart to the fail-open
+    :func:`_release_agent_hold_key` used by background reconciliation.
+    """
+    release = require_rust_binding("agent_hold_release")
+    removed = bool(release(str(sase_home()), armer_key, {}, _epoch_seconds(now)))
+    if removed:
+        _upsert_hold_released_notification(
+            {"key": armer_key, "display": display or armer_key},
+            reason=reason,
+            now=now,
+        )
+    return removed
+
+
+def _upsert_hold_armed_notification(
+    record: Mapping[str, Any],
+    capture: _PendingCapture | None,
+    *,
+    now: datetime | float | None,
+) -> None:
+    from uuid import uuid4
+
+    from sase.notifications.models import Notification, normalize_notification_tags
+    from sase.notifications.store import upsert_notification
+
+    armer = _mapping(record.get("armer"))
+    key = armer.get("key")
+    if not isinstance(key, str) or not key:
+        return
+    display = armer.get("display") or key
+    timestamp = _iso_timestamp(now)
+    notes = [
+        f"Armed by {display}",
+        f"Expires: {_format_epoch(record.get('expires_at'))}",
+    ]
+    if capture is not None:
+        notes.append(
+            f"Captured {len(capture.artifact_dirs)} pending "
+            f"({capture.waiting_count} waiting, {capture.queued_count} queued); "
+            f"skipped {capture.skipped_running_count} running"
+        )
+    try:
+        upsert_notification(
+            Notification(
+                id=str(uuid4()),
+                timestamp=timestamp,
+                sender=_AGENT_HOLD_SENDER,
+                icon="⏸",
+                color="#5F87FF",
+                notes=notes,
+                tags=normalize_notification_tags(["agent-hold", "armed"]),
+                action_data={
+                    "armer_key": key,
+                    "expires_at": str(record.get("expires_at")),
+                },
+                dedup_key=f"agent_hold:armed:{key}",
+            ),
+            plus_one_note="Re-armed",
+            plus_one_timestamp=timestamp,
+        )
+    except Exception as exc:  # noqa: BLE001 - notification is best-effort.
+        LOGGER.warning("agent hold armed notification failed for %s: %s", key, exc)
+
+
+def _upsert_hold_released_notification(
+    armer: Mapping[str, Any],
+    *,
+    reason: str,
+    now: datetime | float | None,
+) -> None:
+    from uuid import uuid4
+
+    from sase.notifications.models import Notification, normalize_notification_tags
+    from sase.notifications.store import upsert_notification
+
+    key = armer.get("key")
+    if not isinstance(key, str) or not key:
+        return
+    display = armer.get("display") or key
+    timestamp = _iso_timestamp(now)
+    try:
+        upsert_notification(
+            Notification(
+                id=str(uuid4()),
+                timestamp=timestamp,
+                sender=_AGENT_HOLD_SENDER,
+                icon="▶",
+                color="#5FAF5F",
+                notes=[f"Released: {display}", reason],
+                tags=normalize_notification_tags(["agent-hold", "released"]),
+                action_data={"armer_key": key},
+                dedup_key=f"agent_hold:released:{key}",
+            ),
+            plus_one_note=f"Released again: {reason}",
+            plus_one_timestamp=timestamp,
+        )
+    except Exception as exc:  # noqa: BLE001 - notification is best-effort.
+        LOGGER.warning("agent hold released notification failed for %s: %s", key, exc)
+
+
+def _notify_liveness_dropped_holds(
+    before: Sequence[Mapping[str, Any]],
+    after: Sequence[Mapping[str, Any]],
+    *,
+    now: datetime | float | None,
+) -> None:
+    """Notify for holds present in *before* but pruned by liveness in *after*.
+
+    A hold missing from *before* too (pruned by TTL expiry on the very
+    first read) never reaches here, so a routine expiry stays silent while
+    an early, armer-death-triggered release still surfaces.
+    """
+    dropped_keys = {_mapping(hold.get("armer")).get("key") for hold in before} - {
+        _mapping(hold.get("armer")).get("key") for hold in after
+    }
+    if not dropped_keys:
+        return
+    for hold in before:
+        armer = _mapping(hold.get("armer"))
+        key = armer.get("key")
+        if key not in dropped_keys:
+            continue
+        _upsert_hold_released_notification(
+            armer,
+            reason="Released automatically: armer no longer alive",
+            now=now,
+        )
+
+
+def _iso_timestamp(value: datetime | float | None) -> str:
+    from sase.core.time import get_timezone
+
+    if isinstance(value, datetime):
+        normalized = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+        return normalized.isoformat()
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return datetime.fromtimestamp(value, tz=UTC).isoformat()
+    return datetime.now(get_timezone()).isoformat()
+
+
+def _format_epoch(value: Any) -> str:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return "unknown"
+    return datetime.fromtimestamp(float(value), tz=UTC).isoformat()
 
 
 def _list_holds(
@@ -234,6 +683,13 @@ def _cli_liveness_fact(armer: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _pid_alive(armer: Mapping[str, Any]) -> bool:
+    # Deferred: sase.agent's own init chain reaches back into this module
+    # (via runner_slots -> _admission_capacity_records) for the unrelated
+    # candidate_created_at_from_timestamp helper below, so a module-level
+    # import here would make this module a circular-import root whenever
+    # it -- rather than sase.agent -- is the first thing a process touches.
+    from sase.agent.names import is_process_alive
+
     pid = armer.get("pid")
     if type(pid) is not int:
         return False
@@ -380,8 +836,14 @@ def candidate_created_at_from_timestamp(timestamp: str | None) -> float | None:
 
 
 __all__ = [
+    "AgentHoldArmResult",
     "active_agent_hold_records",
+    "arm_agent_hold",
     "candidate_created_at_from_timestamp",
+    "current_armer_wire",
+    "find_agent_hold",
+    "list_current_agent_holds",
     "reconcile_agent_holds_for_artifact",
+    "release_agent_hold",
     "release_proc_agent_holds",
 ]

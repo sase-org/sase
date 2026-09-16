@@ -4283,6 +4283,18 @@
         }
       }
     },
+    "agent_hold_default_ttl": {
+      "type": "string",
+      "description": "TTL applied to `sase agent hold create`/`run` when --ttl is omitted. Bare seconds or a number suffixed with s/m/h.",
+      "pattern": "^\\d+(\\.\\d+)?[smh]?$",
+      "default": "2h"
+    },
+    "agent_hold_max_ttl": {
+      "type": "string",
+      "description": "Maximum TTL accepted by `sase agent hold create`/`run --ttl`. Same duration syntax as agent_hold_default_ttl.",
+      "pattern": "^\\d+(\\.\\d+)?[smh]?$",
+      "default": "12h"
+    },
     "procs": {
       "type": "object",
       "additionalProperties": false,

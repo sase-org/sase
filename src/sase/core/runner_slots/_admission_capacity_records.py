@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
 from ._admission_types import RecordLiveness, finite_positive_float
@@ -124,6 +123,12 @@ def capacity_record_from_scan(
     record: AgentArtifactRecordWire,
     is_live: RecordLiveness,
 ) -> dict[str, Any]:
+    # Deferred: sase.core.agent_hold_facade sits downstream of sase.agent's
+    # own init chain (runner_slots -> here), so a module-level import here
+    # would make this module a circular-import root whenever agent_hold
+    # code is the first thing a process touches.
+    from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
+
     meta = record.agent_meta
     state = record.workflow_state
     waiting = record.waiting

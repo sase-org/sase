@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from sase.main.parser_agent_hold import register_agent_hold_parser
 from sase.main.parser_agent_lifecycle import (
     register_agent_drain_parser,
     register_agent_kill_parser,
@@ -29,6 +30,7 @@ _AGENT_SUBCOMMAND_ORDER = (
     "archive",
     "artifacts",
     "drain",
+    "hold",
     "index",
     "kill",
     "list",
@@ -67,6 +69,7 @@ def register_agent_parser(subparsers: argparse._SubParsersAction) -> None:
     add_agent_operation_parsers(agents_sub)
 
     register_agent_drain_parser(agents_sub)
+    register_agent_hold_parser(agents_sub)
     register_agent_kill_parser(agents_sub)
     register_agent_show_parser(agents_sub)
     register_agent_sync_parser(agents_sub)

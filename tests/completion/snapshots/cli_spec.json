@@ -739,6 +739,411 @@
           },
           {
             "aliases": [],
+            "default_child": "list",
+            "description_digest": "09305613bbc1b5a9",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "hold",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "agent",
+              "hold"
+            ],
+            "positionals": [],
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "38e3da1db66bf706",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "create",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "names",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": true,
+                    "strings": [
+                      "-n",
+                      "--name"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "tribes",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": true,
+                    "strings": [
+                      "-t",
+                      "--tribe"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "hoods",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": true,
+                    "strings": [
+                      "-H",
+                      "--hood"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "future",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-f",
+                      "--future"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "pending",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-p",
+                      "--pending"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": [
+                      "project",
+                      "host"
+                    ],
+                    "dest": "scope",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-s",
+                      "--scope"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "ttl",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-T",
+                      "--ttl"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "hold",
+                  "create"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "797f7ae61045778c",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "hold",
+                  "list"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "9cfd76eca950d59b",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "release",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "key",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-k",
+                      "--key"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "hold",
+                  "release"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "9c4c4343f187f615",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "run",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "names",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": true,
+                    "strings": [
+                      "-n",
+                      "--name"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "tribes",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": true,
+                    "strings": [
+                      "-t",
+                      "--tribe"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "hoods",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": true,
+                    "strings": [
+                      "-H",
+                      "--hood"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "future",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-f",
+                      "--future"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "pending",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-p",
+                      "--pending"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": [
+                      "project",
+                      "host"
+                    ],
+                    "dest": "scope",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-s",
+                      "--scope"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "ttl",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-T",
+                      "--ttl"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "hold",
+                  "run"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "hold_run_command_words",
+                    "is_remainder": true,
+                    "kind": null,
+                    "metavar": "-- COMMAND",
+                    "nargs": "..."
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "5ced353ed4fc0cf0",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "show",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "key",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-k",
+                      "--key"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "agent",
+                  "hold",
+                  "show"
+                ],
+                "positionals": [],
+                "subcommands": []
+              }
+            ]
+          },
+          {
+            "aliases": [],
             "default_child": null,
             "description_digest": "6848c504c6fe65f5",
             "hidden": false,

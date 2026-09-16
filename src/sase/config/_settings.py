@@ -23,6 +23,8 @@ DEFAULT_MAX_RUNNING_AGENTS = 10
 DEFAULT_MAX_AGENT_PIPE_CHAIN = 8
 DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP = 3
 DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
+DEFAULT_AGENT_HOLD_DEFAULT_TTL_SECONDS = 2 * 3600.0
+DEFAULT_AGENT_HOLD_MAX_TTL_SECONDS = 12 * 3600.0
 DEFAULT_PROC_HISTORY_LIMIT = 100
 DEFAULT_PROC_RUNTIME_ORPHAN_HORIZON_SECONDS = 3 * 24 * 3600
 DEFAULT_PROC_RUNTIME_ORPHAN_MAX_REMOVALS = 2000
@@ -143,6 +145,39 @@ def get_runner_slot_deference_max_seconds() -> int:
     if type(value) is int and value >= 0:
         return value
     return DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS
+
+
+def _get_agent_hold_ttl_seconds(key: str, default_seconds: float) -> float:
+    """Parse a `agent_hold_*_ttl` config string, falling back on any error.
+
+    A hand-edited config must never turn `sase agent hold create` into a
+    traceback, so a missing, non-string, or unparsable value silently keeps
+    the package default rather than propagating.
+    """
+    from sase.core.cli_duration import parse_cli_duration
+
+    value = _merged_config().get(key, None)
+    if not isinstance(value, str):
+        return default_seconds
+    try:
+        seconds = parse_cli_duration(value, flag=key)[0]
+    except ValueError:
+        return default_seconds
+    return seconds
+
+
+def get_agent_hold_default_ttl_seconds() -> float:
+    """Return the configured default TTL for `sase agent hold create`/`run`."""
+    return _get_agent_hold_ttl_seconds(
+        "agent_hold_default_ttl", DEFAULT_AGENT_HOLD_DEFAULT_TTL_SECONDS
+    )
+
+
+def get_agent_hold_max_ttl_seconds() -> float:
+    """Return the configured maximum TTL accepted for an explicit --ttl."""
+    return _get_agent_hold_ttl_seconds(
+        "agent_hold_max_ttl", DEFAULT_AGENT_HOLD_MAX_TTL_SECONDS
+    )
 
 
 def get_proc_history_limit() -> int:

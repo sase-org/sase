@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -401,6 +403,91 @@ def test_active_holds_are_threaded_into_locked_admission(
     assert candidate["tribe"] == "ops"
     marker = json.loads((waiter / "waiting.json").read_text())
     assert marker["slot_requested_at"]
+
+
+def test_real_agent_hold_parks_a_waiter_and_release_resumes_it(
+    tmp_path: Path,
+) -> None:
+    """A hold armed through the real store blocks admission until released.
+
+    Unlike ``test_active_holds_are_threaded_into_locked_admission`` (which
+    mocks ``active_agent_hold_records`` to prove the wiring), this exercises
+    the real Rust hold store end to end: arm, blocked claim, release,
+    admitted claim.
+    """
+    from sase.core.agent_hold_facade import arm_agent_hold, release_agent_hold
+
+    # The armer's own pid must be alive (this test process is) -- an agent
+    # armer's fail-open liveness fact is derived from a real is_process_alive
+    # check, so an arbitrary/dead pid here would prune the hold before the
+    # claim below ever evaluates its selectors. run_started_at must also be
+    # recent: with none recorded, is_process_alive falls back to parsing the
+    # artifact dir's name as a start time, and this fixture's fixed 2026-09-10
+    # timestamp predates the real host's boot time, which would otherwise
+    # read as a stale/reused pid from before the last reboot.
+    armer_dir = artifact(tmp_path, "20260910120000", os.getpid())
+    (armer_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "pid": os.getpid(),
+                "name": "holdarmer--code",
+                "run_started_at": datetime.now(UTC).isoformat(),
+            }
+        )
+    )
+    waiter = artifact(tmp_path, "20260910120600", 606)
+    agent_meta = {"name": "target.agent--code"}
+
+    def claim() -> str:
+        return "started"
+
+    with (
+        patch.object(
+            run_agent_wait_slots, "_scan_runner_slot_records", return_value=[]
+        ),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=4),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict(
+            "os.environ",
+            {
+                "SASE_HOME": str(tmp_path / ".sase"),
+                "SASE_ARTIFACTS_DIR": str(armer_dir),
+            },
+        ),
+    ):
+        result = arm_agent_hold(
+            names=["target.agent--code"], scope="project", ttl_seconds=60.0
+        )
+        armer_key = result.record["armer"]["key"]
+
+        blocked, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(waiter),
+            cl_name="cl",
+            timestamp=waiter.name,
+            directive_threshold=None,
+            agent_meta=agent_meta,
+            claim=claim,
+        )
+        assert blocked is None
+        assert parked
+
+        assert release_agent_hold(armer_key)
+
+        admitted, parked_again = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(waiter),
+            cl_name="cl",
+            timestamp=waiter.name,
+            directive_threshold=None,
+            agent_meta=agent_meta,
+            claim=claim,
+        )
+
+    assert admitted == "started"
+    assert not parked_again
+    assert not (waiter / "waiting.json").exists()
 
 
 def test_releasing_monitor_admits_the_parked_waiter(tmp_path: Path) -> None:

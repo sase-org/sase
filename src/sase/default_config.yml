@@ -78,6 +78,13 @@ runner_slots:
   deference_seconds_per_step: 3
   deference_max_seconds: 60
 
+# TTL bounds for `sase agent hold create`/`run`. A hold armed without --ttl
+# uses the default; an explicit --ttl above the maximum is rejected. Both
+# values parse with the shared duration syntax (bare seconds, or a number
+# suffixed with s/m/h).
+agent_hold_default_ttl: 2h
+agent_hold_max_ttl: 12h
+
 procs:
   # Maximum number of finished procs kept in ~/.sase/procs. Running procs are
   # never pruned.

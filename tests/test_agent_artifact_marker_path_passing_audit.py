@@ -230,6 +230,14 @@ _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
             ),
         )
     ),
+    "src/sase/core/agent_hold_facade.py:_agent_armer_wire": PathPassingReview(
+        exemption=(
+            "Read-only hold-armer identity lookup: agent_meta.json is read to "
+            "recover the arming agent's name/pid/family/clan, and done.json's "
+            "path is only recorded on the wire record for a later existence "
+            "check by the liveness prober; no marker is written here."
+        ),
+    ),
 }
 
 
