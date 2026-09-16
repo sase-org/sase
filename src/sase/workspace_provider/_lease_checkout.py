@@ -39,6 +39,7 @@ def materialize_leased_checkout(
             workspace_num,
             config=config,
             env=env,
+            project_file=str(project_file),
         )
     except Exception as exc:
         raise OperationalLeaseError("materialization", str(exc)) from exc

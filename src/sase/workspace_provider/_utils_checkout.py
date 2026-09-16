@@ -27,6 +27,7 @@ from sase.workspace_provider._utils_origin import (
     heal_clone_origin_if_needed as _heal_clone_origin_if_needed,
     reconcile_managed_checkout_origin,
 )
+from sase.core.git_object_sharing import observed_status
 from sase.workspace_provider.git_objects import (
     GitObjectSharingError,
     configure_primary_for_sharing,
@@ -174,11 +175,66 @@ def _heal_reusable_clone_origin(
     )
 
 
+def _pid_is_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _no_other_occupant(checkout_dir: str) -> bool | None:
+    """Report whether a live agent other than us holds *checkout_dir*.
+
+    ``None`` means the marker could not be read, which the core treats as an
+    unproven observation and refuses to mutate on.
+    """
+    try:
+        from sase.workspace_provider.occupant import read_occupant_record
+
+        record = read_occupant_record(checkout_dir)
+    except Exception:
+        return None
+    if record is None or record.pid == os.getpid():
+        return True
+    return not _pid_is_alive(record.pid)
+
+
+def _no_other_claim(project_file: str | None, workspace_num: int) -> bool | None:
+    """Report whether the RUNNING field records another live claim on a workspace.
+
+    Callers that never learned their project file cannot look, so they get
+    ``None`` rather than an assertion they have no evidence for.
+    """
+    if not project_file:
+        return None
+    try:
+        from sase.running_field._query import get_claimed_workspaces
+
+        claims = get_claimed_workspaces(project_file)
+    except Exception:
+        return None
+    return not any(
+        claim.workspace_num == workspace_num
+        and claim.pid != os.getpid()
+        and _pid_is_alive(claim.pid)
+        for claim in claims
+    )
+
+
 def _recover_existing_borrower_after_status_failure(
     primary_workspace_dir: str,
     target_checkout_dir: str,
     *,
     share_git_objects: bool,
+    workspace_num: int,
+    project_file: str | None,
 ) -> bool:
     """Recover a SASE borrower that failed object lookup during ``git status``."""
     target = target_checkout_dir.rstrip("/")
@@ -189,6 +245,10 @@ def _recover_existing_borrower_after_status_failure(
             primary_workspace_dir.rstrip("/"),
             target,
             share_git_objects=share_git_objects,
+            fresh_claim_status=observed_status(
+                _no_other_claim(project_file, workspace_num)
+            ),
+            fresh_occupant_status=observed_status(_no_other_occupant(target)),
         )
     except GitObjectSharingError as exc:
         raise RuntimeError(
@@ -223,6 +283,7 @@ def ensure_git_clone_at(
     *,
     assume_managed_checkout: bool = False,
     share_git_objects: bool = False,
+    project_file: str | None = None,
 ) -> str:
     """Materialize a Git clone at a caller-supplied target directory.
 
@@ -236,6 +297,10 @@ def ensure_git_clone_at(
         workspace_num: Workspace identity. ``0``/``1`` mean primary;
             everything else materializes a managed clone.
         target_checkout_dir: Absolute path where the clone should live.
+        project_file: ProjectSpec path, when the caller knows it. Object-sharing
+            recovery consults it for a live claim on *workspace_num*; without
+            it that observation is unproven and the core refuses to recover a
+            broken borrower in place.
 
     Returns:
         The materialized checkout directory.
@@ -285,6 +350,8 @@ def ensure_git_clone_at(
             primary_workspace_dir,
             target_checkout_dir,
             share_git_objects=share_git_objects,
+            workspace_num=workspace_num,
+            project_file=project_file,
         ):
             if assume_managed_checkout:
                 _heal_reusable_clone_origin(
@@ -425,6 +492,7 @@ def ensure_workspace_checkout(
     *,
     config: Mapping[str, Any] | None = None,
     env: Mapping[str, str] | None = None,
+    project_file: str | None = None,
 ) -> str:
     """Resolve and materialize the checkout for *workspace_num*.
 
@@ -456,6 +524,7 @@ def ensure_workspace_checkout(
         path.checkout_dir,
         assume_managed_checkout=store.root_policy != "adjacent",
         share_git_objects=store.share_git_objects,
+        project_file=project_file,
     )
     _record_managed_workspace(store, path)
     try:

@@ -7,8 +7,35 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 
-GIT_OBJECT_SHARING_WIRE_SCHEMA_VERSION = 2
+GIT_OBJECT_SHARING_WIRE_SCHEMA_VERSION = 3
 """Must match ``sase_core::git_object_sharing``."""
+
+# Every install/remove plan names the context it mutates from, and the core
+# picks the safety guards it enforces from that name. ``classify`` is the only
+# operation that may omit one.
+MUTATION_CONTEXT_NEW_CHECKOUT = "new_checkout"
+MUTATION_CONTEXT_EXISTING_REUSE = "existing_reuse"
+MUTATION_CONTEXT_MAINTENANCE_REPAIR = "maintenance_repair"
+MUTATION_CONTEXT_MAINTENANCE_COMPACT = "maintenance_compact"
+MUTATION_CONTEXT_MAINTENANCE_DISSOCIATE = "maintenance_dissociate"
+
+# Freshly observed claim/occupant state. The maintenance contexts mutate only
+# when the caller proves both are ``clear``; "positive" and "could not look"
+# both fail the plan closed, so an unobservable caller never gets a mutation.
+OBSERVATION_CLEAR = "clear"
+OBSERVATION_PRESENT = "present"
+OBSERVATION_UNAVAILABLE = "unavailable"
+
+
+def observed_status(no_other_holder: bool | None) -> str:
+    """Render one freshly observed claim/occupant reading for the wire.
+
+    ``None`` means the caller could not look, which is reported as its own
+    value rather than being collapsed into a "clear" the caller cannot back up.
+    """
+    if no_other_holder is None:
+        return OBSERVATION_UNAVAILABLE
+    return OBSERVATION_CLEAR if no_other_holder else OBSERVATION_PRESENT
 
 
 def plan_git_object_sharing(request: Mapping[str, Any]) -> dict[str, Any]:
@@ -40,5 +67,14 @@ def _require_wire_schema() -> None:
 
 __all__ = [
     "GIT_OBJECT_SHARING_WIRE_SCHEMA_VERSION",
+    "MUTATION_CONTEXT_EXISTING_REUSE",
+    "MUTATION_CONTEXT_MAINTENANCE_COMPACT",
+    "MUTATION_CONTEXT_MAINTENANCE_DISSOCIATE",
+    "MUTATION_CONTEXT_MAINTENANCE_REPAIR",
+    "MUTATION_CONTEXT_NEW_CHECKOUT",
+    "OBSERVATION_CLEAR",
+    "OBSERVATION_PRESENT",
+    "OBSERVATION_UNAVAILABLE",
+    "observed_status",
     "plan_git_object_sharing",
 ]

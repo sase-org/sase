@@ -10,7 +10,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, cast
 
-from sase.core.git_object_sharing import plan_git_object_sharing
+from sase.core.git_object_sharing import (
+    MUTATION_CONTEXT_EXISTING_REUSE,
+    MUTATION_CONTEXT_MAINTENANCE_COMPACT,
+    MUTATION_CONTEXT_MAINTENANCE_DISSOCIATE,
+    MUTATION_CONTEXT_MAINTENANCE_REPAIR,
+    MUTATION_CONTEXT_NEW_CHECKOUT,
+    plan_git_object_sharing,
+)
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider._utils_git import (
     command_output,
@@ -18,7 +25,19 @@ from sase.workspace_provider._utils_git import (
     non_interactive_git_env,
 )
 
-AlternateStatus = Literal["absent", "expected", "stale", "broken", "unexpected"]
+AlternateStatus = Literal[
+    "absent",
+    "expected",
+    "stale",
+    "broken",
+    "unexpected",
+    "preserved",
+]
+
+# Statuses ``sase_core`` can hand back for ordinary reuse. It never repoints or
+# removes an existing checkout's object dependency there, so "I left what was
+# already here alone" is a success rather than a failure to share.
+_REUSABLE_STATUSES = frozenset({"expected", "preserved", "absent", "unexpected"})
 
 _CONFIG_ENABLED = "sase.workspaceGitObjects"
 _CONFIG_PRIMARY_OBJECTS = "sase.workspaceGitObjectsPrimary"
@@ -206,6 +225,8 @@ def _sharing_plan(
     operation: str,
     mutation_context: str | None = None,
     checkout_clean: bool | None = None,
+    fresh_claim_status: str | None = None,
+    fresh_occupant_status: str | None = None,
 ) -> dict[str, object]:
     primary = primary_checkout_dir.rstrip("/")
     checkout = checkout_dir.rstrip("/")
@@ -231,6 +252,10 @@ def _sharing_plan(
             request["mutation_context"] = mutation_context
         if checkout_clean is not None:
             request["checkout_clean"] = checkout_clean
+        if fresh_claim_status is not None:
+            request["fresh_claim_status"] = fresh_claim_status
+        if fresh_occupant_status is not None:
+            request["fresh_occupant_status"] = fresh_occupant_status
         return plan_git_object_sharing(request)
     except Exception as exc:
         raise GitObjectSharingError(
@@ -385,11 +410,12 @@ def _apply_install_sase_alternate(
     primary_checkout_dir: str,
     checkout_dir: str,
     *,
-    mutation_context: str | None = None,
+    mutation_context: str,
     checkout_clean: bool | None = None,
-    configure_unchanged: bool = True,
+    fresh_claim_status: str | None = None,
+    fresh_occupant_status: str | None = None,
 ) -> _AlternateState:
-    """Install or repoint the SASE-owned alternate for one borrower."""
+    """Install, repoint, or deliberately preserve one borrower's alternate."""
 
     primary = primary_checkout_dir.rstrip("/")
     checkout = checkout_dir.rstrip("/")
@@ -399,22 +425,44 @@ def _apply_install_sase_alternate(
         operation="install",
         mutation_context=mutation_context,
         checkout_clean=checkout_clean,
+        fresh_claim_status=fresh_claim_status,
+        fresh_occupant_status=fresh_occupant_status,
     )
     if str(plan["action"]) == "fail":
         _apply_alternates_plan(plan)
+    planned = _state_from_plan(plan)
     primary_objects = Path(str(plan["expected_object_dir"]))
     dependency_mutation = bool(plan.get("dependency_mutation"))
-    configure_metadata = configure_unchanged or dependency_mutation
+    # Only record borrower metadata for a dependency that is, or is about to
+    # become, the configured primary. When the core preserves a dependency it
+    # chose not to repoint, writing our primary into the borrower's config
+    # would leave the two disagreeing, and a later classification would read
+    # the preserved alternate as foreign.
+    configure_metadata = dependency_mutation or planned.status == "expected"
+
+    if not dependency_mutation:
+        # The core left the dependency exactly as it found it, so there is no
+        # rewrite to verify. Proving connectivity here would fail the caller
+        # over a pre-existing condition this call deliberately did not touch --
+        # ordinary reuse defers a broken dependency to maintenance repair
+        # rather than repointing it underneath a running agent.
+        if configure_metadata:
+            configure_primary_for_sharing(primary)
+            _configure_borrower_for_sharing(
+                checkout,
+                primary_checkout_dir=primary,
+                primary_object_dir=primary_objects,
+            )
+        return planned
+
     fsck_connectivity(primary)
-    if configure_metadata:
-        configure_primary_for_sharing(primary)
+    configure_primary_for_sharing(primary)
     _apply_alternates_plan(plan)
-    if configure_metadata:
-        _configure_borrower_for_sharing(
-            checkout,
-            primary_checkout_dir=primary,
-            primary_object_dir=primary_objects,
-        )
+    _configure_borrower_for_sharing(
+        checkout,
+        primary_checkout_dir=primary,
+        primary_object_dir=primary_objects,
+    )
     fsck_connectivity(checkout)
     return classify_alternate_state(checkout, primary_checkout_dir=primary)
 
@@ -425,12 +473,16 @@ def _install_sase_alternate(
 ) -> _AlternateState:
     return _with_alternate_rollback(
         checkout_dir,
-        lambda: _apply_install_sase_alternate(primary_checkout_dir, checkout_dir),
+        lambda: _apply_install_sase_alternate(
+            primary_checkout_dir,
+            checkout_dir,
+            mutation_context=MUTATION_CONTEXT_NEW_CHECKOUT,
+        ),
     )
 
 
 def ensure_sase_alternate(primary_checkout_dir: str, checkout_dir: str) -> None:
-    """Ensure one managed checkout borrows the configured primary objects."""
+    """Ensure one freshly materialized checkout borrows the primary objects."""
 
     state = _install_sase_alternate(primary_checkout_dir, checkout_dir)
     if state.status != "expected":
@@ -443,39 +495,46 @@ def ensure_sase_alternate_for_reuse(
     primary_checkout_dir: str,
     checkout_dir: str,
 ) -> None:
-    """Safely reconcile object sharing while reusing an existing checkout."""
+    """Reconcile object sharing while reusing an existing checkout.
+
+    ``sase_core`` never rewrites an existing checkout's object dependency for
+    ordinary reuse: a usable one is preserved as it stands and a broken one is
+    refused so explicit maintenance can repair it deliberately. A preserved
+    dependency is therefore a success -- the checkout keeps working, it just
+    does not get repointed underneath an agent that is about to use it.
+    """
 
     checkout = checkout_dir.rstrip("/")
-    status = status_porcelain(checkout)
-    if status.returncode != 0:
-        detail = command_output(status) or "status failed"
-        raise GitObjectSharingError(
-            "could not prove reusable checkout status before Git object-sharing "
-            f"mutation: {detail}"
-        )
-    clean = not status.stdout.strip()
     state = _with_alternate_rollback(
         checkout,
         lambda: _apply_install_sase_alternate(
             primary_checkout_dir,
             checkout,
-            mutation_context="existing_checkout",
-            checkout_clean=clean,
-            configure_unchanged=clean,
+            mutation_context=MUTATION_CONTEXT_EXISTING_REUSE,
         ),
     )
-    if state.status != "expected":
+    if state.status not in _REUSABLE_STATUSES:
         raise GitObjectSharingError(
             f"alternate for {checkout_dir} is {state.status}, expected shared"
         )
 
 
-def _remove_sase_alternate(primary_checkout_dir: str, checkout_dir: str) -> None:
+def _remove_sase_alternate(
+    primary_checkout_dir: str,
+    checkout_dir: str,
+    *,
+    mutation_context: str,
+    fresh_claim_status: str,
+    fresh_occupant_status: str,
+) -> None:
     """Remove the SASE-owned alternate marker from one borrower."""
     plan = _sharing_plan(
         primary_checkout_dir,
         checkout_dir,
         operation="remove",
+        mutation_context=mutation_context,
+        fresh_claim_status=fresh_claim_status,
+        fresh_occupant_status=fresh_occupant_status,
     )
     _apply_alternates_plan(plan)
     _clear_borrower_config(checkout_dir.rstrip("/"))
@@ -528,16 +587,32 @@ def fsck_connectivity(checkout_dir: str) -> None:
 def compact_checkout(
     primary_checkout_dir: str,
     checkout_dir: str,
+    *,
+    fresh_claim_status: str,
+    fresh_occupant_status: str,
 ) -> _ObjectSharingResult:
-    """Install sharing, repack local-only objects, and verify connectivity."""
+    """Install sharing, repack local-only objects, and verify connectivity.
+
+    The caller passes what it freshly observed about the workspace's claim and
+    occupant; ``sase_core`` refuses to compact unless both are clear.
+    """
 
     primary = primary_checkout_dir.rstrip("/")
     checkout = checkout_dir.rstrip("/")
     before = checkout_object_bytes(checkout)
     fsck_connectivity(primary)
+    status = status_porcelain(checkout)
+    clean = status.returncode == 0 and not status.stdout.strip()
 
     def _compact() -> None:
-        _apply_install_sase_alternate(primary, checkout)
+        _apply_install_sase_alternate(
+            primary,
+            checkout,
+            mutation_context=MUTATION_CONTEXT_MAINTENANCE_COMPACT,
+            checkout_clean=clean,
+            fresh_claim_status=fresh_claim_status,
+            fresh_occupant_status=fresh_occupant_status,
+        )
         _run_git(checkout, ["repack", "-a", "-d", "-l"], check=True)
         _run_git(checkout, ["prune-packed"], check=False)
         fsck_connectivity(checkout)
@@ -555,8 +630,16 @@ def compact_checkout(
 def repair_shared_checkout(
     primary_checkout_dir: str,
     checkout_dir: str,
+    *,
+    fresh_claim_status: str,
+    fresh_occupant_status: str,
 ) -> _ObjectSharingResult:
-    """Repoint a SASE-owned borrower to the current primary and verify it."""
+    """Repoint a SASE-owned borrower to the current primary and verify it.
+
+    This is the deliberate maintenance repair that ordinary reuse defers to,
+    so ``sase_core`` requires freshly observed clear claim and occupant
+    readings before it will rewrite the dependency.
+    """
 
     primary = primary_checkout_dir.rstrip("/")
     checkout = checkout_dir.rstrip("/")
@@ -564,7 +647,13 @@ def repair_shared_checkout(
     fsck_connectivity(primary)
 
     def _repair() -> None:
-        _apply_install_sase_alternate(primary, checkout)
+        _apply_install_sase_alternate(
+            primary,
+            checkout,
+            mutation_context=MUTATION_CONTEXT_MAINTENANCE_REPAIR,
+            fresh_claim_status=fresh_claim_status,
+            fresh_occupant_status=fresh_occupant_status,
+        )
         fsck_connectivity(checkout)
 
     _with_alternate_rollback(checkout, _repair)
@@ -580,18 +669,37 @@ def repair_shared_checkout(
 def dissociate_checkout(
     primary_checkout_dir: str,
     checkout_dir: str,
+    *,
+    fresh_claim_status: str,
+    fresh_occupant_status: str,
 ) -> _ObjectSharingResult:
-    """Copy SASE-borrowed objects locally, remove that alternate, and verify."""
+    """Copy SASE-borrowed objects locally, remove that alternate, and verify.
+
+    Both the repoint and the removal are maintenance mutations, so each is
+    planned with the caller's freshly observed claim and occupant readings.
+    """
 
     primary = primary_checkout_dir.rstrip("/")
     checkout = checkout_dir.rstrip("/")
     before = checkout_object_bytes(checkout)
 
     def _dissociate() -> None:
-        _apply_install_sase_alternate(primary, checkout)
+        _apply_install_sase_alternate(
+            primary,
+            checkout,
+            mutation_context=MUTATION_CONTEXT_MAINTENANCE_DISSOCIATE,
+            fresh_claim_status=fresh_claim_status,
+            fresh_occupant_status=fresh_occupant_status,
+        )
         fsck_connectivity(checkout)
         _run_git(checkout, ["repack", "-a", "-d"], check=True)
-        _remove_sase_alternate(primary, checkout)
+        _remove_sase_alternate(
+            primary,
+            checkout,
+            mutation_context=MUTATION_CONTEXT_MAINTENANCE_DISSOCIATE,
+            fresh_claim_status=fresh_claim_status,
+            fresh_occupant_status=fresh_occupant_status,
+        )
         fsck_connectivity(checkout)
 
     _with_alternate_rollback(checkout, _dissociate)
@@ -609,8 +717,15 @@ def recover_sase_borrower(
     checkout_dir: str,
     *,
     share_git_objects: bool,
+    fresh_claim_status: str,
+    fresh_occupant_status: str,
 ) -> _ObjectSharingResult | None:
-    """Repair or dissociate a SASE borrower after object lookup failure."""
+    """Repair or dissociate a SASE borrower after object lookup failure.
+
+    Recovery rewrites a dependency the checkout still depends on, so it is a
+    maintenance mutation like any other and carries the caller's freshly
+    observed claim and occupant readings.
+    """
     state = classify_alternate_state(
         checkout_dir,
         primary_checkout_dir=primary_checkout_dir,
@@ -618,8 +733,18 @@ def recover_sase_borrower(
     if not state.sase_owned or state.status == "absent":
         return None
     if share_git_objects:
-        return repair_shared_checkout(primary_checkout_dir, checkout_dir)
-    return dissociate_checkout(primary_checkout_dir, checkout_dir)
+        return repair_shared_checkout(
+            primary_checkout_dir,
+            checkout_dir,
+            fresh_claim_status=fresh_claim_status,
+            fresh_occupant_status=fresh_occupant_status,
+        )
+    return dissociate_checkout(
+        primary_checkout_dir,
+        checkout_dir,
+        fresh_claim_status=fresh_claim_status,
+        fresh_occupant_status=fresh_occupant_status,
+    )
 
 
 __all__ = [

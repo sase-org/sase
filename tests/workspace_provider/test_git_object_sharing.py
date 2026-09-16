@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import sase.workspace_provider.git_objects as git_objects
+from sase.core.git_object_sharing import OBSERVATION_CLEAR
 from sase.workspace_provider.git_objects import (
     GitObjectSharingError,
     classify_alternate_state,
@@ -230,7 +231,12 @@ def test_dissociate_repoints_then_preserves_foreign_alternates(
         str(old_objects),
     )
 
-    dissociate_checkout(str(primary), str(target))
+    dissociate_checkout(
+        str(primary),
+        str(target),
+        fresh_claim_status=OBSERVATION_CLEAR,
+        fresh_occupant_status=OBSERVATION_CLEAR,
+    )
 
     assert alternates.read_text(encoding="utf-8") == f"{foreign_objects}\n"
     assert _git_config_missing(target, "sase.workspaceGitObjects")
@@ -266,7 +272,12 @@ def test_failed_repoint_rolls_back_alternate_and_config(
     monkeypatch.setattr(git_objects, "fsck_connectivity", fail_checkout_fsck)
 
     with pytest.raises(GitObjectSharingError, match="simulated checkout"):
-        git_objects.repair_shared_checkout(str(primary), str(target))
+        git_objects.repair_shared_checkout(
+            str(primary),
+            str(target),
+            fresh_claim_status=OBSERVATION_CLEAR,
+            fresh_occupant_status=OBSERVATION_CLEAR,
+        )
 
     assert alternates.read_text(encoding="utf-8") == original_alternates
     assert _git(

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from sase.ace.patch import patch_lock
+from sase.core.git_object_sharing import OBSERVATION_CLEAR
 from sase.workspace_provider.git_objects import (
     GitObjectSharingError,
     checkout_object_bytes,
@@ -406,7 +407,15 @@ def handle_compact(
                     print(f"skipped #{num}: {locked.reason} after locked recheck")
                 continue
             try:
-                result = compact_checkout(ctx.primary_workspace_dir, checkout_dir)
+                # The locked recheck above just re-proved no live RUNNING
+                # claim and no live occupant, which is the observation the
+                # core requires before it will mutate the dependency.
+                result = compact_checkout(
+                    ctx.primary_workspace_dir,
+                    checkout_dir,
+                    fresh_claim_status=OBSERVATION_CLEAR,
+                    fresh_occupant_status=OBSERVATION_CLEAR,
+                )
             except GitObjectSharingError as exc:
                 rows.append(
                     _compact_row(
@@ -637,7 +646,12 @@ def handle_repair(
                 print(f"  skipped #{num}: {reason} after locked recheck")
                 continue
             try:
-                result = repair_shared_checkout(ctx.primary_workspace_dir, checkout_dir)
+                result = repair_shared_checkout(
+                    ctx.primary_workspace_dir,
+                    checkout_dir,
+                    fresh_claim_status=OBSERVATION_CLEAR,
+                    fresh_occupant_status=OBSERVATION_CLEAR,
+                )
             except GitObjectSharingError as exc:
                 print(f"  failed to repair #{num}: {exc}", file=sys.stderr)
                 failed = True
@@ -664,7 +678,12 @@ def handle_repair(
                 print(f"  skipped #{num}: {reason} after locked recheck")
                 continue
             try:
-                result = dissociate_checkout(ctx.primary_workspace_dir, checkout_dir)
+                result = dissociate_checkout(
+                    ctx.primary_workspace_dir,
+                    checkout_dir,
+                    fresh_claim_status=OBSERVATION_CLEAR,
+                    fresh_occupant_status=OBSERVATION_CLEAR,
+                )
             except GitObjectSharingError as exc:
                 print(f"  failed to dissociate #{num}: {exc}", file=sys.stderr)
                 failed = True
