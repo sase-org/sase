@@ -22,6 +22,14 @@ class XPromptInputHint:
 
 
 @dataclass(frozen=True, slots=True)
+class XPromptArgNameMetadata:
+    """Metadata for a selectable keyword-argument name row."""
+
+    reference_text: str
+    input_hint: XPromptInputHint
+
+
+@dataclass(frozen=True, slots=True)
 class XPromptAssistEntry:
     """TUI-facing xprompt catalog entry used for inline assist surfaces."""
 
@@ -91,6 +99,7 @@ class XPromptArgCompletionContext:
 __all__ = [
     "ActiveXPromptArgHint",
     "PendingXPromptCompletionSpacer",
+    "XPromptArgNameMetadata",
     "XPromptArgCompletionContext",
     "XPromptAssistEntry",
     "XPromptInputHint",

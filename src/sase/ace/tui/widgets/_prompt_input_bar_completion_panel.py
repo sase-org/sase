@@ -35,6 +35,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_panel_labels import (
     history_word_completion_subtitle,
     model_completion_subtitle,
     placeholder_completion_subtitle,
+    xprompt_arg_name_completion_subtitle,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
@@ -218,6 +219,12 @@ class PromptInputBarCompletionMixin(_MixinBase):
             )
         elif kinds.directive_arg_agent or kinds.xprompt_arg_agent:
             panel.border_subtitle = agent_completion_subtitle(
+                rows,
+                selected_index,
+                max(0, panel.size.width - 2),
+            )
+        elif kinds.xprompt_arg_name:
+            panel.border_subtitle = xprompt_arg_name_completion_subtitle(
                 rows,
                 selected_index,
                 max(0, panel.size.width - 2),

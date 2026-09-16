@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets.xprompt_arg_assist import (
         ActiveXPromptArgHint,
         PendingXPromptCompletionSpacer,
+        XPromptArgCompletionContext,
     )
 
 
@@ -63,6 +64,7 @@ class PromptTextAreaKeyHandlingMixin(
         _completion_kind: str
         _completion_selection_moved: bool
         _file_completion_active: bool
+        _xprompt_arg_completion_trigger: str | None
         _pending_keys: str
         _vcs_mru_index: int | None
         _vim_mode: str
@@ -71,6 +73,9 @@ class PromptTextAreaKeyHandlingMixin(
         def _get_artifact_ref_completion_context(
             self,
         ) -> ArtifactRefCompletionContext | None: ...
+        def _get_xprompt_arg_completion_context(
+            self,
+        ) -> XPromptArgCompletionContext | None: ...
         def _artifact_ref_sync_trigger(self) -> str | None: ...
         def _start_artifact_ref_sync(self, kind: str) -> None: ...
         def _accept_file_completion(self) -> bool: ...
@@ -124,6 +129,11 @@ class PromptTextAreaKeyHandlingMixin(
         def _try_expand_snippet(self) -> bool: ...
         def _try_auto_prompt_reference_completion(self) -> bool: ...
         def _try_file_completion_tab(self) -> bool: ...
+        def _try_xprompt_arg_name_completion_cycle(
+            self,
+            *,
+            last: bool = False,
+        ) -> bool: ...
         def _try_vcs_project_completion(self) -> bool: ...
         def action_open_prompt_history(self) -> None: ...
         def action_submit_prompt(self) -> None: ...
@@ -218,7 +228,18 @@ class PromptTextAreaKeyHandlingMixin(
                     and not artifact_context.prefix
                     and not self._completion_selection_moved
                 )
-                if not unowned_bare_at:
+                xprompt_arg_context = (
+                    self._get_xprompt_arg_completion_context()
+                    if self._completion_kind.startswith("xprompt_arg_")
+                    else None
+                )
+                unowned_auto_xprompt_arg = (
+                    xprompt_arg_context is not None
+                    and self._xprompt_arg_completion_trigger == "auto"
+                    and not xprompt_arg_context.token
+                    and not self._completion_selection_moved
+                )
+                if not (unowned_bare_at or unowned_auto_xprompt_arg):
                     self._accept_file_completion()
                     return
                 self._clear_file_completion()
@@ -355,12 +376,16 @@ class PromptTextAreaKeyHandlingMixin(
         if event.key == "ctrl+n":
             event.stop()
             event.prevent_default()
+            if self._try_xprompt_arg_name_completion_cycle():
+                return
             self._handle_vcs_mru_cycle_key("ctrl+n")
             return
 
         if event.key == "ctrl+p":
             event.stop()
             event.prevent_default()
+            if self._try_xprompt_arg_name_completion_cycle(last=True):
+                return
             self._handle_vcs_mru_cycle_key("ctrl+p")
             return
 

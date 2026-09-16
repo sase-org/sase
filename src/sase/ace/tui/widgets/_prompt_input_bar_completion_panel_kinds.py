@@ -56,6 +56,8 @@ class CompletionPanelKinds:
     model_explicit: bool
     history: bool
     arg_completion: bool
+    xprompt_arg_name: bool
+    xprompt_arg_value: bool
     xprompt_arg_agent: bool
     jinja: bool
     placeholder: bool
@@ -95,7 +97,9 @@ class CompletionPanelKinds:
             model_alias=is_model_alias,
             model_explicit=is_model_explicit,
             history=completion_kind == "file_history",
-            arg_completion=completion_kind in ("xprompt_arg_name", "xprompt_arg_value"),
+            arg_completion=completion_kind == "xprompt_arg_value",
+            xprompt_arg_name=completion_kind == "xprompt_arg_name",
+            xprompt_arg_value=completion_kind == "xprompt_arg_value",
             xprompt_arg_agent=completion_kind == "xprompt_arg_agent",
             jinja=completion_kind == "jinja",
             placeholder=completion_kind == PLACEHOLDER_COMPLETION_KIND,

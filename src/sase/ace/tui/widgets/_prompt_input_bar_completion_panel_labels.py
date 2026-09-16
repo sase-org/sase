@@ -35,6 +35,7 @@ from sase.ace.tui.widgets.placeholder_completion import (
     PlaceholderCompletionMetadata,
     PlaceholderRankingMetadata,
 )
+from sase.ace.tui.widgets.xprompt_arg_assist import XPromptArgNameMetadata
 
 _PLACEHOLDER_SOURCE_LEGEND = "<> prompt   ◆ saved"
 _SYNC_TITLE_STATUS = {
@@ -81,7 +82,17 @@ def completion_panel_title(
         return _at_reference_panel_title(token, rows, group_directory)
     if kinds.xprompt_arg_agent:
         return "fork targets"
-    if kinds.kind == "xprompt_arg_name":
+    if kinds.xprompt_arg_name:
+        metadata = next(
+            (
+                candidate.metadata
+                for candidate in rows
+                if isinstance(candidate.metadata, XPromptArgNameMetadata)
+            ),
+            None,
+        )
+        if metadata is not None:
+            return f"{metadata.reference_text} args"
         return "xprompt arg names"
     if kinds.kind == "xprompt_arg_value":
         return "xprompt arg values"
@@ -153,6 +164,25 @@ def finalizer_completion_subtitle(
         return Text()
     subtitle = metadata.documentation.replace("\n\n", " · ").replace("\n", " ")
     text = Text(subtitle, no_wrap=True, overflow="ellipsis")
+    if inner_width <= 0:
+        return text
+    text.truncate(inner_width, overflow="ellipsis")
+    return text
+
+
+def xprompt_arg_name_completion_subtitle(
+    rows: list[CompletionCandidate],
+    selected_index: int,
+    inner_width: int,
+) -> Text:
+    """Return the selected xprompt input description as a subtitle."""
+    if not 0 <= selected_index < len(rows):
+        return Text()
+    metadata = rows[selected_index].metadata
+    if not isinstance(metadata, XPromptArgNameMetadata):
+        return Text()
+    description = metadata.input_hint.description or ""
+    text = Text(description, no_wrap=True, overflow="ellipsis")
     if inner_width <= 0:
         return text
     text.truncate(inner_width, overflow="ellipsis")

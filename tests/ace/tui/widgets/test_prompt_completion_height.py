@@ -19,7 +19,11 @@ from sase.ace.tui.widgets.file_completion import (
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
-from sase.ace.tui.widgets.xprompt_arg_assist import build_xprompt_assist_entries
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptArgNameMetadata,
+    XPromptInputHint,
+    build_xprompt_assist_entries,
+)
 from sase.ace.tui.widgets.xprompt_completion import build_xprompt_completion_candidates
 
 _ROOT = Path(__file__).resolve().parents[4]
@@ -158,6 +162,32 @@ def _long_skill_candidates() -> list[CompletionCandidate]:
     return candidates
 
 
+def _long_xprompt_arg_name_candidates() -> list[CompletionCandidate]:
+    description = (
+        "Review the full repository path including generated files, docs, and "
+        "configuration without wrapping this row into a second visual line."
+    )
+    return [
+        CompletionCandidate(
+            display="target_path=",
+            insertion="target_path=",
+            is_dir=False,
+            name="target_path",
+            metadata=XPromptArgNameMetadata(
+                reference_text="#review",
+                input_hint=XPromptInputHint(
+                    name="target_path",
+                    type="path",
+                    required=True,
+                    default_display=None,
+                    position=0,
+                    description=description,
+                ),
+            ),
+        )
+    ]
+
+
 def _assert_long_completion_keeps_editor_visible(
     app: App[None],
     bar: PromptInputBar,
@@ -222,3 +252,26 @@ async def test_long_skill_description_stays_one_visual_row_on_resize() -> None:
         await pilot.resize_terminal(120, 24)
         await pilot.pause()
         _assert_long_completion_keeps_editor_visible(app, bar)
+
+
+async def test_xprompt_arg_name_description_stays_one_visual_row() -> None:
+    app = _StyledPromptBarApp()
+    async with app.run_test(size=(90, 24)) as pilot:
+        bar = app.query_one(PromptInputBar)
+        panel = bar.query_one("#prompt-completion", Static)
+        bar.show_file_completions(
+            "",
+            _long_xprompt_arg_name_candidates(),
+            selected_index=0,
+            completion_kind="xprompt_arg_name",
+        )
+        await pilot.pause()
+
+        content = panel.content
+        assert isinstance(content, Text)
+        logical_lines = [line for line in content.plain.splitlines() if line]
+        assert len(logical_lines) == 1
+        assert panel.styles.text_wrap == "nowrap"
+        assert panel.visual.get_height(panel.styles, panel.content_size.width) == 1
+        margin_bottom = panel.styles.margin.bottom
+        assert bar._completion_line_count == panel.region.height + margin_bottom

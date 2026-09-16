@@ -141,6 +141,7 @@ class PromptTextArea(
         self._artifact_ref_files_revealed: bool = False
         self._artifact_ref_files_suppressed: bool = False
         self._placeholder_completion_trigger: str | None = None
+        self._xprompt_arg_completion_trigger: str | None = None
         self._agent_completion_candidates: list[AgentCompletionCandidate] | None = None
         self._vcs_project_catalog_warmed: bool = False
         self._vcs_ref_completion_has_namespaces: bool = False

@@ -14,8 +14,12 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.jinja_completion import JinjaCompletionMetadata
 from sase.ace.tui.widgets.placeholder_completion import PlaceholderCompletionMetadata
 from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptArgNameMetadata,
     XPromptAssistEntry,
     append_input_hints,
+    input_default_style,
+    input_default_suffix,
+    input_name_style,
 )
 
 _PROMPT_PLACEHOLDER_BADGE = "<> "
@@ -52,6 +56,81 @@ def append_xprompt_completion_row(
     if entry.description:
         content.append(f"  {entry.description}", style="dim")
     append_input_hints(content, entry.inputs)
+
+
+def xprompt_arg_name_label_width(candidate: CompletionCandidate) -> int:
+    """Visible width for the keyword name payload column."""
+    return cell_len(candidate.display)
+
+
+def append_xprompt_arg_name_completion_row(
+    content: Text,
+    candidate: CompletionCandidate,
+    is_selected: bool,
+    *,
+    label_width: int,
+    inner_width: int,
+) -> None:
+    """Append one keyword-argument name row with input metadata columns."""
+    metadata = (
+        candidate.metadata
+        if isinstance(candidate.metadata, XPromptArgNameMetadata)
+        else None
+    )
+    if metadata is None:
+        content.append(
+            candidate.display,
+            style="bold yellow" if is_selected else "yellow",
+        )
+        return
+
+    input_hint = metadata.input_hint
+    label = candidate.display
+    label_style = input_name_style(input_hint)
+    if is_selected:
+        label_style = f"bold {label_style}"
+    content.append(label, style=label_style)
+
+    available = max(0, inner_width - 2)
+    used = cell_len(label)
+    label_padding = max(0, label_width - used) + 2
+    type_text = input_hint.type
+    type_cost = label_padding + cell_len(type_text)
+    if available and used + type_cost > available:
+        return
+
+    content.append(" " * label_padding)
+    content.append(type_text, style="dim")
+    used += type_cost
+
+    if not input_hint.required:
+        suffix = input_default_suffix(input_hint)
+        suffix_cost = 2 + cell_len(suffix)
+        if not available or used + suffix_cost <= available:
+            content.append("  ")
+            content.append(suffix, style=input_default_style())
+            used += suffix_cost
+
+    if not input_hint.description:
+        return
+    description_cost = 2 + cell_len(input_hint.description)
+    if available and used + description_cost > available:
+        remaining = available - used
+        if remaining <= 2:
+            return
+        description = Text(
+            input_hint.description,
+            style="dim",
+            no_wrap=True,
+            overflow="ellipsis",
+        )
+        description.truncate(remaining - 2, overflow="ellipsis")
+        content.append("  ")
+        content.append_text(description)
+        return
+
+    content.append("  ")
+    content.append(input_hint.description, style="dim")
 
 
 def append_jinja_completion_row(

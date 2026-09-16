@@ -414,6 +414,11 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
             self._replace_absolute_range(
                 ctx.value_start, ctx.value_end, selected.insertion
             )
+            if (
+                ctx.completion_kind == "xprompt_arg_name"
+                and self._try_chain_xprompt_arg_completion()
+            ):
+                return True
             self._clear_file_completion(clear_xprompt_arg_hint=False)
             self._refresh_xprompt_arg_hint_from_cursor()
             return True
@@ -445,7 +450,9 @@ class FileCompletionTabMixin(FileCompletionRefreshMixin):
                 return True
 
         self._file_completion_active = True
+        self._xprompt_arg_completion_trigger = "manual"
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
+        self._completion_selection_moved = False
         self._update_file_completion_panel(token)
         return True

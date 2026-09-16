@@ -12,6 +12,10 @@ from typing import TYPE_CHECKING
 from sase.ace.tui.widgets._file_completion_accept_delete import (
     FileCompletionAcceptDeleteMixin,
 )
+from sase.ace.tui.widgets._file_completion_xprompt_args import (
+    build_xprompt_arg_completion_candidates,
+    effective_xprompt_arg_token,
+)
 from sase.ace.tui.widgets.artifact_ref_completion import (
     ARTIFACT_REF_COMPLETION_KIND,
     artifact_ref_next_selectable_index,
@@ -33,6 +37,7 @@ from sase.ace.tui.widgets.model_explicit_completion import (
 from sase.ace.tui.widgets.placeholder_completion import (
     PLACEHOLDER_COMPLETION_KIND,
 )
+from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.prompt_word_completion import (
     PROMPT_WORD_COMPLETION_KIND,
     word_range_at_cursor,
@@ -40,6 +45,10 @@ from sase.ace.tui.widgets.prompt_word_completion import (
 from sase.ace.tui.widgets.vcs_project_completion import VCS_PROJECT_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_ref_completion import VCS_REF_COMPLETION_KIND
 from sase.ace.tui.widgets.vcs_repo_completion import VCS_REPO_COMPLETION_KIND
+
+_XPROMPT_ARG_CHAIN_KINDS = frozenset(
+    {"xprompt_arg_value", "xprompt_arg_agent", "xprompt_arg_path"}
+)
 
 
 class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
@@ -243,6 +252,8 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
             self.cursor_location = (row, col + len(selected.insertion))
             self._clear_file_completion()
             return True
+        if self._completion_kind.startswith("xprompt_arg_"):
+            return self._accept_xprompt_arg_completion_candidate(selected)
         ctx = self._get_token_context()
         if ctx is None:
             self._clear_file_completion()
@@ -286,4 +297,68 @@ class FileCompletionAcceptMixin(FileCompletionAcceptDeleteMixin):
                 self._refresh_xprompt_arg_hint_from_cursor()
             else:
                 self._clear_xprompt_arg_hint()
+        return True
+
+    def _accept_xprompt_arg_completion_candidate(
+        self,
+        selected: CompletionCandidate,
+    ) -> bool:
+        """Accept an xprompt argument row using the resolved arg span."""
+        arg_ctx = self._get_xprompt_arg_completion_context()
+        if arg_ctx is None:
+            self._clear_file_completion()
+            return False
+
+        accepted_kind = self._completion_kind
+        self._replace_absolute_range(
+            arg_ctx.value_start,
+            arg_ctx.value_end,
+            selected.insertion,
+        )
+
+        if selected.is_dir and accepted_kind == "xprompt_arg_path":
+            self._file_completion_active = False
+            self._file_completion_candidates = []
+            self._file_completion_index = 0
+            self._xprompt_arg_completion_trigger = "manual"
+            if not self._try_file_completion_tab():
+                self._clear_file_completion(clear_xprompt_arg_hint=False)
+                self._refresh_xprompt_arg_hint_from_cursor()
+            return True
+
+        if (
+            accepted_kind == "xprompt_arg_name"
+            and self._try_chain_xprompt_arg_completion()
+        ):
+            return True
+
+        self._clear_file_completion(clear_xprompt_arg_hint=False)
+        self._refresh_xprompt_arg_hint_from_cursor()
+        return True
+
+    def _try_chain_xprompt_arg_completion(self) -> bool:
+        """Open the next value menu after a keyword-name accept."""
+        next_ctx = self._get_xprompt_arg_completion_context()
+        if next_ctx is None or next_ctx.completion_kind not in _XPROMPT_ARG_CHAIN_KINDS:
+            return False
+
+        candidates, _shared_extension = build_xprompt_arg_completion_candidates(
+            next_ctx,
+            base_dir=self._prompt_completion_base_dir(),
+            agent_candidates=(
+                self._snapshot_agent_completion_candidates()
+                if next_ctx.completion_kind == "xprompt_arg_agent"
+                else None
+            ),
+        )
+        if not candidates:
+            return False
+
+        self._completion_kind = next_ctx.completion_kind
+        self._xprompt_arg_completion_trigger = "manual"
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = 0
+        self._completion_selection_moved = False
+        self._update_file_completion_panel(effective_xprompt_arg_token(next_ctx))
         return True

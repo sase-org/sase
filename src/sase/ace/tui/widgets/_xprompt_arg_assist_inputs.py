@@ -47,6 +47,21 @@ def input_label(input_hint: XPromptInputHint) -> str:
     return f"{input_hint.name}{repeatable_marker}{required_marker}: {input_hint.type}"
 
 
+def input_name_style(input_hint: XPromptInputHint) -> str:
+    """Return the shared style for an input's name."""
+    return _input_name_style(input_hint)
+
+
+def input_default_style() -> str:
+    """Return the shared style for optional input defaults."""
+    return _DEFAULT_STYLE
+
+
+def input_default_suffix(input_hint: XPromptInputHint) -> str:
+    """Return the shared suffix for an optional input default."""
+    return _default_suffix(input_hint)
+
+
 def append_input_hints(
     text: Text,
     inputs: tuple[XPromptInputHint, ...],
@@ -132,6 +147,9 @@ __all__ = [
     "has_only_optional_inputs",
     "input_hint_from_input_arg",
     "input_label",
+    "input_name_style",
+    "input_default_style",
+    "input_default_suffix",
     "required_inputs",
     "visible_inputs",
 ]

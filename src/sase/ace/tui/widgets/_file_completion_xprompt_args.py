@@ -11,7 +11,10 @@ from sase.ace.tui.widgets.file_completion import (
     build_completion_candidates,
     is_path_like_token,
 )
-from sase.ace.tui.widgets.xprompt_arg_assist import XPromptArgCompletionContext
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptArgCompletionContext,
+    XPromptArgNameMetadata,
+)
 
 
 def effective_xprompt_arg_token(ctx: XPromptArgCompletionContext) -> str:
@@ -91,10 +94,12 @@ def _build_named_arg_completion_candidates(
             insertion=f"{inp.name}=",
             is_dir=False,
             name=inp.name,
-            metadata=inp,
+            metadata=XPromptArgNameMetadata(
+                reference_text=ctx.entry.insertion,
+                input_hint=inp,
+            ),
         )
         for inp in ctx.entry.inputs
         if inp.name not in ctx.used_arg_names and inp.name.lower().startswith(partial)
     ]
-    candidates.sort(key=lambda c: c.name.lower())
     return candidates, ""

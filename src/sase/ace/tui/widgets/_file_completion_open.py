@@ -433,24 +433,54 @@ class FileCompletionOpenMixin(FileCompletionTabMixin):
         return True
 
     def _try_auto_xprompt_arg_completion(self) -> bool:
-        """Open agent-name completion inside an xprompt argument."""
+        """Open closed-set completion inside an xprompt argument."""
         arg_ctx = self._get_xprompt_arg_completion_context()
-        if arg_ctx is None or arg_ctx.completion_kind != "xprompt_arg_agent":
+        if arg_ctx is None or arg_ctx.completion_kind not in {
+            "xprompt_arg_agent",
+            "xprompt_arg_name",
+            "xprompt_arg_value",
+        }:
             return False
 
         candidates, _shared_extension = build_xprompt_arg_completion_candidates(
             arg_ctx,
             base_dir=self._prompt_completion_base_dir(),
-            agent_candidates=self._snapshot_agent_completion_candidates(),
+            agent_candidates=(
+                self._snapshot_agent_completion_candidates()
+                if arg_ctx.completion_kind == "xprompt_arg_agent"
+                else None
+            ),
         )
         if not candidates:
-            self._agent_completion_candidates = None
+            if arg_ctx.completion_kind == "xprompt_arg_agent":
+                self._agent_completion_candidates = None
             return False
 
         self._completion_kind = arg_ctx.completion_kind
+        self._xprompt_arg_completion_trigger = "auto"
         self._file_completion_active = True
         self._file_completion_candidates = candidates
         self._file_completion_index = 0
+        self._completion_selection_moved = False
+        self._update_file_completion_panel(arg_ctx.token)
+        return True
+
+    def _try_xprompt_arg_name_completion_cycle(self, *, last: bool = False) -> bool:
+        """Open keyword-argument names for insert-mode Ctrl+N/Ctrl+P."""
+        arg_ctx = self._get_xprompt_arg_completion_context()
+        if arg_ctx is None or arg_ctx.completion_kind != "xprompt_arg_name":
+            return False
+
+        candidates, _shared_extension = build_xprompt_arg_completion_candidates(arg_ctx)
+        if not candidates:
+            return False
+
+        self._completion_kind = arg_ctx.completion_kind
+        self._xprompt_arg_completion_trigger = "manual"
+        self._file_completion_active = True
+        self._file_completion_candidates = candidates
+        self._file_completion_index = len(candidates) - 1 if last else 0
+        self._completion_selection_moved = True
         self._update_file_completion_panel(arg_ctx.token)
         return True
 

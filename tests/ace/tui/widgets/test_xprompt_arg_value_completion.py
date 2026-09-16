@@ -38,15 +38,19 @@ def _input_hint(
     type_: str,
     position: int,
     *,
+    required: bool = True,
+    default_display: str | None = None,
     repeatable: bool = False,
+    description: str | None = None,
 ) -> XPromptInputHint:
     return XPromptInputHint(
         name=name,
         type=type_,
-        required=True,
-        default_display=None,
+        required=required,
+        default_display=default_display,
         position=position,
         repeatable=repeatable,
+        description=description,
     )
 
 
@@ -61,6 +65,36 @@ def _entry() -> XPromptAssistEntry:
             _input_hint("path", "path", 0),
             _input_hint("enabled", "bool", 1),
             _input_hint("count", "int", 2),
+        ),
+        content_preview=None,
+    )
+
+
+def _rich_entry() -> XPromptAssistEntry:
+    return XPromptAssistEntry(
+        name="review",
+        insertion="#review",
+        reference_prefix="#",
+        kind="xprompt",
+        input_signature=None,
+        inputs=(
+            _input_hint("path", "path", 0, description="file to review"),
+            _input_hint(
+                "enabled",
+                "bool",
+                1,
+                required=False,
+                default_display="true",
+                description="turn on",
+            ),
+            _input_hint(
+                "count",
+                "int",
+                2,
+                required=False,
+                default_display="3",
+            ),
+            _input_hint("label", "str", 3, description="a free-form label"),
         ),
         content_preview=None,
     )
@@ -188,6 +222,160 @@ async def test_bool_named_arg_offers_true_false_values() -> None:
 
     assert ta.text == "#review(enabled=true)"
     assert ta._file_completion_active is False
+
+
+async def test_auto_keyword_arg_menu_uses_declaration_order_and_metadata() -> None:
+    app = CompletionTestApp()
+    async with app.run_test():
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#review(")
+        ta.cursor_location = (0, len("#review("))
+        _seed_entries(ta, [_rich_entry()])
+
+        assert ta._try_auto_xprompt_arg_completion() is True
+
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt_arg_name"
+        assert ta._xprompt_arg_completion_trigger == "auto"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "path=",
+            "enabled=",
+            "count=",
+            "label=",
+        ]
+        panel = bar.query_one("#prompt-completion", Static)
+        rendered = panel.render().plain
+        assert panel.border_title == "#review args"
+        assert str(panel.border_subtitle) == "file to review"
+        assert rendered.index("path=") < rendered.index("enabled=")
+        assert "path=     path" in rendered
+        assert "enabled=  bool  =true" in rendered
+        assert "turn on" in rendered
+
+
+async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
+    app = CompletionTestApp()
+    submitted = 0
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        def record_submit() -> None:
+            nonlocal submitted
+            submitted += 1
+
+        ta.action_submit_prompt = record_submit  # type: ignore[method-assign]
+        _seed_entries(ta, [_rich_entry()])
+        ta.load_text("#review(")
+        ta.cursor_location = (0, len("#review("))
+        assert ta._try_auto_xprompt_arg_completion() is True
+
+        await pilot.press("enter")
+        assert submitted == 1
+        assert ta.text == "#review("
+        assert ta._file_completion_active is False
+
+        ta.load_text("#review(")
+        ta.cursor_location = (0, len("#review("))
+        assert ta._try_auto_xprompt_arg_completion() is True
+        await pilot.press("e", "enter")
+
+    assert submitted == 1
+    assert ta.text == "#review(enabled="
+    assert ta._file_completion_active is True
+    assert ta._completion_kind == "xprompt_arg_value"
+    assert ta._xprompt_arg_completion_trigger == "manual"
+
+
+async def test_keyword_arg_selection_movement_hands_enter_to_menu() -> None:
+    app = CompletionTestApp()
+    submitted = 0
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        def record_submit() -> None:
+            nonlocal submitted
+            submitted += 1
+
+        ta.action_submit_prompt = record_submit  # type: ignore[method-assign]
+        _seed_entries(ta, [_rich_entry()])
+        ta.load_text("#review(")
+        ta.cursor_location = (0, len("#review("))
+        assert ta._try_auto_xprompt_arg_completion() is True
+
+        await pilot.press("ctrl+n", "enter", "enter")
+
+    assert submitted == 0
+    assert ta.text == "#review(enabled=true"
+    assert ta._file_completion_active is False
+
+
+async def test_ctrl_n_and_ctrl_p_open_keyword_arg_menu_from_cold_start() -> None:
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        entries = [_gh_entry(), _rich_entry()]
+        _seed_entries(ta, entries)
+        _seed_entries(ta, entries, project="sase")
+        ta.load_text("#gh:sase #review(")
+        ta.cursor_location = (0, len("#gh:sase #review("))
+
+        await pilot.press("ctrl+n")
+        assert ta.text == "#gh:sase #review("
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt_arg_name"
+        assert ta._file_completion_index == 0
+        assert ta._completion_selection_moved is True
+
+        ta._clear_file_completion()
+        ta.load_text("#gh:sase #review(")
+        ta.cursor_location = (0, len("#gh:sase #review("))
+        await pilot.press("ctrl+p")
+
+    assert ta.text == "#gh:sase #review("
+    assert ta._file_completion_active is True
+    assert ta._completion_kind == "xprompt_arg_name"
+    assert ta._file_completion_index == 3
+
+
+async def test_accepting_keyword_names_chains_by_input_type(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "alpha.txt").write_text("x", encoding="utf-8")
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_rich_entry()])
+
+        ta.load_text("#review(e")
+        ta.cursor_location = (0, len("#review(e"))
+        assert ta._try_file_completion_tab() is True
+        assert ta.text == "#review(enabled="
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt_arg_value"
+        assert [c.insertion for c in ta._file_completion_candidates] == [
+            "true",
+            "false",
+        ]
+
+        ta._clear_file_completion()
+        ta.load_text("#review(p")
+        ta.cursor_location = (0, len("#review(p"))
+        assert ta._try_file_completion_tab() is True
+        assert ta.text == "#review(path="
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == "xprompt_arg_path"
+        assert "alpha.txt" in {c.name for c in ta._file_completion_candidates}
+
+        ta._clear_file_completion()
+        ta.load_text("#review(l")
+        ta.cursor_location = (0, len("#review(l"))
+        assert ta._try_file_completion_tab() is True
+        assert ta.text == "#review(label="
+        assert ta._file_completion_active is False
+        assert ta._active_xprompt_arg_hint is not None
 
 
 async def test_fork_agent_arg_completion_replaces_value() -> None:
@@ -501,7 +689,9 @@ async def test_parenthesized_arg_name_completion_skips_existing_names() -> None:
         await pilot.press("ctrl+t")
 
     assert ta.text == "#review(path=foo, enabled="
-    assert ta._file_completion_active is False
+    assert ta._file_completion_active is True
+    assert ta._completion_kind == "xprompt_arg_value"
+    assert [c.insertion for c in ta._file_completion_candidates] == ["true", "false"]
 
 
 async def test_numeric_arg_keeps_hint_without_value_suggestions() -> None:

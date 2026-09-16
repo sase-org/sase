@@ -28,6 +28,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     append_vcs_project_completion_row,
     append_vcs_ref_completion_row,
     append_vcs_repo_completion_row,
+    append_xprompt_arg_name_completion_row,
     append_xprompt_completion_row,
     artifact_ref_kind_label_width,
     finalizer_completion_column_widths,
@@ -37,6 +38,7 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows import (
     vcs_project_label_width,
     vcs_ref_label_width,
     vcs_repo_label_width,
+    xprompt_arg_name_label_width,
 )
 from sase.ace.tui.widgets.artifact_ref_completion import (
     AtReferenceFileCompletionMetadata,
@@ -60,6 +62,7 @@ class _RowLayout:
     artifact_kind: int
     history_word: int
     placeholder: int
+    xprompt_arg_name: int
     tribe_colors: dict[str, str] | None
 
 
@@ -164,6 +167,9 @@ def _row_layout(
         ),
         placeholder=_max_label_width(
             visible, placeholder_label_width, kinds.placeholder
+        ),
+        xprompt_arg_name=_max_label_width(
+            visible, xprompt_arg_name_label_width, kinds.xprompt_arg_name
         ),
         tribe_colors=_tribe_colors(kinds, visible),
     )
@@ -290,6 +296,14 @@ def _append_candidate_row(
             is_selected,
             layout.artifact_kind,
             inner_width,
+        )
+    elif kinds.xprompt_arg_name:
+        append_xprompt_arg_name_completion_row(
+            content,
+            candidate,
+            is_selected,
+            label_width=layout.xprompt_arg_name,
+            inner_width=inner_width,
         )
     elif kinds.arg_completion:
         content.append(

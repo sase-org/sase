@@ -85,6 +85,7 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         # placeholder menu so refresh and accept keep resolving the same
         # candidate set the user is looking at.
         _placeholder_completion_trigger: str | None
+        _xprompt_arg_completion_trigger: str | None
         _agent_completion_candidates: list[AgentCompletionCandidate] | None
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
         _vcs_repo_completion_key: tuple[str, str] | None
@@ -320,6 +321,7 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         self._artifact_ref_files_revealed = False
         self._artifact_ref_files_suppressed = False
         self._placeholder_completion_trigger = None
+        self._xprompt_arg_completion_trigger = None
         self._agent_completion_candidates = None
         self._vcs_repo_completion_key = None
         self._vcs_repo_completion_result = None
