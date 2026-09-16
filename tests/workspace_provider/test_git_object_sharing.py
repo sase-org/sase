@@ -333,9 +333,16 @@ def test_reuses_broken_sase_borrower_by_dissociating_when_sharing_disabled(
     _git(target, "fsck", "--connectivity-only")
 
 
-def test_dirty_healthy_reuse_refuses_dependency_repoint(
+def test_dirty_healthy_reuse_preserves_dependency(
     tmp_path: Path,
 ) -> None:
+    """Reuse leaves a usable dependency alone instead of repointing it.
+
+    ``sase_core`` stopped repointing an existing checkout's object dependency
+    during ordinary reuse, so a checkout pointed at a primary that cannot back
+    it keeps the dependency that works. The state this used to protect with a
+    refusal is now protected by never attempting the rewrite.
+    """
     primary, remote = _make_primary(tmp_path)
     target = tmp_path / "managed" / "primary_20"
     ensure_git_clone_at(str(primary), 20, str(target), share_git_objects=True)
@@ -351,14 +358,14 @@ def test_dirty_healthy_reuse_refuses_dependency_repoint(
     )
     (target / "file.txt").write_text("dirty edit\n", encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="clean status"):
-        ensure_git_clone_at(
-            str(replacement),
-            20,
-            str(target),
-            share_git_objects=True,
-        )
+    result = ensure_git_clone_at(
+        str(replacement),
+        20,
+        str(target),
+        share_git_objects=True,
+    )
 
+    assert result == str(target)
     assert alternates.read_text(encoding="utf-8") == original_alternates
     assert (
         _git(
@@ -373,9 +380,10 @@ def test_dirty_healthy_reuse_refuses_dependency_repoint(
     assert _git(target, "status", "--porcelain") == "M file.txt"
 
 
-def test_clean_reuse_rolls_back_when_replacement_primary_lacks_objects(
+def test_clean_reuse_preserves_dependency_when_replacement_primary_lacks_objects(
     tmp_path: Path,
 ) -> None:
+    """A clean checkout keeps a working dependency over an unusable primary."""
     primary, remote = _make_primary(tmp_path)
     target = tmp_path / "managed" / "primary_21"
     ensure_git_clone_at(str(primary), 21, str(target), share_git_objects=True)
@@ -390,14 +398,14 @@ def test_clean_reuse_rolls_back_when_replacement_primary_lacks_objects(
         "sase.workspaceGitObjectsPrimary",
     )
 
-    with pytest.raises(RuntimeError, match="fsck --connectivity-only failed"):
-        ensure_git_clone_at(
-            str(replacement),
-            21,
-            str(target),
-            share_git_objects=True,
-        )
+    result = ensure_git_clone_at(
+        str(replacement),
+        21,
+        str(target),
+        share_git_objects=True,
+    )
 
+    assert result == str(target)
     assert alternates.read_text(encoding="utf-8") == original_alternates
     assert (
         _git(
@@ -413,9 +421,10 @@ def test_clean_reuse_rolls_back_when_replacement_primary_lacks_objects(
     _git(target, "fsck", "--connectivity-only")
 
 
-def test_clean_reuse_preserves_unique_local_history_when_repoint_fails(
+def test_clean_reuse_preserves_unique_local_history(
     tmp_path: Path,
 ) -> None:
+    """Commits that live only in the borrower survive reuse."""
     primary, remote = _make_primary(tmp_path)
     target = tmp_path / "managed" / "primary_22"
     ensure_git_clone_at(str(primary), 22, str(target), share_git_objects=True)
@@ -429,14 +438,14 @@ def test_clean_reuse_preserves_unique_local_history_when_repoint_fails(
     alternates = git_object_dir(str(target)) / "info" / "alternates"
     original_alternates = alternates.read_text(encoding="utf-8")
 
-    with pytest.raises(RuntimeError, match="fsck --connectivity-only failed"):
-        ensure_git_clone_at(
-            str(replacement),
-            22,
-            str(target),
-            share_git_objects=True,
-        )
+    result = ensure_git_clone_at(
+        str(replacement),
+        22,
+        str(target),
+        share_git_objects=True,
+    )
 
+    assert result == str(target)
     assert alternates.read_text(encoding="utf-8") == original_alternates
     assert _git(target, "rev-parse", "HEAD") == local_head
     assert _git(target, "status", "--porcelain") == ""

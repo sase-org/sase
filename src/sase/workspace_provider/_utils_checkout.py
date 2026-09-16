@@ -206,14 +206,41 @@ def _no_other_occupant(checkout_dir: str) -> bool | None:
     return not _pid_is_alive(record.pid)
 
 
-def _no_other_claim(project_file: str | None, workspace_num: int) -> bool | None:
-    """Report whether the RUNNING field records another live claim on a workspace.
+def _claims_project_file(project_file: str | None, checkout_dir: str) -> str | None:
+    """Resolve the ProjectSpec whose RUNNING field would claim *checkout_dir*.
 
-    Callers that never learned their project file cannot look, so they get
-    ``None`` rather than an assertion they have no evidence for.
+    Workspace-provider hooks reach this module through a frozen pluggy
+    signature that carries no project file, so fall back to the checkout's own
+    marker, which records the project that materialized it.
+    """
+    if project_file:
+        return project_file
+    try:
+        from sase.workspace_provider.marker import read_marker
+
+        marker = read_marker(checkout_dir)
+    except Exception:
+        return None
+    if marker is None or not marker.project_name:
+        return None
+    try:
+        from sase.workflows.utils import get_project_file_path
+
+        return get_project_file_path(marker.project_name)
+    except Exception:
+        return None
+
+
+def _no_other_claim(project_file: str | None, workspace_num: int) -> bool | None:
+    """Report whether another live agent holds a RUNNING claim on a workspace.
+
+    A checkout that belongs to no resolvable ProjectSpec sits in no allocation
+    ledger, so nothing can hold a claim on it and the reading is clear. Only a
+    ledger we resolved but could not read is genuinely unknown, and the core
+    refuses to mutate on that.
     """
     if not project_file:
-        return None
+        return True
     try:
         from sase.running_field._query import get_claimed_workspaces
 
@@ -246,7 +273,10 @@ def _recover_existing_borrower_after_status_failure(
             target,
             share_git_objects=share_git_objects,
             fresh_claim_status=observed_status(
-                _no_other_claim(project_file, workspace_num)
+                _no_other_claim(
+                    _claims_project_file(project_file, target),
+                    workspace_num,
+                )
             ),
             fresh_occupant_status=observed_status(_no_other_occupant(target)),
         )
