@@ -49,6 +49,29 @@ def test_create_request_attaches_typed_plan_when_flag_on(
     assert written["typed_plan"]["content_digest"][:12] in preview
 
 
+def test_typed_plan_preview_renders_holds_section_for_a_held_unit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.chdir(tmp_path)
+    with override_flags(typed_launch_units=True, agent_holds=True):
+        result = create_launch_approval_request(
+            {
+                "schema_version": 1,
+                "prompt": "%hold(pending, ttl=30m)\nDo work",
+                "reason": "cover typed hold preview",
+            }
+        )
+    written = json.loads(result.request_path.read_text(encoding="utf-8"))["payload"]
+    assert written["typed_plan"]["units"][0]["payload"]["hold"]["pending"] is True
+    preview = result.preview_path.read_text(encoding="utf-8")
+    assert "## Holds" in preview
+    assert "agent `" in preview
+    assert "captures " in preview
+
+
 def test_old_request_without_typed_plan_uses_compat_dispatch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

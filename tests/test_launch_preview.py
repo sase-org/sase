@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sase.agent.launch_executor_types import LaunchExecutionContext
 from sase.agent.launch_preview import (
     build_launch_preview_request,
     render_launch_preview_markdown,
 )
 from sase.core.agent_launch_facade import plan_fake_fanout
+from sase.feature_flags import override_flags
 
 
 def _context(tmp_path: Path) -> LaunchExecutionContext:
@@ -196,3 +199,78 @@ def test_launch_preview_annotates_clan_tribe(tmp_path: Path) -> None:
     preview = render_launch_preview_markdown(request)
 
     assert "clan `demo` · tribe `@quality`" in preview
+
+
+def test_launch_preview_renders_holds_section_for_a_held_slot(tmp_path: Path) -> None:
+    pytest.importorskip("sase_core_rs")
+    prompt = "%hold(pending, ttl=30m)\nDo the thing."
+    with override_flags(agent_holds=True):
+        request = build_launch_preview_request(
+            plan=plan_fake_fanout("agent", [prompt]),
+            context=_context(tmp_path),
+            source_surface="agent",
+            request_id="launch-hold",
+            slot_planned_names={0: "demo.hold"},
+            created_at_unix=10.0,
+        )
+        preview = render_launch_preview_markdown(request)
+
+    assert "## Holds" in preview
+    assert "### Agent 1 of 1" in preview
+    assert "%hold(" in preview
+    assert "pending" in preview
+    assert "ttl=30m" in preview
+    assert "scope `project`" in preview
+    assert "captures " in preview
+
+
+def test_launch_preview_warns_on_future_scope_host_hold(tmp_path: Path) -> None:
+    pytest.importorskip("sase_core_rs")
+    prompt = "%hold(future, scope=host)\nDo the thing."
+    with override_flags(agent_holds=True):
+        request = build_launch_preview_request(
+            plan=plan_fake_fanout("agent", [prompt]),
+            context=_context(tmp_path),
+            source_surface="agent",
+            request_id="launch-hold-future-host",
+            slot_planned_names={0: "demo.hold"},
+            created_at_unix=10.0,
+        )
+        preview = render_launch_preview_markdown(request)
+
+    assert "**warning:**" in preview
+    assert "scope=host" in preview
+
+
+def test_launch_preview_omits_holds_section_without_hold(tmp_path: Path) -> None:
+    request = build_launch_preview_request(
+        plan=plan_fake_fanout("agent", ["Plain prompt, no directives."]),
+        context=_context(tmp_path),
+        source_surface="agent",
+        request_id="launch-no-hold",
+        slot_planned_names={0: "demo.plain"},
+        created_at_unix=10.0,
+    )
+
+    preview = render_launch_preview_markdown(request)
+
+    assert "## Holds" not in preview
+
+
+def test_launch_preview_omits_holds_section_when_flag_disabled(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    prompt = "%hold(pending)\nDo the thing."
+    with override_flags(agent_holds=False):
+        request = build_launch_preview_request(
+            plan=plan_fake_fanout("agent", [prompt]),
+            context=_context(tmp_path),
+            source_surface="agent",
+            request_id="launch-hold-flag-off",
+            slot_planned_names={0: "demo.hold"},
+            created_at_unix=10.0,
+        )
+        preview = render_launch_preview_markdown(request)
+
+    assert "## Holds" not in preview

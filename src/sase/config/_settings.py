@@ -25,6 +25,7 @@ DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP = 3
 DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS = 60
 DEFAULT_AGENT_HOLD_DEFAULT_TTL_SECONDS = 2 * 3600.0
 DEFAULT_AGENT_HOLD_MAX_TTL_SECONDS = 12 * 3600.0
+DEFAULT_AGENT_HOLD_CONFIRM_CAPTURE_THRESHOLD = 10
 DEFAULT_PROC_HISTORY_LIMIT = 100
 DEFAULT_PROC_RUNTIME_ORPHAN_HORIZON_SECONDS = 3 * 24 * 3600
 DEFAULT_PROC_RUNTIME_ORPHAN_MAX_REMOVALS = 2000
@@ -178,6 +179,17 @@ def get_agent_hold_max_ttl_seconds() -> float:
     return _get_agent_hold_ttl_seconds(
         "agent_hold_max_ttl", DEFAULT_AGENT_HOLD_MAX_TTL_SECONDS
     )
+
+
+def get_agent_hold_confirm_capture_threshold() -> int:
+    """Return the pending-capture count above which a hold needs confirmation."""
+    value = _merged_config().get(
+        "agent_hold_confirm_capture_threshold",
+        DEFAULT_AGENT_HOLD_CONFIRM_CAPTURE_THRESHOLD,
+    )
+    if type(value) is int and value >= 0:
+        return value
+    return DEFAULT_AGENT_HOLD_CONFIRM_CAPTURE_THRESHOLD
 
 
 def get_proc_history_limit() -> int:

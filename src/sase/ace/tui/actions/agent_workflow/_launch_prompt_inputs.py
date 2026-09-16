@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._launch_hold_guard import LaunchHoldGuardMixin
 from ._launch_provider_guard import LaunchProviderGuardMixin
 from ._types import (
     PromptContext,
@@ -16,7 +17,7 @@ if TYPE_CHECKING:
     from sase.agent.prompt_placeholder_inputs import PromptInputPlan
 
 
-class LaunchPromptInputMixin(LaunchProviderGuardMixin):
+class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
     """Mixin resolving prompt placeholders before launch submission."""
 
     _prompt_context: PromptContext | None
@@ -170,7 +171,7 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin):
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
 
-        self._preflight_provider_disables(
+        self._preflight_hold_confirm(
             prompt,
             keep_bar,
             owner_session_id=owner_session_id,

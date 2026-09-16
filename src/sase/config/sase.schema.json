@@ -4295,6 +4295,12 @@
       "pattern": "^\\d+(\\.\\d+)?[smh]?$",
       "default": "12h"
     },
+    "agent_hold_confirm_capture_threshold": {
+      "type": "integer",
+      "description": "Pending-capture count above which a launch preview's %hold needs interactive confirmation.",
+      "minimum": 0,
+      "default": 10
+    },
     "procs": {
       "type": "object",
       "additionalProperties": false,

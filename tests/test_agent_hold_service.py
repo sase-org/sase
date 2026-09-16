@@ -17,9 +17,11 @@ from sase.core.agent_hold_facade import (
     _capture_pending_targets,
     current_armer_wire,
     find_agent_hold,
+    format_pending_capture,
     _hold_scope_wire,
     _hold_selectors_wire,
     list_current_agent_holds,
+    preview_pending_capture,
     release_agent_hold,
 )
 from sase.notifications.store import load_notifications
@@ -143,6 +145,69 @@ def test_capture_pending_targets_buckets_waiting_queued_and_running() -> None:
     assert capture.queued_count == 1
     assert capture.skipped_running_count == 2
     assert set(capture.artifact_dirs) == {"/a/w1", "/a/w2", "/a/q1"}
+
+
+def test_preview_pending_capture_host_scope_ignores_project() -> None:
+    entries = [
+        SimpleNamespace(status="WAITING", artifacts_dir="/a/w1"),
+        SimpleNamespace(status="QUEUED", artifacts_dir="/a/q1"),
+        SimpleNamespace(status="RUNNING", artifacts_dir="/a/r1"),
+    ]
+    with patch(
+        "sase.integrations.agent_list_entries.agent_list_entries",
+        return_value=entries,
+    ) as mock_entries:
+        capture = preview_pending_capture("host", project="proj")
+
+    mock_entries.assert_called_once_with(project=None)
+    assert capture is not None
+    assert capture.waiting_count == 1
+    assert capture.queued_count == 1
+    assert capture.skipped_running_count == 1
+
+
+def test_preview_pending_capture_project_scope_passes_project() -> None:
+    with patch(
+        "sase.integrations.agent_list_entries.agent_list_entries",
+        return_value=[],
+    ) as mock_entries:
+        preview_pending_capture("project", project="proj")
+
+    mock_entries.assert_called_once_with(project="proj")
+
+
+def test_preview_pending_capture_is_fail_soft() -> None:
+    with patch(
+        "sase.integrations.agent_list_entries.agent_list_entries",
+        side_effect=RuntimeError("boom"),
+    ):
+        assert preview_pending_capture("project", project="proj") is None
+
+
+def test_format_pending_capture_renders_counts() -> None:
+    with patch(
+        "sase.integrations.agent_list_entries.agent_list_entries",
+        return_value=[
+            SimpleNamespace(status="WAITING", artifacts_dir="/a/w1"),
+            SimpleNamespace(status="WAITING", artifacts_dir="/a/w2"),
+            SimpleNamespace(status="WAITING", artifacts_dir="/a/w3"),
+            SimpleNamespace(status="WAITING", artifacts_dir="/a/w4"),
+            SimpleNamespace(status="QUEUED", artifacts_dir="/a/q1"),
+            SimpleNamespace(status="QUEUED", artifacts_dir="/a/q2"),
+            SimpleNamespace(status="RUNNING", artifacts_dir="/a/r1"),
+            SimpleNamespace(status="RUNNING", artifacts_dir="/a/r2"),
+            SimpleNamespace(status="RUNNING", artifacts_dir="/a/r3"),
+        ],
+    ):
+        capture = preview_pending_capture("project", project="proj")
+
+    assert format_pending_capture(capture) == (
+        "captures 4 waiting + 2 queued; skips 3 running"
+    )
+
+
+def test_format_pending_capture_none_returns_none() -> None:
+    assert format_pending_capture(None) is None
 
 
 def test_arm_agent_hold_requires_at_least_one_selector(

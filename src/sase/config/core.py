@@ -33,6 +33,7 @@ from sase.config._owner import (
     selected_overlay_paths,
 )
 from sase.config._settings import (
+    DEFAULT_AGENT_HOLD_CONFIRM_CAPTURE_THRESHOLD,
     DEFAULT_AGENT_HOLD_DEFAULT_TTL_SECONDS,
     DEFAULT_AGENT_HOLD_MAX_TTL_SECONDS,
     DEFAULT_ARTIFACT_CAPTURE_MAX_FILE_SIZE_BYTES,
@@ -72,6 +73,7 @@ from sase.config._settings import (
     DEFAULT_PROC_RUNTIME_ORPHAN_MAX_REMOVALS,
     DEFAULT_RUNNER_SLOT_DEFERENCE_MAX_SECONDS,
     DEFAULT_RUNNER_SLOT_DEFERENCE_SECONDS_PER_STEP,
+    get_agent_hold_confirm_capture_threshold,
     get_agent_hold_default_ttl_seconds,
     get_agent_hold_max_ttl_seconds,
     get_artifact_capture_max_file_size_bytes,

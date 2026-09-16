@@ -2,7 +2,7 @@
 
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from sase.agent.launcher import launch_agents_from_cwd
@@ -52,6 +52,11 @@ def launch_query(query: str) -> None:
     unresolved_names = scan_query_for_unresolved_references(query)
     for name in unresolved_names:
         print_status(format_unresolved_reference_warning(name), "warning")
+
+    if not _confirm_hold_arm(query):
+        message = "Hold not armed; launch cancelled."
+        _emit_failed_launch_result(message)
+        sys.exit(1)
 
     from sase.agent.launch_request import (
         LaunchRequestError,
@@ -283,6 +288,50 @@ def _serialize_launch_result(result: object) -> dict[str, object]:
         "workspace_dir": getattr(result, "workspace_dir", ""),
         "workspace_num": getattr(result, "workspace_num", 0),
     }
+
+
+def _confirm_hold_arm(
+    query: str,
+    *,
+    is_tty_fn: Callable[[], bool] | None = None,
+    confirm_fn: Callable[[str], bool] | None = None,
+) -> bool:
+    """Return whether the launch should proceed, prompting when needed.
+
+    Declines only when *query* arms a broad ``%hold`` on an interactive TTY
+    session that is neither a running agent nor a durable proc. Every other
+    launch proceeds unconditionally: the arm notification and the
+    LaunchApproval preview already list the capture.
+    """
+    import os
+
+    from sase.ops.models import PROC_ID_ENV
+
+    if os.environ.get("SASE_AGENT") or os.environ.get(PROC_ID_ENV):
+        return True
+    is_tty = is_tty_fn or _stdin_stdout_are_tty
+    if not is_tty():
+        return True
+    from sase.agent.launch_hold_preview import hold_confirmation_body
+
+    body = hold_confirmation_body(query)
+    if body is None:
+        return True
+    confirm = confirm_fn or _confirm_hold_interactively
+    return confirm(body)
+
+
+def _stdin_stdout_are_tty() -> bool:
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _confirm_hold_interactively(body: str) -> bool:
+    print(body)
+    try:
+        answer = input("Arm this hold? [y/N] ")
+    except EOFError:
+        return False
+    return answer.strip().lower() in {"y", "yes"}
 
 
 def _emit_failed_launch_result(message: str) -> None:

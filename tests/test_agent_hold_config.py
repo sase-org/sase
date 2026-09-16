@@ -5,8 +5,10 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from sase.config._settings import (
+    DEFAULT_AGENT_HOLD_CONFIRM_CAPTURE_THRESHOLD,
     DEFAULT_AGENT_HOLD_DEFAULT_TTL_SECONDS,
     DEFAULT_AGENT_HOLD_MAX_TTL_SECONDS,
+    get_agent_hold_confirm_capture_threshold,
     get_agent_hold_default_ttl_seconds,
     get_agent_hold_max_ttl_seconds,
 )
@@ -71,4 +73,42 @@ def test_default_ttl_falls_back_on_zero_value() -> None:
         assert (
             get_agent_hold_default_ttl_seconds()
             == DEFAULT_AGENT_HOLD_DEFAULT_TTL_SECONDS
+        )
+
+
+def test_confirm_capture_threshold_falls_back_when_unset() -> None:
+    with patch("sase.config.core.load_merged_config", return_value={}):
+        assert (
+            get_agent_hold_confirm_capture_threshold()
+            == DEFAULT_AGENT_HOLD_CONFIRM_CAPTURE_THRESHOLD
+        )
+
+
+def test_confirm_capture_threshold_reads_configured_value() -> None:
+    with patch(
+        "sase.config.core.load_merged_config",
+        return_value={"agent_hold_confirm_capture_threshold": 25},
+    ):
+        assert get_agent_hold_confirm_capture_threshold() == 25
+
+
+def test_confirm_capture_threshold_falls_back_on_negative_value() -> None:
+    with patch(
+        "sase.config.core.load_merged_config",
+        return_value={"agent_hold_confirm_capture_threshold": -1},
+    ):
+        assert (
+            get_agent_hold_confirm_capture_threshold()
+            == DEFAULT_AGENT_HOLD_CONFIRM_CAPTURE_THRESHOLD
+        )
+
+
+def test_confirm_capture_threshold_falls_back_on_non_int_value() -> None:
+    with patch(
+        "sase.config.core.load_merged_config",
+        return_value={"agent_hold_confirm_capture_threshold": "10"},
+    ):
+        assert (
+            get_agent_hold_confirm_capture_threshold()
+            == DEFAULT_AGENT_HOLD_CONFIRM_CAPTURE_THRESHOLD
         )

@@ -80,6 +80,7 @@ def build_launch_preview_request(
                 "name_generated": slot.name_generated,
                 "workspace": _context_preview(slot_ctx),
                 "extra_env_keys": sorted(env),
+                "hold": _hold_fields_for_preview(slot.prompt),
             }
         )
 
@@ -162,6 +163,10 @@ def render_launch_preview_markdown(request: Mapping[str, Any]) -> str:
     continuation_lines = _requester_continuation_preview_lines(request)
     if continuation_lines:
         lines.extend(continuation_lines)
+        lines.append("")
+    holds_lines = _holds_preview_lines(request)
+    if holds_lines:
+        lines.extend(holds_lines)
         lines.append("")
     for ordinal, (slot, clan_annotation) in enumerate(
         zip(slots, clan_annotations, strict=True),
@@ -299,6 +304,125 @@ def _model_directives_for_preview(prompt: str) -> tuple[str | None, dict[str, st
     except Exception:
         return None, {}
     return directives.model, dict(directives.model_alias_overrides)
+
+
+def _hold_fields_for_preview(prompt: str) -> dict[str, Any] | None:
+    """Return parsed ``%hold`` fields for read-only launch previews."""
+    try:
+        from sase.xprompt.directives import extract_prompt_directives
+
+        _, directives = extract_prompt_directives(prompt)
+    except Exception:
+        return None
+    return dict(directives.hold) if directives.hold else None
+
+
+def _holds_preview_lines(request: Mapping[str, Any]) -> list[str]:
+    """Render a ``## Holds`` section listing every held slot or typed unit."""
+    entries: list[tuple[str, Mapping[str, Any], str | None]] = []
+    slots = [slot for slot in request.get("slots", []) if isinstance(slot, Mapping)]
+    slot_count = max(int(request.get("slot_count") or 0), len(slots))
+    for ordinal, slot in enumerate(slots, start=1):
+        hold = slot.get("hold")
+        if not isinstance(hold, Mapping) or not hold:
+            continue
+        workspace = slot.get("workspace")
+        project = (
+            workspace.get("project_name") if isinstance(workspace, Mapping) else None
+        )
+        entries.append(
+            (
+                f"Agent {ordinal} of {slot_count}",
+                hold,
+                project if isinstance(project, str) else None,
+            )
+        )
+    typed_plan = request.get("typed_plan")
+    if isinstance(typed_plan, Mapping):
+        selected_project = request.get("selected_project")
+        project = selected_project if isinstance(selected_project, str) else None
+        for unit in typed_plan.get("units") or []:
+            if not isinstance(unit, Mapping):
+                continue
+            payload = unit.get("payload")
+            if not isinstance(payload, Mapping):
+                continue
+            hold = payload.get("hold")
+            if not isinstance(hold, Mapping) or not hold:
+                continue
+            entries.append((_typed_unit_hold_label(unit, payload), hold, project))
+    if not entries:
+        return []
+    lines = ["## Holds", ""]
+    for label, hold, project in entries:
+        lines.extend(_hold_entry_preview_lines(label, hold, project))
+    return lines[:-1] if lines[-1] == "" else lines
+
+
+def _typed_unit_hold_label(unit: Mapping[str, Any], payload: Mapping[str, Any]) -> str:
+    logical_id = str(unit.get("logical_id") or "")
+    if payload.get("kind") == "proc":
+        name = payload.get("shell_name") or payload.get("label") or logical_id
+        return f"proc `{name}`"
+    name = payload.get("identity") or logical_id
+    return f"agent `{name}`"
+
+
+def _hold_entry_preview_lines(
+    label: str, hold: Mapping[str, Any], project: str | None
+) -> list[str]:
+    from sase.config.core import (
+        get_agent_hold_default_ttl_seconds,
+        get_agent_hold_max_ttl_seconds,
+    )
+    from sase.core.agent_hold_facade import (
+        format_pending_capture,
+        preview_pending_capture,
+    )
+    from sase.xprompt.hold_directive import format_hold_directive
+
+    directive = format_hold_directive(dict(hold)) or "%hold"
+    scope = str(hold.get("scope") or "project")
+    default_seconds = get_agent_hold_default_ttl_seconds()
+    max_seconds = get_agent_hold_max_ttl_seconds()
+    ttl_seconds = hold.get("ttl_seconds")
+    resolved_seconds = (
+        float(ttl_seconds)
+        if isinstance(ttl_seconds, (int, float)) and not isinstance(ttl_seconds, bool)
+        else default_seconds
+    )
+    resolved_seconds = min(resolved_seconds, max_seconds)
+    lines = [
+        f"### {label}",
+        "",
+        f"`{directive}`",
+        "",
+        f"scope `{scope}` · ttl `{_format_seconds_preview(resolved_seconds)}` "
+        f"(default `{_format_seconds_preview(default_seconds)}`, "
+        f"cap `{_format_seconds_preview(max_seconds)}`)",
+    ]
+    if hold.get("pending") and (scope == "host" or project is not None):
+        capture_text = format_pending_capture(
+            preview_pending_capture(scope, project=project)
+        )
+        if capture_text:
+            lines.extend(["", capture_text])
+    if hold.get("future") and scope == "host":
+        lines.extend(
+            [
+                "",
+                "**warning:** `future` combined with `scope=host` holds every "
+                "project's future launches.",
+            ]
+        )
+    lines.append("")
+    return lines
+
+
+def _format_seconds_preview(value: float) -> str:
+    if value == int(value):
+        return f"{int(value)}s"
+    return f"{value}s"
 
 
 def _format_alias_overrides(value: object) -> str:

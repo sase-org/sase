@@ -849,6 +849,32 @@ def candidate_created_at_from_timestamp(timestamp: str | None) -> float | None:
         return None
 
 
+def preview_pending_capture(
+    scope: str, *, project: str | None
+) -> _PendingCapture | None:
+    """Fail-soft snapshot of what a ``pending`` hold would freeze right now.
+
+    Read-only launch previews call this, so a broken hold-adjacent scan must
+    never break preview rendering the way :func:`_capture_pending_targets`
+    is allowed to raise for the direct arm path.
+    """
+    try:
+        return _capture_pending_targets(project=project if scope == "project" else None)
+    except Exception as exc:  # noqa: BLE001 - preview capture is fail-soft.
+        LOGGER.warning("pending hold capture preview failed: %s", exc)
+        return None
+
+
+def format_pending_capture(capture: _PendingCapture | None) -> str | None:
+    """Return e.g. ``"captures 4 waiting + 2 queued; skips 3 running"``."""
+    if capture is None:
+        return None
+    return (
+        f"captures {capture.waiting_count} waiting + {capture.queued_count} queued; "
+        f"skips {capture.skipped_running_count} running"
+    )
+
+
 __all__ = [
     "AgentHoldArmResult",
     "active_agent_hold_records",
@@ -857,7 +883,9 @@ __all__ = [
     "candidate_created_at_from_timestamp",
     "current_armer_wire",
     "find_agent_hold",
+    "format_pending_capture",
     "list_current_agent_holds",
+    "preview_pending_capture",
     "reconcile_agent_holds_for_artifact",
     "release_agent_hold",
     "release_proc_agent_holds",

@@ -1581,6 +1581,7 @@ are extracted and stripped from the prompt before further processing.
 | `%clan`             | `%c`  | Declare a new named, rootless parallel agent clan                     |
 | `%wait`             | `%w`  | Wait for agents, closed beads, and/or a time floor                    |
 | `%queue`            | `%q`  | Set per-launch capacity budget, queue priority, and/or claim weight   |
+| `%hold`             |       | Arm a durable pre-run admission hold on selected agents (beta)        |
 | `%dispatch`         |       | Launch on one enrolled remote machine                                 |
 | `%if`               |       | Statically omit a segment, or attach a beta admission predicate       |
 | `%proc`             |       | Define and natively dispatch a beta stand-alone process unit          |
@@ -1618,6 +1619,7 @@ recipes appear only when the `typed_launch_units` beta flag is enabled. Retired 
 | `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                                               | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                            |
 | `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                                 | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, and `time=` suggests `5m` and `1430`.                                                                                                                                                                        |
 | `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                             | Colon form completes only the positional positive-integer `capacity` value, suggesting `1`. Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=`; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
+| `%hold`             | Bare `%hold`, `%hold:...`, `%hold(...)`                                                 | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows. Shown only when the `agent_holds` beta flag is enabled.                                                                            |
 | `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                                                       | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                        |
 | `%if`               | `%if(should_run=...)`; with `typed_launch_units`, `%if::` Bash and Python fence recipes | `should_run=` with `true` and `false` is always available. The code-form recipes are shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                            |
 | `%proc`             | `%proc(...)`, `%proc::`; Bash/Python recipes                                            | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                            |
@@ -1898,6 +1900,14 @@ Directives use the same argument syntax as xprompt references:
 %queue(capacity=5, priority=20, weight=2) # Capacity, priority, and weight together
 %wait(agent1, time=5m) %queue(capacity=1) # Dependencies, then time floor, then capacity budget
 #t:5m                        # Shorthand for %wait(time=5m)
+%hold:planner                # Hold planner until this launch settles (beta)
+%hold:planner,reviewer       # Colon list of name selectors
+%hold:@nightly                # Tribe selector (positional @)
+%hold(pending)                # Also freeze WAITING/QUEUED agents at arm time
+%hold(future)                  # Also fence launches created after arm time
+%hold(hood=sase-s7)            # Hood selector
+%hold(tribe=nightly)           # Tribe selector, keyword form
+%hold(pending, future, ttl=90m, scope=host) # Widest form, explicit in the text
 %repeat:3                    # Run the prompt 3 times
 %r:5                         # Same, using alias
 %{#review | #test}           # Brace shorthand: branches split on top-level `|`
@@ -2467,6 +2477,50 @@ in-tree, a legacy `.sase/sdd/` clone, or the split `--plans` sidecar:
 %id:cleanup-tale
 Tidy up the logging module.
 ```
+
+### Hold Directive
+
+The `%hold` directive arms a durable pre-run admission hold: agents (and, on `%proc`
+units, procs) matching its selectors are blocked from starting until this launch
+settles. It is sugar over the `sase agent hold` store, which offers the same selectors
+as a standalone CLI (`sase agent hold create`/`run`/`list`/`release`/`show`).
+
+```
+%hold:planner                                # name selector
+%hold:planner,reviewer                       # colon list
+%hold:@nightly                               # tribe (positional @)
+%hold(pending)                               # freeze WAITING/QUEUED at arm time
+%hold(future)                                # fence launches created after arm time
+%hold(hood=sase-s7)                          # hood selector (component boundary)
+%hold(tribe=nightly)                         # tribe selector (keyword form)
+%hold(pending, future, ttl=90m, scope=host)  # widest form, explicit in the text
+```
+
+`%hold` may appear more than once; every occurrence is unioned. `hood=` and `tribe=` may
+repeat; `ttl=` and `scope=` may each appear at most once per launch unit. Positional
+`pending` and `future` are reserved words; `@<tribe>` is a tribe selector; anything else
+is a name, matched against a candidate's agent name, family, clan, or workflow. There is
+no short alias — `%h` remains `%hide`.
+
+The hold arms when its launch is submitted (both agent and proc units), automatically
+excludes its own kin (its own name, family, and clan), and releases when the arming
+family or proc settles or its TTL expires. `scope` defaults to `project`; `ttl` defaults
+to the configured `agent_hold_default_ttl` and is capped by `agent_hold_max_ttl`. A hold
+never blocks the launch that armed it, and a broken hold store fails open rather than
+stranding a waiter.
+
+`%hold` requires the `agent_holds` beta flag (`sase flag enable agent_holds`). With the
+flag off, any non-bare `%hold` fails to parse with an error naming the flag, and a bare
+`%hold` stays inert prose the same way disabled `%proc` does. `%hold` cannot be combined
+with `%repeat` or `%dispatch`.
+
+**Limitations:** the frozen `pending` snapshot cannot capture an un-dispatched proc —
+only lexical selectors and `future` fence those. A launch preview lists each hold's
+canonical directive, scope, resolved TTL, and live `pending` capture; sase's TUI and
+`sase run` ask for interactive confirmation before arming a hold that combines `future`
+with `scope=host`, or whose `pending` capture would exceed the configured
+`agent_hold_confirm_capture_threshold`. A non-interactive launch proceeds without
+asking, since the arm notification and the launch preview already list the capture.
 
 ### Editor Review Marker (` @`)
 

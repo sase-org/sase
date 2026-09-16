@@ -85,6 +85,11 @@ runner_slots:
 agent_hold_default_ttl: 2h
 agent_hold_max_ttl: 12h
 
+# A launch preview needs interactive confirmation before arming a hold whose
+# frozen `pending` capture would exceed this many agents, or that combines
+# `future` with `scope=host`.
+agent_hold_confirm_capture_threshold: 10
+
 procs:
   # Maximum number of finished procs kept in ~/.sase/procs. Running procs are
   # never pruned.
