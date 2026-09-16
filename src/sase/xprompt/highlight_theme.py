@@ -3,17 +3,32 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import functools
 from types import MappingProxyType
+from typing import Literal
 
 from textual.color import Color
 
 from sase.ansi_style import ansi_sgr
 
-from .highlight import XPromptHighlightRole
+from .highlight import HighlightSpan, XPromptHighlightRole
 
 ACE_THEME_NAME = "flexoki"
+_ARGUMENT_ROLES: frozenset[XPromptHighlightRole] = frozenset(
+    {
+        "xprompt.arg_delimiter",
+        "xprompt.arg_key",
+        "xprompt.arg_assign",
+        "xprompt.arg_value",
+        "xprompt.arg_value_string",
+        "xprompt.arg_value_number",
+        "xprompt.arg_value_bool",
+    }
+)
+_INVALID_ARGUMENT_VALIDITIES = frozenset(
+    {"unknown_key", "type_mismatch", "duplicate_key"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,6 +161,52 @@ def xprompt_argument_palette(
     }
 
 
+def _argument_styles(
+    colors: Mapping[XPromptHighlightRole, str | None],
+) -> dict[XPromptHighlightRole, HighlightStyle]:
+    return {role: HighlightStyle(colors[role]) for role in _ARGUMENT_ROLES}
+
+
+@functools.cache
+def _argument_highlight_theme(
+    source: Literal["xprompt", "directive"],
+) -> Mapping[XPromptHighlightRole, HighlightStyle]:
+    """Return source-specific styles for structured argument roles."""
+    from textual.theme import BUILTIN_THEMES
+
+    theme = BUILTIN_THEMES[ACE_THEME_NAME]
+    foreground = theme.foreground
+    background = theme.background or "#000000"
+    family = theme.warning if source == "directive" else theme.success
+    return MappingProxyType(
+        _argument_styles(
+            xprompt_argument_palette(
+                family,
+                foreground=foreground,
+                background=background,
+                secondary=theme.secondary,
+                accent=theme.accent,
+                primary=theme.primary,
+            )
+        )
+    )
+
+
+def highlight_style_for_span(
+    span: HighlightSpan,
+    *,
+    styles: Mapping[XPromptHighlightRole, HighlightStyle] | None = None,
+) -> HighlightStyle:
+    """Return the Rich/ANSI style for a concrete semantic highlight span."""
+    if span.source == "directive" and span.role in _ARGUMENT_ROLES:
+        style = _argument_highlight_theme("directive")[span.role]
+    else:
+        style = (styles or highlight_theme())[span.role]
+    if span.role in _ARGUMENT_ROLES and span.validity in _INVALID_ARGUMENT_VALIDITIES:
+        return replace(style, underline=True)
+    return style
+
+
 @functools.cache
 def highlight_theme() -> Mapping[XPromptHighlightRole, HighlightStyle]:
     """Return the complete semantic palette derived from ACE's pinned theme."""
@@ -191,17 +252,7 @@ def highlight_theme() -> Mapping[XPromptHighlightRole, HighlightStyle]:
         "xprompt.invocation_arg": HighlightStyle(invocation_arg),
         "xprompt.directive": HighlightStyle(theme.warning, bold=True),
         "xprompt.directive_arg": HighlightStyle(directive_arg),
-        "xprompt.arg_delimiter": HighlightStyle(arg_colors["xprompt.arg_delimiter"]),
-        "xprompt.arg_key": HighlightStyle(arg_colors["xprompt.arg_key"]),
-        "xprompt.arg_assign": HighlightStyle(arg_colors["xprompt.arg_assign"]),
-        "xprompt.arg_value": HighlightStyle(arg_colors["xprompt.arg_value"]),
-        "xprompt.arg_value_string": HighlightStyle(
-            arg_colors["xprompt.arg_value_string"]
-        ),
-        "xprompt.arg_value_number": HighlightStyle(
-            arg_colors["xprompt.arg_value_number"]
-        ),
-        "xprompt.arg_value_bool": HighlightStyle(arg_colors["xprompt.arg_value_bool"]),
+        **_argument_styles(arg_colors),
         "xprompt.separator": HighlightStyle(theme.secondary, bold=True, dim=True),
         "xprompt.skill": HighlightStyle(skill, bold=True),
         "jinja.delimiter": HighlightStyle(theme.accent, dim=True),
@@ -227,6 +278,7 @@ __all__ = [
     "ACE_THEME_NAME",
     "HighlightStyle",
     "derive_argument_color",
+    "highlight_style_for_span",
     "highlight_theme",
     "xprompt_argument_palette",
 ]

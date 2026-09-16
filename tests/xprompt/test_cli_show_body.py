@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from io import StringIO
 
+import pytest
 from rich.console import Console
 
+from sase.xprompt import cli_show_body
 from sase.xprompt.cli_show_body import body_block, highlighted_body
+from sase.xprompt.highlight import HighlightSpan
 from sase.xprompt.highlight_theme import highlight_theme
 
 
@@ -89,6 +92,32 @@ def test_highlighted_body_styles_keyword_argument_roles() -> None:
             and str(span.style) == styles[role].rich_style
             for span in rendered.spans
         ), (needle, role, rendered.spans)
+
+
+def test_highlighted_body_uses_directive_argument_source_family(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = "%queue(capacity=2)"
+    monkeypatch.setattr(
+        cli_show_body,
+        "highlight_spans",
+        lambda *_args, **_kwargs: [
+            HighlightSpan(
+                source.index("capacity"),
+                source.index("capacity") + len("capacity"),
+                "xprompt.arg_key",
+                source="directive",
+            )
+        ],
+    )
+
+    rendered = highlighted_body(source)
+
+    assert any(
+        span.start <= source.index("capacity") < span.end
+        and str(span.style) == "#CDB360"
+        for span in rendered.spans
+    )
 
 
 def test_fenced_body_keeps_source_and_adds_syntax_spans() -> None:

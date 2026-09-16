@@ -12,7 +12,7 @@ from rich.text import Text
 
 from sase.xprompt._fenced_blocks import fenced_block_details
 from sase.xprompt.highlight import HighlightSpan, highlight_spans
-from sase.xprompt.highlight_theme import highlight_theme
+from sase.xprompt.highlight_theme import highlight_style_for_span, highlight_theme
 
 _SYNTAX_THEME = "ansi_dark"
 _FALLBACK_LEXER = "text"
@@ -92,7 +92,7 @@ def highlighted_body(
         if semantic_span.role == "code.fence":
             continue
         rendered.stylize(
-            styles[semantic_span.role].rich_style,
+            highlight_style_for_span(semantic_span, styles=styles).rich_style,
             semantic_span.start,
             semantic_span.end,
         )

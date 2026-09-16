@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import get_args
 
-from sase.xprompt.highlight import XPromptHighlightRole
+from sase.xprompt.highlight import HighlightSpan, XPromptHighlightRole
 from sase.xprompt.highlight_theme import (
     HighlightStyle,
     derive_argument_color,
+    highlight_style_for_span,
     highlight_theme,
 )
 
@@ -84,3 +85,31 @@ def test_derive_argument_color_retains_tui_values() -> None:
         == "#3D4C06"
     )
     assert derive_argument_color(None, foreground="#fff", background="#000") is None
+
+
+def test_directive_argument_style_uses_warning_family() -> None:
+    style = highlight_style_for_span(
+        HighlightSpan(
+            0,
+            3,
+            "xprompt.arg_key",
+            source="directive",
+        )
+    )
+
+    assert style == HighlightStyle("#CDB360")
+    assert style != highlight_theme()["xprompt.arg_key"]
+
+
+def test_invalid_argument_style_preserves_foreground_and_underlines() -> None:
+    style = highlight_style_for_span(
+        HighlightSpan(
+            0,
+            3,
+            "xprompt.arg_key",
+            validity="unknown_key",
+            source="directive",
+        )
+    )
+
+    assert style == HighlightStyle("#CDB360", underline=True)

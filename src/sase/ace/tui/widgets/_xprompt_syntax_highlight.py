@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
 from rich.style import Style
 from textual.widgets._text_area import TextAreaTheme
 
+from sase.xprompt import highlight as xprompt_highlight
 from sase.ace.tui.widgets._jinja_highlight import (
     _JINJA_THEME_NAME,
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from sase.xprompt.highlight import HighlightSpan, highlight_spans
+from sase.xprompt.highlight import (
+    HighlightSpan,
+    XPromptArgumentSource,
+    XPromptHighlightRole,
+    highlight_spans,
+)
 from sase.xprompt.highlight_theme import (
     derive_argument_color,
     xprompt_argument_palette,
@@ -21,6 +28,17 @@ from sase.xprompt.highlight_theme import (
 
 _INVALID_ARGUMENT_VALIDITIES = frozenset(
     {"unknown_key", "type_mismatch", "duplicate_key"}
+)
+_ARGUMENT_ROLES = frozenset(
+    {
+        "xprompt.arg_delimiter",
+        "xprompt.arg_key",
+        "xprompt.arg_assign",
+        "xprompt.arg_value",
+        "xprompt.arg_value_string",
+        "xprompt.arg_value_number",
+        "xprompt.arg_value_bool",
+    }
 )
 
 if TYPE_CHECKING:
@@ -37,6 +55,8 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
     if TYPE_CHECKING:
         _xprompt_highlight_skill_entries: list[XPromptAssistEntry] | None
         _xprompt_highlight_skill_names: frozenset[str]
+        _xprompt_highlight_arg_entries: list[XPromptAssistEntry] | None
+        _xprompt_highlight_arg_entries_wire: list[dict[str, object]] | None
 
         def _append_highlight_span(
             self,
@@ -88,10 +108,16 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                 if has_slash and entries is not None
                 else frozenset()
             )
+            wire_entries = (
+                self._xprompt_arg_assist_entries_wire(entries)
+                if entries is not None
+                else None
+            )
             spans = highlight_spans(
                 text,
                 known_skills=known_skills,
                 xprompt_arg_assist_entries=entries,
+                xprompt_arg_assist_entries_wire=wire_entries,
             )
         except Exception:
             return
@@ -133,6 +159,20 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         self._xprompt_highlight_skill_names = names
         return names
 
+    def _xprompt_arg_assist_entries_wire(
+        self,
+        entries: list[XPromptAssistEntry],
+    ) -> list[dict[str, object]]:
+        """Return cached Rust-binding wire data for an unchanged warm catalog."""
+        if entries is getattr(self, "_xprompt_highlight_arg_entries", None):
+            cached = getattr(self, "_xprompt_highlight_arg_entries_wire", None)
+            if cached is not None:
+                return cached
+        wire = xprompt_highlight.xprompt_arg_assist_entries_to_wire(entries)
+        self._xprompt_highlight_arg_entries = entries
+        self._xprompt_highlight_arg_entries_wire = wire
+        return wire
+
     def _register_xprompt_text_area_theme(
         self,
         theme_name: str | None = None,
@@ -144,8 +184,16 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
         background = app_theme.background or "#000000"
-        argument_colors = xprompt_argument_palette(
+        xprompt_argument_colors = xprompt_argument_palette(
             app_theme.success,
+            foreground=app_theme.foreground,
+            background=background,
+            secondary=app_theme.secondary,
+            accent=app_theme.accent,
+            primary=app_theme.primary,
+        )
+        directive_argument_colors = xprompt_argument_palette(
+            app_theme.warning,
             foreground=app_theme.foreground,
             background=background,
             secondary=app_theme.secondary,
@@ -176,27 +224,6 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                         background=background,
                     )
                 ),
-                "xprompt.arg_delimiter": Style(
-                    color=argument_colors["xprompt.arg_delimiter"],
-                ),
-                "xprompt.arg_key": Style(
-                    color=argument_colors["xprompt.arg_key"],
-                ),
-                "xprompt.arg_assign": Style(
-                    color=argument_colors["xprompt.arg_assign"],
-                ),
-                "xprompt.arg_value": Style(
-                    color=argument_colors["xprompt.arg_value"],
-                ),
-                "xprompt.arg_value_string": Style(
-                    color=argument_colors["xprompt.arg_value_string"],
-                ),
-                "xprompt.arg_value_number": Style(
-                    color=argument_colors["xprompt.arg_value_number"],
-                ),
-                "xprompt.arg_value_bool": Style(
-                    color=argument_colors["xprompt.arg_value_bool"],
-                ),
                 "xprompt.separator": Style(
                     color=app_theme.secondary,
                     dim=True,
@@ -212,8 +239,16 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                 ),
             }
         )
-        for role, color in argument_colors.items():
-            syntax_styles[f"{role}.invalid"] = Style(color=color, underline=True)
+        _update_argument_syntax_styles(
+            syntax_styles,
+            xprompt_argument_colors,
+            source="xprompt",
+        )
+        _update_argument_syntax_styles(
+            syntax_styles,
+            directive_argument_colors,
+            source="directive",
+        )
         theme = dataclasses.replace(
             base,
             name=active_name,
@@ -236,9 +271,28 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
 
 
 def _text_area_style_name(span: HighlightSpan) -> str:
-    if (
-        span.role.startswith("xprompt.arg_")
-        and span.validity in _INVALID_ARGUMENT_VALIDITIES
-    ):
-        return f"{span.role}.invalid"
-    return span.role
+    style_name = _argument_style_name(span.role, span.source)
+    if span.role in _ARGUMENT_ROLES and span.validity in _INVALID_ARGUMENT_VALIDITIES:
+        return f"{style_name}.invalid"
+    return style_name
+
+
+def _argument_style_name(
+    role: XPromptHighlightRole,
+    source: XPromptArgumentSource | None,
+) -> str:
+    if role in _ARGUMENT_ROLES and source == "directive":
+        return f"xprompt.directive.{role.removeprefix('xprompt.')}"
+    return role
+
+
+def _update_argument_syntax_styles(
+    syntax_styles: dict[str, Style],
+    colors: Mapping[XPromptHighlightRole, str | None],
+    *,
+    source: XPromptArgumentSource,
+) -> None:
+    for role, color in colors.items():
+        style_name = _argument_style_name(role, source)
+        syntax_styles[style_name] = Style(color=color)
+        syntax_styles[f"{style_name}.invalid"] = Style(color=color, underline=True)

@@ -159,6 +159,7 @@ def highlight_spans(
     known_skills: frozenset[str] = frozenset(),
     include_artifact_refs: bool = True,
     xprompt_arg_assist_entries: Sequence[object] | None = None,
+    xprompt_arg_assist_entries_wire: Sequence[Mapping[str, object]] | None = None,
 ) -> list[HighlightSpan]:
     """Return a flat, ordered, non-overlapping role partition of *text*."""
     if (
@@ -189,6 +190,7 @@ def highlight_spans(
         _xprompt_argument_highlight_spans(
             text,
             xprompt_arg_assist_entries=xprompt_arg_assist_entries,
+            xprompt_arg_assist_entries_wire=xprompt_arg_assist_entries_wire,
         )
     )
 
@@ -330,18 +332,21 @@ def _xprompt_argument_highlight_spans(
     text: str,
     *,
     xprompt_arg_assist_entries: Sequence[object] | None,
+    xprompt_arg_assist_entries_wire: Sequence[Mapping[str, object]] | None,
 ) -> list[HighlightSpan]:
     binding = _get_xprompt_argument_spans_binding()
     if binding is None:
         return []
 
     try:
-        if xprompt_arg_assist_entries is None:
+        if xprompt_arg_assist_entries_wire is not None:
+            raw_spans = binding(text, xprompt_arg_assist_entries_wire)
+        elif xprompt_arg_assist_entries is None:
             raw_spans = binding(text)
         else:
             raw_spans = binding(
                 text,
-                _xprompt_arg_assist_entries_to_wire(xprompt_arg_assist_entries),
+                xprompt_arg_assist_entries_to_wire(xprompt_arg_assist_entries),
             )
     except Exception:
         return []
@@ -376,7 +381,7 @@ def _xprompt_argument_highlight_spans(
     return spans
 
 
-def _xprompt_arg_assist_entries_to_wire(
+def xprompt_arg_assist_entries_to_wire(
     entries: Sequence[object],
 ) -> list[dict[str, object]]:
     return [_xprompt_arg_assist_entry_to_wire(entry) for entry in entries]
