@@ -5447,8 +5447,38 @@ right end of its own `─── ▍ agent N ───` separator rule. The digit
 color of that pane's own vim-mode cursor -- gold for NORMAL, cyan for INSERT, magenta
 for VISUAL / V-LINE -- so the readout and the cursor it describes always match. On a
 narrow terminal the active-pane readout always wins over the mode hints (which truncate
-first); a parked pane's readout is dropped entirely rather than abbreviated if its
-separator cannot fit both the readout and the `agent N` label.
+first) and the prompt-search match pill; a parked pane's readout is dropped entirely
+rather than abbreviated if its separator cannot fit both the readout and the `agent N`
+label.
+
+### Prompt Search
+
+In prompt NORMAL mode, `/` and `?` open an incremental search panel for forward and
+reverse searches. As you type, matches are highlighted in the active pane and the
+panel's right edge shows the selected stack-global count, such as `2/3`. `Enter` accepts
+the current local match and keeps the highlights; `Esc` or `Ctrl+C` cancels the search,
+restores the origin cursor, and clears the highlights. If a query has matches elsewhere
+in the prompt stack but none in the active pane, the panel says
+`no match in this pane · N in stack`; accepting still does nothing until the active pane
+has a local match.
+
+After a search is accepted, the count moves to a compact two-tone pill on the prompt
+bar's bottom border, just left of the `Ln, Col` readout. The query segment uses the same
+accent family as non-current match highlights, and the count segment uses the same
+warning color as the current-match highlight. The sigil records how the search was made:
+`/` for forward, `?` for reverse, `*` for whole-word forward, and `#` for whole-word
+reverse. Non-whole-word word searches (`g*`, `g#`, and VISUAL `*` / `#`) use `/` or `?`.
+
+`n` and `N` repeat the recorded search across every non-auxiliary prompt pane in stack
+order, with the existing wrap toasts when the traversal crosses the top or bottom. `*`,
+`#`, `g*`, and `g#` search from the word under the cursor; VISUAL `*` and `#` search the
+selected text. The pill's number is always stack-global and follows the highlighted
+match, even if you move the cursor away afterward. It disappears with the highlights:
+`Esc`, entering INSERT, edits, pane switches, and starting a new search all clear it.
+
+On narrow terminals, the bottom border keeps the cursor readout first. The mode hints
+truncate or drop before the search pill; then the pill drops its query segment and keeps
+only the count; if even that cannot fit, only `Ln, Col` remains.
 
 ### INSERT Mode (Default)
 

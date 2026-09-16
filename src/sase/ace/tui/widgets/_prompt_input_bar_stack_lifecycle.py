@@ -103,6 +103,9 @@ class PromptInputBarStackLifecycleMixin(_MixinBase):
         text_area = event.text_area
         if not isinstance(text_area, PromptTextArea):
             text_area = self.active_text_area()
+        readout = getattr(text_area, "_search_readout", None)
+        if readout is not None and text_area.text != readout.pane_text:
+            text_area._clear_prompt_search(clear_highlights=True)
         text_area.show_line_numbers = text_area.document.line_count > 1
         text_area._on_prompt_completion_context_changed()
         self._sync_state_from_widgets()

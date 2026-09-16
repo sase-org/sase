@@ -396,6 +396,9 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
     def _clear_search_highlights(self, *, refresh: bool = True) -> None:
         """Clear the host's search highlights. Default: no-op."""
 
+    def _on_search_readout_changed(self) -> None:
+        """Notify the host that the search readout changed. Default: no-op."""
+
     def _flash_yank(
         self,
         start: tuple[int, int],

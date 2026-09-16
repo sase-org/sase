@@ -8,6 +8,11 @@ from typing import TYPE_CHECKING, Any
 from rich.text import Text
 from textual.widgets import Static
 
+from sase.ace.tui.widgets._prompt_search_readout import (
+    PromptSearchReadout,
+    format_search_count_segment,
+    stack_match_position,
+)
 from sase.ace.tui.widgets._vim_search import (
     PromptSearchQuery,
     SearchDirection,
@@ -32,6 +37,7 @@ class _PromptSearchPaneSnapshot:
 
     stack_index: int
     text_area: PromptTextArea
+    text: str
     spans: tuple[SearchSpan, ...]
 
 
@@ -41,6 +47,8 @@ class _PromptSearchDestination:
 
     pane: _PromptSearchPaneSnapshot
     local_match_index: int
+    ordinal: int
+    total: int
     wrapped: bool
 
 
@@ -54,8 +62,10 @@ class PromptInputBarSearchMixin(_MixinBase):
         _stack: PromptStackState
         _search_command_line_count: int
         _search_command_visible: bool
+        _subtitle_base: str
 
         def _pane_id(self, item: PromptStackItem) -> str: ...
+        def _render_subtitle(self, base: str) -> Text: ...
         def _schedule_height_update(self) -> None: ...
         def _frontmatter_panel(self) -> FrontmatterPanel | None: ...
         def focus_item(self, index: int) -> int: ...
@@ -131,7 +141,19 @@ class PromptInputBarSearchMixin(_MixinBase):
             index=destination.local_match_index,
             wrapped=destination.wrapped,
         )
-        target._apply_prompt_search_result(destination.pane.spans, selection)
+        readout = PromptSearchReadout(
+            query=search_register.query,
+            direction=search_register.direction,
+            whole_word=search_register.whole_word,
+            ordinal=destination.ordinal,
+            total=destination.total,
+            pane_text=destination.pane.text,
+        )
+        target._apply_prompt_search_result(
+            destination.pane.spans,
+            selection,
+            readout=readout,
+        )
         if target is not origin:
             target.scroll_cursor_visible()
             self._schedule_height_update()
@@ -158,12 +180,14 @@ class PromptInputBarSearchMixin(_MixinBase):
                 )
             except Exception:
                 continue
+            text = text_area.text
             panes.append(
                 _PromptSearchPaneSnapshot(
                     stack_index=stack_index,
                     text_area=text_area,
+                    text=text,
                     spans=find_search_matches(
-                        text_area.text,
+                        text,
                         query,
                         whole_word=whole_word,
                         smartcase=smartcase,
@@ -252,8 +276,52 @@ class PromptInputBarSearchMixin(_MixinBase):
         return _PromptSearchDestination(
             pane=pane,
             local_match_index=local_match_index,
+            ordinal=destination_index + 1,
+            total=len(candidates),
             wrapped=wrapped,
         )
+
+    def prompt_search_stack_position(
+        self,
+        origin: PromptTextArea,
+        local_spans: tuple[SearchSpan, ...],
+        local_index: int | None,
+        query: str,
+        *,
+        whole_word: bool,
+        smartcase: bool,
+    ) -> tuple[int | None, int]:
+        """Return the stack-global match position for an active typing preview."""
+        counts: list[int] = []
+        origin_position: int | None = None
+        for item in self._stack.items:
+            if item.is_auxiliary_pane:
+                continue
+            try:
+                text_area = self.query_one(
+                    f"#{self._pane_id(item)}",
+                    PromptTextArea,
+                )
+            except Exception:
+                continue
+            if text_area is origin:
+                origin_position = len(counts)
+                counts.append(len(local_spans))
+                continue
+            counts.append(
+                len(
+                    find_search_matches(
+                        text_area.text,
+                        query,
+                        whole_word=whole_word,
+                        smartcase=smartcase,
+                    )
+                )
+            )
+
+        if origin_position is None:
+            return stack_match_position((len(local_spans),), 0, local_index)
+        return stack_match_position(counts, origin_position, local_index)
 
     @staticmethod
     def _invert_search_direction(direction: SearchDirection) -> SearchDirection:
@@ -310,8 +378,7 @@ class PromptInputBarSearchMixin(_MixinBase):
         *,
         direction: SearchDirection,
         query: str,
-        current_index: int | None,
-        total: int,
+        readout: PromptSearchReadout | None,
     ) -> None:
         """Render and reveal the search command line."""
         try:
@@ -320,13 +387,12 @@ class PromptInputBarSearchMixin(_MixinBase):
             return
 
         panel.border_title = "search"
-        panel.border_subtitle = "[enter] accept  [esc/^c] cancel"
+        panel.border_subtitle = Text("[enter] accept  [esc/^c] cancel", no_wrap=True)
         panel.update(
             self._render_search_command_line(
                 direction=direction,
                 query=query,
-                current_index=current_index,
-                total=total,
+                readout=readout,
             )
         )
         panel.remove_class("hidden")
@@ -335,6 +401,7 @@ class PromptInputBarSearchMixin(_MixinBase):
         old_line_count = self._search_command_line_count
         self._search_command_visible = True
         self._search_command_line_count = 4
+        self.refresh_search_readout()
         if not was_visible or old_line_count != self._search_command_line_count:
             self._schedule_height_update()
 
@@ -353,6 +420,7 @@ class PromptInputBarSearchMixin(_MixinBase):
         panel.add_class("hidden")
         self._search_command_visible = False
         self._search_command_line_count = 0
+        self.refresh_search_readout()
         self._schedule_height_update()
 
     def _render_search_command_line(
@@ -360,14 +428,50 @@ class PromptInputBarSearchMixin(_MixinBase):
         *,
         direction: SearchDirection,
         query: str,
-        current_index: int | None,
-        total: int,
+        readout: PromptSearchReadout | None,
     ) -> Text:
         width = max(0, int(getattr(self.size, "width", 0)) - 4)
+        current_index = (
+            readout.ordinal - 1
+            if readout is not None and readout.ordinal is not None
+            else None
+        )
+        total = readout.total if readout is not None else 0
         return render_search_command_line(
             direction=direction,
             query=query,
             current_index=current_index,
             total=total,
             width=width,
+            status=self._search_command_status(query, readout),
         )
+
+    def _search_command_status(
+        self,
+        query: str,
+        readout: PromptSearchReadout | None,
+    ) -> Text | None:
+        if not query or readout is None:
+            return None
+        theme = self.app.current_theme
+        if readout.ordinal is not None and readout.total > 0:
+            return format_search_count_segment(
+                readout.ordinal,
+                readout.total,
+                theme=theme,
+            )
+        if readout.total > 0:
+            warning = getattr(theme, "warning", "#FFA62B") or "#FFA62B"
+            warning_text = getattr(warning, "hex", str(warning))
+            return Text(
+                f"no match in this pane · {readout.total} in stack",
+                style=f"dim {warning_text}",
+                no_wrap=True,
+            )
+        return Text("pattern not found", style="dim #FF5F5F", no_wrap=True)
+
+    def refresh_search_readout(self) -> None:
+        """Refresh the prompt bar subtitle after search readout state changes."""
+        render = getattr(self, "_render_subtitle", None)
+        if callable(render):
+            self.border_subtitle = render(self._subtitle_base)

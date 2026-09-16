@@ -66,6 +66,15 @@ class PromptTextAreaBarMixin(_MixinBase):
         if callable(handler):
             handler(self, before_text, after_text)
 
+    def _on_search_readout_changed(self) -> None:
+        """Tell the parent bar to repaint the search readout in its subtitle."""
+        bar = self._find_prompt_bar()
+        if bar is None:
+            return
+        refresh = getattr(bar, "refresh_search_readout", None)
+        if callable(refresh):
+            refresh()
+
     def _update_vim_mode_display(self, indicator: str = "") -> None:
         """Route the vim mode + pending indicator to the parent ``PromptInputBar``.
 

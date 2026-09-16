@@ -14,6 +14,7 @@ from sase.ace.tui.widgets._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
+from sase.ace.tui.widgets._prompt_search_readout import PromptSearchReadout
 from sase.ace.tui.widgets._vim_search import (
     SearchDirection,
     SearchSelection,
@@ -34,6 +35,7 @@ class SearchHighlightMixin(_MixinBase):
     if TYPE_CHECKING:
         _search_match_spans: tuple[SearchSpan, ...]
         _search_current_match_index: int | None
+        _search_readout: PromptSearchReadout | None
 
         def _append_highlight_span(
             self,
@@ -41,10 +43,12 @@ class SearchHighlightMixin(_MixinBase):
             end: int,
             style_name: str,
         ) -> None: ...
+        def _on_search_readout_changed(self) -> None: ...
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._search_match_spans: tuple[SearchSpan, ...] = ()
         self._search_current_match_index: int | None = None
+        self._search_readout: PromptSearchReadout | None = None
         super().__init__(*args, **kwargs)
 
     def on_mount(self) -> None:
@@ -59,6 +63,8 @@ class SearchHighlightMixin(_MixinBase):
         if callable(super_changed):
             super_changed()
         self._register_search_text_area_theme()
+        if self._search_readout is not None:
+            self._notify_search_readout_changed()
 
     def _register_jinja_text_area_theme(self) -> None:
         register_jinja = getattr(super(), "_register_jinja_text_area_theme", None)
@@ -88,8 +94,10 @@ class SearchHighlightMixin(_MixinBase):
         current_index: int | None = None,
         *,
         refresh: bool = True,
+        readout: PromptSearchReadout | None = None,
     ) -> None:
         """Store prompt search spans and optionally refresh the overlay."""
+        previous_readout = self._search_readout
         clean_spans: list[SearchSpan] = []
         for raw_start, raw_end in spans:
             start = max(0, raw_start)
@@ -103,8 +111,11 @@ class SearchHighlightMixin(_MixinBase):
         else:
             self._search_current_match_index = None
 
+        self._search_readout = readout
         if refresh:
             self._refresh_search_overlay()
+        if self._search_readout != previous_readout:
+            self._notify_search_readout_changed()
 
     def _preview_search_query_highlights(
         self,
@@ -130,14 +141,23 @@ class SearchHighlightMixin(_MixinBase):
 
     def _clear_search_highlights(self, *, refresh: bool = True) -> None:
         """Clear prompt search spans and optionally refresh the overlay."""
+        previous_readout = self._search_readout
         self._search_match_spans = ()
         self._search_current_match_index = None
+        self._search_readout = None
         if refresh:
             self._refresh_search_overlay()
+        if previous_readout is not None:
+            self._notify_search_readout_changed()
 
     def _refresh_search_overlay(self) -> None:
         self._build_highlight_map()
         self.refresh()
+
+    def _notify_search_readout_changed(self) -> None:
+        changed = getattr(self, "_on_search_readout_changed", None)
+        if callable(changed):
+            changed()
 
     def _register_search_text_area_theme(
         self,

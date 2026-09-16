@@ -6,6 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
 
+from sase.ace.tui.widgets._prompt_search_readout import (
+    PromptSearchReadout,
+    stack_match_position,
+)
 from sase.ace.tui.widgets._vim_motions import find_search_word
 from sase.ace.tui.widgets._vim_search import (
     SearchDirection,
@@ -64,6 +68,7 @@ class PromptSearchMixin(_MixinBase):
             current_index: int | None = None,
             *,
             refresh: bool = True,
+            readout: PromptSearchReadout | None = None,
         ) -> None: ...
         def _update_count_display(self) -> None: ...
         def _enter_normal_mode(self) -> None: ...
@@ -154,7 +159,8 @@ class PromptSearchMixin(_MixinBase):
             self._render_prompt_search_command_line()
             return
 
-        spans = find_search_matches(self.text, query)
+        text = self.text
+        spans = find_search_matches(text, query)
         selection = select_search_match(
             spans,
             self._search_origin_offset,
@@ -162,11 +168,17 @@ class PromptSearchMixin(_MixinBase):
             include_origin=True,
         )
         self._search_current_selection = selection
+        readout = self._build_prompt_search_readout(
+            query,
+            text,
+            spans,
+            selection.index if selection is not None else None,
+        )
         if selection is None:
             self.cursor_location = self._search_origin_cursor
-            self._set_search_highlights(spans)
+            self._set_search_highlights(spans, readout=readout)
         else:
-            self._apply_prompt_search_result(spans, selection)
+            self._apply_prompt_search_result(spans, selection, readout=readout)
 
         self._render_prompt_search_command_line()
 
@@ -282,12 +294,10 @@ class PromptSearchMixin(_MixinBase):
         show = getattr(bar, "show_search_command_line", None)
         if not callable(show):
             return
-        selection = self._search_current_selection
         show(
             direction=self._search_direction,
             query=self._search_query,
-            current_index=selection.index if selection is not None else None,
-            total=len(getattr(self, "_search_match_spans", ())),
+            readout=getattr(self, "_search_readout", None),
         )
 
     def _hide_prompt_search_command_line(self) -> None:
@@ -344,6 +354,8 @@ class PromptSearchMixin(_MixinBase):
         self,
         spans: tuple[SearchSpan, ...],
         selection: SearchSelection,
+        *,
+        readout: PromptSearchReadout | None = None,
     ) -> None:
         """Move to and highlight a resolved search result in this pane."""
         self._search_current_selection = selection
@@ -352,6 +364,40 @@ class PromptSearchMixin(_MixinBase):
         self._set_search_highlights(
             spans,
             current_index=selection.index,
+            readout=readout,
+        )
+
+    def _build_prompt_search_readout(
+        self,
+        query: str,
+        text: str,
+        spans: tuple[SearchSpan, ...],
+        local_index: int | None,
+    ) -> PromptSearchReadout:
+        bar = self._find_prompt_bar()
+        position = (
+            getattr(bar, "prompt_search_stack_position", None)
+            if bar is not None
+            else None
+        )
+        if callable(position):
+            ordinal, total = position(
+                self,
+                spans,
+                local_index,
+                query,
+                whole_word=False,
+                smartcase=True,
+            )
+        else:
+            ordinal, total = stack_match_position((len(spans),), 0, local_index)
+        return PromptSearchReadout(
+            query=query,
+            direction=self._search_direction,
+            whole_word=False,
+            ordinal=ordinal,
+            total=total,
+            pane_text=text,
         )
 
     def _clear_prompt_search_result(self) -> None:

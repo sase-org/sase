@@ -15,6 +15,7 @@ def render_search_command_line(
     current_index: int | None,
     total: int,
     width: int,
+    status: Text | None = None,
 ) -> Text:
     """Render a Vim-style ``/`` or ``?`` search status line."""
     sigil = "/" if direction == "forward" else "?"
@@ -25,7 +26,9 @@ def render_search_command_line(
 
     right = Text(no_wrap=True, overflow="crop")
     if query:
-        if total > 0 and current_index is not None:
+        if status is not None:
+            right.append_text(status)
+        elif total > 0 and current_index is not None:
             right.append(f"[{current_index + 1}/{total}]", style="bold #FFD700")
         else:
             right.append("pattern not found", style="dim #FF5F5F")

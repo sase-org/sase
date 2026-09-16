@@ -224,6 +224,54 @@ async def test_prompt_search_highlight_png_snapshot(
         )
 
 
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "prompt_search_count_pill_dark_120x40",
+            "ACE prompt input - committed search count pill, dark theme",
+        ),
+        (
+            "textual-light",
+            "prompt_search_count_pill_light_120x40",
+            "ACE prompt input - committed search count pill, light theme",
+        ),
+    ],
+)
+async def test_prompt_search_count_pill_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, SEARCH_PROMPT)
+
+        await page.press("escape", "slash", "a", "l", "p", "h", "a", "enter", "n")
+        text_area = bar.active_text_area()
+        await wait_for_state(
+            page,
+            lambda: (
+                not text_area._search_active
+                and text_area._search_readout is not None
+                and text_area._search_readout.ordinal == 2
+            ),
+            description="committed alpha prompt search count pill",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
+
+
 async def test_prompt_placeholder_raw_only_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

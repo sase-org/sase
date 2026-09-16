@@ -19,6 +19,7 @@ from sase.ace.tui.widgets._prompt_cursor_readout import (
     cursor_readout_position,
     format_cursor_readout,
 )
+from sase.ace.tui.widgets._prompt_search_readout import format_search_readout
 from sase.ace.tui.widgets._prompt_input_bar_completion_panel_content import (
     build_completion_panel_content,
 )
@@ -97,6 +98,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
         _completion_panel_kind: str | None
         _completion_visible: bool
         _mode_subtitle: str
+        _search_command_visible: bool
         _soft_completion_visible: bool
         _subtitle_base: str
 
@@ -305,12 +307,14 @@ class PromptInputBarCompletionMixin(_MixinBase):
         self.border_subtitle = self._render_subtitle(self._mode_subtitle)
 
     def _render_subtitle(self, base: str) -> Text:
-        """Compose *base* with the active pane's cursor readout, width-aware.
+        """Compose *base*, search pill, and cursor readout, width-aware.
 
-        The readout wins over *base*: when both cannot fit the bar's usable
-        border-label width, ``base`` is truncated (with an ellipsis) first,
-        since every hint it carries is also reachable from the ``?`` help
-        modal and the ``g``-prefix hint panel; the readout has no other home.
+        The readout wins over both prompt hints and the search pill: when all
+        three cannot fit the bar's usable border-label width, ``base`` is
+        truncated first, then dropped, then the pill degrades to count-only,
+        and finally the subtitle falls back to the readout alone. Every hint in
+        ``base`` is reachable from the ``?`` help modal and ``g``-prefix hint
+        panel; the readout has no other home.
         Builds a ``rich.text.Text`` rather than a markup string so literal
         ``[`` characters in *base* (e.g. ``"[Enter] send"``) are never parsed
         as markup.
@@ -324,6 +328,53 @@ class PromptInputBarCompletionMixin(_MixinBase):
         readout_width = cursor_readout_cell_width(line, column)
         divider_width = cell_len(_CURSOR_READOUT_DIVIDER)
         usable = max(0, self.size.width - _SUBTITLE_BORDER_RESERVED_CELLS)
+        search_pill = self._search_readout_pill(text_area)
+
+        if search_pill is not None:
+            pill_width = cell_len(search_pill.plain)
+            full_width = (
+                cell_len(base)
+                + divider_width
+                + pill_width
+                + divider_width
+                + readout_width
+            )
+            if full_width <= usable:
+                result = Text(base, no_wrap=True)
+                result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+                result.append_text(search_pill)
+                result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+                result.append_text(readout)
+                return result
+
+            remaining = usable - pill_width - readout_width - (2 * divider_width)
+            if remaining > 0:
+                base_text = Text(base, no_wrap=True, overflow="ellipsis")
+                base_text.truncate(remaining, overflow="ellipsis")
+                result = Text(no_wrap=True)
+                result.append_text(base_text)
+                result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+                result.append_text(search_pill)
+                result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+                result.append_text(readout)
+                return result
+
+            if pill_width + divider_width + readout_width <= usable:
+                result = Text(no_wrap=True)
+                result.append_text(search_pill)
+                result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+                result.append_text(readout)
+                return result
+
+            count_pill = self._search_readout_pill(text_area, include_query=False)
+            if count_pill is not None:
+                count_width = cell_len(count_pill.plain)
+                if count_width + divider_width + readout_width <= usable:
+                    result = Text(no_wrap=True)
+                    result.append_text(count_pill)
+                    result.append(_CURSOR_READOUT_DIVIDER, style="dim")
+                    result.append_text(readout)
+                    return result
 
         if cell_len(base) + divider_width + readout_width <= usable:
             result = Text(base, no_wrap=True)
@@ -345,6 +396,21 @@ class PromptInputBarCompletionMixin(_MixinBase):
         result.append_text(readout)
         result.truncate(usable, overflow="ellipsis")
         return result
+
+    def _search_readout_pill(
+        self,
+        text_area: PromptTextArea,
+        *,
+        include_query: bool = True,
+    ) -> Text | None:
+        readout = getattr(text_area, "_search_readout", None)
+        if readout is None or readout.ordinal is None or self._search_command_visible:
+            return None
+        return format_search_readout(
+            readout,
+            theme=self.app.current_theme,
+            include_query=include_query,
+        )
 
     def show_xprompt_arg_hint(self, hint: ActiveXPromptArgHint) -> None:
         """Show the post-accept xprompt argument hint panel."""

@@ -66,7 +66,8 @@ async def test_forward_search_previews_confirms_and_records_search_register() ->
         assert text_area.cursor_location == (0, 11)
         assert not panel.has_class("hidden")
         assert "/alpha" in panel.render().plain
-        assert "[2/2]" in panel.render().plain
+        assert "2/2" in panel.render().plain
+        assert "[2/2]" not in panel.render().plain
         assert text_area._search_match_spans == ((0, 5), (11, 16))
         assert app.edit_query_count == 0
 
@@ -97,7 +98,8 @@ async def test_reverse_search_previews_previous_match_without_opening_help() -> 
         panel = _search_panel(bar)
         assert text_area.cursor_location == (0, 0)
         assert "?alpha" in panel.render().plain
-        assert "[1/2]" in panel.render().plain
+        assert "1/2" in panel.render().plain
+        assert "[1/2]" not in panel.render().plain
         assert app.show_help_count == 0
 
 
@@ -114,11 +116,13 @@ async def test_search_updates_counter_as_query_grows_and_shrinks() -> None:
         await pilot.press("slash", "a", "l", "p")
         await pilot.pause()
         panel = _search_panel(bar)
-        assert "[1/2]" in panel.render().plain
+        assert "1/2" in panel.render().plain
+        assert "[1/2]" not in panel.render().plain
 
         await pilot.press("backspace")
         await pilot.pause()
-        assert "[1/3]" in panel.render().plain
+        assert "1/3" in panel.render().plain
+        assert "[1/3]" not in panel.render().plain
 
         await pilot.press("z")
         await pilot.pause()
