@@ -19,7 +19,7 @@ from sase.axe.cli import (
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.chop_runner import ChopRunOutcome
 from sase.config.core import ConfigLayer
-from sase.feature_flags import FeatureFlag, current_flags, override_flags
+from sase.feature_flags import FeatureFlag, override_flags
 
 ALL_12_CHOP_NAMES = sorted(
     [
@@ -271,24 +271,50 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
     monkeypatch.setattr("sase.axe.config.load_config_layers", lambda: layers)
     monkeypatch.setenv("SASE_AGENT_NAME", "ambient-parent")
 
-    with override_flags(axe_routine_job_contract=True):
-        assert current_flags().enabled(FeatureFlag.axe_routine_job_contract)
-        with pytest.raises(SystemExit) as exc_info:
-            handle_axe_chop_list(
-                argparse.Namespace(
-                    axe_subcommand="job",
-                    json=True,
-                    available=False,
-                    verbose=False,
+    def capture_job_list_payload(
+        *,
+        axe_subcommand: str = "job",
+        enabled: bool,
+    ) -> dict[str, object]:
+        with override_flags(axe_routine_job_contract=enabled) as flags:
+            decision = flags.decision(FeatureFlag.axe_routine_job_contract)
+            assert decision.enabled is enabled
+            assert decision.source == "override"
+            with pytest.raises(SystemExit) as exc_info:
+                handle_axe_chop_list(
+                    argparse.Namespace(
+                        axe_subcommand=axe_subcommand,
+                        json=True,
+                        available=False,
+                        verbose=False,
+                    )
                 )
-            )
-        assert exc_info.value.code == 0
-        list_payload = json.loads(capsys.readouterr().out)
+            assert exc_info.value.code == 0
+            return json.loads(capsys.readouterr().out)
+
+    list_payload = capture_job_list_payload(enabled=True)
+    disabled_job_payload = capture_job_list_payload(enabled=False)
+    hidden_chop_payload = capture_job_list_payload(
+        axe_subcommand="chop",
+        enabled=True,
+    )
 
     assert list_payload["schema_version"] == 2
+    assert "jobs" in list_payload
+    assert "chops" not in list_payload
+    assert disabled_job_payload["schema_version"] == 1
+    assert "chops" in disabled_job_payload
+    assert "jobs" not in disabled_job_payload
+    assert hidden_chop_payload["schema_version"] == 1
+    assert "chops" in hidden_chop_payload
+    assert "jobs" not in hidden_chop_payload
     configured = {
         (item["routine"], item["name"]): item
         for item in list_payload["jobs"]["configured"]
+    }
+    disabled_configured = {
+        (item["lumberjack"], item["name"]): item
+        for item in disabled_job_payload["chops"]["configured"]
     }
     expanded = configured[("chop-watch", "exact.dotted[sase]")]
     assert expanded["parent_name"] == "exact.dotted"
@@ -297,8 +323,18 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
         "sase_chop_legacy_only"
     )
     assert configured[("legacy-list", "list.job")]["script"] == "fixture_success"
+    assert (
+        disabled_configured[("chop-watch", "exact.dotted[sase]")]["parent_name"]
+        == "exact.dotted"
+    )
+    assert disabled_configured[("chop-watch", "legacy.entry")]["script"] == (
+        "sase_chop_legacy_only"
+    )
 
-    with override_flags(axe_routine_job_contract=True):
+    with override_flags(axe_routine_job_contract=True) as flags:
+        decision = flags.decision(FeatureFlag.axe_routine_job_contract)
+        assert decision.enabled is True
+        assert decision.source == "override"
         with pytest.raises(SystemExit) as exc_info:
             handle_axe_chop_doctor(
                 argparse.Namespace(
@@ -310,9 +346,33 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
         assert exc_info.value.code == 0
         doctor_payload = json.loads(capsys.readouterr().out)
     assert doctor_payload["schema_version"] == 2
+    assert "jobs" in doctor_payload
+    assert "chops" not in doctor_payload
+
+    with override_flags(axe_routine_job_contract=False) as flags:
+        decision = flags.decision(FeatureFlag.axe_routine_job_contract)
+        assert decision.enabled is False
+        assert decision.source == "override"
+        with pytest.raises(SystemExit) as exc_info:
+            handle_axe_chop_doctor(
+                argparse.Namespace(
+                    axe_subcommand="job",
+                    json=True,
+                    verbose=False,
+                )
+            )
+        assert exc_info.value.code == 0
+        disabled_doctor_payload = json.loads(capsys.readouterr().out)
+    assert disabled_doctor_payload["schema_version"] == 1
+    assert "chops" in disabled_doctor_payload
+    assert "jobs" not in disabled_doctor_payload
     assert any(
         check["id"] == "configured_job_scripts" and check["status"] == "OK"
         for check in doctor_payload["checks"]
+    )
+    assert any(
+        check["id"] == "configured_chop_scripts" and check["status"] == "OK"
+        for check in disabled_doctor_payload["checks"]
     )
 
     with pytest.raises(SystemExit) as exc_info:

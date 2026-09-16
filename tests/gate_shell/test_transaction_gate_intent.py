@@ -163,6 +163,7 @@ def _set_agent_env(
     artifacts_dir.mkdir()
     monkeypatch.setenv("SASE_AGENT", "1")
     monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    monkeypatch.delenv(SASE_FINALIZER_OWNED_TURN_ENV, raising=False)
     return artifacts_dir
 
 

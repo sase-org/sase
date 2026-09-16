@@ -58,7 +58,7 @@ agent family that publishes the questions, outlives you, and hands the answer to
 next family member. A successful handoff prints nothing and never returns control to
 you; the process is killed before it would return. **If the tool call ever returns any
 result at all — output, an error, or a normal exit — your turn has NOT ended.** Read it
-and report it instead of assuming the handoff already happened. Otherwise, your turn
+and report it instead of assuming the handoff already happened. Otherwise: Your turn
 ends as `DONE`; there is nothing after this for you to do. The family's status shows
 `QUESTION` until it is answered, then `ANSWERED`. Answering it launches a follow-up
 agent whose prompt carries the merged Q&A across every round asked so far, continuously
