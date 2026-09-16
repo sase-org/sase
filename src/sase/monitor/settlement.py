@@ -106,6 +106,8 @@ def settle_claim_and_followup(
     blocked_reason = None
     if monitor_state not in ("stopped", "lost"):
         blocked_reason = _continuation_dispatch_blocked_reason(meta)
+        if blocked_reason and _repair_missing_starter_parent(artifacts_dir, meta):
+            blocked_reason = _continuation_dispatch_blocked_reason(meta)
     if blocked_reason:
         meta[_MONITOR_SETTLEMENT_CONFIG.outcome_field] = "not-launchable"
         meta[_MONITOR_SETTLEMENT_CONFIG.error_field] = blocked_reason
@@ -206,6 +208,17 @@ def _continuation_dispatch_blocked_reason(meta: dict[str, Any]) -> str | None:
     from sase.continuation_capture import continuation_dispatch_blocked_reason
 
     return continuation_dispatch_blocked_reason(meta)
+
+
+def _repair_missing_starter_parent(artifacts_dir: str, meta: dict[str, Any]) -> bool:
+    """Give a missing-starter-parent disposition one more chance to clear.
+
+    The starter may settle in the gap between result-capture publish (which
+    already waited, bounded, for it once) and this settlement call.
+    """
+    from sase.continuation_capture import repair_missing_starter_parent_disposition
+
+    return repair_missing_starter_parent_disposition(artifacts_dir, meta)
 
 
 def _coerce_monitor_followup_result(

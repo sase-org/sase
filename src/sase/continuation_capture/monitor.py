@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 import os
 from pathlib import Path
 import socket
@@ -42,6 +42,7 @@ from ._storage import (
     wire_reference,
     wire_reference_or_none,
     record_capture_error,
+    write_json_atomic,
 )
 from ._validation import (
     validate_continuation_intent_capture,
@@ -395,6 +396,12 @@ def persist_monitor_result(
 
     node_id = _monitor_result_node_id(result)
     parent_ids = _hydrate_parent_node_ids(meta, exclude=node_id)
+    if not parent_ids and _missing_essential_starter_parent(meta, parent_ids):
+        starter_dir = optional_str(meta.get("monitor_starter_artifacts_dir"))
+        if starter_dir and _wait_for_starter_settle(starter_dir):
+            parent_ids = _hydrate_parent_node_ids(
+                meta, exclude=node_id, starter_artifacts_dir=starter_dir
+            )
     node: ContinuationNodeWire = {
         "schema_version": CONTINUATION_WIRE_SCHEMA_VERSION,
         "node_id": node_id,
@@ -561,6 +568,26 @@ def _parent_node_ids_from_meta(
     ]
 
 
+def _wait_for_starter_settle(starter_artifacts_dir: str) -> bool:
+    """Wait, bounded, for a named starter to reach its terminal marker.
+
+    Imported lazily: :mod:`sase.shells.followup` pulls in :mod:`sase.agent`
+    and :mod:`sase.xprompt`, which import back from this package, so a
+    top-level import here would be circular.
+    """
+    from sase.shells.followup import (
+        DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
+        STARTER_SETTLE_POLL_SECONDS,
+        wait_for_starter_artifacts_dir,
+    )
+
+    return wait_for_starter_artifacts_dir(
+        starter_artifacts_dir,
+        timeout_seconds=DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS,
+        poll_seconds=STARTER_SETTLE_POLL_SECONDS,
+    )
+
+
 def _hydrate_parent_node_ids(
     meta: Mapping[str, Any],
     *,
@@ -579,6 +606,12 @@ def _hydrate_parent_node_ids(
     return _parent_node_ids_from_meta(starter_meta, exclude=exclude)
 
 
+_MISSING_STARTER_PARENT_ERROR = (
+    "monitor result is missing its exact starter parent node; "
+    "automatic dispatch is blocked pending recovery"
+)
+
+
 def _missing_essential_starter_parent(
     meta: Mapping[str, Any],
     parent_ids: Sequence[str],
@@ -595,10 +628,72 @@ def _missing_essential_starter_parent(
         return None
     if parent_ids:
         return None
-    return (
-        "monitor result is missing its exact starter parent node; "
-        "automatic dispatch is blocked pending recovery"
+    return _MISSING_STARTER_PARENT_ERROR
+
+
+def repair_missing_starter_parent_disposition(
+    artifacts_dir: str | os.PathLike[str],
+    meta: MutableMapping[str, Any],
+) -> bool:
+    """Re-hydrate a published monitor result's starter parent, once more.
+
+    Settlement calls this immediately before it would short-circuit a
+    monitor follow-up as ``not-launchable`` because the result-capture
+    publish path stamped ``needs_recovery`` for a missing starter parent: the
+    starter may have settled in the gap between capture and settlement, after
+    the capture path's own bounded wait already expired. When recovery data
+    now exists, this backfills the already-written node record and result
+    manifest on disk (not just ``meta``) so they stop contradicting each
+    other, and clears the disposition. Returns whether it did so.
+    """
+    if (
+        meta.get("continuation_capture_disposition")
+        != CAPTURE_DISPOSITION_NEEDS_RECOVERY
+    ):
+        return False
+    if meta.get("continuation_capture_error") != _MISSING_STARTER_PARENT_ERROR:
+        return False
+    node_id = optional_str(meta.get("continuation_monitor_result_node_id"))
+    if not node_id:
+        return False
+    parent_ids = _hydrate_parent_node_ids(meta, exclude=node_id)
+    if not parent_ids:
+        return False
+
+    root = continuation_root(artifacts_dir)
+    node_path = root / "nodes" / f"{node_id}.json"
+    node_payload = read_json_object(node_path)
+    if not node_payload:
+        return False
+    node_payload["parent_ids"] = list(parent_ids)
+    node_sha = write_json_atomic(node_path, node_payload)
+
+    manifest_path = root / "monitor_result_manifest.json"
+    manifest_payload = read_json_object(manifest_path)
+    if manifest_payload:
+        manifest_payload["parent_node_ids"] = list(parent_ids)
+        manifest_payload["node_sha256"] = node_sha
+        write_json_atomic(manifest_path, manifest_payload)
+
+    fields: dict[str, Any] = {
+        "continuation_capture_disposition": CAPTURE_DISPOSITION_OK,
+        "continuation_parent_node_ids": list(parent_ids),
+    }
+    starter_dir = optional_str(meta.get("monitor_starter_artifacts_dir"))
+    try:
+        parent_portable = _collect_parent_portable_refs(
+            artifacts_dir, parent_ids, starter_dir
+        )
+    except RequiredPortableCaptureError:
+        parent_portable = {}
+    if parent_portable:
+        fields["continuation_parent_portable_refs"] = parent_portable
+    meta.update(fields)
+    meta.pop("continuation_capture_error", None)
+    update_agent_meta_fields(
+        artifacts_dir, fields, remove_keys=("continuation_capture_error",)
     )
+    return True
 
 
 def _owner_from_monitor_meta(
@@ -689,4 +784,5 @@ __all__ = [
     "persist_monitor_result_best_effort",
     "persist_monitor_start_intent",
     "persist_monitor_start_intent_best_effort",
+    "repair_missing_starter_parent_disposition",
 ]

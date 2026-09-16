@@ -487,6 +487,20 @@ def starter_identity(
     )
 
 
+def wait_for_starter_artifacts_dir(
+    starter_artifacts_dir: str,
+    *,
+    timeout_seconds: float,
+    poll_seconds: float = STARTER_SETTLE_POLL_SECONDS,
+) -> bool:
+    """Poll a known starter artifacts directory for its terminal marker."""
+    done_path = Path(starter_artifacts_dir) / "done.json"
+    deadline = time.monotonic() + timeout_seconds
+    while not done_path.exists() and time.monotonic() < deadline:
+        time.sleep(poll_seconds)
+    return done_path.exists()
+
+
 def wait_for_starter(
     project_name: str,
     parent_timestamp: object,
@@ -498,11 +512,9 @@ def wait_for_starter(
     starter_dir = _starter_artifacts_dir(project_name, parent_timestamp)
     if starter_dir is None:
         return False
-    done_path = Path(starter_dir) / "done.json"
-    deadline = time.monotonic() + timeout_seconds
-    while not done_path.exists() and time.monotonic() < deadline:
-        time.sleep(poll_seconds)
-    return done_path.exists()
+    return wait_for_starter_artifacts_dir(
+        starter_dir, timeout_seconds=timeout_seconds, poll_seconds=poll_seconds
+    )
 
 
 def wait_for_followup_started(
@@ -612,4 +624,5 @@ __all__ = [
     "vcs_ref_from_meta",
     "wait_for_followup_started",
     "wait_for_starter",
+    "wait_for_starter_artifacts_dir",
 ]

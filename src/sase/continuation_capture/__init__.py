@@ -51,6 +51,7 @@ from .monitor import (
     persist_monitor_result_best_effort,
     persist_monitor_start_intent,
     persist_monitor_start_intent_best_effort,
+    repair_missing_starter_parent_disposition,
 )
 from .policy import (
     load_frozen_outcome_policy,
@@ -109,5 +110,6 @@ __all__ = [
     "record_capture_error",
     "record_prepared_prompt_capture",
     "record_prepared_prompt_capture_best_effort",
+    "repair_missing_starter_parent_disposition",
     "xprompt_trace_segments",
 ]

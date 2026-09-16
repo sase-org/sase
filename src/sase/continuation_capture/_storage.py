@@ -528,10 +528,12 @@ def read_json_object(path: Path) -> dict[str, Any]:
 def update_agent_meta_fields(
     artifacts_dir: str | os.PathLike[str],
     fields: Mapping[str, Any],
+    *,
+    remove_keys: Sequence[str] = (),
 ) -> None:
     try:
         from sase.axe.run_agent_helpers import update_meta_fields
 
-        update_meta_fields(str(artifacts_dir), dict(fields))
+        update_meta_fields(str(artifacts_dir), dict(fields), remove_keys=remove_keys)
     except Exception:
         pass
