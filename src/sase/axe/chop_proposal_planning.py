@@ -31,6 +31,8 @@ def prepare_chop_proposals(
     """Normalize and validate all proposals in result order."""
     prepared: list[PreparedChopProposal] = []
     prior_ids: list[str] = []
+    tribe_layers: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None = None
+    stored_tribes: tuple[str, ...] | None = None
     raw_proposals = result.get("proposed_launches", [])
     if not isinstance(raw_proposals, list):
         raise ValueError("proposed_launches must be a list")
@@ -57,6 +59,18 @@ def prepare_chop_proposals(
                 run_token=run_id,
             )
         )
+        raw_tribe = str(normalized.get("tribe") or "chop")
+        if raw_tribe == "job" and (tribe_layers is None or stored_tribes is None):
+            from sase.ace.agent_tribes import load_agent_tribes
+            from sase.config.inventory import discover_layer_inputs
+
+            tribe_layers = discover_layer_inputs()
+            stored_tribes = tuple(load_agent_tribes().values())
+        tribe = _resolve_proposal_tribe(
+            raw_tribe,
+            layers=tribe_layers or (),
+            stored_tribes=stored_tribes or (),
+        )
         prepared.append(
             PreparedChopProposal(
                 index=index,
@@ -71,7 +85,7 @@ def prepare_chop_proposals(
                     if normalized.get("clan_summary") is not None
                     else None
                 ),
-                tribe=str(normalized.get("tribe") or "chop"),
+                tribe=tribe,
                 model=str(normalized["model"]) if normalized.get("model") else None,
                 effort=str(normalized["effort"]) if normalized.get("effort") else None,
                 env={str(k): str(v) for k, v in dict(normalized["env"]).items()},
@@ -107,6 +121,27 @@ def prepare_chop_proposals(
         )
         for proposal in prepared
     ]
+
+
+def _resolve_proposal_tribe(
+    tribe: str,
+    *,
+    layers: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+    stored_tribes: tuple[str, ...],
+) -> str:
+    from sase.core.agent_tribe import (
+        InvalidTribeError,
+        canonicalize_public_tribe_name,
+    )
+
+    try:
+        return canonicalize_public_tribe_name(
+            tribe,
+            layers=layers,
+            stored_tribes=stored_tribes,
+        )
+    except InvalidTribeError as exc:
+        raise ValueError(f"invalid proposal tribe {tribe!r}: {exc}") from exc
 
 
 def _clan_token_candidates(clan_is_template: bool) -> Iterable[str | None]:

@@ -69,10 +69,11 @@ def scaffolded_prompt(
     if resolved_clan is not None:
         resolved_member = member_id or proposal.agent_name
         if declares_clan:
-            declaration = f"%clan({resolved_clan}, tribe=chop)"
+            declaration = f"%clan({resolved_clan}, tribe={proposal.tribe})"
             if clan_summary is not None:
                 declaration = (
-                    f"%clan({resolved_clan}, tribe=chop, summary=[[{clan_summary}]])"
+                    f"%clan({resolved_clan}, tribe={proposal.tribe}, "
+                    f"summary=[[{clan_summary}]])"
                 )
             lines.extend([f"%id:{resolved_name}", declaration])
         else:

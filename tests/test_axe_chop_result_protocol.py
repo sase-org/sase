@@ -41,6 +41,30 @@ def _config(tmp_path: Path) -> AxeConfig:
     return AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")])
 
 
+def test_proposal_tribe_job_alias_scaffolds_stored_identity(tmp_path: Path) -> None:
+    with (
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tmp_path / "tribes.json"),
+        patch("sase.config.inventory.discover_layer_inputs", return_value=[]),
+    ):
+        prepared = prepare_chop_proposals(
+            "docs",
+            {
+                "proposed_launches": [
+                    {
+                        "prompt": "Fix docs.",
+                        "workspace": "git:sase",
+                        "agent_name": "docs-agent",
+                        "tribe": "job",
+                    },
+                ]
+            },
+        )
+        previews = proposal_previews(prepared)
+
+    assert [proposal.tribe for proposal in prepared] == ["chop"]
+    assert "%id(docs-agent, tribe=chop)" in str(previews[0]["prompt"])
+
+
 def test_structured_no_op_is_persisted_with_run_local_context(
     temp_state_dir: Path,
     tmp_path: Path,

@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from sase.ace.tui.actions.agents._directive_persistence import (
     AgentDirectivePersistenceSpec,
     AgentMetaPatch,
@@ -15,11 +17,13 @@ from sase.ace.tui.actions.agents._directive_persistence import (
     waiting_marker_patch_for_token,
 )
 from sase.ace.tui.models.agent import AgentType
+from sase.core.agent_tribe import InvalidTribeError
 from sase.history.prompt_store import (
     PromptEntry,
     load_prompt_history,
     save_prompt_history,
 )
+from sase.ops.commands._agent_directive import persist_directive_from_payload
 from sase.xprompt.directive_edit import (
     PromptWaitDirective,
     set_prompt_name,
@@ -347,3 +351,98 @@ def test_persist_agent_directive_update_sets_and_unsets_tribe_store(
     assert json.loads(tribes_file.read_text()) == []
     assert not sentinel_artifacts.exists()
     assert not (sentinel_artifacts / ".agent_directive_persistence.lock").exists()
+
+
+def test_persist_directive_payload_resolves_job_alias_before_writes(
+    tmp_path: Path,
+) -> None:
+    tribes_file = tmp_path / "agent_tribes.json"
+    artifacts = tmp_path / "artifacts" / "ace-run" / "20260506120000"
+    artifacts.mkdir(parents=True)
+    (artifacts / "raw_xprompt.md").write_text("%id:worker\nDo work", encoding="utf-8")
+    (artifacts / "agent_meta.json").write_text(
+        json.dumps({"name": "worker"}),
+        encoding="utf-8",
+    )
+    identity = [AgentType.RUNNING, "fix-bug", "20260506120000"]
+
+    with (
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribes_file),
+        patch("sase.config.inventory.discover_layer_inputs", return_value=[]),
+    ):
+        result = persist_directive_from_payload(
+            {
+                "prompt": {"kind": "set_tribe", "tribe": "job"},
+                "meta_set": {"tribe": "job"},
+                "tribe": {"identity": identity, "tribe": "job"},
+            },
+            artifacts_dir=str(artifacts),
+        )
+
+    assert result.raw_prompt_updated is True
+    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == (
+        "%id(worker, tribe=chop)\nDo work"
+    )
+    assert json.loads((artifacts / "agent_meta.json").read_text())["tribe"] == "chop"
+    assert json.loads(tribes_file.read_text()) == [
+        {"id": ["run", "fix-bug", "20260506120000"], "tribe": "chop"}
+    ]
+
+
+def test_persist_directive_payload_collision_leaves_files_unchanged(
+    tmp_path: Path,
+) -> None:
+    tribes_file = tmp_path / "agent_tribes.json"
+    artifacts = tmp_path / "artifacts" / "ace-run" / "20260506120000"
+    artifacts.mkdir(parents=True)
+    raw_prompt = "%id(worker, tribe=old)\nDo work"
+    raw_meta = {"name": "worker", "tribe": "old"}
+    (artifacts / "raw_xprompt.md").write_text(raw_prompt, encoding="utf-8")
+    (artifacts / "agent_meta.json").write_text(json.dumps(raw_meta), encoding="utf-8")
+    colliding_layers = [
+        {
+            "name": "user",
+            "kind": "user",
+            "path": "/tmp/sase.yml",
+            "value": {
+                "ace": {
+                    "tribes": {
+                        "chop": {"icon": "C"},
+                        "job": {"icon": "J"},
+                    }
+                }
+            },
+        }
+    ]
+    identity = (AgentType.RUNNING, "fix-bug", "20260506120000")
+
+    with (
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribes_file),
+        patch("sase.config.inventory.discover_layer_inputs", return_value=[]),
+    ):
+        from sase.ace.agent_tribes import save_agent_tribes
+
+        assert save_agent_tribes({identity: "old"})
+
+    with (
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribes_file),
+        patch(
+            "sase.config.inventory.discover_layer_inputs",
+            return_value=colliding_layers,
+        ),
+        pytest.raises(InvalidTribeError, match="ace.tribes.chop"),
+    ):
+        persist_directive_from_payload(
+            {
+                "prompt": {"kind": "set_tribe", "tribe": "job"},
+                "meta_set": {"tribe": "job"},
+                "tribe": {"identity": list(identity), "tribe": "job"},
+            },
+            artifacts_dir=str(artifacts),
+        )
+
+    assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == raw_prompt
+    assert json.loads((artifacts / "agent_meta.json").read_text()) == raw_meta
+    assert json.loads(tribes_file.read_text()) == [
+        {"id": ["run", "fix-bug", "20260506120000"], "tribe": "old"}
+    ]

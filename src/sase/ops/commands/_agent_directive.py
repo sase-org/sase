@@ -31,12 +31,19 @@ def run_persist_directive(
     payload = dict(request.payload)
     updates = payload.get("updates")
     if isinstance(updates, list) and updates:
-        results = []
+        specs: list[tuple[str, Any]] = []
         for item in updates:
             if not isinstance(item, dict):
                 continue
             item_dir = str(item.get("artifacts_dir") or args.artifacts_dir)
-            result = persist_directive_from_payload(item, artifacts_dir=item_dir)
+            specs.append((item_dir, _spec_from_payload(item, artifacts_dir=item_dir)))
+        results = []
+        for item_dir, spec in specs:
+            from sase.ace.tui.actions.agents._directive_persistence import (
+                persist_agent_directive_update,
+            )
+
+            result = persist_agent_directive_update(spec)
             results.append(
                 {
                     "artifacts_dir": item_dir,
@@ -76,6 +83,7 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
         waiting_marker_patch_for_token,
     )
 
+    payload = _resolve_tribe_payload(payload, artifacts_dir=artifacts_dir)
     meta_set = payload.get("meta_set")
     meta_remove = payload.get("meta_remove")
     meta_patch = None
@@ -147,6 +155,135 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
         waiting_marker=waiting,
         ready_marker=ready,
     )
+
+
+def _resolve_tribe_payload(
+    payload: Mapping[str, Any],
+    *,
+    artifacts_dir: str,
+) -> dict[str, Any]:
+    """Resolve public tribe aliases before building any mutating spec."""
+    result = dict(payload)
+    raw_tribe = _payload_tribe_value(result)
+    if raw_tribe is None:
+        return result
+
+    from sase.ace.agent_tribes import (
+        load_agent_tribes,
+        resolve_agent_tribe_assignment,
+    )
+    from sase.config.inventory import discover_layer_inputs
+    from sase.core.agent_tribe import canonicalize_public_tribe_name
+
+    layers = discover_layer_inputs()
+    tribe_payload = result.get("tribe")
+    if isinstance(tribe_payload, dict) and tribe_payload.get("identity"):
+        identity = _coerce_agent_tribe_identity(tribe_payload["identity"])
+        resolved = resolve_agent_tribe_assignment(
+            identity,
+            raw_tribe,
+            layers=layers,
+        )
+        next_tribe_payload = dict(tribe_payload)
+        next_tribe_payload["identity"] = list(identity)
+        next_tribe_payload["tribe"] = resolved
+        result["tribe"] = next_tribe_payload
+    else:
+        resolved = canonicalize_public_tribe_name(
+            raw_tribe,
+            layers=layers,
+            stored_tribes=tuple(load_agent_tribes().values()),
+            current_tribe=_current_meta_tribe(
+                artifacts_dir,
+                clan=_payload_sets_clan_tribe(result),
+            ),
+        )
+
+    prompt = result.get("prompt")
+    if isinstance(prompt, dict) and prompt.get("kind") in {
+        "set_tribe",
+        "set_clan_tribe",
+    }:
+        next_prompt = dict(prompt)
+        next_prompt["tribe"] = resolved
+        result["prompt"] = next_prompt
+
+    meta_set = result.get("meta_set")
+    if isinstance(meta_set, dict):
+        next_meta_set = dict(meta_set)
+        if "clan_tribe" in next_meta_set:
+            next_meta_set["clan_tribe"] = resolved
+        if "tribe" in next_meta_set:
+            next_meta_set["tribe"] = resolved
+        result["meta_set"] = next_meta_set
+
+    return result
+
+
+def _payload_tribe_value(payload: Mapping[str, Any]) -> str | None:
+    tribe_payload = payload.get("tribe")
+    if isinstance(tribe_payload, dict):
+        tribe = tribe_payload.get("tribe")
+        if isinstance(tribe, str) and tribe:
+            return tribe
+    prompt = payload.get("prompt")
+    if isinstance(prompt, dict) and prompt.get("kind") in {
+        "set_tribe",
+        "set_clan_tribe",
+    }:
+        tribe = prompt.get("tribe")
+        if isinstance(tribe, str) and tribe:
+            return tribe
+    meta_set = payload.get("meta_set")
+    if isinstance(meta_set, dict):
+        for key in ("clan_tribe", "tribe"):
+            tribe = meta_set.get(key)
+            if isinstance(tribe, str) and tribe:
+                return tribe
+    return None
+
+
+def _payload_sets_clan_tribe(payload: Mapping[str, Any]) -> bool:
+    prompt = payload.get("prompt")
+    if isinstance(prompt, dict) and prompt.get("kind") == "set_clan_tribe":
+        return True
+    meta_set = payload.get("meta_set")
+    return isinstance(meta_set, dict) and "clan_tribe" in meta_set
+
+
+def _current_meta_tribe(artifacts_dir: str, *, clan: bool) -> str | None:
+    import json
+    from pathlib import Path
+
+    meta_path = Path(artifacts_dir).expanduser() / "agent_meta.json"
+    try:
+        with open(meta_path, encoding="utf-8") as meta_file:
+            meta = json.load(meta_file)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(meta, dict):
+        return None
+    key = "clan_tribe" if clan else "tribe"
+    value = meta.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def _coerce_agent_tribe_identity(raw_identity: object) -> tuple[Any, str, str | None]:
+    from sase.core.agent_types import AgentType
+
+    if not isinstance(raw_identity, (list, tuple)) or len(raw_identity) != 3:
+        raise ValueError("agent tribe identity must have three fields")
+    raw_agent_type, raw_cl_name, raw_suffix = raw_identity
+    agent_type = (
+        raw_agent_type
+        if isinstance(raw_agent_type, AgentType)
+        else AgentType(str(raw_agent_type))
+    )
+    if not isinstance(raw_cl_name, str) or not raw_cl_name:
+        raise ValueError("agent tribe identity requires a non-empty name")
+    if raw_suffix is not None and not isinstance(raw_suffix, str):
+        raise ValueError("agent tribe identity suffix must be a string or null")
+    return agent_type, raw_cl_name, raw_suffix
 
 
 def _capacity_from_payload(payload: Mapping[str, Any]) -> int | None:

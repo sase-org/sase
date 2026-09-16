@@ -150,6 +150,23 @@ def update_agent_tribe_assignment(
         return False
 
 
+def resolve_agent_tribe_assignment(
+    identity: tuple[AgentType, str, str | None],
+    tribe: str,
+    *,
+    layers: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+) -> str:
+    """Return the stored identity a mutation would write without changing state."""
+    with _agent_tribes_file_lock():
+        store = load_agent_tribes()
+        return canonicalize_public_tribe_name(
+            tribe,
+            layers=layers,
+            stored_tribes=tuple(store.values()),
+            current_tribe=store.get(identity),
+        )
+
+
 def set_tribe(
     tribes_by_identity: dict[tuple[AgentType, str, str | None], str],
     identity: tuple[AgentType, str, str | None],
@@ -186,6 +203,7 @@ __all__ = [
     "PINNED_AGENT_TRIBE",
     "REVIEW_AGENT_TRIBE",
     "load_agent_tribes",
+    "resolve_agent_tribe_assignment",
     "save_agent_tribes",
     "set_tribe",
     "unset_tribe",

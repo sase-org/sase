@@ -2,7 +2,7 @@
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, NamedTuple
 
 from sase.axe.run_agent_directive_identity import (
@@ -54,6 +54,96 @@ class AgentInfo(NamedTuple):
     clan_summary_resolution: ClanSummaryResolutionRequest | None
     meta: dict[str, Any]
     local_xprompts: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _PendingAgentTribeWrite:
+    """Resolved standalone tribe assignment to persist after metadata succeeds."""
+
+    identity: tuple[Any, str, str | None]
+    tribe: str
+    layers: list[dict[str, Any]] | tuple[dict[str, Any], ...]
+
+
+def _metadata_tribe(metadata: dict[str, Any], key: str) -> str | None:
+    value = metadata.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def _stored_tribes_for_resolution() -> tuple[str, ...]:
+    from sase.ace.agent_tribes import load_agent_tribes
+
+    return tuple(load_agent_tribes().values())
+
+
+def _resolve_launch_tribe_directives(
+    directives: Any,
+    *,
+    artifacts_dir: str,
+    cl_name: str | None,
+    preserved_metadata: dict[str, Any],
+) -> tuple[Any, _PendingAgentTribeWrite | None]:
+    """Resolve public job aliases before metadata, store, or name writes."""
+    if directives.tribe is None and directives.clan_tribe is None:
+        return directives, None
+
+    from sase.config.inventory import discover_layer_inputs
+    from sase.core.agent_tribe import (
+        InvalidTribeError,
+        canonicalize_public_tribe_name,
+    )
+
+    layers = discover_layer_inputs()
+    pending: _PendingAgentTribeWrite | None = None
+    resolved_tribe = directives.tribe
+    if directives.tribe is not None:
+        try:
+            if cl_name:
+                from sase.ace.agent_tribes import resolve_agent_tribe_assignment
+                from sase.core.agent_types import AgentType
+
+                raw_suffix = os.path.basename(artifacts_dir.rstrip(os.sep)) or None
+                identity = (AgentType.WORKFLOW, cl_name, raw_suffix)
+                resolved_tribe = resolve_agent_tribe_assignment(
+                    identity,
+                    directives.tribe,
+                    layers=layers,
+                )
+                pending = _PendingAgentTribeWrite(
+                    identity=identity,
+                    tribe=resolved_tribe,
+                    layers=layers,
+                )
+            else:
+                resolved_tribe = canonicalize_public_tribe_name(
+                    directives.tribe,
+                    layers=layers,
+                    stored_tribes=_stored_tribes_for_resolution(),
+                    current_tribe=_metadata_tribe(preserved_metadata, "tribe"),
+                )
+        except InvalidTribeError as exc:
+            raise RuntimeError(f"%id tribe={directives.tribe!r}: {exc}") from exc
+
+    resolved_clan_tribe = directives.clan_tribe
+    if directives.clan_tribe is not None:
+        try:
+            resolved_clan_tribe = canonicalize_public_tribe_name(
+                directives.clan_tribe,
+                layers=layers,
+                stored_tribes=_stored_tribes_for_resolution(),
+                current_tribe=_metadata_tribe(preserved_metadata, "clan_tribe"),
+            )
+        except InvalidTribeError as exc:
+            raise RuntimeError(f"%clan tribe={directives.clan_tribe!r}: {exc}") from exc
+
+    return (
+        replace(
+            directives,
+            tribe=resolved_tribe,
+            clan_tribe=resolved_clan_tribe,
+        ),
+        pending,
+    )
 
 
 def extract_directives_and_write_meta(
@@ -198,6 +288,13 @@ def extract_directives_and_write_meta(
             "inherited clan and must be supplied by a clan member's "
             "%clan(<clan>, tribe=<tribe>) declaration."
         )
+
+    directives, pending_tribe_write = _resolve_launch_tribe_directives(
+        directives,
+        artifacts_dir=artifacts_dir,
+        cl_name=cl_name,
+        preserved_metadata=preserved_metadata,
+    )
 
     from sase.llm_provider.launch_alias_overrides import (
         active_launch_alias_overrides,
@@ -484,17 +581,15 @@ def extract_directives_and_write_meta(
         write_agent_meta(artifacts_dir, agent_meta)
 
     # Persist %id tribe= for the Agents tab's workflow identity.
-    if directives.tribe and cl_name:
+    if pending_tribe_write is not None:
         from sase.ace.agent_tribes import update_agent_tribe
-        from sase.config.inventory import discover_layer_inputs
         from sase.core.agent_tribe import InvalidTribeError
-        from sase.core.agent_types import AgentType
 
-        raw_suffix = os.path.basename(artifacts_dir.rstrip(os.sep)) or None
-        identity_key = (AgentType.WORKFLOW, cl_name, raw_suffix)
         try:
             update_agent_tribe(
-                identity_key, directives.tribe, layers=discover_layer_inputs()
+                pending_tribe_write.identity,
+                pending_tribe_write.tribe,
+                layers=pending_tribe_write.layers,
             )
         except InvalidTribeError as exc:
             raise RuntimeError(f"%id tribe={directives.tribe!r}: {exc}") from exc

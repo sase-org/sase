@@ -232,6 +232,7 @@ def test_extract_directives_persists_tribe_with_atomic_helper(
 ) -> None:
     workspace_dir = tmp_path / "workspace"
     artifacts_dir = tmp_path / "artifacts" / "20260506120000"
+    tribe_file = tmp_path / "agent_tribes.json"
     workspace_dir.mkdir()
     artifacts_dir.mkdir(parents=True)
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
@@ -243,6 +244,8 @@ def test_extract_directives_persists_tribe_with_atomic_helper(
             return_value=("codex", "gpt-5"),
         ),
         patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.config.inventory.discover_layer_inputs", return_value=[]),
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribe_file),
         patch("sase.agent.names.claim_agent_name"),
         patch("sase.ace.agent_tribes.update_agent_tribe") as update_agent_tribe,
     ):
@@ -273,6 +276,7 @@ def test_id_tribe_job_alias_collision_fails_the_launch(
     built-in ``chop`` identity."""
     workspace_dir = tmp_path / "workspace"
     artifacts_dir = tmp_path / "artifacts" / "20260506120000"
+    tribe_file = tmp_path / "agent_tribes.json"
     workspace_dir.mkdir()
     artifacts_dir.mkdir(parents=True)
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
@@ -299,11 +303,12 @@ def test_id_tribe_job_alias_collision_fails_the_launch(
             return_value=("codex", "gpt-5"),
         ),
         patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
-        patch("sase.agent.names.claim_agent_name"),
         patch(
             "sase.config.inventory.discover_layer_inputs",
             return_value=colliding_layers,
         ),
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribe_file),
+        patch("sase.agent.names.claim_agent_name") as claim_agent_name,
         pytest.raises(RuntimeError, match="ace.tribes.chop") as excinfo,
     ):
         extract_directives_and_write_meta(
@@ -314,6 +319,9 @@ def test_id_tribe_job_alias_collision_fails_the_launch(
         )
 
     assert "%id tribe='job'" in str(excinfo.value)
+    claim_agent_name.assert_not_called()
+    assert not (artifacts_dir / "agent_meta.json").exists()
+    assert not tribe_file.exists()
 
 
 def _extract_with_agent_tribes(
@@ -349,6 +357,7 @@ def _extract_with_agent_tribes(
                 return_value=("codex", "gpt-5"),
             ),
             patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+            patch("sase.config.inventory.discover_layer_inputs", return_value=[]),
             patch("sase.agent.names.claim_agent_name"),
             patch(
                 "sase.agent.names.claim_exact_planned_registered_name",
@@ -374,6 +383,36 @@ def _extract_with_agent_tribes(
         meta = json.loads((artifacts_dir / "agent_meta.json").read_text())
         tribes = load_agent_tribes()
     return info, meta, tribes
+
+
+def test_id_tribe_job_alias_writes_resolved_chop_identity(tmp_path: Path) -> None:
+    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
+
+    info, meta, tribes = _extract_with_agent_tribes(
+        tmp_path,
+        "%id(foo.child, tribe=job)\nDo work",
+        seed_tribes={},
+    )
+
+    assert info.tribe == "chop"
+    assert meta["tribe"] == "chop"
+    assert tribes == {identity: "chop"}
+
+
+def test_id_tribe_job_alias_preserves_same_identity_historical_job(
+    tmp_path: Path,
+) -> None:
+    identity = (AgentType.WORKFLOW, "sample-cl", "20260506121000")
+
+    info, meta, tribes = _extract_with_agent_tribes(
+        tmp_path,
+        "%id(foo.child, tribe=job)\nDo work",
+        seed_tribes={identity: "job"},
+    )
+
+    assert info.tribe == "job"
+    assert meta["tribe"] == "job"
+    assert tribes == {identity: "job"}
 
 
 def test_explicit_tribe_wins_over_matching_existing_tribe(tmp_path: Path) -> None:
@@ -414,6 +453,81 @@ def test_clan_tribe_uses_metadata_without_standalone_tribe_store(
     assert meta["clan_tribe"] == "research"
     assert "tribe" not in meta
     assert tribes == {existing: "legacy"}
+
+
+def test_clan_tribe_job_alias_writes_resolved_chop_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = ClanMembershipPlan(clan_name="research", generation="g1")
+    monkeypatch.setenv(CLAN_MEMBERSHIP_ENV, encode_clan_membership_plan(plan))
+
+    info, meta, tribes = _extract_with_agent_tribes(
+        tmp_path,
+        "%id:research.worker\n%clan(research, tribe=job)\nDo work",
+        seed_tribes={},
+    )
+
+    assert info.tribe is None
+    assert meta["clan_tribe"] == "chop"
+    assert "tribe" not in meta
+    assert tribes == {}
+
+
+def test_clan_tribe_job_alias_collision_leaves_launch_state_untouched(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace_dir = tmp_path / "workspace"
+    artifacts_dir = tmp_path / "artifacts" / "20260506123000"
+    tribe_file = tmp_path / "agent_tribes.json"
+    workspace_dir.mkdir()
+    artifacts_dir.mkdir(parents=True)
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+    plan = ClanMembershipPlan(clan_name="research", generation="g1")
+    monkeypatch.setenv(CLAN_MEMBERSHIP_ENV, encode_clan_membership_plan(plan))
+    colliding_layers = [
+        {
+            "name": "user",
+            "kind": "user",
+            "path": "/tmp/sase.yml",
+            "value": {
+                "ace": {
+                    "tribes": {
+                        "chop": {"icon": "C"},
+                        "job": {"icon": "J"},
+                    }
+                }
+            },
+        }
+    ]
+
+    with (
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch(
+            "sase.config.inventory.discover_layer_inputs",
+            return_value=colliding_layers,
+        ),
+        patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribe_file),
+        patch("sase.agent.names.claim_agent_name") as claim_agent_name,
+        pytest.raises(RuntimeError, match="ace.tribes.chop") as excinfo,
+    ):
+        extract_directives_and_write_meta(
+            "%id:research.worker\n%clan(research, tribe=job)\nDo work",
+            str(workspace_dir),
+            str(artifacts_dir),
+            cl_name="sample-cl",
+        )
+
+    assert "%clan tribe='job'" in str(excinfo.value)
+    claim_agent_name.assert_not_called()
+    assert not (artifacts_dir / "agent_meta.json").exists()
+    assert not tribe_file.exists()
 
 
 def test_named_agent_does_not_inherit_existing_tribe(tmp_path: Path) -> None:
