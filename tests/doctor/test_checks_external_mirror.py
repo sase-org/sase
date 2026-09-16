@@ -61,6 +61,7 @@ def test_warn_when_no_fresh_probe(
 
     assert check.status == "WARN"
     assert "sase" in check.data["stale_or_missing_projects"]
+    assert check.details == ("no fresh job probe: sase",)
 
 
 def test_warn_when_stale_probe(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

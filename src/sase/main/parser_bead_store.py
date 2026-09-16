@@ -336,7 +336,7 @@ def register_bead_sync_external_parser(
             "issues. Upstream closes and reopens update mirrored beads when "
             "safe, while referenced, worked, parented, and already-matching "
             "beads get attributed notes only. Runs the same reconciliation "
-            "pass as the external_issue_mirror AXE chop."
+            "pass as the external_issue_mirror AXE job."
         ),
         epilog=(
             "Examples:\n"

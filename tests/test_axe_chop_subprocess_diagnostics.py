@@ -319,6 +319,8 @@ def test_digest_keeps_legacy_host_tracebacks(
         senders.notify_axe_error_digest(errors)
 
     report = Path(notifications[0].files[0]).read_text(encoding="utf-8")
+    assert "  Routine:    hooks" in report
+    assert "  Lumberjack:" not in report
     assert "  Traceback:" in report
     assert "RuntimeError: host" in report
 

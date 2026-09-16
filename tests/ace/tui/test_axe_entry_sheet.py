@@ -53,6 +53,7 @@ def test_all_fields_are_grouped_and_unknown_schema_fields_default_advanced() -> 
             "description": {"type": "string"},
             "interval": {"type": "integer"},
             "chop_timeout": {"type": "string"},
+            "job_timeout": {"type": "string"},
             "env": {"type": "object"},
             "future_limit": {"type": "integer"},
             "chops": {"type": "object"},
@@ -68,7 +69,7 @@ def test_all_fields_are_grouped_and_unknown_schema_fields_default_advanced() -> 
     assert [(field.name, field.group) for field in lumberjack.fields] == [
         ("description", "basics"),
         ("interval", "basics"),
-        ("chop_timeout", "basics"),
+        ("job_timeout", "basics"),
         ("env", "advanced"),
         ("future_limit", "advanced"),
     ]

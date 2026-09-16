@@ -89,6 +89,28 @@ class TestLogLaunchFailure:
         assert "traceback:" in text
         assert "RuntimeError: nope" in text
 
+    def test_chop_failure_uses_job_labels_only_in_human_log(self) -> None:
+        log_launch_failure(
+            kind="chop",
+            display_name="hooks / /tmp/sase_chop_job",
+            exc=_boom("run failed"),
+            chop="/tmp/sase_chop_job",
+            lumberjack="checks",
+        )
+
+        record = json.loads(
+            launch_failures_jsonl_path().read_text().strip().splitlines()[-1]
+        )
+        assert record["kind"] == "chop"
+        assert record["chop"] == "/tmp/sase_chop_job"
+        assert record["lumberjack"] == "checks"
+        text = launch_failures_log_path().read_text()
+        assert "job launch failure: hooks / /tmp/sase_chop_job" in text
+        assert "  job: /tmp/sase_chop_job" in text
+        assert "  routine: checks" in text
+        assert "chop launch failure" not in text
+        assert "lumberjack: checks" not in text
+
     def test_multiline_output_is_indented_in_human_log_and_stable_in_jsonl(
         self,
     ) -> None:

@@ -13,6 +13,8 @@ from rich.console import Console
 
 from sase.axe import cli
 from sase.axe.chop_doctor import (
+    ChopCheck,
+    ChopDoctorReport,
     _aggregate_chop_status,
     _build_chop_checks,
     build_chop_doctor_report,
@@ -411,6 +413,57 @@ def test_build_chop_doctor_report_surfaces_config_validation_errors(
     )
     assert "axe.lumberjacks.audits.chops[0].agent" in config_check.details[0]
     assert "overlay:test.yml:/tmp/test.yml" in config_check.details[0]
+
+
+def test_sase_doctor_axe_jobs_does_not_rewrite_exact_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.doctor.checks_axe import _check_axe_chops
+    from sase.doctor.runner import DoctorContext
+
+    inventory = collect_chop_inventory(_config_with_missing_chop())
+    report = ChopDoctorReport(
+        status="ERROR",
+        inventory=inventory,
+        checks=(
+            ChopCheck(
+                id="configured_chop:hooks:chop-test",
+                status="ERROR",
+                summary="Configured job script /tmp/sase_chop_test cannot be resolved.",
+                details=(
+                    "script=/tmp/sase_chop_test",
+                    "path=axe.lumberjacks.hooks.chops[0].script",
+                ),
+                next_steps=(
+                    "Fix axe.lumberjacks in /tmp/lumberjack.yml and rerun "
+                    "`sase axe job doctor`.",
+                ),
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_axe.build_chop_doctor_report", lambda: report
+    )
+
+    check = _check_axe_chops(
+        DoctorContext(
+            cwd=tmp_path,
+            project=None,
+            sase_home=tmp_path / ".sase",
+            verbose=True,
+        )
+    )
+
+    rendered = "\n".join((*check.details, *check.next_steps))
+    assert "configured_chop:hooks:chop-test" in rendered
+    assert "/tmp/sase_chop_test" in rendered
+    assert "/tmp/sase_job_test" not in rendered
+    assert "axe.routines.hooks.jobs" not in rendered
+    structured = check.data["checks"][0]
+    structured_details = "\n".join(structured["details"])
+    assert "axe.lumberjacks.hooks.chops[0].script" in structured_details
+    assert "/tmp/sase_job_test" not in structured_details
 
 
 # --- sase axe job list handler ---

@@ -22,7 +22,7 @@ _AXE_ENTRY_KIND_LABELS: dict[AxeEntryKind, str] = {
 }
 
 _BASICS_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {
-    "lumberjack": ("description", "interval", "chop_timeout", "wait_runners"),
+    "lumberjack": ("description", "interval", "job_timeout", "wait_runners"),
     "chop": ("description", "script", "enabled", "run_every", "timeout"),
 }
 _ADVANCED_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {
@@ -30,7 +30,7 @@ _ADVANCED_BY_KIND: dict[AxeEntryKind, tuple[str, ...]] = {
     "chop": ("env", "inhibit_if", "trigger", "once_per", "for_each", "vars"),
 }
 _HIDDEN_BY_KIND: dict[AxeEntryKind, frozenset[str]] = {
-    "lumberjack": frozenset({"chops", "jobs", "job_timeout"}),
+    "lumberjack": frozenset({"chops", "jobs", "chop_timeout"}),
     "chop": frozenset({"name"}),
 }
 
@@ -51,7 +51,7 @@ class AxeEntryIdentity:
 
     def __post_init__(self) -> None:
         if self.kind == "chop" and not self.chop:
-            raise ValueError("chop identity requires a chop name")
+            raise ValueError("job identity requires a job name")
 
     @property
     def label(self) -> str:
@@ -185,7 +185,7 @@ def axe_entry_schema(
                 not isinstance(node_properties, Mapping)
                 or segment not in node_properties
             ):
-                raise ValueError("schema does not contain AXE lumberjack definitions")
+                raise ValueError("schema does not contain AXE routine definitions")
             node = node_properties[segment]
         node = resolve_schema_node(schema_root, node)
         resolved = (
@@ -194,7 +194,8 @@ def axe_entry_schema(
             else None
         )
     if not isinstance(resolved, Mapping):
-        raise ValueError(f"schema does not contain an AXE {kind} definition")
+        label = axe_entry_kind_label(kind)
+        raise ValueError(f"schema does not contain an AXE {label} definition")
     return resolved
 
 

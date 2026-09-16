@@ -211,7 +211,7 @@ def _ensure_hidden_document_root(
 
     hidden_dir = Path(hidden_sidecar_clone_dir(project_key, role))
     if _deadline_expired(deadline):
-        return None, f"{role}: hidden clone setup deferred past chop budget"
+        return None, f"{role}: hidden clone setup deferred past job budget"
 
     if os.path.lexists(hidden_dir):
         diagnostic = _hidden_clone_identity_diagnostic(

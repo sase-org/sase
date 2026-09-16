@@ -177,7 +177,7 @@ def register_patch_parser(subparsers: argparse._SubParsersAction) -> None:
             "Deliberately set a Patch's PR_ORIGIN field. This is the manual "
             "half of the tri-state PR_ORIGIN decision: it resolves an "
             "'unknown' record (or corrects a wrong mark) without waiting "
-            "for the external_pr_mirror chop."
+            "for the external_pr_mirror job."
         ),
     )
     set_origin_parser.set_defaults(changespec_subcommand="set-origin")

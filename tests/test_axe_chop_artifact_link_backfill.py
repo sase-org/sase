@@ -520,6 +520,7 @@ def test_chop_stops_starting_projects_past_the_chop_budget(
     warnings = stderr.getvalue()
     assert "p2" in warnings
     assert "p3" in warnings
+    assert "job budget exceeded; projects not started: p2, p3" in warnings
 
 
 def test_per_project_progress_is_logged(
@@ -601,3 +602,4 @@ def test_chop_passes_budget_through_and_warns_on_deferred_refs(
     warning = stderr.getvalue()
     assert "proj" in warning
     assert "deferred 4" in warning
+    assert "past job budget" in warning

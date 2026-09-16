@@ -142,7 +142,7 @@ def _check_external_mirror(context: DoctorContext) -> DiagnosticCheck:
                 "detached tracker-auth evidence"
             ),
             details=tuple(
-                f"no fresh chop probe: {project}" for project in stale_or_missing
+                f"no fresh job probe: {project}" for project in stale_or_missing
             ),
             next_steps=_NEXT_STEPS_GENERAL,
             data={"stale_or_missing_projects": stale_or_missing},

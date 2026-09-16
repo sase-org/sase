@@ -80,7 +80,7 @@ def build_create_candidate(
     title = issue.title.strip() or f"Issue #{issue.number}"
     body = issue.body.strip()
     provenance = (
-        f"---\nMirrored from {issue.url} by SASE's `external_issue_mirror` chop.\n"
+        f"---\nMirrored from {issue.url} by SASE's `external_issue_mirror` job.\n"
         f"Upstream state when mirrored: {issue.state}."
     )
     description = f"{body}\n\n{provenance}" if body else provenance

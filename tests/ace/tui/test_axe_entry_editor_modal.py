@@ -89,7 +89,7 @@ def test_bundled_lumberjack_and_chop_friendly_field_order() -> None:
     assert [field.name for field in lumberjack._form.fields] == [
         "description",
         "interval",
-        "chop_timeout",
+        "job_timeout",
         "wait_runners",
         "env",
     ]

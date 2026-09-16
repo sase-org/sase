@@ -229,7 +229,7 @@ def sweep_artifact_link_publication_retries(
                 report,
                 root,
                 "deferred",
-                diagnostic="publication retry deferred past chop budget",
+                diagnostic="publication retry deferred past job budget",
             )
             break
         last_started = root
@@ -384,7 +384,7 @@ def _sweep_root(
             root,
             "deferred",
             age_seconds=float(due.get("age_seconds") or 0.0),
-            diagnostic="publication retry deferred past chop budget",
+            diagnostic="publication retry deferred past job budget",
             next_due_at=float(due.get("next_due_at") or 0.0),
         )
         return

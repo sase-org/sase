@@ -484,7 +484,7 @@ def _telegram_token_source(
         if not _configured_env_value_available(value, which_fn=which_fn):
             continue
         reference = secret_reference_description(value) if value is not None else None
-        source = reference or f"{_TELEGRAM_BOT_TOKEN_ENV_VAR} per-chop env"
+        source = reference or f"{_TELEGRAM_BOT_TOKEN_ENV_VAR} per-job env"
         return (source, (f"configured by {chop.lumberjack}.{chop.name}",))
 
     file_available, file_detail = _telegram_token_file_status()

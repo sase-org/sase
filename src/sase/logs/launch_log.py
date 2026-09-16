@@ -57,6 +57,15 @@ LAUNCH_FAILURES_JSONL: str | None = None
 TUI_LOG: str | None = None
 
 _PROMPT_PREVIEW_LIMIT = 200
+_HUMAN_KIND_LABELS = {
+    "chop": "job",
+}
+_HUMAN_CONTEXT_LABELS = {
+    "chop": "job",
+    "chop_name": "job",
+    "lumberjack": "routine",
+    "lumberjack_name": "routine",
+}
 
 
 def _logs_dir() -> str:
@@ -238,9 +247,10 @@ def _append_human_block(
     extra: dict[str, Any],
 ) -> None:
     header_ts = now.strftime("%Y-%m-%d %H:%M:%S %Z").strip()
+    kind_label = _human_launch_kind(kind)
     lines = [
         "=" * 72,
-        f"[{header_ts}] {kind} launch failure: {display_name}  "
+        f"[{header_ts}] {kind_label} launch failure: {display_name}  "
         f"{error_anchor(error_id)}",
         f"  error: {exc_type}: {exc_message}",
     ]
@@ -264,12 +274,21 @@ def _append_human_block(
 def _append_human_context(lines: list[str], key: str, value: Any) -> None:
     """Append one human-readable context field to *lines*."""
     text = str(value)
+    label = _human_context_label(key)
     if "\n" not in text:
-        lines.append(f"  {key}: {text}")
+        lines.append(f"  {label}: {text}")
         return
-    lines.append(f"  {_human_multiline_label(key)}:")
+    lines.append(f"  {_human_multiline_label(label)}:")
     for payload_line in text.rstrip("\n").splitlines() or [""]:
         lines.append(f"    {payload_line}")
+
+
+def _human_launch_kind(kind: str) -> str:
+    return _HUMAN_KIND_LABELS.get(kind, kind)
+
+
+def _human_context_label(key: str) -> str:
+    return _HUMAN_CONTEXT_LABELS.get(key, key)
 
 
 def _human_multiline_label(key: str) -> str:

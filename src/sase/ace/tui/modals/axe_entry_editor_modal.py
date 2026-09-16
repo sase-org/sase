@@ -31,6 +31,7 @@ from .axe_entry_editor_types import (
     AxeEntryKind,
     AxeEntryMutationRequest,
     AxeWritableScope,
+    axe_entry_kind_label,
     axe_entry_schema,
     build_axe_entry_form,
 )
@@ -117,9 +118,9 @@ class AxeEntryEditorModal(
         self._init_config_transaction(
             metadata=ConfigTransactionMetadata(
                 title=(
-                    f"Add AXE {seed.identity.kind}"
+                    f"Add AXE {axe_entry_kind_label(seed.identity.kind)}"
                     if seed.new_entry
-                    else f"Edit AXE {seed.identity.kind}"
+                    else f"Edit AXE {axe_entry_kind_label(seed.identity.kind)}"
                 ),
                 identity=(
                     seed.identity.lumberjack,

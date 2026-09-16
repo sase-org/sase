@@ -37,7 +37,7 @@ def _normalize_text(value: str, *, limit: int = _MAX_TEXT_CHARS) -> str:
 
 def _tone_value(tone: Tone | None) -> Tone | None:
     if tone is not None and tone not in _TONES:
-        raise ValueError(f"unknown chop report tone: {tone!r}")
+        raise ValueError(f"unknown job report tone: {tone!r}")
     return tone
 
 
@@ -74,7 +74,7 @@ class ChopReport:
 
     def _append(self, block: dict[str, Any]) -> None:
         if len(self._blocks) >= _MAX_BLOCKS:
-            raise ValueError(f"a chop report may contain at most {_MAX_BLOCKS} blocks")
+            raise ValueError(f"a job report may contain at most {_MAX_BLOCKS} blocks")
         self._blocks.append(block)
 
     def headline(self, text: str, *, tone: Tone | None = None) -> ChopReport:
@@ -119,8 +119,7 @@ class ChopReport:
             normalized_items.append(item)
         if len(normalized_items) > _MAX_ENTRIES:
             raise ValueError(
-                f"a chop report key/value block may contain at most "
-                f"{_MAX_ENTRIES} items"
+                f"a job report key/value block may contain at most {_MAX_ENTRIES} items"
             )
         if normalized_items:
             self._append({"kind": "kv", "items": normalized_items})
@@ -159,7 +158,7 @@ class ChopReport:
             normalized_items.append(item)
         if len(normalized_items) > _MAX_ENTRIES:
             raise ValueError(
-                f"a chop report bullet block may contain at most {_MAX_ENTRIES} items"
+                f"a job report bullet block may contain at most {_MAX_ENTRIES} items"
             )
         if normalized_items:
             self._append({"kind": "bullets", "items": normalized_items})
@@ -179,9 +178,9 @@ class ChopReport:
         if not normalized_label:
             return self
         if max <= 0:
-            raise ValueError("a chop report gauge maximum must be greater than zero")
+            raise ValueError("a job report gauge maximum must be greater than zero")
         if value < 0:
-            raise ValueError("a chop report gauge value must be non-negative")
+            raise ValueError("a job report gauge value must be non-negative")
         self._append(
             _with_tone(
                 {
@@ -240,7 +239,7 @@ class _ChopReportRows:
             or any(not column for column in normalized_columns)
         ):
             raise ValueError(
-                f"chop report rows require 1–{_MAX_COLUMNS} non-empty columns"
+                f"job report rows require 1–{_MAX_COLUMNS} non-empty columns"
             )
         self._columns = normalized_columns
         self._expected_cells = len(normalized_columns)
@@ -261,7 +260,7 @@ class _ChopReportRows:
             or any(not cell for cell in normalized_cells)
         ):
             raise ValueError(
-                f"chop report rows require 1–{_MAX_COLUMNS} non-empty cells"
+                f"job report rows require 1–{_MAX_COLUMNS} non-empty cells"
             )
         if self._expected_cells is None:
             self._expected_cells = len(normalized_cells)
@@ -272,7 +271,7 @@ class _ChopReportRows:
             )
         if len(self._rows) >= _MAX_ENTRIES:
             raise ValueError(
-                f"a chop report rows block may contain at most {_MAX_ENTRIES} rows"
+                f"a job report rows block may contain at most {_MAX_ENTRIES} rows"
             )
         row = _with_tone(
             {"cells": list(normalized_cells)},

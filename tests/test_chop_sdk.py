@@ -196,7 +196,7 @@ def test_report_builder_round_trips_every_block_kind(tmp_path: Path) -> None:
 def test_report_builder_validates_tones_and_glyphs() -> None:
     report = ChopReport()
 
-    with pytest.raises(ValueError, match="unknown chop report tone"):
+    with pytest.raises(ValueError, match="unknown job report tone"):
         report.headline("finding", tone="rainbow")  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="allowlisted"):
         report.bullets(("finding",), glyph="🚨")

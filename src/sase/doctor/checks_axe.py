@@ -158,8 +158,8 @@ def _check_axe_chops(context: DoctorContext) -> DiagnosticCheck:
         status=status,
         title="AXE job diagnostics",
         summary=summary,
-        details=tuple(_public_axe_text(detail) for detail in details),
-        next_steps=tuple(_public_axe_text(step) for step in next_steps),
+        details=details,
+        next_steps=next_steps,
         data={
             "status": status,
             "counts": {
@@ -185,23 +185,6 @@ def _bounded_checks(checks: tuple[ChopCheck, ...]) -> tuple[ChopCheck, ...]:
     if problems:
         return problems[:_MAX_DETAIL_ROWS]
     return checks[:_MAX_DETAIL_ROWS]
-
-
-def _public_axe_text(value: str) -> str:
-    replacements = (
-        ("sase axe chop doctor", "sase axe job doctor"),
-        ("axe.lumberjacks", "axe.routines"),
-        ("lumberjack", "routine"),
-        ("Lumberjack", "Routine"),
-        ("chops", "jobs"),
-        ("Chops", "Jobs"),
-        ("chop", "job"),
-        ("Chop", "Job"),
-    )
-    result = value
-    for old, new in replacements:
-        result = result.replace(old, new)
-    return result
 
 
 __all__ = [

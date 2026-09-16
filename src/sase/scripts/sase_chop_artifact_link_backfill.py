@@ -358,7 +358,7 @@ def _run_project(
     if time.monotonic() >= chop_deadline:
         totals.deferred_projects += 1
         totals.warnings.append(
-            f"{project_key}: deferred outbox drain and reconcile/repair past chop budget"
+            f"{project_key}: deferred outbox drain and reconcile/repair past job budget"
         )
         _log_project_done(runtime, project_key, elapsed, started)
         return
@@ -379,7 +379,7 @@ def _run_project(
     if time.monotonic() >= chop_deadline:
         totals.deferred_projects += 1
         totals.warnings.append(
-            f"{project_key}: deferred reconcile/repair past chop budget"
+            f"{project_key}: deferred reconcile/repair past job budget"
         )
         totals.projects += 1
         _log_project_done(runtime, project_key, elapsed, started)
@@ -398,7 +398,7 @@ def _run_project(
         if reconcile_report.deferred_refs > 0:
             totals.warnings.append(
                 f"{project_key}: deferred {reconcile_report.deferred_refs} "
-                "dangling-ref repairs past chop budget"
+                "dangling-ref repairs past job budget"
             )
     except Exception as exc:  # noqa: BLE001 - continue with the other projects.
         totals.warnings.append(f"{project_key}: reconcile/repair failed: {exc}")
@@ -428,7 +428,7 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             deferred_names = [r.project_name for r in records[index:]]
             totals.deferred_projects += len(deferred_names)
             totals.warnings.append(
-                "chop budget exceeded; projects not started: "
+                "job budget exceeded; projects not started: "
                 + ", ".join(deferred_names)
             )
             break
