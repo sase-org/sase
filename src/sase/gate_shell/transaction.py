@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from sase.agent.gate_intent import begin_gate_intent, clear_gate_intent
 from sase.axe.run_agent_helpers_artifacts import update_meta_fields
 from sase.gate_shell import naming
 from sase.gate_shell.member import create_gate_shell_member
@@ -101,6 +102,31 @@ def create_gate_shell(
     if _finalizer_owned_turn_is_active():
         raise GateShellError(_FINALIZER_OWNED_TURN_ERROR)
     assert spec.request_id is not None
+    begin_gate_intent(spec.kind, request_id=spec.request_id)
+
+    try:
+        creation = _create_gate_shell_transaction(
+            spec,
+            before_auto_settle=before_auto_settle,
+        )
+    except Exception:
+        clear_gate_intent()
+        raise
+
+    if not creation.should_handoff:
+        clear_gate_intent()
+    return creation
+
+
+def _create_gate_shell_transaction(
+    spec: GateSpec,
+    *,
+    before_auto_settle: Callable[[GateShellRecord, GateCreationResult], None]
+    | None = None,
+) -> GateShellCreation:
+    """Create the gate-shell member and durable gate after intent stamping."""
+    assert spec.request_id is not None
+    assert spec.shell is not None
 
     project_name = _resolve_project_name()
     creator = _resolve_creator(project_name)

@@ -61,6 +61,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_output_variables import set_agent_output_variables
+from sase.llm_provider.gate_intent_guard import find_gate_intent_lost_error
 from sase.telemetry.metrics import AGENT_KILLS
 
 install_sigterm_handler("agent", soft=True)
@@ -272,12 +273,14 @@ def main() -> None:
             _run_agent(state)
         except Exception as e:
             state.success = False
+            lost_intent = find_gate_intent_lost_error(e)
             state.error_summary, state.error_traceback_str = record_runner_error(
                 e,
                 context=state.error_context(),
                 write_error_done_marker=write_error_done_marker,
                 agent_kills=AGENT_KILLS,
                 message_prefix="Error running agent",
+                error_summary=str(lost_intent) if lost_intent is not None else None,
             )
         except SystemExit as e:
             if is_user_kill_exit(e):

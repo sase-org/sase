@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from sase.agent.gate_intent import GATE_INTENT_PREFIX
 from sase.agent.user_kill import USER_KILL_INTENT_MARKER
 from sase.axe.run_agent_exec import LoopState, _handle_killed_iteration
 
@@ -61,6 +62,11 @@ def test_plan_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
         ".sase_plan_pending",
         {"plan_file": "/tmp/plan.md", "timestamp": 99.0},
     )
+    _write_marker(
+        Path(ctx.artifacts_dir),
+        f"{GATE_INTENT_PREFIX}123.json",
+        {"kind": "custom", "pid": 123, "timestamp": 98.0},
+    )
     _write_pending_call(Path(ctx.artifacts_dir))
 
     with (
@@ -77,6 +83,7 @@ def test_plan_marker_older_than_sigterm_is_handoff(tmp_path: Path) -> None:
     assert result["event"] == "ToolResult"
     assert result["status"] == "interrupted"
     assert result["completed_at"] == "1970-01-01T00:01:40+00:00"
+    assert not (Path(ctx.artifacts_dir) / f"{GATE_INTENT_PREFIX}123.json").exists()
 
 
 def test_plan_marker_newer_than_sigterm_is_ignored_as_user_kill(
@@ -174,6 +181,11 @@ def test_user_kill_intent_wins_over_plan_marker(tmp_path: Path) -> None:
         ".sase_plan_pending",
         {"plan_file": "/tmp/plan.md", "timestamp": 49.0},
     )
+    _write_marker(
+        artifacts,
+        f"{GATE_INTENT_PREFIX}123.json",
+        {"kind": "custom", "pid": 123, "timestamp": 48.0},
+    )
 
     with (
         patch("sase.axe.run_agent_exec.killed_at", return_value=100.0),
@@ -185,6 +197,7 @@ def test_user_kill_intent_wins_over_plan_marker(tmp_path: Path) -> None:
     plan.assert_not_called()
     assert (artifacts / USER_KILL_INTENT_MARKER).exists()
     assert not (artifacts / ".sase_plan_pending").exists()
+    assert not (artifacts / f"{GATE_INTENT_PREFIX}123.json").exists()
     result = _tool_call_records(artifacts)[-1]
     assert result["event"] == "ToolResult"
     assert result["status"] == "interrupted"

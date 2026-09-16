@@ -36,6 +36,7 @@ from .preprocessing import preprocess_prompt
 from sase.xprompt.directives import PromptDirectives
 from .config import resolve_effective_effort
 from .continuation_budget import enforce_continuation_budget
+from .gate_intent_guard import raise_if_gate_intent_lost
 from .launch_selection import LaunchSelection
 from .registry import (
     LLM_EXEC_PROVIDER_ENV,
@@ -368,6 +369,7 @@ def invoke_agent(
             model_override=model_override,
             options=invocation_options,
         )
+        raise_if_gate_intent_lost(artifacts_dir)
         from sase.finalizers import run_finalizers
 
         invoke_result = run_finalizers(

@@ -7,6 +7,7 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+from collections.abc import Callable
 
 from sase.agent.pending_handoff_write import (
     PendingHandoffError,
@@ -32,6 +33,7 @@ def maybe_handoff_shell_from_agent(
     marker_data: Mapping[str, Any],
     artifacts_dir: str | None = None,
     env: Mapping[str, str] | None = None,
+    on_marker_written: Callable[[], None] | None = None,
 ) -> bool:
     """Write a pending marker and kill this runner when inside an agent."""
     current_env = env if env is not None else os.environ
@@ -49,6 +51,8 @@ def maybe_handoff_shell_from_agent(
         marker_data,
         resolved_artifacts_dir,
     )
+    if on_marker_written is not None:
+        on_marker_written()
 
     from sase.main.utils import kill_agent_runner_group
 

@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agent.gate_intent import begin_gate_intent, list_gate_intents
+from sase.agent.pending_handoff import PLAN_PENDING_MARKER
 import sase.gate_shell as gate_shell_package
 from sase.gate_shell import (
     GATE_PENDING_MARKER,
@@ -16,6 +18,7 @@ from sase.gate_shell import (
     will_handoff_gate_to_agent_runner,
 )
 from sase.gate_shell.models import GateShellRecord, GateShellState
+from sase.gate_shell.models import GateShellError
 
 
 @pytest.mark.parametrize(
@@ -78,6 +81,38 @@ def test_maybe_handoff_gate_from_agent_writes_marker_and_kills_runner(
     assert marker["member_agent_name"] == "agent--gate"
     assert marker["kind"] == "sudo"
     kill.assert_called_once_with(str(artifacts_dir))
+
+
+def test_maybe_handoff_gate_from_agent_clears_intent_before_kill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+    assert begin_gate_intent("sudo", request_id="g123") is not None
+
+    def _kill(path: str) -> None:
+        assert path == str(artifacts_dir)
+        assert (artifacts_dir / GATE_PENDING_MARKER).exists()
+        assert list_gate_intents(artifacts_dir) == []
+
+    with patch("sase.main.utils.kill_agent_runner_group", side_effect=_kill):
+        assert maybe_handoff_gate_from_agent(_record()) is True
+
+
+def test_maybe_handoff_gate_from_agent_clears_intent_on_handoff_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    assert begin_gate_intent("sudo", request_id="g123") is not None
+    (tmp_path / PLAN_PENDING_MARKER).write_text("{}", encoding="utf-8")
+
+    with pytest.raises(GateShellError, match="pending handoff already exists"):
+        maybe_handoff_gate_from_agent(_record())
+
+    assert list_gate_intents(tmp_path) == []
 
 
 def test_maybe_handoff_gate_from_agent_skips_terminal_gate(

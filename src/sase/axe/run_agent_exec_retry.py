@@ -16,6 +16,10 @@ from sase.axe.run_agent_helpers import append_meta_list_field
 from sase.axe.runner_signals import was_killed
 from sase.axe.runner_workspace import prepare_workspace
 from sase.llm_provider.provider_disable import get_active_provider_disable
+from sase.llm_provider.gate_intent_guard import (
+    GateIntentLostError,
+    find_gate_intent_lost_error,
+)
 from sase.telemetry.metrics import LLM_RETRIES
 from sase.llm_provider.retry_config import (
     ProviderRetryConfig,
@@ -246,6 +250,23 @@ def handle_workflow_error(
             model=ctx.agent_model,
             artifacts_dir=artifacts_dir,
         )
+
+    gate_intent_lost = find_gate_intent_lost_error(exc)
+    if isinstance(gate_intent_lost, GateIntentLostError):
+        snippet = truncate_error_snippet(error_str)
+        snapshot_attempt(
+            state.current_artifacts_dir or ctx.artifacts_dir,
+            tracker.retry_count + 1,
+            status="raised",
+            start_epoch=tracker.attempt_start_epoch,
+            end_epoch=time.time(),
+            error_full=error_str,
+            error_snippet=snippet,
+            model=ctx.agent_model,
+            used_fallback=tracker.using_fallback,
+            reason="gate intent lost; retry skipped",
+        )
+        return "raise"
 
     # Try the agent's own provider config first; fall back to
     # checking all configured providers (handles the case where

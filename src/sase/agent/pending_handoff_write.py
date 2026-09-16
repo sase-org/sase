@@ -6,14 +6,13 @@ can keep its cheap read-only import.
 
 from __future__ import annotations
 
-import json
 import os
-import tempfile
 import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from sase.agent.gate_intent import atomic_write_json
 from sase.agent.pending_handoff import PENDING_HANDOFF_MARKERS
 
 
@@ -58,7 +57,7 @@ def write_pending_handoff_marker(
     data.setdefault("timestamp", time.time())
     path = Path(resolved) / marker
     path.parent.mkdir(parents=True, exist_ok=True)
-    _atomic_write_json(path, data)
+    atomic_write_json(path, data)
     return path
 
 
@@ -78,19 +77,9 @@ def _already_exists_message(existing: tuple[str, ...]) -> str:
     return f"pending handoff already exists: {', '.join(existing)}"
 
 
-def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
-    fd, temp_path = tempfile.mkstemp(
-        dir=path.parent, prefix=f"{path.name}.", suffix=".tmp"
-    )
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            json.dump(payload, stream, indent=2)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temp_path, path)
-    except Exception:
-        try:
-            os.unlink(temp_path)
-        except OSError:
-            pass
-        raise
+__all__ = [
+    "PendingHandoffError",
+    "atomic_write_json",
+    "handoff_guard",
+    "write_pending_handoff_marker",
+]

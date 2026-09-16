@@ -35,12 +35,17 @@ from sase.axe.run_agent_helpers import (
     read_and_delete_marker,
 )
 from sase.axe.runner_signals import killed_at, reset_killed, was_killed
+from sase.agent.gate_intent import discard_gate_intents
 from sase.agent.user_kill import has_user_kill_intent
 from sase.history.chat import generate_chat_filename, get_chat_file_path
 from sase.history.chat import save_chat_history
 from sase.history.chat_extras import format_extra_sections
 from sase.llm_provider.retry_config import get_retry_config
 from sase.llm_provider._tool_calls import finalize_pending_tool_calls
+from sase.llm_provider.gate_intent_guard import (
+    gate_intent_lost_error_for,
+    raise_if_gate_intent_lost,
+)
 from sase.telemetry.metrics import AGENT_KILLS
 
 __all__ = [
@@ -152,6 +157,7 @@ def _handle_killed_iteration(
         state.current_artifacts_dir,
         completed_at=kill_time,
     )
+    discard_gate_intents(state.current_artifacts_dir)
 
     if has_user_kill_intent(state.current_artifacts_dir):
         read_and_delete_marker(state.current_artifacts_dir, ".sase_plan_pending")
@@ -268,6 +274,7 @@ def _run_execution_loop_bound(
 
     state.continuation_workspace_ref = persist_workspace_facts_best_effort(ctx, state)
     result = None
+    loop_ended_without_kill = False
 
     def _rebind_workspace_identity(output: dict[str, Any], workspace_dir: str) -> None:
         rebind_agent_workspace_identity_from_output(
@@ -302,20 +309,31 @@ def _run_execution_loop_bound(
             )
         except Exception as wf_exc:
             if not was_killed():
-                action = handle_workflow_error(wf_exc, tracker, ctx, state)
+                converted_exc = gate_intent_lost_error_for(
+                    wf_exc,
+                    state.current_artifacts_dir,
+                )
+                action = handle_workflow_error(converted_exc, tracker, ctx, state)
                 if action == "continue":
                     continue
                 if action == "break":
+                    loop_ended_without_kill = state.loop_outcome != "killed"
                     break
+                if converted_exc is not wf_exc:
+                    raise converted_exc from wf_exc
                 raise
             result = None
 
         if not was_killed():
+            loop_ended_without_kill = True
             break
 
         outcome = _handle_killed_iteration(ctx, state)
         if outcome is not None:
             state.loop_outcome = outcome
             break
+
+    if loop_ended_without_kill:
+        raise_if_gate_intent_lost(state.current_artifacts_dir)
 
     return _finalize_loop(ctx, state, tracker, result)

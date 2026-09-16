@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 
+from sase.agent.gate_intent import clear_gate_intent
 from sase.agent.pending_handoff import GATE_PENDING_MARKER
 from sase.gate_shell.models import GateShellError, GateShellRecord
 from sase.gate_shell.settlement import settle_gate_shell
@@ -37,6 +38,7 @@ def maybe_handoff_gate_from_agent(
     """Write the in-agent gate handoff marker and kill this runner."""
     record = creation.record if isinstance(creation, GateShellCreation) else creation
     if record.is_terminal:
+        clear_gate_intent(artifacts_dir)
         return False
     try:
         return maybe_handoff_shell_from_agent(
@@ -44,8 +46,10 @@ def maybe_handoff_gate_from_agent(
             marker_data=_gate_pending_payload(record),
             artifacts_dir=artifacts_dir,
             env=os.environ,
+            on_marker_written=lambda: clear_gate_intent(artifacts_dir),
         )
     except ShellHandoffError as exc:
+        clear_gate_intent(artifacts_dir)
         if isinstance(creation, GateShellCreation):
             _compensate_failed_handoff(creation, str(exc))
         raise GateShellError(str(exc).replace("shell", "gate shell")) from exc

@@ -1,5 +1,6 @@
 """Tests for run_agent_exec_retry continuation-nudge behavior."""
 
+import json
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -10,11 +11,14 @@ from sase.axe.run_agent_exec_retry import (
     _maybe_prepend_continuation,
     handle_workflow_error,
 )
+from sase.agent.gate_intent import GateIntent
+from sase.llm_provider.gate_intent_guard import GateIntentLostError
 from sase.llm_provider.retry_config import (
     ProviderRetryConfig,
     RetryState,
     get_retry_config,
 )
+from sase.xprompt.workflow_models import WorkflowExecutionError
 from tests._axe_run_agent_exec_retry_helpers import (
     _restore_model_override_env,  # noqa: F401 (registers the autouse fixture)
     config_with_nudge,
@@ -103,6 +107,61 @@ class TestHandleWorkflowErrorContinuation:
         clear_repos.assert_not_called()
         assert state.current_prompt.startswith("NUDGE\n\n")
         assert "Do the work." in state.current_prompt
+
+    def test_gate_intent_lost_is_not_retried_even_when_retryable(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        ctx = make_ctx(tmp_path)
+        state = make_state("Do the work.")
+        tracker = RetryTracker(
+            retry_cfg=ProviderRetryConfig(
+                max_retries=2,
+                error_patterns=["429"],
+                wait_times=[0],
+                fallback_model="gpt-5",
+            )
+        )
+        intent = GateIntent(
+            path=tmp_path / ".sase_gate_intent.999.json",
+            payload={},
+            kind="sudo",
+            request_id="sudo-lost",
+            source="sase sudo request",
+            pid=999,
+            process_identity="",
+            timestamp=1.0,
+        )
+        lost = GateIntentLostError(
+            intent,
+            evidence_path=tmp_path / "gate_intent_lost.json",
+            pid_alive=False,
+        )
+        try:
+            raise lost
+        except GateIntentLostError as cause:
+            try:
+                raise WorkflowExecutionError(
+                    "Step 'main' failed: 429 Too Many Requests"
+                ) from cause
+            except WorkflowExecutionError as exc:
+                workflow_exc = exc
+
+        with (
+            patch("sase.axe.run_agent_exec_retry.time.sleep") as sleep,
+            patch("sase.axe.run_agent_exec_retry.prepare_workspace") as prepare,
+        ):
+            action = handle_workflow_error(workflow_exc, tracker, ctx, state)
+
+        assert action == "raise"
+        assert tracker.retry_count == 0
+        assert tracker.using_fallback is False
+        sleep.assert_not_called()
+        prepare.assert_not_called()
+        attempt_path = tmp_path / "artifacts" / "attempts" / "01" / "attempt_meta.json"
+        attempt = json.loads(attempt_path.read_text(encoding="utf-8"))
+        assert attempt["status"] == "raised"
+        assert attempt["reason"] == "gate intent lost; retry skipped"
 
     def test_does_not_double_prepend_on_repeated_retries(self, tmp_path: Path) -> None:
         ctx = make_ctx(tmp_path)

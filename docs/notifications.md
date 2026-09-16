@@ -1236,6 +1236,11 @@ records approved command output in `gate.log`, and settles only after the select
 commands finish. Its lifecycle is pending, settling, answered, completed, failed,
 timeout, stopped, or lost.
 
+Agent-side gate creation also writes a per-process intent marker before slow setup work
+starts. A clean creation error or the normal runner handoff clears it. If the creation
+command dies before handing off, the host fails the run with a `gate intent lost:` error
+naming the gate kind and request ID, and that failed run is never retried.
+
 The built-in front doors choose statuses and continuation policy for their domain:
 
 - `/sase_questions` creates `QUESTION` / `ANSWERED`; an answer launches the next family

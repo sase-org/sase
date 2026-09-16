@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import shutil
 from dataclasses import replace
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Any
 
 import pytest
 
+from sase.agent.gate_intent import list_gate_intents
 from sase.feature_flags import override_flags
 from sase.gate_shell.models import GateShellRecord
 from sase.main.parser import create_parser
@@ -22,6 +24,7 @@ from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import GateError
 from sase.notification_gates.service import create_gate
 from sase.sudo.cli import handle_sudo_command
+from sase.sudo import cli as sudo_cli
 from sase.sudo.cli import _shell_payload as sudo_shell_payload
 from sase.sudo.gate import APPROVE_OPTION_ID, DENY_OPTION_ID, build_sudo_gate_request
 from sase.sudo.lease import _sudo_auth_state_path, sudo_auth_lease
@@ -321,6 +324,50 @@ def test_sudo_request_validation_rejects_shorthand_and_unsafe_forms() -> None:
     with pytest.raises(GateError) as env_error:
         normalize_sudo_request(bad_env)
     assert env_error.value.code == "forbidden_env"
+
+
+def test_sudo_request_writes_intent_before_reading_stdin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    args = argparse.Namespace(origin_agent=None, json=True)
+
+    def _read_stdin_object() -> dict[str, Any]:
+        intents = list_gate_intents(tmp_path)
+        assert len(intents) == 1
+        assert intents[0].kind == "sudo"
+        assert intents[0].request_id is None
+        assert intents[0].source == "sase sudo request"
+        assert intents[0].pid == os.getpid()
+        raise GateError("invalid_json", "stdin", "bad stdin")
+
+    monkeypatch.setattr(sudo_cli, "_read_stdin_object", _read_stdin_object)
+
+    with pytest.raises(GateError, match="bad stdin"):
+        sudo_cli._request(args)
+
+    assert list_gate_intents(tmp_path) == []
+
+
+def test_sudo_request_invalid_stdin_clears_intent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_AGENT", "1")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    args = argparse.Namespace(origin_agent=None, json=True)
+    monkeypatch.setattr(
+        sudo_cli,
+        "_read_stdin_object",
+        lambda: (_ for _ in ()).throw(GateError("invalid_json", "stdin", "bad stdin")),
+    )
+
+    with pytest.raises(GateError, match="bad stdin"):
+        sudo_cli._request(args)
+
+    assert list_gate_intents(tmp_path) == []
 
 
 def test_sudo_manifest_hash_is_part_of_kind_validation(gate_home: Path) -> None:

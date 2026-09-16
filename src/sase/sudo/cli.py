@@ -12,6 +12,7 @@ from typing import Any, Literal
 from rich.console import Console
 from rich.table import Table
 
+from sase.agent.gate_intent import begin_gate_intent, clear_gate_intent
 from sase.gate_shell.models import GateShellRefError, GateShellRecord
 from sase.gate_shell.status import effective_gate_status, gate_status_pair
 from sase.gate_shell.settlement import settle_gate_shell
@@ -99,22 +100,28 @@ def _exec(args: argparse.Namespace) -> int:
 
 def _request(args: argparse.Namespace) -> int:
     """Create a sudo gate shell from stdin."""
-    value = _read_stdin_object()
-    spec = build_sudo_gate_request(
-        value,
-        producer=(
-            {"agent": str(args.origin_agent)}
-            if getattr(args, "origin_agent", None)
-            else None
-        ),
-    )
-    from sase.gate_shell import (
-        create_gate_shell,
-        maybe_handoff_gate_from_agent,
-        will_handoff_gate_to_agent_runner,
-    )
+    begin_gate_intent("sudo", source="sase sudo request")
+    try:
+        value = _read_stdin_object()
+        spec = build_sudo_gate_request(
+            value,
+            producer=(
+                {"agent": str(args.origin_agent)}
+                if getattr(args, "origin_agent", None)
+                else None
+            ),
+        )
+        from sase.gate_shell import (
+            create_gate_shell,
+            maybe_handoff_gate_from_agent,
+            will_handoff_gate_to_agent_runner,
+        )
 
-    creation = create_gate_shell(spec)
+        creation = create_gate_shell(spec)
+    except Exception:
+        clear_gate_intent()
+        raise
+
     payload = creation.to_dict()
     if bool(getattr(args, "json", False)):
         emit_json(payload)
