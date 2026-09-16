@@ -19,51 +19,6 @@
 # out at `RETENTION_DAYS`, not the permanent evidence this directive exists
 # to remove.
 #
-# sase-nv: fixed by 3a22ff04f "fix(config): isolate config cache from
-# test-owned CONFIG_DIR" (committed 2026-08-16T23:02:36Z).
-# fixed-at: 2026-08-16T23:02:36Z tests/test_config.py::test_legacy_overlay_is_discovered_but_not_a_complete_owner
-# fixed-at: 2026-08-16T23:02:36Z tests/test_config.py::test_machine_overlays_require_matching_selector_and_keep_ordinary_overlays
-# fixed-at: 2026-08-16T23:02:36Z tests/test_config.py::test_selected_overlay_identity_cannot_be_overridden_by_other_sources
-# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_clear_config_cache_resets_config_token_time_gate
-# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_current_config_token_refresh_is_single_flight
-# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_explicit_invalidation_wins_race_with_background_refresh
-# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_first_config_token_read_does_not_start_worker
-# fixed-at: 2026-08-16T23:02:36Z tests/test_config_cache.py::test_yaml_content_cache_survives_config_cache_clear
-#
-# sase-md: fixed by d9b2984a7 "fix(tui): isolate config center state
-# replacement" (committed 2026-08-17T01:44:57Z). The node's own baseline
-# entry came out in that commit; this retires the pre-fix evidence the
-# process-wide `os.replace` patch had already recorded.
-# fixed-at: 2026-08-17T01:44:57Z tests/ace/tui/test_config_center_state.py::test_save_atomically_replaces_existing_state
-#
-# sase-mp: fixed by 981106799 "docs: migrate docs and tests off retired
-# model-alias names" (committed 2026-08-16T04:53:04Z).
-# fixed-at: 2026-08-16T04:53:04Z tests/ace/tui/test_top_bar_order.py::test_override_pills_keep_narrow_top_bar_in_bounds
-#
-# sase-m6.7.1.6: fixed by 5d0bcf9e8 "test: expect relation-backed fields in
-# the notes fixture query profile" (committed 2026-08-16T15:00:59Z).
-# fixed-at: 2026-08-16T15:00:59Z tests/test_query_profile.py::test_provider_query_schema_derives_fields_from_the_notes_fixture
-#
-# sase-n8.3: fixed by 57c71d17a "feat(core): mirror alias-history wire
-# contract and add skew probe" (committed 2026-08-16T17:37:24Z).
-# fixed-at: 2026-08-16T17:37:24Z tests/main/test_var_integration.py::test_var_cli_end_to_end_refreshes_index_and_round_trips_machine_outputs
-#
-# sase-nb.8: fixed by 278cc810b "feat(beads): surface flag beads across bead
-# views" (committed 2026-08-16T23:43:38Z).
-# fixed-at: 2026-08-16T23:43:38Z tests/test_bead/test_cli_golden.py::test_bead_cli_golden_contract[stats]
-#
-# sase-nd: fixed by f9ab15d9c "test(monitor): deflake idle timeout liveness
-# bound" (committed 2026-08-17T08:41:25Z). The in-process wall-clock bound
-# measured the xdist worker's own scheduling delay; the supervisor now runs in
-# a child process whose no-hang guard is subprocess.run(timeout=...).
-# fixed-at: 2026-08-17T08:41:25Z tests/monitor/test_monitor_supervise.py::test_run_supervisor_idle_timeout_fires_after_output_stalls
-#
-# sase-nz: fixed by b6246f1cf "test: deflake headless epic approval against an
-# in-flight launch" (committed 2026-08-17T08:54:01Z). The foreign lock holder
-# forked from a multi-threaded xdist worker; it now takes the same flock
-# in-process, which no fork hazard can reach.
-# fixed-at: 2026-08-17T08:54:01Z tests/test_plan_approval_actions.py::test_headless_epic_approval_submits_while_inflight_launch_holds_anchor
-#
 # sase-ob: stop exact == on TemporaryProviderDisable timestamps after the
 # JSON store round-trip. The sibling disable is checked by provider/source/
 # duration and pytest.approx on created_at/expires_at.
@@ -78,11 +33,7 @@
 # instant is a strict superset of that earlier retirement, so the sase-nv
 # line was removed rather than duplicated.
 # fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_selector_change_eventually_invalidates_merged_config
-# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_load_merged_config_caches_default_layer
-# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_clear_config_cache_forces_reload
-# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_load_merged_config_invalidates_on_include_local_toggle
 # fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_load_merged_config_caches_plugin_layer
-# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_owner_snapshot_reuses_parsed_overlay_until_token_changes
 # fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_drain_config_token_refresh_joins_worker_and_advances_epoch
 #
 # sase-ng.1.1: fixed by 13e9ccbc9 "fix(agent): consume force-reuse plans on
@@ -486,21 +437,11 @@ tests/test_agent_loader_incomplete_history_dedup.py::test_incomplete_load_after_
 # measured acceptance" (committed 2026-09-13T21:21:40Z).
 # fixed-at: 2026-09-13T21:21:40Z tests/test_agent_loader_incomplete_history_dedup.py::test_incomplete_load_after_complete_history_keeps_non_workflow_suffix_guard
 #
-# sase-zw.8.7.7: acceptance check-full selection-health promoted these
-# historical full-lane nodes. All 14 pass focused together on this tree
-# (`pytest ... -q`, 14 passed in 33.07s). Phase workers cannot create task
-# beads, so the phase records a PROPOSED FOLLOW-UP note for land-agent triage.
-tests/ace/tui/test_feature_flags_pane.py::test_confirmed_toggle_restarts_axe_and_suppresses_duplicates
-tests/ace/tui/test_visual_fixture_host_paths.py::test_visual_fixtures_embed_no_host_home_paths
+# sase-ni: September full-run evidence for these Vim containment nodes is
+# tracked on the existing narrow full-lane flake task; focused reruns pass, but
+# the post-fix records are not retired by the older August fix.
 tests/ace/tui/widgets/test_vim_normal_key_containment.py::test_ctrl_space_action_is_gated_only_while_prompt_is_mounted
 tests/ace/tui/widgets/test_vim_normal_key_containment.py::test_other_main_screen_vim_hosts_contain_normal_space
-tests/completion/test_build.py::test_mutex_groups_found
-tests/core/test_continuation_retention.py::test_apply_skips_dir_when_continuation_ancestry_appears
-tests/sdd/test_git_identity_fixture.py::test_sdd_git_identity_survives_empty_home_subprocess
-tests/shells/test_shells_substrate.py::test_shell_done_marker_writers_stamp_finished_at_through_shared_helper
-tests/test_agent_artifact_dismissed_save_audit.py::test_dismissed_agent_save_sites_are_reviewed
-tests/test_agent_artifact_dismissed_save_audit.py::test_reviewed_dismissed_agent_save_sites_sync_projection
+# sase-10g: production query oracle fails under the parallel scoped lane and
+# passes in isolation; later full-run evidence was added to the existing task.
 tests/test_agent_load_tiering_production_oracle.py::test_production_machine_query_oracle_repairs_owner_after_index
-tests/test_artifact_capture_policy.py::test_capture_config_default_and_schema
-tests/test_bead/test_claimed_status.py::test_show_explains_claim_owner
-tests/test_justfile_lint.py::test_rust_dev_install_disables_cargo_incremental_cache
