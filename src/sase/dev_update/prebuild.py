@@ -185,6 +185,7 @@ def _run_command(
     *,
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
+    timeout: float | None = None,
 ) -> DevCommandResult:
     command_env = None if env is None else {**os.environ, **dict(env)}
     try:
@@ -192,7 +193,7 @@ def _run_command(
             list(argv),
             cwd=cwd,
             env=command_env,
-            timeout=COMMAND_TIMEOUT_SECONDS,
+            timeout=COMMAND_TIMEOUT_SECONDS if timeout is None else timeout,
         )
     except FileNotFoundError as exc:
         return DevCommandResult(127, stderr=str(exc))

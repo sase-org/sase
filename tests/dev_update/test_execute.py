@@ -141,12 +141,14 @@ def test_execute_dev_update_preflights_all_roots_before_merging() -> None:
             *,
             cwd: Path | None = None,
             env: Mapping[str, str] | None = None,
+            timeout: float | None = None,
         ) -> DevCommandResult:
             command = tuple(argv)
             self.calls.append((command, cwd))
             self.env_calls.append(
                 (command, cwd, dict(env) if env is not None else None)
             )
+            self.timeout_calls.append((command, timeout))
             if command[3:5] == ("status", "--porcelain"):
                 return DevCommandResult(0, stdout="")
             if command[3:6] == ("rev-list", "--left-right", "--count"):

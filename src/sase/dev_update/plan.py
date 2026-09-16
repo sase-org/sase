@@ -13,6 +13,7 @@ from pathlib import Path
 
 from packaging.requirements import InvalidRequirement, Requirement
 
+from sase.dev_update.command import DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS
 from sase.dev_update.models import (
     DevPackagePlanStatus,
     DevReconcileStep,
@@ -331,6 +332,7 @@ def _reconcile_steps(
                     command=("just", "rust-dev-install-uv-tool"),
                     cwd=host_record.source_root,
                     env=_rust_dev_install_env(),
+                    timeout_seconds=DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS,
                 )
             )
         else:

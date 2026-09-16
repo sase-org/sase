@@ -7,7 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from sase.dev_update.execute import run_dev_update_command
+from sase.dev_update.command import DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS
+from sase.dev_update.execute import (
+    DEV_UPDATE_COMMAND_TIMEOUT_SECONDS,
+    run_dev_update_command,
+)
 
 
 def test_run_dev_update_command_disables_git_prompts(
@@ -29,6 +33,43 @@ def test_run_dev_update_command_disables_git_prompts(
     assert isinstance(env, dict)
     assert env["GIT_TERMINAL_PROMPT"] == "0"
     assert env["GCM_INTERACTIVE"] == "never"
+
+
+def test_run_dev_update_command_applies_the_default_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("sase.dev_update.command.subprocess.run", fake_run)
+
+    result = run_dev_update_command(("uv", "tool", "install"))
+
+    assert result.returncode == 0
+    assert captured["timeout"] == DEV_UPDATE_COMMAND_TIMEOUT_SECONDS
+
+
+def test_run_dev_update_command_honours_a_timeout_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run(argv: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        captured.update(kwargs)
+        return subprocess.CompletedProcess(argv, 0, stdout="", stderr="")
+
+    monkeypatch.setattr("sase.dev_update.command.subprocess.run", fake_run)
+
+    result = run_dev_update_command(
+        ("just", "rust-dev-install-uv-tool"),
+        timeout=DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS,
+    )
+
+    assert result.returncode == 0
+    assert captured["timeout"] == DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS
 
 
 def test_run_dev_update_command_merges_env_overrides(

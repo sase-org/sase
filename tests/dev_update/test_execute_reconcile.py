@@ -174,6 +174,31 @@ def test_execute_dev_update_gives_runner_a_complete_environment(
     assert env_by_command[("inherit-command",)] is None
 
 
+def test_execute_dev_update_forwards_a_step_timeout_override() -> None:
+    build_step = DevReconcileStep(
+        kind="rust_dev_install",
+        label="Rebuild Rust dev artifacts into the uv-tool venv",
+        command=("just", "rust-dev-install-uv-tool"),
+        timeout_seconds=3600.0,
+    )
+    quick_step = DevReconcileStep(
+        kind="uv_tool_install",
+        label="Reinstall uv-tool editable Python packages",
+        command=("uv", "tool", "install"),
+    )
+    runner = FakeRunner()
+
+    result = execute_dev_update(
+        plan(reconcile=(build_step, quick_step)),
+        run=runner,
+    )
+
+    assert result.changed is True
+    timeout_by_command = dict(runner.timeout_calls)
+    assert timeout_by_command[("just", "rust-dev-install-uv-tool")] == 3600.0
+    assert timeout_by_command[("uv", "tool", "install")] is None
+
+
 def test_execute_dev_update_prebuild_hit_skips_slow_rust_build() -> None:
     prebuild_command = ("python", "-m", "sase.dev_update.prebuild", "consume")
     rust_command = ("just", "rust-dev-install-uv-tool")

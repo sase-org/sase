@@ -7,6 +7,7 @@ import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from sase.dev_update.models import (
     DevCommandResult,
@@ -18,16 +19,27 @@ from sase.workspace_provider.utils import non_interactive_git_env
 
 DEV_UPDATE_COMMAND_TIMEOUT_SECONDS = 300.0
 
+# Reconcile steps that shell out to cargo are minutes-scale, not seconds-scale:
+# a prebuild-cache miss makes `just rust-dev-install-uv-tool` build sase_core_py
+# and the xprompt LSP from scratch, which routinely outruns the generic command
+# timeout above. Bound those steps with the same ceiling the prebuild producer
+# uses so a wedged build still cannot hang an update forever.
+DEV_UPDATE_BUILD_COMMAND_TIMEOUT_SECONDS = 3600.0
+
 
 def run_dev_update_command(
     argv: Sequence[str],
     *,
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
-    timeout: float = DEV_UPDATE_COMMAND_TIMEOUT_SECONDS,
+    timeout: float | None = None,
 ) -> DevCommandResult:
-    """Run a dev-update command in a non-interactive subprocess."""
+    """Run a dev-update command in a non-interactive subprocess.
+
+    ``timeout`` of ``None`` selects :data:`DEV_UPDATE_COMMAND_TIMEOUT_SECONDS`.
+    """
     command = list(argv)
+    deadline = DEV_UPDATE_COMMAND_TIMEOUT_SECONDS if timeout is None else timeout
     command_env, git_stdin = _subprocess_options(command, env)
 
     def attempt() -> subprocess.CompletedProcess[str]:
@@ -36,7 +48,7 @@ def run_dev_update_command(
             cwd=cwd,
             capture_output=True,
             text=True,
-            timeout=timeout,
+            timeout=deadline,
             env=command_env,
             stdin=git_stdin,
         )
@@ -72,16 +84,23 @@ def run_recorded_command(
     *,
     cwd: Path | None,
     env: Mapping[str, str] | None = None,
+    timeout: float | None = None,
     label: str,
     commands: list[DevExecutedCommand],
     clock: Callable[[], float],
 ) -> DevCommandResult:
-    """Run a command and append its result and duration to ``commands``."""
+    """Run a command and append its result and duration to ``commands``.
+
+    ``env`` and ``timeout`` are only forwarded when set, so a runner keeps its
+    own defaults for every step that does not override them.
+    """
     start = clock()
-    if env is None:
-        result = run(argv, cwd=cwd)
-    else:
-        result = run(argv, cwd=cwd, env=_merged_subprocess_env(env))
+    overrides: dict[str, Any] = {}
+    if env is not None:
+        overrides["env"] = _merged_subprocess_env(env)
+    if timeout is not None:
+        overrides["timeout"] = timeout
+    result = run(argv, cwd=cwd, **overrides)
     duration = max(0.0, clock() - start)
     commands.append(
         DevExecutedCommand(

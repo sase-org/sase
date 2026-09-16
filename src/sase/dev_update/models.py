@@ -126,6 +126,8 @@ class DevReconcileStep:
     """A post-fast-forward environment reconciliation command.
 
     ``env`` is an overlay applied by the executor over the parent environment.
+    ``timeout_seconds`` overrides the runner's default deadline for steps whose
+    work is minutes-scale (a Rust rebuild) rather than seconds-scale.
     """
 
     kind: DevReconcileStepKind
@@ -134,6 +136,7 @@ class DevReconcileStep:
     cwd: str | None = None
     reason: str | None = None
     env: Mapping[str, str] | None = None
+    timeout_seconds: float | None = None
     repair_command: tuple[str, ...] = ()
     repair_cwd: str | None = None
     repair_label: str | None = None
@@ -183,8 +186,12 @@ class DevCommandRunner(Protocol):
         *,
         cwd: Path | None = None,
         env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
     ) -> DevCommandResult:
-        """Run ``argv``; a non-``None`` ``env`` is a complete child environment."""
+        """Run ``argv``; a non-``None`` ``env`` is a complete child environment.
+
+        A non-``None`` ``timeout`` overrides the runner's own default deadline.
+        """
         ...
 
 

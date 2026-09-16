@@ -319,10 +319,11 @@ class SessionProcReporter:
             *,
             cwd: Path | None = None,
             env: Mapping[str, str] | None = None,
+            timeout: float | None = None,
         ) -> DevCommandResult:
             self.phase("Running " + " ".join(str(part) for part in argv[:2]))
             try:
-                completed = self.run(argv, cwd=cwd, env=env)
+                completed = self.run(argv, cwd=cwd, env=env, timeout=timeout)
             except FileNotFoundError as exc:
                 return DevCommandResult(returncode=127, stderr=str(exc))
             except subprocess.TimeoutExpired:

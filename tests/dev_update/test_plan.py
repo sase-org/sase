@@ -366,6 +366,10 @@ def test_plan_dev_update_core_only_uses_rust_rebuild(
     assert plan.reconcile_steps[1].command == ("just", "rust-dev-install-uv-tool")
     assert plan.reconcile_steps[1].cwd == str(host_root)
     assert plan.reconcile_steps[1].env == {"SASE_RUST_DEV_PROFILE": "dev-update"}
+    # A prebuild miss makes this step a full cargo build, which routinely
+    # outruns the generic dev-update command timeout.
+    assert plan.reconcile_steps[1].timeout_seconds == 3600.0
+    assert plan.reconcile_steps[0].timeout_seconds is None
     assert plan.reconcile_steps[2].command == (
         "/tool/bin/python",
         "-c",

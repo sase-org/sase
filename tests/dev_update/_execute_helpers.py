@@ -94,6 +94,7 @@ class FakeRunner:
         self.env_calls: list[
             tuple[tuple[str, ...], Path | None, dict[str, str] | None]
         ] = []
+        self.timeout_calls: list[tuple[tuple[str, ...], float | None]] = []
 
     def __call__(
         self,
@@ -101,10 +102,12 @@ class FakeRunner:
         *,
         cwd: Path | None = None,
         env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
     ) -> DevCommandResult:
         command = tuple(argv)
         self.calls.append((command, cwd))
         self.env_calls.append((command, cwd, dict(env) if env is not None else None))
+        self.timeout_calls.append((command, timeout))
         if command in self.responses:
             return self.responses[command]
         if command[:5] == ("git", "-C", "/repo", "status", "--porcelain"):
@@ -138,6 +141,7 @@ class SequenceRunner(FakeRunner):
         *,
         cwd: Path | None = None,
         env: Mapping[str, str] | None = None,
+        timeout: float | None = None,
     ) -> DevCommandResult:
         command = tuple(argv)
         if command in self.sequences and self.sequences[command]:
@@ -145,5 +149,6 @@ class SequenceRunner(FakeRunner):
             self.env_calls.append(
                 (command, cwd, dict(env) if env is not None else None)
             )
+            self.timeout_calls.append((command, timeout))
             return self.sequences[command].pop(0)
-        return super().__call__(argv, cwd=cwd, env=env)
+        return super().__call__(argv, cwd=cwd, env=env, timeout=timeout)
