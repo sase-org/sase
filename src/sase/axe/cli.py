@@ -119,7 +119,9 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
     than one configured routine.
     """
     chop_name: str = args.chop_name
-    lumberjack_override: str | None = getattr(args, "lumberjack", None)
+    lumberjack_override: str | None = getattr(args, "routine", None) or getattr(
+        args, "lumberjack", None
+    )
     config = _load_axe_config_or_exit()
 
     try:

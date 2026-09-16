@@ -397,7 +397,8 @@ def _add_axe_job_group(
     run_parser.add_argument(
         "-L",
         "--routine",
-        dest="lumberjack",
+        dest="routine",
+        metavar="ROUTINE",
         default=None,
         help="Configured routine to attribute the run to (required when the "
         "job name appears in multiple routines)",

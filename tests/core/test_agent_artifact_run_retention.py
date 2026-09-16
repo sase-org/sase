@@ -14,6 +14,7 @@ from sase.bead.model import Status
 import sase.core.agent_artifact_run_protection as protection
 import sase.core.agent_artifact_run_retention as run_retention
 from sase.core.agent_artifact_run_retention import (
+    ACE_RUN_RETENTION_SCHEMA_VERSION,
     AceRunProtectionSnapshot,
     AceRunRetentionPolicy,
     apply_ace_run_retention,
@@ -387,3 +388,51 @@ def test_binding_refuses_empty_shard_apply(
     assert result["blocked_reason"] == "authoritative_protection_unavailable"
     assert result["removed_empty_shards"] == 0
     assert empty_day.exists()
+
+
+def test_binding_preserves_empty_referenced_run_during_empty_cleanup(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    workflow = projects_root / "proj" / "artifacts" / "ace-run"
+    referenced = workflow / "202601" / "01" / "20260101000000"
+    referenced.mkdir(parents=True)
+
+    result = run_retention._call_rust(
+        {
+            "schema_version": ACE_RUN_RETENTION_SCHEMA_VERSION,
+            "projects_root": str(projects_root),
+            "recent_months": ["202609"],
+            "current_timestamp": "20260914120000",
+            "limit": None,
+            "apply": False,
+            "sources_unavailable": [],
+            "protected_dirs": [str(referenced)],
+            "protected_timestamps": [],
+            "candidates": [
+                {
+                    "artifact_dir": str(referenced),
+                    "project": "proj",
+                    "timestamp": "20260101000000",
+                    "protected_reasons": [],
+                }
+            ],
+            "empty_shard_roots": [str(workflow)],
+            "empty_shard_watched_paths": [],
+            "empty_shard_removal_budget": 10,
+        }
+    )
+
+    assert result["removed_runs"] == 0
+    assert result["removed_empty_shards"] == 0
+    would_remove = {
+        Path(item["path"])
+        for item in result["shard_items"]
+        if item["outcome"] == "would_remove"
+    }
+    assert referenced not in would_remove
+    assert referenced.parent not in would_remove
+    assert referenced.parent.parent not in would_remove
+    assert referenced.exists()
+    assert referenced.parent.exists()
+    assert referenced.parent.parent.exists()

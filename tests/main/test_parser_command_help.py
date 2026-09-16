@@ -101,7 +101,8 @@ def test_axe_job_and_routine_public_commands_keep_hidden_legacy_aliases() -> Non
     assert job.axe_subcommand == "job"
     assert job.axe_chop_subcommand == "run"
     assert job.chop_name == "hook_checks"
-    assert job.lumberjack == "hooks"
+    assert job.routine == "hooks"
+    assert job.lumberjack is None
     assert job.chop_verbose is True
     assert chop.axe_subcommand == "chop"
     assert chop.lumberjack == "hooks"

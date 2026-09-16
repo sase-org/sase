@@ -2,12 +2,12 @@
 
 Protection facts (bead liveness, continuation ancestry, artifact-index
 references, scan markers) are gathered here from their own Rust-backed
-sources; the final preview classification and the canonical-root/
-symlink-ancestor safety check live in the ``sase_core_rs`` run-retention
-owner (:mod:`sase_core::agent_artifact_run_retention`). Mutation is
-retired: ``apply_ace_run_retention`` calls the owner only to receive its
-stable refusal and never performs protection scans, filesystem deletion, or
-artifact-index deindexing.
+sources; the final preview classification, the canonical-root/symlink-ancestor
+safety check, and the bottom-up empty-shard walk all live in the
+``sase_core_rs`` run-retention owner (:mod:`sase_core::agent_artifact_run_retention`).
+Mutation is retired: ``apply_ace_run_retention`` calls the owner only to
+receive its stable refusal and never performs protection scans, filesystem
+deletion, or artifact-index deindexing.
 """
 
 from __future__ import annotations

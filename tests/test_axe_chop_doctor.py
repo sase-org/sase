@@ -186,7 +186,55 @@ def test_build_chop_checks_warns_on_unconfigured_telegram(
     assert statuses["available_unconfigured_chops"] == "WARN"
     assert statuses["telegram_env"] == "WARN"
     assert statuses["telegram_bot_token"] == "WARN"
+    assert statuses["telegram_entrypoints"] == "WARN"
+    entrypoint_check = next(
+        check for check in checks if check.id == "telegram_entrypoints"
+    )
+    assert "sase_job_tg_inbound" in entrypoint_check.next_steps[0]
     assert _aggregate_chop_status(checks) == "WARN"
+
+
+def test_build_chop_checks_accepts_canonical_telegram_job_entrypoint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    python_bin = tmp_path / "venv" / "bin"
+    _point_python_bin(monkeypatch, python_bin)
+    _make_executable(python_bin / "sase_job_tg_inbound")
+    _point_home(monkeypatch, tmp_path)
+
+    inventory = collect_chop_inventory(AxeConfig())
+    checks = _build_chop_checks(inventory, which_fn=lambda _: None)
+
+    entrypoint_check = next(
+        check for check in checks if check.id == "telegram_entrypoints"
+    )
+    assert entrypoint_check.status == "OK"
+    assert "sase_job_tg_inbound" in entrypoint_check.details[0]
+
+
+def test_build_chop_checks_dedupes_telegram_job_and_legacy_aliases(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    python_bin = tmp_path / "venv" / "bin"
+    _point_python_bin(monkeypatch, python_bin)
+    job_script = python_bin / "sase_job_tg_inbound"
+    _make_executable(job_script)
+    (python_bin / "sase_chop_tg_inbound").symlink_to(job_script)
+    _point_home(monkeypatch, tmp_path)
+
+    inventory = collect_chop_inventory(AxeConfig())
+    available = [script.name for script in inventory.available_scripts]
+    checks = _build_chop_checks(inventory, which_fn=lambda _: None)
+
+    assert available.count("sase_job_tg_inbound") == 1
+    assert "sase_chop_tg_inbound" not in available
+    entrypoint_check = next(
+        check for check in checks if check.id == "telegram_entrypoints"
+    )
+    assert entrypoint_check.status == "OK"
+    assert "sase_chop_tg_inbound" not in entrypoint_check.details[0]
 
 
 def test_build_chop_checks_accepts_telegram_chop_env(

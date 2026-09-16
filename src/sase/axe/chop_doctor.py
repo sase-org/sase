@@ -38,6 +38,14 @@ _TELEGRAM_CHOP_NAMES = {
     "telegram_inbound",
     "telegram_outbound",
 }
+_TELEGRAM_CANONICAL_ENTRYPOINTS = {
+    "sase_job_tg_inbound",
+    "sase_job_tg_outbound",
+}
+_TELEGRAM_LEGACY_ENTRYPOINTS = {
+    "sase_chop_tg_inbound",
+    "sase_chop_tg_outbound",
+}
 _TELEGRAM_TOKEN_NEXT_STEP = (
     "Configure SASE_TELEGRAM_BOT_TOKEN with an env/file/pass secret reference "
     "under routine or job env, set it in process env, create "
@@ -112,6 +120,7 @@ def _build_chop_checks(
     checks.extend(_declarative_chop_checks(inventory))
     checks.extend(_unconfigured_chop_checks(inventory))
     checks.extend(_telegram_checks(inventory, which_fn=which_fn))
+    checks.extend(_telegram_entrypoint_checks(inventory))
     return tuple(checks)
 
 
@@ -371,6 +380,51 @@ def _telegram_checks(
         )
 
     return tuple(checks)
+
+
+def _telegram_entrypoint_checks(inventory: ChopInventory) -> tuple[ChopCheck, ...]:
+    if not _has_telegram_chop_scripts(inventory):
+        return ()
+
+    names = _telegram_entrypoint_names(inventory)
+    canonical = tuple(sorted(names & _TELEGRAM_CANONICAL_ENTRYPOINTS))
+    legacy = tuple(sorted(names & _TELEGRAM_LEGACY_ENTRYPOINTS))
+    if legacy and not canonical:
+        return (
+            ChopCheck(
+                id="telegram_entrypoints",
+                status="WARN",
+                summary="Legacy Telegram job entrypoints are accepted, but canonical entrypoints are not installed or configured.",
+                details=(f"legacy_entrypoints={', '.join(legacy)}",),
+                next_steps=(
+                    "Install or upgrade `sase-telegram`, then configure `sase_job_tg_inbound` and `sase_job_tg_outbound`; legacy Telegram entrypoint inputs remain accepted.",
+                ),
+            ),
+        )
+    if canonical:
+        return (
+            ChopCheck(
+                id="telegram_entrypoints",
+                status="OK",
+                summary="Canonical Telegram job entrypoints are installed or configured.",
+                details=(f"canonical_entrypoints={', '.join(canonical)}",),
+            ),
+        )
+    return ()
+
+
+def _telegram_entrypoint_names(inventory: ChopInventory) -> set[str]:
+    names = {
+        script.name
+        for script in inventory.available_scripts
+        if _is_telegram_chop_name(script.name)
+    }
+    names.update(
+        chop.script
+        for chop in _configured_telegram_chops(inventory)
+        if _is_telegram_chop_name(chop.script)
+    )
+    return names
 
 
 def _has_telegram_chop_scripts(inventory: ChopInventory) -> bool:
