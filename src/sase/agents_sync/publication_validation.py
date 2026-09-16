@@ -66,6 +66,7 @@ def load_validated_publication(
         ] = override_manifest
     snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
     overrides = override_snapshots or {}
+    scoped_verification = override_snapshots is not None
     payload = override_payload or {}
     for manifest in manifests.values():
         for hood, entry in manifest.hoods:
@@ -91,13 +92,15 @@ def load_validated_publication(
                 raise AgentsSyncFormatError(
                     f"snapshot identity mismatch for {'.'.join(key)!r}"
                 )
-            expected = hood_file_set(snapshot)
-            if expected != entry.files:
-                raise AgentsSyncFormatError(
-                    f"manifest file set mismatch for {'.'.join(key)!r}"
-                )
-            for run in snapshot.runs:
-                verify_run_files(repo_root, run, payload)
+            if entry.files is not None:
+                expected = hood_file_set(snapshot)
+                if expected != entry.files:
+                    raise AgentsSyncFormatError(
+                        f"manifest file set mismatch for {'.'.join(key)!r}"
+                    )
+            if not scoped_verification or key in overrides:
+                for run in snapshot.runs:
+                    verify_run_files(repo_root, run, payload)
             snapshots[key] = snapshot
     return (
         tuple(

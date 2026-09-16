@@ -11,8 +11,9 @@ from sase.agents_sync.v2_models import (
     V2ProjectIdentity,
 )
 from sase.agents_sync.v2_validation import (
-    MAX_CONTAINERS,
     MAX_FILES,
+    MAX_MANIFEST_HOODS,
+    MAX_MANIFEST_JSON_BYTES,
     compatible_object,
     decode_owner_identity,
     decode_project_identity,
@@ -65,7 +66,9 @@ def read_owner_manifest(
     path = repo_root / owner_manifest_path(owner)
     if not path.is_file():
         return V2OwnerManifest(owner, project)
-    manifest = decode_owner_manifest(read_json(path, "owner manifest"))
+    manifest = decode_owner_manifest(
+        read_json(path, "owner manifest", max_bytes=MAX_MANIFEST_JSON_BYTES)
+    )
     if manifest.owner != owner:
         raise AgentsSyncFormatError("owner manifest path does not match its owner")
     if manifest.project != project:
@@ -76,7 +79,9 @@ def read_owner_manifest(
 def owner_manifest_from_bytes(payload: bytes) -> V2OwnerManifest:
     """Decode strict owner-manifest bytes from a fetched Git object."""
 
-    return decode_owner_manifest(json_from_bytes(payload, "owner manifest"))
+    return decode_owner_manifest(
+        json_from_bytes(payload, "owner manifest", max_bytes=MAX_MANIFEST_JSON_BYTES)
+    )
 
 
 def read_all_owner_manifests(repo_root: Path) -> tuple[V2OwnerManifest, ...]:
@@ -102,7 +107,9 @@ def _read_all_owner_manifests(
         relative = path.relative_to(repo_root).as_posix()
         try:
             validate_relative_path(relative)
-            manifest = decode_owner_manifest(read_json(path, relative))
+            manifest = decode_owner_manifest(
+                read_json(path, relative, max_bytes=MAX_MANIFEST_JSON_BYTES)
+            )
             parts = PurePosixPath(relative).parts
             if (
                 manifest.owner.username != parts[1]
@@ -130,24 +137,28 @@ def decode_owner_manifest(value: object) -> V2OwnerManifest:
     owner = decode_owner_identity(data["owner"], "owner manifest owner")
     project = decode_project_identity(data["project"])
     raw_hoods = json_object(data["hoods"], "owner manifest hoods")
-    if len(raw_hoods) > MAX_CONTAINERS:
+    if len(raw_hoods) > MAX_MANIFEST_HOODS:
         raise AgentsSyncFormatError("owner manifest has too many hoods")
     hoods: list[tuple[str, V2OwnerHoodEntry]] = []
     for hood, raw_entry in sorted(raw_hoods.items()):
         validate_component(hood, label="hood")
-        row = compatible_object(
-            raw_entry,
-            f"hood {hood!r}",
-            {"digest", "files", "run_count", "family_count"},
-        )
-        digest = validate_digest(row["digest"], f"hood {hood!r} digest")
-        files = string_list(row["files"], f"hood {hood!r} files", MAX_FILES)
-        for path in files:
-            validate_relative_path(path)
-        if tuple(sorted(set(files))) != files:
+        row = json_object(raw_entry, f"hood {hood!r}")
+        required = {"digest", "run_count", "family_count"}
+        missing = required - set(row)
+        if missing:
             raise AgentsSyncFormatError(
-                f"hood {hood!r} files must be unique and sorted"
+                f"hood {hood!r} is missing required keys: {', '.join(sorted(missing))}"
             )
+        digest = validate_digest(row["digest"], f"hood {hood!r} digest")
+        files: tuple[str, ...] | None = None
+        if "files" in row:
+            files = string_list(row["files"], f"hood {hood!r} files", MAX_FILES)
+            for path in files:
+                validate_relative_path(path)
+            if tuple(sorted(set(files))) != files:
+                raise AgentsSyncFormatError(
+                    f"hood {hood!r} files must be unique and sorted"
+                )
         hoods.append(
             (
                 hood,
@@ -162,7 +173,29 @@ def decode_owner_manifest(value: object) -> V2OwnerManifest:
     return V2OwnerManifest(owner, project, tuple(hoods))
 
 
+def check_manifest_write_size(hood_count: int, manifest_bytes: bytes) -> None:
+    """Fail a write before it produces a manifest its own read cap rejects.
+
+    Defense in depth: unreachable once every entry is slim, but converts any
+    future recurrence of unbounded growth from a post-write brick (the
+    manifest is written, then the next read rejects it) into a pre-write
+    error that never lands.
+    """
+
+    if len(manifest_bytes) > MAX_MANIFEST_JSON_BYTES:
+        raise AgentsSyncFormatError(
+            f"owner manifest write of {len(manifest_bytes)} bytes exceeds the "
+            f"{MAX_MANIFEST_JSON_BYTES} byte read cap"
+        )
+    if hood_count > MAX_MANIFEST_HOODS:
+        raise AgentsSyncFormatError(
+            f"owner manifest write of {hood_count} hoods exceeds the "
+            f"{MAX_MANIFEST_HOODS} hood read cap"
+        )
+
+
 __all__ = [
+    "check_manifest_write_size",
     "owner_hood_directory_names",
     "owner_manifest_from_bytes",
     "owner_manifest_path",

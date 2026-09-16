@@ -19,6 +19,7 @@ from sase.agents_sync.publication_validation import (
 )
 from sase.agents_sync.rendering import render_browsing_payload
 from sase.agents_sync.v2_io import (
+    check_manifest_write_size,
     content_digest,
     owner_hood_directory_names,
     owner_manifest_path,
@@ -34,6 +35,7 @@ from sase.agents_sync.v2_models import (
     V2PublicationCounts,
 )
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.feature_flags import FeatureFlag, current_flags
 
 
 def plan_hoods(
@@ -71,6 +73,7 @@ def plan_hoods(
     }
     current_snapshots: dict[tuple[str, str, str], V2HoodSnapshot] = {}
     published = refreshed = unchanged = families = runs = 0
+    slim = current_flags().enabled(FeatureFlag.slim_agents_manifest)
 
     for hood in sorted(set(hoods)):
         previous = previous_snapshot(repo_root, owner, hood, entries.get(hood))
@@ -85,7 +88,7 @@ def plan_hoods(
         hood_snapshot_path = snapshot_path(owner, hood)
         snapshot_bytes = v2_json_bytes(hood_snapshot.to_json_dict())
         hood_payload[hood_snapshot_path] = snapshot_bytes
-        files = hood_file_set(hood_snapshot)
+        files = None if slim else hood_file_set(hood_snapshot)
         entry = V2OwnerHoodEntry(
             content_digest(snapshot_bytes),
             files,
@@ -107,7 +110,9 @@ def plan_hoods(
         current_snapshots[(owner.username, owner.machine_name, hood)] = hood_snapshot
 
     manifest = V2OwnerManifest(owner, project, tuple(sorted(entries.items())))
-    payload[owner_manifest_path(owner)] = v2_json_bytes(manifest.to_json_dict())
+    manifest_bytes = v2_json_bytes(manifest.to_json_dict())
+    check_manifest_write_size(len(manifest.hoods), manifest_bytes)
+    payload[owner_manifest_path(owner)] = manifest_bytes
     manifests, snapshots, diagnostics = load_validated_publication(
         repo_root,
         override_manifest=manifest,

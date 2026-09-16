@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from sase.agents_sync.publication_repair import (
 from sase.agents_sync.publication_validation import load_validated_publication
 from sase.agents_sync.v2_io import apply_payload_atomic
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.feature_flags import FeatureFlag, override_flags
 
 
 def _target(tmp_path: Path, name: str) -> ProjectTarget:
@@ -207,6 +209,48 @@ def test_repair_manifest_is_a_noop_when_already_complete(tmp_path: Path) -> None
 
     assert payload == {}
     assert report == ()
+
+
+def test_repair_digest_writer_honors_slim_agents_manifest_flag(
+    tmp_path: Path,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target, repo = _publish(tmp_path, "flagdigest", owner, "foo")
+    manifest_key = _manifest_path(repo, owner).relative_to(repo).as_posix()
+
+    _chat_path(repo, owner, "foo").write_bytes(b"rewritten out of band\n")
+    payload, resigned = repair_owner_hood_digests(target, repo, owner)
+    assert resigned
+    manifest = json.loads(payload[manifest_key])
+    assert "files" not in manifest["hoods"]["foo"]
+
+    with override_flags(**{str(FeatureFlag.slim_agents_manifest): False}):
+        payload_off, resigned_off = repair_owner_hood_digests(target, repo, owner)
+    assert resigned_off
+    manifest_off = json.loads(payload_off[manifest_key])
+    fat_files = manifest_off["hoods"]["foo"]["files"]
+    assert fat_files == sorted(set(fat_files))
+
+
+def test_repair_manifest_writer_honors_slim_agents_manifest_flag(
+    tmp_path: Path,
+) -> None:
+    owner = AgentOwnerIdentity("alice", "athena")
+    target, repo = _publish(tmp_path, "flagmanifest", owner, "foo")
+    _manifest_path(repo, owner).unlink()
+    manifest_key = _manifest_path(repo, owner).relative_to(repo).as_posix()
+
+    payload, report = _repair_owner_manifest(target, repo, owner)
+    assert any("foo" in entry and "recovered" in entry for entry in report)
+    manifest = json.loads(payload[manifest_key])
+    assert "files" not in manifest["hoods"]["foo"]
+
+    with override_flags(**{str(FeatureFlag.slim_agents_manifest): False}):
+        payload_off, report_off = _repair_owner_manifest(target, repo, owner)
+    assert any("foo" in entry and "recovered" in entry for entry in report_off)
+    manifest_off = json.loads(payload_off[manifest_key])
+    fat_files = manifest_off["hoods"]["foo"]["files"]
+    assert fat_files == sorted(set(fat_files))
 
 
 def test_repair_manifest_never_reads_a_foreign_owners_path_family(

@@ -31,6 +31,7 @@ class FeatureFlag(StrEnum):
     queue_capacity_budget = "queue_capacity_budget"
     ref_sync_gesture = "ref_sync_gesture"
     refresh_panel = "refresh_panel"
+    slim_agents_manifest = "slim_agents_manifest"
     typed_launch_units = "typed_launch_units"
 
 
@@ -135,6 +136,17 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "the cursor on Full history."
         ),
         bead="sase-105",
+    ),
+    FeatureFlag.slim_agents_manifest: FeatureFlagDefinition(
+        key=FeatureFlag.slim_agents_manifest,
+        kind="sunset",
+        description=(
+            "Owner-manifest writes (fresh publish, digest repair, and "
+            "manifest repair) omit each hood's per-hood files list, and "
+            "reads use the dedicated larger manifest byte and hood-count "
+            "caps with lenient old-reader skip for the omitted-files shape."
+        ),
+        bead="sase-11p",
     ),
     FeatureFlag.typed_launch_units: FeatureFlagDefinition(
         key=FeatureFlag.typed_launch_units,

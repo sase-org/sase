@@ -14,6 +14,7 @@ from sase.agents_sync.io import (
     canonical_json_bytes,
 )
 from sase.agents_sync.v2_manifest_io import (
+    check_manifest_write_size as check_manifest_write_size,
     decode_owner_manifest as _owner_manifest_from_json,
     owner_hood_directory_names as owner_hood_directory_names,
     owner_manifest_from_bytes as owner_manifest_from_bytes,
@@ -32,6 +33,8 @@ from sase.agents_sync.v2_validation import (
     MAX_CONTAINERS as MAX_CONTAINERS,
     MAX_FILES as MAX_FILES,
     MAX_JSON_BYTES as MAX_JSON_BYTES,
+    MAX_MANIFEST_HOODS as MAX_MANIFEST_HOODS,
+    MAX_MANIFEST_JSON_BYTES as MAX_MANIFEST_JSON_BYTES,
     MAX_OUTPUT_VARIABLE_DEPTH as MAX_OUTPUT_VARIABLE_DEPTH,
     MAX_OUTPUT_VARIABLE_ENCODED_BYTES as MAX_OUTPUT_VARIABLE_ENCODED_BYTES,
     MAX_OUTPUT_VARIABLE_NODES as MAX_OUTPUT_VARIABLE_NODES,
@@ -124,6 +127,8 @@ def apply_payload_atomic(repo_root: Path, payload: Mapping[str, bytes]) -> bool:
 
 __all__ = [
     "MAX_JSON_BYTES",
+    "MAX_MANIFEST_HOODS",
+    "MAX_MANIFEST_JSON_BYTES",
     "MAX_OUTPUT_VARIABLE_DEPTH",
     "MAX_OUTPUT_VARIABLE_ENCODED_BYTES",
     "MAX_OUTPUT_VARIABLE_NODES",
@@ -132,6 +137,7 @@ __all__ = [
     "MAX_TEXT_BYTES",
     "V2_METADATA_FIELDS",
     "apply_payload_atomic",
+    "check_manifest_write_size",
     "content_digest",
     "file_reference",
     "owner_hood_directory_names",

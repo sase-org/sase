@@ -271,17 +271,19 @@ class V2HoodSnapshot:
 @dataclass(frozen=True, slots=True)
 class V2OwnerHoodEntry:
     digest: str
-    files: tuple[str, ...]
+    files: tuple[str, ...] | None
     run_count: int
     family_count: int
 
     def to_json_dict(self) -> dict[str, object]:
-        return {
+        data: dict[str, object] = {
             "digest": self.digest,
-            "files": list(self.files),
             "run_count": self.run_count,
             "family_count": self.family_count,
         }
+        if self.files is not None:
+            data["files"] = list(self.files)
+        return data
 
 
 @dataclass(frozen=True, slots=True)

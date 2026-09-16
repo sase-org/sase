@@ -28,6 +28,14 @@ MAX_RELATIONSHIPS = 16_384
 MAX_FILES = 32_768
 MAX_PAYLOAD_BYTES = 128 * 1024 * 1024
 
+# Dedicated, larger owner-manifest read caps. Slim per-hood entries (no
+# `files` list) run ~100 bytes each, so 16384 hoods is roughly 2 MB; this
+# also keeps today's ~4.19 MB fat manifest readable long enough to be
+# slimmed by its next write. Do not reuse these for snapshots or other
+# payloads, which keep MAX_JSON_BYTES/MAX_CONTAINERS.
+MAX_MANIFEST_JSON_BYTES = 16 * 1024 * 1024
+MAX_MANIFEST_HOODS = 16_384
+
 _DIGEST_RE = re.compile(r"^[0-9a-f]{64}$")
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _OUTPUT_VARIABLE_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -122,10 +130,10 @@ def validate_output_variables(metadata: Mapping[str, Any], *, label: str) -> Non
             ) from exc
 
 
-def read_json(path: Path, label: str) -> object:
+def read_json(path: Path, label: str, *, max_bytes: int = MAX_JSON_BYTES) -> object:
     try:
         size = path.stat().st_size
-        if size > MAX_JSON_BYTES:
+        if size > max_bytes:
             raise AgentsSyncFormatError(f"{label} exceeds the byte limit")
         return json.loads(path.read_text(encoding="utf-8"))
     except AgentsSyncFormatError:
@@ -134,8 +142,10 @@ def read_json(path: Path, label: str) -> object:
         raise AgentsSyncFormatError(f"could not read {label} at {path}: {exc}") from exc
 
 
-def json_from_bytes(payload: bytes, label: str) -> object:
-    if len(payload) > MAX_JSON_BYTES:
+def json_from_bytes(
+    payload: bytes, label: str, *, max_bytes: int = MAX_JSON_BYTES
+) -> object:
+    if len(payload) > max_bytes:
         raise AgentsSyncFormatError(f"{label} exceeds the byte limit")
     try:
         return json.loads(payload.decode("utf-8"))

@@ -17,6 +17,7 @@ from sase.agents_sync.models import CommitRecord, ProjectTarget
 from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
 from sase.agents_sync.v2_io import read_hood_snapshot
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
+from sase.feature_flags import FeatureFlag, override_flags
 
 _HEADING_RE = re.compile(r"^## (?P<title>.+)$", re.MULTILINE)
 
@@ -655,3 +656,119 @@ def test_plan_hoods_manifest_guard_is_inert_on_a_clean_repository(
 
     assert counts.hoods_published == 1
     assert not any("omits" in diagnostic for diagnostic in counts.diagnostics)
+
+
+def test_manifest_writer_honors_slim_agents_manifest_flag(tmp_path: Path) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
+
+    publish_agent_hood(
+        target,
+        repo,
+        "foo.bar.baz--code",
+        identity=_identity(),
+        inventory=inventory,
+    )
+    slim_manifest = json.loads(_owner_manifest_path(repo).read_text(encoding="utf-8"))
+    assert "files" not in slim_manifest["hoods"]["foo"]
+
+    with override_flags(**{str(FeatureFlag.slim_agents_manifest): False}):
+        publish_agent_hood(
+            target,
+            repo,
+            "foo.bar.baz--code",
+            identity=_identity(),
+            inventory=inventory,
+        )
+    fat_manifest = json.loads(_owner_manifest_path(repo).read_text(encoding="utf-8"))
+    fat_files = fat_manifest["hoods"]["foo"]["files"]
+    assert fat_files == sorted(set(fat_files))
+
+    publish_agent_hood(
+        target,
+        repo,
+        "foo.bar.baz--code",
+        identity=_identity(),
+        inventory=inventory,
+    )
+    resumed_manifest = json.loads(
+        _owner_manifest_path(repo).read_text(encoding="utf-8")
+    )
+    assert "files" not in resumed_manifest["hoods"]["foo"]
+
+
+def test_plan_hoods_write_guard_rejects_a_manifest_over_the_read_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.agents_sync import v2_manifest_io
+
+    monkeypatch.setattr(v2_manifest_io, "MAX_MANIFEST_HOODS", 0)
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
+
+    with pytest.raises(AgentsSyncFormatError, match="hood read cap"):
+        publish_agent_hood(
+            target,
+            repo,
+            "foo.bar.baz--code",
+            identity=_identity(),
+            inventory=inventory,
+        )
+
+    assert not _owner_manifest_path(repo).exists()
+
+
+def test_scoped_verification_ignores_drift_outside_the_hood_being_published(
+    tmp_path: Path,
+) -> None:
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    inventory = _inventory(AgentOwnerIdentity("alice", "athena"))
+    reconcile_agent_hoods(
+        target,
+        repo,
+        identity=_identity(),
+        inventory=inventory,
+    )
+
+    drifted_chat = repo / "agents" / "alice.athena.work.committer" / "chat.md"
+    assert drifted_chat.is_file()
+    drifted_chat.write_bytes(b"rewritten out of band\n")
+
+    # Publishing an unrelated hood ("foo") no longer re-hashes every other
+    # hood's run files, so drift in "work" does not block it.
+    counts = publish_agent_hood(
+        target,
+        repo,
+        "foo.bar.baz--code",
+        identity=_identity(),
+        inventory=inventory,
+    )
+    assert counts.hoods_unchanged == 1
+
+    # A carried-forward ("temporarily absent") run inside the hood actually
+    # being published is still verified: drift in its own referenced file
+    # blocks that hood's own publish.
+    without_boom = ProjectHoodInventory(
+        inventory.owner,
+        "proj",
+        tuple(run for run in inventory.runs if run.local_name != "foo.boom"),
+    )
+    boom_chat = repo / "agents" / "alice.athena.foo.boom" / "chat.md"
+    assert boom_chat.is_file()
+    boom_chat.write_bytes(b"rewritten out of band\n")
+
+    with pytest.raises(AgentsSyncFormatError, match="file digest mismatch"):
+        publish_agent_hood(
+            target,
+            repo,
+            "foo.bar.baz--code",
+            identity=_identity(),
+            inventory=without_boom,
+        )

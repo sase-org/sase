@@ -3,8 +3,8 @@
 An out-of-band rewrite of an already-published payload file (for example a
 direct edit to a published ``chat.md``) leaves its ``V2FileReference`` digest
 stale inside the hood snapshot that signs it. ``load_validated_publication``
-verifies every referenced file before publishing anything, so one drifted
-file blocks publication for the whole owner. The functions here trust the
+verifies referenced files for the hoods being actively published, so a
+drifted file blocks publication of its own hood. The functions here trust the
 on-disk payload as correct and re-sign just the stale references and the
 owner-manifest digest that covers them, for hoods owned by the local
 identity only.
@@ -37,6 +37,7 @@ from sase.agents_sync.publication_validation import (
 from sase.agents_sync.targets import resolve_sync_targets
 from sase.agents_sync.v2_io import (
     apply_payload_atomic,
+    check_manifest_write_size,
     content_digest,
     file_reference,
     owner_hood_directory_names,
@@ -52,6 +53,7 @@ from sase.agents_sync.v2_models import (
 )
 from sase.config import require_agent_owner_identity
 from sase.core.agent_identity_facade import AgentOwnerIdentity
+from sase.feature_flags import FeatureFlag, current_flags
 
 REPAIR_DIGESTS_COMMAND = "sase agent sync --repair-digests"
 REPAIR_MANIFEST_COMMAND = "sase agent sync --repair-manifest"
@@ -74,6 +76,7 @@ def repair_owner_hood_digests(
 
     project = V2ProjectIdentity(target.project_key, target.project)
     manifest = read_owner_manifest(repo_root, owner, project)
+    slim = current_flags().enabled(FeatureFlag.slim_agents_manifest)
     payload: dict[str, bytes] = {}
     resigned: list[str] = []
     updated_hoods: dict[str, V2OwnerHoodEntry] = {}
@@ -88,7 +91,7 @@ def repair_owner_hood_digests(
         updated_hoods[hood] = replace(
             entry,
             digest=content_digest(snapshot_bytes),
-            files=hood_file_set(repaired),
+            files=None if slim else hood_file_set(repaired),
         )
         resigned.extend(f"{hood}: {path}" for path in drifted)
     if not updated_hoods:
@@ -101,7 +104,9 @@ def repair_owner_hood_digests(
             )
         ),
     )
-    payload[owner_manifest_path(owner)] = v2_json_bytes(new_manifest.to_json_dict())
+    manifest_bytes = v2_json_bytes(new_manifest.to_json_dict())
+    check_manifest_write_size(len(new_manifest.hoods), manifest_bytes)
+    payload[owner_manifest_path(owner)] = manifest_bytes
     return payload, tuple(resigned)
 
 
@@ -146,6 +151,7 @@ def _repair_owner_manifest(
 
     project = V2ProjectIdentity(target.project_key, target.project)
     manifest = read_owner_manifest(repo_root, owner, project)
+    slim = current_flags().enabled(FeatureFlag.slim_agents_manifest)
     existing = manifest.by_hood()
     report: list[str] = []
     recovered: dict[str, V2OwnerHoodEntry] = {}
@@ -153,7 +159,9 @@ def _repair_owner_manifest(
         if hood in existing:
             continue
         try:
-            recovered[hood] = _recovered_hood_entry(repo_root, owner, project, hood)
+            recovered[hood] = _recovered_hood_entry(
+                repo_root, owner, project, hood, slim=slim
+            )
         except (AgentsSyncFormatError, OSError) as exc:
             report.append(f"{hood}: skipped recovery: {exc}")
             continue
@@ -162,7 +170,9 @@ def _repair_owner_manifest(
         return {}, tuple(report)
     merged = {**recovered, **existing}
     new_manifest = replace(manifest, hoods=tuple(sorted(merged.items())))
-    payload = {owner_manifest_path(owner): v2_json_bytes(new_manifest.to_json_dict())}
+    manifest_bytes = v2_json_bytes(new_manifest.to_json_dict())
+    check_manifest_write_size(len(new_manifest.hoods), manifest_bytes)
+    payload = {owner_manifest_path(owner): manifest_bytes}
     return payload, tuple(report)
 
 
@@ -171,6 +181,8 @@ def _recovered_hood_entry(
     owner: AgentOwnerIdentity,
     project: V2ProjectIdentity,
     hood: str,
+    *,
+    slim: bool,
 ) -> V2OwnerHoodEntry:
     relative = snapshot_path(owner, hood)
     snapshot_bytes = (repo_root / relative).read_bytes()
@@ -185,7 +197,7 @@ def _recovered_hood_entry(
         verify_run_files(repo_root, run)
     return V2OwnerHoodEntry(
         content_digest(snapshot_bytes),
-        hood_file_set(snapshot),
+        None if slim else hood_file_set(snapshot),
         len(snapshot.runs),
         sum(item.kind == "family" for item in snapshot.containers),
     )
