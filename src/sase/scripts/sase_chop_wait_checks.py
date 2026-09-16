@@ -363,33 +363,44 @@ def _upsert_terminal_blocked_wait_notification(
     waiter_dir = waiting_marker.waiting_path.parent
     waiter_name = _waiting_agent_label(waiting_data, waiter_dir)
     timestamp = datetime.now(get_timezone()).isoformat()
+    recovery = _monitor_not_launchable_recovery(blocker.artifact_dir)
+    notes = [
+        "Wait dependency can never self-resolve",
+        f"Waiter: {waiter_name}",
+        (
+            f"Blocked on {blocker.dependency}: {blocker.artifact_dir} "
+            f"({blocker.outcome})"
+        ),
+        (
+            "Kill and relaunch the waiter, or intentionally clear the wait "
+            "once the dependency state is understood."
+        ),
+    ]
+    files = [str(waiter_dir), blocker.artifact_dir]
+    action_data: dict[str, Any] = {
+        "waiter": waiter_name,
+        "waiter_artifact_dir": str(waiter_dir),
+        "dependency": blocker.dependency,
+        "blocking_artifact_dir": blocker.artifact_dir,
+        "blocking_outcome": blocker.outcome,
+    }
+    if recovery.resume_command:
+        notes.append(f"Monitor recovery: `{recovery.resume_command}`")
+        action_data["monitor_resume_command"] = recovery.resume_command
+    if recovery.snapshot_path:
+        notes.append(f"Worktree recovery diff: {recovery.snapshot_path}")
+        files.append(recovery.snapshot_path)
+        action_data["worktree_recovery_diff_path"] = recovery.snapshot_path
     notification = Notification(
         id=str(uuid4()),
         timestamp=timestamp,
         sender=_TERMINAL_BLOCKED_WAIT_SENDER,
         icon="!",
         color="#D14343",
-        notes=[
-            "Wait dependency can never self-resolve",
-            f"Waiter: {waiter_name}",
-            (
-                f"Blocked on {blocker.dependency}: {blocker.artifact_dir} "
-                f"({blocker.outcome})"
-            ),
-            (
-                "Kill and relaunch the waiter, or intentionally clear the wait "
-                "once the dependency state is understood."
-            ),
-        ],
-        files=[str(waiter_dir), blocker.artifact_dir],
+        notes=notes,
+        files=files,
         tags=normalize_notification_tags(["wait", "blocked", "terminal-dependency"]),
-        action_data={
-            "waiter": waiter_name,
-            "waiter_artifact_dir": str(waiter_dir),
-            "dependency": blocker.dependency,
-            "blocking_artifact_dir": blocker.artifact_dir,
-            "blocking_outcome": blocker.outcome,
-        },
+        action_data=action_data,
         dedup_key=f"wait_checks:terminal-blocked:{waiter_dir}",
     )
     upsert_notification(
@@ -400,6 +411,33 @@ def _upsert_terminal_blocked_wait_notification(
         ),
         plus_one_timestamp=timestamp,
     )
+
+
+@dataclass(frozen=True)
+class _MonitorRecovery:
+    resume_command: str | None = None
+    snapshot_path: str | None = None
+
+
+def _monitor_not_launchable_recovery(artifact_dir: str) -> _MonitorRecovery:
+    done = _read_json_dict(Path(artifact_dir) / "done.json")
+    if done is None or done.get("monitor_followup_outcome") != "not-launchable":
+        return _MonitorRecovery()
+    meta = _read_json_dict(Path(artifact_dir) / "agent_meta.json") or {}
+    monitor_id = _string_value(done.get("monitor_id")) or _string_value(
+        meta.get("monitor_id")
+    )
+    snapshot_path = _string_value(
+        done.get("monitor_worktree_recovery_diff_path")
+    ) or _string_value(meta.get("monitor_worktree_recovery_diff_path"))
+    return _MonitorRecovery(
+        resume_command=f"sase monitor resume {monitor_id}" if monitor_id else None,
+        snapshot_path=snapshot_path,
+    )
+
+
+def _string_value(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
 
 
 def _waiting_agent_label(waiting_data: Mapping[str, Any], waiter_dir: Path) -> str:

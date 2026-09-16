@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import subprocess
 from typing import Any
 from unittest.mock import patch
 
@@ -82,6 +83,28 @@ def _publish_blocked_capture(artifacts_dir: str, meta: dict[str, Any]) -> None:
             project_name="proj",
             update_meta=True,
         )
+
+
+def _git(cwd: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _init_dirty_git_worktree(workspace: Path) -> None:
+    _git(workspace, "init")
+    _git(workspace, "config", "user.email", "test@example.com")
+    _git(workspace, "config", "user.name", "Test User")
+    (workspace / ".gitignore").write_text(".sase/\n", encoding="utf-8")
+    (workspace / "tracked.txt").write_text("base\n", encoding="utf-8")
+    _git(workspace, "add", ".gitignore", "tracked.txt")
+    _git(workspace, "commit", "-m", "init")
+    (workspace / "tracked.txt").write_text("dirty tracked\n", encoding="utf-8")
+    (workspace / "untracked.txt").write_text("dirty untracked\n", encoding="utf-8")
 
 
 def test_settlement_recovers_when_starter_settles_before_settlement(
@@ -157,6 +180,7 @@ def test_settlement_still_not_launchable_when_starter_never_settles(
         "sase.shells.followup.DEFAULT_STARTER_SETTLE_TIMEOUT_SECONDS", 0.05
     )
     monkeypatch.setattr("sase.shells.followup.STARTER_SETTLE_POLL_SECONDS", 0.01)
+    _init_dirty_git_worktree(tmp_path)
 
     starter = tmp_path / "starter"
     starter.mkdir()
@@ -189,6 +213,13 @@ def test_settlement_still_not_launchable_when_starter_never_settles(
     assert result.launch_result.launched is False
     assert result.launch_result.error == _MISSING_STARTER_PARENT_ERROR
     assert meta["monitor_followup_outcome"] == "not-launchable"
+    snapshot_path = Path(meta["monitor_worktree_recovery_diff_path"])
+    assert snapshot_path == Path(artifacts_dir) / "diagnostics/worktree_recovery.diff"
+    snapshot = snapshot_path.read_text(encoding="utf-8")
+    assert "dirty tracked" in snapshot
+    assert "dirty untracked" in snapshot
+    on_disk = json.loads((Path(artifacts_dir) / "agent_meta.json").read_text())
+    assert on_disk["monitor_worktree_recovery_diff_path"] == str(snapshot_path)
 
 
 def test_settlement_bypasses_starter_parent_check_for_stopped_monitors(

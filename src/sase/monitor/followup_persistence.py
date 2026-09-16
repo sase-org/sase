@@ -13,6 +13,10 @@ from sase.shells.followup import (
     starter_identity,
     wait_for_starter,
 )
+from sase.monitor.worktree_recovery import (
+    append_worktree_recovery_hint,
+    snapshot_worktree_recovery_diff,
+)
 
 _SAVED_FOLLOWUP_PROMPT_NAME = "monitor_followup_prompt.md"
 
@@ -64,11 +68,12 @@ def record_not_launchable(
     error: str,
     prompt: str,
 ) -> FollowupLaunchResult:
+    snapshot_path = snapshot_worktree_recovery_diff(artifacts_dir, meta)
     return record_followup_not_launchable(
         artifacts_dir,
         meta,
         error=error,
-        prompt=prompt,
+        prompt=append_worktree_recovery_hint(prompt, snapshot_path),
         persistence=_FOLLOWUP_PERSISTENCE,
         update_meta_field=update_meta_field,
     )

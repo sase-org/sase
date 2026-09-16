@@ -9,6 +9,7 @@ from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
     dependency_resolution_status,
 )
+from sase.notifications.store import load_notifications
 
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent, run_wait_checks
@@ -260,3 +261,50 @@ def test_wait_checks_unresolved_dependency_emits_noop_reason(
     assert "unresolved=1" in out
     assert "unknown_outcome=0" in out
     assert "reason=dependencies_not_ready" in out
+
+
+def test_terminal_not_launchable_monitor_notification_names_resume_and_snapshot(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("SASE_HOME", raising=False)
+    make_waiting_agent(tmp_path, "wf")
+    blocker_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260506010101",
+        "wf.1",
+        workflow_name="wf",
+        done=True,
+        outcome="failed",
+        extra_meta={"monitor_id": "abc123def456"},
+    )
+    snapshot_path = blocker_dir / "diagnostics" / "worktree_recovery.diff"
+    snapshot_path.parent.mkdir()
+    snapshot_path.write_text(
+        "diff --git a/tracked.txt b/tracked.txt\n", encoding="utf-8"
+    )
+    done_path = blocker_dir / "done.json"
+    done = json.loads(done_path.read_text(encoding="utf-8"))
+    done.update(
+        {
+            "monitor_followup_outcome": "not-launchable",
+            "monitor_id": "abc123def456",
+            "monitor_worktree_recovery_diff_path": str(snapshot_path),
+        }
+    )
+    done_path.write_text(json.dumps(done), encoding="utf-8")
+
+    run_wait_checks(tmp_path, monkeypatch)
+
+    notifications = load_notifications()
+    assert len(notifications) == 1
+    notification = notifications[0]
+    notes = "\n".join(notification.notes)
+    assert "sase monitor resume abc123def456" in notes
+    assert str(snapshot_path) in notes
+    assert str(snapshot_path) in notification.files
+    assert notification.action_data["monitor_resume_command"] == (
+        "sase monitor resume abc123def456"
+    )
+    assert notification.action_data["worktree_recovery_diff_path"] == str(snapshot_path)

@@ -23,6 +23,7 @@ from .followup import FollowupLaunchResult, launch_followup_agent
 from .host_completion import HOST_COMPLETED_OUTCOME, settle_host_completion
 from .models import MONITOR_FOLLOWUP_DEGRADED_OUTCOME, MonitorState
 from .output import OutputCapture
+from .worktree_recovery import snapshot_worktree_recovery_diff
 
 LOST_FOLLOWUP_ERROR = (
     "follow-up not launched because the monitor was marked lost after a reboot"
@@ -109,6 +110,7 @@ def settle_claim_and_followup(
         if blocked_reason and _repair_missing_starter_parent(artifacts_dir, meta):
             blocked_reason = _continuation_dispatch_blocked_reason(meta)
     if blocked_reason:
+        snapshot_worktree_recovery_diff(artifacts_dir, meta)
         meta[_MONITOR_SETTLEMENT_CONFIG.outcome_field] = "not-launchable"
         meta[_MONITOR_SETTLEMENT_CONFIG.error_field] = blocked_reason
         update_meta_field(

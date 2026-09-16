@@ -58,13 +58,13 @@ agent family that publishes the questions, outlives you, and hands the answer to
 next family member. A successful handoff prints nothing and never returns control to
 you; the process is killed before it would return. **If the tool call ever returns any
 result at all — output, an error, or a normal exit — your turn has NOT ended.** Read it
-and report it instead of assuming the handoff already happened. Otherwise: Your turn
-ends as `DONE`; there is nothing after this for you to do. The family's status shows
-`QUESTION` until it is answered, then `ANSWERED`. Answering it launches a follow-up
-agent whose prompt carries the merged Q&A across every round asked so far, continuously
-numbered — the same `## Your next action` shape a gate shell always composes. Do not
-create a question gate shell yourself with `/sase_gate`; `sase questions` already does
-this for you.
+and report it instead of assuming the handoff already happened. Otherwise, the handoff
+is complete. Your turn ends as `DONE`; there is nothing after this for you to do. The
+family's status shows `QUESTION` until it is answered, then `ANSWERED`. Answering it
+launches a follow-up agent whose prompt carries the merged Q&A across every round asked
+so far, continuously numbered — the same `## Your next action` shape a gate shell always
+composes. Do not create a question gate shell yourself with `/sase_gate`;
+`sase questions` already does this for you.
 
 Do not poll question request or response files. sase's TUI, mobile, and Telegram submit
 the complete validated form through the same write-once gate command, and the gate

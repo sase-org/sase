@@ -567,6 +567,8 @@ def _finish_monitor(
         "monitor_followup_outcome",
         "monitor_followup_degraded_reason",
         "monitor_followup_prompt_path",
+        "monitor_worktree_recovery_diff_path",
+        "monitor_id",
         "monitor_host_completion_status",
         "monitor_host_completion_message",
         "monitor_host_completion_reason",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import subprocess
 from typing import Any
 
 import pytest
@@ -22,6 +23,29 @@ from ._followup_fixtures import (
     _promote_and_start_monitor,
     _sandbox_home as _sandbox_home,
 )
+
+
+def _git(cwd: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _init_git_workspace(workspace: Path, *, dirty: bool) -> None:
+    workspace.mkdir()
+    _git(workspace, "init")
+    _git(workspace, "config", "user.email", "test@example.com")
+    _git(workspace, "config", "user.name", "Test User")
+    (workspace / "tracked.txt").write_text("base\n", encoding="utf-8")
+    _git(workspace, "add", "tracked.txt")
+    _git(workspace, "commit", "-m", "init")
+    if dirty:
+        (workspace / "tracked.txt").write_text("dirty tracked\n", encoding="utf-8")
+        (workspace / "untracked.txt").write_text("dirty untracked\n", encoding="utf-8")
 
 
 def test_launch_followup_agent_returns_false_without_a_next_action(
@@ -247,12 +271,15 @@ def test_launch_followup_agent_records_the_error_and_returns_false_on_failure(
 ) -> None:
     # No promotion, no real family in the artifact index: resolution fails.
     write_project_file("proj")
+    workspace = tmp_path / "workspace"
+    _init_git_workspace(workspace, dirty=True)
     monitor_dir = str(tmp_path / "monitor-member")
     Path(monitor_dir).mkdir()
     meta: dict[str, Any] = {
         "agent_family": "acme",
         "monitor_next_action": "Report that it finished.",
         "monitor_command": "true",
+        "monitor_cwd": str(workspace),
         "monitor_id": "abc123def456",
     }
     (Path(monitor_dir) / "agent_meta.json").write_text(
@@ -278,7 +305,13 @@ def test_launch_followup_agent_records_the_error_and_returns_false_on_failure(
     assert prompt_path.name == "monitor_followup_prompt.md"
     persisted_prompt = prompt_path.read_text(encoding="utf-8")
     assert "Report that it finished." in persisted_prompt
+    assert "Worktree recovery diff" in persisted_prompt
     assert persisted_prompt.endswith("%xprompts_enabled:true")
+    snapshot_path = Path(meta["monitor_worktree_recovery_diff_path"])
+    snapshot = snapshot_path.read_text(encoding="utf-8")
+    assert "dirty tracked" in snapshot
+    assert "dirty untracked" in snapshot
+    assert str(snapshot_path) in persisted_prompt
     artifacts = list_explicit_artifact_files(Path(monitor_dir))
     assert [artifact.label for artifact in artifacts] == [
         "Unlaunched monitor follow-up prompt"
@@ -286,3 +319,40 @@ def test_launch_followup_agent_records_the_error_and_returns_false_on_failure(
     on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
     assert on_disk["monitor_followup_error"] == meta["monitor_followup_error"]
     assert on_disk["monitor_followup_prompt_path"] == str(prompt_path)
+    assert on_disk["monitor_worktree_recovery_diff_path"] == str(snapshot_path)
+
+
+def test_launch_followup_agent_skips_recovery_snapshot_for_clean_tree(
+    tmp_path: Path,
+) -> None:
+    write_project_file("proj")
+    workspace = tmp_path / "workspace"
+    _init_git_workspace(workspace, dirty=False)
+    monitor_dir = str(tmp_path / "monitor-member")
+    Path(monitor_dir).mkdir()
+    meta: dict[str, Any] = {
+        "agent_family": "acme",
+        "monitor_next_action": "Report that it finished.",
+        "monitor_command": "true",
+        "monitor_cwd": str(workspace),
+        "monitor_id": "abc123def456",
+    }
+    (Path(monitor_dir) / "agent_meta.json").write_text(
+        json.dumps(meta), encoding="utf-8"
+    )
+    capture = _capture_with_output(monitor_dir, "hi\n")
+
+    result = followup_module.launch_followup_agent(
+        monitor_dir,
+        meta,
+        monitor_state="completed",
+        exit_code=0,
+        elapsed_seconds=1.0,
+        capture=capture,
+        project_name="proj",
+        settle_timeout_seconds=0.2,
+    )
+
+    assert result.launched is False
+    assert "monitor_worktree_recovery_diff_path" not in meta
+    assert not (Path(monitor_dir) / "diagnostics/worktree_recovery.diff").exists()
