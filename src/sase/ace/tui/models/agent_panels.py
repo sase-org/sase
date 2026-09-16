@@ -27,7 +27,6 @@ from typing import TYPE_CHECKING, cast
 
 from sase.core.agent_tribe import (
     RESERVED_DEFAULT_TRIBE,
-    canonicalize_public_tribe_name,
     public_tribe_name,
 )
 
@@ -52,7 +51,7 @@ def normalize_panel_key(tribe: str | None) -> PanelKey:
     """Return the stable internal panel key for a stored/effective tribe."""
     if not tribe or tribe == DEFAULT_AGENT_TRIBE:
         return None
-    return canonicalize_public_tribe_name(tribe)
+    return tribe
 
 
 def effective_panel_tribe(panel_key: PanelKey) -> str:

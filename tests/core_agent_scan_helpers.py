@@ -28,7 +28,21 @@ def install_fake_scan_module(
     scan_fn,
 ) -> types.ModuleType:
     """Register a fake ``sase_core_rs`` exposing ``scan_agent_artifacts``."""
-    return install_fake_rust_extension(monkeypatch, scan_agent_artifacts=scan_fn)
+    return install_fake_rust_extension(
+        monkeypatch,
+        canonicalize_agent_tribe_metadata=_fake_canonicalize_agent_tribe_metadata,
+        scan_agent_artifacts=scan_fn,
+    )
+
+
+def _fake_canonicalize_agent_tribe_metadata(data: dict[str, Any]) -> dict[str, Any]:
+    payload = dict(data)
+    if "tribe" not in payload:
+        tag = payload.get("tag")
+        if isinstance(tag, str) and tag:
+            payload["tribe"] = tag
+    payload.pop("tag", None)
+    return payload
 
 
 def minimal_snapshot(

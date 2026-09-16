@@ -129,7 +129,7 @@ def _match_tribe(prop: PropertyMatch, agent: Agent) -> bool:
         expected = canonicalize_public_tribe_name(prop.value).casefold()
     except ValueError:
         expected = prop.value.casefold()
-    return agent_tribe == expected
+    return agent_tribe in {expected, prop.value.casefold()}
 
 
 def _match_machine(prop: PropertyMatch, agent: Agent) -> bool:

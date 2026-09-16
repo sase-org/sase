@@ -13,6 +13,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from sase.core.rust import require_rust_binding
 from sase.core.paths import sase_home
 
 RawAgentTribeIdentity = tuple[str, str, str | None]
@@ -36,6 +37,14 @@ class InvalidTribeError(ValueError):
     """Raised when an agent tribe name fails validation."""
 
 
+def _tribe_binding(name: str) -> Any:
+    return require_rust_binding(name)
+
+
+def _tribe_value_error(exc: ValueError) -> InvalidTribeError:
+    return InvalidTribeError(str(exc))
+
+
 def is_reserved_tribe_name(tribe: str) -> bool:
     """Return whether *tribe* names a reserved display-only pseudo-tribe.
 
@@ -43,51 +52,44 @@ def is_reserved_tribe_name(tribe: str) -> bool:
     :func:`parse_tribe_reference` — they are legitimate configuration and
     panel identities — but they must never be used as a wait or fork target.
     """
-    return tribe in RESERVED_TRIBE_NAMES
+    return bool(_tribe_binding("is_reserved_tribe_name")(tribe))
 
 
 def reserved_tribe_target_reason(tribe: str) -> str:
     """Return the shared explanation for rejecting a reserved tribe target."""
-    return (
-        f"the reserved @{tribe} panel is the untagged bucket, not a real "
-        "tribe, so it can never resolve — target a named tribe, an agent, "
-        "a family, or a clan instead"
-    )
+    return str(_tribe_binding("reserved_tribe_target_reason")(tribe))
 
 
 def validate_tribe_name(tribe: str) -> str:
     """Return *tribe* when it matches the persisted tribe grammar."""
-    if not isinstance(tribe, str) or not tribe:
+    if not isinstance(tribe, str):
         raise InvalidTribeError("tribe name must be a non-empty string")
-    if tribe.startswith("@"):
-        raise InvalidTribeError(
-            f"tribe name {tribe!r} must not start with '@' "
-            "(the '@' is added on display only — drop it from the input)"
-        )
-    if not TRIBE_NAME_RE.fullmatch(tribe):
-        raise InvalidTribeError(
-            f"tribe name {tribe!r} must match ^[A-Za-z0-9_.-]+$ "
-            "(letters, digits, underscore, dot, dash)"
-        )
-    return tribe
+    try:
+        return str(_tribe_binding("validate_tribe_name")(tribe))
+    except ValueError as exc:
+        raise _tribe_value_error(exc) from exc
 
 
 def canonicalize_public_tribe_name(tribe: str) -> str:
     """Return the stable stored tribe identity for a public tribe name."""
-    validated = validate_tribe_name(tribe)
-    return LEGACY_JOB_TRIBE if validated == PUBLIC_JOB_TRIBE else validated
+    try:
+        return str(_tribe_binding("canonicalize_public_tribe_name")(tribe))
+    except ValueError as exc:
+        raise _tribe_value_error(exc) from exc
 
 
 def public_tribe_name(tribe: str) -> str:
     """Return the public display spelling for a stored/effective tribe name."""
-    return PUBLIC_JOB_TRIBE if tribe == LEGACY_JOB_TRIBE else tribe
+    return str(_tribe_binding("public_tribe_name")(tribe))
 
 
 def parse_tribe_reference(value: str) -> str | None:
     """Return the validated bare tribe from ``@<tribe>``, else ``None``."""
-    if not value.startswith("@"):
-        return None
-    return canonicalize_public_tribe_name(value[1:])
+    try:
+        result = _tribe_binding("parse_tribe_reference")(value)
+    except ValueError as exc:
+        raise _tribe_value_error(exc) from exc
+    return result if isinstance(result, str) else None
 
 
 def canonical_agent_tribes_path() -> Path:
@@ -122,7 +124,11 @@ def _identity_from_record(record: dict[str, Any]) -> RawAgentTribeIdentity | Non
 
 
 def _valid_stored_tribe(value: Any) -> str | None:
-    if not isinstance(value, str) or not TRIBE_NAME_RE.fullmatch(value):
+    if not isinstance(value, str):
+        return None
+    try:
+        validate_tribe_name(value)
+    except InvalidTribeError:
         return None
     return value
 
@@ -196,15 +202,53 @@ def canonicalize_agent_tribe_metadata(data: dict[str, Any]) -> dict[str, Any]:
     key is absent.  The legacy key is always removed, including when the
     canonical value is explicitly empty or invalid.
     """
-    if "tribe" not in data:
-        legacy_tribe = _valid_stored_tribe(data.get("tag"))
-        if legacy_tribe is not None:
-            data["tribe"] = legacy_tribe
-    tribe = _valid_stored_tribe(data.get("tribe"))
-    if tribe is not None:
-        data["tribe"] = canonicalize_public_tribe_name(tribe)
+    had_tribe = "tribe" in data
+    original_tribe = data.get("tribe")
+    probe: dict[str, Any] = {}
+    if had_tribe:
+        probe["tribe"] = original_tribe if isinstance(original_tribe, str) else None
+    if "tag" in data:
+        tag = data.get("tag")
+        probe["tag"] = tag if isinstance(tag, str) else None
+
+    result = _tribe_binding("canonicalize_agent_tribe_metadata")(probe)
+    if not isinstance(result, dict):
+        raise TypeError("sase_core_rs returned non-dict tribe metadata")
     data.pop("tag", None)
+    result_tribe = result.get("tribe")
+    if isinstance(result_tribe, str):
+        data["tribe"] = result_tribe
+    elif not had_tribe:
+        data.pop("tribe", None)
     return data
+
+
+def agent_tribe_display_key(
+    stored_tribe: str,
+    configured_keys: list[str] | tuple[str, ...],
+) -> str:
+    """Return the display config key for one stored tribe identity."""
+    try:
+        return str(
+            _tribe_binding("agent_tribe_display_key")(
+                stored_tribe,
+                list(configured_keys),
+            )
+        )
+    except ValueError as exc:
+        raise _tribe_value_error(exc) from exc
+
+
+def resolve_agent_tribe_display_config(
+    layers: list[dict[str, Any]] | tuple[dict[str, Any], ...],
+) -> dict[str, Any]:
+    """Return source-aware display alias diagnostics for serialized layers."""
+    result = _tribe_binding("resolve_agent_tribe_display_config")(
+        {"layers": list(layers)}
+    )
+    if not isinstance(result, dict):
+        raise TypeError("sase_core_rs returned non-dict tribe display resolution")
+    return result
 
 
 __all__ = [
@@ -215,6 +259,7 @@ __all__ = [
     "RESERVED_TRIBE_NAMES",
     "RawAgentTribeIdentity",
     "TRIBE_NAME_RE",
+    "agent_tribe_display_key",
     "canonicalize_agent_tribe_metadata",
     "canonicalize_public_tribe_name",
     "canonical_agent_tribes_path",
@@ -224,5 +269,6 @@ __all__ = [
     "parse_tribe_reference",
     "public_tribe_name",
     "reserved_tribe_target_reason",
+    "resolve_agent_tribe_display_config",
     "validate_tribe_name",
 ]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+import logging
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
@@ -14,12 +15,14 @@ from rich.cells import chop_cells
 from sase.config import load_merged_config
 from sase.config.core import current_config_token
 from sase.core.agent_tribe import (
-    LEGACY_JOB_TRIBE,
-    PUBLIC_JOB_TRIBE,
+    agent_tribe_display_key,
     canonicalize_public_tribe_name,
+    resolve_agent_tribe_display_config,
 )
 
 from .agent_panels import PanelKey
+
+log = logging.getLogger(__name__)
 
 MAX_TRIBE_ICON_CELLS = 4
 MAX_TRIBE_DESCRIPTION_CHARS = 160
@@ -90,6 +93,17 @@ def _tribe_displays_for_token(
     if not isinstance(tribes, dict):
         return {}
 
+    for diagnostic in _tribe_display_diagnostics_for_token(_token):
+        message = diagnostic.get("message")
+        source_path = diagnostic.get("source_path")
+        code = diagnostic.get("code")
+        if isinstance(message, str):
+            prefix = f"{code}: " if isinstance(code, str) and code else ""
+            if isinstance(source_path, str) and source_path:
+                log.warning("%s%s (%s)", prefix, message, source_path)
+            else:
+                log.warning("%s%s", prefix, message)
+
     displays: dict[str, _TribeDisplay] = {}
     for name, raw in tribes.items():
         if not isinstance(name, str) or not isinstance(raw, dict):
@@ -116,14 +130,25 @@ def _tribe_config_key(
     """Return the ``ace.tribes`` config key for *panel_key*."""
     if panel_key is None:
         return "default"
-    key = canonicalize_public_tribe_name(panel_key)
-    if (
-        displays is not None
-        and key == LEGACY_JOB_TRIBE
-        and PUBLIC_JOB_TRIBE in displays
-    ):
-        return PUBLIC_JOB_TRIBE
-    return key
+    configured_keys = tuple(displays or _tribe_displays())
+    return agent_tribe_display_key(panel_key, configured_keys)
+
+
+@lru_cache(maxsize=1)
+def _tribe_display_diagnostics_for_token(
+    _token: tuple[Any, ...],
+) -> tuple[dict[str, Any], ...]:
+    """Return source-aware display alias diagnostics once per config token."""
+    try:
+        from sase.config.inventory import discover_layer_inputs
+
+        resolution = resolve_agent_tribe_display_config(discover_layer_inputs())
+    except Exception:
+        return ()
+    diagnostics = resolution.get("diagnostics")
+    if not isinstance(diagnostics, list):
+        return ()
+    return tuple(item for item in diagnostics if isinstance(item, dict))
 
 
 def tribe_display_for(panel_key: PanelKey) -> _TribeDisplay:

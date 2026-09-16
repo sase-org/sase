@@ -72,6 +72,20 @@ def test_matching_parent_keeps_workflow_children_visible_unified() -> None:
     assert other not in app._agents
 
 
+def test_tribe_job_query_matches_stored_chop_and_job_unified() -> None:
+    automation = _make_agent(cl_name="automation", tribe="chop")
+    historical_custom = _make_agent(cl_name="historical", tribe="job")
+    other = _make_agent(cl_name="other", tribe="review")
+
+    app = FakeAgentApp(query="tribe:job")
+    app._agents = [automation, historical_custom, other]
+    app._finalize_agent_list(
+        on_agents_tab=False, selected_identity=None, save_unfiltered=True
+    )
+
+    assert app._agents == [automation, historical_custom]
+
+
 def test_bare_word_content_query_uses_prepared_index_unified() -> None:
     matching = _make_agent(cl_name="a")
     missing = _make_agent(cl_name="b")

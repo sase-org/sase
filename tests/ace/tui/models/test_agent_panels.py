@@ -10,6 +10,7 @@ from sase.ace.tui.models.agent_panels import (
     AgentPanelGroup,
     agents_for_panel,
     effective_tribe_per_agent,
+    normalize_panel_key,
     panel_key_per_agent,
 )
 from sase.core.time import local_now
@@ -92,6 +93,11 @@ def test_implicit_and_explicit_default_share_reserved_panel() -> None:
     assert agents_for_panel(agents, "default") == [implicit, explicit, child]
     assert implicit.tribe is None
     assert explicit.tribe == "default"
+
+
+def test_stored_job_and_stored_chop_remain_distinct_panel_keys() -> None:
+    assert normalize_panel_key("chop") == "chop"
+    assert normalize_panel_key("job") == "job"
 
 
 def test_collapsed_middle_panel_moves_after_expanded_panels() -> None:

@@ -118,6 +118,20 @@ def test_matching_parent_keeps_workflow_children_visible() -> None:
     assert other not in app._agents
 
 
+def test_tribe_job_query_matches_stored_chop_and_job() -> None:
+    automation = _make_agent(cl_name="automation", tribe="chop")
+    historical_custom = _make_agent(cl_name="historical", tribe="job")
+    other = _make_agent(cl_name="other", tribe="review")
+
+    app = FakeAgentApp(query="tribe:job")
+    app._agents = [automation, historical_custom, other]
+    app._finalize_agent_list(
+        on_agents_tab=False, selected_identity=None, save_unfiltered=True
+    )
+
+    assert app._agents == [automation, historical_custom]
+
+
 def test_property_query_filters_correctly() -> None:
     failed = _make_agent(status="FAILED", cl_name="a")
     running = _make_agent(status="RUNNING", cl_name="b")

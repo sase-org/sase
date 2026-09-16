@@ -14,8 +14,10 @@ import sase.ace.tui.models.tribe_display as display
 @pytest.fixture(autouse=True)
 def _clear_display_cache() -> Iterator[None]:
     display._tribe_displays_for_token.cache_clear()
+    display._tribe_display_diagnostics_for_token.cache_clear()
     yield
     display._tribe_displays_for_token.cache_clear()
+    display._tribe_display_diagnostics_for_token.cache_clear()
 
 
 def _install_config(
@@ -54,6 +56,88 @@ def test_default_panel_mapping_and_unknown_fallback(
         icon="🪓", color="#af87ff", initially_expanded=False
     )
     assert display.tribe_display_for("custom") == display.DEFAULT_TRIBE_DISPLAY
+
+
+def test_public_job_config_styles_stored_chop_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_config(
+        monkeypatch,
+        {
+            "job": {
+                "icon": "J",
+                "color": "#FFAF5F",
+                "description": "Automation jobs",
+            },
+        },
+    )
+
+    assert display.tribe_display_for("chop") == display._TribeDisplay(
+        icon="J",
+        color="#FFAF5F",
+        description="Automation jobs",
+    )
+
+
+def test_legacy_chop_display_customization_wins_over_public_job_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_config(
+        monkeypatch,
+        {
+            "job": {"icon": "J", "color": "#FFAF5F"},
+            "chop": {"icon": "C", "color": "#AF87FF"},
+        },
+    )
+
+    assert display.tribe_display_for("chop") == display._TribeDisplay(
+        icon="C",
+        color="#AF87FF",
+    )
+
+
+def test_job_chop_alias_collision_reports_source_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    _install_config(
+        monkeypatch,
+        {
+            "chop": {"icon": "C", "description": "Built-in"},
+            "job": {"icon": "J", "description": "Independent"},
+        },
+    )
+    monkeypatch.setattr(display, "current_config_token", lambda: ("config", 1))
+
+    def _layers() -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "user",
+                "kind": "user",
+                "path": "/tmp/sase.yml",
+                "value": {
+                    "ace": {
+                        "tribes": {
+                            "chop": {"icon": "C", "description": "Built-in"},
+                            "job": {"icon": "J", "description": "Independent"},
+                        }
+                    }
+                },
+                "list_strategy": "replace",
+                "writable": True,
+                "exists": True,
+                "error": None,
+            }
+        ]
+
+    monkeypatch.setattr("sase.config.inventory.discover_layer_inputs", _layers)
+
+    with caplog.at_level("WARNING", logger=display.__name__):
+        assert display.tribe_display_for("chop").icon == "C"
+
+    assert "agent_tribe_job_alias_collision" in caplog.text
+    assert "/tmp/sase.yml:ace.tribes.chop" in caplog.text
+    assert "/tmp/sase.yml:ace.tribes.job" in caplog.text
 
 
 def test_empty_and_hostile_icons_are_sanitized(

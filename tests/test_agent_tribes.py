@@ -16,6 +16,7 @@ from sase.ace.agent_tribes import (
     update_agent_tribe_assignment,
 )
 from sase.ace.tui.models.agent import AgentType
+from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
 
 
 def _paths(canonical: Path, legacy: Path):  # type: ignore[no-untyped-def]
@@ -103,6 +104,29 @@ def test_replacement_and_round_trip_emit_only_tribe_keys(tmp_path: Path) -> None
     assert json.loads(canonical.read_text()) == [
         {"id": ["run", "replace", "ts"], "tribe": "after"}
     ]
+
+
+def test_public_job_assignment_persists_existing_chop_identity(
+    tmp_path: Path,
+) -> None:
+    canonical = tmp_path / "agent_tribes.json"
+    legacy = tmp_path / "agent_tags.json"
+    identity = (AgentType.RUNNING, "automation", "ts")
+
+    canonical_patch, legacy_patch = _paths(canonical, legacy)
+    with canonical_patch, legacy_patch:
+        assert update_agent_tribe(identity, "job")
+        assert load_agent_tribes() == {identity: "chop"}
+
+    assert json.loads(canonical.read_text()) == [
+        {"id": ["run", "automation", "ts"], "tribe": "chop"}
+    ]
+
+
+def test_historical_stored_job_metadata_is_not_reassigned_to_chop() -> None:
+    payload = {"tag": "chop", "tribe": "job"}
+
+    assert canonicalize_agent_tribe_metadata(payload) == {"tribe": "job"}
 
 
 def test_concurrent_mutations_preserve_every_assignment(tmp_path: Path) -> None:
