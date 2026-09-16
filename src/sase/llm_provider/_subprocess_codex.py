@@ -4,8 +4,9 @@ import json
 import os
 import subprocess
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import IO
+from typing import IO, Any
 
 from ._subprocess_artifacts import (
     open_codex_thinking_file,
@@ -16,6 +17,149 @@ from ._subprocess_artifacts import (
 from ._subprocess_diagnostics import record_stdout_json_decode_diagnostic
 from ._subprocess_stream import append_error_events, stream_json_lines
 from ._tool_calls import append_codex_tool_call_event
+from .types import LLMInvocationError
+
+CODEX_TURN_INTEGRITY_ERROR_PREFIX = "Codex turn integrity failure"
+
+
+@dataclass
+class _CodexTurnIntegrityState:
+    saw_task_complete: bool = False
+    has_nonempty_agent_message: bool = False
+    pending_commands: dict[str, str | None] = field(default_factory=dict)
+    killed_commands: dict[str, str | None] = field(default_factory=dict)
+
+    def observe(self, event: Mapping[str, Any]) -> None:
+        payload = _codex_event_payload(event)
+        event_type = _string(payload.get("type"))
+
+        if event_type in {"turn.completed", "turn_completed", "task_complete"}:
+            self.saw_task_complete = True
+            if _has_nonempty_message(payload.get("last_agent_message")):
+                self.has_nonempty_agent_message = True
+
+        if event_type not in {
+            "item.started",
+            "item_started",
+            "item.completed",
+            "item_completed",
+        }:
+            return
+
+        item = payload.get("item")
+        if not isinstance(item, Mapping):
+            return
+
+        item_type = _normalized_item_type(item.get("type"))
+        if item_type == "agentmessage":
+            if _has_nonempty_message(item.get("text")):
+                self.has_nonempty_agent_message = True
+            return
+        if item_type != "commandexecution":
+            return
+
+        command_id = _command_item_id(item)
+        command = _command_item_text(item)
+        if event_type in {"item.started", "item_started"}:
+            self.pending_commands[command_id] = command
+            return
+
+        self.pending_commands.pop(command_id, None)
+        if _is_killed_teardown_command(item):
+            self.killed_commands[command_id] = command
+
+    def integrity_error(self) -> str | None:
+        if not self.saw_task_complete or self.has_nonempty_agent_message:
+            return None
+        if self.killed_commands:
+            details = _format_command_refs(self.killed_commands)
+            return (
+                f"{CODEX_TURN_INTEGRITY_ERROR_PREFIX}: task completed with no "
+                "final agent message and command execution was killed at teardown "
+                f"(exit_code -1): {details}"
+            )
+        if self.pending_commands:
+            details = _format_command_refs(self.pending_commands)
+            return (
+                f"{CODEX_TURN_INTEGRITY_ERROR_PREFIX}: task completed with no "
+                "final agent message and command execution started without a "
+                f"result: {details}"
+            )
+        return None
+
+
+def _codex_event_payload(event: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return the inner Codex rollout payload when stdout uses wrapper events."""
+    if event.get("type") == "event_msg" and isinstance(event.get("payload"), Mapping):
+        return event["payload"]
+    return event
+
+
+def _string(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _normalized_item_type(value: object) -> str:
+    raw = value if isinstance(value, str) else ""
+    return raw.replace("_", "").lower()
+
+
+def _has_nonempty_message(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, Mapping):
+        return any(_has_nonempty_message(child) for child in value.values())
+    if isinstance(value, list):
+        return any(_has_nonempty_message(child) for child in value)
+    return value is not None and value is not False
+
+
+def _command_item_id(item: Mapping[str, Any]) -> str:
+    for key in ("id", "call_id", "process_id"):
+        value = item.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return "<unknown-command>"
+
+
+def _command_item_text(item: Mapping[str, Any]) -> str | None:
+    command = item.get("command")
+    if isinstance(command, list):
+        return " ".join(str(part) for part in command)
+    if isinstance(command, str):
+        return command
+    return None
+
+
+def _is_killed_teardown_command(item: Mapping[str, Any]) -> bool:
+    if item.get("exit_code") != -1:
+        return False
+    status = item.get("status")
+    if not isinstance(status, str):
+        return True
+    return status.lower() in {
+        "failed",
+        "failure",
+        "error",
+        "cancelled",
+        "canceled",
+        "interrupted",
+    }
+
+
+def _format_command_refs(commands: Mapping[str, str | None]) -> str:
+    refs: list[str] = []
+    for command_id, command in list(commands.items())[:3]:
+        if command:
+            one_line = " ".join(command.split())
+            if len(one_line) > 80:
+                one_line = one_line[:77] + "..."
+            refs.append(f"{command_id} ({one_line})")
+        else:
+            refs.append(command_id)
+    if len(commands) > 3:
+        refs.append(f"+{len(commands) - 3} more")
+    return ", ".join(refs)
 
 
 def stream_and_parse_codex_json_output(
@@ -26,6 +170,7 @@ def stream_and_parse_codex_json_output(
     assistant_texts: list[str] = []
     error_events: list[str] = []
     pending_reasoning: list[dict[str, object]] = []
+    turn_integrity = _CodexTurnIntegrityState()
     live_reply_file = open_live_reply_file()
     timestamps_file = open_live_reply_timestamps_file()
     thinking_file = open_codex_thinking_file()
@@ -42,6 +187,7 @@ def stream_and_parse_codex_json_output(
                 thinking_file,
                 pending_reasoning,
                 timestamps_file,
+                turn_integrity,
             ),
             suppress_output,
         )
@@ -59,6 +205,8 @@ def stream_and_parse_codex_json_output(
 
     combined_text = "\n\n".join(assistant_texts)
     stderr_content = append_error_events(stderr_content, return_code, error_events)
+    if return_code == 0 and (integrity_error := turn_integrity.integrity_error()):
+        raise LLMInvocationError(integrity_error)
 
     return combined_text, stderr_content, return_code
 
@@ -72,6 +220,7 @@ def _process_codex_json_line(
     thinking_file: IO[str] | None = None,
     pending_reasoning: list[dict[str, object]] | None = None,
     timestamps_file: IO[str] | None = None,
+    turn_integrity: _CodexTurnIntegrityState | None = None,
 ) -> None:
     """Parse a single Codex NDJSON line and extract assistant text.
 
@@ -90,6 +239,9 @@ def _process_codex_json_line(
         return
     if not isinstance(event, Mapping):
         return
+
+    if turn_integrity is not None:
+        turn_integrity.observe(event)
 
     event_type = event.get("type")
     append_codex_tool_call_event(event)

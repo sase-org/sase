@@ -16,7 +16,11 @@ from sase.output import provider_timer
 
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
-from ._subprocess import start_interrupt_monitor, stream_and_parse_codex_json_output
+from ._subprocess import (
+    CODEX_TURN_INTEGRITY_ERROR_PREFIX,
+    start_interrupt_monitor,
+    stream_and_parse_codex_json_output,
+)
 from .base import LLMProvider
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
@@ -313,6 +317,7 @@ class CodexProvider(LLMProvider):
                 "rate limit",
                 "failed to connect to websocket",
                 "Selected model is at capacity",
+                CODEX_TURN_INTEGRITY_ERROR_PREFIX,
             ],
             wait_times=[60, 300, 1800],
             continuation_prompt=_RETRY_CONTINUATION_NUDGE,

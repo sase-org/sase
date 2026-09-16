@@ -25,6 +25,7 @@ _accumulate_qwen_usage = _qwen._accumulate_qwen_usage
 _append_stream_text = append_stream_text
 _capture_opencode_diagnostic = _opencode._capture_opencode_diagnostic
 _capture_qwen_diagnostic = _qwen._capture_qwen_diagnostic
+CODEX_TURN_INTEGRITY_ERROR_PREFIX = _codex.CODEX_TURN_INTEGRITY_ERROR_PREFIX
 _extract_text_from_content = _qwen._extract_text_from_content
 _flush_codex_reasoning = _codex._flush_codex_reasoning
 _format_codex_action = _codex._format_codex_action
@@ -57,6 +58,7 @@ ClaudeTurnWaitState = _claude.ClaudeTurnWaitState
 
 __all__ = [
     "ClaudeTurnWaitState",
+    "CODEX_TURN_INTEGRITY_ERROR_PREFIX",
     "_accumulate_opencode_usage",
     "_accumulate_qwen_usage",
     "_append_stream_text",

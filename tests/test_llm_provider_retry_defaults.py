@@ -41,6 +41,11 @@ _CODEX_INPUT_TOO_LARGE_FAILURE = (
     "warning: stale rollout path /tmp/codex-rollout"
 )
 
+_CODEX_TURN_INTEGRITY_FAILURE = (
+    "Codex turn integrity failure: task completed with no final agent message "
+    "and command execution was killed at teardown (exit_code -1): exec-123"
+)
+
 
 class TestBuiltInDefaults:
     """Built-in retry defaults for universal failure modes."""
@@ -280,6 +285,7 @@ class TestCodexBuiltInDefaults:
         assert "429 Too Many Requests" in config.error_patterns
         assert "failed to connect to websocket" in config.error_patterns
         assert "Selected model is at capacity" in config.error_patterns
+        assert "Codex turn integrity failure" in config.error_patterns
         # Rate limits need a real cool-down, unlike Claude's [0] context-limit
         # cadence.
         assert config.wait_times == [60, 300, 1800]
@@ -316,6 +322,16 @@ class TestCodexBuiltInDefaults:
         config = get_retry_config("codex")
         assert config is not None
         assert is_retryable_error(_CODEX_CAPACITY_FAILURE, config) is True
+
+    @patch("sase.llm_provider.retry_config.load_merged_config")
+    def test_codex_turn_integrity_failure_matches_built_in(
+        self, mock_config: object
+    ) -> None:
+        """A zero-exit empty-final/killed-command turn is retryable."""
+        mock_config.return_value = {}  # type: ignore[union-attr]
+        config = get_retry_config("codex")
+        assert config is not None
+        assert is_retryable_error(_CODEX_TURN_INTEGRITY_FAILURE, config) is True
 
     @patch("sase.llm_provider.retry_config.load_merged_config")
     def test_codex_capacity_failure_discovered_by_finder(
@@ -375,6 +391,7 @@ class TestCodexBuiltInDefaults:
             "rate limit",
             "failed to connect to websocket",
             "Selected model is at capacity",
+            "Codex turn integrity failure",
             "my custom codex pattern",
         ]
         assert config.max_retries == 3  # inherited from built-in
