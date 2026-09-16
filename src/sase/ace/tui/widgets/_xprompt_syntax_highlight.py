@@ -13,14 +13,20 @@ from sase.ace.tui.widgets._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from sase.xprompt import xprompt_inspect
-from sase.xprompt.highlight_theme import derive_argument_color
+from sase.xprompt.highlight import HighlightSpan, highlight_spans
+from sase.xprompt.highlight_theme import (
+    derive_argument_color,
+    xprompt_argument_palette,
+)
+
+_INVALID_ARGUMENT_VALIDITIES = frozenset(
+    {"unknown_key", "type_mismatch", "duplicate_key"}
+)
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
 
     from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
-    from sase.xprompt.xprompt_inspect import XPromptSpan
 else:
     _MixinBase = object
 
@@ -76,20 +82,26 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             return
 
         try:
+            entries = self._get_exact_warm_xprompt_arg_assist_entries()
             known_skills = (
-                self._get_warm_xprompt_skill_names() if has_slash else frozenset()
+                self._xprompt_skill_names_from_entries(entries)
+                if has_slash and entries is not None
+                else frozenset()
             )
-            spans: list[XPromptSpan] = xprompt_inspect.tokenize(
+            spans = highlight_spans(
                 text,
                 known_skills=known_skills,
+                xprompt_arg_assist_entries=entries,
             )
         except Exception:
             return
         for span in spans:
+            if not span.role.startswith("xprompt."):
+                continue
             self._append_highlight_span(
                 span.start,
                 span.end,
-                f"xprompt.{span.kind}",
+                _text_area_style_name(span),
             )
 
     def _get_warm_xprompt_skill_names(self) -> frozenset[str]:
@@ -103,6 +115,13 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         entries = self._get_exact_warm_xprompt_arg_assist_entries()
         if entries is None:
             return None
+        return self._xprompt_skill_names_from_entries(entries)
+
+    def _xprompt_skill_names_from_entries(
+        self,
+        entries: list[XPromptAssistEntry],
+    ) -> frozenset[str]:
+        """Return memoized skill names for an already-warm catalog entry list."""
         if entries is self._xprompt_highlight_skill_entries:
             return self._xprompt_highlight_skill_names
         # Highlight ``/foo`` by the provider skill name; ``entry.name`` is the
@@ -125,6 +144,14 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
         background = app_theme.background or "#000000"
+        argument_colors = xprompt_argument_palette(
+            app_theme.success,
+            foreground=app_theme.foreground,
+            background=background,
+            secondary=app_theme.secondary,
+            accent=app_theme.accent,
+            primary=app_theme.primary,
+        )
         syntax_styles.update(
             {
                 "xprompt.invocation": Style(
@@ -149,6 +176,27 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                         background=background,
                     )
                 ),
+                "xprompt.arg_delimiter": Style(
+                    color=argument_colors["xprompt.arg_delimiter"],
+                ),
+                "xprompt.arg_key": Style(
+                    color=argument_colors["xprompt.arg_key"],
+                ),
+                "xprompt.arg_assign": Style(
+                    color=argument_colors["xprompt.arg_assign"],
+                ),
+                "xprompt.arg_value": Style(
+                    color=argument_colors["xprompt.arg_value"],
+                ),
+                "xprompt.arg_value_string": Style(
+                    color=argument_colors["xprompt.arg_value_string"],
+                ),
+                "xprompt.arg_value_number": Style(
+                    color=argument_colors["xprompt.arg_value_number"],
+                ),
+                "xprompt.arg_value_bool": Style(
+                    color=argument_colors["xprompt.arg_value_bool"],
+                ),
                 "xprompt.separator": Style(
                     color=app_theme.secondary,
                     dim=True,
@@ -164,6 +212,8 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
                 ),
             }
         )
+        for role, color in argument_colors.items():
+            syntax_styles[f"{role}.invalid"] = Style(color=color, underline=True)
         theme = dataclasses.replace(
             base,
             name=active_name,
@@ -183,3 +233,12 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             assert fallback is not None
             return fallback
         return theme
+
+
+def _text_area_style_name(span: HighlightSpan) -> str:
+    if (
+        span.role.startswith("xprompt.arg_")
+        and span.validity in _INVALID_ARGUMENT_VALIDITIES
+    ):
+        return f"{span.role}.invalid"
+    return span.role

@@ -43,7 +43,13 @@ def _seed_entries(
     ta._xprompt_arg_assist_entries_by_project[project] = entries
 
 
-async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles() -> None:
+async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.xprompt.highlight._get_xprompt_argument_spans_binding",
+        lambda: None,
+    )
     app = CompletionTestApp()
     async with app.run_test():
         ta = app.query_one(PromptTextArea)
@@ -81,6 +87,72 @@ async def test_xprompt_highlight_overlay_marks_spans_and_registers_styles() -> N
             styles["xprompt.invocation"].color,
             styles["xprompt.directive"].color,
         }
+
+
+async def test_xprompt_highlight_overlay_marks_core_argument_roles(
+    monkeypatch,
+) -> None:
+    text = "#foo(alpha=1, enabled=true)"
+
+    def byte_span(start: int, end: int) -> tuple[int, int]:
+        return len(text[:start].encode()), len(text[:end].encode())
+
+    def raw(start: int, end: int, role: str, validity: str = "ok") -> dict[str, object]:
+        start_byte, end_byte = byte_span(start, end)
+        return {
+            "start": start_byte,
+            "end": end_byte,
+            "role": role,
+            "validity": validity,
+            "source": "xprompt",
+            "call_name": "foo",
+        }
+
+    def fake_binding(
+        passed_text: str,
+        entries: list[dict[str, object]] | None = None,
+    ) -> list[dict[str, object]]:
+        assert passed_text == text
+        assert entries is None
+        return [
+            raw(4, 5, "arg_delimiter"),
+            raw(5, 10, "arg_key", "unknown_key"),
+            raw(10, 11, "arg_assign"),
+            raw(11, 12, "arg_value_number"),
+            raw(12, 13, "arg_delimiter"),
+            raw(14, 21, "arg_key"),
+            raw(21, 22, "arg_assign"),
+            raw(22, 26, "arg_value_bool"),
+            raw(26, 27, "arg_delimiter"),
+        ]
+
+    monkeypatch.setattr(
+        "sase.xprompt.highlight._get_xprompt_argument_spans_binding",
+        lambda: fake_binding,
+    )
+
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text(text)
+        ta._build_highlight_map()
+
+        names = _highlight_names(ta)
+        for name in (
+            "xprompt.arg_delimiter",
+            "xprompt.arg_key.invalid",
+            "xprompt.arg_assign",
+            "xprompt.arg_value_number",
+            "xprompt.arg_value_bool",
+        ):
+            assert name in names
+            assert name in ta._theme.syntax_styles
+
+        styles = ta._theme.syntax_styles
+        assert styles["xprompt.arg_key.invalid"].underline is True
+        assert (
+            styles["xprompt.arg_value_number"].color != styles["xprompt.arg_key"].color
+        )
 
 
 def test_derive_argument_color_is_theme_adaptive() -> None:
@@ -240,7 +312,7 @@ async def test_xprompt_overlay_tokenizer_failure_is_fail_open(monkeypatch) -> No
             raise RuntimeError("boom")
 
         monkeypatch.setattr(
-            "sase.ace.tui.widgets._xprompt_syntax_highlight.xprompt_inspect.tokenize",
+            "sase.xprompt.highlight.xprompt_inspect.tokenize",
             _raise,
         )
         ta._build_highlight_map()

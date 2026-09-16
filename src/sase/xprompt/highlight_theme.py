@@ -60,19 +60,90 @@ def derive_argument_color(
     background: str,
 ) -> str | None:
     """Return a theme-adaptive sibling color for an xprompt argument."""
+    return _derive_blended_color(
+        base,
+        target=foreground,
+        background=background,
+        ratio=0.40,
+    )
+
+
+def _derive_blended_color(
+    base: str | None,
+    *,
+    target: str | None,
+    background: str,
+    ratio: float,
+) -> str | None:
+    """Blend *base* toward an explicit target or readable foreground."""
     if not base:
         return base
 
-    if foreground:
-        target = Color.parse(foreground)
+    if target:
+        target_color = Color.parse(target)
     else:
         background_color = Color.parse(background)
-        target = (
+        target_color = (
             Color(255, 255, 255)
             if background_color.brightness < 0.5
             else Color(0, 0, 0)
         )
-    return Color.parse(base).blend(target, 0.40).hex
+    return Color.parse(base).blend(target_color, ratio).hex
+
+
+def xprompt_argument_palette(
+    family: str | None,
+    *,
+    foreground: str | None,
+    background: str,
+    secondary: str | None,
+    accent: str | None,
+    primary: str | None,
+) -> Mapping[XPromptHighlightRole, str | None]:
+    """Return the theme-derived colors for structured argument roles."""
+    return {
+        "xprompt.arg_delimiter": _derive_blended_color(
+            family,
+            target=background,
+            background=background,
+            ratio=0.35,
+        ),
+        "xprompt.arg_assign": _derive_blended_color(
+            family,
+            target=background,
+            background=background,
+            ratio=0.35,
+        ),
+        "xprompt.arg_key": derive_argument_color(
+            family,
+            foreground=foreground,
+            background=background,
+        ),
+        "xprompt.arg_value": _derive_blended_color(
+            family,
+            target=foreground,
+            background=background,
+            ratio=0.55,
+        ),
+        "xprompt.arg_value_string": _derive_blended_color(
+            secondary,
+            target=foreground,
+            background=background,
+            ratio=0.55,
+        ),
+        "xprompt.arg_value_number": _derive_blended_color(
+            accent,
+            target=foreground,
+            background=background,
+            ratio=0.55,
+        ),
+        "xprompt.arg_value_bool": _derive_blended_color(
+            primary,
+            target=foreground,
+            background=background,
+            ratio=0.55,
+        ),
+    }
 
 
 @functools.cache
@@ -93,6 +164,14 @@ def highlight_theme() -> Mapping[XPromptHighlightRole, HighlightStyle]:
         foreground=foreground,
         background=background,
     )
+    arg_colors = xprompt_argument_palette(
+        theme.success,
+        foreground=foreground,
+        background=background,
+        secondary=theme.secondary,
+        accent=theme.accent,
+        primary=theme.primary,
+    )
     skill = derive_argument_color(
         theme.accent,
         foreground=foreground,
@@ -112,6 +191,17 @@ def highlight_theme() -> Mapping[XPromptHighlightRole, HighlightStyle]:
         "xprompt.invocation_arg": HighlightStyle(invocation_arg),
         "xprompt.directive": HighlightStyle(theme.warning, bold=True),
         "xprompt.directive_arg": HighlightStyle(directive_arg),
+        "xprompt.arg_delimiter": HighlightStyle(arg_colors["xprompt.arg_delimiter"]),
+        "xprompt.arg_key": HighlightStyle(arg_colors["xprompt.arg_key"]),
+        "xprompt.arg_assign": HighlightStyle(arg_colors["xprompt.arg_assign"]),
+        "xprompt.arg_value": HighlightStyle(arg_colors["xprompt.arg_value"]),
+        "xprompt.arg_value_string": HighlightStyle(
+            arg_colors["xprompt.arg_value_string"]
+        ),
+        "xprompt.arg_value_number": HighlightStyle(
+            arg_colors["xprompt.arg_value_number"]
+        ),
+        "xprompt.arg_value_bool": HighlightStyle(arg_colors["xprompt.arg_value_bool"]),
         "xprompt.separator": HighlightStyle(theme.secondary, bold=True, dim=True),
         "xprompt.skill": HighlightStyle(skill, bold=True),
         "jinja.delimiter": HighlightStyle(theme.accent, dim=True),
@@ -138,4 +228,5 @@ __all__ = [
     "HighlightStyle",
     "derive_argument_color",
     "highlight_theme",
+    "xprompt_argument_palette",
 ]

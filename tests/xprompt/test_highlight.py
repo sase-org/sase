@@ -19,22 +19,110 @@ def _parts(text: str) -> list[tuple[str, str]]:
     return [(text[span.start : span.end], span.role) for span in highlight_spans(text)]
 
 
-def test_flattens_overlapping_invocation_and_jinja_by_precedence() -> None:
+def test_flattens_overlapping_invocation_and_jinja_by_precedence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        highlight,
+        "_get_xprompt_argument_spans_binding",
+        lambda: None,
+    )
     text = "#foo({{ bar | upper }})"
 
     assert _parts(text) == [
         ("#foo", "xprompt.invocation"),
-        ("({{ bar | upper }})", "xprompt.invocation_arg"),
+        ("(", "xprompt.invocation_arg"),
+        ("{{", "jinja.delimiter"),
+        (" ", "xprompt.invocation_arg"),
+        ("bar", "jinja.variable"),
+        (" ", "xprompt.invocation_arg"),
+        ("|", "jinja.operator"),
+        (" ", "xprompt.invocation_arg"),
+        ("upper", "jinja.filter"),
+        (" ", "xprompt.invocation_arg"),
+        ("}}", "jinja.delimiter"),
+        (")", "xprompt.invocation_arg"),
     ]
 
 
-def test_flattens_directive_argument_over_placeholder() -> None:
+def test_flattens_directive_argument_over_placeholder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        highlight,
+        "_get_xprompt_argument_spans_binding",
+        lambda: None,
+    )
     text = "%model(<model>)"
 
     assert _parts(text) == [
         ("%model", "xprompt.directive"),
-        ("(<model>)", "xprompt.directive_arg"),
+        ("(", "xprompt.directive_arg"),
+        ("<model>", "placeholder"),
+        (")", "xprompt.directive_arg"),
     ]
+
+
+def test_core_argument_spans_are_layered_over_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    text = '#foo(é=12,label="x")'
+
+    def byte_span(start: int, end: int) -> tuple[int, int]:
+        return len(text[:start].encode()), len(text[:end].encode())
+
+    def raw(start: int, end: int, role: str, validity: str = "ok") -> dict[str, object]:
+        start_byte, end_byte = byte_span(start, end)
+        return {
+            "start": start_byte,
+            "end": end_byte,
+            "role": role,
+            "validity": validity,
+            "source": "xprompt",
+            "call_name": "foo",
+        }
+
+    def fake_binding(
+        passed_text: str,
+        entries: list[dict[str, object]] | None = None,
+    ) -> list[dict[str, object]]:
+        assert passed_text == text
+        assert entries is None
+        return [
+            raw(4, 5, "arg_delimiter"),
+            raw(5, 6, "arg_key", "unknown_key"),
+            raw(6, 7, "arg_assign"),
+            raw(7, 9, "arg_value_number"),
+            raw(9, 10, "arg_delimiter"),
+            raw(10, 15, "arg_key"),
+            raw(15, 16, "arg_assign"),
+            raw(16, 19, "arg_value_string"),
+            raw(19, 20, "arg_delimiter"),
+        ]
+
+    monkeypatch.setattr(
+        highlight,
+        "_get_xprompt_argument_spans_binding",
+        lambda: fake_binding,
+    )
+
+    spans = highlight_spans(text)
+
+    assert [(text[span.start : span.end], span.role) for span in spans] == [
+        ("#foo", "xprompt.invocation"),
+        ("(", "xprompt.arg_delimiter"),
+        ("é", "xprompt.arg_key"),
+        ("=", "xprompt.arg_assign"),
+        ("12", "xprompt.arg_value_number"),
+        (",", "xprompt.arg_delimiter"),
+        ("label", "xprompt.arg_key"),
+        ("=", "xprompt.arg_assign"),
+        ('"x"', "xprompt.arg_value_string"),
+        (")", "xprompt.arg_delimiter"),
+    ]
+    key_span = next(span for span in spans if text[span.start : span.end] == "é")
+    assert key_span.validity == "unknown_key"
+    assert key_span.source == "xprompt"
 
 
 def test_alt_block_preserves_nested_invocations() -> None:

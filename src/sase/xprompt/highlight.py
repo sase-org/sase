@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 import heapq
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from sase.artifact_refs import scan_artifact_refs
 
@@ -12,6 +13,9 @@ from . import alt_inspect, jinja_inspect, xprompt_inspect
 from ._fenced_blocks import fenced_block_details
 from ._literal_zones import inline_literal_ranges
 from .placeholder_completion import PlaceholderPosition, placeholder_spans
+
+if TYPE_CHECKING:
+    from .xprompt_inspect import XPromptSpan
 
 MAX_HIGHLIGHT_BYTES = 80_000
 MAX_HIGHLIGHT_LINES = 1_200
@@ -21,6 +25,13 @@ XPromptHighlightRole = Literal[
     "xprompt.invocation_arg",
     "xprompt.directive",
     "xprompt.directive_arg",
+    "xprompt.arg_delimiter",
+    "xprompt.arg_key",
+    "xprompt.arg_assign",
+    "xprompt.arg_value",
+    "xprompt.arg_value_string",
+    "xprompt.arg_value_number",
+    "xprompt.arg_value_bool",
     "xprompt.separator",
     "xprompt.skill",
     "jinja.delimiter",
@@ -40,6 +51,16 @@ XPromptHighlightRole = Literal[
     "code.inline",
 ]
 
+XPromptArgumentSpanValidity = Literal[
+    "ok",
+    "unknown_key",
+    "type_mismatch",
+    "duplicate_key",
+    "unresolvable",
+]
+
+XPromptArgumentSource = Literal["xprompt", "directive"]
+
 
 @dataclass(frozen=True, slots=True)
 class HighlightSpan:
@@ -48,6 +69,8 @@ class HighlightSpan:
     start: int
     end: int
     role: XPromptHighlightRole
+    validity: XPromptArgumentSpanValidity = "ok"
+    source: XPromptArgumentSource | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +79,8 @@ class _Candidate:
     start: int
     end: int
     role: XPromptHighlightRole
+    validity: XPromptArgumentSpanValidity
+    source: XPromptArgumentSource | None
 
 
 # Lower numbers win. Keeping every role explicit makes precedence additions
@@ -64,25 +89,68 @@ _ROLE_PRECEDENCE: dict[XPromptHighlightRole, int] = {
     "code.fence": 0,
     "code.inline": 1,
     "xprompt.invocation": 10,
-    "xprompt.invocation_arg": 11,
-    "xprompt.directive": 12,
-    "xprompt.directive_arg": 13,
-    "xprompt.separator": 14,
-    "xprompt.skill": 15,
-    "alt.delimiter": 20,
-    "alt.separator": 21,
-    "alt.branch_name": 22,
-    "alt.error": 23,
-    "jinja.delimiter": 30,
-    "jinja.statement": 31,
-    "jinja.variable": 32,
-    "jinja.comment": 33,
-    "jinja.filter": 34,
-    "jinja.keyword": 35,
-    "jinja.operator": 36,
-    "placeholder": 40,
-    "artifact_ref": 50,
+    "xprompt.directive": 11,
+    "xprompt.separator": 12,
+    "xprompt.skill": 13,
+    "xprompt.arg_key": 20,
+    "xprompt.arg_assign": 21,
+    "xprompt.arg_delimiter": 22,
+    "alt.delimiter": 30,
+    "alt.separator": 31,
+    "alt.branch_name": 32,
+    "alt.error": 33,
+    "jinja.delimiter": 40,
+    "jinja.statement": 41,
+    "jinja.variable": 42,
+    "jinja.comment": 43,
+    "jinja.filter": 44,
+    "jinja.keyword": 45,
+    "jinja.operator": 46,
+    "placeholder": 50,
+    "artifact_ref": 60,
+    "xprompt.arg_value_string": 70,
+    "xprompt.arg_value_number": 71,
+    "xprompt.arg_value_bool": 72,
+    "xprompt.arg_value": 73,
+    "xprompt.invocation_arg": 90,
+    "xprompt.directive_arg": 91,
 }
+
+_ARGUMENT_ROLE_BY_CORE_ROLE: dict[str, XPromptHighlightRole] = {
+    "arg_delimiter": "xprompt.arg_delimiter",
+    "arg_key": "xprompt.arg_key",
+    "arg_assign": "xprompt.arg_assign",
+    "arg_value": "xprompt.arg_value",
+    "arg_value_string": "xprompt.arg_value_string",
+    "arg_value_number": "xprompt.arg_value_number",
+    "arg_value_bool": "xprompt.arg_value_bool",
+}
+
+_VALIDITIES: frozenset[str] = frozenset(
+    {"ok", "unknown_key", "type_mismatch", "duplicate_key", "unresolvable"}
+)
+
+_SOURCES: frozenset[str] = frozenset({"xprompt", "directive"})
+_MISSING_BINDING = object()
+_xprompt_argument_spans_binding: Callable[..., object] | object | None = None
+
+
+def _get_xprompt_argument_spans_binding() -> Callable[..., object] | None:
+    global _xprompt_argument_spans_binding
+
+    if _xprompt_argument_spans_binding is _MISSING_BINDING:
+        return None
+    if _xprompt_argument_spans_binding is None:
+        try:
+            from sase.core.rust import require_rust_binding
+
+            _xprompt_argument_spans_binding = require_rust_binding(
+                "xprompt_argument_spans"
+            )
+        except Exception:
+            _xprompt_argument_spans_binding = _MISSING_BINDING
+            return None
+    return cast(Callable[..., object], _xprompt_argument_spans_binding)
 
 
 def highlight_spans(
@@ -90,6 +158,7 @@ def highlight_spans(
     *,
     known_skills: frozenset[str] = frozenset(),
     include_artifact_refs: bool = True,
+    xprompt_arg_assist_entries: Sequence[object] | None = None,
 ) -> list[HighlightSpan]:
     """Return a flat, ordered, non-overlapping role partition of *text*."""
     if (
@@ -101,7 +170,10 @@ def highlight_spans(
     collected: list[HighlightSpan] = []
 
     try:
-        xprompt_tokens = xprompt_inspect.tokenize(text, known_skills=known_skills)
+        xprompt_tokens: list[XPromptSpan] = xprompt_inspect.tokenize(
+            text,
+            known_skills=known_skills,
+        )
     except Exception:
         xprompt_tokens = []
     collected.extend(
@@ -111,6 +183,13 @@ def highlight_spans(
             cast(XPromptHighlightRole, f"xprompt.{span.kind}"),
         )
         for span in xprompt_tokens
+    )
+
+    collected.extend(
+        _xprompt_argument_highlight_spans(
+            text,
+            xprompt_arg_assist_entries=xprompt_arg_assist_entries,
+        )
     )
 
     try:
@@ -194,7 +273,16 @@ def _flatten_spans(
         end = max(0, min(span.end, text_length))
         if end <= start:
             continue
-        candidates.append(_Candidate(candidate_id, start, end, span.role))
+        candidates.append(
+            _Candidate(
+                candidate_id,
+                start,
+                end,
+                span.role,
+                span.validity,
+                span.source,
+            )
+        )
     if not candidates:
         return []
 
@@ -227,9 +315,149 @@ def _flatten_spans(
             pieces.append((winner, start, end))
 
     return [
-        HighlightSpan(start=start, end=end, role=candidate.role)
+        HighlightSpan(
+            start=start,
+            end=end,
+            role=candidate.role,
+            validity=candidate.validity,
+            source=candidate.source,
+        )
         for candidate, start, end in pieces
     ]
+
+
+def _xprompt_argument_highlight_spans(
+    text: str,
+    *,
+    xprompt_arg_assist_entries: Sequence[object] | None,
+) -> list[HighlightSpan]:
+    binding = _get_xprompt_argument_spans_binding()
+    if binding is None:
+        return []
+
+    try:
+        if xprompt_arg_assist_entries is None:
+            raw_spans = binding(text)
+        else:
+            raw_spans = binding(
+                text,
+                _xprompt_arg_assist_entries_to_wire(xprompt_arg_assist_entries),
+            )
+    except Exception:
+        return []
+    if not isinstance(raw_spans, Sequence):
+        return []
+
+    byte_offsets = _byte_to_character_offsets(text)
+    spans: list[HighlightSpan] = []
+    for raw_span in raw_spans:
+        if not isinstance(raw_span, Mapping):
+            continue
+        role = _ARGUMENT_ROLE_BY_CORE_ROLE.get(str(raw_span.get("role", "")))
+        if role is None:
+            continue
+        start = _int_value(raw_span.get("start"))
+        end = _int_value(raw_span.get("end"))
+        if start is None or end is None:
+            continue
+        start_char = byte_offsets.get(start)
+        end_char = byte_offsets.get(end)
+        if start_char is None or end_char is None:
+            continue
+        spans.append(
+            HighlightSpan(
+                start_char,
+                end_char,
+                role,
+                validity=_validity_value(raw_span.get("validity")),
+                source=_source_value(raw_span.get("source")),
+            )
+        )
+    return spans
+
+
+def _xprompt_arg_assist_entries_to_wire(
+    entries: Sequence[object],
+) -> list[dict[str, object]]:
+    return [_xprompt_arg_assist_entry_to_wire(entry) for entry in entries]
+
+
+def _xprompt_arg_assist_entry_to_wire(entry: object) -> dict[str, object]:
+    name = str(_field(entry, "name", ""))
+    return {
+        "name": name,
+        "display_label": _field(entry, "display_label", name),
+        "insertion": _field(entry, "insertion", name),
+        "reference_prefix": _field(entry, "reference_prefix", "#"),
+        "kind": _field(entry, "kind", None),
+        "source_bucket": _field(entry, "source_bucket", ""),
+        "project": _field(entry, "project", None),
+        "tags": list(cast(Sequence[object], _field(entry, "tags", ()) or ())),
+        "input_signature": _field(entry, "input_signature", None),
+        "inputs": [
+            _xprompt_input_hint_to_wire(input_hint)
+            for input_hint in cast(Sequence[object], _field(entry, "inputs", ()) or ())
+        ],
+        "content_preview": _field(entry, "content_preview", None),
+        "description": _field(entry, "description", None),
+        "source_path_display": _field(entry, "source_path_display", None),
+        "definition_path": _field(entry, "definition_path", None),
+        "definition_range": _field(entry, "definition_range", None),
+        "is_skill": bool(_field(entry, "is_skill", False)),
+        "skill_name": _field(entry, "skill_name", None),
+        "memory_type": _field(entry, "memory_type", None),
+    }
+
+
+def _xprompt_input_hint_to_wire(input_hint: object) -> dict[str, object]:
+    return {
+        "name": _field(input_hint, "name", ""),
+        "type": _field(input_hint, "type", ""),
+        "description": _field(input_hint, "description", None),
+        "required": bool(_field(input_hint, "required", False)),
+        "default_display": _field(input_hint, "default_display", None),
+        "position": _position_value(_field(input_hint, "position", 0)),
+        "repeatable": bool(_field(input_hint, "repeatable", False)),
+    }
+
+
+def _field(value: object, name: str, default: object) -> object:
+    if isinstance(value, Mapping):
+        return value.get(name, default)
+    return getattr(value, name, default)
+
+
+def _int_value(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None
+
+
+def _position_value(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return 0
+    return 0
+
+
+def _validity_value(value: object) -> XPromptArgumentSpanValidity:
+    if isinstance(value, str) and value in _VALIDITIES:
+        return cast(XPromptArgumentSpanValidity, value)
+    return "ok"
+
+
+def _source_value(value: object) -> XPromptArgumentSource | None:
+    if isinstance(value, str) and value in _SOURCES:
+        return cast(XPromptArgumentSource, value)
+    return None
 
 
 def _position_to_offset(text: str, position: PlaceholderPosition) -> int | None:
@@ -268,6 +496,8 @@ __all__ = [
     "MAX_HIGHLIGHT_BYTES",
     "MAX_HIGHLIGHT_LINES",
     "HighlightSpan",
+    "XPromptArgumentSource",
+    "XPromptArgumentSpanValidity",
     "XPromptHighlightRole",
     "highlight_spans",
 ]
