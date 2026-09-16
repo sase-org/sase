@@ -391,7 +391,7 @@ def test_build_chop_doctor_report_surfaces_config_validation_errors(
         [
             _AxeConfigDiagnostic(
                 code="agent_chop_removed",
-                message="agent chops are no longer supported",
+                message="agent jobs are no longer supported",
                 path="axe.lumberjacks.audits.chops[0].agent",
                 layer="overlay:test.yml:/tmp/test.yml",
             )

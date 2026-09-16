@@ -84,8 +84,8 @@ def test_load_axe_config_rejects_bare_string_chops() -> None:
 
     diagnostic = exc_info.value.diagnostics[0]
     assert diagnostic.code == "required_missing"
-    assert diagnostic.path == "axe.lumberjacks.hooks.chops.hook_checks.description"
-    assert "list-form string entries cannot carry one" in diagnostic.message
+    assert diagnostic.path == "axe.lumberjacks.hooks.chops[0].description"
+    assert diagnostic.message == "job `hook_checks` requires a non-empty `description`"
 
 
 def test_load_axe_config_requires_lumberjack_description() -> None:

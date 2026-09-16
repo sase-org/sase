@@ -269,7 +269,7 @@ def test_axe_state_warns_on_stale_heartbeat(monkeypatch, tmp_path: Path) -> None
         severity="warning",
         subject="hooks",
         summary=(
-            "Configured lumberjack `hooks` has a stale heartbeat (61s; threshold 60s)."
+            "Configured routine `hooks` has a stale heartbeat (61s; threshold 60s)."
         ),
         suggested_command="sase doctor --deep",
     )

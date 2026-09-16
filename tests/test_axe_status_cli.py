@@ -6,6 +6,7 @@ import argparse
 import json
 from dataclasses import replace
 from io import StringIO
+from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
@@ -285,6 +286,63 @@ def test_json_public_contract_preserves_names_paths_and_payload_values() -> None
     assert "job-watch" not in text
     assert "job-test" not in text
     assert "/tmp/routines/job-watch.log" not in text
+
+
+def test_human_attention_uses_public_routine_issue_templates_in_both_flag_states() -> (
+    None
+):
+    snapshot = replace(
+        _snapshot(),
+        state="degraded",
+        health="unhealthy",
+        exit_code=1,
+        lumberjacks=(
+            replace(
+                _lumberjack(name="chop-watch", state="stale_heartbeat"),
+                heartbeat_age_seconds=500,
+            ),
+        ),
+        issues=(
+            AxeStatusIssue(
+                code="lumberjack_stale_heartbeat",
+                severity="warning",
+                subject="chop-watch",
+                summary=(
+                    "Configured lumberjack `chop-watch` has a stale heartbeat "
+                    "(500s; threshold 90s)."
+                ),
+                suggested_command="sase doctor --deep",
+            ),
+        ),
+    )
+
+    with override_flags(axe_routine_job_contract=False):
+        legacy_flag_output = _plain_render(snapshot)
+    with override_flags(axe_routine_job_contract=True):
+        public_flag_output = _plain_render(snapshot)
+
+    for output in (legacy_flag_output, public_flag_output):
+        assert (
+            "Configured routine `chop-watch` has a stale heartbeat "
+            "(500s; threshold 90s)."
+        ) in output
+        assert "Configured lumberjack `chop-watch`" not in output
+
+
+def test_status_collector_validation_uses_public_routine_job_terms() -> None:
+    config = SimpleNamespace(
+        max_hook_runners=1,
+        max_agent_runners=1,
+        lumberjacks={"checks": SimpleNamespace(interval=5, chop_names=["", "smoke"])},
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        status_collector._validate_config(config)  # noqa: SLF001
+
+    message = str(exc_info.value)
+    assert message == "AXE routine 'checks' has invalid enabled job names"
+    assert "lumberjack" not in message
+    assert "chop names" not in message
 
 
 @pytest.mark.parametrize(

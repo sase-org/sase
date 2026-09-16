@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any, TextIO
 
 from rich.console import Console, Group, RenderableType
@@ -25,6 +25,7 @@ from .status_models import (
     AxeLumberjackStatus,
     AxeProcessObservation,
     AxeStatusHealth,
+    AxeStatusIssue,
     AxeStatusSnapshot,
     AxeStatusState,
 )
@@ -333,7 +334,8 @@ def _narrow_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
 
 
 def _attention_panel(snapshot: AxeStatusSnapshot) -> Panel | None:
-    if snapshot.collection_error is None and not snapshot.issues:
+    issues = _display_issues(snapshot)
+    if snapshot.collection_error is None and not issues:
         return None
 
     body = Text()
@@ -344,15 +346,17 @@ def _attention_panel(snapshot: AxeStatusSnapshot) -> Panel | None:
             f"{snapshot.collection_error.message}\n"
         )
 
-    for index, issue in enumerate(snapshot.issues, start=1):
-        style = "red" if issue.severity == "error" else "yellow"
-        body.append(f"{index}. [{issue.severity.upper()}] ", style=f"bold {style}")
-        body.append(issue.summary)
-        if issue.subject is not None:
-            body.append(f" ({issue.subject})", style="dim")
+    for index, issue in enumerate(issues, start=1):
+        severity = str(issue.get("severity") or "warning")
+        style = "red" if severity == "error" else "yellow"
+        body.append(f"{index}. [{severity.upper()}] ", style=f"bold {style}")
+        body.append(str(issue.get("summary") or ""))
+        subject = issue.get("subject")
+        if subject is not None:
+            body.append(f" ({subject})", style="dim")
         body.append("\n")
 
-    commands = _deduplicated_commands(snapshot)
+    commands = _deduplicated_commands(snapshot, issues=issues)
     if commands:
         body.append("Next steps\n", style="bold")
         for command in commands:
@@ -372,12 +376,100 @@ def _attention_panel(snapshot: AxeStatusSnapshot) -> Panel | None:
     )
 
 
-def _deduplicated_commands(snapshot: AxeStatusSnapshot) -> list[str]:
+def _display_issues(snapshot: AxeStatusSnapshot) -> list[Mapping[str, Any]]:
+    if not snapshot.issues:
+        return []
+    try:
+        raw_issues = _status_snapshot_to_public_wire(snapshot).get("issues")
+    except (AttributeError, ImportError):
+        raw_issues = None
+    if isinstance(raw_issues, list) and all(
+        isinstance(issue, Mapping) for issue in raw_issues
+    ):
+        return raw_issues
+    routines = {routine.name: routine for routine in snapshot.lumberjacks}
+    return [_display_issue_wire(issue, routines) for issue in snapshot.issues]
+
+
+def _display_issue_wire(
+    issue: AxeStatusIssue,
+    routines: Mapping[str, AxeLumberjackStatus],
+) -> dict[str, Any]:
+    wire = issue.to_wire()
+    subject = issue.subject
+    routine = routines.get(subject or "")
+    if routine is None:
+        return wire
+    projected = _public_routine_issue(issue.code, routine)
+    if projected is None:
+        return wire
+    code, summary = projected
+    wire["code"] = code
+    wire["summary"] = summary
+    return wire
+
+
+def _public_routine_issue(
+    code: str,
+    routine: AxeLumberjackStatus,
+) -> tuple[str, str] | None:
+    pid = routine.recorded_pid or 0
+    if code == "lumberjack_orphaned":
+        return (
+            "routine_orphaned",
+            f"Live unconfigured routine `{routine.name}` is orphaned (PID {pid}).",
+        )
+    if code == "lumberjack_without_orchestrator":
+        return (
+            "routine_without_orchestrator",
+            f"Routine `{routine.name}` is live (PID {pid}) without a coherent orchestrator.",
+        )
+    if code == "lumberjack_not_reporting":
+        return (
+            "routine_not_reporting",
+            f"Configured routine `{routine.name}` is not reporting status.",
+        )
+    if code == "lumberjack_stale_process":
+        return (
+            "routine_stale_process",
+            f"Configured routine `{routine.name}` reports PID {pid}, but that process is not live.",
+        )
+    if code == "lumberjack_stale_heartbeat":
+        threshold = routine.stale_threshold_seconds or 0
+        if routine.heartbeat_age_seconds is not None:
+            summary = (
+                f"Configured routine `{routine.name}` has a stale heartbeat "
+                f"({routine.heartbeat_age_seconds}s; threshold {threshold}s)."
+            )
+        else:
+            summary = (
+                f"Configured routine `{routine.name}` has not reported a heartbeat "
+                f"after {routine.start_age_seconds or 0}s (threshold {threshold}s)."
+            )
+        return ("routine_stale_heartbeat", summary)
+    if code == "lumberjack_error":
+        state = (
+            routine.reported_state
+            if routine.reported_state in {"stopped", "error"}
+            else "unknown"
+        )
+        return (
+            "routine_error",
+            f"Configured routine `{routine.name}` reports state `{state}`.",
+        )
+    return None
+
+
+def _deduplicated_commands(
+    snapshot: AxeStatusSnapshot,
+    *,
+    issues: Iterable[Mapping[str, Any]],
+) -> list[str]:
     commands: list[str] = []
     seen: set[str] = set()
-    for issue in snapshot.issues:
-        command = issue.suggested_command
-        if command is None or command in seen:
+    for issue in issues:
+        command = issue.get("suggested_command")
+        if not isinstance(command, str) or command in seen:
             continue
         seen.add(command)
         commands.append(command)

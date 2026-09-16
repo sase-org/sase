@@ -99,7 +99,7 @@ def collect_axe_status_snapshot(
         return _classify_collection_error(
             generated_at=generated_at,
             code="lumberjack_probe_failed",
-            message=_error_message("Unable to probe AXE lumberjacks", exc),
+            message=_error_message("Unable to probe AXE routines", exc),
             config=config,
             orchestrator=orchestrator,
             hook_count=hook_count,
@@ -167,21 +167,21 @@ def _validate_config(config: AxeConfig) -> None:
     _require_wire_count(config.max_hook_runners, "maximum hook runners")
     _require_wire_count(config.max_agent_runners, "maximum agent runners")
     if not isinstance(config.lumberjacks, dict):
-        raise ValueError("AXE lumberjacks configuration must be a mapping")
+        raise ValueError("AXE routines configuration must be a mapping")
     for name, lumberjack in config.lumberjacks.items():
         if not isinstance(name, str) or not name.strip():
-            raise ValueError("AXE lumberjack names must be non-empty strings")
+            raise ValueError("AXE routine names must be non-empty strings")
         if (
             not isinstance(lumberjack.interval, int)
             or isinstance(lumberjack.interval, bool)
             or not 0 < lumberjack.interval <= _MAX_WIRE_U32
         ):
-            raise ValueError(f"AXE lumberjack {name!r} must have a positive interval")
+            raise ValueError(f"AXE routine {name!r} must have a positive interval")
         if not isinstance(lumberjack.chop_names, list) or any(
             not isinstance(chop, str) or not chop.strip()
             for chop in lumberjack.chop_names
         ):
-            raise ValueError(f"AXE lumberjack {name!r} has invalid enabled chop names")
+            raise ValueError(f"AXE routine {name!r} has invalid enabled job names")
 
 
 def _require_wire_count(value: object, label: str) -> None:
