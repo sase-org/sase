@@ -90,8 +90,8 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             tags=["disk", "housekeeping"],
         )
 
-    # Artifact run deletion is intentionally excluded from unattended pressure
-    # cleanup. `sase artifact prune-runs --apply` remains an explicit choice.
+    # Artifact run cleanup is intentionally excluded from unattended pressure
+    # cleanup; that owner is currently preview-only and apply fails closed.
     result = run_disk_reap(
         apply=True,
         include_artifact_runs=False,

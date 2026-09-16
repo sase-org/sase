@@ -24,7 +24,6 @@ from sase.notifications.store import upsert_notification
 
 _NOTIFICATION_SENDER = "axe"
 _NOTIFICATION_TAGS = ("artifact-retention", "ace-run", "preview")
-_APPLY_COMMAND = "sase artifact prune-runs --apply"
 _PREVIEW_COMMAND = "sase artifact prune-runs"
 
 
@@ -100,7 +99,6 @@ def _notify_actionable_preview(plan: AceRunRetentionPlan) -> None:
             "report_title": "ACE run pruning preview",
             "report": json.dumps(_preview_report(plan).to_dict(), sort_keys=True),
             "preview_command": _PREVIEW_COMMAND,
-            "apply_command": _APPLY_COMMAND,
         },
         dedup_key=f"artifact_run_prune:{_preview_fingerprint(plan)}",
     )
@@ -118,7 +116,7 @@ def _notification_notes(plan: AceRunRetentionPlan) -> list[str]:
             "ACE run pruning needs attention",
             (
                 f"{len(plan.sources_unavailable)} protection source(s) are "
-                "unavailable; apply is blocked until coverage is complete."
+                "unavailable; preview estimates may be incomplete."
             ),
             f"Review: {_PREVIEW_COMMAND}",
         ]
@@ -129,7 +127,7 @@ def _notification_notes(plan: AceRunRetentionPlan) -> list[str]:
             f"{counts.empty_out_of_range_shards} empty shard(s), "
             f"{_human_size(plan.reclaimable_bytes)} reclaimable."
         ),
-        f"Apply explicitly: {_APPLY_COMMAND}",
+        "Deletion is currently preview-only.",
     ]
 
 
@@ -151,7 +149,7 @@ def _preview_report(plan: AceRunRetentionPlan) -> ChopReport:
     if plan.sources_unavailable:
         report.headline("Protection coverage is incomplete", tone="warn")
     else:
-        report.headline("Explicit approval can reclaim ACE run storage", tone="info")
+        report.headline("ACE run storage preview only", tone="info")
     report.kv(
         {
             "Run dirs": str(counts.selected),
@@ -173,7 +171,7 @@ def _preview_report(plan: AceRunRetentionPlan) -> ChopReport:
         for shard in plan.empty_out_of_range_shards[:20]:
             rows.row((shard.project or "-", shard.kind, shard.path))
     report.text(f"Review command: {_PREVIEW_COMMAND}", tone="muted")
-    report.text(f"Apply command: {_APPLY_COMMAND}", tone="accent")
+    report.text("Deletion is currently preview-only.", tone="muted")
     return report
 
 

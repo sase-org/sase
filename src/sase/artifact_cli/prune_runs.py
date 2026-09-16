@@ -70,9 +70,8 @@ def handle_prune_runs(args: argparse.Namespace) -> int:
     )
     plan = plan_ace_run_retention(policy, protections=protections)
     apply = bool(getattr(args, "apply", False))
-    blocked = apply and bool(plan.sources_unavailable)
     execution = None
-    if apply and not blocked:
+    if apply:
         execution = apply_ace_run_retention(
             plan,
             index_path=(
@@ -85,7 +84,7 @@ def handle_prune_runs(args: argparse.Namespace) -> int:
     payload = {
         "schema_version": ARTIFACT_PRUNE_RUNS_SCHEMA_VERSION,
         "mode": "apply" if apply else "dry_run",
-        "blocked": blocked,
+        "blocked": bool(execution is not None and execution.errors),
         "plan": plan.to_json_dict(),
         "execution": None if execution is None else execution.to_json_dict(),
     }
@@ -97,28 +96,27 @@ def handle_prune_runs(args: argparse.Namespace) -> int:
         _print_plan(plan, projects=projects, console=console)
         for source in plan.sources_unavailable:
             console.print(f"[yellow]Protection source unavailable:[/yellow] {source}")
-        if blocked:
-            console.print(
-                "[red]Apply refused:[/red] every required protection source "
-                "must be readable."
-            )
-        elif execution is not None:
-            console.print(
-                f"[green]Removed {execution.removed_runs} run dirs "
-                f"({_human_size(execution.bytes_reclaimed)} reclaimed) and "
-                f"{execution.removed_empty_shards} empty shards.[/green] "
-                f"Artifact-index rows dropped: {execution.deindexed}."
-            )
+        if execution is not None:
+            if execution.errors:
+                console.print(
+                    "[red]Apply refused:[/red] ACE-run deletion is preview-only."
+                )
+            else:
+                console.print(
+                    f"[green]Removed {execution.removed_runs} run dirs "
+                    f"({_human_size(execution.bytes_reclaimed)} reclaimed) and "
+                    f"{execution.removed_empty_shards} empty shards.[/green] "
+                    f"Artifact-index rows dropped: {execution.deindexed}."
+                )
             for message in execution.skipped:
                 console.print(f"[yellow]Skipped:[/yellow] {message}")
             for message in execution.errors:
                 console.print(f"[red]Error:[/red] {message}")
         else:
             console.print(
-                "[cyan]Dry run only; pass --apply to remove selected run dirs "
-                "and empty out-of-range shards.[/cyan]"
+                "[cyan]Dry run only; ACE-run deletion is preview-only.[/cyan]"
             )
-    return 1 if blocked else 0
+    return 1 if execution is not None and execution.errors else 0
 
 
 def _print_plan(

@@ -215,9 +215,7 @@ def test_artifact_run_prune_upserts_actionable_preview_notification(
     assert notification.action == "ViewReport"
     assert notification.dedup_key.startswith("artifact_run_prune:")
     assert "artifact-retention" in notification.tags
-    assert notification.action_data["apply_command"] == (
-        "sase artifact prune-runs --apply"
-    )
+    assert "apply_command" not in notification.action_data
     assert kwargs["plus_one_timestamp"] == notification.timestamp
     _assert_configured_aware_timestamp(notification.timestamp)
     report = json.loads(notification.action_data["report"])

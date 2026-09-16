@@ -161,7 +161,7 @@ def test_plan_protects_pending_delivery_ancestry(tmp_path: Path) -> None:
     assert "continuation_ancestry" in reasons[old]
 
 
-def test_apply_skips_dir_when_continuation_ancestry_appears(
+def test_apply_refuses_when_continuation_ancestry_appears(
     tmp_path: Path,
 ) -> None:
     projects_root = tmp_path / "projects"
@@ -193,7 +193,8 @@ def test_apply_skips_dir_when_continuation_ancestry_appears(
 
     assert result.removed_runs == 0
     assert old.exists()
-    assert any("continuation ancestry" in item for item in result.skipped)
+    assert result.skipped == ()
+    assert result.errors == ("apply refused: authoritative_protection_unavailable",)
 
 
 def test_plan_protects_unreadable_continuation_metadata(

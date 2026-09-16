@@ -1623,14 +1623,14 @@ artifacts:
     trash_grace_days: 14
 ```
 
-| Field                                            | Type | Default | Minimum | Description                                                                                                 |
-| ------------------------------------------------ | ---- | ------- | ------- | ----------------------------------------------------------------------------------------------------------- |
-| `artifacts.retention.enabled`                    | bool | `false` | -       | Run the artifact-file retention pass after agent finalization. While `false`, retention removes nothing.    |
-| `artifacts.retention.empty_shard_removal_budget` | int  | `2000`  | `1`     | Max empty `ace-run` month/day/run shard directories removed by one `sase artifact prune-runs --apply` pass. |
-| `artifacts.retention.keep_per_label`             | int  | `3`     | `0`     | Newest automatic captures kept per label; older generations are trashed first. `0` disables the predicate.  |
-| `artifacts.retention.keep_recent_run_months`     | int  | `2`     | `1`     | Calendar months of `ace-run` directories kept whole by `sase artifact prune-runs`.                          |
-| `artifacts.retention.max_age_days`               | int  | `90`    | `0`     | Trash automatic captures created more than this many days ago. `0` disables the predicate.                  |
-| `artifacts.retention.trash_grace_days`           | int  | `14`    | `0`     | Days a trashed artifact stays restorable before a purge removes it.                                         |
+| Field                                            | Type | Default | Minimum | Description                                                                                                |
+| ------------------------------------------------ | ---- | ------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `artifacts.retention.enabled`                    | bool | `false` | -       | Run the artifact-file retention pass after agent finalization. While `false`, retention removes nothing.   |
+| `artifacts.retention.empty_shard_removal_budget` | int  | `2000`  | `1`     | Max empty `ace-run` month/day/run shard directories listed by one `sase artifact prune-runs` preview.      |
+| `artifacts.retention.keep_per_label`             | int  | `3`     | `0`     | Newest automatic captures kept per label; older generations are trashed first. `0` disables the predicate. |
+| `artifacts.retention.keep_recent_run_months`     | int  | `2`     | `1`     | Calendar months of `ace-run` directories kept whole by `sase artifact prune-runs`.                         |
+| `artifacts.retention.max_age_days`               | int  | `90`    | `0`     | Trash automatic captures created more than this many days ago. `0` disables the predicate.                 |
+| `artifacts.retention.trash_grace_days`           | int  | `14`    | `0`     | Days a trashed artifact stays restorable before a purge removes it.                                        |
 
 These fields are read fail-open the same way the capture fields are. The pass is bounded
 and defensive: it never fails a run, and it removes nothing that retention's protection
@@ -1649,15 +1649,13 @@ reports last, and `trash_grace_days` is the cutoff `sase artifact trash purge` h
 without `-a/--all` and the one `trash list` marks entries against. Setting both
 predicates to `0` leaves a policy that selects nothing.
 
-`keep_recent_run_months` drives `sase artifact prune-runs`, which previews and, with
-`--apply`, removes old terminal `artifacts/ace-run/` directories plus empty
-month/day/run shards outside sase's TUI startup watch window, walked bottom-up so a
-nested empty run directory no longer leaves its parent day/month shard behind. It
-protects recent months, incomplete runs, referenced agent names or paths, artifact-file
-producers, and runs tied to non-closed beads, and it revalidates every protection source
-immediately before each deletion rather than trusting the preview snapshot.
-`empty_shard_removal_budget` bounds how many empty shard directories one apply pass
-removes; the rest are picked up on the next pass.
+`keep_recent_run_months` drives `sase artifact prune-runs`, which previews old terminal
+`artifacts/ace-run/` directories plus empty month/day/run shards outside sase's TUI
+startup watch window. Deletion is currently preview-only: `--apply` fails closed before
+removing run directories, empty shards, or artifact-index rows. The preview protects
+recent months, incomplete runs, referenced agent names or paths, artifact-file
+producers, and runs tied to non-closed beads. `empty_shard_removal_budget` bounds how
+many empty shard directories one preview lists.
 
 Source: `src/sase/config/core.py`, `src/sase/core/artifact_capture_policy.py`,
 `src/sase/core/artifact_file_retention.py`,
@@ -2918,8 +2916,8 @@ axe:
             artifacts.retention.keep_recent_run_months calendar months whole, protects runs referenced by
             artifact files, text refs, agent names, and non-closed beads, and reports empty month/day shards
             outside sase's TUI startup watch window. When unchanged candidates or protection problems remain, it
-            upserts one deduplicated Axe report notification that names the explicit prune-runs command; the
-            hourly preview never applies artifact deletion by itself.
+            upserts one deduplicated Axe report notification that names the preview command. Artifact-run
+            deletion is currently preview-only.
 ```
 
 **Top-level fields:**

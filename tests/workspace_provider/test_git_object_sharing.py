@@ -285,7 +285,7 @@ def test_failed_repoint_rolls_back_alternate_and_config(
     ) == str(old_objects)
 
 
-def test_reuses_broken_sase_borrower_without_deleting_local_work(
+def test_reuse_refuses_broken_sase_borrower_without_deleting_local_work(
     tmp_path: Path,
 ) -> None:
     primary, _remote = _make_primary(tmp_path)
@@ -298,15 +298,16 @@ def test_reuses_broken_sase_borrower_without_deleting_local_work(
         encoding="utf-8",
     )
 
-    result = ensure_git_clone_at(str(primary), 18, str(target), share_git_objects=True)
+    with pytest.raises(RuntimeError, match="sase workspace repair"):
+        ensure_git_clone_at(str(primary), 18, str(target), share_git_objects=True)
 
-    assert result == str(target)
     assert (target / "local-work.txt").read_text(encoding="utf-8") == "keep me\n"
-    assert alternates.read_text(encoding="utf-8") == f"{git_object_dir(str(primary))}\n"
-    _git(target, "status", "--porcelain")
+    assert alternates.read_text(encoding="utf-8") == (
+        f"{tmp_path / 'missing-primary' / '.git' / 'objects'}\n"
+    )
 
 
-def test_reuses_broken_sase_borrower_by_dissociating_when_sharing_disabled(
+def test_reuse_refuses_broken_sase_borrower_when_sharing_disabled(
     tmp_path: Path,
 ) -> None:
     primary, _remote = _make_primary(tmp_path)
@@ -324,13 +325,18 @@ def test_reuses_broken_sase_borrower_by_dissociating_when_sharing_disabled(
         str(missing_objects),
     )
 
-    result = ensure_git_clone_at(str(primary), 19, str(target), share_git_objects=False)
+    with pytest.raises(RuntimeError, match="sase workspace repair"):
+        ensure_git_clone_at(str(primary), 19, str(target), share_git_objects=False)
 
-    assert result == str(target)
     assert (target / "local-work.txt").read_text(encoding="utf-8") == "keep me\n"
-    assert not alternates.exists()
-    assert _git_config_missing(target, "sase.workspaceGitObjects")
-    _git(target, "fsck", "--connectivity-only")
+    assert alternates.read_text(encoding="utf-8") == f"{missing_objects}\n"
+    assert _git(
+        target,
+        "config",
+        "--local",
+        "--get",
+        "sase.workspaceGitObjectsPrimary",
+    ) == str(missing_objects)
 
 
 def test_dirty_healthy_reuse_preserves_dependency(
@@ -421,7 +427,7 @@ def test_clean_reuse_preserves_dependency_when_replacement_primary_lacks_objects
     _git(target, "fsck", "--connectivity-only")
 
 
-def test_clean_reuse_preserves_unique_local_history(
+def test_clean_reuse_preserves_unique_local_history_without_repoint(
     tmp_path: Path,
 ) -> None:
     """Commits that live only in the borrower survive reuse."""

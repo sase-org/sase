@@ -330,7 +330,7 @@ def sase_state_rows(
                 size_bytes=tree_size_fn(ace_run),
                 owner="artifact_run_retention",
                 horizon=f"keeps newest {months} month(s) and referenced runs",
-                reclaim="sase artifact prune-runs --apply",
+                reclaim="sase artifact prune-runs",
                 coverage=project_coverage,
                 diagnostics=project_diagnostics,
             )

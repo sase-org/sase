@@ -8,6 +8,7 @@ from typing import Any
 
 import sase.artifact_cli.prune_runs as prune_runs_cli
 from sase.core.agent_artifact_run_retention import (
+    AceRunRetentionApplyResult,
     AceRunProtectionSnapshot,
     AceRunRetentionPolicy,
     plan_ace_run_retention,
@@ -104,9 +105,17 @@ def test_prune_runs_apply_refuses_when_protections_are_unavailable(
     )
     called = False
 
-    def _apply(*_args: object, **_kwargs: object) -> None:
+    def _apply(*_args: object, **_kwargs: object) -> AceRunRetentionApplyResult:
         nonlocal called
         called = True
+        return AceRunRetentionApplyResult(
+            removed_runs=0,
+            removed_empty_shards=0,
+            bytes_reclaimed=0,
+            deindexed=0,
+            skipped=(),
+            errors=("apply refused: authoritative_protection_unavailable",),
+        )
 
     monkeypatch.setattr(prune_runs_cli, "apply_ace_run_retention", _apply)
 
@@ -117,4 +126,51 @@ def test_prune_runs_apply_refuses_when_protections_are_unavailable(
     assert payload["mode"] == "apply"
     assert payload["blocked"] is True
     assert payload["plan"]["sources_unavailable"] == ["plans sidecar"]
-    assert called is False
+    assert payload["execution"]["errors"] == [
+        "apply refused: authoritative_protection_unavailable"
+    ]
+    assert called is True
+
+
+def test_prune_runs_apply_refuses_after_successful_preview(
+    monkeypatch: Any,
+    capsys: Any,
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    old = _terminal_run(projects_root, "20260501000000")
+    _terminal_run(projects_root, "20260901000000")
+    _terminal_run(projects_root, "20260801000000")
+    empty_day = projects_root / "proj" / "artifacts" / "ace-run" / "202704" / "30"
+    empty_day.mkdir(parents=True)
+    monkeypatch.setattr(
+        prune_runs_cli,
+        "collect_ace_run_retention_protections",
+        lambda **_kwargs: AceRunProtectionSnapshot(),
+    )
+    monkeypatch.setattr(
+        prune_runs_cli,
+        "datetime",
+        type(
+            "FrozenDatetime",
+            (),
+            {"now": staticmethod(lambda _tz=None: datetime(2026, 9, 12, 12, 0, 0))},
+        ),
+    )
+
+    exit_code = prune_runs_cli.handle_prune_runs(_args(projects_root, apply=True))
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["mode"] == "apply"
+    assert payload["blocked"] is True
+    assert payload["plan"]["counts"]["selected"] == 1
+    assert payload["plan"]["counts"]["empty_out_of_range_shards"] >= 1
+    assert payload["execution"]["removed_runs"] == 0
+    assert payload["execution"]["removed_empty_shards"] == 0
+    assert payload["execution"]["deindexed"] == 0
+    assert payload["execution"]["errors"] == [
+        "apply refused: authoritative_protection_unavailable"
+    ]
+    assert old.exists()
+    assert empty_day.exists()

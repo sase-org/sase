@@ -26,18 +26,8 @@ from sase.workspace_provider._utils_git import (
 )
 
 AlternateStatus = Literal[
-    "absent",
-    "expected",
-    "stale",
-    "broken",
-    "unexpected",
-    "preserved",
+    "absent", "expected", "stale", "broken", "unexpected", "preserved"
 ]
-
-# Statuses ``sase_core`` can hand back for ordinary reuse. It never repoints or
-# removes an existing checkout's object dependency there, so "I left what was
-# already here alone" is a success rather than a failure to share.
-_REUSABLE_STATUSES = frozenset({"expected", "preserved", "absent", "unexpected"})
 
 _CONFIG_ENABLED = "sase.workspaceGitObjects"
 _CONFIG_PRIMARY_OBJECTS = "sase.workspaceGitObjectsPrimary"
@@ -495,7 +485,7 @@ def ensure_sase_alternate_for_reuse(
     primary_checkout_dir: str,
     checkout_dir: str,
 ) -> None:
-    """Reconcile object sharing while reusing an existing checkout.
+    """Validate object sharing while reusing an existing checkout.
 
     ``sase_core`` never rewrites an existing checkout's object dependency for
     ordinary reuse: a usable one is preserved as it stands and a broken one is
@@ -505,17 +495,27 @@ def ensure_sase_alternate_for_reuse(
     """
 
     checkout = checkout_dir.rstrip("/")
-    state = _with_alternate_rollback(
-        checkout,
-        lambda: _apply_install_sase_alternate(
-            primary_checkout_dir,
-            checkout,
-            mutation_context=MUTATION_CONTEXT_EXISTING_REUSE,
-        ),
-    )
-    if state.status not in _REUSABLE_STATUSES:
+    status = status_porcelain(checkout)
+    if status.returncode != 0:
+        detail = command_output(status) or "status failed"
         raise GitObjectSharingError(
-            f"alternate for {checkout_dir} is {state.status}, expected shared"
+            "could not prove reusable checkout status before Git object-sharing "
+            f"validation: {detail}"
+        )
+    clean = not status.stdout.strip()
+    plan = _sharing_plan(
+        primary_checkout_dir,
+        checkout,
+        operation="install",
+        mutation_context=MUTATION_CONTEXT_EXISTING_REUSE,
+        checkout_clean=clean,
+    )
+    if str(plan["action"]) == "fail":
+        _apply_alternates_plan(plan)
+    if str(plan["action"]) != "none":
+        raise GitObjectSharingError(
+            "ordinary checkout reuse attempted to mutate Git object-sharing "
+            "state; leaving checkout unchanged"
         )
 
 
@@ -712,41 +712,6 @@ def dissociate_checkout(
     )
 
 
-def recover_sase_borrower(
-    primary_checkout_dir: str,
-    checkout_dir: str,
-    *,
-    share_git_objects: bool,
-    fresh_claim_status: str,
-    fresh_occupant_status: str,
-) -> _ObjectSharingResult | None:
-    """Repair or dissociate a SASE borrower after object lookup failure.
-
-    Recovery rewrites a dependency the checkout still depends on, so it is a
-    maintenance mutation like any other and carries the caller's freshly
-    observed claim and occupant readings.
-    """
-    state = classify_alternate_state(
-        checkout_dir,
-        primary_checkout_dir=primary_checkout_dir,
-    )
-    if not state.sase_owned or state.status == "absent":
-        return None
-    if share_git_objects:
-        return repair_shared_checkout(
-            primary_checkout_dir,
-            checkout_dir,
-            fresh_claim_status=fresh_claim_status,
-            fresh_occupant_status=fresh_occupant_status,
-        )
-    return dissociate_checkout(
-        primary_checkout_dir,
-        checkout_dir,
-        fresh_claim_status=fresh_claim_status,
-        fresh_occupant_status=fresh_occupant_status,
-    )
-
-
 __all__ = [
     "GitObjectSharingError",
     "checkout_object_bytes",
@@ -759,7 +724,6 @@ __all__ = [
     "fsck_connectivity",
     "git_object_dir",
     "is_git_checkout",
-    "recover_sase_borrower",
     "repair_shared_checkout",
     "status_porcelain",
 ]

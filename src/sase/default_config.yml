@@ -1333,8 +1333,8 @@ axe:
             artifacts.retention.keep_recent_run_months calendar months whole, protects runs referenced by
             artifact files, text refs, agent names, and non-closed beads, and reports empty month/day shards
             outside sase's TUI startup watch window. When unchanged candidates or protection problems remain, it
-            upserts one deduplicated Axe report notification that names the explicit prune-runs command; the
-            hourly preview never applies artifact deletion by itself.
+            upserts one deduplicated Axe report notification that names the preview command. Artifact-run
+            deletion is currently preview-only.
 
 
 llm_provider:

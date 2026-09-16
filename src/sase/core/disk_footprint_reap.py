@@ -181,7 +181,7 @@ def artifact_run_reap_step(*, apply: bool, project: str | None) -> DiskReapStep:
             summary=f"could not plan artifact run retention: {exc}",
             command=("sase", "artifact", "prune-runs", "--apply"),
         )
-    if plan.sources_unavailable:
+    if plan.sources_unavailable and not apply:
         return DiskReapStep(
             owner="artifact_run_retention",
             mode="blocked",
@@ -220,21 +220,33 @@ def artifact_run_reap_step(*, apply: bool, project: str | None) -> DiskReapStep:
             command=("sase", "artifact", "prune-runs", "--apply"),
             exit_code=1,
         )
+    details = {
+        "removed_runs": execution.removed_runs,
+        "removed_empty_shards": execution.removed_empty_shards,
+        "bytes_reclaimed": execution.bytes_reclaimed,
+        "deindexed": execution.deindexed,
+        "skipped": list(execution.skipped),
+        "errors": list(execution.errors),
+        "preview_reclaimable_bytes": plan.reclaimable_bytes,
+        "sources_unavailable": list(plan.sources_unavailable),
+    }
+    if execution.errors:
+        return DiskReapStep(
+            owner="artifact_run_retention",
+            mode="blocked",
+            summary="; ".join(execution.errors),
+            command=("sase", "artifact", "prune-runs", "--apply"),
+            exit_code=1,
+            details=details,
+        )
     return DiskReapStep(
         owner="artifact_run_retention",
         mode="apply",
         summary=_artifact_execution_summary(execution),
         reclaimed_bytes=execution.bytes_reclaimed,
         changed=bool(execution.removed_runs or execution.removed_empty_shards),
-        exit_code=1 if execution.errors else None,
-        details={
-            "removed_runs": execution.removed_runs,
-            "removed_empty_shards": execution.removed_empty_shards,
-            "bytes_reclaimed": execution.bytes_reclaimed,
-            "deindexed": execution.deindexed,
-            "skipped": list(execution.skipped),
-            "errors": list(execution.errors),
-        },
+        command=("sase", "artifact", "prune-runs", "--apply"),
+        details=details,
     )
 
 

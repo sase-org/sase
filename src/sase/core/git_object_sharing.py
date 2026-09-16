@@ -27,17 +27,6 @@ OBSERVATION_PRESENT = "present"
 OBSERVATION_UNAVAILABLE = "unavailable"
 
 
-def observed_status(no_other_holder: bool | None) -> str:
-    """Render one freshly observed claim/occupant reading for the wire.
-
-    ``None`` means the caller could not look, which is reported as its own
-    value rather than being collapsed into a "clear" the caller cannot back up.
-    """
-    if no_other_holder is None:
-        return OBSERVATION_UNAVAILABLE
-    return OBSERVATION_CLEAR if no_other_holder else OBSERVATION_PRESENT
-
-
 def plan_git_object_sharing(request: Mapping[str, Any]) -> dict[str, Any]:
     """Plan alternates classification or mutation through ``sase_core_rs``."""
     _require_wire_schema()
@@ -75,6 +64,5 @@ __all__ = [
     "OBSERVATION_CLEAR",
     "OBSERVATION_PRESENT",
     "OBSERVATION_UNAVAILABLE",
-    "observed_status",
     "plan_git_object_sharing",
 ]

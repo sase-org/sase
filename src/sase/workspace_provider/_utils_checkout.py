@@ -27,13 +27,12 @@ from sase.workspace_provider._utils_origin import (
     heal_clone_origin_if_needed as _heal_clone_origin_if_needed,
     reconcile_managed_checkout_origin,
 )
-from sase.core.git_object_sharing import observed_status
 from sase.workspace_provider.git_objects import (
     GitObjectSharingError,
+    classify_alternate_state,
     configure_primary_for_sharing,
     ensure_sase_alternate,
     ensure_sase_alternate_for_reuse,
-    recover_sase_borrower,
 )
 from sase.workspace_provider.store import WorkspacePath, WorkspaceStore
 
@@ -175,87 +174,7 @@ def _heal_reusable_clone_origin(
     )
 
 
-def _pid_is_alive(pid: int) -> bool:
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
-    return True
-
-
-def _no_other_occupant(checkout_dir: str) -> bool | None:
-    """Report whether a live agent other than us holds *checkout_dir*.
-
-    ``None`` means the marker could not be read, which the core treats as an
-    unproven observation and refuses to mutate on.
-    """
-    try:
-        from sase.workspace_provider.occupant import read_occupant_record
-
-        record = read_occupant_record(checkout_dir)
-    except Exception:
-        return None
-    if record is None or record.pid == os.getpid():
-        return True
-    return not _pid_is_alive(record.pid)
-
-
-def _claims_project_file(project_file: str | None, checkout_dir: str) -> str | None:
-    """Resolve the ProjectSpec whose RUNNING field would claim *checkout_dir*.
-
-    Workspace-provider hooks reach this module through a frozen pluggy
-    signature that carries no project file, so fall back to the checkout's own
-    marker, which records the project that materialized it.
-    """
-    if project_file:
-        return project_file
-    try:
-        from sase.workspace_provider.marker import read_marker
-
-        marker = read_marker(checkout_dir)
-    except Exception:
-        return None
-    if marker is None or not marker.project_name:
-        return None
-    try:
-        from sase.workflows.utils import get_project_file_path
-
-        return get_project_file_path(marker.project_name)
-    except Exception:
-        return None
-
-
-def _no_other_claim(project_file: str | None, workspace_num: int) -> bool | None:
-    """Report whether another live agent holds a RUNNING claim on a workspace.
-
-    A checkout that belongs to no resolvable ProjectSpec sits in no allocation
-    ledger, so nothing can hold a claim on it and the reading is clear. Only a
-    ledger we resolved but could not read is genuinely unknown, and the core
-    refuses to mutate on that.
-    """
-    if not project_file:
-        return True
-    try:
-        from sase.running_field._query import get_claimed_workspaces
-
-        claims = get_claimed_workspaces(project_file)
-    except Exception:
-        return None
-    return not any(
-        claim.workspace_num == workspace_num
-        and claim.pid != os.getpid()
-        and _pid_is_alive(claim.pid)
-        for claim in claims
-    )
-
-
-def _recover_existing_borrower_after_status_failure(
+def _refuse_existing_borrower_after_status_failure(
     primary_workspace_dir: str,
     target_checkout_dir: str,
     *,
@@ -263,47 +182,29 @@ def _recover_existing_borrower_after_status_failure(
     workspace_num: int,
     project_file: str | None,
 ) -> bool:
-    """Recover a SASE borrower that failed object lookup during ``git status``."""
+    """Preserve a SASE borrower that failed object lookup during ``git status``."""
+    del share_git_objects, workspace_num, project_file
     target = target_checkout_dir.rstrip("/")
     if not os.path.exists(os.path.join(target, ".git")):
         return False
     try:
-        result = recover_sase_borrower(
-            primary_workspace_dir.rstrip("/"),
+        state = classify_alternate_state(
             target,
-            share_git_objects=share_git_objects,
-            fresh_claim_status=observed_status(
-                _no_other_claim(
-                    _claims_project_file(project_file, target),
-                    workspace_num,
-                )
-            ),
-            fresh_occupant_status=observed_status(_no_other_occupant(target)),
+            primary_checkout_dir=primary_workspace_dir.rstrip("/"),
         )
     except GitObjectSharingError as exc:
         raise RuntimeError(
-            "existing managed checkout failed git status and SASE "
-            "object-sharing recovery failed; leaving checkout intact: "
+            "existing managed checkout failed git status and SASE object-sharing "
+            "inspection failed; leaving checkout intact for manual repair: "
             f"{exc}"
         ) from exc
-    if result is None:
-        return False
-    check = subprocess.run(
-        ["git", "status"],
-        cwd=target,
-        capture_output=True,
-        text=True,
-        check=False,
-        env=non_interactive_git_env(),
-        stdin=subprocess.DEVNULL,
-    )
-    if check.returncode == 0:
-        return True
-    detail = _command_output(check) or "status failed"
-    raise RuntimeError(
-        "existing managed checkout was recovered from SASE object-sharing "
-        f"state but git status still fails; leaving checkout intact: {detail}"
-    )
+    if state.sase_owned and state.status != "absent":
+        raise RuntimeError(
+            "existing managed checkout has a broken SASE Git object dependency; "
+            "leaving checkout intact for `sase workspace repair`: "
+            f"{state.detail or state.status}"
+        )
+    return False
 
 
 def ensure_git_clone_at(
@@ -327,10 +228,9 @@ def ensure_git_clone_at(
         workspace_num: Workspace identity. ``0``/``1`` mean primary;
             everything else materializes a managed clone.
         target_checkout_dir: Absolute path where the clone should live.
-        project_file: ProjectSpec path, when the caller knows it. Object-sharing
-            recovery consults it for a live claim on *workspace_num*; without
-            it that observation is unproven and the core refuses to recover a
-            broken borrower in place.
+        project_file: ProjectSpec path accepted from higher-level checkout
+            callers. Existing broken SASE borrowers are preserved for explicit
+            repair instead of being recovered during clone materialization.
 
     Returns:
         The materialized checkout directory.
@@ -376,7 +276,7 @@ def ensure_git_clone_at(
                 except GitObjectSharingError as exc:
                     raise RuntimeError(str(exc)) from exc
             return target_checkout_dir
-        if _recover_existing_borrower_after_status_failure(
+        if _refuse_existing_borrower_after_status_failure(
             primary_workspace_dir,
             target_checkout_dir,
             share_git_objects=share_git_objects,

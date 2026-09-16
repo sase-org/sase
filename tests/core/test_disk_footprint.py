@@ -488,7 +488,8 @@ def test_artifact_reap_apply_errors_fail_step(monkeypatch) -> None:
 
     step = artifact_run_reap_step(apply=True, project=None)
 
-    assert step.mode == "apply"
+    assert step.mode == "blocked"
     assert step.exit_code == 1
     assert step.failed is True
     assert step.details["errors"] == ["permission denied"]
+    assert step.details["preview_reclaimable_bytes"] == 32

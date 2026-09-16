@@ -2,12 +2,12 @@
 
 Protection facts (bead liveness, continuation ancestry, artifact-index
 references, scan markers) are gathered here from their own Rust-backed
-sources; the final classification, the canonical-root/symlink-ancestor
-safety check, revalidation immediately before each deletion, and the
-bottom-up empty-shard walk all live in the ``sase_core_rs`` run-retention
-owner (:mod:`sase_core::agent_artifact_run_retention`). ``apply_ace_run_
-retention`` never trusts the plan's snapshot: it re-collects protections and
-re-scans artifact dirs immediately before calling the owner with ``apply``.
+sources; the final preview classification and the canonical-root/
+symlink-ancestor safety check live in the ``sase_core_rs`` run-retention
+owner (:mod:`sase_core::agent_artifact_run_retention`). Mutation is
+retired: ``apply_ace_run_retention`` calls the owner only to receive its
+stable refusal and never performs protection scans, filesystem deletion, or
+artifact-index deindexing.
 """
 
 from __future__ import annotations
@@ -21,9 +21,6 @@ from typing import Any
 
 from sase.config import get_artifact_retention_empty_shard_removal_budget
 from sase.core import continuation_retention
-from sase.core.agent_artifact_index_lifecycle_mutations import (
-    delete_agent_artifact_index_artifacts,
-)
 from sase.core.agent_artifact_paths import (
     ACE_RUN_WORKFLOW_DIR,
     iter_agent_artifact_dirs,
@@ -58,7 +55,7 @@ from sase.core.paths import is_valid_sase_project_name
 from sase.core.rust import require_rust_binding
 
 
-_RUN_RETENTION_WIRE_SCHEMA_VERSION = 2
+_RUN_RETENTION_WIRE_SCHEMA_VERSION = 3
 
 _SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     only_workflow_dirs=(ACE_RUN_WORKFLOW_DIR,),
@@ -119,106 +116,38 @@ def apply_ace_run_retention(
     *,
     index_path: Path | str | None = None,
 ) -> AceRunRetentionApplyResult:
-    """Delete selected run directories and empty out-of-range shards.
+    """Refuse mutation of ACE-run directories and empty shards."""
 
-    Revalidates every protection source fresh — it never trusts *plan*'s
-    selection, only its policy (now, horizons, project scope, limit).
-    """
-
+    del index_path
     policy = plan.policy
-    protection_snapshot = collect_ace_run_retention_protections(
-        projects_root=policy.projects_root
+    result = _call_rust(
+        {
+            "schema_version": _RUN_RETENTION_WIRE_SCHEMA_VERSION,
+            "projects_root": str(policy.normalized_projects_root()),
+            "recent_months": [],
+            "current_timestamp": policy.now.strftime("%Y%m%d%H%M%S"),
+            "limit": policy.limit,
+            "apply": True,
+            "sources_unavailable": [],
+            "protected_dirs": [],
+            "protected_timestamps": [],
+            "candidates": [],
+            "empty_shard_roots": [],
+            "empty_shard_watched_paths": [],
+            "empty_shard_removal_budget": 0,
+        }
     )
-    projects_root = policy.normalized_projects_root()
-    if not projects_root.is_dir():
-        return AceRunRetentionApplyResult(
-            removed_runs=0,
-            removed_empty_shards=0,
-            bytes_reclaimed=0,
-            deindexed=0,
-            skipped=(),
-            errors=(),
-        )
-    project_names = _project_names(projects_root, policy.project)
-    _, _, result = _run_owner(
-        policy,
-        protection_snapshot,
-        projects_root=projects_root,
-        project_names=project_names,
-        apply=True,
-    )
-
-    blocked_reason = result.get("blocked_reason")
-    if blocked_reason:
-        return AceRunRetentionApplyResult(
-            removed_runs=0,
-            removed_empty_shards=0,
-            bytes_reclaimed=0,
-            deindexed=0,
-            skipped=(),
-            errors=(f"apply refused: {blocked_reason}",),
-        )
-
-    removed_dirs = [
-        Path(item["artifact_dir"]).expanduser()
-        for item in result.get("run_items") or ()
-        if item.get("outcome") == "removed"
-    ]
-    planned_selected_dirs = {
-        _normalized_path(item.artifact_dir) for item in plan.selected
-    }
-    skipped = [
-        f"{item['artifact_dir']}: {_apply_run_skip_detail(item)}"
-        for item in result.get("run_items") or ()
-        if item.get("outcome") == "skipped"
-        or (
-            item.get("outcome") == "protected"
-            and _normalized_path(str(item.get("artifact_dir") or ""))
-            in planned_selected_dirs
-        )
-    ] + [
-        f"{item['path']}: {item.get('detail') or item['outcome']}"
-        for item in result.get("shard_items") or ()
-        if item.get("outcome") == "skipped"
-    ]
-    errors = [
-        f"{item['artifact_dir']}: {item.get('detail') or 'unknown error'}"
-        for item in result.get("run_items") or ()
-        if item.get("outcome") == "error"
-    ] + [
-        f"{item['path']}: {item.get('detail') or 'unknown error'}"
-        for item in result.get("shard_items") or ()
-        if item.get("outcome") == "error"
-    ]
-
-    deindexed = (
-        delete_agent_artifact_index_artifacts(removed_dirs, index_path=index_path)
-        if removed_dirs
-        else 0
+    blocked_reason = str(
+        result.get("blocked_reason") or "authoritative_protection_unavailable"
     )
     return AceRunRetentionApplyResult(
-        removed_runs=int(result.get("removed_runs") or 0),
-        removed_empty_shards=int(result.get("removed_empty_shards") or 0),
-        bytes_reclaimed=int(result.get("bytes_reclaimed") or 0),
-        deindexed=deindexed,
-        skipped=tuple(skipped),
-        errors=tuple(errors),
+        removed_runs=0,
+        removed_empty_shards=0,
+        bytes_reclaimed=0,
+        deindexed=0,
+        skipped=(),
+        errors=(f"apply refused: {blocked_reason}",),
     )
-
-
-def _apply_run_skip_detail(item: dict[str, Any]) -> str:
-    detail = item.get("detail")
-    outcome = str(item.get("outcome") or "skipped")
-    if outcome != "protected":
-        return str(detail or outcome)
-    reasons = [
-        str(reason).replace("_", " ")
-        for reason in item.get("reasons") or ()
-        if str(reason)
-    ]
-    if reasons:
-        return "protected by " + ", ".join(reasons)
-    return str(detail or "protected")
 
 
 def _run_owner(

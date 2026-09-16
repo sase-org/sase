@@ -14,7 +14,6 @@ from sase.bead.model import Status
 import sase.core.agent_artifact_run_protection as protection
 import sase.core.agent_artifact_run_retention as run_retention
 from sase.core.agent_artifact_run_retention import (
-    ACE_RUN_RETENTION_SCHEMA_VERSION,
     AceRunProtectionSnapshot,
     AceRunRetentionPolicy,
     apply_ace_run_retention,
@@ -136,8 +135,7 @@ def test_plan_reports_empty_out_of_range_shards(tmp_path: Path) -> None:
     assert future_day.parent in empty_paths
 
 
-def test_apply_removes_selected_runs_empty_shards_and_deindexes(
-    monkeypatch: Any,
+def test_apply_refuses_selected_runs_empty_shards_and_deindexing(
     tmp_path: Path,
 ) -> None:
     projects_root = tmp_path / "projects"
@@ -145,13 +143,6 @@ def test_apply_removes_selected_runs_empty_shards_and_deindexes(
     recent = _run_dir(projects_root, "proj", "20260901000000")
     future_day = projects_root / "proj" / "artifacts" / "ace-run" / "202704" / "30"
     future_day.mkdir(parents=True)
-    deleted: list[Path] = []
-    monkeypatch.setattr(
-        "sase.core.agent_artifact_run_retention.delete_agent_artifact_index_artifacts",
-        lambda paths, *, index_path=None: (
-            deleted.extend(Path(path) for path in paths) or len(deleted)
-        ),
-    )
     plan = plan_ace_run_retention(
         AceRunRetentionPolicy(
             now=datetime(2026, 9, 12, 12, 0, 0),
@@ -163,14 +154,14 @@ def test_apply_removes_selected_runs_empty_shards_and_deindexes(
 
     result = apply_ace_run_retention(plan)
 
-    assert result.removed_runs == 1
-    assert result.removed_empty_shards == 2
-    assert result.deindexed == 1
-    assert deleted == [old]
-    assert not old.exists()
+    assert result.removed_runs == 0
+    assert result.removed_empty_shards == 0
+    assert result.deindexed == 0
+    assert result.errors == ("apply refused: authoritative_protection_unavailable",)
+    assert old.exists()
     assert recent.exists()
-    assert not future_day.exists()
-    assert not future_day.parent.exists()
+    assert future_day.exists()
+    assert future_day.parent.exists()
 
 
 def test_protection_collector_uses_bead_projection_without_bead_text_walk(
@@ -298,10 +289,7 @@ def test_apply_refuses_when_continuation_closure_fails(
 
     assert old.exists()
     assert result.removed_runs == 0
-    assert result.errors == (
-        "apply refused: protection sources unavailable: continuation retention: "
-        "validation: runs has 11037 entries; maximum is 10000",
-    )
+    assert result.errors == ("apply refused: authoritative_protection_unavailable",)
 
 
 @pytest.mark.skipif(
@@ -320,12 +308,12 @@ def test_binding_preserves_run_reached_through_symlinked_ancestor(
 
     result = run_retention._call_rust(
         {
-            "schema_version": ACE_RUN_RETENTION_SCHEMA_VERSION,
+            "schema_version": run_retention._RUN_RETENTION_WIRE_SCHEMA_VERSION,
             "projects_root": str(projects_root),
             "recent_months": ["202609"],
             "current_timestamp": "20260914120000",
             "limit": None,
-            "apply": True,
+            "apply": False,
             "sources_unavailable": [],
             "protected_dirs": [],
             "protected_timestamps": [],
@@ -349,41 +337,53 @@ def test_binding_preserves_run_reached_through_symlinked_ancestor(
     assert result["run_items"][0]["reasons"] == ["symlink_ancestor"]
 
 
-def test_binding_preserves_empty_referenced_run_during_empty_cleanup(
+def test_binding_refuses_apply_with_omitted_protection_fields(
+    tmp_path: Path,
+) -> None:
+    projects_root = tmp_path / "projects"
+    old = _run_dir(projects_root, "proj", "20260101000000")
+
+    result = run_retention._call_rust(
+        {
+            "schema_version": run_retention._RUN_RETENTION_WIRE_SCHEMA_VERSION,
+            "projects_root": str(projects_root),
+            "apply": True,
+        }
+    )
+
+    assert result["blocked_reason"] == "authoritative_protection_unavailable"
+    assert result["removed_runs"] == 0
+    assert result["removed_empty_shards"] == 0
+    assert result["bytes_reclaimed"] == 0
+    assert old.exists()
+
+
+def test_binding_refuses_empty_shard_apply(
     tmp_path: Path,
 ) -> None:
     projects_root = tmp_path / "projects"
     workflow = projects_root / "proj" / "artifacts" / "ace-run"
-    referenced = workflow / "202601" / "01" / "20260101000000"
-    referenced.mkdir(parents=True)
+    empty_day = workflow / "202601" / "01"
+    empty_day.mkdir(parents=True)
 
     result = run_retention._call_rust(
         {
-            "schema_version": ACE_RUN_RETENTION_SCHEMA_VERSION,
+            "schema_version": run_retention._RUN_RETENTION_WIRE_SCHEMA_VERSION,
             "projects_root": str(projects_root),
             "recent_months": ["202609"],
             "current_timestamp": "20260914120000",
             "limit": None,
             "apply": True,
             "sources_unavailable": [],
-            "protected_dirs": [str(referenced)],
+            "protected_dirs": [],
             "protected_timestamps": [],
-            "candidates": [
-                {
-                    "artifact_dir": str(referenced),
-                    "project": "proj",
-                    "timestamp": "20260101000000",
-                    "protected_reasons": [],
-                }
-            ],
+            "candidates": [],
             "empty_shard_roots": [str(workflow)],
             "empty_shard_watched_paths": [],
             "empty_shard_removal_budget": 10,
         }
     )
 
-    assert result["removed_runs"] == 0
+    assert result["blocked_reason"] == "authoritative_protection_unavailable"
     assert result["removed_empty_shards"] == 0
-    assert referenced.exists()
-    assert referenced.parent.exists()
-    assert referenced.parent.parent.exists()
+    assert empty_day.exists()

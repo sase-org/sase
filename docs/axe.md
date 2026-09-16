@@ -565,9 +565,9 @@ months whole and protects runs referenced by artifact-file rows, text refs, agen
 and non-closed beads. The summary reports selected run directories, reclaimable bytes,
 protection-source gaps, and empty month/day shards outside sase's TUI startup watch
 window. When candidates or protection problems remain unchanged across hourly passes,
-the chop upserts one deduplicated Axe report notification with the preview and explicit
-apply command. Actual deletion still requires an explicit
-`sase artifact prune-runs --apply` or a follow-up gate.
+the chop upserts one deduplicated Axe report notification with the preview command.
+Artifact-run deletion is currently preview-only; apply requests fail closed before any
+run directory, empty shard, or artifact-index row is removed.
 
 ## Configuration
 
