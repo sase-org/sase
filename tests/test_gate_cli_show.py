@@ -218,6 +218,28 @@ def test_show_reports_a_cancelled_gate(
     assert json.loads(capsys.readouterr().out)["status"] == "cancelled"
 
 
+def test_show_reports_an_accepted_unfinished_gate_without_changing_status(
+    gate_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """An accepted decision surfaces additively; ``status`` stays "pending"."""
+    from sase.notification_gates.decision import accept_gate_decision
+
+    del gate_home
+    gate = create_gate(_spec("show-accepted"))
+    accept_gate_decision(gate.bundle_path, ["abort"], {}, feedback="no thanks")
+
+    assert _run("show", "-i", "show-accepted", "-k", "custom", "-j") == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "pending"
+    assert payload["acceptance"]["selected_option_ids"] == ["abort"]
+    assert payload["acceptance"]["execution_error"] is None
+
+    assert _run("show", "-i", "show-accepted", "-k", "custom") == 0
+    out = capsys.readouterr().out
+    assert "Acceptance" in out
+    assert "execution has not published a response yet" in out
+
+
 def test_show_reports_a_missing_bundle(
     gate_home: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

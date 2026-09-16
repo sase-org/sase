@@ -236,6 +236,69 @@ def test_scheduled_error_digest_keeps_diagnostic_after_run_log_pruned(
     assert "\n  Traceback:\n" not in report
 
 
+def test_scheduled_zero_exit_check_error_diagnostic_survives_log_pruning(
+    temp_state_dir: Path,
+    tmp_path: Path,
+) -> None:
+    """A script that exits 0 but reports a structured ``check_error``.
+
+    Regression coverage: before this fix, the ``check_error`` branch for a
+    structured result (as opposed to a non-zero exit or a Python exception)
+    never captured a subprocess diagnostic at all, so AXE's error digest
+    only ever showed the stable reason and the ``<no python traceback>``
+    placeholder -- never the underlying exception or which run produced it.
+    """
+    make_script(tmp_path, "tg_inbound", _check_error_script_body())
+    axe_config = AxeConfig(chop_script_dirs=[str(tmp_path / "scripts")])
+    config = LumberjackConfig(
+        name="telegram",
+        description="Poll Telegram inbound messages",
+        interval=60,
+        chops=[ChopConfig(name="tg_inbound", description="")],
+    )
+
+    with patch("sase.axe.check_cycles.find_all_patches", return_value=[]):
+        lumberjack = Lumberjack("telegram", config, axe_config)
+        lumberjack._run_tick()
+
+        errors = read_errors()
+        assert len(errors) == 1
+        assert errors[0]["error"] == "telegram poll failed"
+        diagnostic = errors[0]["subprocess_diagnostic"]
+        assert diagnostic["exit_code"] == 0
+        assert "telegram.error.TimedOut: Timed out" in diagnostic["output_excerpt"]
+        assert "bot<redacted>/getUpdates" in diagnostic["output_excerpt"]
+        assert _TOKEN not in diagnostic["output_excerpt"]
+        failed_run_id = diagnostic["run_id"]
+        entry = read_chop_run("telegram", "tg_inbound", failed_run_id)
+        assert entry is not None
+        assert entry.status == "check_error"
+        assert entry.subprocess_diagnostic == diagnostic
+
+        make_script(tmp_path, "tg_inbound", "echo recovered\n")
+        for _ in range(MAX_CHOP_RUN_HISTORY + 1):
+            lumberjack._run_tick()
+
+    assert read_chop_run("telegram", "tg_inbound", failed_run_id) is None
+    assert not chop_run_log_path("telegram", "tg_inbound", failed_run_id).exists()
+
+    notifications: list[Notification] = []
+    with (
+        patch("sase.notifications.senders.sase_subdir", return_value=temp_state_dir),
+        patch("sase.notifications.senders.append_notification", notifications.append),
+    ):
+        senders.notify_axe_error_digest(errors)
+
+    report_path = Path(notifications[0].files[0])
+    report = report_path.read_text(encoding="utf-8")
+    assert failed_run_id in report
+    assert "Subprocess Output:" in report
+    assert "telegram.error.TimedOut: Timed out" in report
+    assert "bot<redacted>/getUpdates" in report
+    assert _TOKEN not in report
+    assert "<no python traceback: subprocess error>" not in report
+
+
 def test_digest_keeps_legacy_host_tracebacks(
     temp_state_dir: Path,
 ) -> None:
@@ -272,4 +335,30 @@ def _fake_timeout_traceback_script_body(*, exit_code: int) -> str:
         "sys.stderr.write('telegram.error.TimedOut: Timed out\\n')\n"
         "PY\n"
         f"exit {exit_code}\n"
+    )
+
+
+def _check_error_script_body() -> str:
+    """Exit 0 but report a structured ``check_error`` -- the subprocess
+    itself completed; the job it ran judged its own outcome degraded."""
+    return (
+        f"\"{sys.executable}\" - <<'PY'\n"
+        "import json, os, sys\n"
+        "sys.stderr.write('Traceback (most recent call last):\\n')\n"
+        "sys.stderr.write('  File \"poll.py\", line 10, in poll\\n')\n"
+        "sys.stderr.write('httpx.ReadTimeout: timed out\\n')\n"
+        "sys.stderr.write('The URL was https://api.telegram.org/"
+        f"bot{_TOKEN}/getUpdates\\n')\n"
+        "sys.stderr.write('telegram.error.TimedOut: Timed out\\n')\n"
+        "with open(os.environ['SASE_CHOP_RESULT_FILE'], 'w') as fh:\n"
+        "    json.dump(\n"
+        "        {\n"
+        "            'schema_version': 1,\n"
+        "            'status': 'check_error',\n"
+        "            'reason': 'telegram poll failed',\n"
+        "        },\n"
+        "        fh,\n"
+        "    )\n"
+        "PY\n"
+        "exit 0\n"
     )

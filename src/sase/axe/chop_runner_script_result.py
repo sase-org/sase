@@ -178,6 +178,12 @@ def process_script_chop_result(
                 or "job reported a degraded check"
             )
         )
+        subprocess_diagnostic = capture_chop_subprocess_diagnostic(
+            lumberjack_name=lumberjack_name,
+            chop_name=chop.name,
+            run_id=run_id,
+            exit_code=0,
+        )
         finalize_script_chop_run(
             lumberjack_name=lumberjack_name,
             chop_name=chop.name,
@@ -187,6 +193,8 @@ def process_script_chop_result(
             exit_code=0,
             error=error,
             tb=NO_PYTHON_TRACEBACK,
+            subprocess_diagnostic=subprocess_diagnostic,
+            output_bytes=result.output_bytes,
             result_file=result_path.name,
             structured_result=structured_result,
             proposals=proposals,
@@ -199,8 +207,10 @@ def process_script_chop_result(
             status="check_error",
             run_id=run_id,
             exit_code=0,
+            output_bytes=result.output_bytes,
             error=error,
             traceback=NO_PYTHON_TRACEBACK,
+            subprocess_diagnostic=subprocess_diagnostic,
             result=structured_result,
             proposals=tuple(proposals),
             dry_run=dry_run,

@@ -7,7 +7,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from sase.config import get_gate_shell_reclaim_grace_seconds
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
@@ -20,6 +20,19 @@ from sase.gate_shell.handoff import (
     store_reconcile_cursor,
     with_gate_followup_lock,
 )
+from sase.gate_shell.lifecycle import (
+    DISPOSITION_ACCEPTED_UNFINISHED,
+    DISPOSITION_ANSWERED,
+    DISPOSITION_CANCELLED_LOST,
+    DISPOSITION_CANCELLED_STOPPED,
+    DISPOSITION_CANCELLED_TIMEOUT,
+    DISPOSITION_EXPIRED_GRACE,
+    DISPOSITION_EXPIRED_REVIEW,
+    DISPOSITION_PENDING,
+    classify_gate_lifecycle,
+    collect_gate_lifecycle_facts,
+    resolve_already_answered_race,
+)
 from sase.gate_shell.models import GateShellRecord
 from sase.gate_shell.settlement import settle_gate_shell
 from sase.gate_shell.store import (
@@ -28,10 +41,9 @@ from sase.gate_shell.store import (
     load_gate_shell_snapshot,
     read_gate_shell_marker,
 )
-from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.executor import cancel_gate
 from sase.notification_gates.hashing import load_and_verify_bundle
-from sase.notification_gates.paths import CANCELLATION_FILENAME, RESPONSE_FILENAME
+from sase.notification_gates.models import GateError
 
 
 _MAX_ERROR_DETAILS = 5
@@ -57,6 +69,7 @@ class GateShellReclaimSummary:
     stopped: int = 0
     timed_out: int = 0
     lost: int = 0
+    accepted_unfinished: int = 0
     errors: int = 0
     error_details: tuple[str, ...] = ()
 
@@ -67,6 +80,7 @@ class GateShellReclaimSummary:
             "stopped": self.stopped,
             "timed_out": self.timed_out,
             "lost": self.lost,
+            "accepted_unfinished": self.accepted_unfinished,
             "errors": self.errors,
         }
 
@@ -96,6 +110,7 @@ def reclaim_pending_gate_shells(
         "stopped": 0,
         "timed_out": 0,
         "lost": 0,
+        "accepted_unfinished": 0,
         "errors": 0,
     }
     error_details: list[str] = []
@@ -126,6 +141,8 @@ def reclaim_pending_gate_shells(
             counts["timed_out"] += 1
         elif state == "lost":
             counts["lost"] += 1
+        elif state == "accepted_unfinished":
+            counts["accepted_unfinished"] += 1
     return GateShellReclaimSummary(**counts, error_details=tuple(error_details))
 
 
@@ -145,33 +162,86 @@ def _reclaim_one(
         settle_gate_shell(record, gate_state="lost", reason="gate bundle unreadable")
         return "lost"
 
-    response_path = bundle / RESPONSE_FILENAME
-    if response_path.exists():
+    deadline = _deadline(envelope)
+    facts = collect_gate_lifecycle_facts(
+        bundle, envelope, now=now, deadline=deadline, grace_seconds=grace_seconds
+    )
+    disposition = classify_gate_lifecycle(facts)["disposition"]
+
+    if disposition == DISPOSITION_ANSWERED:
         settle_gate_shell(record, gate_state="answered", reason="gate answered")
         return "answered"
-    cancellation_path = bundle / CANCELLATION_FILENAME
-    if cancellation_path.exists():
-        cancellation = _read_json(cancellation_path)
-        reason = str(cancellation.get("reason") or "")
-        if reason == "timeout":
-            settle_gate_shell(record, gate_state="timeout", reason="gate timed out")
-            return "timeout"
-        settle_gate_shell(record, gate_state="stopped", reason=reason or "gate stopped")
-        return "stopped"
-
-    deadline = _deadline(envelope)
-    if deadline is None:
-        return None
-    if now >= deadline + grace_seconds:
+    if disposition == DISPOSITION_CANCELLED_TIMEOUT:
+        settle_gate_shell(record, gate_state="timeout", reason="gate timed out")
+        return "timeout"
+    if disposition == DISPOSITION_CANCELLED_LOST:
         settle_gate_shell(
             record, gate_state="lost", reason="gate deadline grace passed"
         )
         return "lost"
-    if now >= deadline:
-        cancel_gate(bundle, reason="timeout", source="gate_shell_reclaim")
-        settle_gate_shell(record, gate_state="timeout", reason="gate timed out")
-        return "timeout"
-    return None
+    if disposition == DISPOSITION_CANCELLED_STOPPED:
+        settle_gate_shell(
+            record,
+            gate_state="stopped",
+            reason=facts.cancellation_reason or "gate stopped",
+        )
+        return "stopped"
+    if disposition == DISPOSITION_ACCEPTED_UNFINISHED:
+        # The decision is durably accepted; execution may still be running.
+        # Never cancel, settle as lost, or claim it completed here -- just
+        # defer, so a concurrently completed response or accepted-but-stuck
+        # execution stays visible for `sase gate show`/manual resume.
+        return "accepted_unfinished"
+    if disposition == DISPOSITION_PENDING:
+        return None
+    if disposition == DISPOSITION_EXPIRED_REVIEW:
+        return _settle_expired_gate(
+            record,
+            bundle,
+            cancel_reason="timeout",
+            settle_state="timeout",
+            settle_reason="gate timed out",
+        )
+    if disposition == DISPOSITION_EXPIRED_GRACE:
+        return _settle_expired_gate(
+            record,
+            bundle,
+            cancel_reason="grace_expired",
+            settle_state="lost",
+            settle_reason="gate deadline grace passed",
+        )
+    raise RuntimeError(f"unrecognized gate lifecycle disposition {disposition!r}")
+
+
+def _settle_expired_gate(
+    record: GateShellRecord,
+    bundle: Path,
+    *,
+    cancel_reason: str,
+    settle_state: Literal["timeout", "lost"],
+    settle_reason: str,
+) -> str:
+    """Serialize an expiry decision with acceptance, then settle the shell.
+
+    ``cancel_gate`` takes the gate's own ``.acceptance.lock`` and rereads
+    fresh evidence before writing ``cancellation.json``, so acceptance
+    cannot slip in between this pass's classification and the persisted
+    outcome. A concurrent acceptance or completion is not a reclaim
+    failure -- it is resolved from the same fresh evidence that made
+    ``cancel_gate`` refuse.
+    """
+    try:
+        cancel_gate(bundle, reason=cancel_reason, source="gate_shell_reclaim")
+    except GateError as exc:
+        if exc.code != "already_answered":
+            raise
+        disposition = resolve_already_answered_race(bundle, record.gate_id)
+        if disposition == DISPOSITION_ANSWERED:
+            settle_gate_shell(record, gate_state="answered", reason="gate answered")
+            return "answered"
+        return "accepted_unfinished"
+    settle_gate_shell(record, gate_state=settle_state, reason=settle_reason)
+    return settle_state
 
 
 def _deadline(envelope: dict[str, Any]) -> float | None:
@@ -180,13 +250,6 @@ def _deadline(envelope: dict[str, Any]) -> float | None:
     if isinstance(created, (int, float)) and isinstance(timeout_seconds, (int, float)):
         return float(created) + float(timeout_seconds)
     return None
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    try:
-        return read_json_object(path)
-    except Exception:
-        return {}
 
 
 @dataclass(frozen=True)

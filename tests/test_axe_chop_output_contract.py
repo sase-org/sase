@@ -36,6 +36,7 @@ def _stub_empty_snapshot(monkeypatch: pytest.MonkeyPatch, script: object) -> Non
 
 
 _COUNTERS_ZERO = {
+    "accepted_unfinished": 0,
     "answered": 0,
     "errors": 0,
     "handoff_adopted": 0,
@@ -149,18 +150,45 @@ def test_gate_shell_reclaim_emits_action_summary(
     assert result["status"] == "ok"
     assert result["reason"] is None
     assert result["counters"] == {
+        **_COUNTERS_ZERO,
         "answered": 1,
-        "errors": 0,
-        "handoff_adopted": 0,
-        "handoff_deferred": 0,
-        "handoff_errors": 0,
-        "handoff_incomplete": 0,
-        "handoff_scanned": 0,
-        "handoff_skipped": 0,
         "lost": 1,
         "scanned": 3,
-        "stopped": 0,
-        "timed_out": 0,
+    }
+
+
+def test_gate_shell_reclaim_emits_accepted_unfinished_counter_and_log(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    script = importlib.import_module("sase.scripts.sase_chop_gate_shell_reclaim")
+    result_path = tmp_path / "result.json"
+    context_path = _write_context(tmp_path, result_path)
+    _stub_empty_snapshot(monkeypatch, script)
+    monkeypatch.setattr(
+        script,
+        "reclaim_pending_gate_shells",
+        lambda **_kwargs: GateShellReclaimSummary(scanned=2, accepted_unfinished=2),
+    )
+    monkeypatch.setattr(
+        script,
+        "reconcile_incomplete_gate_handoffs",
+        lambda **_kwargs: GateHandoffReconcileSummary(),
+    )
+
+    run_builtin_chop("gate_shell_reclaim", ["--context", str(context_path)])
+
+    out = capsys.readouterr().out
+    assert "accepted_unfinished=2" in out
+    assert "2 gate(s) have an accepted decision with execution still incomplete" in out
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert result["status"] == "ok"
+    assert result["reason"] is None
+    assert result["counters"] == {
+        **_COUNTERS_ZERO,
+        "accepted_unfinished": 2,
+        "scanned": 2,
     }
 
 
@@ -199,18 +227,9 @@ def test_gate_shell_reclaim_reports_check_error_on_reclaim_errors(
     assert result["status"] == "check_error"
     assert result["reason"] == "reclaim_errors"
     assert result["counters"] == {
-        "answered": 0,
+        **_COUNTERS_ZERO,
         "errors": 1,
-        "handoff_adopted": 0,
-        "handoff_deferred": 0,
-        "handoff_errors": 0,
-        "handoff_incomplete": 0,
-        "handoff_scanned": 0,
-        "handoff_skipped": 0,
-        "lost": 0,
         "scanned": 1,
-        "stopped": 0,
-        "timed_out": 0,
     }
 
 

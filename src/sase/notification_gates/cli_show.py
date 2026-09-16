@@ -10,12 +10,19 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from collections.abc import Mapping, Sequence
+from pathlib import Path
 from typing import Any, NoReturn
 
 from rich.console import Console
 from rich.text import Text
 
+from sase.gate_shell.lifecycle import (
+    DISPOSITION_ACCEPTED_UNFINISHED,
+    classify_gate_lifecycle,
+    collect_gate_lifecycle_facts,
+)
 from sase.gate_shell.models import GateShellRefError
 from sase.gate_shell.projection import gate_shell_runtime_json
 from sase.gate_shell.store import (
@@ -32,6 +39,7 @@ from sase.notification_gates.cli_support import (
     report_gate_error,
     resolve_gate_cli_bundle,
 )
+from sase.notification_gates.debug_artifacts import error_artifacts
 from sase.notification_gates.model_operations import GateOperation
 from sase.notification_gates.model_options import GateOption
 from sase.notification_gates.models import GateError
@@ -117,11 +125,54 @@ def _show(kind: str, request_id: str) -> dict[str, Any]:
         "shell": _shell_payload(bundle.envelope),
         "status": "pending" if poll is None else _STATUS_PROJECTION[poll.status],
     }
+    if poll is None:
+        acceptance = _acceptance_payload(bundle.root, bundle.envelope)
+        if acceptance is not None:
+            payload["acceptance"] = acceptance
     if payload["shell"] is not None:
         gate_shell = find_gate_shell_by_gate_id(None, bundle.request_id)
         if gate_shell is not None:
             payload["gate_shell"] = gate_shell_runtime_json(gate_shell)
     return payload
+
+
+def _acceptance_payload(
+    bundle_root: Path, envelope: Mapping[str, Any]
+) -> dict[str, Any] | None:
+    """Return additive acceptance detail for a durably accepted decision.
+
+    ``None`` unless the gate's decision is accepted but execution has not
+    published a response yet -- a plain pending gate, or one whose bundle
+    carries a malformed/contradictory receipt, is reported through
+    ``invalid_receipt`` instead of silently looking pending, per the
+    shared :mod:`sase.gate_shell.lifecycle` policy.
+    """
+    facts = collect_gate_lifecycle_facts(
+        bundle_root, envelope, now=time.time(), deadline=None, grace_seconds=0.0
+    )
+    try:
+        outcome = classify_gate_lifecycle(facts)
+    except ValueError as exc:
+        return {"invalid_receipt": str(exc)}
+    if outcome["disposition"] != DISPOSITION_ACCEPTED_UNFINISHED:
+        return None
+    receipt = dict(facts.receipt or {})
+    errors, _count, _artifact = error_artifacts(bundle_root / "errors")
+    latest_error = errors[0] if errors else None
+    return {
+        "selected_option_ids": receipt.get("selected_option_ids", []),
+        "source": receipt.get("source"),
+        "accepted_at_unix": receipt.get("accepted_at_unix"),
+        "execution_error": (
+            None
+            if latest_error is None
+            else {
+                "code": latest_error.code,
+                "message": latest_error.message,
+                "source": latest_error.source,
+            }
+        ),
+    }
 
 
 def _operations(envelope: Mapping[str, Any]) -> tuple[GateOperation, ...]:
@@ -191,6 +242,10 @@ def _print_human_gate(payload: Mapping[str, Any]) -> None:
         console.print(Text("Actions", style="bold"), soft_wrap=True)
         for action in actions:
             _print_action(console, action)
+
+    acceptance = payload.get("acceptance")
+    if isinstance(acceptance, Mapping):
+        _print_acceptance(console, acceptance)
 
     shell = payload.get("shell")
     if isinstance(shell, Mapping):
@@ -279,6 +334,46 @@ def _print_action(console: Console, action: Mapping[str, Any]) -> None:
     if action.get("description"):
         console.print(
             Text(f"      {action['description']}", style="dim"), soft_wrap=True
+        )
+
+
+def _print_acceptance(console: Console, acceptance: Mapping[str, Any]) -> None:
+    console.print(Text("Acceptance", style="bold"), soft_wrap=True)
+    invalid_receipt = acceptance.get("invalid_receipt")
+    if invalid_receipt:
+        console.print(
+            Text(f"  ⚑ invalid decision receipt: {invalid_receipt}", style="bold red"),
+            soft_wrap=True,
+        )
+        return
+    line = Text("  ")
+    selected = acceptance.get("selected_option_ids") or []
+    line.append(", ".join(str(option_id) for option_id in selected), style="bold")
+    line.append(" accepted", style="dim")
+    source = acceptance.get("source")
+    if source:
+        line.append(f" · source {source}", style="dim")
+    console.print(line, soft_wrap=True)
+    console.print(
+        Text("  execution has not published a response yet", style="dim"),
+        soft_wrap=True,
+    )
+    execution_error = acceptance.get("execution_error")
+    if isinstance(execution_error, Mapping):
+        console.print(
+            Text(
+                f"  ⚑ recorded execution error ({execution_error.get('code')}): "
+                f"{execution_error.get('message')}",
+                style="bold yellow",
+            ),
+            soft_wrap=True,
+        )
+        console.print(
+            Text(
+                "  this is historical evidence, not proof a current retry is dead",
+                style="dim",
+            ),
+            soft_wrap=True,
         )
 
 

@@ -60,6 +60,11 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         f"{time.monotonic() - started:.1f}s"
     )
 
+    if summary.accepted_unfinished:
+        runtime.log.info(
+            f"gate shell reclaim progress: {summary.accepted_unfinished} gate(s) "
+            "have an accepted decision with execution still incomplete; deferring"
+        )
     for detail in summary.error_details:
         runtime.log.error(f"gate shell reclaim failed: {detail}")
     for detail in handoff.error_details:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 import time
@@ -21,11 +22,18 @@ from sase.gate_shell.models import GateShellRecord
 from sase.gate_shell.reclaim import (
     _MAX_ERROR_DETAILS,
     GateShellReclaimSummary,
+    _reclaim_one,
     reclaim_pending_gate_shells,
     reconcile_incomplete_gate_handoffs,
 )
 from sase.gate_shell.store import GateShellSnapshot
+from sase.notification_gates.decision import accept_gate_decision
+from sase.notification_gates.executor import cancel_gate as real_cancel_gate
+from sase.notification_gates.hashing import load_and_verify_bundle
+from sase.notification_gates.paths import CANCELLATION_FILENAME
+from sase.notification_gates.service import create_gate
 from sase.plan_chain import PLAN_CHAIN_CODER_SUFFIX
+from tests._notification_gates_fixtures import gate_spec
 from tests.gate_shell._cli_fixtures import (
     gate_shell_home,
     make_gate_shell,
@@ -144,9 +152,158 @@ def test_reclaim_summary_to_dict_omits_error_details() -> None:
         "stopped": 0,
         "timed_out": 0,
         "lost": 0,
+        "accepted_unfinished": 0,
         "errors": 1,
     }
     assert "error_details" not in payload
+
+
+def _record_for_bundle(bundle_path: Path, *, gate_id: str) -> GateShellRecord:
+    record = _record(gate_id=gate_id, member_agent_name=f"lane--{gate_id}")
+    return dataclasses.replace(record, bundle_path=str(bundle_path))
+
+
+def _settlement_recorder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[str, str, str | None]]:
+    """Stub the (slow, real-store-backed) shell settlement, recording calls."""
+    settled: list[tuple[str, str, str | None]] = []
+
+    def fake_settle(
+        record: GateShellRecord,
+        *,
+        gate_state: str,
+        reason: str | None = None,
+        **_kwargs: object,
+    ) -> GateShellRecord:
+        settled.append((record.gate_id, gate_state, reason))
+        return record
+
+    monkeypatch.setattr(reclaim_mod, "settle_gate_shell", fake_settle)
+    return settled
+
+
+def _gate_deadline(bundle_path: Path) -> float:
+    envelope, _adapter = load_and_verify_bundle(bundle_path)
+    return float(envelope["created_at_unix"]) + float(envelope["gate_timeout_seconds"])
+
+
+def test_reclaim_defers_an_accepted_unfinished_gate_without_settling(
+    gate_shell_home: Path, gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = create_gate(gate_spec(request_id="accepted-unfinished", timeout=1.0))
+    accept_gate_decision(result.bundle_path, ["accept"], {})
+    record = _record_for_bundle(result.bundle_path, gate_id="accepted-unfinished")
+    settled = _settlement_recorder(monkeypatch)
+    deadline = _gate_deadline(result.bundle_path)
+
+    # Well past both the review deadline and the reclaim grace window: the
+    # accepted-unfinished disposition must still outrank them.
+    outcome = _reclaim_one(record, now=deadline + 10_000, grace_seconds=1)
+
+    assert outcome == "accepted_unfinished"
+    assert settled == []
+    assert not (result.bundle_path / CANCELLATION_FILENAME).exists()
+    assert not result.response_path.exists()
+
+
+def test_reclaim_settles_an_unaccepted_expired_review_gate_as_timeout(
+    gate_shell_home: Path, gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = create_gate(gate_spec(request_id="unaccepted-timeout", timeout=1.0))
+    record = _record_for_bundle(result.bundle_path, gate_id="unaccepted-timeout")
+    settled = _settlement_recorder(monkeypatch)
+    deadline = _gate_deadline(result.bundle_path)
+
+    outcome = _reclaim_one(record, now=deadline + 1, grace_seconds=300)
+
+    assert outcome == "timeout"
+    assert settled == [("unaccepted-timeout", "timeout", "gate timed out")]
+    cancellation = json.loads(
+        (result.bundle_path / CANCELLATION_FILENAME).read_text(encoding="utf-8")
+    )
+    assert cancellation["reason"] == "timeout"
+
+
+def test_reclaim_settles_an_unaccepted_expired_grace_gate_as_lost(
+    gate_shell_home: Path, gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    result = create_gate(gate_spec(request_id="unaccepted-lost", timeout=1.0))
+    record = _record_for_bundle(result.bundle_path, gate_id="unaccepted-lost")
+    settled = _settlement_recorder(monkeypatch)
+    deadline = _gate_deadline(result.bundle_path)
+
+    outcome = _reclaim_one(record, now=deadline + 1000, grace_seconds=1)
+
+    assert outcome == "lost"
+    assert settled == [("unaccepted-lost", "lost", "gate deadline grace passed")]
+    cancellation = json.loads(
+        (result.bundle_path / CANCELLATION_FILENAME).read_text(encoding="utf-8")
+    )
+    assert cancellation["reason"] == "grace_expired"
+
+
+def test_reclaim_expired_review_yields_to_a_racing_acceptance(
+    gate_shell_home: Path, gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A decision accepted between reclaim's check and its locked cancel wins."""
+    result = create_gate(gate_spec(request_id="race-review", timeout=1.0))
+    record = _record_for_bundle(result.bundle_path, gate_id="race-review")
+    settled = _settlement_recorder(monkeypatch)
+    deadline = _gate_deadline(result.bundle_path)
+
+    def racing_cancel_gate(bundle_path: Path, **kwargs: object) -> dict[str, object]:
+        accept_gate_decision(bundle_path, ["accept"], {})
+        return real_cancel_gate(bundle_path, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(reclaim_mod, "cancel_gate", racing_cancel_gate)
+
+    outcome = _reclaim_one(record, now=deadline + 1, grace_seconds=300)
+
+    assert outcome == "accepted_unfinished"
+    assert settled == []
+    assert not (result.bundle_path / CANCELLATION_FILENAME).exists()
+
+
+def test_reclaim_expired_grace_yields_to_a_racing_completion(
+    gate_shell_home: Path, gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A response published between reclaim's check and its locked cancel wins."""
+    result = create_gate(gate_spec(request_id="race-grace", timeout=1.0))
+    record = _record_for_bundle(result.bundle_path, gate_id="race-grace")
+    settled = _settlement_recorder(monkeypatch)
+    deadline = _gate_deadline(result.bundle_path)
+
+    def racing_cancel_gate(bundle_path: Path, **kwargs: object) -> dict[str, object]:
+        from sase.notification_gates.executor import execute_gate_selection
+
+        execute_gate_selection(bundle_path, ["accept"], {})
+        return real_cancel_gate(bundle_path, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(reclaim_mod, "cancel_gate", racing_cancel_gate)
+
+    outcome = _reclaim_one(record, now=deadline + 1000, grace_seconds=1)
+
+    assert outcome == "answered"
+    assert settled == [("race-grace", "answered", "gate answered")]
+
+
+def test_reclaim_raises_on_a_receipt_naming_a_different_gate(
+    gate_shell_home: Path, gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
+
+    result = create_gate(gate_spec(request_id="contradictory-receipt"))
+    accept_gate_decision(result.bundle_path, ["accept"], {})
+    receipt_path = result.bundle_path / DECISION_RECEIPT_FILENAME
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    receipt["gate_id"] = "someone-elses-gate"
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    record = _record_for_bundle(result.bundle_path, gate_id="contradictory-receipt")
+    _settlement_recorder(monkeypatch)
+
+    with pytest.raises(ValueError, match="invalid_gate_decision_receipt"):
+        _reclaim_one(record, now=time.time(), grace_seconds=300)
 
 
 _PROJECT = "proj"

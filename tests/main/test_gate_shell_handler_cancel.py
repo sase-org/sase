@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.notification_gates.decision import accept_gate_decision
 from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.service import create_gate
 from tests.gate_shell._cli_fixtures import (
@@ -143,3 +144,29 @@ def test_cancel_an_already_answered_gate_settles_as_answered(
 
     meta = json.loads(meta_path.read_text())
     assert meta["gate_state"] == "answered"
+
+
+def test_cancel_an_accepted_unfinished_gate_is_refused_without_settlement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An accepted decision whose execution hasn't finished refuses cancel.
+
+    Regression coverage for the incident: durably accepting a decision must
+    not let a later cancel settle the shell as though it had a response.
+    """
+    gate = create_gate(_spec("custom-4"))
+    accept_gate_decision(gate.bundle_path, ["cleanup"], {})
+    artifacts_dir = make_gate_shell(
+        "proj", "20260812120000", "acme--gate", lane="acme", gate_id="custom-4"
+    )
+    meta_path = Path(artifacts_dir) / "agent_meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["gate_bundle_path"] = str(gate.bundle_path)
+    meta_path.write_text(json.dumps(meta), encoding="utf-8")
+    patch_gate_shell_project_records(monkeypatch, [artifacts_dir])
+
+    assert dispatch(["gate", "cancel", "acme--gate"]) == 0
+
+    meta = json.loads(meta_path.read_text())
+    assert meta["gate_state"] == "pending"
+    assert not gate.bundle_path.joinpath("cancellation.json").exists()

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event
@@ -356,6 +357,39 @@ def test_commit_gate_archive_failure_leaves_gate_unanswered(gate_home: Path) -> 
 
     assert exc_info.value.code == "plan_archive_failed"
     assert not gate.response_path.exists()
+
+    # Regression coverage for the incident this plan fixes: acceptance runs
+    # (and durably records its receipt) before archive preparation, so the
+    # decision must remain visible and accepted -- not falsely timed out,
+    # lost, or completed -- with its original error preserved for
+    # inspection.
+    from sase.gate_shell.lifecycle import (
+        DISPOSITION_ACCEPTED_UNFINISHED,
+        classify_gate_lifecycle,
+        collect_gate_lifecycle_facts,
+    )
+    from sase.notification_gates.debug_artifacts import error_artifacts
+    from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
+    from sase.notification_gates.hashing import load_and_verify_bundle
+
+    receipt_path = gate.bundle_path / DECISION_RECEIPT_FILENAME
+    assert receipt_path.is_file(), (
+        "the decision receipt must survive the archive failure"
+    )
+
+    envelope, _adapter = load_and_verify_bundle(gate.bundle_path)
+    facts = collect_gate_lifecycle_facts(
+        gate.bundle_path, envelope, now=time.time(), deadline=None, grace_seconds=0.0
+    )
+    outcome = classify_gate_lifecycle(facts)
+    assert outcome["disposition"] == DISPOSITION_ACCEPTED_UNFINISHED
+
+    errors, _count, _artifact = error_artifacts(gate.bundle_path / "errors")
+    assert errors, (
+        "the archive failure must be recorded as an inspectable execution error"
+    )
+    assert errors[0].code == "plan_archive_failed"
+    assert "archive boom" in errors[0].message
 
 
 @pytest.mark.parametrize(
