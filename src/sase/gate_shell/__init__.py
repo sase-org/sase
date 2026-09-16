@@ -18,7 +18,7 @@ from sase.gate_shell.naming import (
 )
 
 _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
-    "GATE_PENDING_MARKER": ("sase.gate_shell.handoff", "GATE_PENDING_MARKER"),
+    "GATE_PENDING_MARKER": ("sase.gate_shell.agent_handoff", "GATE_PENDING_MARKER"),
     "GateShellCreation": ("sase.gate_shell.transaction", "GateShellCreation"),
     "MIN_GATE_SHELL_REF_LENGTH": (
         "sase.gate_shell.store",
@@ -33,14 +33,14 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "has_any_gate_shell": ("sase.gate_shell.store", "has_any_gate_shell"),
     "list_gate_shells": ("sase.gate_shell.store", "list_gate_shells"),
     "maybe_handoff_gate_from_agent": (
-        "sase.gate_shell.handoff",
+        "sase.gate_shell.agent_handoff",
         "maybe_handoff_gate_from_agent",
     ),
     "read_gate_shell_marker": ("sase.gate_shell.store", "read_gate_shell_marker"),
     "resolve_gate_shell_ref": ("sase.gate_shell.store", "resolve_gate_shell_ref"),
     "settle_gate_shell": ("sase.gate_shell.settlement", "settle_gate_shell"),
     "will_handoff_gate_to_agent_runner": (
-        "sase.gate_shell.handoff",
+        "sase.gate_shell.agent_handoff",
         "will_handoff_gate_to_agent_runner",
     ),
 }
