@@ -203,12 +203,18 @@ def prepare_loaded_agents_apply_boundary(
     # Derive slot counts/queue positions from the already-loaded, post-merge
     # refresh payload. This stays off the Textual event loop on async loads and
     # avoids a second artifact scan for display-only data.
+    from sase.core.agent_hold_facade import active_agent_hold_records
+
     from ...models.agent_runner_slots import refresh_runner_slot_context
 
+    active_holds = (
+        tuple(active_agent_hold_records()) if effective_runner_limit is not None else ()
+    )
     runner_capacity = refresh_runner_slot_context(
         prep.filtered_agents,
         effective_limit=effective_runner_limit,
         capacity_agents=prep.capacity_agents or None,
+        active_holds=active_holds,
     )
 
     unfiltered_agents = list(prep.filtered_agents)

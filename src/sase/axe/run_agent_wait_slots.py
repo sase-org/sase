@@ -58,6 +58,10 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
+from sase.core.agent_hold_facade import (
+    active_agent_hold_records,
+    candidate_created_at_from_timestamp,
+)
 from sase.core.paths import sase_home, sase_projects_dir
 from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
@@ -144,6 +148,13 @@ def record_liveness_probe() -> Callable[[AgentArtifactRecordWire], bool]:
     return _record_liveness_probe()
 
 
+def _agent_meta_str(agent_meta: dict[str, Any] | None, key: str) -> str | None:
+    if not isinstance(agent_meta, dict):
+        return None
+    value = agent_meta.get(key)
+    return value if isinstance(value, str) and value else None
+
+
 def _try_claim_runner_slot(
     *,
     artifacts_dir: str,
@@ -227,6 +238,15 @@ def _try_claim_runner_slot(
                     if isinstance(marker_eligible_since, str)
                     else None
                 ),
+                agent_name=_agent_meta_str(agent_meta, "name"),
+                workflow=_agent_meta_str(agent_meta, "workflow_name"),
+                clan=_agent_meta_str(agent_meta, "agent_clan"),
+                tribe=(
+                    _agent_meta_str(agent_meta, "tribe")
+                    or _agent_meta_str(agent_meta, "clan_tribe")
+                ),
+                agent_family=_agent_meta_str(agent_meta, "agent_family"),
+                created_at=candidate_created_at_from_timestamp(timestamp),
             )
             records = scan_runner_slot_records()
             queue_weight_error = candidate_scan_queue_weight_error(
@@ -236,8 +256,9 @@ def _try_claim_runner_slot(
             if queue_weight_error is not None:
                 raise queue_weight_error
             candidate = enrich_candidate_from_records(candidate, records)
-            is_live = record_liveness_probe()
             now = datetime.now(UTC)
+            active_holds = active_agent_hold_records(records, now=now)
+            is_live = record_liveness_probe()
             snapshot = runner_capacity_snapshot(
                 records,
                 is_live,
@@ -254,6 +275,7 @@ def _try_claim_runner_slot(
                     else 0
                 ),
                 candidate=candidate,
+                active_holds=active_holds,
             )
             decision = require_candidate_decision(snapshot, artifacts_dir)
             if decision["decision"] == "invalid":

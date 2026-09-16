@@ -28,7 +28,7 @@ def _core_runner_capacity_snapshot(request: dict[str, Any]) -> dict[str, Any]:
     try:
         result = snapshot(request)
     except ValueError as exc:
-        if "queue_capacity" not in str(exc):
+        if not _supports_legacy_capacity_fallback(str(exc)):
             raise
         result = snapshot(_legacy_runner_capacity_request(request))
     if not isinstance(result, dict):
@@ -39,6 +39,7 @@ def _core_runner_capacity_snapshot(request: dict[str, Any]) -> dict[str, Any]:
 def _legacy_runner_capacity_request(request: Mapping[str, Any]) -> dict[str, Any]:
     """Drop queue-capacity aliases for Rust wheels before the rename."""
     legacy = dict(request)
+    legacy.pop("holds", None)
     legacy["records"] = [
         _drop_queue_capacity_alias(record)
         for record in request.get("records", [])
@@ -53,10 +54,27 @@ def _legacy_runner_capacity_request(request: Mapping[str, Any]) -> dict[str, Any
     return legacy
 
 
+def _supports_legacy_capacity_fallback(message: str) -> bool:
+    return any(
+        field in message
+        for field in (
+            "queue_capacity",
+            "holds",
+            "agent_name",
+            "workflow",
+            "clan",
+            "tribe",
+            "created_at",
+        )
+    )
+
+
 def _drop_queue_capacity_alias(record: Mapping[str, Any]) -> dict[str, Any]:
     item = with_queue_capacity_alias(record)
     item.pop("queue_capacity", None)
     item.pop("queue_capacity_explicit", None)
+    for key in ("agent_name", "workflow", "clan", "tribe", "created_at"):
+        item.pop(key, None)
     return item
 
 
@@ -69,6 +87,7 @@ def runner_capacity_snapshot(
     deference_seconds_per_step: int = 0,
     deference_max_seconds: int = 0,
     candidate: Mapping[str, Any] | None = None,
+    active_holds: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Return the authoritative weighted runner-capacity snapshot.
 
@@ -89,6 +108,7 @@ def runner_capacity_snapshot(
         deference_seconds_per_step=deference_seconds_per_step,
         deference_max_seconds=deference_max_seconds,
         candidate=candidate,
+        active_holds=active_holds,
     )
 
 
@@ -100,15 +120,18 @@ def runner_capacity_snapshot_from_capacity_records(
     deference_seconds_per_step: int = 0,
     deference_max_seconds: int = 0,
     candidate: Mapping[str, Any] | None = None,
+    active_holds: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Return the Rust capacity snapshot for already-projected record dicts."""
     records_list = [with_queue_capacity_alias(record) for record in records]
     candidate_record = (
         None if candidate is None else with_queue_capacity_alias(candidate)
     )
+    holds_list = [dict(hold) for hold in active_holds or ()]
     request = {
         "effective_limit": float(effective_limit),
         "records": records_list,
+        "holds": holds_list,
         "candidate": candidate_record,
         "now": now,
         "deference_seconds_per_step": int(deference_seconds_per_step),

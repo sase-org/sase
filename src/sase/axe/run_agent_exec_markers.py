@@ -37,6 +37,12 @@ def write_done_marker_and_update_index(
         json.dump(done_marker, f, indent=2)
     update_agent_artifact_index_for_marker_mutation(artifacts_dir)
     try:
+        from sase.core.agent_hold_facade import reconcile_agent_holds_for_artifact
+
+        reconcile_agent_holds_for_artifact(artifacts_dir)
+    except Exception:  # noqa: BLE001 - hold cleanup must never fail settlement
+        pass
+    try:
         from sase.shells.settlement import (
             project_name_from_artifacts_dir,
             touch_shell_refresh_pulse,

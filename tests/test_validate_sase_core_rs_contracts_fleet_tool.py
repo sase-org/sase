@@ -105,17 +105,26 @@ def test_validate_sase_core_rs_requires_runner_capacity_candidate_decision() -> 
     validator = load_validate_sase_core_rs()
 
     def module(
-        *, policy_schema_version: int = 4, snapshot: Any = None
+        *, policy_schema_version: int = 5, snapshot: Any = None
     ) -> SimpleNamespace:
         def _snapshot(request: dict[str, Any]) -> Any:
             if isinstance(snapshot, Exception):
                 raise snapshot
-            return (
-                snapshot
-                if snapshot is not None
-                else _reuse_existing_claim_snapshot()
-                if request.get("candidate", {}).get("queue_capacity") != 100
-                else {
+            if snapshot is not None:
+                return snapshot
+            if request.get("holds"):
+                return {
+                    "occupied_capacity": 0.0,
+                    "candidate_decision": {
+                        "decision": "blocked",
+                        "effective_weight": 1.0,
+                        "blockers": [
+                            {"code": "hold-barrier", "held_by": "agent:hold-a"}
+                        ],
+                    },
+                }
+            if request.get("candidate", {}).get("queue_capacity") == 100:
+                return {
                     "occupied_capacity": 2.0,
                     "candidate_decision": {
                         "decision": "acquire_capacity",
@@ -123,7 +132,7 @@ def test_validate_sase_core_rs_requires_runner_capacity_candidate_decision() -> 
                     },
                     "waiters": [{"admission_limit": 100.0}],
                 }
-            )
+            return _reuse_existing_claim_snapshot()
 
         return SimpleNamespace(
             runner_capacity_policy_schema_version=lambda: policy_schema_version,
@@ -135,6 +144,9 @@ def test_validate_sase_core_rs_requires_runner_capacity_candidate_decision() -> 
     # A schema-v1 wheel predates candidate_decision entirely.
     assert not validator._validate_runner_capacity_contract(
         module(policy_schema_version=1)
+    )
+    assert not validator._validate_runner_capacity_contract(
+        module(policy_schema_version=4)
     )
 
     # A schema-v1 wire rejects the request's ``candidate`` field outright.

@@ -22,6 +22,7 @@ from sase.axe.run_agent_wait_slot_state import (
     valid_queue_weight,
 )
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
+from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
 from sase.core.runner_slots import notify_runner_slot_state_changed
 
 
@@ -149,6 +150,22 @@ def enrich_candidate_from_records(
                 "project_name": record.project_name,
                 "workflow_dir_name": record.workflow_dir_name,
                 "timestamp": record.timestamp,
+                "agent_name": None if meta is None else meta.name,
+                "workflow": (
+                    None
+                    if meta is None
+                    else (
+                        meta.workflow_name
+                        or (
+                            record.workflow_state.workflow_name
+                            if record.workflow_state is not None
+                            else None
+                        )
+                    )
+                ),
+                "clan": None if meta is None else meta.agent_clan,
+                "tribe": None if meta is None else (meta.tribe or meta.clan_tribe),
+                "created_at": candidate_created_at_from_timestamp(record.timestamp),
                 "has_agent_meta": meta is not None,
                 "has_done_marker": record.has_done_marker,
                 "appears_as_agent": (

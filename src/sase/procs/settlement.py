@@ -62,6 +62,7 @@ def settle_proc_shell(
     if current is None:
         raise RuntimeError(f"proc {proc_id} disappeared during settlement")
     if current.status in TERMINAL_PROC_STATUSES:
+        _release_proc_holds(current)
         return current
     current = _ensure_claimed(current, supervisor_id=supervisor_id)
     if current.status != "settling":
@@ -138,7 +139,17 @@ def settle_proc_shell(
     ).proc
     if finished is None:
         raise RuntimeError(f"proc {proc_id} disappeared before finish")
+    _release_proc_holds(finished)
     return finished
+
+
+def _release_proc_holds(proc: Proc) -> None:
+    try:
+        from sase.core.agent_hold_facade import release_proc_agent_holds
+
+        release_proc_agent_holds(proc)
+    except Exception:  # noqa: BLE001 - hold cleanup must never fail settlement
+        pass
 
 
 def maybe_crash(checkpoint: str) -> None:

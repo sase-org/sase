@@ -14,6 +14,7 @@ from sase.agent.status_buckets import (
     runner_slot_display_status,
 )
 from sase.core.agent_artifact_paths import parse_agent_artifact_path
+from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
 from sase.core.runner_slots import (
     DEFAULT_QUEUE_WEIGHT,
     normalize_wait_priority,
@@ -99,6 +100,7 @@ def refresh_runner_slot_context(
     *,
     effective_limit: float | None = None,
     capacity_agents: list[Agent] | None = None,
+    active_holds: tuple[dict[str, Any], ...] = (),
 ) -> RunnerCapacitySnapshot:
     """Attach global runner-capacity context from the loaded snapshot.
 
@@ -127,6 +129,7 @@ def refresh_runner_slot_context(
     raw_snapshot = runner_capacity_snapshot_from_capacity_records(
         capacity_records,
         effective_limit=float(effective_limit),
+        active_holds=active_holds,
     )
     return _apply_runner_capacity_snapshot(
         agents,
@@ -381,6 +384,11 @@ def _capacity_record_from_agent(
         "project_name": _project_name(agent, parsed),
         "workflow_dir_name": _workflow_dir_name(agent, parsed),
         "timestamp": _capacity_timestamp(agent),
+        "agent_name": agent.agent_name,
+        "workflow": agent.workflow,
+        "clan": agent.agent_clan,
+        "tribe": agent.tribe or agent.clan_tribe,
+        "created_at": candidate_created_at_from_timestamp(_capacity_timestamp(agent)),
         "has_agent_meta": not (agent.is_clan_container or agent.is_proc_shell),
         "has_done_marker": agent.stop_time is not None
         or agent.status in {"DONE", "FAILED", "FAILED (RETRIED)"},

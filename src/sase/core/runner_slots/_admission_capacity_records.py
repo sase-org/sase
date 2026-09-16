@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
 from ._admission_types import RecordLiveness, finite_positive_float
@@ -136,6 +137,22 @@ def capacity_record_from_scan(
             "project_name": record.project_name,
             "workflow_dir_name": record.workflow_dir_name,
             "timestamp": record.timestamp,
+            "agent_name": None if meta is None else meta.name,
+            "workflow": (
+                None
+                if meta is None
+                else (
+                    meta.workflow_name
+                    or (
+                        record.workflow_state.workflow_name
+                        if record.workflow_state is not None
+                        else None
+                    )
+                )
+            ),
+            "clan": None if meta is None else meta.agent_clan,
+            "tribe": None if meta is None else (meta.tribe or meta.clan_tribe),
+            "created_at": candidate_created_at_from_timestamp(record.timestamp),
             "has_agent_meta": meta is not None,
             "has_done_marker": record.has_done_marker,
             "appears_as_agent": True if state is None else state.appears_as_agent,
@@ -202,6 +219,12 @@ def _synthetic_capacity_record(
     queue_weight: float,
     queue_weight_explicit: bool,
     eligible_since: str | None,
+    agent_name: str | None = None,
+    workflow: str | None = None,
+    clan: str | None = None,
+    tribe: str | None = None,
+    agent_family: str | None = None,
+    created_at: float | None = None,
 ) -> dict[str, Any]:
     return with_queue_capacity_alias(
         {
@@ -209,6 +232,11 @@ def _synthetic_capacity_record(
             "project_name": _project_name_from_artifact_dir(artifacts_dir),
             "workflow_dir_name": "ace-run",
             "timestamp": timestamp,
+            "agent_name": agent_name,
+            "workflow": workflow,
+            "clan": clan,
+            "tribe": tribe,
+            "created_at": created_at,
             "has_agent_meta": True,
             "has_done_marker": False,
             "appears_as_agent": True,
@@ -218,7 +246,7 @@ def _synthetic_capacity_record(
             "run_started_at": None,
             "runner_claim_owner_key": None,
             "parent_timestamp": None,
-            "agent_family": None,
+            "agent_family": agent_family,
             "agent_family_role": None,
             "agent_family_parallel": False,
             "family_shell_kind": None,
@@ -249,6 +277,12 @@ def runner_slot_candidate_record(
     queue_weight: float,
     queue_weight_explicit: bool,
     eligible_since: str | None,
+    agent_name: str | None = None,
+    workflow: str | None = None,
+    clan: str | None = None,
+    tribe: str | None = None,
+    agent_family: str | None = None,
+    created_at: float | None = None,
 ) -> dict[str, Any]:
     """Build the synthetic candidate sent as the Rust request's own field."""
     if queue_capacity is None and wait_runners is not None:
@@ -264,4 +298,10 @@ def runner_slot_candidate_record(
         queue_weight=queue_weight,
         queue_weight_explicit=queue_weight_explicit,
         eligible_since=eligible_since,
+        agent_name=agent_name,
+        workflow=workflow,
+        clan=clan,
+        tribe=tribe,
+        agent_family=agent_family,
+        created_at=created_at,
     )

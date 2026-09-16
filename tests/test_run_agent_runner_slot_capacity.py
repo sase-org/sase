@@ -322,6 +322,87 @@ def test_running_monitor_occupying_last_slot_parks_new_launch(tmp_path: Path) ->
     assert marker["slot_requested_at"]
 
 
+def test_active_holds_are_threaded_into_locked_admission(
+    tmp_path: Path,
+) -> None:
+    waiter = artifact(tmp_path, "20260910120500", 505)
+    hold = {"armer": {"key": "agent:hold-a"}}
+    captured: dict[str, object] = {}
+
+    def snapshot(
+        records: list[AgentArtifactRecordWire],
+        _is_live: object,
+        **kwargs: object,
+    ) -> dict[str, object]:
+        captured["records"] = records
+        captured["active_holds"] = kwargs["active_holds"]
+        captured["candidate"] = kwargs["candidate"]
+        return {
+            "candidate_decision": {
+                "artifact_dir": str(waiter),
+                "decision": "blocked",
+                "owner_key": waiter.name,
+                "lineage_key": waiter.name,
+                "effective_weight": 1.0,
+                "blockers": [
+                    {"code": "hold-barrier", "message": "held by agent:hold-a"}
+                ],
+            }
+        }
+
+    with (
+        patch.object(
+            run_agent_wait_slots, "_scan_runner_slot_records", return_value=[]
+        ) as scan,
+        patch.object(
+            run_agent_wait_slots,
+            "active_agent_hold_records",
+            return_value=[hold],
+        ) as active_holds,
+        patch.object(
+            run_agent_wait_slots,
+            "runner_capacity_snapshot",
+            side_effect=snapshot,
+        ),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=4),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(waiter),
+            cl_name="cl",
+            timestamp=waiter.name,
+            directive_threshold=None,
+            agent_meta={
+                "name": "target.agent--code",
+                "workflow_name": "build",
+                "agent_clan": "blocked-clan",
+                "tribe": "ops",
+                "agent_family": "target.agent",
+            },
+            claim=lambda: "unexpected",
+        )
+
+    assert result is None
+    assert parked
+    scan.assert_called_once()
+    active_holds.assert_called_once()
+    assert active_holds.call_args.args == ([],)
+    assert captured["records"] == []
+    assert captured["active_holds"] == [hold]
+    candidate = captured["candidate"]
+    assert isinstance(candidate, dict)
+    assert candidate["agent_name"] == "target.agent--code"
+    assert candidate["workflow"] == "build"
+    assert candidate["clan"] == "blocked-clan"
+    assert candidate["tribe"] == "ops"
+    marker = json.loads((waiter / "waiting.json").read_text())
+    assert marker["slot_requested_at"]
+
+
 def test_releasing_monitor_admits_the_parked_waiter(tmp_path: Path) -> None:
     monitor = artifact(
         tmp_path,

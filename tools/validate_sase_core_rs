@@ -1620,10 +1620,10 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
     except Exception as exc:
         _error(f"runner_capacity_policy_schema_version() probe failed: {exc}")
         return False
-    if policy_schema_version < 4:
+    if policy_schema_version < 5:
         _error(
             "runner_capacity_policy_schema_version() returned stale schema: "
-            f"got {policy_schema_version}, expected >= 4"
+            f"got {policy_schema_version}, expected >= 5"
         )
         return False
 
@@ -1745,6 +1745,74 @@ def _validate_runner_capacity_contract(module: ModuleType) -> bool:
                 f"got {waiter.get('admission_limit')!r}, expected 100.0"
             )
             return False
+    held_waiter = _runner_capacity_probe_record(
+        artifact_dir="/core-floor-probe/proj/agent/2026-01-01T00-20-00",
+        project_name="proj",
+        timestamp="2026-01-01T00:20:00Z",
+        slot_requested_at="2026-01-01T00:20:00Z",
+        agent_name="target.agent--code",
+        agent_family="target.agent",
+        created_at=1767226800.0,
+    )
+    held_request = {
+        "effective_limit": 2.0,
+        "holds": [
+            {
+                "schema_version": 1,
+                "armer": {
+                    "kind": "agent",
+                    "key": "agent:hold-a",
+                    "display": "Hold Agent",
+                    "project": "proj",
+                    "agent_name": "holder.agent--code",
+                    "family": "holder.agent",
+                    "pid": 123,
+                },
+                "scope": {"kind": "project", "project": "proj"},
+                "selectors": {"names": ["target.agent--code"]},
+                "created_at": 1767225600.0,
+                "expires_at": 1767227400.0,
+            }
+        ],
+        "records": [],
+        "candidate": held_waiter,
+        "now": "2026-01-01T00:21:00Z",
+        "deference_seconds_per_step": 0,
+        "deference_max_seconds": 0,
+        "feature_flags": ["queue_capacity_budget"],
+    }
+    try:
+        held_snapshot = module.runner_capacity_snapshot(held_request)
+    except Exception as exc:
+        _error(
+            f"hold-barrier request is unsupported by runner_capacity_snapshot: {exc}"
+        )
+        return False
+    if not isinstance(held_snapshot, dict):
+        _error("hold-barrier probe returned a non-dict payload")
+        return False
+    held_decision = held_snapshot.get("candidate_decision")
+    if not isinstance(held_decision, dict):
+        _error("hold-barrier probe did not return candidate_decision")
+        return False
+    held_blockers = held_decision.get("blockers")
+    if not isinstance(held_blockers, list) or not held_blockers:
+        _error(f"hold-barrier probe returned no blockers: got {held_decision!r}")
+        return False
+    first_blocker = held_blockers[0]
+    if not isinstance(first_blocker, dict):
+        _error(f"hold-barrier probe returned malformed blocker: got {held_blockers!r}")
+        return False
+    if (
+        held_decision.get("decision") != "blocked"
+        or first_blocker.get("code") != "hold-barrier"
+        or first_blocker.get("held_by") != "agent:hold-a"
+    ):
+        _error(
+            "hold-barrier probe did not block with armer metadata: "
+            f"got {held_decision!r}"
+        )
+        return False
     return True
 
 

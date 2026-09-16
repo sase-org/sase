@@ -16,6 +16,7 @@ from sase.agent.status_buckets import (
     status_bucket_for_values,
 )
 from sase.config.core import get_max_running_agents
+from sase.core.agent_hold_facade import active_agent_hold_records
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
@@ -188,6 +189,7 @@ def _runner_capacity_snapshot_from_listing(
         snapshot.records,
         lambda record: record.artifact_dir in live_dirs,
         effective_limit=float(get_max_running_agents()),
+        active_holds=active_agent_hold_records(snapshot.records),
     )
 
 
