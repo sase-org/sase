@@ -145,7 +145,7 @@ print(f"{label}: version inventory assertions passed ({len(packages)} packages)"
 PY
 }
 
-assert_chop_inventory() {
+assert_job_inventory() {
     local list_json="$1"
     local doctor_json="$2"
     local label="$3"
@@ -165,26 +165,26 @@ with open(doctor_path, encoding="utf-8") as handle:
 def norm(value: object) -> str:
     return str(value or "").lower().replace("_", "-")
 
-chops = list_payload.get("chops", {})
-available_chops = {
-    norm(chop.get("name"))
-    for chop in chops.get("available", [])
-    if isinstance(chop, dict)
+jobs = list_payload.get("jobs", {})
+available_jobs = {
+    norm(job.get("name"))
+    for job in jobs.get("available", [])
+    if isinstance(job, dict)
 }
 errors: list[str] = []
 
 if telegram_expected == "1":
-    telegram_chops = {"tg-inbound", "tg-outbound"}
-    if not telegram_chops.issubset(available_chops):
-        missing = ", ".join(sorted(telegram_chops - available_chops))
-        errors.append(f"{label}: missing Telegram chop script(s): {missing}")
+    telegram_jobs = {"sase-job-tg-inbound", "sase-job-tg-outbound"}
+    if not telegram_jobs.issubset(available_jobs):
+        missing = ", ".join(sorted(telegram_jobs - available_jobs))
+        errors.append(f"{label}: missing Telegram job script(s): {missing}")
 
 if doctor_payload.get("status") == "ERROR":
-    errors.append(f"{label}: chop doctor status is ERROR")
+    errors.append(f"{label}: job doctor status is ERROR")
 for check in doctor_payload.get("checks", []):
     if check.get("status") == "ERROR":
         errors.append(
-            f"{label}: chop doctor check {check.get('id')} failed: "
+            f"{label}: job doctor check {check.get('id')} failed: "
             f"{check.get('summary')}"
         )
 
@@ -192,8 +192,8 @@ if errors:
     raise SystemExit("\n".join(errors))
 
 print(
-    f"{label}: chop inventory assertions passed "
-    f"({len(chops.get('configured', []))} configured chop(s))"
+    f"{label}: job inventory assertions passed "
+    f"({len(jobs.get('configured', []))} configured job(s))"
 )
 PY
 }
@@ -277,7 +277,7 @@ tool_python() {
     printf '%s\n' "$tool_dir/sase/bin/python"
 }
 
-chop_checks_for() {
+job_checks_for() {
     local sase_cmd="$1"
     local label="$2"
     local telegram_expected="0"
@@ -285,11 +285,11 @@ chop_checks_for() {
         telegram_expected="1"
     fi
 
-    capture_json "${label}-chop-list.json" "$sase_cmd" axe chop list -a -j
+    capture_json "${label}-job-list.json" "$sase_cmd" axe job list -a -j
     local list_json="$LAST_JSON"
-    capture_json_lenient "${label}-chop-doctor.json" "$sase_cmd" axe chop doctor -j
+    capture_json_lenient "${label}-job-doctor.json" "$sase_cmd" axe job doctor -j
     local doctor_json="$LAST_JSON"
-    assert_chop_inventory "$list_json" "$doctor_json" "$label" "$telegram_expected"
+    assert_job_inventory "$list_json" "$doctor_json" "$label" "$telegram_expected"
 }
 
 version_and_core_checks_for() {
@@ -322,7 +322,7 @@ TOOL_PYTHON="$(tool_python)"
 
 section "uv tool install flavor"
 version_and_core_checks_for "sase" "$TOOL_PYTHON" "uv-tool"
-chop_checks_for "sase" "uv-tool"
+job_checks_for "sase" "uv-tool"
 
 section "Top-level doctor"
 capture_json_lenient "doctor.json" sase doctor -j
@@ -365,7 +365,7 @@ if [ -n "${SASE_TELEGRAM_SPEC:-}" ]; then
 fi
 run uv pip install --python "$PIP_ENV/bin/python" --refresh "${pip_specs[@]}"
 version_and_core_checks_for "$PIP_ENV/bin/sase" "$PIP_ENV/bin/python" "uv-pip"
-chop_checks_for "$PIP_ENV/bin/sase" "uv-pip"
+job_checks_for "$PIP_ENV/bin/sase" "uv-pip"
 
 section "Result"
 printf 'PASS: PyPI smoke checks completed successfully.\n'

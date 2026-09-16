@@ -288,7 +288,7 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
 
     # --- axe start ---
     axe_start_parser = axe_subparsers.add_parser(
-        "start", help="Start the axe orchestrator (spawns all lumberjacks)"
+        "start", help="Start the axe orchestrator (spawns all routines)"
     )
     axe_start_parser.add_argument(
         "-H",

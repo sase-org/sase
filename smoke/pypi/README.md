@@ -28,8 +28,7 @@ The automated check covers:
 - `sase version -j`, including `sase` and `sase-core-rs`.
 - `import sase_core_rs` inside the tool venv.
 - `sase version -j` discovery of `sase-github` and `sase-telegram` plugin packages, plus
-  `sase axe chop list -j` and `sase axe chop doctor -j` for `sase-telegram` chop
-  scripts.
+  `sase axe job list -j` and `sase axe job doctor -j` for `sase-telegram` job scripts.
 - `sase doctor -j` with warnings tolerated and hard errors rejected.
 - A scratch git repository using provider-independent CLI flows: help, xprompt list,
   config dump, and beads.
