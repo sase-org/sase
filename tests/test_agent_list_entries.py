@@ -42,6 +42,8 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
                 queue_weight=0.25,
                 queue_weight_explicit=True,
                 slot_requested_at="2026-07-12T12:00:00Z",
+                held_by="agent:hold-a",
+                hold_expires_at=1_700_000_300.0,
             ),
         ),
     )
@@ -88,6 +90,8 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
     assert payload["queue_weight_invalid"] is False
     assert payload["queue_weight_error"] is None
     assert payload["slot_requested_at"] == "2026-07-12T12:00:00Z"
+    assert payload["held_by"] == "agent:hold-a"
+    assert payload["hold_expires_at"] == 1_700_000_300.0
     assert payload["runner_slots_in_use"] == 0
     assert payload["runner_occupied_capacity"] == 0.75
     assert payload["runner_effective_limit"] == 1.0

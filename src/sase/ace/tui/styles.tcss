@@ -5962,6 +5962,40 @@ FeatureFlagsPane #feature-flags-pane-footer {
     text-overflow: ellipsis;
 }
 
+HoldsPane {
+    width: 100%;
+    height: 100%;
+    layout: vertical;
+}
+
+HoldsPane #holds-pane-container {
+    width: 100%;
+    height: 100%;
+}
+
+HoldsPane #holds-pane-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
+HoldsPane #holds-pane-list {
+    width: 100%;
+    height: 1fr;
+    border: solid $secondary;
+    scrollbar-gutter: stable;
+}
+
+HoldsPane #holds-pane-footer {
+    text-align: center;
+    color: $text-muted;
+    height: auto;
+    margin-top: 1;
+    border-top: solid $secondary;
+    padding-top: 1;
+    text-wrap: nowrap;
+    text-overflow: ellipsis;
+}
+
 /* ===== Snippets Panel Styling ===== */
 
 SnippetsPane {
@@ -7663,7 +7697,8 @@ ConfigHubPane #config-hub-empty {
 ConfigHubPane MemoryPane,
 ConfigHubPane SnippetsPane,
 ConfigHubPane XPromptBrowserPane,
-ConfigHubPane ConfigPane {
+ConfigHubPane ConfigPane,
+ConfigHubPane HoldsPane {
     width: 100%;
     height: 100%;
 }
@@ -7684,7 +7719,8 @@ ConfigHubPane ConfigPane.-embedded #config-pane-title {
 
 ConfigHubPane #memory-panel-container,
 ConfigHubPane #snippets-panel-container,
-ConfigHubPane #feature-flags-pane-container {
+ConfigHubPane #feature-flags-pane-container,
+ConfigHubPane #holds-pane-container {
     width: 100%;
     height: 100%;
     max-width: 100%;

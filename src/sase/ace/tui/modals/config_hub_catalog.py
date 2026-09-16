@@ -102,6 +102,14 @@ def _launch_factory(hub: ConfigHubPane) -> Widget:
     return pane
 
 
+def _holds_factory(hub: ConfigHubPane) -> Widget:
+    from .holds_pane import HoldsPane
+
+    pane = HoldsPane(host=hub, id="holds")
+    pane.add_class("-embedded")
+    return pane
+
+
 def _misc_factory(hub: ConfigHubPane) -> Widget:
     from .config_pane import ConfigPane
 
@@ -148,6 +156,15 @@ CONFIG_SUBTAB_SPECS: tuple[ConfigSubTabSpec, ...] = (
         "Review feature rollouts, effective state, provenance, and saved overrides.",
         "Control feature rollouts and saved overrides.",
         _flags_factory,
+    ),
+    ConfigSubTabSpec(
+        "holds",
+        "Holds",
+        "Holds",
+        "Hold",
+        "List active agent holds with their selectors and expiry, release one.",
+        "List active agent holds and release one.",
+        _holds_factory,
     ),
     ConfigSubTabSpec(
         "launch",

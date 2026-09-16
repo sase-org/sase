@@ -21,6 +21,7 @@ from typing import Any
 
 from sase.agent.names import is_process_alive
 from sase.axe.run_agent_wait_markers import (
+    hold_marker_fields,
     queue_capacity_marker_fields,
     read_json_dict,
     remove_waiting_marker,
@@ -32,6 +33,7 @@ from sase.axe.run_agent_wait_slot_candidate import (
     candidate_scan_queue_weight_error,
     decision_blocker_message,
     enrich_candidate_from_records,
+    hold_deadlock_armer_record,
     park_for_unavailable_limit,
     publish_claim_ownership,
     require_candidate_decision,
@@ -298,6 +300,13 @@ def _try_claim_runner_slot(
             entered_deference = False
             deference_window = 0.0
             blocker_codes = candidate_blocker_codes(decision.get("blockers"))
+            _check_hold_deadlocks(
+                artifacts_dir=artifacts_dir,
+                candidate=candidate,
+                blockers=decision.get("blockers"),
+                active_holds=active_holds,
+                records=records,
+            )
             if "deference-window" in blocker_codes:
                 deference_window = deference_window_seconds(
                     priority,
@@ -314,6 +323,8 @@ def _try_claim_runner_slot(
                 marker.pop("eligible_since", None)
             else:
                 marker["eligible_since"] = eligible_since
+            marker.pop("held_by", None)
+            marker.pop("hold_expires_at", None)
             marker.update(
                 {
                     "patch_name": cl_name,
@@ -328,6 +339,7 @@ def _try_claim_runner_slot(
                     "queue_weight": queue_weight,
                     "queue_weight_explicit": queue_weight_explicit,
                     "slot_requested_at": requested_at,
+                    **hold_marker_fields(decision.get("blockers")),
                 }
             )
             parked = waiting_data is None or "slot_requested_at" not in waiting_data
@@ -340,6 +352,88 @@ def _try_claim_runner_slot(
             return None, parked
         finally:
             fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _notify_hold_deadlock(
+    *,
+    artifacts_dir: str,
+    candidate_agent_name: str | None,
+    held_by: str,
+    armer_record: AgentArtifactRecordWire,
+) -> None:
+    """Upsert a deduped notification for a candidate/armer mutual hold block."""
+    from uuid import uuid4
+
+    from sase.core.time import get_timezone
+    from sase.notifications.models import Notification, normalize_notification_tags
+    from sase.notifications.store import upsert_notification
+
+    armer_meta = armer_record.agent_meta
+    armer_label = (armer_meta.name if armer_meta is not None else None) or held_by
+    timestamp = datetime.now(get_timezone()).isoformat()
+    note = (
+        f"Held by {armer_label} ({held_by}), which is itself pre-run and "
+        f"waiting on {candidate_agent_name or artifacts_dir}"
+    )
+    notification = Notification(
+        id=str(uuid4()),
+        timestamp=timestamp,
+        sender="runner_slot_admission",
+        icon="!",
+        color="#D14343",
+        notes=[
+            "Hold deadlock: armer and candidate are blocking each other",
+            f"Candidate: {candidate_agent_name or artifacts_dir}",
+            note,
+            "The hold's TTL remains the forward-progress guarantee; release "
+            "the hold explicitly or kill one side to resolve sooner.",
+        ],
+        files=[artifacts_dir, armer_record.artifact_dir],
+        tags=normalize_notification_tags(["hold", "deadlock", "blocked"]),
+        action_data={
+            "candidate_artifact_dir": artifacts_dir,
+            "armer_key": held_by,
+            "armer_artifact_dir": armer_record.artifact_dir,
+        },
+        dedup_key=f"runner_slot:hold-deadlock:{artifacts_dir}:{held_by}",
+    )
+    upsert_notification(
+        notification,
+        plus_one_note="Still deadlocked",
+        plus_one_timestamp=timestamp,
+    )
+
+
+def _check_hold_deadlocks(
+    *,
+    artifacts_dir: str,
+    candidate: dict[str, Any],
+    blockers: object,
+    active_holds: list[dict[str, Any]],
+    records: list[AgentArtifactRecordWire],
+) -> None:
+    if not isinstance(blockers, list):
+        return
+    candidate_agent_name = candidate.get("agent_name")
+    for blocker in blockers:
+        if not isinstance(blocker, dict) or blocker.get("code") != "hold-barrier":
+            continue
+        held_by = blocker.get("held_by")
+        if not isinstance(held_by, str) or not held_by:
+            continue
+        armer_record = hold_deadlock_armer_record(
+            held_by=held_by,
+            candidate_agent_name=candidate_agent_name,
+            active_holds=active_holds,
+            records=records,
+        )
+        if armer_record is not None:
+            _notify_hold_deadlock(
+                artifacts_dir=artifacts_dir,
+                candidate_agent_name=candidate_agent_name,
+                held_by=held_by,
+                armer_record=armer_record,
+            )
 
 
 def try_claim_runner_slot_without_parking(

@@ -429,6 +429,8 @@ def _wait_info(
         queue_weight_invalid=queue_weight_invalid,
         queue_weight_error=queue_weight_error,
         slot_requested_at=(waiting.slot_requested_at if waiting is not None else None),
+        held_by=(waiting.held_by if waiting is not None else None),
+        hold_expires_at=(waiting.hold_expires_at if waiting is not None else None),
     )
 
 

@@ -247,6 +247,8 @@ def enrich_agent_from_meta_wire(
             agent.queue_weight_invalid = waiting.queue_weight_invalid
             agent.queue_weight_error = waiting.queue_weight_error
         agent.slot_requested_at = waiting.slot_requested_at
+        agent.held_by = waiting.held_by
+        agent.hold_expires_at = waiting.hold_expires_at
 
     if agent.wait_duration is None and meta.wait_duration is not None:
         agent.wait_duration = meta.wait_duration

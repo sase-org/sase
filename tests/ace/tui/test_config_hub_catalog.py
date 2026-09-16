@@ -45,6 +45,10 @@ _REVIEWED_DESCRIPTIONS: dict[str, tuple[str, str]] = {
         "Review feature rollouts, effective state, provenance, and saved overrides.",
         "Control feature rollouts and saved overrides.",
     ),
+    "holds": (
+        "List active agent holds with their selectors and expiry, release one.",
+        "List active agent holds and release one.",
+    ),
     "launch": (
         "Tune model routing, reasoning effort, runner limits, and launch defaults.",
         "Tune model routing, effort, and launch limits.",
@@ -87,6 +91,7 @@ def test_registered_catalog_is_alphabetized_with_all_first() -> None:
     assert SESSION_SUBTAB_ORDER == (
         "misc",
         "flags",
+        "holds",
         "launch",
         "memory",
         "snippets",
@@ -95,6 +100,7 @@ def test_registered_catalog_is_alphabetized_with_all_first() -> None:
     assert CONFIG_SUBTAB_ORDER == SESSION_SUBTAB_ORDER
     assert CONFIG_SUBTAB_ORDER_WITHOUT_FLAGS == (
         "misc",
+        "holds",
         "launch",
         "memory",
         "snippets",
@@ -115,6 +121,7 @@ def test_config_subtab_order_includes_flags_when_rollout_is_on() -> None:
             "04",
             "05",
             "06",
+            "07",
         )
         misc_spec = next(spec for spec in config_subtab_specs() if spec.id == "misc")
         assert misc_spec.label == "All"
@@ -167,6 +174,7 @@ def test_active_specs_keep_catalog_derived_description_order() -> None:
             "03",
             "04",
             "05",
+            "06",
         )
 
 
@@ -201,10 +209,12 @@ def test_config_subtab_order_omits_flags_when_rollout_is_off() -> None:
             "03",
             "04",
             "05",
+            "06",
         )
         assert validated_config_subtab("flags") is None
         assert validated_config_subtab("memory") == "memory"
         assert validated_config_subtab("launch") == "launch"
+        assert validated_config_subtab("holds") == "holds"
 
 
 def test_config_catalog_does_not_resolve_flags_at_import() -> None:

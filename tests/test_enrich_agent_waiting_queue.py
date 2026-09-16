@@ -76,6 +76,8 @@ def test_runner_slot_fields_from_waiting_json(tmp_path: Path) -> None:
                 "wait_priority": 3,
                 "wait_priority_explicit": True,
                 "slot_requested_at": "2026-07-12T12:00:00Z",
+                "held_by": "agent:hold-a",
+                "hold_expires_at": 1_700_000_300.0,
             }
         )
     )
@@ -88,6 +90,8 @@ def test_runner_slot_fields_from_waiting_json(tmp_path: Path) -> None:
     assert agent.wait_priority == 3
     assert agent.wait_priority_explicit is True
     assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
+    assert agent.held_by == "agent:hold-a"
+    assert agent.hold_expires_at == 1_700_000_300.0
 
 
 def test_queue_weight_fields_match_filesystem_and_wire(
@@ -222,6 +226,8 @@ def test_runner_slot_fields_from_waiting_marker_wire() -> None:
             wait_priority=4,
             wait_priority_explicit=True,
             slot_requested_at="2026-07-12T12:00:00Z",
+            held_by="agent:hold-a",
+            hold_expires_at=1_700_000_300.0,
         ),
         None,
     )
@@ -231,6 +237,8 @@ def test_runner_slot_fields_from_waiting_marker_wire() -> None:
     assert agent.wait_priority == 4
     assert agent.wait_priority_explicit is True
     assert agent.slot_requested_at == "2026-07-12T12:00:00Z"
+    assert agent.held_by == "agent:hold-a"
+    assert agent.hold_expires_at == 1_700_000_300.0
 
 
 def test_legacy_wait_priority_marker_uses_default_value_heuristic() -> None:

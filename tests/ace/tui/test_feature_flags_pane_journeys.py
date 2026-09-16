@@ -120,6 +120,7 @@ async def test_disabling_rollout_flag_omits_flags_from_post_restart_catalog() ->
         assert "flags" not in config_subtab_order()
         assert tuple(tab.id for tab in config_panel_tabs()) == (
             "misc",
+            "holds",
             "launch",
             "memory",
             "snippets",
@@ -153,6 +154,7 @@ async def test_config_catalog_omits_flags_when_rollout_is_off() -> None:
                 "03",
                 "04",
                 "05",
+                "06",
             )
 
 

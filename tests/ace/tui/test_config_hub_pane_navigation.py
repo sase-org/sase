@@ -92,10 +92,10 @@ async def test_config_number_prefix_selects_alphabetic_subtabs(
         assert hub._pending_subtab_select is False
         _assert_hub_caption(hub, "flags")
 
-        await pilot.press("0", "4")
+        await pilot.press("0", "5")
         await wait_for(pilot, lambda: hub._active_subtab == "memory")
         _assert_hub_caption(hub, "memory")
-        await pilot.press("0", "6")
+        await pilot.press("0", "7")
         await wait_for(pilot, lambda: hub._active_subtab == "xprompts")
 
         assert calls == ["xprompts", "flags", "memory"]
@@ -117,7 +117,7 @@ async def test_config_prefix_repeats_out_of_range_and_non_digit_cancel(
         hub = modal.query_one("#config", ConfigHubPane)
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
 
-        await pilot.press("0", "0", "3")
+        await pilot.press("0", "0", "4")
         await wait_for(pilot, lambda: hub._active_subtab == "launch")
         assert hub._pending_subtab_select is False
 
@@ -149,7 +149,7 @@ async def test_configured_config_prefix_selects_subtab(
         hub = modal.query_one("#config", ConfigHubPane)
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
 
-        await pilot.press("f4", "5")
+        await pilot.press("f4", "6")
         await wait_for(pilot, lambda: hub._active_subtab == "snippets")
 
         assert hub._pending_subtab_select is False

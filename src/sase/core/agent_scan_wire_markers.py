@@ -276,6 +276,8 @@ class WaitingMarkerWire:
     queue_weight_error: str | None = None
     slot_requested_at: str | None = None
     eligible_since: str | None = None
+    held_by: str | None = None
+    hold_expires_at: float | None = None
 
 
 @dataclass(frozen=True)

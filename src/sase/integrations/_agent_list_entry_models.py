@@ -44,6 +44,8 @@ class AgentWaitInfo:
     runner_admission_limit: float | None = None
     runner_capacity_blockers: tuple[dict[str, object], ...] = ()
     runner_slot_holders: tuple[str, ...] = ()
+    held_by: str | None = None
+    hold_expires_at: float | None = None
 
     @property
     def has_wait(self) -> bool:

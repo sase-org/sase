@@ -389,6 +389,15 @@ def enrich_agent_from_meta(
                 raw_requested_at = waiting_data.get("slot_requested_at")
                 if isinstance(raw_requested_at, str) and raw_requested_at:
                     agent.slot_requested_at = raw_requested_at
+                raw_held_by = waiting_data.get("held_by")
+                agent.held_by = raw_held_by if isinstance(raw_held_by, str) else None
+                raw_hold_expires_at = waiting_data.get("hold_expires_at")
+                agent.hold_expires_at = (
+                    float(raw_hold_expires_at)
+                    if isinstance(raw_hold_expires_at, (int, float))
+                    and not isinstance(raw_hold_expires_at, bool)
+                    else None
+                )
         except (json.JSONDecodeError, OSError):
             pass
 

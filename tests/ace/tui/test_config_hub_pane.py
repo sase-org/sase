@@ -52,7 +52,7 @@ def test_numbered_config_strip_fits_each_layout_tier(width: int, tier: str) -> N
     assert [
         rendered.plain[start:end].split(maxsplit=1)[0]
         for start, end in strip._tab_ranges.values()
-    ] == [f"{number:02d}" for number in range(1, 7)]
+    ] == [f"{number:02d}" for number in range(1, 8)]
 
 
 async def test_opening_config_constructs_only_the_active_child(
@@ -131,7 +131,7 @@ async def test_failed_child_mount_leaves_previous_child_visible(
         await wait_for(pilot, lambda: "xprompts" in hub._panes)
         before = _caption_text(hub).plain
 
-        await pilot.press("0", "3")
+        await pilot.press("0", "4")
         await pilot.pause()
 
         assert hub._active_subtab == "xprompts"

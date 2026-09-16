@@ -338,6 +338,8 @@ class AgentState:
     queue_weight_invalid: bool = False
     queue_weight_error: str | None = None
     slot_requested_at: str | None = None
+    held_by: str | None = None
+    hold_expires_at: float | None = None
 
     # Snapshot-derived display context. These values are recomputed from the
     # already-loaded Agents refresh payload after full and artifact-delta

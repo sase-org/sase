@@ -136,3 +136,31 @@ def test_parked_marker_edit_overrides_original_directive(tmp_path: Path) -> None
     assert result == "started"
     assert not parked
     get_config.assert_called_once_with()
+
+
+def test_hold_marker_fields_extracts_the_hold_barrier_blocker() -> None:
+    blockers = [
+        {"code": "insufficient-capacity", "message": "full"},
+        {
+            "code": "hold-barrier",
+            "message": "held by agent:hold-a (expires in 5m)",
+            "held_by": "agent:hold-a",
+            "hold_expires_at": 1_700_000_300.0,
+        },
+    ]
+
+    assert run_agent_wait_markers.hold_marker_fields(blockers) == {
+        "held_by": "agent:hold-a",
+        "hold_expires_at": 1_700_000_300.0,
+    }
+
+
+def test_hold_marker_fields_is_empty_without_a_hold_barrier_blocker() -> None:
+    assert (
+        run_agent_wait_markers.hold_marker_fields(
+            [{"code": "insufficient-capacity", "message": "full"}]
+        )
+        == {}
+    )
+    assert run_agent_wait_markers.hold_marker_fields(None) == {}
+    assert run_agent_wait_markers.hold_marker_fields([{"code": "hold-barrier"}]) == {}

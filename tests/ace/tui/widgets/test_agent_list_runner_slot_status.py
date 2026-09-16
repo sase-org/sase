@@ -113,6 +113,28 @@ class TestRunnerSlotWaitRendering:
         assert "▶" not in left.plain
         assert "p20" not in left.plain
 
+    def test_held_queued_row_renders_held_by_armer(self) -> None:
+        agent = make_agent(
+            status="QUEUED",
+            slot_requested_at="2026-07-12T12:00:00Z",
+            held_by="agent:hold-a",
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "test_cl (QUEUED held by agent:hold-a)" in left.plain
+        assert _styles_covering(left, "held by agent:hold-a") == {"dim #5F87FF"}
+
+    def test_unheld_queued_row_omits_held_by(self) -> None:
+        agent = make_agent(
+            status="QUEUED",
+            slot_requested_at="2026-07-12T12:00:00Z",
+        )
+
+        left, _, _ = format_agent_option(agent, 0, is_selected=False)
+
+        assert "held by" not in left.plain
+
     def test_explicit_drain_barrier_is_queued_and_unambiguous(self) -> None:
         agent = make_agent(
             status="QUEUED",

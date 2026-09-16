@@ -42,6 +42,7 @@ def record(
         timestamp=path.name,
         agent_meta=AgentMetaWire(
             pid=int(meta["pid"]),
+            name=meta.get("name") if isinstance(meta.get("name"), str) else None,
             process_identity=(
                 meta["process_identity"]
                 if isinstance(meta.get("process_identity"), str)

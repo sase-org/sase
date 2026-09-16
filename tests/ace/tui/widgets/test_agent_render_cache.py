@@ -144,6 +144,20 @@ def test_cached_format_agent_option_invalidates_on_unread_change() -> None:
     assert parts_after[1].plain == "✅"
 
 
+def test_cached_format_agent_option_invalidates_on_held_by_change() -> None:
+    cache = AgentRenderCache()
+    agent = _agent(status="QUEUED")
+    agent.slot_requested_at = "2026-04-25T14:30:00"
+
+    unheld = cached_format_agent_option(cache, agent, 0, is_selected=False, now=None)
+    agent.held_by = "agent:hold-a"
+    held = cached_format_agent_option(cache, agent, 0, is_selected=False, now=None)
+
+    assert unheld[0] is not held[0]
+    assert "held by" not in unheld[0].plain
+    assert "held by agent:hold-a" in held[0].plain
+
+
 def test_cached_format_agent_option_invalidates_on_missing_wait_target_change() -> None:
     cache = AgentRenderCache()
     agent = _agent(status="WAITING")

@@ -81,6 +81,74 @@ def park_for_unavailable_limit(
     return None, parked
 
 
+def hold_deadlock_armer_record(
+    *,
+    held_by: str,
+    candidate_agent_name: str | None,
+    active_holds: list[dict[str, Any]],
+    records: list[AgentArtifactRecordWire],
+) -> AgentArtifactRecordWire | None:
+    """Return the armer's own record when the hold is a mutual deadlock.
+
+    A hold blocks *this* candidate; this returns the armer's scanned
+    record only when the armer is itself pre-run (WAITING/QUEUED, never a
+    RUNNING or done row -- those have left admission for good) and is
+    blocked on the very candidate it holds, directly or transitively
+    through its own ``%wait`` set. The TTL is still the forward-progress
+    guarantee; this only surfaces the deadlock, it never breaks it.
+    """
+    if not candidate_agent_name:
+        return None
+    hold = next(
+        (
+            hold
+            for hold in active_holds
+            if isinstance(hold.get("armer"), Mapping)
+            and hold["armer"].get("key") == held_by
+        ),
+        None,
+    )
+    if hold is None:
+        return None
+    armer = hold.get("armer")
+    if not isinstance(armer, Mapping) or armer.get("kind") != "agent":
+        return None
+    marker_path = armer.get("done_marker_path")
+    if not isinstance(marker_path, str) or not marker_path:
+        return None
+    armer_dir = str(Path(marker_path).parent)
+    by_dir = {record.artifact_dir: record for record in records}
+    armer_record = by_dir.get(armer_dir)
+    if armer_record is None or armer_record.running is not None:
+        return None
+    if armer_record.has_done_marker:
+        return None
+    by_name = {
+        record.agent_meta.name: record
+        for record in records
+        if record.agent_meta is not None and record.agent_meta.name
+    }
+    seen: set[str] = {armer_dir}
+    current: AgentArtifactRecordWire | None = armer_record
+    while current is not None and current.waiting is not None:
+        waiting_for = current.waiting.waiting_for
+        if candidate_agent_name in waiting_for:
+            return armer_record
+        next_record = next(
+            (
+                by_name[name]
+                for name in waiting_for
+                if name in by_name and by_name[name].artifact_dir not in seen
+            ),
+            None,
+        )
+        if next_record is None:
+            return None
+        seen.add(next_record.artifact_dir)
+        current = next_record
+    return None
+
+
 def candidate_blocker_codes(blockers: object) -> set[str]:
     if not isinstance(blockers, list):
         return set()

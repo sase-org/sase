@@ -128,6 +128,11 @@ def append_agent_row_status(
             slot_label = f"{slot_label} p{wait_agent.wait_priority}"
         if slot_label:
             text.append(slot_label, style=f"dim {QUEUED_STATUS_COLOR}")
+        if wait_agent.held_by:
+            text.append(
+                f" held by {wait_agent.held_by}",
+                style=f"dim {QUEUED_STATUS_COLOR}",
+            )
     elif agent.status == "WAITING":
         text.append(display_status, style="bold #AF87FF")  # Amethyst
         wait_agent = wait_display_agent(agent)

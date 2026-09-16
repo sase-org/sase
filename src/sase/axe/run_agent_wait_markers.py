@@ -45,6 +45,31 @@ def queue_capacity_marker_fields(
     return fields
 
 
+def hold_marker_fields(blockers: object) -> dict[str, Any]:
+    """Return ``waiting.json`` hold fields for the active hold-barrier blocker.
+
+    ``held_by``/``hold_expires_at`` are written by the candidate's own runner
+    (same writer, same file) from the decision blockers Rust already
+    evaluated, so a fresh poll self-heals a stale value once the hold
+    releases: an empty dict clears both fields.
+    """
+    if isinstance(blockers, list):
+        for blocker in blockers:
+            if not isinstance(blocker, dict) or blocker.get("code") != "hold-barrier":
+                continue
+            fields: dict[str, Any] = {}
+            held_by = blocker.get("held_by")
+            if isinstance(held_by, str) and held_by:
+                fields["held_by"] = held_by
+            hold_expires_at = blocker.get("hold_expires_at")
+            if isinstance(hold_expires_at, (int, float)) and not isinstance(
+                hold_expires_at, bool
+            ):
+                fields["hold_expires_at"] = hold_expires_at
+            return fields
+    return {}
+
+
 def write_waiting_marker(
     artifacts_dir: str,
     waiting_data: dict[str, Any],
