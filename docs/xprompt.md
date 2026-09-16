@@ -1489,15 +1489,15 @@ agents such as `foo--0`, `foo--plan`, and `foo--code` share the pure family cont
 distinct grouping concept. See [Agent Clans, Families, and Tribes](agent_families.md)
 for the full family model.
 
-### Scheduled Work Uses Chops
+### Scheduled Work Uses Jobs
 
-Scheduled automation is no longer implemented by chop-owned xprompt workflows. The
-former `refresh_docs`, `audit_recent_bugs`, `audit_recent_improvements`, and `fix_just`
+Scheduled automation is no longer implemented by job-owned xprompt workflows. The former
+`refresh_docs`, `audit_recent_bugs`, `audit_recent_improvements`, and `fix_just`
 workflows were retired. Axe now runs scripts that may emit structured launch proposals;
 shared triggers, guards, checkpoints, dedupe, and target fan-out stay in the runner.
 Proposal prompts may use inline `#xprompt` templates, but standalone `#!workflow`
 references are rejected. See [Axe](axe.md#structured-results-and-launch-proposals) for
-the script/result contract and the builtin documentation refresh chop.
+the script/result contract and the builtin documentation refresh job.
 
 ## Config-Based XPrompts
 
@@ -1774,7 +1774,7 @@ not while waits, the condition, or the workspace lease are pending. The child's
 environment inherits the detached supervisor's own ordinary tool environment — `PATH`,
 `HOME`, locale, and toolchain configuration — rather than a private hermetic one, so
 user-installed tools such as `just`, `uv`, and Cargo resolve exactly as they do outside
-the proc. Parent agent, chop, and artifact identity are scrubbed from that inherited
+the proc. Parent agent, job, and artifact identity are scrubbed from that inherited
 environment, along with any stale `SASE_PROC_*` sidecar left over from an earlier proc,
 before the SASE interpreter directory is prefixed onto `PATH` and only the current
 documented proc context (`SASE_PROC_ID`, `SASE_PROC_LOG_PATH`, `SASE_PROC_SESSION_ID`,

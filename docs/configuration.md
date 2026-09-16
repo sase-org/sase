@@ -233,7 +233,7 @@ self-disable recovery.
   history with them. `'` stays typable while the filter or path input holds focus. The
   detail pane shows the type, default, effective value, and the full provenance stack
   with the winning layer marked. Structured values (object maps and arrays of objects,
-  such as `axe.lumberjacks` or [`repos`](#repos)) render as a multi-line,
+  such as `axe.routines` or [`repos`](#repos)) render as a multi-line,
   syntax-highlighted YAML block instead of a one-line JSON blob, while scalars and short
   flat lists keep their compact inline form.
 - **Edit** (`↵` or `e` on a field): a typed editor is generated from the schema — a
@@ -276,7 +276,7 @@ edits a built-in or plugin default (those layers are read-only).
 ### Logs tab
 
 The Logs tab lists each log source and a colorized tail of the selected file. After a
-launch or chop failure, sase's TUI toasts a leader chord (`,L` by default) that opens
+launch or job failure, sase's TUI toasts a leader chord (`,L` by default) that opens
 this tab on that failure's source, highlights the matching header line, and scrolls the
 detail pane to it. The jump target is session-scoped: it is the most recent error toast
 in this sase's TUI process, not a durable pointer, and it degrades to the ordinary tail
@@ -702,11 +702,11 @@ ace:
       icon: "⌂"
       color: "#87D7FF"
       description: "Agents with no assigned tribe."
-    chop:
+    job:
       icon: "†"
       color: "#FFAF5F"
       initially_expanded: false
-      description: "Scheduled AXE chop automation."
+      description: "Scheduled AXE job automation."
   updates:
     startup_toast: true # show SASE/plugin/agent-CLI updates on startup
     startup_toast_max_commits: 20 # total incoming subjects across repositories
@@ -890,8 +890,8 @@ to carry a `description`; the other fields are optional:
 | `description`        | str  | _required_ | One-line explanation of the tribe, 1-160 characters. Shown as an unlabeled row beneath the header fields (`Name`/`Status`/`Composition`/`Runtime`/`Fold`) when that tribe's Agents-tab panel is selected. |
 
 The bundled defaults use ⌂ in sky blue for `default`, ▲ in lavender-purple for `epic`,
-and † in amber-orange for `chop`. They also use ◆ for `pinned` and ◉ for `review`, whose
-identities retain sase's TUI gold fallback; `chop` starts collapsed. Because config
+and † in amber-orange for `job`. They also use ◆ for `pinned` and ◉ for `review`, whose
+identities retain sase's TUI gold fallback; `job` starts collapsed. Because config
 entries merge deeply, setting `color: ""` explicitly clears an inherited color without
 replacing that tribe's other defaults — overriding only `icon` or `color` on a bundled
 tribe still inherits its bundled `description`. A manual panel expand/collapse lasts
@@ -899,7 +899,7 @@ only while that panel remains live in the current sase's TUI session. On restart
 when a tribe panel disappears and later returns, `initially_expanded` is applied again.
 
 SASE bundles display config only for the tribes its own source assigns (`default`,
-`epic`, `chop`, `pinned`, `review`); a tribe your own xprompts assign with `%tribe:` has
+`epic`, `job`, `pinned`, `review`); a tribe your own xprompts assign with `%tribe:` has
 no bundled entry, renders with sase's TUI gold fallback and no icon until you configure
 it under `ace.tribes`, and — once configured — requires a `description` like any other
 entry.
@@ -2581,14 +2581,14 @@ Source: `src/sase/default_config.yml`, `src/sase/xprompt/vcs_ref_completion.py`
 
 ### axe
 
-Configures the `sase axe` lumberjack-based daemon. The axe architecture uses an
-orchestrator that spawns multiple lumberjacks, each running a set of chops on a fixed
+Configures the `sase axe` routine-based daemon. The axe architecture uses an
+orchestrator that spawns multiple routines, each running a set of jobs on a fixed
 interval. Defaults are provided by `src/sase/default_config.yml`.
 
 The YAML below is an abridged illustration of the shipped defaults, not the whole file:
-it shows the shape of a lane and a chop and omits some lanes and chops entirely. See
-[AXE Automation](axe.md#default-lumberjacks) for the complete lane-by-lane inventory,
-and `src/sase/default_config.yml` for the literal defaults.
+it shows the shape of a lane and a job and omits some lanes and jobs entirely. See
+[AXE Automation](axe.md#default-routines) for the complete lane-by-lane inventory, and
+`src/sase/default_config.yml` for the literal defaults.
 
 ```yaml
 axe:
@@ -2596,20 +2596,20 @@ axe:
   max_agent_runners: 3 # concurrent agent runners (default: 3)
   zombie_timeout_seconds: 7200 # seconds (default: 7200 = 2 hours)
   query: "" # query filter for Patches (default: all)
-  chop_script_dirs: [] # additional directories to search for chop scripts
-  lumberjacks:
+  job_script_dirs: [] # additional directories to search for job scripts
+  routines:
     hooks:
       description: |-
         Fast lane that advances hook, mentor, and workflow lifecycle state every few seconds
 
-        Runs every five seconds with a 90-second per-chop timeout so completed work is noticed and new work starts
+        Runs every five seconds with a 90-second per-job timeout so completed work is noticed and new work starts
         promptly. Put latency-sensitive Patch lifecycle reconciliation here; slower remote polling, wait
         coordination, and maintenance belong in the other lanes.
       interval: 5
-      chop_timeout: "90s"
-      chops:
+      job_timeout: "90s"
+      jobs:
         - name: hook_checks
-          script: sase_chop_hook_checks
+          script: sase_job_hook_checks
           trigger:
             provider: fs
             max_quiet: "120s"
@@ -2625,7 +2625,7 @@ axe:
             when a runner slot is free. Honors max_hook_runners across the tick; stale fix-hook suffixes older than
             zombie_timeout_seconds become ZOMBIE, while terminal Patches may finish hooks but cannot start new ones.
         - name: mentor_checks
-          script: sase_chop_mentor_checks
+          script: sase_job_mentor_checks
           trigger:
             provider: fs
             max_quiet: "120s"
@@ -2641,7 +2641,7 @@ axe:
             launches ready profiles after their hooks finish. Mentor launches share max_agent_runners with other agent
             workflows, and review-ineligible or terminal Patches are skipped.
         - name: workflow_checks
-          script: sase_chop_workflow_checks
+          script: sase_job_workflow_checks
           trigger:
             provider: fs
             max_quiet: "120s"
@@ -2657,7 +2657,7 @@ axe:
             and launches stale workflows. New workflows share max_agent_runners and the current tick's agent-launch
             budget with mentors, so a full runner pool defers work instead of queueing it.
         - name: pending_checks_poll
-          script: sase_chop_pending_checks_poll
+          script: sase_job_pending_checks_poll
           trigger:
             provider: fs
             max_quiet: "120s"
@@ -2668,10 +2668,10 @@ axe:
             Poll background is_cl_submitted and critique_comments checks for results
 
             Scans the pending-check directory once per tick, applies completed results to matching Patches, and
-            reaps output files orphaned by killed or crashed checks. This chop only consumes background results;
+            reaps output files orphaned by killed or crashed checks. This job only consumes background results;
             pr_submitted_checks and comment_checks launch the remote checks.
         - name: comment_zombie_checks
-          script: sase_chop_comment_zombie_checks
+          script: sase_job_comment_zombie_checks
           trigger:
             provider: fs
             max_quiet: "120s"
@@ -2687,7 +2687,7 @@ axe:
             exceeds zombie_timeout_seconds. It performs no remote comment fetch; comment_checks starts those checks and
             pending_checks_poll applies their results.
         - name: suffix_transforms
-          script: sase_chop_suffix_transforms
+          script: sase_job_suffix_transforms
           trigger:
             provider: fs
             max_quiet: "120s"
@@ -2703,7 +2703,7 @@ axe:
             markers from superseded stitches, and acknowledging attention markers on terminal statuses. It only
             repairs stored suffix state and never launches hooks or agents.
         - name: orphan_cleanup
-          script: sase_chop_orphan_cleanup
+          script: sase_job_orphan_cleanup
           trigger:
             provider: fs
             max_quiet: "120s"
@@ -2721,7 +2721,7 @@ axe:
         # stale_running_cleanup keeps the default `always` trigger: dead-PID detection
         # has no filesystem proxy to watch.
         - name: stale_running_cleanup
-          script: sase_chop_stale_running_cleanup
+          script: sase_job_stale_running_cleanup
           description: |-
             Release workspace claims held by dead processes
 
@@ -2736,9 +2736,9 @@ axe:
         Put agent dependency, bead-claim, and bead-store coordination here; Patch lifecycle checks and general
         cleanup belong in their dedicated lanes.
       interval: 10
-      chops:
+      jobs:
         - name: bead_claim_checks
-          script: sase_chop_bead_claim_checks
+          script: sase_job_bead_claim_checks
           trigger:
             provider: fs
             max_quiet: "120s"
@@ -2752,7 +2752,7 @@ axe:
             claimed bead when its unpromoted owner has died. Reconciled dead records are tombstoned so later ticks avoid
             reopening their stores, while a failed project read is retried safely.
         - name: epic_launch_flush
-          script: sase_chop_epic_launch_flush
+          script: sase_job_epic_launch_flush
           run_every: "30s"
           description: |-
             Flush planner completion notifications orphaned by an unsettled epic launch
@@ -2760,7 +2760,7 @@ axe:
             Preserves deferrals while a matching detached epic-launch task is active, flushes unowned deferrals after
             a 90-second grace period with a resume command, and reaps unclaimed settle markers after one hour.
         - name: sidecar_auto_sync
-          script: sase_chop_sidecar_auto_sync
+          script: sase_job_sidecar_auto_sync
           run_every: "30s"
           timeout: "2m"
           description: |-
@@ -2774,7 +2774,7 @@ axe:
             mismatched, missing, or busy clones are left untouched and reported. Bounded work budget and persistent
             per-role backoff keep one unhealthy clone from stalling the rest.
         - name: wait_checks
-          script: sase_chop_wait_checks
+          script: sase_job_wait_checks
           trigger:
             provider: fs
             max_quiet: "120s"
@@ -2795,9 +2795,9 @@ axe:
         polling while retaining a cleanup backstop. Fast hook progression, minute-level comments, and hourly
         maintenance deliberately live elsewhere.
       interval: 300
-      chops:
+      jobs:
         - name: bead_task_triage
-          script: sase_chop_bead_task_triage
+          script: sase_job_bead_task_triage
           timeout: "2m"
           description: |-
             Raise one human gate for each ready or snoozed task bead, and for each due flag-typed task bead
@@ -2816,7 +2816,7 @@ axe:
             touching projects that are only temporarily unreadable. A gateable bead with a detached launch still
             in flight is deferred instead of re-gated.
         - name: plugins_required
-          script: sase_chop_plugins_required
+          script: sase_job_plugins_required
           timeout: "2m"
           description: |-
             Raise one human gate per project whose required plugins are missing
@@ -2828,10 +2828,10 @@ axe:
             plugin from the index unless public PyPI returns a definitive 404, in which case that plugin uses git.
             The gate stays pending when planning or the uv mutation fails, including when sase is not a uv tool
             install. Dismiss records the decision so the same missing set is not re-offered until it changes. The
-            chop cancels the gate when the set becomes satisfied. Deterministic generations in lane state prevent
+            job cancels the gate when the set becomes satisfied. Deterministic generations in lane state prevent
             duplicate notifications. Agent and non-interactive contexts still fail closed and never auto-install.
         - name: pr_submitted_checks
-          script: sase_chop_pr_submitted_checks
+          script: sase_job_pr_submitted_checks
           description: |-
             Start background is_cl_submitted checks for leaf PRs with a submitted parent
 
@@ -2839,7 +2839,7 @@ axe:
             checks whose results are collected by pending_checks_poll. A five-minute sync cache suppresses duplicate
             remote work, except that the first cycle checks eligible leaves immediately.
         - name: stale_running_cleanup
-          script: sase_chop_stale_running_cleanup
+          script: sase_job_stale_running_cleanup
           description: |-
             Backstop release of workspace claims held by dead processes
 
@@ -2854,14 +2854,14 @@ axe:
         Only remote comment-check launches belong here; pending result collection and zombie marking remain in the
         faster hooks lane.
       interval: 60
-      chops:
+      jobs:
         - name: comment_checks
-          script: sase_chop_comment_checks
+          script: sase_job_comment_checks
           description: |-
             Start background critique_comments checks for all mailed PRs
 
             Applies the axe query and starts non-blocking critique_comments checks for mailed Patches that have an
-            available workspace, then records a comment-cycle summary. The lumberjack's one-minute interval is the
+            available workspace, then records a comment-cycle summary. The routine's one-minute interval is the
             polling throttle; pending_checks_poll later consumes each background result.
     housekeeping:
       description: |-
@@ -2871,9 +2871,9 @@ axe:
         previews, and stale-backlog cleanup are useful but not latency-sensitive. Put durable maintenance that
         may scan substantial local state here, not lifecycle, dependency, or remote polling work.
       interval: 3600
-      chops:
+      jobs:
         - name: error_digest
-          script: sase_chop_error_digest
+          script: sase_job_error_digest
           description: |-
             Send a notification digest of errors from the last hour
 
@@ -2881,7 +2881,7 @@ axe:
             within the rolling one-hour window. The checkpoint advances to the newest notified timestamp, preventing
             duplicate digests while leaving unsent errors eligible after a notification failure.
         - name: managed_tmp_reap
-          script: sase_chop_managed_tmp_reap
+          script: sase_job_managed_tmp_reap
           description: |-
             Prune stale scratch under the managed SASE temp root
 
@@ -2894,7 +2894,7 @@ axe:
             Each pass removes at most 2,000 entries and de-indexes deleted agent-artifact directories, so a neglected
             root converges without blocking interactive commands.
         - name: bead_stale_cleanup
-          script: sase_chop_bead_stale_cleanup
+          script: sase_job_bead_stale_cleanup
           timeout: "2m"
           description: |-
             Sweep stale sub-threshold ready task beads into one BeadStaleCleanup gate
@@ -2907,7 +2907,7 @@ axe:
             offered on later ticks. An unchanged roster leaves the pending gate alone. The gate is
             canceled when the backlog drops below the bar.
         - name: artifact_run_prune
-          script: sase_chop_artifact_run_prune
+          script: sase_job_artifact_run_prune
           timeout: "5m"
           description: |-
             Preview old ace-run directories and empty shard cleanup
@@ -2922,46 +2922,46 @@ axe:
 
 **Top-level fields:**
 
-| Field                                    | Type         | Default    | Description                                                               |
-| ---------------------------------------- | ------------ | ---------- | ------------------------------------------------------------------------- |
-| `max_hook_runners`                       | int          | `3`        | Maximum concurrent hook runners (non-`$` hooks) across all Patches.       |
-| `max_agent_runners`                      | int          | `3`        | Maximum concurrent agent runners (agents and mentors) across all Patches. |
-| `zombie_timeout_seconds`                 | int          | `7200`     | Seconds after which a running hook or workflow is flagged as a zombie.    |
-| `query`                                  | string       | `""`       | Query string for filtering Patches (empty = all).                         |
-| `chop_script_dirs`                       | list[string] | `[]`       | Additional directories to search for external chop scripts.               |
-| `lumberjack_log_max_bytes`               | int          | `52428800` | Maximum bytes retained for each bounded lumberjack log.                   |
-| `lumberjack_log_temp_max_age_seconds`    | int          | `300`      | Minimum age before orphaned log-rotation temp files are removed.          |
-| `lumberjack_restart_backoff_max_seconds` | int          | `60`       | Maximum delay between retries for a crashing lumberjack.                  |
-| `verbose_lumberjack_diagnostics`         | bool         | `false`    | Include verbose diagnostics in chop script context JSON.                  |
-| `lumberjacks`                            | dict         | -          | Mapping of lumberjack name → config (see below).                          |
+| Field                                 | Type         | Default    | Description                                                               |
+| ------------------------------------- | ------------ | ---------- | ------------------------------------------------------------------------- |
+| `max_hook_runners`                    | int          | `3`        | Maximum concurrent hook runners (non-`$` hooks) across all Patches.       |
+| `max_agent_runners`                   | int          | `3`        | Maximum concurrent agent runners (agents and mentors) across all Patches. |
+| `zombie_timeout_seconds`              | int          | `7200`     | Seconds after which a running hook or workflow is flagged as a zombie.    |
+| `query`                               | string       | `""`       | Query string for filtering Patches (empty = all).                         |
+| `job_script_dirs`                     | list[string] | `[]`       | Additional directories to search for external job scripts.                |
+| `routine_log_max_bytes`               | int          | `52428800` | Maximum bytes retained for each bounded routine log.                      |
+| `routine_log_temp_max_age_seconds`    | int          | `300`      | Minimum age before orphaned log-rotation temp files are removed.          |
+| `routine_restart_backoff_max_seconds` | int          | `60`       | Maximum delay between retries for a crashing routine.                     |
+| `verbose_routine_diagnostics`         | bool         | `false`    | Include verbose diagnostics in job script context JSON.                   |
+| `routines`                            | dict         | -          | Mapping of routine name -> config (see below).                            |
 
-**Lumberjack fields** (per entry under `lumberjacks`):
+**Routine fields** (per entry under `routines`):
 
 | Field          | Type                    | Required | Default | Description                                                                                                        |
 | -------------- | ----------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
 | `description`  | string                  | yes      | -       | Summary line, blank line, optional body describing the lane's cadence and work.                                    |
-| `interval`     | int                     | no       | `1`     | Seconds between chop polling cycles.                                                                               |
-| `chop_timeout` | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"`.                                           |
+| `interval`     | int                     | no       | `1`     | Seconds between job polling cycles.                                                                                |
+| `job_timeout`  | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"`.                                           |
 | `wait_runners` | int                     | no       | -       | Optional runner-count condition: start a lane agent once at most this many other participating lanes are occupied. |
-| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every chop in this lumberjack.                                                            |
-| `chops`        | list[object] or map     | no       | `[]`    | Composable chop definitions (see below).                                                                           |
+| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every job in this routine.                                                                |
+| `jobs`         | list[object] or map     | no       | `[]`    | Composable job definitions (see below).                                                                            |
 
-**Chop fields** (per entry under `chops`):
+**Job fields** (per entry under `jobs`):
 
 | Field         | Type                    | Required  | Default  | Description                                                                                                     |
 | ------------- | ----------------------- | --------- | -------- | --------------------------------------------------------------------------------------------------------------- |
 | `name`        | string                  | list only | -        | Stable identity; map form uses the entry key.                                                                   |
 | `script`      | string                  | no        | `name`   | Exact executable name; no prefix is added automatically.                                                        |
 | `enabled`     | boolean                 | no        | `true`   | Soft-disable a keyed entry while retaining inherited fields.                                                    |
-| `description` | string                  | yes       | -        | Summary line, blank line, optional body describing what the chop does.                                          |
+| `description` | string                  | yes       | -        | Summary line, blank line, optional body describing what the job does.                                           |
 | `run_every`   | string                  | no        | -        | Positive compound cadence such as `"60m"`, `"1h30m"`, or `"1d"`.                                                |
-| `timeout`     | string                  | no        | -        | Per-chop duration limit. Overrides lumberjack `chop_timeout`.                                                   |
+| `timeout`     | string                  | no        | -        | Per-job duration limit. Overrides routine `job_timeout`.                                                        |
 | `env`         | dict[string, env-value] | no        | `{}`     | Literal values or `{env:}`, `{file:}`, `{pass:}` references.                                                    |
 | `inhibit_if`  | list or map             | no        | -        | `patch` / `agent_hood` / `agent_clan` / `agent_runners` guards before dispatch; `changespec` is a legacy alias. |
 | `trigger`     | string or map           | no        | `always` | `always`, `git.commits_since`, or `fs` scheduled-run trigger.                                                   |
 | `once_per`    | string or object        | no        | -        | Bounded per-proposal dedupe-key template.                                                                       |
 | `for_each`    | list or source          | no        | -        | Literal targets or the filtered `projects` source.                                                              |
-| `vars`        | object                  | no        | `{}`     | Non-secret values copied to the chop context.                                                                   |
+| `vars`        | object                  | no        | `{}`     | Non-secret values copied to the job context.                                                                    |
 
 Both `description` fields use one grammar: a non-blank summary line of at most 100
 characters, then — if anything follows — a blank line, then a free-form body, with the
@@ -2971,37 +2971,36 @@ whole string capped at 2000 characters. Violations produce the
 [AXE — Description Grammar](axe.md#description-grammar) for the full contract, the
 authoring style guide, and the YAML literal-block form.
 
-All chops are scripts. Exact-name resolution checks `chop_script_dirs`, then the running
+All jobs are scripts. Exact-name resolution checks `job_script_dirs`, then the running
 interpreter's bin directory, then `$PATH`. Invalid fields, duplicate identities,
 non-positive intervals, and invalid durations fail config loading with a dotted config
 path and source-layer diagnostic. `agent:` and `xprompt:` are rejected with a migration
 message.
 
 Environment values resolve at dispatch time. Use a literal for non-secret data or
-`{env: NAME}`, `{file: path}`, and `{pass: entry}` references for secrets.
-Lumberjack-level `env` is inherited by every chop, then a chop's own `env` overrides
-matching names.
+`{env: NAME}`, `{file: path}`, and `{pass: entry}` references for secrets. Routine-level
+`env` is inherited by every job, then a job's own `env` overrides matching names.
 
-The built-in `wait_checks` chop writes `ready.json` only after named `%wait`
-dependencies complete successfully. Failed, killed, crashed, still-running, malformed,
-or missing `done.json` artifacts do not satisfy the dependency.
+The built-in `wait_checks` job writes `ready.json` only after named `%wait` dependencies
+complete successfully. Failed, killed, crashed, still-running, malformed, or missing
+`done.json` artifacts do not satisfy the dependency.
 
 Map form is the composable form. Higher-priority config layers patch matching fields by
-key, and per-field source provenance is shown by the verbose chop inventory:
+key, and per-field source provenance is shown by the verbose job inventory:
 
 ```yaml
 axe:
-  lumberjacks:
+  routines:
     docs:
       description:
         Refresh project documentation when repositories accumulate meaningful changes
       interval: 60
       env:
         API_TOKEN: { env: DOCS_API_TOKEN }
-      chops:
+      jobs:
         refresh_docs:
           description: Refresh documentation after meaningful repository drift
-          script: sase_chop_refresh_docs
+          script: sase_job_refresh_docs
           run_every: "30m"
           trigger:
             git.commits_since:
@@ -3018,9 +3017,9 @@ axe:
 
 `for_each` produces stable identities such as `refresh_docs[sase-core]`. Each instance
 has independent scheduling, history, checkpoints, and once-per state. Target data is
-available in the context JSON under `target` and through `SASE_CHOP_TARGET_KEY` /
-`SASE_CHOP_TARGET_<FIELD>`. Literal target rows may include `overrides:` for per-target
-chop fields such as `run_every` and trigger thresholds.
+available in the context JSON under `target` and through `SASE_JOB_TARGET_KEY` /
+`SASE_JOB_TARGET_<FIELD>`. Literal target rows may include `overrides:` for per-target
+job fields such as `run_every` and trigger thresholds.
 
 `inhibit_if` accepts keyed `patch`, `agent_hood`, `agent_clan`, and `agent_runners`
 providers. The legacy `changespec` key remains accepted as an alias. The clan provider
@@ -3042,10 +3041,10 @@ checkpoint) on an unreadable path. See
 [AXE — Triggers, Guards, Dedupe, and Targets](axe.md#triggers-guards-dedupe-and-targets)
 for the full contract. Skips are recorded with reasons. Manual runs bypass the trigger
 but honor guards; with `agent_runners`, a manual run while participating lanes are
-occupied skips unless `sase axe chop run -f/--force` is used. `once_per` can be a key
+occupied skips unless `sase axe job run -f/--force` is used. `once_per` can be a key
 template string or an object with `key` and bounded `capacity`; proposal-supplied
 `dedupe_key` values take precedence. `dedupe_key` is durable work identity, not a retry
-clock: it stays reserved after a successful no-op launch, so chops whose work can go
+clock: it stays reserved after a successful no-op launch, so jobs whose work can go
 stale between scans should recheck eligibility with a proposal `%if::` predicate (see
 [Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals))
 instead of folding a repository revision into the key. When dedupe removes a proposal
@@ -3054,26 +3053,26 @@ earlier proposal that survives filtering. If none survives, AXE removes the wait
 Proposal previews expose the resulting `wait_on` value and explain a relink in
 `dedupe_reason`.
 
-The builtin `sase_chop_refresh_docs` emits an update proposal plus a polish proposal
-that waits for the update. It uses the target source's `workspace`, while cadence and
-commit thresholds stay declarative in configuration. Its default prompts are strictly
+The builtin `sase_job_refresh_docs` emits an update proposal plus a polish proposal that
+waits for the update. It uses the target source's `workspace`, while cadence and commit
+thresholds stay declarative in configuration. Its default prompts are strictly
 documentation-scoped and tell agents to report suspected code bugs instead of fixing
 them. The defaults can be replaced with non-blank `vars.prompt` and `vars.polish_prompt`
 strings; operators are responsible for the scoping language in replacement prompts. See
 [Axe structured results and launch proposals](axe.md#structured-results-and-launch-proposals)
 for the result document, proposal fields, lifecycle statuses, and debugging commands.
 
-Every chop entry must carry a `description` following the
+Every job entry must carry a `description` following the
 [description grammar](axe.md#description-grammar). Bare-string list entries are no
 longer valid because they cannot carry one; use map form or object-form list entries:
 
 ```yaml
-chops:
+jobs:
   # Object-form list entry
   - name: hook_checks
-    script: sase_chop_hook_checks
+    script: sase_job_hook_checks
     description: Check for completed or failed hooks
-  - name: custom_chop
+  - name: custom_job
     script: my_full_executable_name
     description: Run custom analysis
     run_every: "1h30m"
@@ -3639,7 +3638,7 @@ procs:
 
 Disk-pressure thresholds combine absolute byte floors with proportional free-space
 floors, so large volumes warn before they are almost out of bytes. The doctor resource
-check uses these values, and the hourly `disk_pressure` housekeeping chop uses the warn
+check uses these values, and the hourly `disk_pressure` housekeeping job uses the warn
 threshold to decide when to notify and run owner-safe cleanup early.
 
 ```yaml
@@ -3663,7 +3662,7 @@ the effective threshold is the larger of the absolute and proportional values.
 
 Age horizons and pressure thresholds for the managed SASE temp root (everything under
 `get_sase_managed_tmpdir(...)`). `sase disk reap` and the hourly `managed_tmp_reap`
-housekeeping chop both call the Rust-owned reaper with these values; see
+housekeeping job both call the Rust-owned reaper with these values; see
 `core/managed_tmp_reaper.py` for which subdirectory buckets map to which horizon
 category.
 
@@ -3984,12 +3983,12 @@ sdd:
   push_after_commit: async
 ```
 
-| Field                          | Type        | Default      | Description                                                                                                                                                                                                                                                                                                                              |
-| ------------------------------ | ----------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables remote refresh, including the live-bead-waiter hint the `sidecar_auto_sync` chop marks and the equivalent hint in the runner's bead-wait fallback. Local dependency rechecks continue. |
-| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                                                                                                                      |
-| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`.                                                                                                    |
-| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                                                                                                                 |
+| Field                          | Type        | Default      | Description                                                                                                                                                                                                                                                                                                                             |
+| ------------------------------ | ----------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sdd.bead_refresh.mode`        | string      | `background` | Sidecar bead-store freshness: `background` launches a TTL-gated managed sync after commands, `blocking` pulls before commands, and `off` disables remote refresh, including the live-bead-waiter hint the `sidecar_auto_sync` job marks and the equivalent hint in the runner's bead-wait fallback. Local dependency rechecks continue. |
+| `sdd.bead_refresh.ttl_seconds` | float       | `120`        | Minimum age of the last successful remote integration before another background worker is launched.                                                                                                                                                                                                                                     |
+| `sdd.repo.name`                | string      | `""`         | Optional sidecar repo override for providers that support `separate_repo`; accepts `name` or `owner/name`. For GitHub, empty checks only `<owner>/<repo>--sdd`; set `sdd.repo.name` to use another repo such as `sdd` or `owner/sdd`.                                                                                                   |
+| `sdd.push_after_commit`        | bool or str | `async`      | Controls `git push` after SDD commits in sidecar repositories: `async`, `true`, or `false`. Local commits are preserved.                                                                                                                                                                                                                |
 
 The workspace provider owns storage selection. Built-in bare-git projects store SDD
 under `sdd/`. Managed GitHub projects use a `--plans` sidecar cloned at
@@ -4062,7 +4061,7 @@ bead:
 | `bead.task_triage.min_plus_ones`           | int         | `1`     | Fallback `+1` bar, applied only to untyped legacy beads and to types that declare no `triage.min_plus_ones` of their own. A typed bead uses its own spec bar instead, which is why this default does not describe most task beads: `flake` ships as `3`, `bug` ships as `1`, and `ci`, `feature`, and `memory` ship as `0`. See [Task Types](beads.md#task-types) for how a bead resolves its bar. Must be at least `0`. Suppression withholds only the gate — a sub-threshold bead stays stored as `ready`, and a gate already raised for a bead that falls below the bar is canceled and its notification dismissed. |
 | `bead.task_types`                          | list        | `[]`    | Project catalog entries. `{use: <plugin>@<slug>, ...}` deep-merges sibling keys onto an installed type; a full spec without `use:` defines a new slug and may not shadow a builtin.                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `bead.task_triage.stale_after_days`        | int         | `7`     | Days after creation at which a still-sub-threshold ready task bead is considered stale and eligible for the `bead_stale_cleanup` gate. Must be at least `1`.                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `bead.task_triage.stale_cleanup_min_beads` | int         | `10`    | Stale beads required across all enabled projects before `bead_stale_cleanup` raises its gate; below this count the chop does nothing. Must be at least `1`.                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `bead.task_triage.stale_cleanup_min_beads` | int         | `10`    | Stale beads required across all enabled projects before `bead_stale_cleanup` raises its gate; below this count the job does nothing. Must be at least `1`.                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `bead.push_after_commit`                   | bool or str | `true`  | Retained in the accepted configuration shape, but the current `sase bead work` path does not read it. Without `--no-push`, bead-ID launches synchronously run managed sync even for an in-tree Git store; a remote-backed detached store additionally requires an actual pre-spawn push.                                                                                                                                                                                                                                                                                                                               |
 
 Below the threshold, an epic land agent uses `llm_provider.epic_lander_model`. At or
@@ -4092,7 +4091,7 @@ Source: `src/sase/default_config.yml`
 Configuration for the external tracker mirror. See
 [External Issue Mirroring](beads.md#external-issue-mirroring) and the
 [`external_mirror` lane](axe.md#external_mirror-15-minute-interval)'s
-`external_issue_mirror` and `external_pr_mirror` chops, the first production use of
+`external_issue_mirror` and `external_pr_mirror` jobs, the first production use of
 `for_each: {source: projects}` fan-out.
 
 One shared filter surface governs which tracker issues become beads
@@ -4749,7 +4748,7 @@ No flags. Stops the running axe orchestrator.
 
 ### `sase axe maintenance`
 
-Maintenance mode pauses scheduled lumberjack ticks without stopping the orchestrator.
+Maintenance mode pauses scheduled routine ticks without stopping the orchestrator.
 
 | Command                       | Flags / exit code                    | Description                                     |
 | ----------------------------- | ------------------------------------ | ----------------------------------------------- |
@@ -4759,31 +4758,31 @@ Maintenance mode pauses scheduled lumberjack ticks without stopping the orchestr
 
 See [axe.md — Maintenance Mode](axe.md#maintenance-mode) for the runtime behavior.
 
-### `sase axe chop`
+### `sase axe job`
 
-With no subcommand, `sase axe chop` defaults to `sase axe chop list`. Use the explicit
+With no subcommand, `sase axe job` defaults to `sase axe job list`. Use the explicit
 `list` or `doctor` subcommand when passing diagnostic flags.
 
-| Form                   | Flags                                         | Description                                                                                                                                                     |
-| ---------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase axe chop list`   | `-a/--available`, `-j/--json`, `-v/--verbose` | List configured chops with one summary line each; `--available` also shows discoverable executable chop scripts, and `--verbose` adds a full-description panel. |
-| `sase axe chop doctor` | `-j/--json`, `-v/--verbose`                   | Diagnose missing configured chops, unconfigured scripts, and Telegram chop prerequisites.                                                                       |
-| `sase axe chop run`    | `-L/--lumberjack`                             | Run a single chop once in the foreground.                                                                                                                       |
+| Form                  | Flags                                         | Description                                                                                                                                                   |
+| --------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase axe job list`   | `-a/--available`, `-j/--json`, `-v/--verbose` | List configured jobs with one summary line each; `--available` also shows discoverable executable job scripts, and `--verbose` adds a full-description panel. |
+| `sase axe job doctor` | `-j/--json`, `-v/--verbose`                   | Diagnose missing configured jobs, unconfigured scripts, and Telegram job prerequisites.                                                                       |
+| `sase axe job run`    | `-L/--routine`                                | Run a single job once in the foreground.                                                                                                                      |
 
-`sase axe chop doctor` exits `1` when any check is `ERROR` (a configured script chop
+`sase axe job doctor` exits `1` when any check is `ERROR` (a configured script job
 cannot be resolved) and `0` otherwise. Unconfigured available scripts and Telegram
-prerequisite gaps report `WARN`. The same chop diagnostics are also surfaced by
-`sase doctor -C axe.chops`.
+prerequisite gaps report `WARN`. The same job diagnostics are also surfaced by
+`sase doctor -C axe.jobs`.
 
-### `sase axe lumberjack`
+### `sase axe routine`
 
-With no subcommand, `sase axe lumberjack` defaults to `sase axe lumberjack list`.
+With no subcommand, `sase axe routine` defaults to `sase axe routine list`.
 
-| Form                         | Flags                  | Description                                                                                                  |
-| ---------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `sase axe lumberjack list`   | `-v/--verbose`         | List configured lumberjacks and their chops; `--verbose` adds each description body under a `details` block. |
-| `sase axe lumberjack run`    | `-q`, `-H`, `-A`, `-z` | Run one lumberjack once in the foreground with optional query and runner-limit overrides.                    |
-| `sase axe lumberjack status` | -                      | Show per-lumberjack process status.                                                                          |
+| Form                      | Flags                  | Description                                                                                              |
+| ------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
+| `sase axe routine list`   | `-v/--verbose`         | List configured routines and their jobs; `--verbose` adds each description body under a `details` block. |
+| `sase axe routine run`    | `-q`, `-H`, `-A`, `-z` | Run one routine once in the foreground with optional query and runner-limit overrides.                   |
+| `sase axe routine status` | -                      | Show per-routine process status.                                                                         |
 
 Both listings print only the description summary line by default so the output stays
 scannable; `-v/--verbose` renders the full [description](axe.md#description-grammar).

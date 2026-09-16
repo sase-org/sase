@@ -119,9 +119,9 @@ Artifacts still selects Stitch by default.
 
 sase's TUI owns one link rail across the three top-level tabs. It appears when the
 current selection has artifact links: an Artifacts-pane entry, a named agent or family
-shell, or an AXE chop. Synthetic clan containers, lumberjacks, and background-command
-rows do not provide a link subject. The rail includes a breadcrumb while a link-follow
-trail is active.
+shell, or an AXE job. Synthetic clan containers, routines, and background-command rows
+do not provide a link subject. The rail includes a breadcrumb while a link-follow trail
+is active.
 
 Press `$` to arm the rail. Then press `$` again to follow its first entry, `1`-`9` for a
 numbered entry, or `0` to open the complete links panel. The rail always advertises
@@ -1254,9 +1254,9 @@ somewhere stale.
 | `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds      |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                  |
 
-On Artifacts and Axe, `r` still runs a Patch workflow or an Axe chop/bgcmd, and `R`
-still opens the [Refresh panel](#refresh-panel) (or refreshes immediately when that
-panel is disabled). Only the Agents tab swaps those keys.
+On Artifacts and Axe, `r` still runs a Patch workflow or an Axe job/bgcmd, and `R` still
+opens the [Refresh panel](#refresh-panel) (or refreshes immediately when that panel is
+disabled). Only the Agents tab swaps those keys.
 
 ### Forking Agents and Groups
 
@@ -2670,25 +2670,25 @@ which case the target wins.
 
 The Axe sidebar renders three row types so the operational tree reads at a glance:
 
-- **Lumberjack** rows are top-level sections with a solid left accent bar (`▌`) in the
-  lumberjack hue, a `[*]` / `[!]` / `[·]` running/error/idle marker, the lumberjack
-  name, and an optional compact `Nc / Ne` cycles/errors chip at the end.
-- **Chop** rows are child rows indented under their parent with a `  └─` tree connector,
+- **Routine** rows are top-level sections with a solid left accent bar (`▌`) in the
+  routine hue, a `[*]` / `[!]` / `[·]` running/error/idle marker, the routine name, and
+  an optional compact `Nc / Ne` cycles/errors chip at the end.
+- **Job** rows are child rows indented under their parent with a `  └─` tree connector,
   a per-run status icon (`✓` success, `!` failure/timeout, `?` missing script, `●`
-  running, `*` agent-launched, `·` no runs), and the chop name in a dim-gold child hue.
-  Disabled chops remain visible with a quiet `disabled` chip but cannot be run manually.
-- **Background command** rows (run via `!!`) live below the lumberjack tree, separated
-  by a dim divider line when both groups are present, and use a distinct command/slot
-  badge so they cannot be mistaken for scheduled AXE work.
+  running, `*` agent-launched, `·` no runs), and the job name in a dim-gold child hue.
+  Disabled jobs remain visible with a quiet `disabled` chip but cannot be run manually.
+- **Background command** rows (run via `!!`) live below the routine tree, separated by a
+  dim divider line when both groups are present, and use a distinct command/slot badge
+  so they cannot be mistaken for scheduled AXE work.
 
 ### Description Panel
 
-The right-hand dashboard keeps the selected lumberjack or chop description in a
-dedicated panel between the status line and scrolling output. Every row of the panel
-carries a solid left accent gutter (`▌ `) in the row's own hue, so the block reads as a
-blockquote and stays visually distinct from the output pane below. Generated `for_each`
-chop instances also show their target key on the summary row. The panel stays fixed
-while output scrolls and disappears for background-command and empty AXE views.
+The right-hand dashboard keeps the selected routine or job description in a dedicated
+panel between the status line and scrolling output. Every row of the panel carries a
+solid left accent gutter (`▌ `) in the row's own hue, so the block reads as a blockquote
+and stays visually distinct from the output pane below. Generated `for_each` job
+instances also show their target key on the summary row. The panel stays fixed while
+output scrolls and disappears for background-command and empty AXE views.
 
 The panel has two states, and `d` toggles between them for the rest of the session. The
 summary row ends with a `▸ d` / `▾ d` disclosure hint whenever there is a body to reveal
@@ -2722,7 +2722,7 @@ See [Description Grammar](axe.md#description-grammar) for the authored form.
 starts in. `d` flips an in-memory session state and repaints from cached snapshot data —
 it never reloads config, reads disk, or writes the toggle back.
 
-An expanded panel never crowds out the chop output it exists to explain. The dashboard
+An expanded panel never crowds out the job output it exists to explain. The dashboard
 budgets `max(3, min(16, floor(pane_height * 0.45)))` rows for the panel, falling back to
 10 rows before its height is known. If the rendered block exceeds that budget, the last
 row becomes a dim `… +N more · e` marker: nothing is silently dropped, and `e` opens the
@@ -2745,68 +2745,68 @@ row ellipsizes rather than wrapping onto a second line.
 Output in the dashboard right panel uses a semantic highlighter for sources whose shape
 is controlled by sase, and falls back to ANSI rendering for everything else:
 
-- **Lumberjack aggregate logs** (`[YYYY-MM-DD HH:MM:SS] [lumberjack] message`) get
-  timestamp, lumberjack name, status words (`success`, `failure`, `timeout`, `running`,
-  `error`, …), PIDs, durations, exit codes, and counts colored by severity and
-  consistent with the sidebar taxonomy.
-- **Controlled chop output** — runner lifecycle lines such as
+- **Routine aggregate logs** (`[YYYY-MM-DD HH:MM:SS] [routine] message`) get timestamp,
+  routine name, status words (`success`, `failure`, `timeout`, `running`, `error`, …),
+  PIDs, durations, exit codes, and counts colored by severity and consistent with the
+  sidebar taxonomy.
+- **Controlled job output** — runner lifecycle lines such as
   `Launched proposal 1 as <name> (PID <pid>)` use the same status-word, PID, duration,
-  and count highlighting as other lumberjack messages.
-- **External chop scripts** and **background command output** are arbitrary text and
-  stay on the ANSI fallback (`Text.from_ansi`) with the existing capping and tail-biased
+  and count highlighting as other routine messages.
+- **External job scripts** and **background command output** are arbitrary text and stay
+  on the ANSI fallback (`Text.from_ansi`) with the existing capping and tail-biased
   caching behavior.
 
 Render cache slots are keyed on `(source_id, source_type)` so the semantic and ANSI
 paths cannot collide for the same numerical identity.
 
-### Chop Result Documents
+### Job Result Documents
 
-Selecting a recorded chop run composes three sections inside the existing scroll region:
+Selecting a recorded job run composes three sections inside the existing scroll region:
 
 1. **RESULT** is always present and is derived entirely from the cached run entry. It
    includes the status, structured summary and reason, counters, proposal and launch
    rosters, evidence, dry-run/source markers, and any error or traceback.
-2. A chop-authored structured **report** follows when the result document supplies one.
+2. A job-authored structured **report** follows when the result document supplies one.
    Semantic tones map to the AXE palette, tables elide cells at wide widths and stack at
-   widths below 60 cells, and all chop strings are rendered literally rather than parsed
+   widths below 60 cells, and all job strings are rendered literally rather than parsed
    as Rich markup or ANSI.
 3. **OUTPUT** contains the existing ANSI-rendered log tail and retains the waiting,
    failure, reason, and no-output fallbacks for runs with an empty log.
 
 The card and report are cached by run identity, lifecycle state, completion timestamp,
-and rendered width. They paint only from the in-memory chop snapshot; navigation does
-not read, stat, or glob the run files. Auto-scroll continues to follow active `running`
-and `launched` output, but terminal runs open at the RESULT card so the report is not
+and rendered width. They paint only from the in-memory job snapshot; navigation does not
+read, stat, or glob the run files. Auto-scroll continues to follow active `running` and
+`launched` output, but terminal runs open at the RESULT card so the report is not
 scrolled off screen on selection.
 
 ### Navigation
 
-| Key                       | Action                                                                        |
-| ------------------------- | ----------------------------------------------------------------------------- |
-| `j` / `k`                 | Move to next / previous sidebar row (lumberjack, chop, or background command) |
-| `Ctrl+N` / `Ctrl+P`       | Page through the focused chop's run history (newer / older)                   |
-| `'`                       | Jump to a current-tab entry by adaptive hint                                  |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack                    |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered chop link, or open the complete links panel       |
-| `` ` ``                   | Jump to an entry across all tabs                                              |
-| `g`                       | Scroll to top                                                                 |
-| `G`                       | Scroll to bottom (pins auto-scroll)                                           |
+| Key                       | Action                                                                    |
+| ------------------------- | ------------------------------------------------------------------------- |
+| `j` / `k`                 | Move to next / previous sidebar row (routine, job, or background command) |
+| `Ctrl+N` / `Ctrl+P`       | Page through the focused job's run history (newer / older)                |
+| `'`                       | Jump to a current-tab entry by adaptive hint                              |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack                |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered job link, or open the complete links panel    |
+| `` ` ``                   | Jump to an entry across all tabs                                          |
+| `g`                       | Scroll to top                                                             |
+| `G`                       | Scroll to bottom (pins auto-scroll)                                       |
 
 ### Commands
 
-| Key | Action                                                                                               |
-| --- | ---------------------------------------------------------------------------------------------------- |
-| `a` | Add a lumberjack, or add a chop under the selected lumberjack                                        |
-| `d` | Expand / collapse the [description panel](#description-panel) for this session                       |
-| `e` | Edit the selected lumberjack or chop configuration                                                   |
-| `E` | Open the selected recorded chop output in `$EDITOR`                                                  |
-| `+` | Run agent                                                                                            |
-| `r` | Run an enabled selected chop manually, or re-run the focused completed background command (`!!`) row |
-| `x` | Start / stop axe (or kill the focused background command)                                            |
-| `X` | Clear output                                                                                         |
-| `/` | Edit the current Axe query                                                                           |
+| Key | Action                                                                                              |
+| --- | --------------------------------------------------------------------------------------------------- |
+| `a` | Add a routine, or add a job under the selected routine                                              |
+| `d` | Expand / collapse the [description panel](#description-panel) for this session                      |
+| `e` | Edit the selected routine or job configuration                                                      |
+| `E` | Open the selected recorded job output in `$EDITOR`                                                  |
+| `+` | Run agent                                                                                           |
+| `r` | Run an enabled selected job manually, or re-run the focused completed background command (`!!`) row |
+| `x` | Start / stop axe (or kill the focused background command)                                           |
+| `X` | Clear output                                                                                        |
+| `/` | Edit the current Axe query                                                                          |
 
-The `a` flow discovers installed `sase_chop_*` executables and also accepts a custom
+The `a` flow discovers installed `sase_job_*` executables and also accepts a custom
 executable. Both add and edit open a single-page property sheet showing every schema
 field, including unset and inherited fields. The active row's detail dock shows its
 schema help plus effective, target-layer, and inherited values. Edits remain sparse: an
@@ -2814,12 +2814,12 @@ inherited field is not copied into the selected writable scope unless you touch 
 Compound and advanced fields expand in place as raw YAML, with inherit/reset available
 for removing a target-layer override.
 
-Editing a generated chop row edits its immutable base chop and warns that every
-generated instance is affected. Before writing, the panel shows an exact effective
-before/after preview plus a source-file diff. When AXE is running, the preview makes
-restart explicit: save and restart AXE to reconcile the daemon immediately, or save only
-and leave the current daemon configuration active until the next restart. `E` remains
-reserved for opening recorded chop output.
+Editing a generated job row edits its immutable base job and warns that every generated
+instance is affected. Before writing, the panel shows an exact effective before/after
+preview plus a source-file diff. When AXE is running, the preview makes restart
+explicit: save and restart AXE to reconcile the daemon immediately, or save only and
+leave the current daemon configuration active until the next restart. `E` remains
+reserved for opening recorded job output.
 
 #### AXE Property Sheet
 
@@ -4129,7 +4129,7 @@ is selected. The following notification action types are supported:
 | `UserQuestion`       | Agent           | Opens the structured user-question response modal                               |
 | `ViewErrorReport`    | Axe/agent       | Opens `action_data.error_report_path`, or the first attached file, in `$EDITOR` |
 
-The axe `error_digest` chop creates `ViewErrorReport` notifications whose digest files
+The axe `error_digest` job creates `ViewErrorReport` notifications whose digest files
 live under `~/.sase/axe/error_digests/digest_<timestamp>.txt`; user-agent failures can
 use the same action for their own attached error reports.
 
@@ -4262,7 +4262,7 @@ uppercase characters remain case-sensitive.
 
 The modal groups entries by tab (Agents, Artifacts, Axe) and shows contextual
 information for each: PR names and statuses, agent names with running indicators, and
-Axe lumberjack/command labels.
+Axe routine/command labels.
 
 ### Jump Back
 

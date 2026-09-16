@@ -32,9 +32,9 @@ cross-frontend consistency.
 
 ## Agent Launch Flow
 
-Most agent work enters through `sase run`, sase's TUI, validated axe chop proposals,
-bead epic execution, or mobile/editor helper bridges. The launch path follows the same
-shape across those entry points:
+Most agent work enters through `sase run`, sase's TUI, validated axe job proposals, bead
+epic execution, or mobile/editor helper bridges. The launch path follows the same shape
+across those entry points:
 
 1. Parse prompt text, directives, and optional multi-prompt separators, then
    canonicalize ProjectSpec aliases in launch-bound VCS refs. For example, `#gh:bob`
@@ -60,7 +60,7 @@ shape across those entry points:
    when requested.
 
 When the `typed_launch_units` beta flag is enabled, user-initiated sase's TUI and
-`sase run` submissions, approved LaunchApproval requests, and typed AXE chop proposal
+`sase run` submissions, approved LaunchApproval requests, and typed AXE job proposal
 batches share one typed admission path. Recursive xprompt expansion and fan-out still
 happen first, keyed `{@<id>}` agent-name markers resolve once across that expanded
 batch, then Rust builds an immutable `LaunchPlan` of tagged Agent or Proc units with
@@ -68,14 +68,14 @@ stable logical IDs, the complete `%id`/`%clan` identity binding, waits, optional
 predicates, and code digests. Dispatch reconstructs grouping directives from that
 binding instead of a positional name alone. Direct user submissions persist that plan in
 a durable bundle and dispatch immediately; agent-initiated launches freeze the same
-digest behind LaunchApproval; AXE chop batches containing an active `%if`/`%proc`
-directive dispatch through the same durable bundle under a distinct `axe_chop` source
-surface, with the originating chop run owning the bundle across process restarts (see
+digest behind LaunchApproval; AXE job batches containing an active `%if`/`%proc`
+directive dispatch through the same durable bundle under the internal `axe_chop` source
+surface, with the originating job run owning the bundle across process restarts (see
 [Structured Results and Launch Proposals](axe.md#structured-results-and-launch-proposals)).
-Within an AXE chop clan, dispatch — not planning — owns the declarer decision: the first
+Within an AXE job clan, dispatch — not planning — owns the declarer decision: the first
 surviving (eligible, dispatched) member of an undeclared clan claims it durably, so a
 `%if`-skipped statically planned declarer never leaves later members joining a clan
-nobody declared. AXE chop proposal `wait_on` edges also have one chop-specific dispatch
+nobody declared. AXE job proposal `wait_on` edges also have one job-specific dispatch
 effect: admission consumes the logical edge for launch ordering, then an admitted Agent
 unit receives a restored named-agent `%wait` for the nearest earlier unit that actually
 launched. Generic typed logical waits outside AXE remain coordinator-owned and are not

@@ -353,19 +353,19 @@ open ──claim──▶ claimed ──promote──▶ in_progress ──close
 - **Release.** If the owning agent dies before it ever promoted its claim, the bead
   returns to `open` with an empty assignee. The runner shutdown path releases the claim
   on ordinary kills (except when a retry handoff is pending, which keeps the claim), and
-  the `bead_claim_checks` chop is the backstop for SIGKILL, crashes, and reboots. It
+  the `bead_claim_checks` job is the backstop for SIGKILL, crashes, and reboots. It
   releases a claim only when the owning agent is dead, never promoted, and resolvable to
   its artifact; anything else is left untouched and reported by `sase doctor` instead. A
   committed release is published the same best-effort way as a claim, so a freed bead
   does not stay claimed on other hosts.
-- **Reconcile.** The `bead_claim_checks` chop — registered under the `waits` lumberjack
-  — runs in both directions. Next to the release pass above, an acquire pass claims a
-  bead on behalf of a live agent that is waiting without a claim, which is what makes a
-  lost or delayed claim self-healing within one `waits` interval. A held claim is
-  recorded in the agent's `bead_claim.json` artifact file, so an agent that already
-  holds its claim costs the chop nothing: it is filtered out without opening a bead
-  store. `sase doctor` reports the residue in either direction — a claim with no
-  resolvable owner, and a live pre-launch agent whose bead is still `open`.
+- **Reconcile.** The `bead_claim_checks` job — registered under the `waits` routine —
+  runs in both directions. Next to the release pass above, an acquire pass claims a bead
+  on behalf of a live agent that is waiting without a claim, which is what makes a lost
+  or delayed claim self-healing within one `waits` interval. A held claim is recorded in
+  the agent's `bead_claim.json` artifact file, so an agent that already holds its claim
+  costs the job nothing: it is filtered out without opening a bead store. `sase doctor`
+  reports the residue in either direction — a claim with no resolvable owner, and a live
+  pre-launch agent whose bead is still `open`.
 
 Claim and release are compare-and-swap operations: a claim succeeds only from `open`
 (re-claiming your own claim is a no-op), and a release succeeds only when the bead is
@@ -423,7 +423,7 @@ open (draft) ──mark ready──▶ ready (triage) ──launch──▶ in_p
    becomes visible to this command when the last blocker closes. The scheduled triage
    scan currently behaves differently, as described next.
 
-3. Triage it. The default AXE `checks` lumberjack scans enabled non-home projects every
+3. Triage it. The default AXE `checks` routine scans enabled non-home projects every
    five minutes and creates one priority `TaskTriage` gate for each task whose stored
    status is `ready` and that has accumulated at least its
    [effective `+1` bar](#per-type-triage-bar) — its task type's own
@@ -696,7 +696,7 @@ artifact link back to the retired umbrella.
 
 The task stays `open` while its title, description, size, model, references, and
 dependencies are drafted. Marking it `ready` proposes it to the project owner. The
-`bead_task_triage` chop scans enabled projects every five minutes and raises one
+`bead_task_triage` job scans enabled projects every five minutes and raises one
 human-only `TaskTriage` gate per ready task bead that has accumulated at least its
 [effective `+1` bar](#per-type-triage-bar) — its task type's own `triage.min_plus_ones`,
 or [`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped or
@@ -707,19 +707,19 @@ notification lands in the `Beads` panel. Every gate whose subject is a typed tas
 also carries a type chip (glyph + slug) and a second note with the compact typed facts
 line. The Markdown preview's metadata block includes a **Task type** fact such as
 `**Task type:** ≈ flake` next to **Size** and **References**. The filing agent travels
-with the gate into its Markdown preview when that attribution is known. The chop records
+with the gate into its Markdown preview when that attribution is known. The job records
 pending gates in lane state so later ticks do not repeat the notification, cancels a
 pending gate if the bead leaves `ready` or falls below the `+1` bar, defers re-gating
 while that task bead's detached launch is still in flight, and uses a new deterministic
 generation if the same task becomes ready again or its pending gate needs a
 presentation-contract refresh.
 
-The hourly `bead_stale_cleanup` chop is the other half of that bar. Sub-threshold ready
+The hourly `bead_stale_cleanup` job is the other half of that bar. Sub-threshold ready
 task beads stay `ready` and stay visible here; they are not closed automatically. Once
 at least [`bead.task_triage.stale_cleanup_min_beads`](configuration.md#bead) of them
 have been below the bar for [`bead.task_triage.stale_after_days`](configuration.md#bead)
 days, one `BeadStaleCleanup` gate offers the oldest 50 (naming any remainder) so the
-reviewer can close a selected subset as `canceled`. The chop keeps a single pending gate
+reviewer can close a selected subset as `canceled`. The job keeps a single pending gate
 and cancels it when the backlog drops below the bar. See
 [Stale Task Cleanup Notification](notifications.md#stale-task-cleanup-notification) and
 the [housekeeping lane](axe.md#housekeeping-1-hour-interval).
@@ -742,7 +742,7 @@ proposals as `task` beads, marks them `ready`, and records why it declined any o
 
 ### External Issue Mirroring
 
-The `external_issue_mirror` AXE chop (see
+The `external_issue_mirror` AXE job (see
 [external_mirror lane](axe.md#external_mirror-15-minute-interval)) keeps every enabled
 project's issue tracker mirrored into task beads: each pass diffs the tracker against
 local beads on `external_ref` and creates an explicitly `small`, `open` task bead —
@@ -1315,7 +1315,7 @@ Run health checks on the beads database. Checks for:
 - `claimed` beads whose assignee resolves to no agent artifact (reported only; run
   `sase bead open <id>` to clear them)
 - `open` beads owned by a live agent that has not started work yet (reported only; it
-  means the `bead_claim_checks` chop is not running or is failing, since it should have
+  means the `bead_claim_checks` job is not running or is failing, since it should have
   claimed them)
 
 If bead commands fail before opening a store, run `sase core health` first. It verifies
@@ -1871,7 +1871,7 @@ included in the next normal project or SDD commit.
 ### `sase bead sync-external`
 
 Run one external tracker mirror pass — the same reconciliation path the
-`external_issue_mirror` AXE chop runs every fifteen minutes. See
+`external_issue_mirror` AXE job runs every fifteen minutes. See
 [External Issue Mirroring](#external-issue-mirroring).
 
 | Flag            | Description                                                                   |

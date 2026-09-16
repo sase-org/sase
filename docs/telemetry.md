@@ -312,8 +312,8 @@ VCS/Workspace, and Gate Shell. Run `sase telemetry list` for the authoritative m
 names, kinds, and labels.
 
 Instrumentation remains at debugging and health boundaries: agent runner
-setup/finalization, LLM invocation, commit finalizers, axe and lumberjack loops, hook
-and mentor runners, VCS operations, active-workspace tracking, zombie detection, and the
+setup/finalization, LLM invocation, commit finalizers, axe and routine loops, hook and
+mentor runners, VCS operations, active-workspace tracking, zombie detection, and the
 gate-shell exact-id lookup. Call sites keep the stable `.labels().inc()`, `.observe()`,
 and `.set()` API regardless of whether recording is enabled.
 

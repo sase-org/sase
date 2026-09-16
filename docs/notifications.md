@@ -256,7 +256,7 @@ current within that consumer's tolerance of its wall-clock deadline:
   deadline-driven coordinator rather than relying on the general refresh tick.
 - **Mobile gateway** — the next authenticated list or detail read, which expires the row
   and publishes a `notifications_changed` event so connected clients refresh.
-- **Telegram outbound chop** — the next scheduled chop run.
+- **Telegram outbound job** — the next scheduled job run.
 
 If every consumer is offline, no alert is emitted at the deadline; the durable guarantee
 is instead that the **first** later current-state read atomically catches the row up
@@ -378,19 +378,19 @@ The following events generate notifications:
 
 ### Task Triage Notification
 
-The five-minute `bead_task_triage` chop creates one human-only `TaskTriage` gate for
-each ready task bead that has accumulated at least its
+The five-minute `bead_task_triage` job creates one human-only `TaskTriage` gate for each
+ready task bead that has accumulated at least its
 [effective `+1` bar](beads.md#per-type-triage-bar) of independent `+1` reports — its
 task type's own `triage.min_plus_ones`, or
 [`bead.task_triage.min_plus_ones`](configuration.md#bead) for an untyped or unregistered
 type. A sub-threshold task is withheld from triage — it stays stored as `ready`, only
 the gate is withheld — and a `TaskTriage` gate already raised for a task that later
-falls below the bar is canceled and its notification dismissed on the chop's next tick.
+falls below the bar is canceled and its notification dismissed on the job's next tick.
 
 After upgrading, gates already raised for beads below the new bar are canceled and their
 notifications dismissed automatically on the first `checks`-lane tick. Run
-`sase axe chop run bead_task_triage` to force that tick immediately. To see the matching
-cleanup gate without waiting for the hour, run `sase axe chop run bead_stale_cleanup`.
+`sase axe job run bead_task_triage` to force that tick immediately. To see the matching
+cleanup gate without waiting for the hour, run `sase axe job run bead_stale_cleanup`.
 
 Its compact notification note (`notes[0]`) is `<bead-id> — <title>` and it lands in the
 `Beads` panel while retaining the `bead` and `task` tags. Every gate whose subject is a
@@ -418,22 +418,21 @@ only when the bead has notes. The gate offers three branches:
   [Snoozed Task Notification](#snoozed-task-notification) below.
 
 No decision branch is chosen automatically. While one of `TaskTriage`/`BeadSnooze`
-remains pending for a bead, the chop that owns both kinds (`bead_task_triage`)
-suppresses duplicates and keeps the two mutually exclusive — a task bead never holds
-both at once. After the bead mutation commits, `sase bead close` makes a best-effort
-attempt to cancel the matching pending gate; a cancellation failure does not fail the
-close, and the next reconciliation remains the backstop. Choosing **Launch** in
-`TaskTriage` answers that gate normally, and a successful launch submission from sase's
-TUI Beads pane explicitly cancels it. A direct `sase bead work <task-id>` command does
-not settle an older gate itself; while a live agent is working the bead, the next
-reconciliation cancels that stale gate with reason `bead_work_in_flight`. The same
-liveness rule covers `BeadSnooze` and `FlagTriage`. If the bead's status otherwise
-changes out of band (leaves `ready`, gets snoozed, or wakes), the chop cancels the gate
-of the wrong kind and creates the right one on its next tick. If a gate becomes
-terminal, disappears, or uses an obsolete presentation or option-input contract while
-still expected, the next five-minute scan creates a replacement with a new
-generation-specific request ID, except while the task bead's detached launch is still in
-flight or a live agent is working the bead.
+remains pending for a bead, the job that owns both kinds (`bead_task_triage`) suppresses
+duplicates and keeps the two mutually exclusive — a task bead never holds both at once.
+After the bead mutation commits, `sase bead close` makes a best-effort attempt to cancel
+the matching pending gate; a cancellation failure does not fail the close, and the next
+reconciliation remains the backstop. Choosing **Launch** in `TaskTriage` answers that
+gate normally, and a successful launch submission from sase's TUI Beads pane explicitly
+cancels it. A direct `sase bead work <task-id>` command does not settle an older gate
+itself; while a live agent is working the bead, the next reconciliation cancels that
+stale gate with reason `bead_work_in_flight`. The same liveness rule covers `BeadSnooze`
+and `FlagTriage`. If the bead's status otherwise changes out of band (leaves `ready`,
+gets snoozed, or wakes), the job cancels the gate of the wrong kind and creates the
+right one on its next tick. If a gate becomes terminal, disappears, or uses an obsolete
+presentation or option-input contract while still expected, the next five-minute scan
+creates a replacement with a new generation-specific request ID, except while the task
+bead's detached launch is still in flight or a live agent is working the bead.
 
 ### Snoozed Task Notification
 
@@ -490,7 +489,7 @@ The gate offers four branches:
 
 ### Stale Task Cleanup Notification
 
-The hourly `bead_stale_cleanup` chop raises one human-only `BeadStaleCleanup` gate once
+The hourly `bead_stale_cleanup` job raises one human-only `BeadStaleCleanup` gate once
 at least [`bead.task_triage.stale_cleanup_min_beads`](configuration.md#bead) ready task
 beads have sat below the `+1` bar for
 [`bead.task_triage.stale_after_days`](configuration.md#bead) days. The notification
@@ -499,13 +498,13 @@ offered roster (at most 50 beads, oldest first) and names how many additional st
 beads were omitted when the backlog is larger. Each offered bead is a close/keep control
 defaulting to close; the single **Close selected** branch closes the reviewer-selected
 subset as `canceled`. Selecting nothing fails the command and leaves the gate pending.
-The chop keeps at most one of these gates at a time and cancels it when the backlog
-drops below the bar. Run `sase axe chop run bead_stale_cleanup` to raise or refresh that
-gate without waiting for the next hourly housekeeping tick.
+The job keeps at most one of these gates at a time and cancels it when the backlog drops
+below the bar. Run `sase axe job run bead_stale_cleanup` to raise or refresh that gate
+without waiting for the next hourly housekeeping tick.
 
 ### Required Plugin Notification
 
-The five-minute `plugins_required` chop raises one human-only `PluginsRequired` gate per
+The five-minute `plugins_required` job raises one human-only `PluginsRequired` gate per
 enabled project whose `plugins.required` entries are missing or version-mismatched. The
 notification lands in the `Plugins` panel with `plugin` and `required` tags. Its preview
 lists each unsatisfied requirement and notes that a successful install restarts axe.
@@ -520,9 +519,9 @@ The gate offers two branches:
 - **Dismiss** records the decision so the same missing set is not re-offered until it
   changes.
 
-The chop cancels the gate when the required set becomes satisfied. Agent and
+The job cancels the gate when the required set becomes satisfied. Agent and
 non-interactive contexts still fail closed and never auto-install. Run
-`sase axe chop run plugins_required` to raise or refresh those gates without waiting for
+`sase axe job run plugins_required` to raise or refresh those gates without waiting for
 the next five-minute checks tick.
 
 ### Agent Completion Attachments
@@ -611,10 +610,10 @@ entry, preventing premature firing on `Draft → Ready` transitions.
 
 ### Report Notifications
 
-Any producer — a chop, a hook, or an agent — may attach a structured report to a
-notification by setting `action: "ViewReport"`. The report is a **chop report document**
-(`{"title": ..., "blocks": [...]}`), the same artifact `sase.chops.ChopReport` builds
-and the AXE tab already renders, so the notification carries no producer-private schema.
+Any producer — a job, a hook, or an agent — may attach a structured report to a
+notification by setting `action: "ViewReport"`. The report is a **job report document**
+(`{"title": ..., "blocks": [...]}`), the same artifact `sase.jobs.JobReport` builds and
+the AXE tab already renders, so the notification carries no producer-private schema.
 
 `action_data` describes where the document lives:
 
@@ -644,8 +643,8 @@ raises. It performs no network access and no subprocess calls, and it rejects:
 - a relative or `~`-unexpandable path, a missing path, or a path that is not a regular
   file;
 - a file larger than 256 KiB — a size failure, not a truncation;
-- content that is not a JSON object, or that fails chop-report validation through the
-  Rust schema authority (`sase.chops.validate_chop_report`).
+- content that is not a JSON object, or that fails job-report validation through the
+  Rust schema authority (`sase.jobs.validate_job_report`).
 
 Every failure becomes a bounded, human-readable `error` string such as
 `report file not found`, `report file is too large (312 KiB)`, or
@@ -1162,7 +1161,7 @@ the indexed shell lookup and acceptance policy, then upgrade the SASE Python/sas
 TUI/mobile clients against that binding, and finally upgrade Telegram so its receiver
 submits answers through the same supervised proc path. In-flight legacy gates still fall
 back to their historical `response.json` path. Telegram receiver adoption requires no
-config edit: the first enabled chop tick re-arms the persistent receiver, `--once`
+config edit: the first enabled job tick re-arms the persistent receiver, `--once`
 remains the diagnostic direct poll path, disabled or credential-less receivers
 self-terminate, and a running receiver can be stopped with `sase proc kill`.
 
@@ -1205,10 +1204,10 @@ map kinds to notification actions:
 | -------------------- | ------------------- | ------------------------------------------------- |
 | `plan`               | `PlanApproval`      | `sase plan propose` with an authored `tier: tale` |
 | `epic_plan`          | `EpicApproval`      | `sase plan propose` with an authored `tier: epic` |
-| `task_triage`        | `TaskTriage`        | AXE's built-in `bead_task_triage` chop            |
-| `flag_triage`        | `FlagTriage`        | AXE's built-in `bead_task_triage` chop            |
-| `bead_stale_cleanup` | `BeadStaleCleanup`  | AXE's built-in `bead_stale_cleanup` chop          |
-| `plugins_required`   | `PluginsRequired`   | AXE's built-in `plugins_required` chop            |
+| `task_triage`        | `TaskTriage`        | AXE's built-in `bead_task_triage` job             |
+| `flag_triage`        | `FlagTriage`        | AXE's built-in `bead_task_triage` job             |
+| `bead_stale_cleanup` | `BeadStaleCleanup`  | AXE's built-in `bead_stale_cleanup` job           |
+| `plugins_required`   | `PluginsRequired`   | AXE's built-in `plugins_required` job             |
 | `question`           | `UserQuestion`      | `sase questions`                                  |
 | `launch`             | `LaunchApproval`    | Agent-initiated `sase launch request`             |
 | `custom`             | `CustomGate`        | `sase gate create`                                |
@@ -1494,9 +1493,9 @@ sase's TUI snapshot reads memoize the parsed store against the JSONL path, the
 not re-parsed on the TUI refresh cadence. A due `next_snooze_deadline` still forces a
 re-read when the caller asked to expire snoozes.
 
-The store keeps itself O(live). The hourly `notification_store_compact` housekeeping
-chop drives compaction so a multi-megabyte re-parse does not sit on an interactive path.
-When `notifications.jsonl` crosses 4 MiB or holds at least 1,000 dismissed rows, a
+The store keeps itself O(live). The hourly `notification_store_compact` housekeeping job
+drives compaction so a multi-megabyte re-parse does not sit on an interactive path. When
+`notifications.jsonl` crosses 4 MiB or holds at least 1,000 dismissed rows, a
 cache-missing read or rewrite may still compact under the same exclusive lock: dismissed
 rows older than a 14-day retention window are appended to a sibling
 `notifications-archive.jsonl` and dropped from the live file, then the live file is

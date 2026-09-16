@@ -13,16 +13,16 @@ Markdown document or generated page where SASE renders that artifact's typed lin
 
 The registry is closed. Use one of these slugs exactly:
 
-| Relation       | Inverse          | Directed | Written by                                                |
-| -------------- | ---------------- | -------- | --------------------------------------------------------- |
-| `cites`        | `cited-by`       | yes      | prompt references and structured header derivation        |
-| `read`         | `read-by`        | yes      | `sase artifact read`                                      |
-| `related`      | `related`        | no       | CLI / plan inlet; `RELATED:` migration                    |
-| `supersedes`   | `superseded-by`  | yes      | CLI / plan inlet                                          |
-| `implements`   | `implemented-by` | yes      | CLI / plan inlet; plan, agent, and stitch projections     |
-| `derives-from` | `derived-into`   | yes      | CLI / plan inlet; research lineage derivation             |
-| `produced-by`  | `produced`       | yes      | projected from a stitch's recorded agent                  |
-| `launched`     | `launched-by`    | yes      | projected from a configured chop and its published agents |
+| Relation       | Inverse          | Directed | Written by                                               |
+| -------------- | ---------------- | -------- | -------------------------------------------------------- |
+| `cites`        | `cited-by`       | yes      | prompt references and structured header derivation       |
+| `read`         | `read-by`        | yes      | `sase artifact read`                                     |
+| `related`      | `related`        | no       | CLI / plan inlet; `RELATED:` migration                   |
+| `supersedes`   | `superseded-by`  | yes      | CLI / plan inlet                                         |
+| `implements`   | `implemented-by` | yes      | CLI / plan inlet; plan, agent, and stitch projections    |
+| `derives-from` | `derived-into`   | yes      | CLI / plan inlet; research lineage derivation            |
+| `produced-by`  | `produced`       | yes      | projected from a stitch's recorded agent                 |
+| `launched`     | `launched-by`    | yes      | projected from a configured job and its published agents |
 
 `blocks` and `depends-on` are reserved. Use `sase bead dep` for scheduling and blocking
 relationships instead of storing those as artifact links.
@@ -31,7 +31,7 @@ Run `sase artifact link relation list` to inspect the closed registry, or
 `sase artifact link relation show <slug>` for one relation's direction, positive and
 negative examples, and recommended endpoint kinds. Both forms accept `-j/--json`.
 Direction matters: the replacement **supersedes** the old artifact, a plan or agent
-**implements** a bead, a stitch is **produced-by** an agent, a chop **launched** an
+**implements** a bead, a stitch is **produced-by** an agent, a job **launched** an
 agent, and a derived report **derives-from** its source. `related` is undirected. Only
 `related`, `supersedes`, `implements`, and `derives-from` are writable by the CLI;
 `cites` and `read` are observational rows, while `produced-by` and `launched` are
@@ -120,8 +120,8 @@ stored as link sidecars:
   `stitch:<sha> implements bead:<id>`;
 - a commit with a `SASE_AGENT` trailer (or legacy `AGENT`) projects
   `stitch:<sha> produced-by agent:<name>`; and
-- a published chop-agent name that resolves against the live AXE configuration projects
-  `chop:<lumberjack>/<chop> launched agent:<name>`.
+- a published job-agent name that resolves against the live AXE configuration projects
+  `job:<routine>/<job> launched agent:<name>`.
 
 Projected rows carry `origin: projected` and a `created_by: projection:<rule>` marker.
 They appear in `sase artifact link list`, `sase artifact doctor`, and sase's TUI
@@ -149,7 +149,7 @@ links to a stitch render on the other artifact.
 
 ## Browsing links in sase's TUI
 
-When the selected Agent, Artifact, or AXE chop has links, sase's TUI shows a contextual
+When the selected Agent, Artifact, or AXE job has links, sase's TUI shows a contextual
 link rail. Press `$` to arm it, then `$` again for the first link, `1`-`9` for a
 numbered link, or `0` for the complete links panel. A projected group may occupy one
 rail entry; choosing it opens a panel scoped to that group instead of guessing which
@@ -199,11 +199,11 @@ SASE durably derives only relationships backed by deterministic structured evide
 - A research lead `derives-from` its on-disk `__a` and `__b` research-swarm siblings.
 
 Derivation runs on relevant plan/archive and sidecar-commit paths. The built-in hourly
-AXE `artifact_link_backfill` chop covers older documents in bounded, checkpointed
+AXE `artifact_link_backfill` job covers older documents in bounded, checkpointed
 batches, drains queued read rows for agents that have since published, recomputes
 projected relationships, reconciles the machine-local aggregate, and repairs dangling
 references from Git rename history. See
-[Default lumberjacks](axe.md#housekeeping-1-hour-interval).
+[Default routines](axe.md#housekeeping-1-hour-interval).
 
 ## Beads
 

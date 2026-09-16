@@ -184,9 +184,9 @@ not watcher deltas: a touched July `done.json` showed up in the index as a new
 
 ## Idle-host CPU diet
 
-An idle sase host (ace open, lumberjacks running, no agent work) used to burn roughly
-four cores: chop subprocesses at ~109 spawns/min, each paying ~0.6s of import tax, plus
-ace's unconditional full reconcile every `refresh_interval`. The idle-CPU-diet epic
+An idle sase host (ace open, routines running, no agent work) used to burn roughly four
+cores: job subprocesses at ~109 spawns/min, each paying ~0.6s of import tax, plus ace's
+unconditional full reconcile every `refresh_interval`. The idle-CPU-diet epic
 (`sase-wn`) turns ticks cheap instead of rare. Use this recipe when a host looks busy at
 rest again — it should take about five minutes.
 
@@ -195,8 +195,8 @@ Success criteria (idle, no agent work):
 | signal                        | budget                                              |
 | ----------------------------- | --------------------------------------------------- |
 | sase sustained CPU            | < 0.4 cores                                         |
-| chop subprocess spawns        | < 25/min across every lumberjack                    |
-| representative chop import    | < 0.2s / < 400 modules                              |
+| job subprocess spawns         | < 25/min across every routine                       |
+| representative job import     | < 0.2s / < 400 modules                              |
 | idle ace                      | < 10% of a core, ~0 stall-watchdog records / 30 min |
 | idle axe collector file opens | near zero when nothing changed                      |
 
@@ -204,7 +204,7 @@ The spawn budget sits on a floor no fs trigger can remove: `stale_running_cleanu
 real input is process liveness (a dead PID touches no file), so it stays on the `always`
 trigger in both the hooks (5s) and checks (300s) lanes — ~12/min at full idle on its
 own. The rest of the shipped-config floor is `max_quiet: 120s` re-fires from the nine
-fs-guarded chops (~4.5/min), the `run_every: 30s` waits-lane pair (~4/min), and the ≥60s
+fs-guarded jobs (~4.5/min), the `run_every: 30s` waits-lane pair (~4/min), and the ≥60s
 always-trigger lanes (~2/min): ≈ 22/min total. At the post-diet import cost (< 0.2s per
 boot) that floor is well under a tenth of a core, which is why the budget is a low spawn
 _rate_, not zero; a periodic proc-liveness cache could shave the `stale_running_cleanup`
@@ -212,17 +212,17 @@ term but has not been worth new machinery.
 
 Deterministic regression floors live in tests, not wall-clock CI:
 
-- chop-SDK import closure: `tests/test_chop_import_budget.py` (and
+- job-SDK import closure: `tests/test_chop_import_budget.py` (and
   `tests/test_idle_cpu_diet_guardrails.py`)
-- zero-spawn idle tick for fs-guarded hooks-lane chops:
+- zero-spawn idle tick for fs-guarded hooks-lane jobs:
   `tests/test_axe_default_chop_triggers.py` / `tests/test_idle_cpu_diet_guardrails.py`
 
 ### Five-minute diagnosis
 
 ```bash
-# 1. Fleet spawn rate and no-op ratio (reads lumberjack metrics.json)
+# 1. Fleet spawn rate and no-op ratio (reads routine metrics.json)
 sase axe status
-sase axe lumberjack status
+sase axe routine status
 
 # 2. Confirm the human overlay matches on-disk counters
 jq '{chops_spawned, chops_no_op, chops_skipped, last_tick_spawns, last_tick_skipped,
@@ -246,36 +246,36 @@ SASE_TUI_TRACE=1 sase tui
 jq -c 'select(.span=="refresh.auto_tick")' ~/.sase/perf/tui_trace.jsonl | tail
 jq -c 'select(.event=="axe.collect")' ~/.sase/perf/tui_trace.jsonl | tail
 
-# 6. Chop import cost (wall-clock; the test suite locks the module set, not time)
-python -X importtime -c "import sase.chops.sdk" 2>&1 | tail -1
-python -c "import sase.chops.sdk, sys; print(len(sys.modules))"
+# 6. Job import cost (wall-clock; the test suite locks the module set, not time)
+python -X importtime -c "import sase.jobs.sdk" 2>&1 | tail -1
+python -c "import sase.jobs.sdk, sys; print(len(sys.modules))"
 
-# 7. Lumberjack run-history gap analysis (idle ticks should be skipped, not no_op)
+# 7. Routine run-history gap analysis (idle ticks should be skipped, not no_op)
 python - <<'PY'
 from pathlib import Path
 from datetime import datetime
 import json
-root = Path.home() / ".sase" / "axe" / "lumberjacks"
+root = Path.home() / ".sase" / "axe" / "routines"
 for jack in sorted(root.iterdir()):
-    for chop in sorted((jack / "chops").glob("*")) if (jack / "chops").exists() else []:
-        index = chop / "index.json"
+    for job in sorted((jack / "jobs").glob("*")) if (jack / "jobs").exists() else []:
+        index = job / "index.json"
         if not index.exists():
             continue
         ids = json.loads(index.read_text())[:8]
-        print(f"== {jack.name}/{chop.name} ==")
+        print(f"== {jack.name}/{job.name} ==")
         for run_id in ids:
-            meta = json.loads((chop / "runs" / f"{run_id}.json").read_text())
+            meta = json.loads((job / "runs" / f"{run_id}.json").read_text())
             print(f"  {meta.get('started_at')} {meta.get('status')} {meta.get('reason')}")
 PY
 ```
 
-A quiet host after the diet should show `sase axe status` **Chop load** at or below the
-~22/min shipped-config floor — fs-guarded chops contribute 0.0 between `max_quiet`
+A quiet host after the diet should show `sase axe status` **Job load** at or below the
+~22/min shipped-config floor — fs-guarded jobs contribute 0.0 between `max_quiet`
 re-fires and their lanes report last tick `0 spawned`, while ~12/min of the floor is
 `stale_running_cleanup` and is expected — and `refresh.auto_tick` records with
 `surfaces_reloaded=0` (or only `axe`/`notifications` when those tokens actually moved)
 and `axe_file_opens` near zero. If spawn rate is well above the floor, check whether
-shipped chops lost their `fs` trigger in `src/sase/default_config.yml`, or whether
+shipped jobs lost their `fs` trigger in `src/sase/default_config.yml`, or whether
 `ace_refresh_tokens` is off.
 
 ## Suite test-cost gate

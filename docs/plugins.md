@@ -39,12 +39,12 @@ An `sase_xprompts` package may provide ordinary templates in `xprompts/`.
 
 ## Available Plugin Packages
 
-| Package         | Description                                                                             | Entry Points                                                                                                                                                          |
-| --------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase` (core)   | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider                 | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_dispatch: builtin`, `sase_llm: agy, claude, codex, grok, muse, opencode, qwen` |
-| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations             | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`, `sase_task_types: github`                                     |
-| `sase-telegram` | Telegram integration via chop scripts (`sase_chop_tg_outbound`, `sase_chop_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                                                 |
-| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                    | standalone Neovim plugin files (not Python entry points)                                                                                                              |
+| Package         | Description                                                                          | Entry Points                                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase` (core)   | Bare-git VCS/workspaces, built-in LLMs, and the plan reference provider              | `sase_vcs: bare_git`, `sase_workspace: bare_git`, `sase_artifact_refs: builtin`, `sase_dispatch: builtin`, `sase_llm: agy, claude, codex, grok, muse, opencode, qwen` |
+| `sase-github`   | GitHub VCS and workspace support, including GitHub CLI (`gh`) PR operations          | `sase_vcs: github`, `sase_workspace: github`, `sase_config: sase_github`, `sase_xprompts: sase_github`, `sase_task_types: github`                                     |
+| `sase-telegram` | Telegram integration via job scripts (`sase_job_tg_outbound`, `sase_job_tg_inbound`) | CLI scripts (not pluggy entry points)                                                                                                                                 |
+| `sase-nvim`     | Neovim integration, including project spec syntax and prompt helpers                 | standalone Neovim plugin files (not Python entry points)                                                                                                              |
 
 ## Installation
 
@@ -198,10 +198,10 @@ sase version -j
 sase doctor -C plugins.resources
 sase doctor -C plugins.github
 
-# Configured chops, discoverable scripts, and Telegram chop setup
-sase axe chop list --available
-sase axe chop doctor
-sase doctor -C axe.chops
+# Configured jobs, discoverable scripts, and Telegram job setup
+sase axe job list --available
+sase axe job doctor
+sase doctor -C axe.jobs
 ```
 
 - `sase version -v` / `-j` inventories the installed `sase` host, the `sase-core-rs`
@@ -211,11 +211,11 @@ sase doctor -C axe.chops
   resource-plugin disable environment variables (`ERROR` on a load failure, `WARN` when
   loading is disabled). `sase doctor -C plugins.github` probes the GitHub CLI and
   `gh auth status` when a GitHub provider plugin is installed.
-- `sase axe chop list` shows configured chops with status; add `--available` to include
-  discoverable executable chop scripts. `sase axe chop doctor` checks for missing
-  configured script chops (`ERROR`), unconfigured available scripts (`WARN`), and
-  Telegram chop `pass`/environment prerequisites (`WARN`). The same chop diagnostics are
-  mirrored by `sase doctor -C axe.chops`.
+- `sase axe job list` shows configured jobs with status; add `--available` to include
+  discoverable executable job scripts. `sase axe job doctor` checks for missing
+  configured script jobs (`ERROR`), unconfigured available scripts (`WARN`), and
+  Telegram job `pass`/environment prerequisites (`WARN`). The same job diagnostics are
+  mirrored by `sase doctor -C axe.jobs`.
 
 ## Updating sase and plugins (`sase update`)
 
@@ -744,27 +744,27 @@ class GitHubTaskTypes:
 
 See [Task Types](beads.md#task-types) for the create grammar and degraded render.
 
-### Chop Script Packages
+### Job Script Packages
 
-Chop scripts are installed console scripts, not a pluggy entry-point group. Axe resolves
-the exact configured `script` name from `axe.chop_script_dirs`, the running
-interpreter's bin directory, then `$PATH`; it never adds a `sase_chop_` prefix. A
-package may also expose a `sase_config` resource when it wants to contribute
-disabled-by-default or ready-to-patch lumberjack configuration. Exact-name chop packages
-do not need to rename their public scripts to `sase_chop_*` merely to appear installed
-in the catalog: when Sase injects them into its managed uv tool environment, receipt
-membership provides that installed identity.
+Job scripts are installed console scripts, not a pluggy entry-point group. Axe resolves
+the exact configured `script` name from `axe.job_script_dirs`, the running interpreter's
+bin directory, then `$PATH`; it never adds a `sase_job_` prefix. A package may also
+expose a `sase_config` resource when it wants to contribute disabled-by-default or
+ready-to-patch routine configuration. Exact-name job packages do not need to rename
+their public scripts to `sase_job_*` merely to appear installed in the catalog: when
+Sase injects them into its managed uv tool environment, receipt membership provides that
+installed identity.
 
-Proposal-emitting packages should depend on `sase` and use the public `sase.chops` SDK.
+Proposal-emitting packages should depend on `sase` and use the public `sase.jobs` SDK.
 Scripts read `--context`, write their versioned result atomically to
-`SASE_CHOP_RESULT_FILE`, and emit structured launch proposals. They must not call
+`SASE_JOB_RESULT_FILE`, and emit structured launch proposals. They must not call
 `sase run` themselves, and proposal prompts cannot contain standalone `#!workflow`
 references. Axe validates and launches proposals so dry runs remain side-effect free and
 action lifecycle stays observable.
 
 Packages can group proposals in one runner-owned clan by passing the same template to
 `clan` and a member ID to `agent_name`. The runner allocates one concrete clan, makes
-the first accepted proposal its declarer, assigns the `chop` tribe at clan level, and
+the first accepted proposal its declarer, assigns the `job` tribe at clan level, and
 resolves `wait_on` to full member names. Authors may also pass a literal Rich
 `clan_summary`; repeat the identical value on every member that shares the raw clan
 template. Axe remains the sole owner of concrete clan allocation and emits the summary
@@ -976,7 +976,7 @@ provider or a reserved built-in kind. Use `sase doctor -C config.repos`,
 `sase doctor -C config.file_hooks`, and `sase file-hook list` to verify the effective
 configuration.
 
-### Example: Chop Script Package
+### Example: Job Script Package
 
 Declare each executable by its full public name:
 
@@ -985,20 +985,20 @@ Declare each executable by its full public name:
 dependencies = ["sase"]
 
 [project.scripts]
-my_chop_audit = "my_sase_plugin.chops.audit:main"
+my_job_audit = "my_sase_plugin.jobs.audit:main"
 ```
 
 Use the SDK to load the runner context and write a validated result:
 
 ```python
-from sase.chops import ChopResultBuilder, load_chop_invocation
+from sase.jobs import JobResultBuilder, load_job_invocation
 
 
 def main() -> None:
-    invocation = load_chop_invocation(description="Audit one target project")
+    invocation = load_job_invocation(description="Audit one target project")
     target = invocation.context.target or {}
     workspace = str(target["workspace"])
-    result = ChopResultBuilder(
+    result = JobResultBuilder(
         summary="audit: targets=1 proposals=2",
         counters={"targets": 1, "proposals": 2},
     )
@@ -1026,19 +1026,19 @@ Configure the exact script name and debug it through the runner:
 
 ```yaml
 axe:
-  lumberjacks:
+  routines:
     audits:
       description: Run project audits every five minutes
       interval: 300
-      chops:
+      jobs:
         project_audit:
           description: Audit enabled projects for actionable improvements
-          script: my_chop_audit
+          script: my_job_audit
           for_each: { source: projects }
 ```
 
 ```bash
-sase axe chop run 'project_audit[sase]' -L audits --dry-run --chop-verbose
+sase axe job run 'project_audit[sase]' -L audits --dry-run --job-verbose
 ```
 
 Third-party packages can opt into `sase plugin list` by adding the `sase--plugin`

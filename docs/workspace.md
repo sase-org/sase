@@ -303,7 +303,7 @@ write goes through one of these mechanisms instead:
   or missing clones are left untouched and reported. See
   [`auto_sync` vs. `auto_clone`](configuration.md#repos) for the config-level
   distinction; sync runs both from a durable per-project/role hint recorded right after
-  a workspace-sidecar publication and from a scheduled backstop chop.
+  a workspace-sidecar publication and from a scheduled backstop job.
 
 `sase.workspace_provider.ownership.authorize_store_mutation` and the `writable_*`
 helpers are the shared enforcement point close to every store mutation seam, so a new

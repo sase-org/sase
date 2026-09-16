@@ -49,11 +49,11 @@ Required exact labels, keep them large and readable:
   `*.response.json`, `sase run`, `generated images & artifacts`
 - Middle header: `../sase-telegram`, `separate package: pip install sase-telegram`
 - Boundary label: `process boundary`
-- Scheduler label: `AXE scheduler runs chops`
-- Outbound lane labels: `O1 sase_chop_tg_outbound`, `O2 read notifications.jsonl`,
+- Scheduler label: `AXE scheduler runs jobs`
+- Outbound lane labels: `O1 sase_job_tg_outbound`, `O2 read notifications.jsonl`,
   `O3 HWM/read/rate-limit gate`, `O4 format Markdown/buttons/attachments`,
   `O5 Telegram Bot API`
-- Inbound lane labels: `I1 callbacks/text/photos/docs`, `I2 sase_chop_tg_inbound`,
+- Inbound lane labels: `I1 callbacks/text/photos/docs`, `I2 sase_job_tg_inbound`,
   `I3 dispatch`, `I4 write response / slash command / launch agent`
 - State store labels grouped under `~/.sase/telegram/`:
   `delivery: rate_limit.json, last_sent_ts, outbound.lock, outbound_debug.log`;

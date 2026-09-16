@@ -1099,7 +1099,7 @@ boundaries, and docs/tests:
 | `src/sase/main/`               | CLI parser registration and subcommand handlers.                                                       |
 | `src/sase/ace/`                | sase's TUI, Patch rendering, query integration, actions, widgets, and TUI state.                       |
 | `src/sase/agent/`              | Agent launch, detached spawn, prompt fan-out, running-agent metadata, artifact lookup, and naming.     |
-| `src/sase/axe/`                | Axe orchestrator, lumberjacks, chop execution, scheduled jobs, maintenance mode, and automation state. |
+| `src/sase/axe/`                | Axe orchestrator, routines, job execution, scheduled jobs, maintenance mode, and automation state.     |
 | `src/sase/xprompt/`            | XPrompt expansion, directives, workflow loading, execution, tracing, explaining, and graphing.         |
 | `src/sase/xprompts/`           | Bundled xprompt templates, workflows, and schemas shipped with the package.                            |
 | `src/sase/xprompts/skills/`    | Bundled agent skill sources and the generated `SKILL.md` frame.                                        |
@@ -1119,7 +1119,7 @@ boundaries, and docs/tests:
 | `src/sase/telemetry/`          | Local debugging metric accumulation, store queries, health checks, and shared numeric render helpers.  |
 | `src/sase/version/`            | Runtime inventory collection and rendering for the `sase version` CLI command.                         |
 | `src/sase/integrations/`       | Public helper APIs consumed by external plugins and editors.                                           |
-| `src/sase/scripts/`            | Packaged utility scripts used by axe chops and support commands.                                       |
+| `src/sase/scripts/`            | Packaged utility scripts used by axe jobs and support commands.                                        |
 | `tests/`                       | Python test suite, with subdirectories mirroring major `src/sase/` areas.                              |
 | `docs/`                        | MkDocs Material site source.                                                                           |
 | `sase/sase.yml`                | Repository-local SASE configuration.                                                                   |

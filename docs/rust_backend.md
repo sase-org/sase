@@ -101,7 +101,7 @@ The intentionally Python-owned host surfaces include:
   entry points stay on the host by design.
 - Agent launch host responsibilities stay in Python: provider/workspace plugin calls,
   VCS preallocation env mapping, project-file locking, workspace-directory cleanup, TUI
-  notifications, xprompt catalog expansion, history writes, chop registry recording, and
+  notifications, xprompt catalog expansion, history writes, job registry recording, and
   user-facing launch callbacks. Rust owns deterministic launch planning/preparation and
   the low-level detached spawn binding.
 - LLM provider registration, selector policy, temporary alias-override precedence,
@@ -139,7 +139,7 @@ The intentionally Python-owned host surfaces include:
 The `sase.core` package is a stable Python facade carved out specifically so individual
 operations can be re-served by faster Rust implementations one at a time. Parsing
 project `.sase` files dominates many cold-path workloads (TUI startup, large search
-results, axe lumberjack scans), so it was the first operation routed through this seam.
+results, axe routine scans), so it was the first operation routed through this seam.
 
 ## Architecture
 

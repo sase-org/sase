@@ -7,17 +7,17 @@ records that sase uses to track work) and periodically runs lifecycle jobs such 
 completion, mentor launch, workflow cleanup, comment polling, `%wait` dependency checks,
 and error digests.
 
-Axe uses a multi-process architecture: an **Orchestrator** spawns multiple
-**Lumberjacks**, and each lumberjack runs a subset of jobs on its own schedule. sase's
-TUI starts axe automatically unless launched with `sase tui --no-axe`; operators can
-also manage it directly with `sase axe start` and `sase axe stop`.
+Axe uses a multi-process architecture: an **Orchestrator** spawns multiple **Routines**,
+and each routine runs a subset of jobs on its own schedule. sase's TUI starts axe
+automatically unless launched with `sase tui --no-axe`; operators can also manage it
+directly with `sase axe start` and `sase axe stop`.
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                    Orchestrator                          │
-│  (spawns & monitors all lumberjacks)                    │
+│  (spawns & monitors all routines)                    │
 ├──────────┬──────────┬──────────┬────────────┬───────────┤
 │  hooks   │  waits   │  checks  │  comments  │ housekeep │
 │  (5s)    │  (10s)   │  (5min)  │  (1min)    │ (1hr)     │
@@ -34,50 +34,72 @@ also manage it directly with `sase axe start` and `sase axe stop`.
 
 ### Key Concepts
 
-- **Orchestrator**: Parent process that spawns and monitors all lumberjack processes.
-  Detects crashes and restarts failed lumberjacks automatically. Holds the axe lifecycle
+- **Orchestrator**: Parent process that spawns and monitors all routine processes.
+  Detects crashes and restarts failed routines automatically. Holds the axe lifecycle
   lock while running and forwards SIGTERM to all children on shutdown.
 
-- **Lumberjack**: Individual scheduler loop that runs a subset of jobs on a fixed
-  interval. Each lumberjack has a name (e.g., "hooks", "checks"), runs one or more chops
-  per cycle, and maintains independent state and metrics.
+- **Routine**: Individual scheduler loop that runs a subset of jobs on a fixed interval.
+  Each routine has a name (e.g., "hooks", "checks"), runs one or more jobs per cycle,
+  and maintains independent state and metrics.
 
-- **Chop**: A single script-only job unit executed by a lumberjack. The executable reads
+- **Job**: A single script-only job unit executed by a routine. The executable reads
   context JSON and may return a structured result containing validated agent-launch
-  proposals. The runner, never the script, launches those agents. Chops can declare
+  proposals. The runner, never the script, launches those agents. Jobs can declare
   cadence, triggers, guards, target fan-out, environment, and dedupe policy.
 
-- **Candidate Patches**: Every cycle (checks, chops, and the lumberjack job list) first
+- **Candidate Patches**: Every cycle (checks, jobs, and the routine job list) first
   filters out Patches with [`PR_ORIGIN: external`](change_spec.md#pr_origin) before any
   job evaluates them. Axe never acts on a Patch adopted from a PR it didn't create.
 
 ## CLI Commands
 
-`sase axe chop` and `sase axe lumberjack` default to their `list` views when invoked
-without a nested subcommand.
+`sase axe job` and `sase axe routine` default to their `list` views when invoked without
+a nested subcommand.
 
-| Command                                    | Description                                                                   |
-| ------------------------------------------ | ----------------------------------------------------------------------------- |
-| `sase axe start`                           | Start the orchestrator (spawns all lumberjacks)                               |
-| `sase axe stop`                            | Stop the orchestrator gracefully                                              |
-| `sase axe restart`                         | Verified stop/start/heartbeat-verify restart; works even from a stopped state |
-| `sase axe ensure`                          | Heal a missing daemon unless it was explicitly stopped                        |
-| `sase axe ensure install`                  | Install and start the optional user-systemd watchdog                          |
-| `sase axe ensure uninstall`                | Stop and remove the optional user-systemd watchdog                            |
-| `sase axe status`                          | Show the read-only whole-system health snapshot                               |
-| `sase axe status --json`                   | Emit the schema-version-1 status object                                       |
-| `sase axe chop list`                       | List configured chops with status (`-a` adds scripts)                         |
-| `sase axe chop list -v`                    | Add a panel with each chop's full description                                 |
-| `sase axe chop doctor`                     | Diagnose configured/available chops and Telegram setup                        |
-| `sase axe chop run <name>`                 | Run a single chop in the foreground                                           |
-| `sase axe chop run <name> -L <lumberjack>` | Run a single chop attributed to a specific lumberjack                         |
-| `sase axe lumberjack list`                 | List configured lumberjacks and their chops                                   |
-| `sase axe lumberjack list -v`              | Add each lumberjack's full description under `details`                        |
-| `sase axe lumberjack run <name>`           | Run a single lumberjack in the foreground                                     |
-| `sase axe lumberjack status`               | Show status of all lumberjacks                                                |
-| `sase axe maintenance enter`               | Pause lumberjack ticks until maintenance exits                                |
-| `sase axe maintenance exit`                | Clear the maintenance marker                                                  |
-| `sase axe maintenance status`              | Show whether maintenance mode is active                                       |
+| Command                                | Description                                                                   |
+| -------------------------------------- | ----------------------------------------------------------------------------- |
+| `sase axe start`                       | Start the orchestrator (spawns all routines)                                  |
+| `sase axe stop`                        | Stop the orchestrator gracefully                                              |
+| `sase axe restart`                     | Verified stop/start/heartbeat-verify restart; works even from a stopped state |
+| `sase axe ensure`                      | Heal a missing daemon unless it was explicitly stopped                        |
+| `sase axe ensure install`              | Install and start the optional user-systemd watchdog                          |
+| `sase axe ensure uninstall`            | Stop and remove the optional user-systemd watchdog                            |
+| `sase axe status`                      | Show the read-only whole-system health snapshot                               |
+| `sase axe status --json`               | Emit the schema-version-1 status object                                       |
+| `sase axe job list`                    | List configured jobs with status (`-a` adds scripts)                          |
+| `sase axe job list -v`                 | Add a panel with each job's full description                                  |
+| `sase axe job doctor`                  | Diagnose configured/available jobs and Telegram setup                         |
+| `sase axe job run <name>`              | Run a single job in the foreground                                            |
+| `sase axe job run <name> -L <routine>` | Run a single job attributed to a specific routine                             |
+| `sase axe routine list`                | List configured routines and their jobs                                       |
+| `sase axe routine list -v`             | Add each routine's full description under `details`                           |
+| `sase axe routine run <name>`          | Run a single routine in the foreground                                        |
+| `sase axe routine status`              | Show status of all routines                                                   |
+| `sase axe maintenance enter`           | Pause routine ticks until maintenance exits                                   |
+| `sase axe maintenance exit`            | Clear the maintenance marker                                                  |
+| `sase axe maintenance status`          | Show whether maintenance mode is active                                       |
+
+### Compatibility aliases
+
+Current commands, configuration, examples, and public JSON use routine/job terms. The
+older names remain accepted as compatibility aliases where existing installations may
+still send them:
+
+| Legacy spelling                            | Current spelling                          | Notes                                                                    |
+| ------------------------------------------ | ----------------------------------------- | ------------------------------------------------------------------------ |
+| `sase axe lumberjack ...`                  | `sase axe routine ...`                    | Hidden CLI alias; completions and help advertise `routine`.              |
+| `sase axe chop ...`                        | `sase axe job ...`                        | Hidden CLI alias; legacy invocations keep schema-version-1 JSON.         |
+| `axe.lumberjacks.<name>.chops`             | `axe.routines.<name>.jobs`                | Accepted on input; effective config and new examples use canonical keys. |
+| `chop_script_dirs`, `chop_timeout`         | `job_script_dirs`, `job_timeout`          | The old keys remain input aliases.                                       |
+| `SASE_CHOP_*`, `sase_chop_*`, `sase.chops` | `SASE_JOB_*`, `sase_job_*`, `sase.jobs`   | Script authors should use the job-named entrypoints and SDK facade.      |
+| `chop:<routine>/<job>` artifact references | `job:<routine>/<job>` artifact references | Both resolve to the same stored link identity.                           |
+
+The enabled rename contract projects schema-version-2 JSON with routine/job field names
+for canonical commands such as `sase axe status --json` and `sase axe job ...`. Hidden
+legacy `chop` commands continue returning schema-version-1 envelopes. Runtime state
+paths and durable registries are not migrated: directories under
+`~/.sase/axe/lumberjacks/`, per-job `chops/` subdirectories, and `agent_chops.json`
+remain intentionally legacy-named storage.
 
 ### Examples
 
@@ -87,7 +109,7 @@ sase axe start
 sase axe stop
 
 # Verified restart: stop (no-op if already down), start, and wait for fresh
-# lumberjack heartbeats; exits 0 only once the restart is verified
+# routine heartbeats; exits 0 only once the restart is verified
 sase axe restart
 sase axe restart --json
 
@@ -105,29 +127,29 @@ sase axe ensure uninstall
 # Run axe against only matching Patches
 sase axe start --query '!!! OR @@@'
 
-# Inspect lumberjacks
-sase axe lumberjack list
-sase axe lumberjack list --verbose  # also print each description body
-sase axe lumberjack status
+# Inspect routines
+sase axe routine list
+sase axe routine list --verbose  # also print each description body
+sase axe routine status
 
-# Run a single lumberjack for debugging
-sase axe lumberjack run hooks
+# Run a single routine for debugging
+sase axe routine run hooks
 
-# Inspect configured chops and discoverable scripts
-sase axe chop list
-sase axe chop list --available --verbose
-sase axe chop doctor            # exits 1 if a configured script chop cannot be resolved
+# Inspect configured jobs and discoverable scripts
+sase axe job list
+sase axe job list --available --verbose
+sase axe job doctor            # exits 1 if a configured script job cannot be resolved
 
-# Run a single chop once
-sase axe chop run hook_checks
+# Run a single job once
+sase axe job run hook_checks
 
-# Preview a proposal-emitting chop without launching agents
-sase axe chop run 'refresh_docs[sase]' -L docs --dry-run --chop-verbose
+# Preview a proposal-emitting job without launching agents
+sase axe job run 'refresh_docs[sase]' -L docs --dry-run --job-verbose
 
-# Disambiguate when the same chop name appears in multiple lumberjacks
-sase axe chop run hook_checks --lumberjack hooks   # -L is the short form
+# Disambiguate when the same job name appears in multiple routines
+sase axe job run hook_checks --routine hooks   # -L is the short form
 
-# Pause/resume scheduled lumberjack work
+# Pause/resume scheduled routine work
 sase axe maintenance enter --reason "install plugin update"
 sase axe maintenance status
 sase axe maintenance exit
@@ -146,27 +168,26 @@ The top-level lifecycle state and health are separate:
 
 | State         | Meaning                                                                | Health      |
 | ------------- | ---------------------------------------------------------------------- | ----------- |
-| `running`     | The orchestrator and configured lumberjacks are coherently running.    | `healthy`   |
+| `running`     | The orchestrator and configured routines are coherently running.       | `healthy`   |
 | `maintenance` | AXE is running with a valid maintenance marker pausing scheduled work. | `healthy`   |
 | `stopped`     | The desired-state marker intentionally requests a stopped AXE.         | `healthy`   |
 | `not_started` | No running process or explicit desired-state marker has been observed. | `healthy`   |
 | `down`        | Desired state is `running`, but the orchestrator is not live.          | `unhealthy` |
-| `degraded`    | Processes are live but orchestrator or lumberjack evidence is invalid. | `unhealthy` |
+| `degraded`    | Processes are live but orchestrator or routine evidence is invalid.    | `unhealthy` |
 | `error`       | A required host input could not be collected or classified.            | `error`     |
 
 The summary shows the desired state with its source and timestamp; orchestrator live
 PIDs, lifecycle-lock state, and PID-file coherence; maintenance reason, owner, and age;
-hook and agent runner occupancy; the newest lifecycle journal event; and **Chop load**
-(fleet spawn rate, no-op ratio, and last-tick spawn/skip counts). The lumberjack table
-is sorted by name and includes derived and reported state, process liveness, PID,
-interval and staleness threshold, start and heartbeat times/ages, uptime, cycle and
-historical error counts, configured chops, and a **Load** column read from each
-lumberjack's `metrics.json` (spawns/min, no-op ratio, last-tick spawned/skipped, and
-per-reason skip buckets `t`/`re`/`inh` for trigger, run_every, inhibited). At narrow
-terminal widths those facts fold into a compact details column rather than being
-truncated. The schema-version-1 `--json` snapshot stays the portable health wire;
-spawn-rate numbers live in the on-disk lumberjack status/metrics JSON that the human
-view overlays.
+hook and agent runner occupancy; the newest lifecycle journal event; and **Job load**
+(fleet spawn rate, no-op ratio, and last-tick spawn/skip counts). The routine table is
+sorted by name and includes derived and reported state, process liveness, PID, interval
+and staleness threshold, start and heartbeat times/ages, uptime, cycle and historical
+error counts, configured jobs, and a **Load** column read from each routine's
+`metrics.json` (spawns/min, no-op ratio, last-tick spawned/skipped, and per-reason skip
+buckets `t`/`re`/`inh` for trigger, run_every, inhibited). At narrow terminal widths
+those facts fold into a compact details column rather than being truncated. The
+schema-version-1 `--json` snapshot stays the portable health wire; spawn-rate numbers
+live in the on-disk routine status/metrics JSON that the human view overlays.
 
 When the classifier reports issues or collection failure, an **Attention** panel
 preserves the issue order and lists deduplicated suggested commands. Exit codes are part
@@ -177,7 +198,7 @@ Use these related commands according to intent:
 
 - `sase axe status` is the read-only first look at whole-system intent and health.
 - `sase axe restart` is the explicit operator action: stop (if running), start, and
-  verify fresh lumberjack heartbeats before reporting success.
+  verify fresh routine heartbeats before reporting success.
 - `sase axe ensure` reconciles desired state and may start a missing orchestrator; it is
   a recovery command that lets the watchdog heal, rather than an operator-initiated
   restart.
@@ -185,18 +206,18 @@ Use these related commands according to intent:
   deeper investigation.
 - `sase axe maintenance status` remains the compatibility/debugging view of only the
   maintenance marker.
-- `sase axe lumberjack status` remains the compatibility/debugging process view for
-  individual lumberjacks.
+- `sase axe routine status` remains the compatibility/debugging process view for
+  individual routines.
 
-## Default Lumberjacks
+## Default Routines
 
-Axe ships with six default lumberjacks:
+Axe ships with six default routines:
 
 ### hooks (5-second interval)
 
 High-frequency hook lifecycle management:
 
-| Chop                    | Description                                   |
+| Job                     | Description                                   |
 | ----------------------- | --------------------------------------------- |
 | `hook_checks`           | Complete finished hooks, start stale ones     |
 | `mentor_checks`         | Start mentors once hook prerequisites are met |
@@ -207,9 +228,9 @@ High-frequency hook lifecycle management:
 | `orphan_cleanup`        | Release workspace claims for dead processes   |
 | `stale_running_cleanup` | Release workspace claims from dead processes  |
 
-Every chop above except `stale_running_cleanup` ships with an `fs` trigger so an idle
+Every job above except `stale_running_cleanup` ships with an `fs` trigger so an idle
 tick costs a handful of `stat()` calls instead of a subprocess spawn: the six
-Patch-driven chops watch every enabled project's ProjectSpec file
+Patch-driven jobs watch every enabled project's ProjectSpec file
 (`paths: [{path: projects, glob: "*/*.sase"}, {path: projects, glob: "*/*.gp"}]`), and
 `pending_checks_poll` watches the sharded `~/.sase/checks/` output directory. Each
 carries `max_quiet: "120s"`, so a missed observation only delays a fire by up to two
@@ -221,7 +242,7 @@ PID does not touch any project, claim, or artifact file.
 
 Fast-polling agent dependency resolution:
 
-| Chop                | Description                                                            |
+| Job                 | Description                                                            |
 | ------------------- | ---------------------------------------------------------------------- |
 | `bead_claim_checks` | Acquire/release bead claims for pre-launch agents                      |
 | `epic_launch_flush` | Flush planner completions orphaned by unsettled epic launches          |
@@ -247,7 +268,7 @@ exact artifact waits but does not satisfy a named `%wait`.
 
 If an unresolved dependency already has a terminal `done.json` outcome that wait
 resolution does not recognize, `wait_checks` increments `unknown_outcome` and logs the
-artifact directory plus the offending outcome. The chop also emits a bounded sample of
+artifact directory plus the offending outcome. The job also emits a bounded sample of
 waiters blocked by terminal dependencies so permanent stalls are diagnosable without
 spamming ordinary live waiters.
 
@@ -261,14 +282,14 @@ hints their projects' `beads` role every 30 seconds — even when that role has 
 into `auto_sync` — so the one conservative fetch/fast-forward sync policy converges it
 promptly instead of a competing managed-integration refresh path. The waiting runner
 also marks the same hint on a coarser ten-minute cadence as an outage backstop, in case
-a chop failure ever leaves the tick-driven hint unconsumed. Setting
+a job failure ever leaves the tick-driven hint unconsumed. Setting
 `sdd.bead_refresh.mode: off` disables both hint paths.
 
 ### checks (5-minute interval)
 
 Lower-frequency status checks:
 
-| Chop                    | Description                                                  |
+| Job                     | Description                                                  |
 | ----------------------- | ------------------------------------------------------------ |
 | `bead_task_triage`      | Reconcile the one pending gate each task bead owns           |
 | `plugins_required`      | Raise one `PluginsRequired` gate per project missing plugins |
@@ -281,9 +302,9 @@ one of three gate kinds from that one issue type: a ready task gets a `TaskTriag
 a snoozed one gets a `BeadSnooze` gate, and a task bead of type `flag` whose status is
 `open` and whose date and release removal thresholds have both passed gets a
 `FlagTriage` gate. All three kinds are reconciled in the same pass, under one lock and
-one lane state, so no second chop can race this one into giving a bead two gates. The
+one lane state, so no second job can race this one into giving a bead two gates. The
 bead-to-request mapping — including which kind each bead currently holds — lives in the
-checks lumberjack's state directory. This scan does not call the dependency-aware
+checks routine's state directory. This scan does not call the dependency-aware
 `sase bead ready` query, so a stored-ready task with an active blocker still receives a
 gate. A flag task bead's due-ness is derived through the one shared `flag_removal_due`
 predicate, never recomputed here.
@@ -298,11 +319,11 @@ without any change to its stored status — it stays `ready` and stays visible t
 `sase bead list`, `sase bead ready`, sase's TUI Beads panel, and its bead page — and a
 `TaskTriage` gate already raised for a bead that later falls below the bar is canceled
 (reason `task_bead_below_plus_one_threshold`) and its notification dismissed on the
-chop's next tick. Snoozed beads and `flag` task beads are never subject to this bar.
+job's next tick. Snoozed beads and `flag` task beads are never subject to this bar.
 
 A still-pending gate is skipped on later ticks, preventing repeated notifications. If a
 bead leaves its gateable status or type through a launch, close, extension, or manual
-retraction, the chop cancels its pending gate. If a gate becomes terminal or its bundle
+retraction, the job cancels its pending gate. If a gate becomes terminal or its bundle
 disappears while the bead is still gateable, the next tick replaces it, except while
 that bead has an active detached launch in flight. A persistent generation counter gives
 each replacement a new deterministic request ID, whether the bead kept its status or
@@ -310,15 +331,15 @@ left and came back.
 
 After project discovery succeeds and returns a non-empty inventory, the same
 reconciliation also cancels pending gates when their project leaves the active
-inventory, and cancels producer-owned gates no longer represented in the lumberjack's
-lane state. An unavailable inventory fails closed without sweeping anything. A project
-whose bead store is temporarily unreadable is likewise preserved for retry rather than
-being mistaken for an inactive project and swept.
+inventory, and cancels producer-owned gates no longer represented in the routine's lane
+state. An unavailable inventory fails closed without sweeping anything. A project whose
+bead store is temporarily unreadable is likewise preserved for retry rather than being
+mistaken for an inactive project and swept.
 
 Two things also force a replacement. A gate of the wrong kind for the bead's current
 status is canceled as `bead_status_changed` and replaced in the same tick — a bead that
 was snoozed while its triage gate was pending is asking a different question now, so
-that check outranks the presentation comparison below. Otherwise the chop compares a
+that check outranks the presentation comparison below. Otherwise the job compares a
 presentation and gate-contract fingerprint over every stored field the gate renders:
 status, the whole snooze record, title, description, notes, size, creation time, refs,
 +1 evidence, close history, and (for a `flag` task bead) its key, kind, thresholds, and
@@ -326,7 +347,7 @@ due state, plus explicit renderer and option-contract versions. A mismatch cance
 gate as `task_triage_presentation_changed` and re-raises it, so an edited description, a
 re-snooze, an extended threshold, or an obsolete interaction contract never leaves a
 gate advertising stale content, the old wake time, or superseded controls. While a
-`BeadSnooze` gate stays pending and unchanged, the chop also re-snoozes its notification
+`BeadSnooze` gate stays pending and unchanged, the job also re-snoozes its notification
 to match the bead's wake time (whenever that wake time is still in the future), keeping
 a snoozed bead's notification snoozed alongside it even after a crash or a manual
 unmute.
@@ -359,7 +380,7 @@ requires a reason and abandons the removal by closing the bead as `canceled`, le
 `tools/check_feature_flags`' closed-bead-with-surviving-definition check to catch the
 orphan if the flag itself survives.
 
-The `plugins_required` chop is the human install offer that agent and non-interactive
+The `plugins_required` job is the human install offer that agent and non-interactive
 contexts deliberately do not get. It scans enabled non-home projects, compares each
 project's `plugins.required` list against installed distributions, and raises at most
 one `PluginsRequired` gate per project per distinct missing or version-mismatched set.
@@ -370,26 +391,25 @@ only for those definitive misses; when planning or the `uv` mutation fails, incl
 when sase is not a `uv tool` install, the gate stays pending with the same actionable
 message `sase plugin install` already prints where applicable. A successful install
 restarts axe. **Dismiss** records the decision so the same missing set is not re-offered
-until it changes. The chop cancels the gate when the set becomes satisfied. Lane state
+until it changes. The job cancels the gate when the set becomes satisfied. Lane state
 holds the pending request, a generation counter, and a fingerprint over the missing set,
-so a re-run does not duplicate a notification. Run `sase axe chop run plugins_required`
+so a re-run does not duplicate a notification. Run `sase axe job run plugins_required`
 to raise or refresh those gates without waiting for the next five-minute checks tick.
 
 ### external_mirror (15-minute interval)
 
 Isolated remote-tracker polling:
 
-| Chop                    | Description                                    |
+| Job                     | Description                                    |
 | ----------------------- | ---------------------------------------------- |
 | `external_issue_mirror` | Mirror external tracker issues into task beads |
 | `external_pr_mirror`    | Adopt remote pull requests as local Patches    |
 
-Both chops are the same class of work — one bounded remote poll per project — so they
+Both jobs are the same class of work — one bounded remote poll per project — so they
 share a single generously paced lane instead of two. A healthy full pass is 1–3.5
-seconds, so the 900-second interval leaves wide headroom, and a 5-minute per-chop
-timeout means the worst-case cycle (`interval + chop_timeout`) stays a bounded 20
-minutes without ever delaying the faster `checks` lane's PR-submission and
-workspace-claim work.
+seconds, so the 900-second interval leaves wide headroom, and a 5-minute per-job timeout
+means the worst-case cycle (`interval + job_timeout`) stays a bounded 20 minutes without
+ever delaying the faster `checks` lane's PR-submission and workspace-claim work.
 
 `external_issue_mirror` expands to one instance per enabled project via
 `for_each: {source: projects, vcs: [git, gh]}` (`external_issue_mirror[<project>]`), the
@@ -399,7 +419,7 @@ beads for uncovered issues, so no `TaskTriage` gate fires on a first-pass backlo
 issue-listing seam has no page cursor or ordering guarantee, so every pass lists the
 tracker's full inventory (`state="all"`, `limit=0`); the per-pass bound instead caps
 local writes — at most 25 bead creations and 50 notes per pass, within a wall-clock work
-budget derived from the lane's configured `chop_timeout`. A pass that hits the creation
+budget derived from the lane's configured `job_timeout`. A pass that hits the creation
 cap does not advance its watermark, so a large first backlog converges over several
 15-minute passes; run `sase bead sync-external` to accelerate it manually. Persistent
 exponential backoff (capped at one hour) keeps one unreachable tracker from stalling
@@ -433,17 +453,17 @@ race collapses.
 
 Run `sase doctor -C axe.external_mirror` to check detached tracker auth: the AXE
 daemon's environment is not the interactive TUI's, and a silent `gh` auth failure there
-would look exactly like "no issues." The check reports the chop's own persisted evidence
+would look exactly like "no issues." The check reports the job's own persisted evidence
 rather than attempting an interactive provider call.
 
-See [Builtin `external_pr_mirror`](#builtin-external_pr_mirror) below for that chop's
-own behavior, including where its cursor and backoff state live.
+See [Builtin `external_pr_mirror`](#builtin-external_pr_mirror) below for that job's own
+behavior, including where its cursor and backoff state live.
 
 ### comments (1-minute interval)
 
 Comment polling:
 
-| Chop             | Description                   |
+| Job              | Description                   |
 | ---------------- | ----------------------------- |
 | `comment_checks` | Start critique comment checks |
 
@@ -451,7 +471,7 @@ Comment polling:
 
 Periodic maintenance:
 
-| Chop                         | Description                                                                     |
+| Job                          | Description                                                                     |
 | ---------------------------- | ------------------------------------------------------------------------------- |
 | `error_digest`               | Send error notification digests (creates `ViewErrorReport` notification action) |
 | `notification_store_compact` | Archive old dismissed notifications out of the live JSONL store                 |
@@ -462,25 +482,25 @@ Periodic maintenance:
 | `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair renamed refs       |
 | `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                         |
 
-The `error_digest` chop summarizes recent errors into a digest file stored at
+The `error_digest` job summarizes recent errors into a digest file stored at
 `~/.sase/axe/error_digests/digest_<timestamp>.txt`. The notification includes a
 `ViewErrorReport` action that opens the digest in `$EDITOR` when selected in sase's TUI
-notification modal. For failed script subprocesses, the digest includes the chop run ID,
+notification modal. For failed script subprocesses, the digest includes the job run ID,
 exit code, source log path, and a bounded subprocess output excerpt captured at failure
 time. The excerpt is redacted, stripped of terminal control sequences, and retained in
 `recent_errors.json`, so the digest remains useful even after per-run logs are pruned.
 Silent, missing, unreadable, malformed, and truncated output are called out explicitly
 instead of being reported as a Python traceback.
 
-The `notification_store_compact` chop bounds `~/.sase/notifications/notifications.jsonl`
+The `notification_store_compact` job bounds `~/.sase/notifications/notifications.jsonl`
 by moving dismissed rows older than 14 days into `notifications-archive.jsonl`. Unread
 and still-actionable rows stay in the live file. sase's TUI snapshot reads are memoized
 against an mtime+size token, so this pass lives on `housekeeping` rather than the TUI
 refresh cadence that previously re-parsed the whole store every tick.
 
-The `managed_tmp_reap` chop bounds the managed SASE temp root (`$SASE_TMPDIR`, else
+The `managed_tmp_reap` job bounds the managed SASE temp root (`$SASE_TMPDIR`, else
 `~/.sase/tmp`) that `get_sase_managed_tmpdir()` hands out. The actual age/pressure
-decision runs in `sase_core_rs` (`sase-core`'s `managed_tmp` crate); this Python chop
+decision runs in `sase_core_rs` (`sase-core`'s `managed_tmp` crate); this Python job
 resolves the configured horizons and thresholds and calls that binding. Horizons are per
 subdirectory: command scratch (`editors/`, `wrappers/`, `viewers/`, `commit-messages/`,
 `agent-tmp/`, …) goes after 12 hours by default, handoff files (`handoff/`, `gh-diffs/`,
@@ -507,7 +527,7 @@ weakening the fresh-descendant check. All of the horizons, the removal budget, a
 pressure thresholds in this section are configurable under `managed_tmp` in `sase.yml`;
 see [Configuration](configuration.md#managed_tmp). Generic agent scratch, handoff
 buckets, artifact buckets, unknown buckets, symlinks, and build trees with fresh
-descendants are not early pressure candidates. The chop summary reports `scanned`,
+descendants are not early pressure candidates. The job summary reports `scanned`,
 `removed`, `pressure_removed`, `pressure_reclaimed_bytes`, `pressure_trigger`,
 `pressure_available_bytes`, `pressure_recovery_available_bytes`,
 `pressure_min_age_seconds`, `deindexed`, and `capped=1` when it hit that budget. Reaped
@@ -516,7 +536,7 @@ without an explicit `artifacts_dir` gets one under `workflow-artifacts/`. It liv
 `housekeeping` rather than an interactive path because the first pass over a neglected
 root walks tens of thousands of entries.
 
-The `proc_runtime_sweep` chop bounds `~/.sase/procs/runtime`. Proc-row retention deletes
+The `proc_runtime_sweep` job bounds `~/.sase/procs/runtime`. Proc-row retention deletes
 runtime directories for rows it actually pruned in the same operation as log cleanup.
 This hourly sweep handles historical rowless runtime directories separately: it removes
 only canonical proc-id directories that are direct, non-symlink children of the runtime
@@ -524,17 +544,17 @@ root, older than the configured `procs.runtime_orphan_horizon_seconds`, absent f
 proc store after a locked re-read, and within `procs.runtime_orphan_max_removals`.
 Fresh, invalidly named, symlinked, active, or otherwise retained entries are preserved.
 
-The `disk_pressure` chop checks SASE's proportional free-space threshold on the
+The `disk_pressure` job checks SASE's proportional free-space threshold on the
 filesystem that holds `~/.sase`. When the volume falls below
 `disk.pressure.warn_free_percent`, it logs and sends a notification naming the largest
 rows from `sase disk list`, then runs unattended owner-safe cleanup early. Managed-temp
 pressure pruning and proc runtime orphan sweeps may apply because those owners encode
 their deletion policy. Artifact run directories, backups, and unowned Cargo-shaped
-strays are reported for human action and are never deleted by this chop.
+strays are reported for human action and are never deleted by this job.
 
-The `bead_stale_cleanup` chop is the other half of the task-bead `+1` bar. Ready task
+The `bead_stale_cleanup` job is the other half of the task-bead `+1` bar. Ready task
 beads that never clear their [effective `+1` bar](beads.md#per-type-triage-bar) stay
-`ready` (the five-minute `bead_task_triage` chop withholds their `TaskTriage` gate) and
+`ready` (the five-minute `bead_task_triage` job withholds their `TaskTriage` gate) and
 would otherwise accumulate forever. Once at least
 [`bead.task_triage.stale_cleanup_min_beads`](configuration.md#bead) of them have sat
 below that bar for [`bead.task_triage.stale_after_days`](configuration.md#bead) days,
@@ -547,25 +567,25 @@ the three thresholds (not the pinned `stale_as_of` date), so an unchanged roster
 the pending gate alone and a changed roster replaces it. When the backlog drops below
 the bar the pending gate is canceled. A project whose store cannot be read is skipped
 and cannot cancel a healthy pending gate, because the true roster is then unknown. Run
-`sase axe chop run bead_stale_cleanup` to raise or refresh that gate without waiting for
+`sase axe job run bead_stale_cleanup` to raise or refresh that gate without waiting for
 the hour.
 
-The `artifact_link_backfill` chop runs four bounded jobs per enabled project. It sweeps
+The `artifact_link_backfill` job runs four bounded jobs per enabled project. It sweeps
 older documents for deterministic derived links, resuming from a per-project checkpoint
 when one tick's budget is exhausted; drains audited-read outbox rows whose agents have
 since published; reconciles cross-workspace local aggregates; and repairs dangling refs
 from Git rename history. A large derivation backlog converges over several hourly ticks
 instead of rescanning the full corpus each time. Run
-`sase axe chop run artifact_link_backfill` for an immediate pass. The link model and
+`sase axe job run artifact_link_backfill` for an immediate pass. The link model and
 doctor counters are documented in [Artifact Links](artifact_links.md).
 
-The `artifact_run_prune` chop is a read-only preview for old `artifacts/ace-run/`
+The `artifact_run_prune` job is a read-only preview for old `artifacts/ace-run/`
 directories. It keeps the newest `artifacts.retention.keep_recent_run_months` calendar
 months whole and protects runs referenced by artifact-file rows, text refs, agent names,
 and non-closed beads. The summary reports selected run directories, reclaimable bytes,
 protection-source gaps, and empty month/day shards outside sase's TUI startup watch
 window. When candidates or protection problems remain unchanged across hourly passes,
-the chop upserts one deduplicated Axe report notification with the preview command.
+the job upserts one deduplicated Axe report notification with the preview command.
 Artifact-run deletion is currently preview-only; apply requests fail closed before any
 run directory, empty shard, or artifact-index row is removed.
 
@@ -576,50 +596,50 @@ Axe is configured in `sase.yml` under the `axe:` section. See
 
 ### Global Settings
 
-| Setting                                  | Default  | Description                                               |
-| ---------------------------------------- | -------- | --------------------------------------------------------- |
-| `max_hook_runners`                       | 3        | Concurrent hook runners allowed globally                  |
-| `max_agent_runners`                      | 3        | Concurrent agent runners allowed globally                 |
-| `zombie_timeout_seconds`                 | 7200     | Timeout for marking jobs as zombie                        |
-| `query`                                  | `""`     | Optional query filter for all Patches                     |
-| `chop_script_dirs`                       | `[]`     | Directories to search for chop scripts                    |
-| `lumberjack_log_max_bytes`               | 52428800 | Maximum bytes retained for each bounded lumberjack log    |
-| `lumberjack_log_temp_max_age_seconds`    | 300      | Age before orphaned log-rotation temp files may be reaped |
-| `lumberjack_restart_backoff_max_seconds` | 60       | Maximum delay between retries for a crashing lumberjack   |
-| `verbose_lumberjack_diagnostics`         | false    | Include verbose diagnostics in chop script context JSON   |
+| Setting                               | Default  | Description                                               |
+| ------------------------------------- | -------- | --------------------------------------------------------- |
+| `max_hook_runners`                    | 3        | Concurrent hook runners allowed globally                  |
+| `max_agent_runners`                   | 3        | Concurrent agent runners allowed globally                 |
+| `zombie_timeout_seconds`              | 7200     | Timeout for marking jobs as zombie                        |
+| `query`                               | `""`     | Optional query filter for all Patches                     |
+| `job_script_dirs`                     | `[]`     | Directories to search for job scripts                     |
+| `routine_log_max_bytes`               | 52428800 | Maximum bytes retained for each bounded routine log       |
+| `routine_log_temp_max_age_seconds`    | 300      | Age before orphaned log-rotation temp files may be reaped |
+| `routine_restart_backoff_max_seconds` | 60       | Maximum delay between retries for a crashing routine      |
+| `verbose_routine_diagnostics`         | false    | Include verbose diagnostics in job script context JSON    |
 
 The `query` setting uses the same Patch query language as sase's TUI. CLI flags on
-`sase axe start` and `sase axe lumberjack run` override the configured query, runner
+`sase axe start` and `sase axe routine run` override the configured query, runner
 limits, and zombie timeout for that process.
 
-### Lumberjack Configuration
+### Routine Configuration
 
 ```yaml
 axe:
-  lumberjacks:
-    my_lumberjack:
+  routines:
+    my_routine:
       description: |-
         Run project-scoped custom checks once a minute
 
-        Use this lane for inexpensive checks that should react within a minute. Individual chops may use run_every to
+        Use this lane for inexpensive checks that should react within a minute. Individual jobs may use run_every to
         reduce their own cadence; long-running maintenance and high-frequency lifecycle checks belong in separate
-        lumberjacks.
+        routines.
       interval: 60 # Seconds between cycles
-      chop_timeout: "60s" # Default timeout for all chops in this lumberjack
+      job_timeout: "60s" # Default timeout for all jobs in this routine
       wait_runners: 0 # Start lane agents only when no other agent holds a runner slot
-      env: # Inherited by every chop; individual chop env wins
+      env: # Inherited by every job; individual job env wins
         API_TOKEN: { env: MY_API_TOKEN }
-      chops:
-        my_chop:
-          script: my_chop_executable # Optional; defaults to name
+      jobs:
+        my_job:
+          script: my_job_executable # Optional; defaults to name
           description: |-
             Run a custom validation after meaningful repository changes
 
             Creates one instance per enabled Git or GitHub project and runs at most once every 1h30m after ten new
             commits. A successful action advances the trigger checkpoint; an active toobig agent clan inhibits the
-            check, and the per-chop timeout limits each run to 30 seconds.
+            check, and the per-job timeout limits each run to 30 seconds.
           run_every: "1h30m" # Run at most once per compound duration
-          timeout: "30s" # Per-chop timeout (overrides chop_timeout)
+          timeout: "30s" # Per-job timeout (overrides job_timeout)
           env:
             MY_VAR: "value" # Custom environment variables
           inhibit_if:
@@ -631,64 +651,64 @@ axe:
               checkpoint: on_action_success
           once_per: "{target.name}:{proposal.id}"
           for_each:
-            source: projects # One stable my_chop[project] instance per enabled project
+            source: projects # One stable my_job[project] instance per enabled project
             vcs: [git, gh]
 ```
 
-Every lumberjack requires a `description` explaining the lane's cadence and the class of
-work it owns, and every chop requires one explaining what that chop does. Both follow
-the summary/body grammar in [Description Grammar](#description-grammar).
+Every routine requires a `description` explaining the lane's cadence and the class of
+work it owns, and every job requires one explaining what that job does. Both follow the
+summary/body grammar in [Description Grammar](#description-grammar).
 
-#### Lumberjack Fields
+#### Routine Fields
 
 | Field          | Type                   | Required | Description                                                                                                                        |
 | -------------- | ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | `description`  | `str`                  | yes      | Summary line, then a blank line, then an optional body (see [Description Grammar](#description-grammar))                           |
-| `interval`     | `int`                  | no       | Seconds between chop polling cycles; defaults to `1`                                                                               |
-| `chop_timeout` | `str \| null`          | no       | Default positive compound duration for chops in this lumberjack                                                                    |
+| `interval`     | `int`                  | no       | Seconds between job polling cycles; defaults to `1`                                                                                |
+| `job_timeout`  | `str \| null`          | no       | Default positive compound duration for jobs in this routine                                                                        |
 | `wait_runners` | `int \| null`          | no       | Start a lane agent once at most this many other participating lanes are occupied; omitting it uses only the global capacity budget |
-| `env`          | `dict[str, env-value]` | no       | Values inherited by every chop; individual chop env wins                                                                           |
-| `chops`        | list or map            | no       | Composable chop definitions                                                                                                        |
+| `env`          | `dict[str, env-value]` | no       | Values inherited by every job; individual job env wins                                                                             |
+| `jobs`         | list or map            | no       | Composable job definitions                                                                                                         |
 
-`wait_runners` applies only to agents emitted through a script chop's
+`wait_runners` applies only to agents emitted through a script job's
 `proposed_launches`; it does not gate mentor, hook, or CRS workflow launchers. When a
-chop proposes a clan, every member carries the threshold and waits independently, so a
+job proposes a clan, every member carries the threshold and waits independently, so a
 low threshold can serialize the clan.
 
-#### Chop Fields
+#### Job Fields
 
 | Field         | Type                   | Required  | Description                                                                                                                |
 | ------------- | ---------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `name`        | `str`                  | list only | Chop identity in object-list form; map form uses the mapping key                                                           |
+| `name`        | `str`                  | list only | Job identity in object-list form; map form uses the mapping key                                                            |
 | `description` | `str`                  | yes       | Summary line, then a blank line, then an optional body (see [Description Grammar](#description-grammar))                   |
-| `script`      | `str \| null`          | no        | Exact executable name; defaults to the chop identity                                                                       |
+| `script`      | `str \| null`          | no        | Exact executable name; defaults to the job identity                                                                        |
 | `enabled`     | `bool`                 | no        | Soft-disable a keyed entry without deleting the packaged/base configuration                                                |
 | `run_every`   | `str \| null`          | no        | Positive compound duration (e.g., `"5m"`, `"1h30m"`, `"1d"`)                                                               |
-| `timeout`     | `str \| null`          | no        | Per-chop timeout duration (overrides the lumberjack's `chop_timeout`)                                                      |
-| `env`         | `dict[str, env-value]` | no        | Values merged over lumberjack env; literals or `{env:}`, `{file:}`, `{pass:}` refs                                         |
+| `timeout`     | `str \| null`          | no        | Per-job timeout duration (overrides the routine's `job_timeout`)                                                           |
+| `env`         | `dict[str, env-value]` | no        | Values merged over routine env; literals or `{env:}`, `{file:}`, `{pass:}` refs                                            |
 | `inhibit_if`  | list or map            | no        | `patch` / `agent_hood` / `agent_clan` / `agent_runners` guards evaluated before the script; `changespec` is a legacy alias |
 | `trigger`     | string or map          | no        | `always`, `git.commits_since`, or `fs`; scheduled runs fire only when it accepts                                           |
 | `once_per`    | string or object       | no        | Bounded per-proposal dedupe-key template                                                                                   |
 | `for_each`    | list or source         | no        | Literal target objects or `source: projects`, expanded to stable per-target instances                                      |
 | `vars`        | `dict`                 | no        | Non-secret configuration copied into the script context                                                                    |
 
-Map-form chops compose by identity across config layers. A higher-priority layer can
+Map-form jobs compose by identity across config layers. A higher-priority layer can
 patch a single field or set `enabled: false` while retaining the rest of a packaged
 entry. Object-list form remains accepted, but bare-string list entries are invalid
 because they cannot provide the required description. Target instances use names such as
-`my_chop[sase-core]`, with independent cadence, run history, checkpoints, and dedupe
+`my_job[sase-core]`, with independent cadence, run history, checkpoints, and dedupe
 state. Literal targets may include an `overrides:` object for per-target fields such as
 `run_every`; the `projects` source accepts `name`/`names` and `vcs` filters.
 
-Configuration is validated fail-closed. Unknown fields, duplicate chop identities, and
+Configuration is validated fail-closed. Unknown fields, duplicate job identities, and
 invalid or non-positive durations produce actionable errors with their config paths.
 Secret references resolve at dispatch and fail closed with provider-specific
-diagnostics. Legacy `agent:` and `xprompt:` chop fields are rejected: scheduled agent
+diagnostics. Legacy `agent:` and `xprompt:` job fields are rejected: scheduled agent
 work must originate from a script's structured launch proposals.
 
 ### Description Grammar
 
-Both `axe.lumberjacks.<name>.description` and every chop `description` use one grammar,
+Both `axe.routines.<name>.description` and every job `description` use one grammar,
 borrowed from the shape of a Git commit message:
 
 ```
@@ -767,63 +787,63 @@ loads.
 - Answer, in this order, only what is true and non-obvious: what it actually does, when
   it fires, what state it reads or mutates, and the one thing an operator most needs to
   know (a failure mode, a safety property, a cost, a limit).
-- Name the config knobs that matter when they are set (`interval`, `chop_timeout`,
+- Name the config knobs that matter when they are set (`interval`, `job_timeout`,
   `run_every`, `trigger`, `inhibit_if`, `for_each`, `env`).
 - Do not restate the summary, do not narrate the implementation line by line, and do not
   document SASE concepts that belong elsewhere in `docs/`.
 
-**Lumberjack bodies additionally** state the cadence in words and why that cadence is
-right for the lane, and say what belongs in the lane and what deliberately does not, so
-a reader knows where to add a new chop.
+**Routine bodies additionally** state the cadence in words and why that cadence is right
+for the lane, and say what belongs in the lane and what deliberately does not, so a
+reader knows where to add a new job.
 
 **Mechanics**: bullets start with `- ` at the block's base indentation and continuation
 lines indent two further spaces; no trailing whitespace, no tabs, and no blank line at
 the end of the block.
 
-### Script Chops
+### Script Jobs
 
-Every chop is an external executable. Axe resolves the exact configured `script` value
+Every job is an external executable. Axe resolves the exact configured `script` value
 (or `name` when `script` is omitted) in this order:
 
-1. An exact-name executable in one of `axe.chop_script_dirs`.
+1. An exact-name executable in one of `axe.job_script_dirs`.
 2. An exact-name executable beside the running Python interpreter.
 3. An exact-name executable on `$PATH`.
 
-No prefix is added automatically. Builtin chops therefore declare names such as
-`script: sase_chop_hook_checks` explicitly. The available-script inventory still scans
-`$PATH` for `sase_chop_*` executables as a discovery convenience, but resolution always
+No prefix is added automatically. Builtin jobs therefore declare names such as
+`script: sase_job_hook_checks` explicitly. The available-script inventory still scans
+`$PATH` for `sase_job_*` executables as a discovery convenience, but resolution always
 uses the configured full name.
 
-Axe runs script chops as:
+Axe runs script jobs as:
 
 ```bash
 <script> --context <context.json>
 ```
 
-The context file contains the effective runner limits, zombie timeout, query, lumberjack
-name, lumberjack state directory, paths to legacy-named serialized
-`all_changespecs.json` and `filtered_changespecs.json` files, the current `target`,
-configured `vars`, the run source (`scheduled`, `manual`, or `oneshot`), the `dry_run`
-flag, and the run-local result path. The result path is also exported as
-`SASE_CHOP_RESULT_FILE`; the source and dry-run flag are mirrored as `SASE_CHOP_SOURCE`
-and `SASE_CHOP_DRY_RUN` (`1` for true, `0` for false). `SASE_CHOP_VERBOSE` enables
-opt-in debug output. Target fields are exported as `SASE_CHOP_TARGET_<FIELD>` along with
-`SASE_CHOP_TARGET_KEY`. Scripts with direct side effects must honor `dry_run` before
-mutating external state; runner-level dry-run only previews launch proposals. Scheduled
-script chops within one lumberjack tick run concurrently; use `timeout` or
-`chop_timeout` to keep a slow script from blocking later ticks indefinitely.
+The context file contains the effective runner limits, zombie timeout, query, routine
+name, routine state directory, paths to legacy-named serialized `all_changespecs.json`
+and `filtered_changespecs.json` files, the current `target`, configured `vars`, the run
+source (`scheduled`, `manual`, or `oneshot`), the `dry_run` flag, and the run-local
+result path. The result path is also exported as `SASE_JOB_RESULT_FILE`; the source and
+dry-run flag are mirrored as `SASE_JOB_SOURCE` and `SASE_JOB_DRY_RUN` (`1` for true, `0`
+for false). `SASE_JOB_VERBOSE` enables opt-in debug output. Target fields are exported
+as `SASE_JOB_TARGET_<FIELD>` along with `SASE_JOB_TARGET_KEY`. Scripts with direct side
+effects must honor `dry_run` before mutating external state; runner-level dry-run only
+previews launch proposals. Scheduled script jobs within one routine tick run
+concurrently; use `timeout` or `job_timeout` to keep a slow script from blocking later
+ticks indefinitely.
 
-Script chop stdout and stderr are streamed to the chop's per-run log file while the
-subprocess is still alive (see [Chop Run History](#chop-run-history) below). The Axe-tab
-dashboard tails that file so a long-running chop's output becomes visible immediately
+Script job stdout and stderr are streamed to the job's per-run log file while the
+subprocess is still alive (see [Job Run History](#job-run-history) below). The Axe-tab
+dashboard tails that file so a long-running job's output becomes visible immediately
 rather than only after process exit.
 
-Chop output is part of the operator contract. Every actual chop run should write a
+Job output is part of the operator contract. Every actual job run should write a
 compact, human-readable summary for both no-op and action paths. At minimum, include the
-chop identity or run scope, counts of inspected/skipped/updated or launched items, an
+job identity or run scope, counts of inspected/skipped/updated or launched items, an
 explicit no-op reason, and bounded identifiers for any affected items. Avoid tokens,
 full notification bodies, full prompts, and unbounded command output in ordinary AXE
-logs. A chop with a meaningful structured story should also publish a report while
+logs. A job with a meaningful structured story should also publish a report while
 keeping this compact stdout summary unchanged; logs and notifications continue to use
 the summary line.
 
@@ -831,7 +851,7 @@ the summary line.
 
 Exit-code-only scripts remain supported: exit zero means `success`, a non-zero exit
 means `failure`, and no result file is required. A proposal-emitting script atomically
-writes a schema-versioned JSON document to `SASE_CHOP_RESULT_FILE`:
+writes a schema-versioned JSON document to `SASE_JOB_RESULT_FILE`:
 
 ```json
 {
@@ -861,7 +881,7 @@ and `workspace`; optional fields are `id`, `agent_name`, `clan`, `clan_summary`,
 `tribe`, `model`, `effort`, `env`, `dedupe_key`, and `wait_on` (an earlier proposal
 index or ID). With `clan`, `agent_name` is the member ID and the runner owns concrete
 clan allocation plus the full `<clan>.<member>` identity. Clan proposals cannot also set
-`tribe`; the first accepted member declares the clan with the default `chop` tribe.
+`tribe`; the first accepted member declares the clan with the default `job` tribe.
 
 `clan` and `agent_name` may each carry at most one `@` auto-name template marker, so a
 composed clan-member identity holds up to two. The runner resolves them in two stages:
@@ -894,14 +914,14 @@ so a launch failure cannot let a later member declare the same clan a second tim
 detached coordinator resuming in a fresh process still honors an earlier claim.
 
 `report` is an optional structured document rendered with the result on sase's TUI AXE
-tab. Chop authors supply semantic tones rather than colors, and the frontend owns the
+tab. Job authors supply semantic tones rather than colors, and the frontend owns the
 palette and width-responsive layout. The public SDK keeps report construction typed and
 validates the finished result through the Rust contract:
 
 ```python
-from sase.chops import ChopReport, ChopResultBuilder
+from sase.jobs import JobReport, JobResultBuilder
 
-report = ChopReport(title="CI WATCH")
+report = JobReport(title="CI WATCH")
 report.headline("4 green · 1 red · 1 fix proposed", tone="warn")
 report.heading("REPOSITORIES")
 rows = report.rows(columns=("REPOSITORY", "STATE", "EVIDENCE"))
@@ -909,7 +929,7 @@ rows.row(("sase-org/sase", "red", "ci / test · streak 2/2"), tone="error")
 rows.row(("sase-org/sase-core", "green", "a1b2c3d"), tone="ok")
 report.divider().kv({"mode": "dry run"}, tone="muted")
 
-ChopResultBuilder(
+JobResultBuilder(
     status="ok",
     summary="ci_watch: repos=5 green=4 red=1",
     report=report,
@@ -932,7 +952,7 @@ vocabulary is:
 
 The tone vocabulary is `neutral` for ordinary content, `muted` for secondary context,
 `info` for useful context, `ok` for healthy outcomes, `warn` for attention, `error` for
-failures, and `accent` for report emphasis. A chop cannot supply a color. Optional row
+failures, and `accent` for report emphasis. A job cannot supply a color. Optional row
 and bullet glyphs are restricted to `▲ ◆ • · ● ○ ✓ ✗ ↗ ↷ ⏱ ! ▸ ─`; omitting a glyph lets
 the renderer choose one from the tone.
 
@@ -941,32 +961,32 @@ The validated report must fit within 32 KiB of UTF-8 and contain 1–48 blocks. 
 are present there must be 1–6 of them and every row must have the same number of cells.
 Titles are limited to 64 characters, and every other string field to 512 characters.
 Required strings must be nonblank single-line text with no control characters.
-`ChopReport` collapses whitespace, removes controls, truncates bounded strings with a
+`JobReport` collapses whitespace, removes controls, truncates bounded strings with a
 trailing ellipsis, drops empty blocks, and rejects invalid tones, glyphs, gauges, or row
 shapes before writing. Unknown fields, block kinds, and tones are rejected fail-closed
 by result validation.
 
 The runner validates the full document before launching anything. It injects the
-workspace reference, a deterministic agent name and `tribe=chop` in one `%id(...)`
+workspace reference, a deterministic agent name and `tribe=job` in one `%id(...)`
 directive, model/effort directives, and a `%wait` dependency for `wait_on`, then
 launches proposals in document order. Clan-scoped proposals are preplanned as one
 multi-prompt batch: the first surviving member declares one concrete clan generation and
 later members join it, while waits use their full resolved names. A summarized declarer
-receives `%clan(<name>, tribe=chop, summary=[[<literal Rich markup>]])`; joiners receive
+receives `%clan(<name>, tribe=job, summary=[[<literal Rich markup>]])`; joiners receive
 only `%id(<member>, clan=<name>)`. Axe neither executes the value as a summary script
 nor inserts it into any proposal's work prompt. Standalone `#!workflow` references are
 forbidden in proposal prompts; reusable inline `#xprompt` references remain valid. The
-runner records every launched agent in `agent_chops.json` and finalizes the chop only
+runner records every launched agent in `agent_chops.json` and finalizes the job only
 when the linked agents reach terminal state.
 
 A launcher can still fail partway through an otherwise valid batch. The caller receives
 `action_failed` immediately. When at least one proposal already started, however, the
-persisted chop run remains active as `launched` until every started agent finishes; it
+persisted job run remains active as `launched` until every started agent finishes; it
 then finalizes as `action_failed` with both the original launch error and any agent
 failures. Once-per keys for accepted proposals that never started are released
 immediately. A started proposal keeps its key while it runs, then releases it only if
 that agent fails, so successful work remains de-duplicated. A key-release error is
-appended to the chop output and does not replace the original launch or agent outcome.
+appended to the job output and does not replace the original launch or agent outcome.
 
 A proposal's `prompt` may contain typed directives such as `%if::` (a Bash or Python
 condition fence) or `%proc`. When the `typed_launch_units` beta flag is enabled, a batch
@@ -976,41 +996,41 @@ typed-admission source; see [Agent Launch Flow](architecture.md#agent-launch-flo
 `%if` predicate evaluates after its unit's `%wait` dependency settles and before any
 runner, agent identity, proc identity, or model request is allocated. For a selected
 managed project, the predicate itself briefly uses a claimed, prepared operational
-workspace so stale chop checkouts can observe newer pushed work before admission
-decides. Exit `0` admits the unit normally; exit `1` records a skip with no runner,
-identity, proc, or model allocation. AXE owns the admission bundle across the run,
-keeping the chop in active `launched` state until every admitted unit reaches its own
-terminal state, and treats predicate skips as successful no-op outcomes rather than
-once-per duplicates or launcher errors. A structured proposal `wait_on` becomes both a
-typed admission-order edge and, for an admitted Agent unit, a restored named-agent
-`%wait` in the prompt AXE dispatches to the runner. If admission skips or
-condition-errors an intermediate proposal, AXE relinks that runner wait to the nearest
-earlier proposal that actually launched; if no ancestor launched, it dispatches without
-a named wait. A batch with no active `%if`/`%proc` directive, or any batch while the
-flag is disabled, keeps using the legacy launch path unchanged; an explicit typed
-directive while the flag is disabled fails before any agent or model is dispatched.
+workspace so stale job checkouts can observe newer pushed work before admission decides.
+Exit `0` admits the unit normally; exit `1` records a skip with no runner, identity,
+proc, or model allocation. AXE owns the admission bundle across the run, keeping the job
+in active `launched` state until every admitted unit reaches its own terminal state, and
+treats predicate skips as successful no-op outcomes rather than once-per duplicates or
+launcher errors. A structured proposal `wait_on` becomes both a typed admission-order
+edge and, for an admitted Agent unit, a restored named-agent `%wait` in the prompt AXE
+dispatches to the runner. If admission skips or condition-errors an intermediate
+proposal, AXE relinks that runner wait to the nearest earlier proposal that actually
+launched; if no ancestor launched, it dispatches without a named wait. A batch with no
+active `%if`/`%proc` directive, or any batch while the flag is disabled, keeps using the
+legacy launch path unchanged; an explicit typed directive while the flag is disabled
+fails before any agent or model is dispatched.
 
-Python chop packages should use the public `sase.chops` SDK (`load_chop_invocation`,
-`ChopLogger`, `ChopReport`, `ChopResultBuilder`, and `launch_proposal`) for argument
+Python job packages should use the public `sase.jobs` SDK (`load_job_invocation`,
+`JobLogger`, `JobReport`, `JobResultBuilder`, and `launch_proposal`) for argument
 parsing, summaries, reports, validation, and atomic result writes.
 
 #### Publishing a Report a Notification Can Open
 
-Per-chop run history is capped, so a report that only rides along with a chop result
-answers "what did this tick do", not "where do things stand". A chop that wants the
+Per-job run history is capped, so a report that only rides along with a job result
+answers "what did this tick do", not "where do things stand". A job that wants the
 second answer should **publish** a standalone report document into its own state
 directory (`invocation.context.state_dir`) and point a notification at it:
 
 ```python
-from sase.chops import ChopReport, validate_chop_report
+from sase.jobs import JobReport, validate_job_report
 
-report = ChopReport(title="RELEASES")
+report = JobReport(title="RELEASES")
 report.headline("2 merged today · 3 pending", tone="warn")
-document = validate_chop_report(report.to_dict())
+document = validate_job_report(report.to_dict())
 # atomically write `document` to <state_dir>/<name>.report.json on every tick
 ```
 
-`validate_chop_report` runs the same Rust chop-result contract used for an embedded
+`validate_job_report` runs the same Rust job-result contract used for an embedded
 `report`, so an invalid document is caught before it is written; log and skip that tick
 rather than raising, leaving the previous good file in place. Rewriting the file on
 every tick — including no-op ticks — is what keeps the published picture fresh without
@@ -1021,7 +1041,7 @@ The notification then carries `action: "ViewReport"` with
 Selecting it in sase's TUI renders the document in the notification modal's right pane
 and Enter opens it full-screen; see `docs/notifications.md` for the contract, the
 inline-snapshot alternative, and the fail-closed loader limits. Prefer the published
-path over inlining a snapshot into `action_data` whenever the chop has a durable state
+path over inlining a snapshot into `action_data` whenever the job has a durable state
 directory. Timestamps inside a published document should be absolute, because the file
 may be read long after it was written; relative freshness belongs to the single
 provenance line the reader sees.
@@ -1030,8 +1050,8 @@ provenance line the reader sees.
 
 Policy is runner-owned and evaluated before the script:
 
-- `run_every` limits cadence for each expanded chop instance. A guard skip does not
-  consume this cadence, so a guarded chop re-evaluates its guard on the next tick rather
+- `run_every` limits cadence for each expanded job instance. A guard skip does not
+  consume this cadence, so a guarded job re-evaluates its guard on the next tick rather
   than waiting out the full interval; a trigger skip (the condition was evaluated and
   not met) still advances the clock as before. Guard evaluation is not free — put a
   guard on a lane whose tick interval matches the cost of re-checking it.
@@ -1046,8 +1066,8 @@ Policy is runner-owned and evaluated before the script:
   and does not count. A match records a visible `skipped` run naming the guard and
   matching agent.
 - `trigger` defaults to `always`. `git.commits_since` observes a project repository,
-  fires when its threshold is met, and owns its checkpoint under the chop's state
-  directory. A missing checkpoint fires once so a new chop is not silently inert.
+  fires when its threshold is met, and owns its checkpoint under the job's state
+  directory. A missing checkpoint fires once so a new job is not silently inert.
 - `fs` fires when a cheap state token computed from `paths` differs from the token at
   its last fire. Each entry in `paths` is a bare path string or a `{path, glob}` object;
   a bare path is stat'd directly (existence, mtime, size, plus a non-recursive child
@@ -1068,9 +1088,9 @@ Policy is runner-owned and evaluated before the script:
   remain reserved for successful launches, but are released when their proposal never
   starts or its launched agent reaches terminal failure, allowing a later run to retry
   that work. `dedupe_key` is durable work identity, not a retry clock: a key means "this
-  is the same unit of work," and a successful no-op launch reserves it permanently.
-  Chops whose work can go stale between scans should recheck eligibility with `%if`
-  (below) instead of folding a repository revision into the key.
+  is the same unit of work," and a successful no-op launch reserves it permanently. Jobs
+  whose work can go stale between scans should recheck eligibility with `%if` (below)
+  instead of folding a repository revision into the key.
 - `for_each` accepts literal target rows or `source: projects`. Expansion creates stable
   instances such as `refresh_docs[sase-core]`, each with independent cadence, history,
   checkpoints, and dedupe state. Target overrides can patch per-instance fields such as
@@ -1099,19 +1119,19 @@ embed a per-run token) and in clan batch launches remain hard failures.
 
 #### Builtin `external_pr_mirror`
 
-`sase_chop_external_pr_mirror` fans out across enabled `git` and `gh` projects with
+`sase_job_external_pr_mirror` fans out across enabled `git` and `gh` projects with
 `for_each: {source: projects, vcs: [git, gh]}`. Each instance uses the target's
 ProjectSpec directory key for local Patch files and the target workspace directory for
 provider calls. A structural capability probe skips providers that cannot list PRs.
 
 Incremental runs fetch a bounded PR inventory because the provider seam exposes a record
-limit, not pagination. The chop records `seen`, `fetched`, `unmirrored`, `created`,
+limit, not pagination. The job records `seen`, `fetched`, `unmirrored`, `created`,
 `repaired`, `refreshed`, `skipped`, `conflicts`, `errors`, `budget_exhausted`, and
 `checkpoint_advanced` in its summary. Cursor and backoff state live at a stable path
-under `~/.sase/external_mirror/`, independent of whichever lumberjack the chop is
-configured in, so `sase patch sync-external` reads and writes the same files. A
-ten-minute overlap window covers incremental passes; the cursor advances only after a
-clean pass, and a daily full scan ignores it so missed repairs are eventually found.
+under `~/.sase/external_mirror/`, independent of whichever routine the job is configured
+in, so `sase patch sync-external` reads and writes the same files. A ten-minute overlap
+window covers incremental passes; the cursor advances only after a clean pass, and a
+daily full scan ignores it so missed repairs are eventually found.
 
 `unmirrored` counts fetched PRs dropped by
 [`external_mirror.pull_requests.filters`](configuration.md#external_mirror), which ships
@@ -1149,21 +1169,21 @@ adoption can fall outside the ten-minute incremental overlap window.
 
 #### Builtin `refresh_docs`
 
-`sase_chop_refresh_docs` replaces the former scheduled xprompt workflow. It expects an
+`sase_job_refresh_docs` replaces the former scheduled xprompt workflow. It expects an
 expanded target with a `workspace`, then emits an `update` proposal and a `polish`
 proposal whose `wait_on` points to `update`. Commit counting and checkpoints belong to
 `git.commits_since`; project fan-out belongs to `for_each`:
 
 ```yaml
 axe:
-  lumberjacks:
+  routines:
     docs:
       description:
         Refresh project documentation when repositories accumulate meaningful changes
       interval: 300
-      chops:
+      jobs:
         refresh_docs:
-          script: sase_chop_refresh_docs
+          script: sase_job_refresh_docs
           description: Refresh documentation after meaningful repository drift
           run_every: "30m"
           trigger:
@@ -1184,60 +1204,59 @@ other non-documentation files. Override the defaults with non-blank `vars.prompt
 restrictions in replacement prompts. The script only proposes work; it never calls
 `sase run` or updates marker files.
 
-### Manual Chop Runs
+### Manual Job Runs
 
-Scheduled lumberjack ticks are not the only way a chop runs. Operators can launch any
-configured chop on demand from both the CLI and sase's TUI; manual runs share the same
+Scheduled routine ticks are not the only way a job runs. Operators can launch any
+configured job on demand from both the CLI and sase's TUI; manual runs share the same
 execution path, run history, and live-output streaming as scheduled runs.
 
 **From the CLI:**
 
 ```bash
-sase axe chop run <chop>                       # name must be unique across lumberjacks
-sase axe chop run <chop> --lumberjack <lj>     # explicit lumberjack (short form: -L <lj>)
-sase axe chop run <chop> --dry-run             # -n: validate and preview; launch nothing
-sase axe chop run <chop> --chop-verbose        # -V: script diagnostics + full result
-sase axe chop run <chop> --force               # -f: bypass guards (triggers already bypassed)
+sase axe job run <job>                    # name must be unique across routines
+sase axe job run <job> --routine <routine> # explicit routine (short form: -L <routine>)
+sase axe job run <job> --dry-run          # -n: validate and preview; launch nothing
+sase axe job run <job> --job-verbose      # -V: script diagnostics + full result
+sase axe job run <job> --force            # -f: bypass guards (triggers already bypassed)
 ```
 
-When the same chop name appears under multiple lumberjacks, `sase axe chop run <chop>`
-fails with an unambiguous error listing the candidate lumberjacks. Pass
-`-L/--lumberjack` to pick one. The manual run is recorded under
-`~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/` exactly like a scheduled run,
+When the same job name appears under multiple routines, `sase axe job run <job>` fails
+with an unambiguous error listing the candidate routines. Pass `-L/--routine` to pick
+one. The manual run is recorded under the legacy-named
+`~/.sase/axe/lumberjacks/<routine>/chops/<job>/` path exactly like a scheduled run,
 except its metadata is tagged with `source = "manual"` (vs `"scheduled"`).
 
 **From sase's TUI:**
 
-On the Axe tab, press `r` while a chop row is selected to launch that exact
-`(lumberjack, chop)` manually. The run uses the chop's configured script, environment,
-and timeout, but bypasses any `run_every` cadence because the user explicitly asked for
-it. The TUI does not block while the script runs; once the subprocess starts, the new
-run becomes the newest entry in the chop's run history and the detail panel switches to
-it.
+On the Axe tab, press `r` while a job row is selected to launch that exact
+`(routine, job)` manually. The run uses the job's configured script, environment, and
+timeout, but bypasses any `run_every` cadence because the user explicitly asked for it.
+The TUI does not block while the script runs; once the subprocess starts, the new run
+becomes the newest entry in the job's run history and the detail panel switches to it.
 
-If the selected chop already has a live script run in flight for the same
-`(lumberjack, chop)`, `r` notifies and skips the launch rather than starting an
-overlapping duplicate. On non-chop rows — lumberjack rows and running bgcmd rows — `r`
-is a no-op; on a completed bgcmd row, `r` continues to re-run the bgcmd.
+If the selected job already has a live script run in flight for the same
+`(routine, job)`, `r` notifies and skips the launch rather than starting an overlapping
+duplicate. On non-job rows — routine rows and running bgcmd rows — `r` is a no-op; on a
+completed bgcmd row, `r` continues to re-run the bgcmd.
 
 Manual runs participate in `Ctrl+N` / `Ctrl+P` history navigation just like scheduled
-runs. The chop-detail header marks them with a `Source: manual` chip so it is easy to
+runs. The job-detail header marks them with a `Source: manual` chip so it is easy to
 tell at a glance why a run started.
 
-### Chop Run History
+### Job Run History
 
-Every chop execution — whether kicked off by a scheduled lumberjack tick or by
-`sase axe chop run …` — is recorded as a separate run under
-`~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/`. Each run is assigned a sortable,
-microsecond- precision `run_id`. `index.json` (kept next to `runs/`) lists the chop's
-run IDs newest-first:
+Every job execution — whether kicked off by a scheduled routine tick or by
+`sase axe job run …` — is recorded as a separate run under the legacy-named
+`~/.sase/axe/lumberjacks/<routine>/chops/<job>/` path. Each run is assigned a sortable,
+microsecond- precision `run_id`. `index.json` (kept next to `runs/`) lists the job's run
+IDs newest-first:
 
 ```
-~/.sase/axe/lumberjacks/<lumberjack>/chops/<chop>/
+~/.sase/axe/lumberjacks/<routine>/chops/<job>/
 ├── index.json              # Ordered run IDs (newest first)
 └── runs/
     ├── <run_id>.json         # Run metadata (see below)
-    ├── <run_id>.log          # Streamed stdout+stderr from the chop process
+    ├── <run_id>.log          # Streamed stdout+stderr from the job process
     ├── <run_id>.context.json # Private context passed to this invocation
     └── <run_id>.result.json  # Structured result, when the script writes one
 ```
@@ -1262,28 +1281,28 @@ archive status counts as success; `FAILED`, `KILLED`, any other status, or a mis
 entry fails the action.
 
 History is pruned after every run write, retaining the newest `MAX_CHOP_RUN_HISTORY`
-(10) terminal runs per chop. Active `running` and `launched` entries are always kept
+(10) terminal runs per job. Active `running` and `launched` entries are always kept
 regardless of position, so slow scripts and pending actions are never deleted out from
 under their lifecycle owners.
 
 ### AXE Tab Views
 
-The Axe tab sidebar renders each lumberjack as a top-level row with its configured chops
-as indented children, followed by any background commands (`!!`). Each chop row shows a
+The Axe tab sidebar renders each routine as a top-level row with its configured jobs as
+indented children, followed by any background commands (`!!`). Each job row shows a
 status marker derived from its newest cached run: active `running` / `launched`,
 successful `success` / `action_succeeded`, healthy `no_op`, policy `skipped`, degraded
-`check_error`, failed `failure` / `timeout` / `action_failed`, or `missing_script`.
-Chops with no history remain marked as never run. Selection drives three distinct
-dashboard views:
+`check_error`, failed `failure` / `timeout` / `action_failed`, or `missing_script`. Jobs
+with no history remain marked as never run. Selection drives three distinct dashboard
+views:
 
-- **Lumberjack overview** — selecting a lumberjack row shows its status, interval, cycle
-  count, error count, and a per-chop table with each chop's last-run status, relative
-  timestamp, and duration. For a chop whose newest run is still active, the duration
+- **Routine overview** — selecting a routine row shows its status, interval, cycle
+  count, error count, and a per-job table with each job's last-run status, relative
+  timestamp, and duration. For a job whose newest run is still active, the duration
   column shows live elapsed runtime rather than the stale `0ms` you would otherwise see
   before the run finalizes.
-- **Chop detail** — selecting a chop row renders one width-responsive document. A
+- **Job detail** — selecting a job row renders one width-responsive document. A
   universal **RESULT** card summarizes status, counters, reason, dry-run/source markers,
-  proposals, launches, evidence, and failures from the cached run entry. A chop-authored
+  proposals, launches, evidence, and failures from the cached run entry. A job-authored
   structured report follows when the result document provides one, then **OUTPUT**
   preserves the run's ANSI-rendered `.log` tail. Until the log has accumulated any
   bytes, the output section shows a `Waiting for output…` placeholder; the exit code is
@@ -1293,41 +1312,41 @@ dashboard views:
 - **Background command output** — the existing live output stream for the focused `!!`
   row.
 
-A chop whose run blocked its lumberjack's tick for at least the lumberjack's `interval`
-is marked **overrun** — amber `⚠` with a `2.4×`-style ratio of blocking time to
-interval. The newest sampled run being over is level `over` (bold); an older sampled run
-in the cached history being over while the newest is not is level `intermittent` (dim),
-so a chop that alternates does not flap its mark on and off across refreshes. The
-sidebar chop chip and its parent lumberjack's roll-up chip always show the **worst**
-ratio in the cached window, so a collapsed-then-expanded tree tells the same story every
-time; the lumberjack overview's `PACE` column and the chop detail header instead
-describe the **latest** run specifically, matching the rest of those views. A chop that
-launches agents is measured on its script's own wall-clock time, not on how long the
-launched agents ran — the tick never waited for them, so their lifetime is excluded from
-the measurement.
+A job whose run blocked its routine's tick for at least the routine's `interval` is
+marked **overrun** — amber `⚠` with a `2.4×`-style ratio of blocking time to interval.
+The newest sampled run being over is level `over` (bold); an older sampled run in the
+cached history being over while the newest is not is level `intermittent` (dim), so a
+job that alternates does not flap its mark on and off across refreshes. The sidebar job
+chip and its parent routine's roll-up chip always show the **worst** ratio in the cached
+window, so a collapsed-then-expanded tree tells the same story every time; the routine
+overview's `PACE` column and the job detail header instead describe the **latest** run
+specifically, matching the rest of those views. A job that launches agents is measured
+on its script's own wall-clock time, not on how long the launched agents ran — the tick
+never waited for them, so their lifetime is excluded from the measurement.
 
-`Ctrl+N` / `Ctrl+P` on the Axe tab page through the focused chop's run history (newer /
+`Ctrl+N` / `Ctrl+P` on the Axe tab page through the focused job's run history (newer /
 older). The viewer pins to the run you selected so that a fresh tick prepending a new
 run does not bump you forward; the pin is cleared automatically if the pinned run is
 pruned or itself becomes the newest run.
 
-The same structured report renderer is used by `sase axe chop run` when that command
-prints a structured result (dry run or chop-verbose mode), so semantic tones, rows,
+The same structured report renderer is used by `sase axe job run` when that command
+prints a structured result (dry run or job-verbose mode), so semantic tones, rows,
 gauges, and literal-text safety do not drift between the CLI and sase's TUI AXE tab.
 
-### Chop-Agent Registry
+### Job-Agent Registry
 
-The durable `agent_chops.json` linkage and `SASE_CHOP_*` metadata associate launched
-proposals with chop lifecycle state. Configuration is always script-based. Each launched
-agent receives `SASE_CHOP_LUMBERJACK`, `SASE_CHOP_NAME`, `SASE_CHOP_RUN_ID`, and a
-prompt hash; the housekeeping pass uses the registry plus normal agent completion
-artifacts to finalize `launched` runs.
+The durable `agent_chops.json` linkage associates launched proposals with job lifecycle
+state. Configuration is always script-based. Each launched agent receives
+`SASE_JOB_ROUTINE`, `SASE_JOB_NAME`, `SASE_JOB_RUN_ID`, and a prompt hash; the
+housekeeping pass uses the registry plus normal agent completion artifacts to finalize
+`launched` runs. Legacy `SASE_CHOP_*` metadata is still accepted for installed callers
+but is not the documented authoring surface.
 
 Linkage is explicit: a registry record is created only for proposal launches the runner
 itself performs and for continuation respawns (retry or model-fallback) of an
-already-linked agent. Ambient `SASE_CHOP_*` context is scrubbed from every other spawned
-child's environment, so nested launches by chop agents and launches performed by chop
-scripts themselves neither register nor inherit chop identity.
+already-linked agent. Ambient `SASE_JOB_*` and `SASE_CHOP_*` context is scrubbed from
+every other spawned child's environment, so nested launches by job agents and launches
+performed by job scripts themselves neither register nor inherit job identity.
 
 Housekeeping matches registry records to the run entry's own recorded launches by
 artifacts timestamp, following retry successors through `retried_as_timestamp` chains.
@@ -1340,7 +1359,7 @@ missing or already terminal are garbage-collected during the housekeeping pass.
 Axe uses a cross-process runner pool to enforce global runner-capacity limits. The
 `SharedRunnerPool` uses `fcntl.flock` on a shared file
 (`~/.sase/axe/shared/runner_count`) to coordinate capacity claims and participating-lane
-counts across all lumberjack processes atomically.
+counts across all routine processes atomically.
 
 Hook runners and agent runners have separate limits (`max_hook_runners` and
 `max_agent_runners`), allowing fine-grained control over background resource usage.
@@ -1396,15 +1415,15 @@ terminal/rendering tools are missing. The direct agent run-log binding is `V`.
 
 Maintenance mode is a lightweight pause switch for scheduled axe work.
 `sase axe maintenance enter --reason <text>` writes `~/.sase/axe/maintenance.json` with
-the reason, caller PID, and start timestamp. Each lumberjack checks that marker at the
-start of every tick; while it is active, the lumberjack records a cycle and skips the
-chop execution for that tick.
+the reason, caller PID, and start timestamp. Each routine checks that marker at the
+start of every tick; while it is active, the routine records a cycle and skips the job
+execution for that tick.
 
 Use maintenance mode before operations that temporarily make scheduled work unsafe or
 noisy, such as installing plugin updates, moving workspace directories, or running
 one-off cleanup. `sase axe maintenance exit` removes the marker.
 `sase axe maintenance status` exits 0 when active and 1 when inactive, so scripts can
-use it as a guard. The next lumberjack tick clears stale markers automatically when they
+use it as a guard. The next routine tick clears stale markers automatically when they
 are older than 24 hours, malformed, or owned by a PID that is no longer running. When
 Linux `/proc` identity data is readable, new markers also record the owner's process
 start identity and, when available, the boot ID. Those fields let SASE reject a stale
@@ -1414,10 +1433,10 @@ marker after its PID has been recycled.
 
 `sase axe ensure` is a single-shot, idempotent reconciliation of the requested axe state
 and the orchestrator process. It checks only orchestrator liveness; use
-`sase axe lumberjack status` or deep doctor mode to inspect individual lumberjacks.
-Start and restart requests write `running` before attempting startup, while
-`sase axe stop` writes `stopped` before shutdown. The marker therefore records intent,
-not proof that the process transition succeeded.
+`sase axe routine status` or deep doctor mode to inspect individual routines. Start and
+restart requests write `running` before attempting startup, while `sase axe stop` writes
+`stopped` before shutdown. The marker therefore records intent, not proof that the
+process transition succeeded.
 
 | Desired-state marker | Live orchestrator | `sase axe ensure` result                                      |
 | -------------------- | ----------------- | ------------------------------------------------------------- |
@@ -1471,7 +1490,7 @@ and removes both units. On systems without `systemctl --user`, run bare
 
 Managed restart paths, including sase's TUI and update-triggered restarts, record
 `running`, make up to three startup attempts, and report success only after the
-orchestrator is live and every configured lumberjack reports `running` with PID and
+orchestrator is live and every configured routine reports `running` with PID and
 heartbeat values changed from the pre-restart snapshot. If all attempts fail, SASE
 records the attempt summaries in `recent_errors.json` and sends a durable **Axe restart
 failed** notification; an installed watchdog can try a clean start on a later tick.
@@ -1489,29 +1508,29 @@ only once the restart is verified.
 ├── ensure.lock                     # Serializes ensure checks with one another and explicit stops
 ├── ensure.json                     # Timestamp/source of the latest non-rate-limited ensure check
 ├── lifecycle.jsonl                 # Bounded, source-attributed start/stop/restart journal
-├── maintenance.json                # Optional maintenance marker that pauses lumberjack ticks
+├── maintenance.json                # Optional maintenance marker that pauses routine ticks
 ├── logs/
 │   ├── axe.log                     # Orchestrator startup log
-│   └── lumberjack-{name}.log       # Per-lumberjack logs
+│   └── lumberjack-{name}.log       # Per-routine logs (legacy filename)
 ├── lumberjacks/
-│   └── {name}/                     # Per-lumberjack state
-│       ├── pid                     # Lumberjack PID
+│   └── {name}/                     # Per-routine state (legacy directory name)
+│       ├── pid                     # Routine PID
 │       ├── status.json             # Current status (updated every 5s)
 │       ├── metrics.json            # Cumulative metrics (updated every 30s)
-│       ├── chop_timestamps.json    # Last successful run_every timestamp per chop
-│       ├── agent_chops.json        # Durable registry of agents launched by this lumberjack's chops
-│       ├── chops/                  # Per-chop run history (newest 10 terminal runs per chop)
-│       │   └── {chop}/
+│       ├── chop_timestamps.json    # Last successful run_every timestamp per job
+│       ├── agent_chops.json        # Durable registry of agents launched by this routine's jobs
+│       ├── chops/                  # Per-job run history (legacy directory name)
+│       │   └── {job}/
 │       │       ├── index.json      # Ordered run IDs (newest first)
 │       │       └── runs/
 │       │           ├── {run_id}.json   # ChopRunEntry metadata
 │       │           └── {run_id}.log    # Streamed stdout+stderr
 │       ├── tick/
-│       │   ├── context.json        # Context passed to script chops
+│       │   ├── context.json        # Context passed to script jobs
 │       │   ├── all_changespecs.json
 │       │   └── filtered_changespecs.json
 │       └── logs/
-│           └── output.log          # Lumberjack output log
+│           └── output.log          # Routine output log
 ├── shared/
 │   └── runner_count                # Cross-process runner counter
 ├── error_digests/                   # Error digest files for ViewErrorReport
@@ -1527,8 +1546,8 @@ only once the restart is verified.
    that lock to the detached orchestrator process. Concurrent starts wait briefly and
    then return the live PID or decline to start.
 3. The orchestrator removes stale PID files, adopts/holds the lifecycle lock, writes
-   `orchestrator.pid`, and spawns all configured lumberjacks as child processes.
-4. Each lumberjack runs its chops on its configured interval, unless maintenance mode is
+   `orchestrator.pid`, and spawns all configured routines as child processes.
+4. Each routine runs its jobs on its configured interval, unless maintenance mode is
    active.
 5. The orchestrator monitors children and restarts any that exit unexpectedly.
 6. `sase axe stop` sends SIGTERM to the orchestrator, which forwards it to all children.
@@ -1543,14 +1562,14 @@ only once the restart is verified.
 
 The Axe tab in sase's TUI provides live monitoring of the daemon:
 
-- A lumberjack tree sidebar (lumberjack rows + their chops as children +
-  background-command rows)
-- A lumberjack overview, per-chop detail view, and run-history pager (see
+- A routine tree sidebar (routine rows + their jobs as children + background-command
+  rows)
+- A routine overview, per-job detail view, and run-history pager (see
   [AXE Tab Views](#axe-tab-views))
-- Keyboard-first config management: `a` adds lumberjacks/chops, `e` previews and edits
-  the selected exact config entry, and `E` opens recorded chop output. Disabled chops
-  remain visible but are not manually runnable; editing a generated row safely targets
-  its base chop and identifies the all-instances effect.
+- Keyboard-first config management: `a` adds routines/jobs, `e` previews and edits the
+  selected exact config entry, and `E` opens recorded job output. Disabled jobs remain
+  visible but are not manually runnable; editing a generated row safely targets its base
+  job and identifies the all-instances effect.
 - Start/stop the orchestrator (`x` key or `!x`) and runner counts
 - Footer shows a segmented `AXE` badge followed by daemon status: RUNNING, STOPPED,
   STARTING, STOPPING, or RESTARTING

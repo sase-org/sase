@@ -94,7 +94,7 @@ currently uses these fields:
   state, prompt history, and agent artifacts are written.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or
   workflows are running. Machine-owned operational leases — the workspaces host work
-  such as chops, bead-claim reconciliation, and plan archiving takes to get a writable
+  such as jobs, bead-claim reconciliation, and plan archiving takes to get a writable
   checkout — appear here too, with a reserved `lease(<workflow>)` label in the workflow
   column. Those entries are not agent runs and are not shown as agents.
 
@@ -323,7 +323,7 @@ Common optional fields include:
 - **STITCHES**, **DELTAS**, **HOOKS**, **COMMENTS**, **MENTORS**, and **TIMESTAMPS**:
   See [`change_spec.md`](change_spec.md) for details.
 
-The `external_pr_mirror` chop may adopt remote PRs that SASE did not create. Adopted
+The `external_pr_mirror` job may adopt remote PRs that SASE did not create. Adopted
 Patches get `NAME:`, `DESCRIPTION:`, `PR:`, `PR_ORIGIN:`, and `STATUS:` only. They do
 not get fabricated `PARENT:`, `STITCHES:`, `HOOKS:`, `TIMESTAMPS:`, workspace claims, or
 inferred dependencies from the PR base branch.

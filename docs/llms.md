@@ -1083,9 +1083,9 @@ without hard-coding the initial three providers.
 `submit_usage_refresh` is the shared durable refresh service for CLI, sase's TUI, AXE,
 and limit-event triggers. It coalesces work per provider and account generation, joins
 in-flight probes without dropping other requested providers, and bounds automatic
-retries with cadence-based backoff. AXE submits due work from the `usage_refresh` chop
-on the five-minute checks lumberjack. sase's TUI requests the same due work after first
-paint and while open when AXE is absent. A normal TUI tick never probes inline.
+retries with cadence-based backoff. AXE submits due work from the `usage_refresh` job on
+the five-minute checks routine. sase's TUI requests the same due work after first paint
+and while open when AXE is absent. A normal TUI tick never probes inline.
 
 ## Configuration
 

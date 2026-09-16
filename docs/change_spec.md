@@ -2,7 +2,7 @@
 
 A **Patch** is SASE's durable local record for one unit of reviewable work. Every PR
 created or managed by SASE is associated with exactly one Patch, but a Patch may exist
-without a PR; in that case the `PR:` field is absent. The `external_pr_mirror` AXE chop
+without a PR; in that case the `PR:` field is absent. The `external_pr_mirror` AXE job
 and `sase patch sync-external` command run the same reconciliation path. They list
 remote PRs in every state, discard PRs carrying SASE's tracked-workflow marker, apply
 the case-insensitive

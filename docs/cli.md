@@ -177,8 +177,8 @@ bare — `sase agent`, `sase agent-cli`, `sase artifact`, `sase bead`, `sase cha
 `sase memory`, `sase monitor`, `sase notify`, `sase plan`, `sase plugin`, `sase proc`,
 `sase project`, `sase prompt`, `sase repo`, `sase skill`, `sase snippet`, `sase stitch`,
 `sase telemetry`, `sase var`, `sase workspace`, and `sase xprompt`. Nested groups such
-as `sase agent prompts`, `sase agent tribe`, `sase artifact trash`, `sase axe chop`,
-`sase axe lumberjack`, `sase bead dep`, `sase bead ref`, `sase bead task-type`,
+as `sase agent prompts`, `sase agent tribe`, `sase artifact trash`, `sase axe job`,
+`sase axe routine`, `sase bead dep`, `sase bead ref`, `sase bead task-type`,
 `sase memory agent-docs`, `sase memory web`, `sase patch ref`, `sase plan links`, and
 `sase project alias` follow the same rule. A bare invocation prints a short notice
 naming the delegation, for example
@@ -371,24 +371,24 @@ summary. The removed `-t/--tier` option is now invalid command usage. A valid pl
 
 ## Automation
 
-| Command                          | Purpose                                                             | Details                                            |
-| -------------------------------- | ------------------------------------------------------------------- | -------------------------------------------------- |
-| `sase axe start`                 | Request running state and start the orchestrator and lumberjacks.   | [Axe](axe.md)                                      |
-| `sase axe stop`                  | Request stopped state and stop the orchestrator and lumberjacks.    | [Axe](axe.md#cli-commands)                         |
-| `sase axe restart`               | Verified stop/start/heartbeat-verify restart; works even when down. | [Axe](axe.md#cli-commands)                         |
-| `sase axe ensure`                | Start a missing orchestrator unless axe was explicitly stopped.     | [Axe recovery](axe.md#watchdog-and-recovery)       |
-| `sase axe ensure install`        | Install and enable the optional user-systemd timer.                 | [Axe recovery](axe.md#watchdog-and-recovery)       |
-| `sase axe ensure uninstall`      | Disable and remove the optional user-systemd timer.                 | [Axe recovery](axe.md#watchdog-and-recovery)       |
-| `sase axe status [--json]`       | Inspect one read-only whole-system snapshot in human or JSON form.  | [Axe status](axe.md#whole-system-status)           |
-| `sase axe chop list`             | List configured chops with status; `-a` adds scripts.               | [Axe chops](axe.md#chop-fields)                    |
-| `sase axe chop doctor`           | Diagnose configured/available chops and Telegram setup.             | [Axe chops](axe.md#chop-fields)                    |
-| `sase axe chop run <name>`       | Run one chop in the foreground.                                     | [Axe chops](axe.md#script-chops)                   |
-| `sase axe lumberjack list`       | List configured lumberjacks.                                        | [Axe lumberjacks](axe.md#default-lumberjacks)      |
-| `sase axe lumberjack run <name>` | Run one lumberjack in the foreground for debugging.                 | [Axe lumberjacks](axe.md#lumberjack-configuration) |
-| `sase axe lumberjack status`     | Show lumberjack process status.                                     | [Axe](axe.md)                                      |
-| `sase axe maintenance enter`     | Pause scheduled lumberjack ticks with a recorded reason.            | [Maintenance mode](axe.md#maintenance-mode)        |
-| `sase axe maintenance exit`      | Resume scheduled lumberjack ticks.                                  | [Maintenance mode](axe.md#maintenance-mode)        |
-| `sase axe maintenance status`    | Inspect the maintenance marker.                                     | [Maintenance mode](axe.md#maintenance-mode)        |
+| Command                       | Purpose                                                             | Details                                      |
+| ----------------------------- | ------------------------------------------------------------------- | -------------------------------------------- |
+| `sase axe start`              | Request running state and start the orchestrator and routines.      | [Axe](axe.md)                                |
+| `sase axe stop`               | Request stopped state and stop the orchestrator and routines.       | [Axe](axe.md#cli-commands)                   |
+| `sase axe restart`            | Verified stop/start/heartbeat-verify restart; works even when down. | [Axe](axe.md#cli-commands)                   |
+| `sase axe ensure`             | Start a missing orchestrator unless axe was explicitly stopped.     | [Axe recovery](axe.md#watchdog-and-recovery) |
+| `sase axe ensure install`     | Install and enable the optional user-systemd timer.                 | [Axe recovery](axe.md#watchdog-and-recovery) |
+| `sase axe ensure uninstall`   | Disable and remove the optional user-systemd timer.                 | [Axe recovery](axe.md#watchdog-and-recovery) |
+| `sase axe status [--json]`    | Inspect one read-only whole-system snapshot in human or JSON form.  | [Axe status](axe.md#whole-system-status)     |
+| `sase axe job list`           | List configured jobs with status; `-a` adds scripts.                | [Axe jobs](axe.md#job-fields)                |
+| `sase axe job doctor`         | Diagnose configured/available jobs and Telegram setup.              | [Axe jobs](axe.md#job-fields)                |
+| `sase axe job run <name>`     | Run one job in the foreground.                                      | [Axe jobs](axe.md#script-jobs)               |
+| `sase axe routine list`       | List configured routines.                                           | [Axe routines](axe.md#default-routines)      |
+| `sase axe routine run <name>` | Run one routine in the foreground for debugging.                    | [Axe routines](axe.md#routine-configuration) |
+| `sase axe routine status`     | Show routine process status.                                        | [Axe](axe.md)                                |
+| `sase axe maintenance enter`  | Pause scheduled routine ticks with a recorded reason.               | [Maintenance mode](axe.md#maintenance-mode)  |
+| `sase axe maintenance exit`   | Resume scheduled routine ticks.                                     | [Maintenance mode](axe.md#maintenance-mode)  |
+| `sase axe maintenance status` | Inspect the maintenance marker.                                     | [Maintenance mode](axe.md#maintenance-mode)  |
 
 Axe runs scheduled hooks, mentors, comment polling, workflow checks, `%wait` dependency
 resolution, cleanup, and error digests. sase's TUI starts axe automatically unless
