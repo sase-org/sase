@@ -70,7 +70,7 @@ def plan_config_edit(
     No file is written during planning.
     """
     project_public_contract = routine_job_contract_enabled(routine_job_contract)
-    if path is None and key_path is not None:
+    if path is None and key_path is not None and routine_job_contract is None:
         project_public_contract = False
     request: dict[str, object] = {
         "schema": inventory.schema,

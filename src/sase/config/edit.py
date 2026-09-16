@@ -31,6 +31,7 @@ def plan_config_edit(
     *,
     key_path: tuple[str, ...] | list[str] | None = None,
     use_chezmoi: bool | None = None,
+    routine_job_contract: bool | None = None,
 ) -> EditPlanResult:
     """Plan a config edit while preserving this module's patch surface."""
     effective_use_chezmoi = get_use_chezmoi() if use_chezmoi is None else use_chezmoi
@@ -41,6 +42,7 @@ def plan_config_edit(
         op,
         key_path=key_path,
         use_chezmoi=effective_use_chezmoi,
+        routine_job_contract=routine_job_contract,
     )
 
 

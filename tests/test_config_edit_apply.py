@@ -29,6 +29,7 @@ def _axe_edit_schema() -> dict[str, object]:
         "type": "object",
         "properties": {
             "interval": {"type": "integer"},
+            "job_timeout": {"type": "integer"},
         },
     }
     routines = {
@@ -115,6 +116,116 @@ def test_apply_canonical_axe_edit_preserves_legacy_source_subtree(
     assert "# keep" in written
     data = yaml.safe_load(written)
     assert data["axe"]["lumberjacks"]["checks"]["interval"] == 19
+    assert "routines" not in data["axe"]
+
+
+def test_apply_public_missing_axe_leaf_preserves_legacy_source_subtree(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "sase.yml"
+    target.write_text(
+        "# keep\naxe:\n  lumberjacks:\n    checks:\n      interval: 5\n",
+        encoding="utf-8",
+    )
+    inventory = config_inventory(
+        [
+            config_layer(
+                "user",
+                path=str(target),
+                strategy="replace",
+                data=yaml.safe_load(target.read_text(encoding="utf-8")),
+            )
+        ],
+        schema=_axe_edit_schema(),
+    )
+
+    with override_flags(axe_routine_job_contract=True):
+        plan = plan_config_edit(
+            inventory,
+            "axe.routines.checks.job_timeout",
+            "user",
+            ConfigEditOp.set_value(30),
+            use_chezmoi=False,
+        )
+
+    assert plan.write_plan.key_path == (
+        "axe",
+        "lumberjacks",
+        "checks",
+        "chop_timeout",
+    )
+    assert plan.effective_preview.before is None
+    assert plan.effective_preview.after == 30
+    apply_config_edit(plan)
+
+    data = yaml.safe_load(target.read_text(encoding="utf-8"))
+    assert data["axe"]["lumberjacks"]["checks"] == {
+        "interval": 5,
+        "chop_timeout": 30,
+    }
+    assert "routines" not in data["axe"]
+
+
+def test_apply_exact_public_job_edit_promotes_legacy_list_form_source(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "sase.yml"
+    target.write_text(
+        "# keep\naxe:\n  lumberjacks:\n    checks.main:\n"
+        "      chops:\n        - name: release.check\n"
+        "          script: old-script\n"
+        "        - name: other\n          enabled: true\n",
+        encoding="utf-8",
+    )
+    inventory = config_inventory(
+        [
+            config_layer(
+                "user",
+                path=str(target),
+                strategy="replace",
+                data=yaml.safe_load(target.read_text(encoding="utf-8")),
+            )
+        ],
+        schema={"type": "object"},
+    )
+
+    plan = plan_config_edit(
+        inventory,
+        None,
+        "user",
+        ConfigEditOp.set_value("new-script"),
+        key_path=(
+            "axe",
+            "routines",
+            "checks.main",
+            "jobs",
+            "release.check",
+            "script",
+        ),
+        routine_job_contract=True,
+        use_chezmoi=False,
+    )
+
+    assert plan.write_plan.key_path == (
+        "axe",
+        "lumberjacks",
+        "checks.main",
+        "chops",
+    )
+    assert plan.effective_preview.before == "old-script"
+    assert plan.effective_preview.after == "new-script"
+    apply_config_edit(plan)
+
+    written = target.read_text(encoding="utf-8")
+    assert "# keep" in written
+    data = yaml.safe_load(written)
+    assert data["axe"]["lumberjacks"]["checks.main"]["chops"] == {
+        "release.check": {
+            "name": "release.check",
+            "script": "new-script",
+        },
+        "other": {"name": "other", "enabled": True},
+    }
     assert "routines" not in data["axe"]
 
 
