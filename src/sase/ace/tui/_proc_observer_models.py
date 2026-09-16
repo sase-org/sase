@@ -15,6 +15,7 @@ from typing import Any
 from sase.monitor_state import MONITOR_PROC_ORIGIN
 from sase.ops import DurableOperationResult
 from sase.procs import ACTIVE_PROC_STATUSES
+from sase.procs.service_meta import ProcServiceBlock
 from sase.project_display_names import humanize_cl_name
 
 from ._proc_observer_log import ObservedProcLog
@@ -78,6 +79,7 @@ class ObservedProc:
     settled_by: str | None = None
     settled_at: datetime | None = None
     xprompt_proc: Mapping[str, Any] | None = None
+    service: ProcServiceBlock | None = None
 
     @property
     def label(self) -> str:

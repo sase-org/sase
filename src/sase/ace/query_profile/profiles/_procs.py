@@ -52,6 +52,12 @@ def procs_query_schema() -> ArtifactQuerySchema:
             negatable=True,
             hint="project key or display name",
         ),
+        QueryFieldSpec(
+            key="svc",
+            exact_match=True,
+            negatable=True,
+            hint="service proc name",
+        ),
     )
     enum_fields = (
         QueryFieldSpec(
@@ -87,6 +93,12 @@ def procs_query_schema() -> ArtifactQuerySchema:
             value_kind="bool",
             negatable=True,
             hint="terminal status is error or killed",
+        ),
+        QueryFieldSpec(
+            key="service",
+            value_kind="bool",
+            negatable=True,
+            hint="a service proc run (daemon or oneshot)",
         ),
     )
     int_fields = (

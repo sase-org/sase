@@ -49,7 +49,7 @@ _FAILED_STATUSES = frozenset({"error", "killed"})
 _OUTPUT_NEEDING_KEYS = frozenset({"text", "out"})
 
 #: Cache key: a row's content is fully determined by these fields.
-_RowCacheKey = tuple[str, int, str, datetime | None]
+_RowCacheKey = tuple[str, int, str, datetime | None, str | None, str | None]
 
 
 def _proc_query_row(
@@ -72,6 +72,7 @@ def _proc_query_row(
         "status": proc.status,
         "kind": proc.proc_type,
         "monitor": is_monitor_shell_row(proc),
+        "service": proc.service is not None,
         "running": is_running,
         "failed": proc.status in _FAILED_STATUSES,
         "min": runtime_seconds,
@@ -95,6 +96,8 @@ def _proc_query_row(
         )
     if proc.exit_code is not None:
         fields["exit"] = proc.exit_code
+    if proc.service is not None and proc.service.is_named:
+        fields["svc"] = proc.service.name
     if proc.finished_at is not None:
         finished_epoch = int(proc.finished_at.timestamp())
         fields["after"] = finished_epoch
@@ -191,6 +194,8 @@ class ProcQueryFilter:
             proc.log.version,
             proc.status,
             proc.finished_at,
+            proc.service.name if proc.service is not None else None,
+            proc.service.mode if proc.service is not None else None,
         )
         cached = self._rows.get(key)
         # A cached row built without output can't answer a query that now

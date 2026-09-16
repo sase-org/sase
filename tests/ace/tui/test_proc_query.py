@@ -16,6 +16,7 @@ from sase.ace.tui._proc_query import (
     _query_needs_output,
 )
 from sase.monitor_state import MONITOR_PROC_ORIGIN
+from sase.procs.service_meta import ProcServiceBlock
 
 _NOW = datetime(2026, 8, 20, 12, 0, 0)
 
@@ -35,6 +36,7 @@ def _proc(
     session_live: bool = True,
     exit_code: int | None = None,
     project: str | None = None,
+    service: ProcServiceBlock | None = None,
 ) -> ObservedProc:
     return ObservedProc(
         proc_id=proc_id,
@@ -54,6 +56,7 @@ def _proc(
         session_live=session_live,
         exit_code=exit_code,
         project=project,
+        service=service,
     )
 
 
@@ -84,6 +87,25 @@ def test_monitor_bare_and_negated_spellings_select_by_origin() -> None:
     assert _ids(filt.matching("-monitor", procs, now=_NOW)) == ["plain"]
     assert _ids(filt.matching("monitor:true", procs, now=_NOW)) == ["mon"]
     assert _ids(filt.matching("monitor:false", procs, now=_NOW)) == ["plain"]
+
+
+def test_service_bare_and_negated_spellings_select_by_service_block() -> None:
+    procs = [
+        _proc(
+            "svc",
+            service=ProcServiceBlock(
+                name="gateway",
+                mode="daemon",
+                source="builtin",
+            ),
+        ),
+        _proc("plain"),
+    ]
+    filt = ProcQueryFilter()
+    assert _ids(filt.matching("service", procs, now=_NOW)) == ["svc"]
+    assert _ids(filt.matching("-service", procs, now=_NOW)) == ["plain"]
+    assert _ids(filt.matching("service:true", procs, now=_NOW)) == ["svc"]
+    assert _ids(filt.matching("service:false", procs, now=_NOW)) == ["plain"]
 
 
 def test_running_is_active_status_owned_by_a_live_session() -> None:
@@ -232,6 +254,43 @@ def test_project_field_matches_the_project_key() -> None:
     procs = [_proc("in-project", project="sase"), _proc("no-project")]
     filt = ProcQueryFilter()
     assert _ids(filt.matching("project:sase", procs, now=_NOW)) == ["in-project"]
+
+
+def test_svc_field_matches_the_exact_service_proc_name() -> None:
+    procs = [
+        _proc(
+            "gateway",
+            service=ProcServiceBlock(
+                name="gateway",
+                mode="daemon",
+                source="builtin",
+            ),
+        ),
+        _proc(
+            "scheduler",
+            service=ProcServiceBlock(
+                name="scheduler",
+                mode="daemon",
+                source="builtin",
+            ),
+        ),
+        _proc(
+            "oneshot",
+            service=ProcServiceBlock(
+                name=None,
+                mode="oneshot",
+                source="transient",
+            ),
+        ),
+        _proc("plain"),
+    ]
+    filt = ProcQueryFilter()
+    assert _ids(filt.matching("svc:gateway", procs, now=_NOW)) == ["gateway"]
+    assert _ids(filt.matching("-svc:gateway", procs, now=_NOW)) == [
+        "scheduler",
+        "oneshot",
+        "plain",
+    ]
 
 
 def test_exit_field_matches_the_exact_exit_code() -> None:

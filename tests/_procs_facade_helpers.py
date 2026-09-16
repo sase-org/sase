@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 from sase.procs import Proc, ProcReserve
+from sase.procs.service_meta import ProcServiceBlock
 
 
 def _proc(
@@ -21,6 +22,7 @@ def _proc(
     command: list[str] | None = None,
     cl_name: str | None = "docs_refresh",
     shell_name: str | None = None,
+    service: ProcServiceBlock | None = None,
 ) -> Proc:
     return Proc(
         proc_id=proc_id,
@@ -37,6 +39,7 @@ def _proc(
         created_at=created_at,
         log_path=f"/tmp/{proc_id}.log",
         shell_name=shell_name,
+        service=service,
     )
 
 
@@ -46,6 +49,7 @@ def _reserve(
     shell_name: str = "agent--build",
     fingerprint: str = "fingerprint",
     concurrency_keys: list[str] | None = None,
+    service: ProcServiceBlock | None = None,
 ) -> ProcReserve:
     return ProcReserve(
         proc_id=proc_id,
@@ -64,6 +68,7 @@ def _reserve(
         request_fingerprint=fingerprint,
         reserved_by="agent-one",
         timeout_seconds=30,
+        service=service,
     )
 
 

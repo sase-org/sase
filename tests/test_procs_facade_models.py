@@ -8,6 +8,7 @@ from sase.procs import (
     Proc,
     ProcAppendOutcome,
     ProcPruneOutcome,
+    ProcReserve,
     ProcStoreSnapshot,
     ProcUpdate,
     ProcUpdateOutcome,
@@ -15,6 +16,7 @@ from sase.procs import (
     short_proc_id,
 )
 from sase.procs.ids import PROC_ID_ALPHABET, PROC_ID_LENGTH
+from sase.procs.service_meta import ProcServiceBlock
 
 from tests._procs_facade_helpers import _proc
 
@@ -28,6 +30,60 @@ def test_proc_wire_round_trip_ignores_unknown_fields() -> None:
 
     assert restored == proc
     assert restored.to_dict()["project"] == "sase"
+
+
+def test_proc_service_block_round_trips_and_parses_leniently() -> None:
+    service = ProcServiceBlock(name="gateway", mode="daemon", source="builtin")
+    proc = _proc("0123456789ab", service=service)
+
+    restored = Proc.from_dict(proc.to_dict())
+
+    assert restored.service == service
+    assert restored.is_service
+    assert restored.service_name == "gateway"
+    assert restored.to_dict()["service"] == {
+        "name": "gateway",
+        "mode": "daemon",
+        "source": "builtin",
+    }
+    assert Proc.from_dict({**proc.to_dict(), "service": "invalid"}).service is None
+    assert ProcServiceBlock(
+        name=None, mode="oneshot", source="transient"
+    ).to_dict() == {
+        "mode": "oneshot",
+        "source": "transient",
+    }
+
+
+def test_proc_reserve_service_block_round_trips() -> None:
+    reserve = ProcReserve.from_dict(
+        {
+            "proc_id": "0123456789ab",
+            "label": "Gateway",
+            "argv": ["sleep", "1"],
+            "cwd": "/tmp",
+            "created_at": "2026-07-25T12:00:00Z",
+            "log_path": "/tmp/gateway.log",
+            "request_fingerprint": "fp",
+            "reserved_by": "agent-one",
+            "service": {
+                "name": "gateway",
+                "mode": "daemon",
+                "source": "builtin",
+            },
+        }
+    )
+
+    assert reserve.service == ProcServiceBlock(
+        name="gateway",
+        mode="daemon",
+        source="builtin",
+    )
+    assert reserve.to_dict()["service"] == {
+        "name": "gateway",
+        "mode": "daemon",
+        "source": "builtin",
+    }
 
 
 def test_legacy_task_wire_payloads_parse_as_proc_models() -> None:

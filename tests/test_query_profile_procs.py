@@ -28,11 +28,13 @@ def test_procs_profile_filterable_fields_are_all_accepted_by_the_parser() -> Non
         "name": "my proc",
         "agent": "bbugyi200.athena.sase-s9.2",
         "project": "sase",
+        "svc": "gateway",
         "status": "running",
         "kind": "command",
         "monitor": "true",
         "running": "true",
         "failed": "false",
+        "service": "true",
         "exit": "1",
         "min": "300",
         "max": "5m",
@@ -72,7 +74,7 @@ def test_procs_profile_status_and_kind_enums_match_the_cli() -> None:
 def test_procs_profile_boolean_fields_take_the_bare_shorthand() -> None:
     profile = compile_query_profile(procs_query_schema())
     bool_keys = {item.key for item in profile.fields if item.value_kind == "bool"}
-    assert bool_keys == {"monitor", "running", "failed"}
+    assert bool_keys == {"monitor", "running", "failed", "service"}
     for key in bool_keys:
         assert canonical_query_for_profile(key, profile) == f"{key}:true"
         assert canonical_query_for_profile(f"-{key}", profile) == f"-{key}:true"
@@ -95,6 +97,11 @@ def test_procs_profile_searchable_fields_are_the_free_text_corpus() -> None:
 def test_procs_profile_project_field_is_exact_match() -> None:
     profile = compile_query_profile(procs_query_schema())
     assert profile.field("project").exact_match is True
+
+
+def test_procs_profile_svc_field_is_exact_match() -> None:
+    profile = compile_query_profile(procs_query_schema())
+    assert profile.field("svc").exact_match is True
 
 
 def test_procs_profile_declares_the_host_limit_field() -> None:

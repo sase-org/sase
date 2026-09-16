@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Final
 
 from sase.core.wire import known_field_kwargs
+from sase.procs.service_meta import ProcServiceBlock
 
 PROC_WIRE_SCHEMA_VERSION: Final = 3
 SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS: Final = frozenset({1, 2, PROC_WIRE_SCHEMA_VERSION})
@@ -78,6 +79,7 @@ class Proc:
     finished_by: str | None = None
     result: Any | None = None
     xprompt_proc: dict[str, Any] | None = None
+    service: ProcServiceBlock | None = None
 
     def __post_init__(self) -> None:
         if not self.argv and self.command:
@@ -159,11 +161,22 @@ class Proc:
             values["xprompt_proc"] = xprompt_proc
         else:
             values["xprompt_proc"] = None
+        values["service"] = ProcServiceBlock.from_dict(data.get("service"))
         return cls(**values)
+
+    @property
+    def service_name(self) -> str | None:
+        if self.service is None or not self.service.name:
+            return None
+        return self.service.name
+
+    @property
+    def is_service(self) -> bool:
+        return self.service is not None
 
     def to_dict(self) -> dict[str, Any]:
         """Return the complete dict shape accepted by ``sase_core_rs``."""
-        return {
+        payload = {
             name: getattr(self, name)
             for name in (
                 "schema_version",
@@ -211,8 +224,13 @@ class Proc:
                 "finished_by",
                 "result",
                 "xprompt_proc",
+                "service",
             )
         }
+        payload["service"] = (
+            self.service.to_dict() if self.service is not None else None
+        )
+        return payload
 
 
 @dataclass(frozen=True)
@@ -322,6 +340,7 @@ class ProcReserve:
     timeout_seconds: int | None = None
     idle_timeout_seconds: int | None = None
     xprompt_proc: dict[str, Any] | None = None
+    service: ProcServiceBlock | None = None
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> ProcReserve:
@@ -331,10 +350,15 @@ class ProcReserve:
         values["concurrency_keys"] = [
             str(item) for item in data.get("concurrency_keys") or []
         ]
+        values["service"] = ProcServiceBlock.from_dict(data.get("service"))
         return cls(**values)
 
     def to_dict(self) -> dict[str, Any]:
-        return {name: getattr(self, name) for name in self.__dataclass_fields__}
+        payload = {name: getattr(self, name) for name in self.__dataclass_fields__}
+        payload["service"] = (
+            self.service.to_dict() if self.service is not None else None
+        )
+        return payload
 
 
 @dataclass(frozen=True)
@@ -662,6 +686,7 @@ __all__ = [
     "ProcPrunedStateRetention",
     "ProcReserve",
     "ProcReserveOutcome",
+    "ProcServiceBlock",
     "ProcSettlement",
     "ProcStopRequest",
     "ProcStoreSnapshot",

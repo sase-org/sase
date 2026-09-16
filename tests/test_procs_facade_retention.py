@@ -8,7 +8,8 @@ from typing import Any
 
 import pytest
 
-from sase.procs import Proc, append_proc, proc_log_path, prune_procs
+from sase.procs import Proc, append_proc, proc_log_path, prune_procs, read_proc_snapshot
+from sase.procs.service_meta import ProcServiceBlock
 from sase.procs.runtime import (
     delete_proc_runtime_dirs,
     sweep_orphan_proc_runtime_dirs,
@@ -19,6 +20,10 @@ from tests._procs_facade_helpers import (
     _proc,
     _proc_runtime_dir_for_store,
 )
+
+
+def _timestamp(offset: int) -> str:
+    return f"2026-07-25T12:{offset // 60:02}:{offset % 60:02}Z"
 
 
 def test_retention_and_pruning_delete_corresponding_logs_and_runtime_dirs(
@@ -84,6 +89,92 @@ def test_retention_and_pruning_delete_corresponding_logs_and_runtime_dirs(
     assert orphan_dir.exists()
     assert _proc_runtime_dir_for_store(store, second.proc_id).exists()
     assert _proc_runtime_dir_for_store(store, running.proc_id).exists()
+
+
+def test_service_proc_retention_uses_per_service_buckets(tmp_path: Path) -> None:
+    store = tmp_path / "procs.jsonl"
+    gateway = ProcServiceBlock(name="gateway", mode="daemon", source="builtin")
+    scheduler = ProcServiceBlock(name="scheduler", mode="daemon", source="builtin")
+    transient = ProcServiceBlock(name=None, mode="oneshot", source="transient")
+
+    for index in range(30):
+        append_proc(
+            _proc(
+                f"gateway{index:04d}",
+                status="success",
+                created_at=_timestamp(index),
+                service=gateway,
+            ),
+            path=store,
+            history_limit=100,
+        )
+    for index in range(30):
+        append_proc(
+            _proc(
+                f"scheduler{index:03d}",
+                status="success",
+                created_at=_timestamp(index + 30),
+                service=scheduler,
+            ),
+            path=store,
+            history_limit=100,
+        )
+    for index in range(60):
+        append_proc(
+            _proc(
+                f"generic{index:05d}",
+                status="success",
+                created_at=_timestamp(index + 60),
+            ),
+            path=store,
+            history_limit=100,
+        )
+    for index in range(60):
+        append_proc(
+            _proc(
+                f"oneshot{index:05d}",
+                status="success",
+                created_at=_timestamp(index + 120),
+                service=transient,
+            ),
+            path=store,
+            history_limit=100,
+        )
+    append_proc(
+        _proc(
+            "gateway-live",
+            status="running",
+            created_at=_timestamp(180),
+            service=gateway,
+        ),
+        path=store,
+        history_limit=100,
+    )
+
+    snapshot = read_proc_snapshot(path=store)
+    rows = snapshot.procs
+
+    assert (
+        sum(
+            1
+            for proc in rows
+            if proc.service_name == "gateway" and proc.status == "success"
+        )
+        == 20
+    )
+    assert (
+        sum(
+            1
+            for proc in rows
+            if proc.service_name == "scheduler" and proc.status == "success"
+        )
+        == 20
+    )
+    assert (
+        sum(1 for proc in rows if proc.status == "success" and not proc.service_name)
+        == 100
+    )
+    assert any(proc.proc_id == "gateway-live" for proc in rows)
 
 
 def test_proc_runtime_orphan_sweep_is_bounded_and_validated(
