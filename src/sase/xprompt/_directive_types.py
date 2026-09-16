@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from sase.xprompt.code_value import CodeValue
@@ -41,6 +41,7 @@ _KNOWN_DIRECTIVES = frozenset(
         "effort",
         "final",
         "hide",
+        "hold",
         "model",
         "id",
         "dispatch",
@@ -157,6 +158,8 @@ class PromptDirectives:
             keyword, or None when omitted.
         queue_weight_explicit: Whether `queue_weight` came from an authored
             directive rather than the default effective capacity weight.
+        hold: Canonical fields parsed from repeatable ``%hold`` directives,
+            or None when no enabled hold directive was authored.
         if_code: Structured `%if::` fence body when typed launch units are on.
         proc_code: Structured `%proc` body when typed launch units are on.
         proc_options: Optional `%proc` kwargs (timeout, cwd, workspace, label).
@@ -209,6 +212,7 @@ class PromptDirectives:
     wait_priority: int | None = None
     queue_weight: float | None = None
     queue_weight_explicit: bool = False
+    hold: Mapping[str, Any] | None = None
     dispatch: str | None = None
     final: list[str] = field(default_factory=list)
     if_code: CodeValue | None = None
@@ -220,6 +224,8 @@ class PromptDirectives:
     def __post_init__(self) -> None:
         self.model_alias_overrides = MappingProxyType(dict(self.model_alias_overrides))
         self.proc_options = MappingProxyType(dict(self.proc_options))
+        if self.hold is not None:
+            self.hold = MappingProxyType(dict(self.hold))
         if self.queue_capacity is None:
             self.queue_capacity = self.wait_runners
         if self.wait_runners is None:

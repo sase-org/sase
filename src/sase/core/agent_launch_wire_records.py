@@ -134,6 +134,20 @@ class WaitTargetWire:
 
 
 @dataclass(frozen=True)
+class HoldFieldsWire:
+    """Canonical `%hold` fields attached to one typed launch unit."""
+
+    names: list[str] = field(default_factory=list)
+    tribes: list[str] = field(default_factory=list)
+    hoods: list[str] = field(default_factory=list)
+    pending: bool = False
+    future: bool = False
+    ttl: str | None = None
+    ttl_seconds: int | None = None
+    scope: str | None = None
+
+
+@dataclass(frozen=True)
 class LaunchConditionWire:
     """Admission predicate attached to one logical launch unit."""
 
@@ -180,6 +194,7 @@ class AgentUnitWire:
     workspace_provider: str | None = None
     workspace_reference: str | None = None
     dispatch_target: str | None = None
+    hold: HoldFieldsWire | None = None
 
     def __post_init__(self) -> None:
         if self.queue_capacity is None and self.wait_runners is not None:
@@ -205,6 +220,7 @@ class ProcUnitWire:
     wait_priority: int | None = None
     queue_weight: float | None = None
     queue_weight_explicit: bool = False
+    hold: HoldFieldsWire | None = None
 
     def has_authored_queue_fields(self) -> bool:
         return (
@@ -291,6 +307,7 @@ __all__ = [
     "LaunchConditionWire",
     "LaunchFanoutPlanWire",
     "LaunchFanoutSlotWire",
+    "HoldFieldsWire",
     "LaunchPlanDiagnosticWire",
     "LaunchPlanWire",
     "LaunchUnitResultWire",

@@ -50,20 +50,28 @@ from .directive_diagnostics import (
     RetiredDirectiveUsage,
     find_retired_directive_usages,
 )
+from .hold_directive import (
+    HoldFields,
+    format_hold_directive,
+    hold_fields_to_selectors,
+)
 from .processor import process_xprompt_references
 
 __all__ = [
     "DirectiveError",
+    "HoldFields",
     "PromptDirectives",
     "RetiredDirectiveUsage",
     "apply_fanout_naming",
     "extract_prompt_directives",
     "find_retired_directive_usages",
+    "format_hold_directive",
     "has_alt_directive",
     "has_deferred_start_directive",
     "has_model_directive",
     "has_runner_threshold_directive",
     "has_typed_launch_directive",
+    "hold_fields_to_selectors",
     "parse_absolute_time",
     "parse_duration",
     "plan_prompt_fanout_variants",

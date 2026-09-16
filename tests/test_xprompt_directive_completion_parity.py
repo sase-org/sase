@@ -123,6 +123,23 @@ def test_ace_and_lsp_include_queue_directive(
     assert "capacity budget" in queue.documentation
 
 
+def test_ace_and_lsp_include_hold_directive_when_enabled(
+    tmp_path: Path,
+) -> None:
+    with override_flags(agent_holds=True):
+        ace_candidates, shared = build_directive_completion_candidates("%")
+        assert shared == ""
+        ace_labels = {row.label for row in _ace_surface_rows(ace_candidates)}
+        with LspSession(tmp_path) as lsp:
+            lsp_labels = {row.label for row in lsp.complete("%")}
+
+    assert "%hold" in ace_labels
+    assert "%hold:..." in ace_labels
+    assert "%hold(pending, future)" in ace_labels
+    assert "%hold(hood=..., ttl=...)" in ace_labels
+    assert ace_labels == lsp_labels
+
+
 def test_ace_and_lsp_include_dispatch_directive(
     tmp_path: Path,
 ) -> None:
@@ -204,6 +221,18 @@ def test_ace_and_lsp_queue_argument_rows_match(
 
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
     assert [row.insertion for row in ace_rows] == expected_insertions
+
+
+def test_ace_and_lsp_hold_scope_rows_match_when_enabled(
+    tmp_path: Path,
+) -> None:
+    with override_flags(agent_holds=True):
+        ace_rows = _ace_clause_rows("%hold(scope=")
+        with LspSession(tmp_path) as lsp:
+            lsp_rows = lsp.complete("%hold(scope=")
+
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert [row.insertion for row in ace_rows] == ["project", "host"]
 
 
 def test_ace_and_lsp_queue_argument_rows_keep_zero_when_budget_off(

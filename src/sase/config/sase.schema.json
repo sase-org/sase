@@ -4792,6 +4792,11 @@
           "default": true,
           "deprecated": true
         },
+        "agent_holds": {
+          "type": "boolean",
+          "description": "Beta gate for the %hold prompt directive.",
+          "default": false
+        },
         "agent_sudo_requests": {
           "type": "boolean",
           "description": "Gate the typed sudo request workflow while the runner, TUI modal, skill guard, and SSH relay phases land.",

@@ -46,6 +46,7 @@ def test_set_dispatch_directive_rewrites_only_dispatch() -> None:
         "%dispatch:apollo %wait:planner run there",
         "%dispatch:apollo %q:1 run there",
         "%dispatch:apollo %clan:builders run there",
+        "%dispatch:apollo %hold:planner run there",
     ],
 )
 def test_dispatch_scan_rejects_invalid_or_v1_unsupported_forms(prompt: str) -> None:

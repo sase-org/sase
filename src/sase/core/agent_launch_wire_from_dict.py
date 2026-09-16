@@ -15,6 +15,7 @@ from sase.core.agent_launch_wire_records import (
     AgentUnitWire,
     BatchPredecessorContextWire,
     BatchPredecessorWaitBindingWire,
+    HoldFieldsWire,
     LaunchAdmissionSummaryWire,
     LaunchConditionWire,
     LaunchFanoutPlanWire,
@@ -39,6 +40,24 @@ def _optional_queue_capacity(data: dict[str, Any]) -> int | None:
     else:
         raw = data.get("wait_runners")
     return None if raw is None else int(raw)
+
+
+def _hold_fields_from_dict(data: Any) -> HoldFieldsWire | None:
+    if data is None:
+        return None
+    item = dict(data)
+    return HoldFieldsWire(
+        names=[str(value) for value in item.get("names", [])],
+        tribes=[str(value) for value in item.get("tribes", [])],
+        hoods=[str(value) for value in item.get("hoods", [])],
+        pending=bool(item.get("pending", False)),
+        future=bool(item.get("future", False)),
+        ttl=None if item.get("ttl") is None else str(item["ttl"]),
+        ttl_seconds=(
+            None if item.get("ttl_seconds") is None else int(item["ttl_seconds"])
+        ),
+        scope=None if item.get("scope") is None else str(item["scope"]),
+    )
 
 
 def _workspace_claim_request_from_dict(
@@ -221,6 +240,7 @@ def _launch_unit_payload_from_dict(
             workspace_provider=_optional_str(data.get("workspace_provider")),
             workspace_reference=_optional_str(data.get("workspace_reference")),
             dispatch_target=_optional_str(data.get("dispatch_target")),
+            hold=_hold_fields_from_dict(data.get("hold")),
         )
     if kind == "proc":
         return ProcUnitWire(
@@ -257,6 +277,7 @@ def _launch_unit_payload_from_dict(
                 else float(data["queue_weight"])
             ),
             queue_weight_explicit=bool(data.get("queue_weight_explicit", False)),
+            hold=_hold_fields_from_dict(data.get("hold")),
         )
     raise ValueError(f"unknown launch unit payload kind: {kind!r}")
 

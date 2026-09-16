@@ -34,7 +34,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
     assert _contract_aliases(contract) == expected_aliases
     assert {
         name for name, row in contract.items() if bool(row["allows_multiple"])
-    } == set(_MULTI_VALUE_DIRECTIVES) | {"alt", "xprompts_enabled", "queue"}
+    } == set(_MULTI_VALUE_DIRECTIVES) | {"alt", "xprompts_enabled", "queue", "hold"}
     assert _contract_keywords(contract) == {
         "alt": (),
         "auto": (),
@@ -43,6 +43,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "effort": (),
         "final": (),
         "hide": (),
+        "hold": ("hood", "scope", "ttl", "tribe"),
         "id": ("bead", "clan", "family", "tribe"),
         "model": (),
         "repeat": (),
@@ -75,6 +76,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "effort": ("colon",),
         "final": ("colon", "parenthesized"),
         "hide": ("bare", "plus"),
+        "hold": ("colon", "parenthesized"),
         "id": ("colon", "parenthesized", "bare"),
         "model": ("colon", "parenthesized"),
         "repeat": ("colon",),
@@ -86,8 +88,15 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
     }
     assert contract["if"].get("feature_flag") is None
     assert contract["proc"]["feature_flag"] == "typed_launch_units"
+    assert contract["hold"]["feature_flag"] == "agent_holds"
     assert contract["queue"].get("feature_flag") is None
     assert contract["queue"]["alias"] == "q"
+    assert contract["hold"].get("alias") is None
+    assert _suggested_values(contract["hold"]) == ("pending", "future")
+    assert _keyword_suggested_values(contract["hold"], "scope") == (
+        "project",
+        "host",
+    )
     assert _suggested_values(contract["queue"]) == ("0", "1")
     assert contract["dispatch"].get("feature_flag") is None
     assert _keyword_suggested_values(contract["if"], "should_run") == ("true", "false")

@@ -115,7 +115,11 @@ def _validate_repeat_prompt_directives(prompt: str) -> None:
     protected = protect_fenced_blocks(prompt, fenced)
     disabled: list[str] = []
     protected = protect_disabled_regions(protected, disabled)
-    collect_prompt_directive_matches(protected)
+    collected = collect_prompt_directive_matches(protected)
+    if collected.hold_occurrences:
+        raise DirectiveError(
+            "Cannot combine %hold with %repeat; launch held agents separately."
+        )
 
 
 def spawn_repeat_batch(

@@ -14,6 +14,7 @@ from sase.core.agent_launch_wire_records import (
     AgentUnitWire,
     BatchPredecessorContextWire,
     BatchPredecessorWaitBindingWire,
+    HoldFieldsWire,
     LaunchConditionWire,
     LaunchPlanWire,
     LaunchUnitResultWire,
@@ -43,10 +44,37 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
         if record.info_string is not None:
             data["info_string"] = record.info_string
         return data
+    if isinstance(record, HoldFieldsWire):
+        hold: dict[str, Any] = {}
+        if record.names:
+            hold["names"] = list(record.names)
+        if record.tribes:
+            hold["tribes"] = list(record.tribes)
+        if record.hoods:
+            hold["hoods"] = list(record.hoods)
+        if record.pending:
+            hold["pending"] = True
+        if record.future:
+            hold["future"] = True
+        if record.ttl is not None:
+            hold["ttl"] = record.ttl
+        if record.ttl_seconds is not None:
+            hold["ttl_seconds"] = record.ttl_seconds
+        if record.scope is not None:
+            hold["scope"] = record.scope
+        return hold
     if isinstance(record, AgentUnitWire):
         agent_payload = asdict(record)
         agent_payload["kind"] = "agent"
         agent_payload.pop("wait_runners", None)
+        if record.hold is None:
+            agent_payload.pop("hold", None)
+        else:
+            hold_payload = agent_launch_wire_to_json_dict(record.hold)
+            if hold_payload:
+                agent_payload["hold"] = hold_payload
+            else:
+                agent_payload.pop("hold", None)
         for key in (
             "identity",
             "clan",
@@ -66,6 +94,7 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
             "workspace_provider",
             "workspace_reference",
             "dispatch_target",
+            "hold",
         ):
             if agent_payload.get(key) is None:
                 agent_payload.pop(key, None)
@@ -100,6 +129,10 @@ def agent_launch_wire_to_json_dict(record: Any) -> Any:
             proc_payload["queue_weight"] = record.queue_weight
         if record.queue_weight_explicit:
             proc_payload["queue_weight_explicit"] = True
+        if record.hold is not None:
+            hold_payload = agent_launch_wire_to_json_dict(record.hold)
+            if hold_payload:
+                proc_payload["hold"] = hold_payload
         return proc_payload
     if isinstance(record, LaunchConditionWire):
         condition = {

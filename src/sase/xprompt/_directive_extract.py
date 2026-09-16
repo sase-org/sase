@@ -122,6 +122,7 @@ def extract_prompt_directives(
     wait_runners: int | None = None
     wait_priority: int | None = None
     queue_weight: float | None = None
+    hold_fields: dict[str, object] | None = None
     if collected.queue_occurrences:
         from sase.xprompt.queue_directive import collect_queue_fields
 
@@ -145,6 +146,21 @@ def extract_prompt_directives(
             wait_priority = int(priority) if priority is not None else None
             weight = fields.get("weight")
             queue_weight = float(weight) if weight is not None else None
+    if collected.hold_occurrences:
+        from sase.xprompt.hold_directive import collect_hold_fields
+
+        hold_payload = collect_hold_fields(collected.hold_occurrences)
+        hold_errors = hold_payload.get("errors")
+        if isinstance(hold_errors, list) and hold_errors:
+            first = hold_errors[0]
+            if isinstance(first, dict):
+                message = str(first.get("message") or "Invalid %hold directive.")
+            else:
+                message = "Invalid %hold directive."
+            raise DirectiveError(message)
+        raw_hold_fields = hold_payload.get("fields")
+        if isinstance(raw_hold_fields, dict):
+            hold_fields = dict(raw_hold_fields)
 
     cleaned = _remove_directive_regions(prompt, collected.regions_to_remove)
 
@@ -182,6 +198,10 @@ def extract_prompt_directives(
     resolve_wait_templates(expanded_multi)
 
     repeat_count = parse_repeat_count(expanded_args)
+    if hold_fields is not None and repeat_count is not None:
+        raise DirectiveError(
+            "Cannot combine %hold with %repeat; launch held agents separately."
+        )
     tribe = parse_tribe_name(expanded_args)
     declared_clan = resolve_clan_membership(expanded_args)
     clan = joined_clan or declared_clan
@@ -273,6 +293,7 @@ def extract_prompt_directives(
         wait_priority=wait_priority,
         queue_weight=queue_weight,
         queue_weight_explicit=queue_weight is not None,
+        hold=hold_fields,
         dispatch=resolve_dispatch_target(expanded_args),
         final=expanded_multi.get("final", []),
         if_code=if_code,

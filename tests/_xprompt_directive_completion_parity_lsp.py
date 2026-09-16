@@ -17,6 +17,7 @@ from typing import Any
 import pytest
 
 from sase.integrations.xprompt_lsp import (
+    _apply_agent_holds_flag,
     _apply_queue_capacity_budget_flag,
     _apply_typed_launch_units_flag,
 )
@@ -169,6 +170,7 @@ class LspSession:
             env["SASE_XPROMPT_ARTIFACT_REF_CATALOG"] = str(artifact_ref_catalog)
         _apply_typed_launch_units_flag(env)
         _apply_queue_capacity_budget_flag(env)
+        _apply_agent_holds_flag(env)
         from sase.feature_flags.registry import FeatureFlag
         from sase.feature_flags.snapshot import current_flags
 

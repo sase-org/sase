@@ -42,6 +42,7 @@ class _CollectedDirectives:
     wait_bead_args: list[str] = field(default_factory=list)
     wait_time_args: list[str] = field(default_factory=list)
     queue_occurrences: list[dict[str, Any]] = field(default_factory=list)
+    hold_occurrences: list[dict[str, Any]] = field(default_factory=list)
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
     clan_tribe_arg: str | None = None
     clan_tribe_present: bool = False
@@ -74,6 +75,13 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
         if name == "queue":
             occurrence, match_end = _collect_queue_occurrence(prompt, match)
             collected.queue_occurrences.append(occurrence)
+            collected.regions_to_remove.append((match.start(), match_end))
+            continue
+        if name == "hold":
+            if _hold_bare_and_disabled(match):
+                continue
+            occurrence, match_end = _collect_hold_occurrence(prompt, match)
+            collected.hold_occurrences.append(occurrence)
             collected.regions_to_remove.append((match.start(), match_end))
             continue
 
@@ -368,6 +376,46 @@ def _collect_queue_occurrence(
     )
 
 
+def _collect_hold_occurrence(
+    prompt: str,
+    match: re.Match[str],
+) -> tuple[dict[str, Any], int]:
+    """Return a Rust hold occurrence payload for one `%hold` match."""
+    has_open_paren = match.group(2) is not None
+    colon_arg = match.group(3)
+    plus_suffix = match.group(4)
+    match_end = match.end()
+    args: list[dict[str, str]] = []
+    if has_open_paren:
+        paren_start = match.end() - 1
+        paren_end = find_matching_paren_for_args(prompt, paren_start)
+        if paren_end is not None:
+            match_end = paren_end + 1
+            args = _hold_args_from_paren_content(
+                prompt[paren_start + 1 : paren_end],
+            )
+    elif colon_arg is not None:
+        args = [{"value": _decode_directive_arg_value(colon_arg)}]
+
+    return (
+        {
+            "source": prompt[match.start() : match_end],
+            "source_span": [match.start(), match_end],
+            "args": args,
+            "has_plus_suffix": plus_suffix is not None,
+        },
+        match_end,
+    )
+
+
+def _hold_bare_and_disabled(match: re.Match[str]) -> bool:
+    if match.group(2) is not None or match.group(3) is not None or match.group(4):
+        return False
+    from sase.xprompt.hold_directive import agent_holds_enabled
+
+    return not agent_holds_enabled()
+
+
 def _queue_args_from_paren_content(paren_content: str) -> list[dict[str, str]]:
     args: list[dict[str, str]] = []
     for span in parse_arg_spans(paren_content, preserve_empty_args=True):
@@ -394,7 +442,37 @@ def _queue_args_from_paren_content(paren_content: str) -> list[dict[str, str]]:
     return args
 
 
+def _hold_args_from_paren_content(paren_content: str) -> list[dict[str, str]]:
+    args: list[dict[str, str]] = []
+    for span in parse_arg_spans(paren_content, preserve_empty_args=True):
+        if span.name is None:
+            args.append(
+                {
+                    "value": _decode_directive_arg_value(
+                        paren_content[span.start : span.end],
+                    )
+                }
+            )
+            continue
+        value = (
+            ""
+            if span.value_start is None or span.value_end is None
+            else paren_content[span.value_start : span.value_end]
+        )
+        args.append(
+            {
+                "name": span.name,
+                "value": _decode_directive_arg_value(value),
+            }
+        )
+    return args
+
+
 def _decode_queue_arg_value(value: str) -> str:
+    return _decode_directive_arg_value(value)
+
+
+def _decode_directive_arg_value(value: str) -> str:
     value = value.strip()
     if value.startswith("`") and value.endswith("`") and len(value) >= 2:
         return value[1:-1]

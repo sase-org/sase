@@ -57,6 +57,8 @@ def strip_known_directives(prompt: str) -> str:
         name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
         if name not in _KNOWN_DIRECTIVES and name not in _DEPRECATED_DIRECTIVES:
             continue
+        if name == "hold" and _hold_match_is_inert(match):
+            continue
         match_end = match.end()
         if match.group(2) is not None:
             paren_end = find_matching_paren_for_args(protected, match.end() - 1)
@@ -92,11 +94,14 @@ def scan_dispatch_directive(prompt: str) -> DispatchDirectiveScan | None:
     saw_wait = False
     saw_queue = False
     saw_clan = False
+    saw_hold = False
 
     for match in re.finditer(_DIRECTIVE_PATTERN, protected, re.MULTILINE):
         name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
         if name not in _KNOWN_DIRECTIVES and name not in _DEPRECATED_DIRECTIVES:
             continue
+        if name == "hold" and not _hold_match_is_inert(match):
+            saw_hold = True
         if name == "wait":
             saw_wait = True
         if name == "queue":
@@ -115,9 +120,9 @@ def scan_dispatch_directive(prompt: str) -> DispatchDirectiveScan | None:
 
     if target is None:
         return None
-    if saw_wait or saw_queue or saw_clan:
+    if saw_wait or saw_queue or saw_clan or saw_hold:
         raise DirectiveError(
-            "%dispatch cannot be combined with %wait, %queue, or %clan in V1 "
+            "%dispatch cannot be combined with %wait, %queue, %clan, or %hold in V1 "
             "remote launch."
         )
 
@@ -186,6 +191,14 @@ def _dispatch_raw_target(prompt: str, match: re.Match[str]) -> tuple[str, int]:
     if plus_suffix is not None:
         raise DirectiveError("%dispatch does not support '+'; use %dispatch:<machine>.")
     return "", match.end()
+
+
+def _hold_match_is_inert(match: re.Match[str]) -> bool:
+    if match.group(2) is not None or match.group(3) is not None or match.group(4):
+        return False
+    from sase.xprompt.hold_directive import agent_holds_enabled
+
+    return not agent_holds_enabled()
 
 
 def has_deferred_start_directive(prompt: str) -> bool:

@@ -25,6 +25,7 @@ class FeatureFlag(StrEnum):
     admin_center_flags = "admin_center_flags"
     axe_routine_job_contract = "axe_routine_job_contract"
     agents_unified_query = "agents_unified_query"
+    agent_holds = "agent_holds"
     agent_sudo_requests = "agent_sudo_requests"
     monitor_continuation_records = "monitor_continuation_records"
     provider_drain = "provider_drain"
@@ -72,6 +73,12 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "engine and the FilterBar chrome."
         ),
         bead="sase-zg",
+    ),
+    FeatureFlag.agent_holds: FeatureFlagDefinition(
+        key=FeatureFlag.agent_holds,
+        kind="beta",
+        description="Beta gate for the %hold prompt directive.",
+        bead="sase-11u",
     ),
     FeatureFlag.agent_sudo_requests: FeatureFlagDefinition(
         key=FeatureFlag.agent_sudo_requests,
