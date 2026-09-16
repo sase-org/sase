@@ -11,6 +11,8 @@ import pytest
 
 import sase.monitor.followup as followup_module
 import sase.monitor.resume as resume_module
+from sase.continuation_capture._storage import continuation_root
+from sase.continuation_capture.monitor import _MISSING_STARTER_PARENT_ERROR
 from sase.monitor.continuation_delivery import (
     DELIVERY_ARTIFACTS_ENV,
     DELIVERY_CRASH_ENV,
@@ -251,3 +253,71 @@ def test_crash_after_fence_keeps_acknowledged_branch_intact(
     old = load_delivery_record(monitor_dir, base_key)
     assert old is not None
     assert old["disposition"] == "needs_attention"
+
+
+def _stamp_missing_starter_parent(monitor_dir: str, meta: dict[str, Any]) -> str:
+    """Mark a terminal monitor the way capture does when its starter lagged."""
+    node_id = "monitor-result:acme:1"
+    node_path = continuation_root(monitor_dir) / "nodes" / f"{node_id}.json"
+    node_path.parent.mkdir(parents=True, exist_ok=True)
+    node_path.write_text(
+        json.dumps({"node_id": node_id, "parent_ids": []}), encoding="utf-8"
+    )
+    meta.update(
+        {
+            "continuation_monitor_result_node_id": node_id,
+            "continuation_capture_disposition": "needs_recovery",
+            "continuation_capture_error": _MISSING_STARTER_PARENT_ERROR,
+        }
+    )
+    (Path(monitor_dir) / "agent_meta.json").write_text(
+        json.dumps(meta), encoding="utf-8"
+    )
+    return node_id
+
+
+def test_resume_repairs_missing_starter_parent_once_starter_settled(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir, record, meta = _terminal_monitor(tmp_path, monkeypatch)
+    node_id = _stamp_missing_starter_parent(monitor_dir, meta)
+    starter_meta_path = Path(meta["monitor_starter_artifacts_dir"]) / "agent_meta.json"
+    starter_meta = json.loads(starter_meta_path.read_text(encoding="utf-8"))
+    starter_meta["continuation_node_id"] = "agent-delta:acme:1"
+    starter_meta_path.write_text(json.dumps(starter_meta), encoding="utf-8")
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+
+    result = resume_monitor(record)
+
+    assert result.spawned is True
+    assert len(captured) == 1
+    on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    assert on_disk["continuation_capture_disposition"] == "ok"
+    assert "continuation_capture_error" not in on_disk
+    assert on_disk["continuation_parent_node_ids"] == ["agent-delta:acme:1"]
+    node_path = continuation_root(monitor_dir) / "nodes" / f"{node_id}.json"
+    assert json.loads(node_path.read_text())["parent_ids"] == ["agent-delta:acme:1"]
+
+
+def test_resume_still_requires_checkpoint_while_starter_parent_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monitor_dir, record, meta = _terminal_monitor(tmp_path, monkeypatch)
+    _stamp_missing_starter_parent(monitor_dir, meta)
+    captured: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        followup_module, "spawn_agent_subprocess", _fake_spawn(captured)
+    )
+
+    with pytest.raises(MonitorResumeError) as excinfo:
+        resume_monitor(record)
+
+    assert excinfo.value.code == "capture_recovery"
+    assert captured == []
+    on_disk = json.loads((Path(monitor_dir) / "agent_meta.json").read_text())
+    assert on_disk["continuation_capture_disposition"] == "needs_recovery"

@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from sase.continuation_capture import AuthoredCheckpoint
+from sase.continuation_capture import (
+    AuthoredCheckpoint,
+    repair_missing_starter_parent_disposition,
+)
 
 from .delivery import load_delivery_record
 from .followup import FollowupLaunchResult, launch_followup_agent
@@ -51,6 +54,9 @@ def resume_monitor(
     """Resume one terminal monitor's requested ordinary continuation."""
 
     meta = _read_meta(record.artifacts_dir)
+    # A starter that outlived settlement's bounded wait has usually settled by
+    # the time anyone resumes, so its parent node can clear the block now.
+    repair_missing_starter_parent_disposition(record.artifacts_dir, meta)
     checkpoint = _load_checkpoint(checkpoint_path)
     selected_model = _selected_model(meta, model)
     result = _monitor_result(record, meta)
