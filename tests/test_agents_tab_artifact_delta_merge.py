@@ -19,7 +19,11 @@ from sase.ace.tui.models.agent_loader import AgentLoadState, load_artifact_delta
 from sase.core.agent_scan_wire import AgentClanContextWire
 
 from tests._agents_tab_incomplete_merge_helpers import (
+    _artifact_delta_load_state,
+    _gate_rows,
     _incomplete_tier1_snapshot,
+    _merge_tier1_patch,
+    _settled_gate_merge_rows,
     _write_json,
 )
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
@@ -106,6 +110,25 @@ def test_artifact_delta_preserves_cached_clan_context() -> None:
     assert refreshed.clan_context.clan_tribe == "chop"
     container = project_clan_tree(prep.filtered_agents)[0]
     assert container.clan_tribes == ("chop",)
+
+
+def test_artifact_delta_type_changed_gate_settlement_replaces_stale_pending_row() -> (
+    None
+):
+    """Artifact deltas must heal a pending gate row even after agent_type drift."""
+    root, cached_gate, settled_gate, completed_coder = _settled_gate_merge_rows()
+
+    rows = _merge_tier1_patch(
+        [root, cached_gate, completed_coder],
+        [settled_gate],
+        load_state=_artifact_delta_load_state(),
+    )
+
+    assert _gate_rows(rows) == [settled_gate]
+    assert cached_gate not in rows
+    assert settled_gate.gate_state == "answered"
+    root_row = next(agent for agent in rows if agent.raw_suffix == root.raw_suffix)
+    assert root_row.status == "TALE DONE"
 
 
 def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> None:

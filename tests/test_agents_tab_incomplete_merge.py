@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplyData,
@@ -13,8 +13,12 @@ from sase.ace.tui.models.agent_panels import panel_keys_for
 from sase.ace.tui.models.agent import Agent, AgentType
 
 from tests._agents_tab_incomplete_merge_helpers import (
+    _bounded_prefix_load_state,
+    _gate_rows,
+    _gate_shadow_row,
     _incomplete_tier1_snapshot,
     _merge_tier1_patch,
+    _settled_gate_merge_rows,
 )
 
 
@@ -295,3 +299,121 @@ def test_incomplete_merge_places_metadata_completed_row_in_tribe_panel() -> None
 
     assert "chop" in panel_keys
     assert None not in panel_keys
+
+
+def test_bounded_prefix_type_changed_gate_settlement_replaces_stale_pending_row() -> (
+    None
+):
+    """A settled gate shell must outrank a cached pending projection."""
+    root, cached_gate, settled_gate, completed_coder = _settled_gate_merge_rows()
+
+    rows = _merge_tier1_patch(
+        [root, cached_gate, completed_coder],
+        [settled_gate],
+        load_state=_bounded_prefix_load_state(),
+    )
+
+    assert _gate_rows(rows) == [settled_gate]
+    assert cached_gate not in rows
+    assert settled_gate.gate_state == "answered"
+    root_row = next(agent for agent in rows if agent.raw_suffix == root.raw_suffix)
+    assert root_row.status == "TALE DONE"
+
+
+def test_bounded_prefix_same_type_gate_settlement_still_replaces() -> None:
+    """The exact-key path still heals a pending-to-settled gate shell."""
+    root, cached_gate, settled_gate, completed_coder = _settled_gate_merge_rows(
+        cached_type=AgentType.RUNNING,
+        incoming_type=AgentType.RUNNING,
+    )
+
+    rows = _merge_tier1_patch(
+        [root, cached_gate, completed_coder],
+        [settled_gate],
+        load_state=_bounded_prefix_load_state(),
+    )
+
+    assert _gate_rows(rows) == [settled_gate]
+    assert settled_gate.gate_state == "answered"
+
+
+def test_bounded_prefix_shadow_without_shell_state_does_not_clobber_cached_row() -> (
+    None
+):
+    """A suffix shadow without shell state must still lose to the richer cache."""
+    root, cached_gate, _, completed_coder = _settled_gate_merge_rows()
+    shadow = _gate_shadow_row()
+
+    rows = _merge_tier1_patch(
+        [root, cached_gate, completed_coder],
+        [shadow],
+        load_state=_bounded_prefix_load_state(),
+    )
+
+    assert _gate_rows(rows) == [cached_gate]
+    assert shadow not in rows
+    assert cached_gate.gate_state == "pending"
+
+
+def test_bounded_prefix_type_changed_monitor_settlement_replaces_running_row() -> None:
+    """Monitor shell terminality uses state, not only the visible bucket."""
+    started = datetime(2026, 9, 15, 10, 0, 0)
+    root = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-family",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=started,
+        raw_suffix="20260915100000",
+        agent_name="monitor-family",
+        agent_family="monitor-family",
+        agent_family_role="root",
+    )
+    cached_monitor = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="monitor-family--mon",
+        project_file="/tmp/test.sase",
+        status="TESTING",
+        status_bucket="Running",
+        start_time=started + timedelta(minutes=1),
+        raw_suffix="20260915100100",
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--mon",
+        agent_name="monitor-family--mon",
+        agent_family="monitor-family",
+        agent_family_role="monitor",
+        monitor_id="mon-1",
+        monitor_state="running",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+    )
+    settled_monitor = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="monitor-family--mon",
+        project_file="/tmp/test.sase",
+        status="TESTED",
+        start_time=started + timedelta(minutes=1),
+        raw_suffix=cached_monitor.raw_suffix,
+        parent_timestamp=root.raw_suffix,
+        role_suffix="--mon",
+        agent_name="monitor-family--mon",
+        agent_family="monitor-family",
+        agent_family_role="monitor",
+        monitor_id="mon-1",
+        monitor_state="completed",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+    )
+
+    rows = _merge_tier1_patch(
+        [root, cached_monitor],
+        [settled_monitor],
+        load_state=_bounded_prefix_load_state(),
+    )
+
+    assert [
+        agent for agent in rows if agent.raw_suffix == cached_monitor.raw_suffix
+    ] == [settled_monitor]
+    root_row = next(agent for agent in rows if agent.raw_suffix == root.raw_suffix)
+    assert root_row.status == "TESTED"
+    assert root_row.monitor_state == "completed"

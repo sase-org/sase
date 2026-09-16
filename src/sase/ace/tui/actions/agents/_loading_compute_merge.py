@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 from sase.agent.status_buckets import agent_status_bucket
 from sase.core.agent_clan_context import clan_context_key
 from sase.core.agent_scan_wire import AgentClanContextWire
+from sase.gate_shell.state import gate_state_is_terminal
+from sase.monitor_state import monitor_state_is_terminal
 
 from ._loading_compute_types import PreparedApplyData, PreparedApplySnapshot
 from ._loading_helpers import is_always_visible
@@ -155,6 +157,29 @@ def _terminal_artifact_projection_replaces(cached: Agent, incoming: Agent) -> bo
     return agent_status_bucket(incoming) in {"Done", "Failed"}
 
 
+def _terminal_shell_state_replaces(cached: Agent, incoming: Agent) -> bool:
+    """Return whether terminal shell state should replace a stale shell row."""
+    if cached.project_file != incoming.project_file:
+        return False
+    if cached.raw_suffix is None or cached.raw_suffix != incoming.raw_suffix:
+        return False
+    if cached.parent_workflow is not None or incoming.parent_workflow is not None:
+        return False
+    if (
+        incoming.gate_id
+        and incoming.gate_state is not None
+        and gate_state_is_terminal(incoming.gate_state)
+        and not gate_state_is_terminal(cached.gate_state)
+    ):
+        return True
+    return bool(
+        incoming.monitor_id
+        and incoming.monitor_state is not None
+        and monitor_state_is_terminal(incoming.monitor_state)
+        and not monitor_state_is_terminal(cached.monitor_state)
+    )
+
+
 def _stable_replacement_wins(
     cached: Agent,
     incoming: Agent,
@@ -165,6 +190,8 @@ def _stable_replacement_wins(
     if _adds_structural_placement(cached, incoming):
         return True
     if _terminal_artifact_projection_replaces(cached, incoming):
+        return True
+    if _terminal_shell_state_replaces(cached, incoming):
         return True
     return is_artifact_delta and cached.agent_type == incoming.agent_type
 
@@ -420,11 +447,7 @@ def merge_incomplete_load_after_complete_history(
             agent_key in cached_keys
             or (
                 cached_stable_match is not None
-                and _stable_replacement_wins(
-                    cached_stable_match,
-                    agent,
-                    is_artifact_delta=is_artifact_delta,
-                )
+                and not can_canonical_dedup_running_shadow(agent)
             )
             or is_dismissed(agent)
         ):
