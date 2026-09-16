@@ -70,6 +70,12 @@ XPROMPT_HIGHLIGHT_STACK = (
     "---\n"
     "%{%m:opus | %m:sonnet} #git:home summarize the fix use /sase_plan"
 )
+XPROMPT_ARGUMENT_HIGHLIGHT = (
+    "#visual(path=src/app.py)\n"
+    '#visual_batch(owner, title="release notes", count=42, enabled=true)\n'
+    "#visual(context=@file:plans/launch.md+{{ root }}, extra=nope)\n"
+    "%id(worker, tribe=research, nope=x, tribe=ops)"
+)
 ARTIFACT_REF_HIGHLIGHT = (
     "Compare @plan:202607/design.md @commit:sase@abcdef1 @user:handle\n"
     "Known references stay vivid while unknown-kind prose stays subdued."

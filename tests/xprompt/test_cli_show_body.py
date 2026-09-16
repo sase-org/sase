@@ -7,6 +7,7 @@ from io import StringIO
 from rich.console import Console
 
 from sase.xprompt.cli_show_body import body_block, highlighted_body
+from sase.xprompt.highlight_theme import highlight_theme
 
 
 def _plain(renderable: object, *, width: int = 80) -> str:
@@ -65,6 +66,29 @@ def test_highlighted_body_preserves_plain_bytes_and_styles_roles() -> None:
 
     assert rendered.plain == source
     assert rendered.spans
+
+
+def test_highlighted_body_styles_keyword_argument_roles() -> None:
+    source = '#demo(raw=plain, title="release", count=2, enabled=true)'
+    rendered = highlighted_body(source)
+    styles = highlight_theme()
+
+    assert rendered.plain == source
+    for needle, role in (
+        ("(", "xprompt.arg_delimiter"),
+        ("raw", "xprompt.arg_key"),
+        ("=", "xprompt.arg_assign"),
+        ("plain", "xprompt.arg_value"),
+        ('"release"', "xprompt.arg_value_string"),
+        ("2", "xprompt.arg_value_number"),
+        ("true", "xprompt.arg_value_bool"),
+    ):
+        position = source.index(needle)
+        assert any(
+            span.start <= position < span.end
+            and str(span.style) == styles[role].rich_style
+            for span in rendered.spans
+        ), (needle, role, rendered.spans)
 
 
 def test_fenced_body_keeps_source_and_adds_syntax_spans() -> None:

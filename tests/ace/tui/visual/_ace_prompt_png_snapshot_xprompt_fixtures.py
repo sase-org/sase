@@ -6,7 +6,27 @@ import pytest
 
 from sase.ace.tui import AceApp
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
-from sase.ace.tui.widgets.xprompt_arg_assist import XPromptAssistEntry
+from sase.ace.tui.widgets.xprompt_arg_assist import (
+    XPromptAssistEntry,
+    XPromptInputHint,
+)
+
+
+def _input(
+    name: str,
+    type_: str,
+    *,
+    position: int,
+    required: bool = True,
+) -> XPromptInputHint:
+    return XPromptInputHint(
+        name=name,
+        type=type_,
+        required=required,
+        default_display=None,
+        position=position,
+    )
+
 
 _VISUAL_SKILL_ENTRIES = [
     XPromptAssistEntry(
@@ -20,7 +40,35 @@ _VISUAL_SKILL_ENTRIES = [
         content_preview=None,
         description="Create an implementation plan",
         is_skill=True,
-    )
+    ),
+    XPromptAssistEntry(
+        name="visual",
+        insertion="#visual",
+        reference_prefix="#",
+        kind="xprompt",
+        input_signature="(path: path, context: string)",
+        inputs=(
+            _input("path", "path", position=0),
+            _input("context", "string", position=1, required=False),
+        ),
+        content_preview=None,
+        description="Visual snapshot argument fixture",
+    ),
+    XPromptAssistEntry(
+        name="visual_batch",
+        insertion="#visual_batch",
+        reference_prefix="#",
+        kind="xprompt",
+        input_signature="(owner: agent, title: string, count: int, enabled: bool)",
+        inputs=(
+            _input("owner", "agent", position=0),
+            _input("title", "string", position=1),
+            _input("count", "int", position=2),
+            _input("enabled", "bool", position=3),
+        ),
+        content_preview=None,
+        description="Mixed positional and keyword visual fixture",
+    ),
 ]
 
 
