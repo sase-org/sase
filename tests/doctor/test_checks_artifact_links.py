@@ -187,10 +187,10 @@ def test_artifact_links_check_reports_row_level_and_projected_drift(
         },
         {
             "schema_version": 2,
-            "source_ref": "chop:hooks/build",
+            "source_ref": "job:hooks/build",
             "relation": "launched",
             "target_ref": "agent:alice.athena.9w",
-            "description": "chop launch metadata",
+            "description": "job launch metadata",
             "origin": "projected",
             "created_by": "projection:chop-agent",
             "created_at": "2026-08-21T00:00:00Z",

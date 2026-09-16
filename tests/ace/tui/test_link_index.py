@@ -198,11 +198,15 @@ def test_chop_neighbor_has_no_target_but_gets_the_virtual_chop_style() -> None:
         )
     )
     chop_chip = index.chips_for("agent:worker")[0]
-    assert chop_chip.neighbor_ref == "chop:refresh_docs/refresh_docs"
+    assert chop_chip.neighbor_ref == "job:refresh_docs/refresh_docs"
     assert chop_chip.neighbor_target is None
     assert chop_chip.accent == _CHOP_ACCENT
     assert chop_chip.icon == _CHOP_ICON
     assert chop_chip.label == "launched-by"
+
+    canonical = index.chips_for("chop:refresh_docs/refresh_docs")
+    assert canonical
+    assert index.chips_for("job:refresh_docs/refresh_docs") == canonical
 
 
 def test_duplicate_rows_across_projects_converge_to_max_uses() -> None:

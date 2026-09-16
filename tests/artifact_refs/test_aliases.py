@@ -9,6 +9,7 @@ import pytest
 from sase.artifact_ref_kinds import (
     completion_artifact_ref_kinds,
     parsable_artifact_ref_kinds,
+    parse_artifact_ref_canonical,
 )
 from sase.artifact_ref_models import ArtifactRefContext
 from sase.artifact_refs import process_artifact_references
@@ -91,11 +92,13 @@ def test_commit_never_warns(tmp_path: Path, capsys: pytest.CaptureFixture[str]) 
     assert capsys.readouterr().err == ""
 
 
-def test_completion_kinds_exclude_aliases_and_historical_kinds() -> None:
+def test_completion_kinds_include_public_job_alias_but_exclude_historical_kinds() -> (
+    None
+):
     completion = set(completion_artifact_ref_kinds())
     parsable = set(parsable_artifact_ref_kinds())
 
-    assert {"stitch", "patch", "bead", "agent", "file"} <= completion
+    assert {"stitch", "patch", "bead", "agent", "file", "job"} <= completion
     assert not {"commit", "plans", "chat", "bug"} & completion
     assert {
         "stitch",
@@ -107,7 +110,16 @@ def test_completion_kinds_exclude_aliases_and_historical_kinds() -> None:
         "plans",
         "chat",
         "bug",
+        "job",
     } <= parsable
+
+
+def test_job_alias_canonicalizes_to_stored_chop_without_warning() -> None:
+    parsed = parse_artifact_ref_canonical("job:hooks/build")
+
+    assert parsed.reference.rendered == "chop:hooks/build"
+    assert parsed.alias == "job"
+    assert parsed.diagnostic is None
 
 
 def test_known_kinds_no_longer_silently_drops_builtin_or_alias_kinds() -> None:
@@ -121,5 +133,15 @@ def test_known_kinds_no_longer_silently_drops_builtin_or_alias_kinds() -> None:
         projects=(),
     )
     known = set(context.known_kinds)
-    for kind in ("stitch", "patch", "commit", "plans", "chat", "bug", "bead", "agent"):
+    for kind in (
+        "stitch",
+        "patch",
+        "commit",
+        "plans",
+        "chat",
+        "bug",
+        "bead",
+        "agent",
+        "job",
+    ):
         assert kind in known, f"{kind} silently dropped from known_kinds"

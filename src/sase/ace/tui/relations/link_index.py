@@ -235,7 +235,7 @@ def _build_chip(
         label=label,
         directed=directed,
         this_is_source=this_is_source,
-        neighbor_ref=neighbor_ref,
+        neighbor_ref=_public_neighbor_ref(neighbor_ref),
         neighbor_target=neighbor_target,
         accent=accent,
         icon=icon,
@@ -317,7 +317,19 @@ def _aliases_for_ref(ref: str, identity: AgentIdentitySnapshot) -> tuple[str, ..
         return ()
     if kind == "plan":
         return (f"ref:plan:{payload}",)
+    if kind == "chop":
+        return (f"job:{payload}",)
     return ()
+
+
+def _public_neighbor_ref(ref: str) -> str:
+    parsed = parse_link_ref(ref)
+    if parsed is None:
+        return ref
+    kind, payload = parsed
+    if kind == "chop":
+        return f"job:{payload}"
+    return ref
 
 
 __all__ = [

@@ -62,11 +62,11 @@ def test_axe_ensure_help_documents_healing_and_watchdog() -> None:
     ensure_help = flat_help(parser_for(("sase", "axe", "ensure")).format_help())
     status_help = flat_help(parser_for(("sase", "axe", "status")).format_help())
     expected_commands = {
-        "chop",
         "ensure",
-        "lumberjack",
+        "job",
         "maintenance",
         "restart",
+        "routine",
         "status",
         "start",
         "stop",
@@ -76,7 +76,7 @@ def test_axe_ensure_help_documents_healing_and_watchdog() -> None:
 
     assert help_commands == sorted(expected_commands)
     assert (
-        "{chop,ensure,lumberjack,maintenance,restart,start,status,stop}"
+        "{ensure,job,maintenance,restart,routine,start,status,stop}"
         in axe_parser.format_help()
     )
     assert "Bare `sase axe ensure` starts a missing orchestrator" in ensure_help
@@ -85,7 +85,32 @@ def test_axe_ensure_help_documents_healing_and_watchdog() -> None:
     assert "sase axe ensure uninstall" in ensure_help
     assert "read-only, whole-system AXE health snapshot" in status_help
     assert "-j, --json" in status_help
-    assert "machine-readable schema-version-1 status object" in status_help
+    assert "machine-readable status object" in status_help
+
+
+def test_axe_job_and_routine_public_commands_keep_hidden_legacy_aliases() -> None:
+    job = create_parser().parse_args(
+        ["axe", "job", "run", "hook_checks", "--routine", "hooks", "-V"]
+    )
+    chop = create_parser().parse_args(
+        ["axe", "chop", "run", "hook_checks", "--lumberjack", "hooks", "--chop-verbose"]
+    )
+    routine = create_parser().parse_args(["axe", "routine", "run", "hooks"])
+    lumberjack = create_parser().parse_args(["axe", "lumberjack", "run", "hooks"])
+
+    assert job.axe_subcommand == "job"
+    assert job.axe_chop_subcommand == "run"
+    assert job.chop_name == "hook_checks"
+    assert job.lumberjack == "hooks"
+    assert job.chop_verbose is True
+    assert chop.axe_subcommand == "chop"
+    assert chop.lumberjack == "hooks"
+    assert chop.chop_verbose is True
+    assert routine.axe_subcommand == "routine"
+    assert routine.axe_lumberjack_subcommand == "run"
+    assert routine.lumberjack_name == "hooks"
+    assert lumberjack.axe_subcommand == "lumberjack"
+    assert lumberjack.lumberjack_name == "hooks"
 
 
 def test_agent_tribe_help_uses_public_tribe_vocabulary() -> None:

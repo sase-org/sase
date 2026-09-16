@@ -23,7 +23,7 @@ from .._artifact_tab_model import (
 )
 from .artifact_links import parse_link_ref
 
-# Chops are a virtual link-graph subject kind (no owning Artifacts pane, no
+# Jobs are a virtual link-graph subject kind (no owning Artifacts pane, no
 # ref-kind catalog entry): the AXE tab resolves them, but nothing else does.
 _CHOP_ACCENT = "#5FD7D7"
 _CHOP_ICON = "⚒"
@@ -49,11 +49,11 @@ def accent_and_icon_for_ref(
     *target* is preferred when present: it resolves through the live
     Artifacts tab descriptors, which already carry the palette-hash accent a
     document-provider kind (``research``, ...) is assigned at runtime.
-    ``chop:`` has no such descriptor since it is virtual, so it is special
+    ``job:``/``chop:`` has no such descriptor since it is virtual, so it is special
     cased directly.
     """
 
-    if ref_kind == "chop":
+    if ref_kind in {"chop", "job"}:
         return _CHOP_ACCENT, _CHOP_ICON
     if ref_kind == "plan":
         return ARTIFACTS_ACCENTS["ref:plan"], _PLAN_REF_ICON
@@ -148,7 +148,7 @@ def _subject_from_axe(app: Any) -> LinkSubject | None:
     snapshots = getattr(app, "_axe_chop_snapshots", {})
     snapshot = snapshots.get((lumberjack, chop_name))
     base = snapshot.base_identity[1] if snapshot is not None else chop_name
-    ref = f"chop:{lumberjack}/{base}"
+    ref = f"job:{lumberjack}/{base}"
     accent, icon = accent_and_icon_for_ref("chop", None)
     return LinkSubject(ref=ref, target=None, accent=accent, icon=icon)
 

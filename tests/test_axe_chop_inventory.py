@@ -216,7 +216,7 @@ def _render_chop_list(config: AxeConfig, *, verbose: bool) -> str:
 
 
 @pytest.mark.parametrize("verbose", [False, True])
-def test_configured_chops_table_shows_summary_first(verbose: bool) -> None:
+def test_configured_jobs_table_shows_summary_first(verbose: bool) -> None:
     """The Description column stays summary-only; verbose adds the full body."""
     body = "Scans Patches and advances stale hook work."
     config = AxeConfig(
@@ -242,7 +242,7 @@ def test_configured_chops_table_shows_summary_first(verbose: bool) -> None:
     header = output.splitlines()[1:5]
     assert any("Description" in line for line in header)
     assert "Complete finished hooks and start stale ones" in output
-    assert ("Full Chop Descriptions" in output) is verbose
+    assert ("Full Job Descriptions" in output) is verbose
     assert (body in output) is verbose
     # The verbose-only policy column stays verbose-only.
     assert ("Policy / Last Decision" in output) is verbose

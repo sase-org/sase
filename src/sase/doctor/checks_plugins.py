@@ -2,7 +2,7 @@
 
 Resource entry-point loading and provider (GitHub CLI) prerequisites are support
 diagnostics, so they live under ``sase doctor`` rather than any plugin command.
-Chop diagnostics live separately under ``axe.chops`` (see ``checks_axe``).
+Job diagnostics live separately under ``axe.jobs`` (see ``checks_axe``).
 """
 
 from __future__ import annotations

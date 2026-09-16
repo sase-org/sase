@@ -25,7 +25,7 @@ _MAX_NEXT_STEPS = 5
 
 
 def check_axe_state() -> DiagnosticCheck:
-    """Summarize configured axe/lumberjack runtime state."""
+    """Summarize configured AXE routine runtime state."""
     snapshot = collect_axe_status_snapshot()
     rows = [_lumberjack_data(row) for row in snapshot.lumberjacks]
     problems = [issue.summary for issue in snapshot.issues]
@@ -74,7 +74,7 @@ def check_axe_state() -> DiagnosticCheck:
     if historical_errors or pinned_logs or orphan_litter_excessive:
         _append_unique(
             next_steps,
-            "Run `sase axe lumberjack status`.",
+            "Run `sase axe routine status`.",
         )
 
     configured_count = sum(1 for row in snapshot.lumberjacks if row.configured)
@@ -83,9 +83,9 @@ def check_axe_state() -> DiagnosticCheck:
     )
     status_value = _doctor_status(snapshot, has_deep_findings=bool(problems))
     runtime_summary = (
-        f"{configured_count} configured lumberjack(s); {running_count} running"
+        f"{configured_count} configured routine(s); {running_count} running"
         if configured_count
-        else "no AXE lumberjacks are configured"
+        else "no AXE routines are configured"
     )
     summary = f"{snapshot.summary} {runtime_summary}."
     orchestrator_pid = (

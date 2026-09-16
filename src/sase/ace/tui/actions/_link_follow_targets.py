@@ -156,13 +156,13 @@ class LinkFollowTargetsMixin:
     ) -> bool:
         lumberjack, sep, base_chop = payload.partition("/")
         if not sep or not lumberjack or not base_chop:
-            self._notify_dangling_link_ref(f"chop:{payload}")
+            self._notify_dangling_link_ref(f"job:{payload}")
             return False
         if self._expand_lumberjack_for_chop(lumberjack) and expanded is not None:
             expanded.append(lumberjack)
         idx = self._find_chop_index(lumberjack, base_chop)
         if idx is None:
-            self._notify_dangling_link_ref(f"chop:{payload}")
+            self._notify_dangling_link_ref(f"job:{payload}")
             return False
         self._save_current_tab_position()  # type: ignore[attr-defined]
         self.current_tab = "axe"

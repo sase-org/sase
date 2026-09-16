@@ -1,7 +1,7 @@
 """Multi-lumberjack supervisor.
 
 The Orchestrator spawns each configured lumberjack as a
-``sase axe lumberjack run <name>`` subprocess, monitors them, and
+``sase axe routine run <name>`` subprocess, monitors them, and
 restarts any that exit unexpectedly.  On SIGTERM the orchestrator
 forwards the signal to all children and waits for them to exit.
 """
@@ -100,7 +100,7 @@ class Orchestrator:
     def _spawn_lumberjack(self, name: str) -> subprocess.Popen[bytes]:
         """Spawn a single lumberjack subprocess."""
         sase_cmd = self._find_sase_executable()
-        cmd = [sase_cmd, "axe", "lumberjack", "run", name]
+        cmd = [sase_cmd, "axe", "routine", "run", name]
 
         # Forward relevant options
         if self.config.query:
@@ -114,7 +114,7 @@ class Orchestrator:
 
         append_bounded_log(
             log_file,
-            f"[sase] orchestrator starting lumberjack '{name}'\n",
+            f"[sase] orchestrator starting routine '{name}'\n",
             max_bytes=self.config.lumberjack_log_max_bytes,
             temp_max_age_seconds=self.config.lumberjack_log_temp_max_age_seconds,
         )

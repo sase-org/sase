@@ -1,4 +1,4 @@
-"""Tests for the ``axe.chops`` doctor check."""
+"""Tests for the ``axe.jobs`` doctor check."""
 
 from __future__ import annotations
 
@@ -50,10 +50,12 @@ def test_axe_chops_check_errors_on_missing_configured_chop(
 
     check = _check_axe_chops(_context(tmp_path))
 
-    assert check.id == "axe.chops"
+    assert check.id == "axe.jobs"
+    assert check.title == "AXE job diagnostics"
     assert check.group == "axe"
     assert check.status == "ERROR"
     assert check.data["counts"]["ERROR"] >= 1
+    assert "configured_job_count" in check.data
     assert any("cannot be resolved" in detail for detail in check.details)
 
 

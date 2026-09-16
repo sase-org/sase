@@ -25,6 +25,7 @@ from sase.axe.status_models import (
     AxeStatusIssue,
     AxeStatusSnapshot,
 )
+from sase.feature_flags import override_flags
 from sase.main.axe_handler import handle_axe_command
 from sase.main.parser import create_parser
 from tests.main.parser_help_helpers import ANSI_RE
@@ -214,8 +215,9 @@ def test_json_is_exact_stable_plain_wire_contract() -> None:
     first = StringIO()
     second = StringIO()
 
-    status_render.render_axe_status_json(snapshot, stream=first)
-    status_render.render_axe_status_json(snapshot, stream=second)
+    with override_flags(axe_routine_job_contract=False):
+        status_render.render_axe_status_json(snapshot, stream=first)
+        status_render.render_axe_status_json(snapshot, stream=second)
 
     assert first.getvalue() == second.getvalue()
     assert json.loads(first.getvalue()) == snapshot.to_wire()
@@ -226,6 +228,23 @@ def test_json_is_exact_stable_plain_wire_contract() -> None:
     assert "UNHEALTHY" in human
     assert snapshot.issues[0].summary in human
     assert f'"exit_code": {snapshot.exit_code}' in first.getvalue()
+
+
+def test_json_public_contract_renames_routines_and_jobs_under_flag() -> None:
+    output = StringIO()
+
+    with override_flags(axe_routine_job_contract=True):
+        status_render.render_axe_status_json(_snapshot(), stream=output)
+
+    payload = json.loads(output.getvalue())
+    assert payload["schema_version"] == 2
+    assert "routines" in payload
+    assert "lumberjacks" not in payload
+    assert payload["routines"][0]["routine_name"] == "hooks"
+    assert payload["routines"][0]["configured_jobs"] == [
+        "alpha_check",
+        "beta_check",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -352,7 +371,7 @@ def test_narrow_table_folds_without_dropping_lumberjack_contract_facts() -> None
         "uptime=",
         "started=",
         "age=",
-        "chops=",
+        "jobs=",
         "load=",
         "alpha_check",
         "beta_check",

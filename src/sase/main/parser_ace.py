@@ -151,7 +151,7 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     axe_subparsers = axe_parser.add_subparsers(
         dest="axe_subcommand",
         help="Axe subcommands",
-        metavar="{chop,ensure,lumberjack,maintenance,restart,start,status,stop}",
+        metavar="{ensure,job,maintenance,restart,routine,start,status,stop}",
     )
 
     axe_bgcmd_parser = axe_subparsers.add_parser(
@@ -169,64 +169,8 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     add_operation_io_flags(axe_bgcmd_parser)
 
-    # --- axe chop ---
-    axe_chop_parser = axe_subparsers.add_parser(
-        "chop",
-        help="Inspect and run chops (bare `chop` defaults to `chop list`)",
-    )
-    axe_chop_subparsers = axe_chop_parser.add_subparsers(
-        dest="axe_chop_subcommand", help="Chop subcommands"
-    )
-
-    # sase axe chop doctor
-    axe_chop_doctor_parser = axe_chop_subparsers.add_parser(
-        "doctor", help="Diagnose configured and available chop setup"
-    )
-    _add_chop_diagnostic_flags(axe_chop_doctor_parser)
-
-    # sase axe chop list
-    axe_chop_list_parser = axe_chop_subparsers.add_parser(
-        "list", help="List configured chops and their status"
-    )
-    axe_chop_list_parser.add_argument(
-        "-a",
-        "--available",
-        action="store_true",
-        help="Also show discoverable executable chop scripts, including "
-        "unconfigured ones",
-    )
-    _add_chop_diagnostic_flags(axe_chop_list_parser)
-
-    # sase axe chop run <name>
-    axe_chop_run_parser = axe_chop_subparsers.add_parser(
-        "run", help="Run a single chop once in the foreground"
-    )
-    axe_chop_run_parser.add_argument("chop_name", help="Name of the chop to run")
-    axe_chop_run_parser.add_argument(
-        "-V",
-        "--chop-verbose",
-        action="store_true",
-        help="Enable verbose script diagnostics and show the full structured result",
-    )
-    axe_chop_run_parser.add_argument(
-        "-n",
-        "--dry-run",
-        action="store_true",
-        help="Run the script and preview validated agent proposals without launching",
-    )
-    axe_chop_run_parser.add_argument(
-        "-f",
-        "--force",
-        action="store_true",
-        help="Bypass declarative guards for this manual run (triggers are already bypassed)",
-    )
-    axe_chop_run_parser.add_argument(
-        "-L",
-        "--lumberjack",
-        default=None,
-        help="Configured lumberjack to attribute the run to (required when the "
-        "chop name appears in multiple lumberjacks)",
-    )
+    _add_axe_job_group(axe_subparsers, name="job", hidden=False)
+    _add_axe_job_group(axe_subparsers, name="chop", hidden=True)
 
     # --- axe ensure ---
     axe_ensure_parser = axe_subparsers.add_parser(
@@ -258,65 +202,8 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Stop and remove the user systemd watchdog timer",
     )
 
-    # --- axe lumberjack ---
-    axe_lumberjack_parser = axe_subparsers.add_parser(
-        "lumberjack", help="Lumberjack management commands"
-    )
-    axe_lumberjack_subparsers = axe_lumberjack_parser.add_subparsers(
-        dest="axe_lumberjack_subcommand", help="Lumberjack subcommands"
-    )
-
-    # sase axe lumberjack list
-    axe_lumberjack_list_parser = axe_lumberjack_subparsers.add_parser(
-        "list", help="List configured lumberjacks"
-    )
-    axe_lumberjack_list_parser.add_argument(
-        "-v",
-        "--verbose",
-        action="store_true",
-        help="Show full lumberjack descriptions",
-    )
-
-    # sase axe lumberjack run <name>
-    axe_lumberjack_run_parser = axe_lumberjack_subparsers.add_parser(
-        "run", help="Run a single lumberjack in the foreground"
-    )
-    axe_lumberjack_run_parser.add_argument(
-        "lumberjack_name", help="Name of the lumberjack to run"
-    )
-    # These flags are forwarded by the orchestrator when spawning lumberjacks
-    axe_lumberjack_run_parser.add_argument(
-        "-q",
-        "--query",
-        default="",
-        help="Query string for filtering Patches",
-    )
-    axe_lumberjack_run_parser.add_argument(
-        "-H",
-        "--max-hook-runners",
-        type=int,
-        default=None,
-        help="Maximum concurrent hook runners",
-    )
-    axe_lumberjack_run_parser.add_argument(
-        "-A",
-        "--max-agent-runners",
-        type=int,
-        default=None,
-        help="Maximum concurrent agent runners",
-    )
-    axe_lumberjack_run_parser.add_argument(
-        "-z",
-        "--zombie-timeout",
-        type=int,
-        default=None,
-        help="Zombie detection timeout in seconds",
-    )
-
-    # sase axe lumberjack status
-    axe_lumberjack_subparsers.add_parser(
-        "status", help="Show status of all lumberjacks"
-    )
+    _add_axe_routine_group(axe_subparsers, name="routine", hidden=False)
+    _add_axe_routine_group(axe_subparsers, name="lumberjack", hidden=True)
 
     # --- axe maintenance ---
     axe_maintenance_parser = axe_subparsers.add_parser(
@@ -396,7 +283,7 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
         "-j",
         "--json",
         action="store_true",
-        help="Emit the machine-readable schema-version-1 status object",
+        help="Emit the machine-readable status object",
     )
 
     # --- axe start ---
@@ -445,8 +332,145 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def _add_axe_job_group(
+    axe_subparsers: argparse._SubParsersAction,
+    *,
+    name: str,
+    hidden: bool,
+) -> None:
+    """Register public ``job`` commands and hidden legacy ``chop`` commands."""
+    group_help = (
+        argparse.SUPPRESS
+        if hidden
+        else ("Inspect and run jobs (bare `job` defaults to `job list`)")
+    )
+    parser = axe_subparsers.add_parser(name, help=group_help)
+    subparsers = parser.add_subparsers(
+        dest="axe_chop_subcommand", help="Job subcommands"
+    )
+
+    doctor_parser = subparsers.add_parser(
+        "doctor", help="Diagnose configured and available job setup"
+    )
+    _add_chop_diagnostic_flags(doctor_parser)
+
+    list_parser = subparsers.add_parser(
+        "list", help="List configured jobs and their status"
+    )
+    list_parser.add_argument(
+        "-a",
+        "--available",
+        action="store_true",
+        help="Also show discoverable executable job scripts, including unconfigured ones",
+    )
+    _add_chop_diagnostic_flags(list_parser)
+
+    run_parser = subparsers.add_parser(
+        "run", help="Run a single job once in the foreground"
+    )
+    run_parser.add_argument("chop_name", metavar="JOB", help="Name of the job to run")
+    run_parser.add_argument(
+        "-V",
+        "--job-verbose",
+        dest="chop_verbose",
+        action="store_true",
+        help="Enable verbose script diagnostics and show the full structured result",
+    )
+    run_parser.add_argument(
+        "--chop-verbose",
+        dest="chop_verbose",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    run_parser.add_argument(
+        "-n",
+        "--dry-run",
+        action="store_true",
+        help="Run the script and preview validated agent proposals without launching",
+    )
+    run_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Bypass declarative guards for this manual run (triggers are already bypassed)",
+    )
+    run_parser.add_argument(
+        "-L",
+        "--routine",
+        dest="lumberjack",
+        default=None,
+        help="Configured routine to attribute the run to (required when the "
+        "job name appears in multiple routines)",
+    )
+    run_parser.add_argument(
+        "--lumberjack",
+        dest="lumberjack",
+        default=None,
+        help=argparse.SUPPRESS,
+    )
+
+
+def _add_axe_routine_group(
+    axe_subparsers: argparse._SubParsersAction,
+    *,
+    name: str,
+    hidden: bool,
+) -> None:
+    """Register public ``routine`` commands and hidden legacy aliases."""
+    group_help = argparse.SUPPRESS if hidden else "Routine management commands"
+    parser = axe_subparsers.add_parser(name, help=group_help)
+    subparsers = parser.add_subparsers(
+        dest="axe_lumberjack_subcommand", help="Routine subcommands"
+    )
+
+    list_parser = subparsers.add_parser("list", help="List configured routines")
+    list_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Show full routine descriptions",
+    )
+
+    run_parser = subparsers.add_parser(
+        "run", help="Run a single routine in the foreground"
+    )
+    run_parser.add_argument(
+        "lumberjack_name", metavar="ROUTINE", help="Name of the routine to run"
+    )
+    # These flags are forwarded by the orchestrator when spawning routines.
+    run_parser.add_argument(
+        "-q",
+        "--query",
+        default="",
+        help="Query string for filtering Patches",
+    )
+    run_parser.add_argument(
+        "-H",
+        "--max-hook-runners",
+        type=int,
+        default=None,
+        help="Maximum concurrent hook runners",
+    )
+    run_parser.add_argument(
+        "-A",
+        "--max-agent-runners",
+        type=int,
+        default=None,
+        help="Maximum concurrent agent runners",
+    )
+    run_parser.add_argument(
+        "-z",
+        "--zombie-timeout",
+        type=int,
+        default=None,
+        help="Zombie detection timeout in seconds",
+    )
+
+    subparsers.add_parser("status", help="Show status of all routines")
+
+
 def _add_chop_diagnostic_flags(parser: argparse.ArgumentParser) -> None:
-    """Add the shared ``-j/--json`` and ``-v/--verbose`` chop output flags."""
+    """Add the shared ``-j/--json`` and ``-v/--verbose`` job output flags."""
     parser.add_argument(
         "-j",
         "--json",

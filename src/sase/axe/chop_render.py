@@ -1,4 +1,4 @@
-"""Rich rendering for ``sase axe chop list`` and ``sase axe chop doctor``."""
+"""Rich rendering for AXE job list, doctor, and run commands."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ def render_chop_list(
     verbose: bool = False,
     console: Console | None = None,
 ) -> None:
-    """Render human output for ``sase axe chop list``."""
+    """Render human output for ``sase axe job list``."""
     target = console or Console()
     renderables: list[RenderableType] = [
         _configured_chops_table(inventory, verbose=verbose)
@@ -52,7 +52,7 @@ def render_chop_doctor(
     verbose: bool = False,
     console: Console | None = None,
 ) -> None:
-    """Render human output for ``sase axe chop doctor``."""
+    """Render human output for ``sase axe job doctor``."""
     target = console or Console()
     target.print(
         Group(
@@ -88,7 +88,7 @@ def render_chop_run_result(
     renderables: list[RenderableType] = [
         Panel(
             summary,
-            title="Chop Result" + (" (dry run)" if dry_run else ""),
+            title="Job Result" + (" (dry run)" if dry_run else ""),
             border_style="cyan",
         )
     ]
@@ -173,13 +173,13 @@ def _doctor_summary_panel(report: ChopDoctorReport) -> Panel:
     table.add_column(style="bold")
     table.add_column()
     table.add_row("Status", _status_text(report.status))
-    table.add_row("Configured chops", str(len(report.inventory.configured_chops)))
+    table.add_row("Configured jobs", str(len(report.inventory.configured_chops)))
     table.add_row(
-        "Available unconfigured chops",
+        "Available unconfigured jobs",
         str(len(report.inventory.available_unconfigured)),
     )
     table.add_row("Checks", str(len(report.checks)))
-    return Panel(table, title="Chop Doctor", border_style=_border_style(report.status))
+    return Panel(table, title="Job Doctor", border_style=_border_style(report.status))
 
 
 def _configured_chops_table(
@@ -189,15 +189,15 @@ def _configured_chops_table(
 ) -> Table | Panel:
     if not inventory.configured_chops:
         return Panel(
-            Text("No chops are configured under axe.lumberjacks.", style="dim"),
-            title="Configured Chops",
+            Text("No jobs are configured under axe.routines.", style="dim"),
+            title="Configured Jobs",
             border_style="cyan",
         )
 
-    table = Table(title="Configured Chops", show_header=True, header_style="bold")
+    table = Table(title="Configured Jobs", show_header=True, header_style="bold")
     table.add_column("Status", no_wrap=True)
-    table.add_column("Lumberjack", no_wrap=True)
-    table.add_column("Chop", no_wrap=True)
+    table.add_column("Routine", no_wrap=True)
+    table.add_column("Job", no_wrap=True)
     table.add_column("Description", overflow="ellipsis", no_wrap=True)
     table.add_column("Kind", no_wrap=True)
     table.add_column("Last Run", no_wrap=True)
@@ -234,8 +234,8 @@ def _configured_chops_table(
 def _configured_chop_descriptions_panel(inventory: ChopInventory) -> Panel:
     if not inventory.configured_chops:
         return Panel(
-            Text("No chops are configured under axe.lumberjacks.", style="dim"),
-            title="Full Chop Descriptions",
+            Text("No jobs are configured under axe.routines.", style="dim"),
+            title="Full Job Descriptions",
             border_style="dim",
         )
 
@@ -245,7 +245,7 @@ def _configured_chop_descriptions_panel(inventory: ChopInventory) -> Panel:
     for chop in inventory.configured_chops:
         display_name = f"{chop.lumberjack}/{chop.name}"
         table.add_row(display_name, Text(_full_description(chop), overflow="fold"))
-    return Panel(table, title="Full Chop Descriptions", border_style="cyan")
+    return Panel(table, title="Full Job Descriptions", border_style="cyan")
 
 
 def _full_description(chop: ConfiguredChopRecord) -> str:
@@ -271,14 +271,14 @@ def _available_chops_table(
     available = inventory.available_scripts
     if not available:
         return Panel(
-            Text("No executable chop scripts were found.", style="dim"),
-            title="Available Chops",
+            Text("No executable job scripts were found.", style="dim"),
+            title="Available Jobs",
             border_style="cyan",
         )
 
-    table = Table(title="Available Chops", show_header=True, header_style="bold")
+    table = Table(title="Available Jobs", show_header=True, header_style="bold")
     table.add_column("Status", no_wrap=True)
-    table.add_column("Chop", no_wrap=True)
+    table.add_column("Job", no_wrap=True)
     table.add_column("Configured", no_wrap=True)
     if verbose:
         table.add_column("Source", no_wrap=True)
@@ -303,7 +303,7 @@ def _search_dirs_panel(inventory: ChopInventory) -> Panel:
     table.add_column(overflow="fold")
     table.add_row("Python bin dir", inventory.python_bin_dir)
     table.add_row(
-        "Chop script dirs",
+        "Job script dirs",
         "\n".join(inventory.chop_script_dirs) or "-",
     )
     table.add_row("PATH dirs", str(len(inventory.path_dirs)))

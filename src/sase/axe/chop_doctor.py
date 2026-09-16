@@ -1,9 +1,9 @@
-"""Diagnostics for AXE chops.
+"""Diagnostics for AXE jobs.
 
-These checks back both ``sase axe chop doctor`` and the top-level
-``sase doctor`` ``axe.chops`` check so the two surfaces never drift. They cover
-configured script chops that cannot be resolved, executable chop scripts that
-are installed but unconfigured, and the Telegram chop-script prerequisites.
+These checks back both ``sase axe job doctor`` and the top-level
+``sase doctor`` ``axe.jobs`` check so the two surfaces never drift. They cover
+configured script jobs that cannot be resolved, executable job scripts that
+are installed but unconfigured, and the Telegram job-script prerequisites.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from sase.axe.chop_inventory import (
     ChopInventory,
     ConfiguredChopRecord,
     chop_inventory_to_dict,
+    chop_inventory_to_public_dict,
     collect_chop_inventory,
 )
 from sase.axe.config import AxeConfig, AxeConfigError
@@ -39,7 +40,7 @@ _TELEGRAM_CHOP_NAMES = {
 }
 _TELEGRAM_TOKEN_NEXT_STEP = (
     "Configure SASE_TELEGRAM_BOT_TOKEN with an env/file/pass secret reference "
-    "under lumberjack or chop env, set it in process env, create "
+    "under routine or job env, set it in process env, create "
     "~/.sase/telegram_bot_token with mode 600, or ensure "
     "`pass show telegram_sase_bot_token` works."
 )
@@ -47,7 +48,7 @@ _TELEGRAM_TOKEN_NEXT_STEP = (
 
 @dataclass(frozen=True)
 class ChopCheck:
-    """One AXE chop diagnostic check."""
+    """One AXE job diagnostic check."""
 
     id: str
     status: CheckStatus
@@ -58,7 +59,7 @@ class ChopCheck:
 
 @dataclass(frozen=True)
 class ChopDoctorReport:
-    """Complete AXE chop doctor report."""
+    """Complete AXE job doctor report."""
 
     status: CheckStatus
     inventory: ChopInventory
@@ -70,7 +71,7 @@ def build_chop_doctor_report(
     inventory: ChopInventory | None = None,
     which_fn: Callable[[str], str | None] = shutil.which,
 ) -> ChopDoctorReport:
-    """Build a full doctor report for the configured and available chops."""
+    """Build a full doctor report for the configured and available jobs."""
     config_checks: tuple[ChopCheck, ...] = ()
     if inventory is None:
         try:
@@ -85,7 +86,7 @@ def build_chop_doctor_report(
                     summary="Invalid axe configuration.",
                     details=(diagnostic.format(),),
                     next_steps=(
-                        "Fix the reported axe config field in its source layer and rerun `sase axe chop doctor`.",
+                        "Fix the reported axe config field in its source layer and rerun `sase axe job doctor`.",
                     ),
                 )
                 for index, diagnostic in enumerate(exc.diagnostics)
@@ -126,7 +127,7 @@ def _aggregate_chop_status(checks: tuple[ChopCheck, ...]) -> CheckStatus:
     return "OK"
 
 
-def chop_check_to_dict(check: ChopCheck) -> dict[str, Any]:
+def _chop_check_to_dict(check: ChopCheck) -> dict[str, Any]:
     """Serialize a single chop check."""
     return {
         "id": check.id,
@@ -144,8 +145,59 @@ def chop_doctor_report_to_dict(report: ChopDoctorReport) -> dict[str, Any]:
         "command": "doctor",
         "status": report.status,
         "chops": chop_inventory_to_dict(report.inventory),
-        "checks": [chop_check_to_dict(check) for check in report.checks],
+        "checks": [_chop_check_to_dict(check) for check in report.checks],
     }
+
+
+def chop_check_to_public_dict(check: ChopCheck) -> dict[str, Any]:
+    """Serialize one check using public routine/job terminology."""
+    return {
+        "id": _public_check_id(check.id),
+        "status": check.status,
+        "summary": _public_text(check.summary),
+        "details": [_public_text(detail) for detail in check.details],
+        "next_steps": [_public_text(step) for step in check.next_steps],
+    }
+
+
+def chop_doctor_report_to_public_dict(report: ChopDoctorReport) -> dict[str, Any]:
+    """Serialize a doctor report using the public routine/job contract."""
+    return {
+        "schema_version": 2,
+        "command": "doctor",
+        "status": report.status,
+        "jobs": chop_inventory_to_public_dict(report.inventory),
+        "checks": [chop_check_to_public_dict(check) for check in report.checks],
+    }
+
+
+def _public_check_id(check_id: str) -> str:
+    return (
+        check_id.replace("configured_chop", "configured_job")
+        .replace("declarative_chop", "declarative_job")
+        .replace("available_unconfigured_chops", "available_unconfigured_jobs")
+    )
+
+
+def _public_text(value: str) -> str:
+    replacements = (
+        ("sase axe chop doctor", "sase axe job doctor"),
+        ("axe.lumberjacks", "axe.routines"),
+        ("lumberjack", "routine"),
+        ("Lumberjack", "Routine"),
+        ("chop scripts", "job scripts"),
+        ("Chop scripts", "Job scripts"),
+        ("chop script", "job script"),
+        ("Chop script", "Job script"),
+        ("chops", "jobs"),
+        ("Chops", "Jobs"),
+        ("chop", "job"),
+        ("Chop", "Job"),
+    )
+    result = value
+    for old, new in replacements:
+        result = result.replace(old, new)
+    return result
 
 
 def _configured_chop_checks(inventory: ChopInventory) -> tuple[ChopCheck, ...]:
@@ -157,21 +209,21 @@ def _configured_chop_checks(inventory: ChopInventory) -> tuple[ChopCheck, ...]:
             ChopCheck(
                 id="configured_chop_scripts",
                 status="OK",
-                summary="All configured chop scripts resolve.",
+                summary="All configured job scripts resolve.",
             ),
         )
     return tuple(
         ChopCheck(
             id=f"configured_chop:{chop.lumberjack}:{chop.name}",
             status="ERROR",
-            summary=f"Configured chop script {chop.script} cannot be resolved.",
+            summary=f"Configured job script {chop.script} cannot be resolved.",
             details=(
-                f"lumberjack={chop.lumberjack}",
-                f"chop={chop.name}",
+                f"routine={chop.lumberjack}",
+                f"job={chop.name}",
                 f"script={chop.script}",
             ),
             next_steps=(
-                "Install the package or script that provides this chop in the same environment, or update axe.lumberjacks.",
+                "Install the package or script that provides this job in the same environment, or update axe.routines.",
             ),
         )
         for chop in missing_chops
@@ -187,10 +239,10 @@ def _unconfigured_chop_checks(inventory: ChopInventory) -> tuple[ChopCheck, ...]
         ChopCheck(
             id="available_unconfigured_chops",
             status="WARN",
-            summary="Executable chop scripts are installed but not configured.",
+            summary="Executable job scripts are installed but not configured.",
             details=(names,),
             next_steps=(
-                "Add desired scripts under axe.lumberjacks in sase.yml; future chop enablement commands will manage this directly.",
+                "Add desired scripts under axe.routines in sase.yml; future job enablement commands will manage this directly.",
             ),
         ),
     )
@@ -225,12 +277,12 @@ def _declarative_chop_checks(inventory: ChopInventory) -> tuple[ChopCheck, ...]:
                 status="ERROR",
                 summary=f"Declarative trigger for {chop.name} cannot be evaluated.",
                 details=(
-                    f"lumberjack={chop.lumberjack}",
+                    f"routine={chop.lumberjack}",
                     f"provider={chop.trigger.get('provider')}",
                     error,
                 ),
                 next_steps=(
-                    "Fix the trigger project ref or primary workspace, then rerun `sase axe chop doctor`.",
+                    "Fix the trigger project ref or primary workspace, then rerun `sase axe job doctor`.",
                 ),
             )
         )
@@ -265,10 +317,10 @@ def _telegram_checks(
             ChopCheck(
                 id="telegram_env",
                 status="WARN",
-                summary="Telegram chop scripts are installed or configured, but required environment variables are missing.",
+                summary="Telegram job scripts are installed or configured, but required environment variables are missing.",
                 details=missing_env,
                 next_steps=(
-                    "Set the missing SASE_TELEGRAM_* variables in process env, or configure env/file/pass references at lumberjack or chop level.",
+                    "Set the missing SASE_TELEGRAM_* variables in process env, or configure env/file/pass references at routine or job level.",
                 ),
             )
         )
@@ -277,7 +329,7 @@ def _telegram_checks(
             ChopCheck(
                 id="telegram_env",
                 status="OK",
-                summary="Required Telegram environment variables are set or configured per chop.",
+                summary="Required Telegram environment variables are set or configured per job.",
             )
         )
 
@@ -293,7 +345,7 @@ def _telegram_checks(
         summary = (
             "Telegram is enabled and configured, but no Telegram bot token source is available."
             if is_outage
-            else "Telegram chop scripts are installed or configured, but no Telegram bot token source is available."
+            else "Telegram job scripts are installed or configured, but no Telegram bot token source is available."
         )
         checks.append(
             ChopCheck(
@@ -342,7 +394,7 @@ def _configured_telegram_chops(
 
 
 def _is_telegram_chop_name(name: str) -> bool:
-    normalized = name.removeprefix("sase_chop_")
+    normalized = name.removeprefix("sase_chop_").removeprefix("sase_job_")
     return normalized in _TELEGRAM_CHOP_NAMES or "telegram" in normalized
 
 

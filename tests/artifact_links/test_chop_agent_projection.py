@@ -76,7 +76,7 @@ def test_resolves_a_for_each_expanded_chop_agent(
 
     assert len(edges) == 1
     edge = edges[0]
-    assert edge.source_ref == "chop:refresh_docs/refresh_docs"
+    assert edge.source_ref == "job:refresh_docs/refresh_docs"
     assert edge.relation == "launched"
     assert edge.target_ref == "agent:bbugyi.athena.chop.refresh_docs.sase.0_123456.1"
     assert edge.rule_id == "chop-agent"
@@ -93,7 +93,7 @@ def test_a_disabled_chop_still_resolves(
     edges = project_chop_agent_rows(_inputs(root))
 
     assert len(edges) == 1
-    assert edges[0].source_ref == "chop:hooks/hook_checks"
+    assert edges[0].source_ref == "job:hooks/hook_checks"
 
 
 def test_an_agent_name_with_no_chop_segment_is_skipped(

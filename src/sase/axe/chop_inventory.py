@@ -1,7 +1,7 @@
-"""Inventory of configured and available AXE chops.
+"""Inventory of configured and available AXE jobs.
 
-Chops are AXE automation, so their inventory lives with AXE rather than in any
-plugin command surface. ``sase axe chop list`` and ``sase axe chop doctor`` both
+Jobs are AXE automation, so their inventory lives with AXE rather than in any
+plugin command surface. ``sase axe job list`` and ``sase axe job doctor`` both
 build on the data collected here.
 """
 
@@ -116,6 +116,54 @@ def chop_inventory_to_dict(inventory: ChopInventory) -> dict[str, Any]:
         "configured": [
             {
                 "lumberjack": chop.lumberjack,
+                "name": chop.name,
+                "parent_name": chop.parent_name,
+                "description": chop.description,
+                "description_summary": chop.description_summary,
+                "description_body": chop.description_body,
+                "script": chop.script,
+                "status": chop.status,
+                "resolved_path": chop.resolved_path,
+                "latest_run_status": chop.latest_run_status,
+                "latest_run_id": chop.latest_run_id,
+                "latest_run_reason": chop.latest_run_reason,
+                "inhibit_if": list(chop.inhibit_if),
+                "trigger": dict(chop.trigger),
+                "once_per": dict(chop.once_per) if chop.once_per is not None else None,
+                "target": dict(chop.target),
+                "provenance": dict(chop.provenance),
+            }
+            for chop in inventory.configured_chops
+        ],
+        "available": [
+            {
+                "name": script.name,
+                "executable": script.executable,
+                "source": script.source,
+                "configured": script.configured,
+            }
+            for script in inventory.available_scripts
+        ],
+        "available_unconfigured": [
+            {
+                "name": script.name,
+                "executable": script.executable,
+                "source": script.source,
+            }
+            for script in inventory.available_unconfigured
+        ],
+    }
+
+
+def chop_inventory_to_public_dict(inventory: ChopInventory) -> dict[str, Any]:
+    """Serialize inventory using the public routine/job contract."""
+    return {
+        "job_script_dirs": list(inventory.chop_script_dirs),
+        "python_bin_dir": inventory.python_bin_dir,
+        "path_dirs": list(inventory.path_dirs),
+        "configured": [
+            {
+                "routine": chop.lumberjack,
                 "name": chop.name,
                 "parent_name": chop.parent_name,
                 "description": chop.description,

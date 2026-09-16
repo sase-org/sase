@@ -21,6 +21,7 @@ class CheckSpec:
     title: str
     runner: CheckRunner
     deep: bool = False
+    aliases: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.id:
@@ -29,6 +30,9 @@ class CheckSpec:
             raise ValueError("CheckSpec.group must be non-empty")
         if not self.title:
             raise ValueError("CheckSpec.title must be non-empty")
+        object.__setattr__(
+            self, "aliases", tuple(alias for alias in self.aliases if alias)
+        )
 
 
 class UnknownCheckSelection(ValueError):
@@ -50,6 +54,10 @@ class DiagnosticRegistry:
             if spec.id in ids:
                 raise ValueError(f"duplicate diagnostic check id: {spec.id}")
             ids.add(spec.id)
+            for alias in spec.aliases:
+                if alias in ids:
+                    raise ValueError(f"duplicate diagnostic check id: {alias}")
+                ids.add(alias)
 
     def list_default_checks(self) -> tuple[CheckSpec, ...]:
         """Return non-deep checks in registration order."""
@@ -77,19 +85,22 @@ class DiagnosticRegistry:
             return visible
 
         wanted = tuple(dict.fromkeys(selections))
+        alias_to_id = {alias: spec.id for spec in visible for alias in spec.aliases}
+        normalized_wanted = tuple(alias_to_id.get(item, item) for item in wanted)
         visible_ids = {spec.id for spec in visible}
         visible_groups = {spec.group for spec in visible}
         unknown = [
             item
             for item in wanted
-            if item not in visible_ids and item not in visible_groups
+            if alias_to_id.get(item, item) not in visible_ids
+            and item not in visible_groups
         ]
         if unknown:
             raise UnknownCheckSelection(unknown)
 
         selected: list[CheckSpec] = []
         for spec in visible:
-            if spec.id in wanted or spec.group in wanted:
+            if spec.id in normalized_wanted or spec.group in wanted:
                 selected.append(spec)
         return tuple(selected)
 

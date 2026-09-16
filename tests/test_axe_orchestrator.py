@@ -79,11 +79,11 @@ def test_spawn_lumberjack_calls_popen(
     proc = orch._spawn_lumberjack("hooks")
 
     assert proc.pid == 12345
-    # Check that the command includes 'sase axe lumberjack run hooks'
+    # Check that the command includes 'sase axe routine run hooks'
     call_args = mock_popen.call_args
     cmd = call_args[0][0]
     assert "sase" in cmd[0]
-    assert cmd[1:5] == ["axe", "lumberjack", "run", "hooks"]
+    assert cmd[1:5] == ["axe", "routine", "run", "hooks"]
     assert call_args.kwargs["stdout"] == subprocess.PIPE
     assert call_args.kwargs["stderr"] == subprocess.STDOUT
 

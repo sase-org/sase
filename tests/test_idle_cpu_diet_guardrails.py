@@ -25,6 +25,7 @@ from sase.axe.state import (
     write_lumberjack_metrics,
 )
 from sase.core.time import get_timezone
+from sase.feature_flags.snapshot import override_flags
 from tests.test_axe_status_cli import _plain_render, _snapshot
 
 pytest_plugins = ("tests._axe_lumberjack_fixtures",)
@@ -202,7 +203,7 @@ def test_axe_status_human_render_surfaces_spawn_rate_and_noop_ratio(
     monkeypatch.setattr(status_render, "read_lumberjack_metrics", lambda name: metrics)
     output = _plain_render(_snapshot())
     folded = " ".join(output.split())
-    assert "Chop load" in folded
+    assert "Job load" in folded
     assert "0.4 spawns/min" in folded
     assert "no-op 80%" in folded
     assert "last tick 0 spawned / 7 skipped" in folded
@@ -221,14 +222,15 @@ def test_format_lumberjack_chop_load_degrades_without_metrics() -> None:
     assert "t=0 re=0 inh=0" in text
 
 
-def test_axe_status_json_wire_does_not_embed_chop_load() -> None:
-    """The portable status snapshot stays schema-version-1; load lives in metrics.json."""
+def test_axe_status_legacy_json_wire_does_not_embed_chop_load() -> None:
+    """The legacy status snapshot stays schema-version-1; load lives in metrics.json."""
     import json
 
     import sase.axe.status_render as status_render
 
     stream = StringIO()
-    status_render.render_axe_status_json(_snapshot(), stream=stream)
+    with override_flags(axe_routine_job_contract=False):
+        status_render.render_axe_status_json(_snapshot(), stream=stream)
     payload = json.loads(stream.getvalue())
     assert "spawn_rate_per_minute" not in payload
     assert "chops_skipped" not in payload

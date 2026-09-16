@@ -1,13 +1,13 @@
-"""Reusable single-chop run service shared by the scheduler, CLI, and TUI.
+"""Reusable single-job run service shared by the scheduler, CLI, and TUI.
 
-The scheduled lumberjack tick, ``sase axe chop run``, and the AXE TUI manual
-run all execute one configured chop end-to-end the same way (context build,
+The scheduled routine tick, ``sase axe job run``, and the AXE TUI manual
+run all execute one configured job end-to-end the same way (context build,
 env propagation, timeout, streaming run history, and live-run dedupe). This
 module owns the public entry point and compatibility surface; focused
 implementation modules own the type/lookup, context, and script responsibilities.
 
 :func:`run_configured_chop_once` is the public entry point. It dispatches by
-chop type, performs live-run dedupe, and returns a typed
+job type, performs live-run dedupe, and returns a typed
 :class:`ChopRunOutcome` — callers translate the outcome into UX (CLI exit
 code, TUI notification, scheduler bookkeeping).
 """

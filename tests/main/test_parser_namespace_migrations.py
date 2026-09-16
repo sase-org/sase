@@ -17,20 +17,20 @@ def test_axe_stop_force_parser_aliases() -> None:
     assert short_args.force is True
 
 
-def test_axe_chop_run_debug_option_aliases() -> None:
+def test_axe_job_run_debug_option_aliases() -> None:
     long_args = create_parser().parse_args(
         [
             "axe",
-            "chop",
+            "job",
             "run",
             "probe",
-            "--chop-verbose",
+            "--job-verbose",
             "--dry-run",
             "--force",
         ]
     )
     short_args = create_parser().parse_args(
-        ["axe", "chop", "run", "probe", "-V", "-n", "-f"]
+        ["axe", "job", "run", "probe", "-V", "-n", "-f"]
     )
 
     assert long_args.chop_verbose is True
@@ -41,11 +41,11 @@ def test_axe_chop_run_debug_option_aliases() -> None:
     assert short_args.force is True
 
 
-def test_axe_lumberjack_list_verbose_option() -> None:
-    args = create_parser().parse_args(["axe", "lumberjack", "list", "--verbose"])
-    short_args = create_parser().parse_args(["axe", "lumberjack", "list", "-v"])
+def test_axe_routine_list_verbose_option() -> None:
+    args = create_parser().parse_args(["axe", "routine", "list", "--verbose"])
+    short_args = create_parser().parse_args(["axe", "routine", "list", "-v"])
 
-    assert args.axe_subcommand == "lumberjack"
+    assert args.axe_subcommand == "routine"
     assert args.axe_lumberjack_subcommand == "list"
     assert args.verbose is True
     assert short_args.verbose is True

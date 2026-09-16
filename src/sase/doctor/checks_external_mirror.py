@@ -1,4 +1,4 @@
-"""Detached-lumberjack tracker-auth check for the external issue mirror.
+"""Detached-routine tracker-auth check for the external issue mirror.
 
 Doctor cannot reproduce the AXE daemon's detached environment, so this check
 does not attempt an interactive provider call. It reports the mirror's own
@@ -26,8 +26,8 @@ _NEXT_STEPS_AUTH = (
     "Run `sase bead sync-external --dry-run` to retest interactively.",
 )
 _NEXT_STEPS_GENERAL = (
-    "Run `sase axe chop list -a` to confirm the external_issue_mirror instances.",
-    "Run `sase doctor -C axe.chops` for broader chop diagnostics.",
+    "Run `sase axe job list -a` to confirm the external_issue_mirror instances.",
+    "Run `sase doctor -C axe.jobs` for broader job diagnostics.",
 )
 
 
@@ -95,7 +95,7 @@ def _check_external_mirror(context: DoctorContext) -> DiagnosticCheck:
             title="External mirror tracker auth",
             summary=(
                 f"Tracker authentication failed for {len(auth_failed)} project(s) "
-                "in the detached lumberjack environment"
+                "in the detached routine environment"
             ),
             details=tuple(f"auth_error: {project}" for project in auth_failed),
             next_steps=_NEXT_STEPS_AUTH,
@@ -115,7 +115,7 @@ def _check_external_mirror(context: DoctorContext) -> DiagnosticCheck:
             title="External mirror tracker auth",
             summary=(
                 f"Tracker access is degraded for {len(degraded)} project(s) in the "
-                "detached lumberjack environment"
+                "detached routine environment"
             ),
             details=tuple(
                 f"{chop_probes[project].outcome}: {project}" for project in degraded

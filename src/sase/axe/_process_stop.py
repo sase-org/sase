@@ -400,7 +400,11 @@ def _is_matching_axe_process_command(command: str) -> bool:
         return False
     if "sase" not in command:
         return False
-    return " axe lumberjack run " in padded or " axe start " in padded
+    return (
+        " axe lumberjack run " in padded
+        or " axe routine run " in padded
+        or " axe start " in padded
+    )
 
 
 def _wait_for_exit(pid: int, timeout: float) -> bool:

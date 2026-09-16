@@ -1,7 +1,7 @@
 """CLI command handlers for ``sase axe`` subcommands.
 
 These handlers are called from ``sase.main.entry`` when the user
-invokes nested axe subcommands like ``sase axe chop list``.
+invokes nested axe subcommands like ``sase axe job list``.
 """
 
 import argparse
@@ -48,16 +48,27 @@ def _load_axe_config_or_exit() -> AxeConfig:
 
 def handle_axe_chop_list(args: argparse.Namespace) -> None:
     """List configured chops with status, plus available scripts on request."""
-    from sase.axe.chop_inventory import chop_inventory_to_dict, collect_chop_inventory
+    from sase.axe.chop_inventory import (
+        chop_inventory_to_dict,
+        chop_inventory_to_public_dict,
+        collect_chop_inventory,
+    )
 
     inventory = collect_chop_inventory(_load_axe_config_or_exit())
 
     if getattr(args, "json", False):
-        payload = {
-            "schema_version": 1,
-            "command": "list",
-            "chops": chop_inventory_to_dict(inventory),
-        }
+        if _emit_public_job_json(args):
+            payload = {
+                "schema_version": 2,
+                "command": "list",
+                "jobs": chop_inventory_to_public_dict(inventory),
+            }
+        else:
+            payload = {
+                "schema_version": 1,
+                "command": "list",
+                "chops": chop_inventory_to_dict(inventory),
+            }
         print(json.dumps(payload, indent=2, sort_keys=True))
         sys.exit(0)
 
@@ -76,12 +87,18 @@ def handle_axe_chop_doctor(args: argparse.Namespace) -> None:
     from sase.axe.chop_doctor import (
         build_chop_doctor_report,
         chop_doctor_report_to_dict,
+        chop_doctor_report_to_public_dict,
     )
 
     report = build_chop_doctor_report()
 
     if getattr(args, "json", False):
-        print(json.dumps(chop_doctor_report_to_dict(report), indent=2, sort_keys=True))
+        payload = (
+            chop_doctor_report_to_public_dict(report)
+            if _emit_public_job_json(args)
+            else chop_doctor_report_to_dict(report)
+        )
+        print(json.dumps(payload, indent=2, sort_keys=True))
     else:
         from sase.axe.chop_render import render_chop_doctor
 
@@ -98,8 +115,8 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
     is not configured (a discoverable but unattached script), falls back to
     the legacy ``_oneshot`` lumberjack name so it still runs with history.
 
-    The ``--lumberjack`` flag disambiguates chop names that appear in more
-    than one configured lumberjack.
+    The public ``--routine`` flag disambiguates job names that appear in more
+    than one configured routine.
     """
     chop_name: str = args.chop_name
     lumberjack_override: str | None = getattr(args, "lumberjack", None)
@@ -112,12 +129,12 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
         chop_timeout_default = match.lumberjack.chop_timeout
         wait_runners_default = match.lumberjack.wait_runners
     except AmbiguousChopError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print(f"Error: {_public_axe_text(str(e))}", file=sys.stderr)
         sys.exit(2)
     except ChopNotFoundError:
         if lumberjack_override is not None:
             print(
-                f"Error: chop '{chop_name}' is not configured under lumberjack "
+                f"Error: job '{chop_name}' is not configured under routine "
                 f"'{lumberjack_override}'",
                 file=sys.stderr,
             )
@@ -126,7 +143,7 @@ def handle_axe_chop_run(args: argparse.Namespace) -> None:
         # the synthetic ``_oneshot`` lumberjack so history is still recorded.
         script = discover_chop_script(chop_name, config.chop_script_dirs)
         if script is None:
-            print(f"Error: unknown chop '{chop_name}'", file=sys.stderr)
+            print(f"Error: unknown job '{chop_name}'", file=sys.stderr)
             sys.exit(1)
         lumberjack_name = ONESHOT_LUMBERJACK_NAME
         chop_cfg = ChopConfig(
@@ -189,13 +206,13 @@ def _print_outcome_and_exit(outcome: ChopRunOutcome) -> None:
     if outcome.status == "already_running":
         suffix = f" (PID {outcome.agent_pid})" if outcome.agent_pid is not None else ""
         print(
-            f"Chop '{outcome.chop_name}' is already running"
-            f" under lumberjack '{outcome.lumberjack_name}'{suffix}; skipping.",
+            f"Job '{outcome.chop_name}' is already running"
+            f" under routine '{outcome.lumberjack_name}'{suffix}; skipping.",
             file=sys.stderr,
         )
         sys.exit(1)
     # Defensive default: unknown status surfaces with a nonzero exit code.
-    print(f"Error: unexpected chop run outcome: {outcome.status}", file=sys.stderr)
+    print(f"Error: unexpected job run outcome: {outcome.status}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -244,7 +261,7 @@ def handle_axe_lumberjack_list(args: argparse.Namespace) -> None:
             console.print(f"  [dim]wait_runners:[/dim] {lumberjack.wait_runners}")
         enabled_chops = [chop for chop in lumberjack.chops if chop.enabled]
         if enabled_chops:
-            console.print("  [dim]chops:[/dim]")
+            console.print("  [dim]jobs:[/dim]")
             for chop in enabled_chops:
                 console.print(Text.assemble("    ", (chop.name, "green")))
     sys.exit(0)
@@ -308,7 +325,7 @@ def _description_body(description: str, cached_body: str) -> str:
 
 
 def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
-    """Run a single lumberjack in the foreground."""
+    """Run a single routine in the foreground."""
     from sase.ace.query import QueryParseError
 
     from .lumberjack import Lumberjack
@@ -346,7 +363,7 @@ def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
     )
 
     if lumberjack_name not in config.lumberjacks:
-        print(f"Error: unknown lumberjack '{lumberjack_name}'")
+        print(f"Error: unknown routine '{lumberjack_name}'")
         print(f"Available: {', '.join(sorted(config.lumberjacks))}")
         sys.exit(1)
 
@@ -363,7 +380,7 @@ def handle_axe_lumberjack_run(args: argparse.Namespace) -> None:
 
 
 def handle_axe_lumberjack_status(args: argparse.Namespace) -> None:
-    """Show status of all lumberjacks."""
+    """Show status of all routines."""
     config = _load_axe_config_or_exit()
     any_status = False
 
@@ -394,6 +411,32 @@ def handle_axe_lumberjack_status(args: argparse.Namespace) -> None:
         )
 
     if not any_status:
-        print("No lumberjacks are currently running.")
+        print("No routines are currently running.")
 
     sys.exit(0)
+
+
+def _emit_public_job_json(args: argparse.Namespace) -> bool:
+    if getattr(args, "axe_subcommand", None) != "job":
+        return False
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.axe_routine_job_contract)
+
+
+def _public_axe_text(value: str) -> str:
+    replacements = (
+        ("--lumberjack", "--routine"),
+        ("lumberjacks", "routines"),
+        ("Lumberjacks", "Routines"),
+        ("lumberjack", "routine"),
+        ("Lumberjack", "Routine"),
+        ("chops", "jobs"),
+        ("Chops", "Jobs"),
+        ("chop", "job"),
+        ("Chop", "Job"),
+    )
+    result = value
+    for old, new in replacements:
+        result = result.replace(old, new)
+    return result

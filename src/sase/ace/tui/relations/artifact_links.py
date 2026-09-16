@@ -224,7 +224,13 @@ def parse_link_ref(value: str) -> tuple[str, str] | None:
     same ``@``/``#``-stripping and kind aliasing.
     """
 
-    return parse_artifact_link_ref(value)
+    parsed = parse_artifact_link_ref(value)
+    if parsed is None:
+        return None
+    kind, payload = parsed
+    if kind == "job":
+        return ("chop", payload)
+    return parsed
 
 
 def target_for_ref_kind(
@@ -253,7 +259,7 @@ def target_for_ref_kind(
         return ArtifactEntryTarget("files", (payload,))
     if kind == "agent":
         return ArtifactEntryTarget("agents", (payload,))
-    if kind in {"bug", "chat", "chop"}:
+    if kind in {"bug", "chat", "chop", "job"}:
         # ``chop`` is a virtual link-graph subject kind (bead:sase-ug.5): it
         # has no owning Artifacts pane and never joins the ref-kind catalog.
         return None

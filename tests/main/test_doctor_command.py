@@ -222,7 +222,7 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "plugins.resources",
         "resources.disk_free",
         "plugins.github",
-        "axe.chops",
+        "axe.jobs",
         "axe.health",
         "axe.systemd_scope",
         "axe.external_mirror",

@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from sase.axe.chop_doctor import (
     ChopCheck,
     build_chop_doctor_report,
-    chop_check_to_dict,
+    chop_check_to_public_dict,
 )
 from sase.axe.desired_state import read_desired_state
 from sase.axe._process_probe import probe_orchestrator
@@ -31,9 +31,10 @@ def axe_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=_check_axe_health,
         ),
         CheckSpec(
-            id="axe.chops",
+            id="axe.jobs",
             group="axe",
-            title="AXE chop diagnostics",
+            title="AXE job diagnostics",
+            aliases=("axe.chops",),
             runner=lambda: _check_axe_chops(context),
         ),
         CheckSpec(
@@ -122,7 +123,7 @@ def _check_axe_systemd_scope() -> DiagnosticCheck:
 
 
 def _check_axe_chops(context: DoctorContext) -> DiagnosticCheck:
-    """Adapt ``sase axe chop doctor`` into one shared diagnostic check."""
+    """Adapt ``sase axe job doctor`` into one shared diagnostic check."""
     report = build_chop_doctor_report()
     inventory = report.inventory
     checks = report.checks
@@ -144,21 +145,21 @@ def _check_axe_chops(context: DoctorContext) -> DiagnosticCheck:
     )[:_MAX_DETAIL_ROWS]
 
     if status in {"OK", "SKIP"}:
-        summary = f"chop diagnostics passed: {len(checks)} check(s)"
+        summary = f"job diagnostics passed: {len(checks)} check(s)"
     else:
         summary = (
-            f"chop diagnostics reported {counts['ERROR']} error(s), "
+            f"job diagnostics reported {counts['ERROR']} error(s), "
             f"{counts['WARN']} warning(s)"
         )
 
     return DiagnosticCheck(
-        id="axe.chops",
+        id="axe.jobs",
         group="axe",
         status=status,
-        title="AXE chop diagnostics",
+        title="AXE job diagnostics",
         summary=summary,
-        details=details,
-        next_steps=next_steps,
+        details=tuple(_public_axe_text(detail) for detail in details),
+        next_steps=tuple(_public_axe_text(step) for step in next_steps),
         data={
             "status": status,
             "counts": {
@@ -169,10 +170,12 @@ def _check_axe_chops(context: DoctorContext) -> DiagnosticCheck:
             },
             "check_count": len(checks),
             "problem_check_count": len(problem_checks),
-            "configured_chop_count": len(inventory.configured_chops),
-            "available_chop_count": len(inventory.available_scripts),
+            "configured_job_count": len(inventory.configured_chops),
+            "available_job_count": len(inventory.available_scripts),
             "available_unconfigured_count": len(inventory.available_unconfigured),
-            "checks": [chop_check_to_dict(check) for check in _bounded_checks(checks)],
+            "checks": [
+                chop_check_to_public_dict(check) for check in _bounded_checks(checks)
+            ],
         },
     )
 
@@ -182,6 +185,23 @@ def _bounded_checks(checks: tuple[ChopCheck, ...]) -> tuple[ChopCheck, ...]:
     if problems:
         return problems[:_MAX_DETAIL_ROWS]
     return checks[:_MAX_DETAIL_ROWS]
+
+
+def _public_axe_text(value: str) -> str:
+    replacements = (
+        ("sase axe chop doctor", "sase axe job doctor"),
+        ("axe.lumberjacks", "axe.routines"),
+        ("lumberjack", "routine"),
+        ("Lumberjack", "Routine"),
+        ("chops", "jobs"),
+        ("Chops", "Jobs"),
+        ("chop", "job"),
+        ("Chop", "Job"),
+    )
+    result = value
+    for old, new in replacements:
+        result = result.replace(old, new)
+    return result
 
 
 __all__ = [

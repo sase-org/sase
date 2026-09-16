@@ -1,4 +1,4 @@
-"""Tests for AXE chop diagnostics and the ``sase axe chop`` CLI handlers."""
+"""Tests for AXE job diagnostics and the ``sase axe job`` CLI handlers."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from sase.axe.config import (
     ChopConfig,
     LumberjackConfig,
 )
+from sase.feature_flags import override_flags
 
 
 def _make_executable(path: Path) -> None:
@@ -364,7 +365,7 @@ def test_build_chop_doctor_report_surfaces_config_validation_errors(
     assert "overlay:test.yml:/tmp/test.yml" in config_check.details[0]
 
 
-# --- sase axe chop list handler ---
+# --- sase axe job list handler ---
 
 
 def test_handle_axe_chop_list_json_has_schema_version(
@@ -399,6 +400,43 @@ def test_handle_axe_chop_list_json_has_schema_version(
     assert payload["command"] == "list"
     assert "chops" in payload
     assert any(c["name"] == "friendly" for c in payload["chops"]["configured"])
+
+
+def test_handle_axe_job_list_json_uses_public_contract_under_flag(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    config = AxeConfig(
+        lumberjacks={
+            "hooks": LumberjackConfig(
+                name="hooks",
+                description="Run hook inventory checks",
+                interval=10,
+                chops=[ChopConfig(name="friendly", description="")],
+            )
+        }
+    )
+    monkeypatch.setattr(cli, "load_axe_config", lambda: config)
+
+    args = argparse.Namespace(
+        axe_subcommand="job",
+        json=True,
+        available=False,
+        verbose=False,
+    )
+    with override_flags(axe_routine_job_contract=True):
+        with pytest.raises(SystemExit) as exc:
+            cli.handle_axe_chop_list(args)
+
+    assert exc.value.code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema_version"] == 2
+    assert payload["command"] == "list"
+    assert "jobs" in payload
+    assert "chops" not in payload
+    configured = payload["jobs"]["configured"]
+    assert configured[0]["routine"] == "hooks"
+    assert "lumberjack" not in configured[0]
 
 
 def test_handle_axe_chop_list_json_keeps_per_lumberjack_rows(
@@ -436,7 +474,7 @@ def test_handle_axe_chop_list_json_keeps_per_lumberjack_rows(
     assert lumberjacks == ["jack1", "jack2"]
 
 
-# --- sase axe chop doctor handler ---
+# --- sase axe job doctor handler ---
 
 
 def test_handle_axe_chop_doctor_exit_one_on_error(
@@ -457,6 +495,30 @@ def test_handle_axe_chop_doctor_exit_one_on_error(
     assert payload["schema_version"] == 1
     assert payload["command"] == "doctor"
     assert payload["status"] == "ERROR"
+
+
+def test_handle_axe_job_doctor_json_uses_public_contract_under_flag(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        "sase.axe.chop_doctor.collect_chop_inventory",
+        lambda config=None: collect_chop_inventory(_config_with_missing_chop()),
+    )
+
+    args = argparse.Namespace(axe_subcommand="job", json=True, verbose=False)
+    with override_flags(axe_routine_job_contract=True):
+        with pytest.raises(SystemExit) as exc:
+            cli.handle_axe_chop_doctor(args)
+
+    assert exc.value.code == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema_version"] == 2
+    assert payload["command"] == "doctor"
+    assert payload["status"] == "ERROR"
+    assert "jobs" in payload
+    assert "chops" not in payload
+    assert payload["checks"][0]["id"].startswith("configured_job:")
 
 
 def test_handle_axe_chop_doctor_exit_zero_when_clean(
@@ -490,7 +552,7 @@ def test_render_chop_doctor_has_sections_and_no_traceback() -> None:
     render_chop_doctor(report, console=console)
 
     text = output.getvalue()
-    assert "Chop Doctor" in text
+    assert "Job Doctor" in text
     assert "Checks" in text
-    assert "Configured Chops" in text
+    assert "Configured Jobs" in text
     assert "Traceback" not in text

@@ -131,7 +131,7 @@ def test_handle_axe_chop_list_renders_configured_chops(
 
     output = capsys.readouterr().out
     assert "shared_chop" in output
-    assert "Configured Chops" in output
+    assert "Configured Jobs" in output
 
 
 # --- handle_axe_chop_run --lumberjack Tests ---
@@ -169,8 +169,8 @@ def test_handle_axe_chop_run_ambiguous_requires_lumberjack(
 
     assert exc_info.value.code == 2
     err = capsys.readouterr().err
-    assert "multiple lumberjacks" in err
-    assert "--lumberjack" in err
+    assert "multiple routines" in err
+    assert "--routine" in err
 
 
 def test_handle_axe_chop_run_with_lumberjack_disambiguates(
@@ -257,7 +257,7 @@ def test_handle_axe_chop_run_with_lumberjack_not_configured(
         handle_axe_chop_run(args)
 
     assert exc_info.value.code == 1
-    assert "not configured under lumberjack" in capsys.readouterr().err
+    assert "not configured under routine" in capsys.readouterr().err
 
 
 def test_handle_axe_chop_run_unknown_chop(
@@ -274,7 +274,7 @@ def test_handle_axe_chop_run_unknown_chop(
         handle_axe_chop_run(args)
 
     assert exc_info.value.code == 1
-    assert "unknown chop" in capsys.readouterr().err
+    assert "unknown job" in capsys.readouterr().err
 
 
 def test_handle_axe_chop_run_records_run_history_under_lumberjack(
@@ -408,14 +408,14 @@ def test_handle_axe_lumberjack_list_prints_lumberjacks(
 
     output = capsys.readouterr().out
     lines = [line for line in output.strip().split("\n") if line.strip()]
-    # 4 lumberjacks × (name + description + interval + "chops:" + 1 chop).
+    # 4 routines × (name + description + interval + "jobs:" + 1 job).
     assert len(lines) == 20
     assert "hooks" in output
     assert "checks" in output
     assert "comments" in output
     assert "housekeeping" in output
     assert "interval:" in output
-    assert "chops:" in output
+    assert "jobs:" in output
 
 
 @patch("sase.axe.cli.load_axe_config")

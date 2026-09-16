@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from collections.abc import Iterable
-from typing import TextIO
+from typing import Any, TextIO
 
 from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
@@ -75,10 +75,15 @@ def render_axe_status_json(
     *,
     stream: TextIO | None = None,
 ) -> None:
-    """Write the exact schema-version-1 snapshot as deterministic plain JSON."""
+    """Write the feature-selected status JSON contract."""
     target = stream or sys.stdout
+    payload = (
+        _status_snapshot_to_public_wire(snapshot)
+        if _emit_public_status_json()
+        else snapshot.to_wire()
+    )
     json.dump(
-        snapshot.to_wire(),
+        payload,
         target,
         indent=2,
         sort_keys=True,
@@ -122,7 +127,7 @@ def _summary_panel(snapshot: AxeStatusSnapshot) -> Panel:
         Text(_lifecycle_event_summary(snapshot), overflow="fold"),
     )
     summary.add_row(
-        "Chop load",
+        "Job load",
         Text(_chop_load_summary(snapshot.lumberjacks), overflow="fold"),
     )
     return Panel(
@@ -205,7 +210,7 @@ def _lumberjack_table(
 
 def _wide_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
     table = Table(
-        title="Lumberjacks",
+        title="Routines",
         show_header=True,
         header_style="bold",
         show_lines=True,
@@ -217,10 +222,10 @@ def _wide_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
     table.add_column("Heartbeat", overflow="fold")
     table.add_column("Cycles", overflow="fold")
     table.add_column("Errors", overflow="fold")
-    table.add_column("Chops", overflow="fold")
+    table.add_column("Jobs", overflow="fold")
     table.add_column("Load", overflow="fold")
     if not rows:
-        table.add_row(Text("No lumberjacks observed.", style="dim"), *[""] * 7)
+        table.add_row(Text("No routines observed.", style="dim"), *[""] * 7)
         return table
 
     for row in rows:
@@ -277,7 +282,7 @@ def _wide_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
 
 def _narrow_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
     table = Table(
-        title="Lumberjacks",
+        title="Routines",
         show_header=True,
         header_style="bold",
         show_lines=True,
@@ -287,7 +292,7 @@ def _narrow_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
     table.add_column("Details", ratio=4, overflow="fold")
     if not rows:
         table.add_row(
-            Text("-", style="dim"), Text("No lumberjacks observed.", style="dim")
+            Text("-", style="dim"), Text("No routines observed.", style="dim")
         )
         return table
 
@@ -317,7 +322,7 @@ def _narrow_lumberjack_table(rows: list[AxeLumberjackStatus]) -> Table:
             f"started={_placeholder(row.started_at)}"
             f" · age={_format_age(row.start_age_seconds)}"
             "\n"
-            f"chops={', '.join(row.configured_chops) or '-'}"
+            f"jobs={', '.join(row.configured_chops) or '-'}"
             "\n"
             f"load={_lumberjack_load_text(row.name).replace(chr(10), ' · ')}"
         )
@@ -431,7 +436,7 @@ def _chop_load_summary(lumberjacks: Iterable[AxeLumberjackStatus]) -> str:
         last_spawns += metrics.last_tick_spawns
         last_skipped += metrics.last_tick_skipped
     if not found:
-        return "no lumberjack metrics yet"
+        return "no routine metrics yet"
     fake = LumberjackMetrics(
         chops_spawned=total_spawned,
         chops_no_op=total_no_op,
@@ -458,3 +463,60 @@ def _yes_no_unknown(value: bool | None) -> str:
 
 
 __all__ = ["render_axe_status_human", "render_axe_status_json"]
+
+
+def _emit_public_status_json() -> bool:
+    from sase.feature_flags import FeatureFlag, current_flags
+
+    return current_flags().enabled(FeatureFlag.axe_routine_job_contract)
+
+
+def _status_snapshot_to_public_wire(snapshot: AxeStatusSnapshot) -> dict[str, Any]:
+    payload = _public_status_value(snapshot.to_wire())
+    if not isinstance(payload, dict):
+        raise TypeError("AXE status wire projection must stay object-shaped")
+    payload["schema_version"] = 2
+    routines = payload.get("routines")
+    if isinstance(routines, list):
+        for routine in routines:
+            if isinstance(routine, dict) and "name" in routine:
+                routine.setdefault("routine_name", routine["name"])
+    return payload
+
+
+def _public_status_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        projected: dict[str, Any] = {}
+        for key, child in value.items():
+            projected[_public_status_key(str(key))] = _public_status_value(child)
+        return projected
+    if isinstance(value, list):
+        return [_public_status_value(item) for item in value]
+    if isinstance(value, str):
+        return _public_status_text(value)
+    return value
+
+
+def _public_status_key(key: str) -> str:
+    return {
+        "lumberjacks": "routines",
+        "configured_chops": "configured_jobs",
+        "lumberjack": "routine",
+        "lumberjack_name": "routine_name",
+    }.get(key, key)
+
+
+def _public_status_text(value: str) -> str:
+    replacements = (
+        ("sase axe lumberjack", "sase axe routine"),
+        ("lumberjack", "routine"),
+        ("Lumberjack", "Routine"),
+        ("chops", "jobs"),
+        ("Chops", "Jobs"),
+        ("chop", "job"),
+        ("Chop", "Job"),
+    )
+    result = value
+    for old, new in replacements:
+        result = result.replace(old, new)
+    return result

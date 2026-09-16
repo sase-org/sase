@@ -161,6 +161,7 @@ def test_registry_lists_selects_and_preserves_stable_order() -> None:
             group="plugins",
             title="Resource plugin loading",
             runner=lambda: _check("plugins.resources", "OK", group="plugins"),
+            aliases=("plugins.assets",),
         ),
         CheckSpec(
             id="runtime.core_deep",
@@ -184,7 +185,7 @@ def test_registry_lists_selects_and_preserves_stable_order() -> None:
     assert [
         spec.id
         for spec in registry.select(
-            ("plugins.resources", "runtime.version", "runtime.version")
+            ("plugins.assets", "runtime.version", "runtime.version")
         )
     ] == ["runtime.version", "plugins.resources"]
 

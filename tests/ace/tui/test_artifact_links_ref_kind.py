@@ -24,6 +24,10 @@ def test_parse_link_ref_aliases_plans_to_plan() -> None:
     assert parse_link_ref("plans:202609/a.md") == ("plan", "202609/a.md")
 
 
+def test_parse_link_ref_aliases_jobs_to_chops() -> None:
+    assert parse_link_ref("job:hooks/build") == ("chop", "hooks/build")
+
+
 def test_parse_link_ref_strips_leading_at_and_trailing_fragment() -> None:
     assert parse_link_ref("@plan:202608/a.md#why") == ("plan", "202608/a.md")
 
@@ -46,6 +50,6 @@ def test_target_for_ref_kind_falls_back_to_the_document_provider_shape() -> None
     ) == ArtifactEntryTarget("ref:research", ("alpha", "archive", "202608/report.md"))
 
 
-def test_target_for_ref_kind_has_no_target_for_bug_chat_or_chop() -> None:
-    for kind in ("bug", "chat", "chop"):
+def test_target_for_ref_kind_has_no_target_for_bug_chat_chop_or_job() -> None:
+    for kind in ("bug", "chat", "chop", "job"):
         assert target_for_ref_kind(kind, "x", project_hint=None) is None

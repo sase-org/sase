@@ -30,12 +30,12 @@ def handle_axe_command(args: argparse.Namespace) -> None:
 
     if axe_sub == "bgcmd-launch":
         _handle_bgcmd_launch(args)
-    elif axe_sub == "chop":
-        _handle_chop(args)
+    elif axe_sub in {"chop", "job"}:
+        _handle_job(args)
     elif axe_sub == "ensure":
         _handle_ensure(args)
-    elif axe_sub == "lumberjack":
-        _handle_lumberjack(args)
+    elif axe_sub in {"lumberjack", "routine"}:
+        _handle_routine(args)
     elif axe_sub == "maintenance":
         _handle_maintenance(args)
     elif axe_sub == "restart":
@@ -48,8 +48,7 @@ def handle_axe_command(args: argparse.Namespace) -> None:
         _handle_stop(args)
     else:
         print(
-            "Usage: sase axe "
-            "{chop,ensure,lumberjack,maintenance,restart,start,status,stop}"
+            "Usage: sase axe {ensure,job,maintenance,restart,routine,start,status,stop}"
         )
         sys.exit(1)
 
@@ -85,8 +84,8 @@ def _handle_bgcmd_launch(args: argparse.Namespace) -> None:
     sys.exit(run_and_finish(operation=AXE_BGCMD, body=_body, args=args))
 
 
-def _handle_chop(args: argparse.Namespace) -> None:
-    """Handle 'sase axe chop' subcommands."""
+def _handle_job(args: argparse.Namespace) -> None:
+    """Handle ``sase axe job`` and hidden legacy ``chop`` subcommands."""
     from sase.axe.cli import (
         handle_axe_chop_doctor,
         handle_axe_chop_list,
@@ -101,7 +100,7 @@ def _handle_chop(args: argparse.Namespace) -> None:
     elif chop_sub == "run":
         handle_axe_chop_run(args)
     else:
-        print("Usage: sase axe chop {doctor,list,run}")
+        print("Usage: sase axe job {doctor,list,run}")
         sys.exit(1)
 
 
@@ -144,8 +143,8 @@ def _handle_ensure(args: argparse.Namespace) -> None:
     sys.exit(0 if result.succeeded else 1)
 
 
-def _handle_lumberjack(args: argparse.Namespace) -> None:
-    """Handle 'sase axe lumberjack' subcommands."""
+def _handle_routine(args: argparse.Namespace) -> None:
+    """Handle ``sase axe routine`` and hidden legacy ``lumberjack`` subcommands."""
     from sase.axe.cli import (
         handle_axe_lumberjack_list,
         handle_axe_lumberjack_run,
@@ -160,7 +159,7 @@ def _handle_lumberjack(args: argparse.Namespace) -> None:
     elif lumberjack_sub == "status":
         handle_axe_lumberjack_status(args)
     else:
-        print("Usage: sase axe lumberjack {list,run,status}")
+        print("Usage: sase axe routine {list,run,status}")
         sys.exit(1)
 
 

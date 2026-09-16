@@ -129,7 +129,7 @@ def test_axe_tab_resolves_a_selected_chop_using_its_base_identity() -> None:
     app = _axe_app(items, 0, {("refresh_docs", "refresh_docs[sase]"): snapshot})
     subject = selected_link_subject(app)
     assert subject is not None
-    assert subject.ref == "chop:refresh_docs/refresh_docs"
+    assert subject.ref == "job:refresh_docs/refresh_docs"
     assert subject.target is None
     assert subject.accent == _CHOP_ACCENT
     assert subject.icon == _CHOP_ICON
@@ -140,7 +140,7 @@ def test_axe_tab_falls_back_to_the_chop_name_with_no_cached_snapshot() -> None:
     app = _axe_app(items, 0, {})
     subject = selected_link_subject(app)
     assert subject is not None
-    assert subject.ref == "chop:refresh_docs/refresh_docs"
+    assert subject.ref == "job:refresh_docs/refresh_docs"
 
 
 def test_axe_tab_returns_none_for_lumberjack_and_bgcmd_rows() -> None:

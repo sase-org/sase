@@ -1,4 +1,4 @@
-"""Project `launched` rows from a chop's identity encoded in its agent name.
+"""Project `launched` rows from a job's identity encoded in its agent name.
 
 ``metadata.chop_name``/``chop_lumberjack`` do not exist in published agent
 metadata (they are written only to the local, never-published
@@ -23,7 +23,7 @@ _CHOP_SEGMENT_RE = re.compile(r"(?:^|\.)chop\.([^.]+)\.")
 
 
 def project_chop_agent_rows(inputs: ProjectionInputs) -> tuple[ProjectedEdge, ...]:
-    """Emit `chop:<lumberjack>/<base>` `launched` `agent:<global>` rows."""
+    """Emit `job:<routine>/<base>` `launched` `agent:<global>` rows."""
 
     if inputs.agents_sidecar_root is None:
         return ()
@@ -61,12 +61,12 @@ def project_chop_agent_rows(inputs: ProjectionInputs) -> tuple[ProjectedEdge, ..
             continue
         rows.append(
             {
-                "source_ref": f"chop:{lumberjack}/{base}",
+                "source_ref": f"job:{lumberjack}/{base}",
                 "relation": "launched",
                 "target_ref": f"agent:{entry.name}",
                 "description": (
                     f"agent name's `.chop.{match.group(1)}.` segment resolves to "
-                    f"chop:{lumberjack}/{base} in the live AXE config"
+                    f"job:{lumberjack}/{base} in the live AXE config"
                 ),
                 "created_at": datetime.fromtimestamp(mtime, tz=UTC).strftime(
                     "%Y-%m-%dT%H:%M:%SZ"

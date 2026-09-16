@@ -4536,239 +4536,6 @@
         "subcommands": [
           {
             "aliases": [],
-            "default_child": "list",
-            "description_digest": "9a1f5362834c0baa",
-            "hidden": false,
-            "mutex_groups": [],
-            "name": "chop",
-            "options": [
-              {
-                "choices": null,
-                "dest": "help",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-h",
-                  "--help"
-                ],
-                "takes_value": false
-              }
-            ],
-            "path": [
-              "axe",
-              "chop"
-            ],
-            "positionals": [],
-            "subcommands": [
-              {
-                "aliases": [],
-                "default_child": null,
-                "description_digest": "b0b93c60378d05bc",
-                "hidden": false,
-                "mutex_groups": [],
-                "name": "doctor",
-                "options": [
-                  {
-                    "choices": null,
-                    "dest": "help",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-h",
-                      "--help"
-                    ],
-                    "takes_value": false
-                  },
-                  {
-                    "choices": null,
-                    "dest": "json",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-j",
-                      "--json"
-                    ],
-                    "takes_value": false
-                  },
-                  {
-                    "choices": null,
-                    "dest": "verbose",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-v",
-                      "--verbose"
-                    ],
-                    "takes_value": false
-                  }
-                ],
-                "path": [
-                  "axe",
-                  "chop",
-                  "doctor"
-                ],
-                "positionals": [],
-                "subcommands": []
-              },
-              {
-                "aliases": [],
-                "default_child": null,
-                "description_digest": "6a8744362735037f",
-                "hidden": false,
-                "mutex_groups": [],
-                "name": "list",
-                "options": [
-                  {
-                    "choices": null,
-                    "dest": "help",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-h",
-                      "--help"
-                    ],
-                    "takes_value": false
-                  },
-                  {
-                    "choices": null,
-                    "dest": "available",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-a",
-                      "--available"
-                    ],
-                    "takes_value": false
-                  },
-                  {
-                    "choices": null,
-                    "dest": "json",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-j",
-                      "--json"
-                    ],
-                    "takes_value": false
-                  },
-                  {
-                    "choices": null,
-                    "dest": "verbose",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-v",
-                      "--verbose"
-                    ],
-                    "takes_value": false
-                  }
-                ],
-                "path": [
-                  "axe",
-                  "chop",
-                  "list"
-                ],
-                "positionals": [],
-                "subcommands": []
-              },
-              {
-                "aliases": [],
-                "default_child": null,
-                "description_digest": "cc2d7a67160d65c1",
-                "hidden": false,
-                "mutex_groups": [],
-                "name": "run",
-                "options": [
-                  {
-                    "choices": null,
-                    "dest": "help",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-h",
-                      "--help"
-                    ],
-                    "takes_value": false
-                  },
-                  {
-                    "choices": null,
-                    "dest": "chop_verbose",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-V",
-                      "--chop-verbose"
-                    ],
-                    "takes_value": false
-                  },
-                  {
-                    "choices": null,
-                    "dest": "dry_run",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-n",
-                      "--dry-run"
-                    ],
-                    "takes_value": false
-                  },
-                  {
-                    "choices": null,
-                    "dest": "force",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-f",
-                      "--force"
-                    ],
-                    "takes_value": false
-                  },
-                  {
-                    "choices": null,
-                    "dest": "lumberjack",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-L",
-                      "--lumberjack"
-                    ],
-                    "takes_value": true
-                  }
-                ],
-                "path": [
-                  "axe",
-                  "chop",
-                  "run"
-                ],
-                "positionals": [
-                  {
-                    "choices": null,
-                    "dest": "chop_name",
-                    "is_remainder": false,
-                    "kind": null,
-                    "metavar": "chop_name",
-                    "nargs": null
-                  }
-                ],
-                "subcommands": []
-              }
-            ]
-          },
-          {
-            "aliases": [],
             "default_child": null,
             "description_digest": "dd2e88c015ee534a",
             "hidden": false,
@@ -4857,10 +4624,10 @@
           {
             "aliases": [],
             "default_child": "list",
-            "description_digest": "ba87338cf321e7a2",
+            "description_digest": "4f5df96df2a0b308",
             "hidden": false,
             "mutex_groups": [],
-            "name": "lumberjack",
+            "name": "job",
             "options": [
               {
                 "choices": null,
@@ -4877,17 +4644,17 @@
             ],
             "path": [
               "axe",
-              "lumberjack"
+              "job"
             ],
             "positionals": [],
             "subcommands": [
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "4e5542a5477b566c",
+                "description_digest": "08a5d1f5dd8492a2",
                 "hidden": false,
                 "mutex_groups": [],
-                "name": "list",
+                "name": "doctor",
                 "options": [
                   {
                     "choices": null,
@@ -4898,6 +4665,18 @@
                     "strings": [
                       "-h",
                       "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
                     ],
                     "takes_value": false
                   },
@@ -4916,7 +4695,72 @@
                 ],
                 "path": [
                   "axe",
-                  "lumberjack",
+                  "job",
+                  "doctor"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "ba2fc78392e8bf8f",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "available",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-a",
+                      "--available"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "verbose",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-v",
+                      "--verbose"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "axe",
+                  "job",
                   "list"
                 ],
                 "positionals": [],
@@ -4925,7 +4769,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "fd4ce00a030594ad",
+                "description_digest": "eed03304c61a3788",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "run",
@@ -4944,97 +4788,90 @@
                   },
                   {
                     "choices": null,
-                    "dest": "query",
+                    "dest": "chop_verbose",
                     "hidden": false,
                     "kind": null,
                     "repeatable": false,
                     "strings": [
-                      "-q",
-                      "--query"
+                      "-V",
+                      "--job-verbose"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "chop_verbose",
+                    "hidden": true,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "--chop-verbose"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "dry_run",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-n",
+                      "--dry-run"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "force",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-f",
+                      "--force"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "lumberjack",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-L",
+                      "--routine"
                     ],
                     "takes_value": true
                   },
                   {
                     "choices": null,
-                    "dest": "max_hook_runners",
-                    "hidden": false,
+                    "dest": "lumberjack",
+                    "hidden": true,
                     "kind": null,
                     "repeatable": false,
                     "strings": [
-                      "-H",
-                      "--max-hook-runners"
-                    ],
-                    "takes_value": true
-                  },
-                  {
-                    "choices": null,
-                    "dest": "max_agent_runners",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-A",
-                      "--max-agent-runners"
-                    ],
-                    "takes_value": true
-                  },
-                  {
-                    "choices": null,
-                    "dest": "zombie_timeout",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-z",
-                      "--zombie-timeout"
+                      "--lumberjack"
                     ],
                     "takes_value": true
                   }
                 ],
                 "path": [
                   "axe",
-                  "lumberjack",
+                  "job",
                   "run"
                 ],
                 "positionals": [
                   {
                     "choices": null,
-                    "dest": "lumberjack_name",
+                    "dest": "chop_name",
                     "is_remainder": false,
                     "kind": null,
-                    "metavar": "lumberjack_name",
+                    "metavar": "JOB",
                     "nargs": null
                   }
                 ],
-                "subcommands": []
-              },
-              {
-                "aliases": [],
-                "default_child": null,
-                "description_digest": "fd55c332ce2b2268",
-                "hidden": false,
-                "mutex_groups": [],
-                "name": "status",
-                "options": [
-                  {
-                    "choices": null,
-                    "dest": "help",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-h",
-                      "--help"
-                    ],
-                    "takes_value": false
-                  }
-                ],
-                "path": [
-                  "axe",
-                  "lumberjack",
-                  "status"
-                ],
-                "positionals": [],
                 "subcommands": []
               }
             ]
@@ -5269,6 +5106,191 @@
           },
           {
             "aliases": [],
+            "default_child": "list",
+            "description_digest": "00a96073247919a9",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "routine",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "axe",
+              "routine"
+            ],
+            "positionals": [],
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "f8962a9b51e6bcfe",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "verbose",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-v",
+                      "--verbose"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "axe",
+                  "routine",
+                  "list"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "f3149836a9061618",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "run",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "query",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-q",
+                      "--query"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "max_hook_runners",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-H",
+                      "--max-hook-runners"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "max_agent_runners",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-A",
+                      "--max-agent-runners"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "zombie_timeout",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-z",
+                      "--zombie-timeout"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "axe",
+                  "routine",
+                  "run"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "lumberjack_name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ROUTINE",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "f58c41def6ed9d76",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "status",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "axe",
+                  "routine",
+                  "status"
+                ],
+                "positionals": [],
+                "subcommands": []
+              }
+            ]
+          },
+          {
+            "aliases": [],
             "default_child": null,
             "description_digest": "30d43375b1672154",
             "hidden": false,
@@ -5346,7 +5368,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "606650e5a91ae929",
+            "description_digest": "d2aab5e0f29174e4",
             "hidden": false,
             "mutex_groups": [],
             "name": "status",

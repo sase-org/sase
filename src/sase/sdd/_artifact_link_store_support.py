@@ -57,10 +57,10 @@ _PROJECTION_RELATIONS = (
         "inverse": "launched-by",
         "directed": True,
         "written_by": "projection",
-        "direction_note": "The chop is the source; the agent it launched is the target.",
-        "positive_example": "chop:refresh_docs/refresh_docs launched agent:sase-tj.land",
-        "negative_example": "agent:sase-tj.land launched chop:refresh_docs/refresh_docs",
-        "recommended_source_kinds": ["chop"],
+        "direction_note": "The job is the source; the agent it launched is the target.",
+        "positive_example": "job:refresh_docs/refresh_docs launched agent:sase-tj.land",
+        "negative_example": "agent:sase-tj.land launched job:refresh_docs/refresh_docs",
+        "recommended_source_kinds": ["job", "chop"],
         "recommended_target_kinds": ["agent"],
     },
 )
@@ -382,8 +382,8 @@ def _row_identity(row: Mapping[str, Any]) -> tuple[str, ...]:
     """Return the directed or undirected identity of a row."""
 
     relation = str(row.get("relation") or "")
-    source = str(row.get("source_ref") or "")
-    target = str(row.get("target_ref") or "")
+    source = _canonical_ref_for_identity(row.get("source_ref"))
+    target = _canonical_ref_for_identity(row.get("target_ref"))
     if _relation_is_directed(relation):
         return ("directed", source, relation, target)
     left, right = sorted((source, target))
@@ -394,6 +394,14 @@ def artifact_link_row_identity(row: Mapping[str, Any]) -> tuple[str, ...]:
     """Return the relation-aware identity of one artifact-link row."""
 
     return _row_identity(row)
+
+
+def _canonical_ref_for_identity(value: object) -> str:
+    ref = str(value or "")
+    try:
+        return canonicalize_artifact_link_ref(ref)
+    except Exception:
+        return ref
 
 
 def unique_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
