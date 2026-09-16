@@ -150,7 +150,10 @@ def test_sase_sudo_skill_teaches_reviewed_request_contract() -> None:
     assert '"output_to_agent": "none"' in body
     assert '"machine": "apollo"' in body
     assert "Do not fall back to raw sudo" in flat
-    assert "intentionally ends your current turn" in flat
+    assert "Run `sase sudo request` in the foreground" in flat
+    assert "Never invoke it with a yield window, a background flag" in flat
+    assert "ends your current turn by killing this process" in flat
+    assert "your turn has NOT ended" in flat
 
 
 @pytest.mark.parametrize("skill_name", ["sase_git_commit"])
