@@ -60,6 +60,7 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return 2
+    _warn_on_redundant_shell_wrapper(command)
     reason = (getattr(args, "reason", None) or DEFAULT_REASON).strip()
     if not reason:
         print("sase monitor start: -r/--reason must not be empty", file=sys.stderr)
@@ -229,6 +230,26 @@ def handle_monitor_start(args: argparse.Namespace) -> int:
 
     maybe_handoff_monitor_from_agent(record)
     return 0
+
+
+def _warn_on_redundant_shell_wrapper(command: str) -> None:
+    """Warn when *command* re-wraps itself in a shell the host already provides.
+
+    The host already runs the resolved command under `/bin/sh -c`, so a
+    `bash -c '...'` or `sh -c '...'` wrapper is redundant and -- per the
+    sase-11o.1 incident -- historically the top source of misquoted monitor
+    commands. Warning only; never reject a valid command.
+    """
+    first_word = command.split(maxsplit=1)[0] if command.split() else ""
+    if first_word in ("bash", "sh") and command[len(first_word) :].lstrip().startswith(
+        "-c"
+    ):
+        print(
+            f"sase monitor start: warning -- command starts with `{first_word} -c`, "
+            "but the host already runs it under `/bin/sh -c`; the wrapper is "
+            "redundant and is the leading cause of monitor command misquoting",
+            file=sys.stderr,
+        )
 
 
 def _clamp_status_label(value: str, *, flag: str) -> str:

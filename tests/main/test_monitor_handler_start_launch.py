@@ -180,6 +180,65 @@ def test_start_launches_a_real_monitor_and_reports_the_resolved_timeout(
     assert "sase monitor show" in out
 
 
+def test_start_preserves_inner_quoting_of_a_bash_c_wrapper(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The stored `monitor_command` for a `bash -c '...'` remainder round-trips.
+
+    Regression test for the sase-11o.1 incident: `bash -c 'just install &&
+    just check'` must not collapse into `bash -c just install && just
+    check`, which silently drops `just install` from the monitored command.
+    """
+    write_project_file(
+        "proj",
+        running_claims=[WorkspaceClaim(3, "ace-run", "acme", pid=os.getpid())],
+    )
+    starter_dir = make_starter_agent(
+        "proj",
+        "20260812120000",
+        "acme",
+        model="claude-sonnet-5",
+        workspace_dir=str(tmp_path),
+        workspace_num=3,
+        pid=os.getpid(),
+        cl_name="acme",
+    )
+    patch_project_records(monkeypatch, [starter_dir])
+    pin_project(monkeypatch)
+
+    exit_code = dispatch(
+        [
+            "monitor",
+            "start",
+            "-r",
+            "verify",
+            "-t",
+            "30s",
+            "-a",
+            "acme",
+            "-C",
+            str(tmp_path),
+            "-s",
+            "TESTING",
+            "-S",
+            "TESTED",
+            "--json",
+            "--",
+            "bash",
+            "-c",
+            "just install && just check",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "warning -- command starts with `bash -c`" in captured.err
+    payload = json.loads(captured.out)
+    assert payload["monitor"]["command"] == "bash -c 'just install && just check'"
+
+
 def test_start_lane_flag_is_a_deprecated_alias_for_agent(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

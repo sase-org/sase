@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import shlex
 
 from sase.monitor import (
     MonitorLaneError,
@@ -93,11 +94,21 @@ def optional_text(value: object) -> str | None:
 
 
 def start_command(args: argparse.Namespace) -> str:
-    """Resolve the command remainder, falling back to the hidden `-c` alias."""
+    """Resolve the command remainder, falling back to the hidden `-c` alias.
+
+    A single remainder word is returned verbatim, preserving the quoted-
+    single-string idiom (``-- 'a && b'``). Multiple words are rejoined with
+    ``shlex.join`` so each argv element survives the round trip into the
+    stored ``/bin/sh -c`` command string -- a plain ``" ".join`` would drop
+    the quoting an inner word like ``bash -c '...'`` depends on.
+    """
     words = [str(part) for part in (getattr(args, "monitor_command_words", None) or [])]
     if words and words[0] == "--":
         words = words[1:]
-    remainder = " ".join(words).strip()
+    if len(words) == 1:
+        remainder = words[0].strip()
+    else:
+        remainder = shlex.join(words).strip()
     if remainder:
         return remainder
     return (getattr(args, "monitor_command", None) or "").strip()
