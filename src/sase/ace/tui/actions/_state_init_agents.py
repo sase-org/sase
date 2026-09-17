@@ -46,6 +46,7 @@ def init_agent_state(self: Any) -> None:
     from ..models.fleet_agents import FleetRowsProjection
 
     self._agents_fleet_projection = FleetRowsProjection()
+    self._agents_fleet_applied_projection_signature = None
     self._agents_fleet_rows = []
     self._agents_fleet_focus_rows = []
     self._agents_dispatch_provisional_rows = {}

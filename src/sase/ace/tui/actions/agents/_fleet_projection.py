@@ -2,12 +2,66 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Mapping, Sequence
+from dataclasses import fields, is_dataclass
+from datetime import datetime
+from enum import Enum
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ...app import AgentsSubTab
     from ...models import Agent
     from ...models.agent import AgentType
+
+_AGENT_SIGNATURE_SKIP_FIELDS = frozenset(
+    {
+        "attempt_history",
+        "clan_context",
+        "family_container",
+        "feedback_plan_paths",
+        "followup_agents",
+        "imported_source_owner",
+        "retry_chain_siblings",
+        "runtime_children",
+        "wait_display_source",
+    }
+)
+
+
+def _freeze_projection_value(value: Any) -> object:
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Mapping):
+        return tuple(
+            (str(key), _freeze_projection_value(item))
+            for key, item in sorted(value.items(), key=lambda entry: repr(entry[0]))
+        )
+    if isinstance(value, set | frozenset):
+        return tuple(
+            sorted((_freeze_projection_value(item) for item in value), key=repr)
+        )
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+        return tuple(_freeze_projection_value(item) for item in value)
+    if is_dataclass(value) and not isinstance(value, type):
+        return repr(value)
+    return value
+
+
+def _agent_projection_signature(agent: Agent) -> tuple[tuple[str, object], ...]:
+    return tuple(
+        (
+            field.name,
+            _freeze_projection_value(getattr(agent, field.name)),
+        )
+        for field in fields(agent)
+        if field.name not in _AGENT_SIGNATURE_SKIP_FIELDS
+    )
+
+
+def _agents_projection_signature(agents: list[Agent]) -> tuple[object, ...]:
+    return tuple(_agent_projection_signature(agent) for agent in agents)
 
 
 class AgentFleetProjectionMixin:
@@ -23,6 +77,7 @@ class AgentFleetProjectionMixin:
         _agents_local_visible: list[Agent]
         _agents_fleet_rows: list[Agent]
         _agents_fleet_focus_rows: list[Agent]
+        _agents_fleet_applied_projection_signature: object | None
         _agents_refresh_active_source: str
 
     def watch_current_agents_subtab(
@@ -124,13 +179,26 @@ class AgentFleetProjectionMixin:
         self,
         *,
         source: str,
+        force: bool = False,
         selected_identity: tuple[AgentType, str, str | None] | None = None,
     ) -> None:
         if selected_identity is None and 0 <= self.current_idx < len(self._agents):
             selected_identity = self._agents[self.current_idx].identity
         previous_agents = list(getattr(self, "_agents", []))
         local_base = self._local_base_for_current_projection()
-        self._agents_with_children = self._agents_source_for_current_mode(local_base)
+        projected_agents = self._agents_source_for_current_mode(local_base)
+        projection_signature = _agents_projection_signature(projected_agents)
+        if (
+            source == "fleet_refresh"
+            and not force
+            and self.current_tab == "agents"
+            and (previous_agents or not projected_agents)
+            and projection_signature
+            == getattr(self, "_agents_fleet_applied_projection_signature", None)
+        ):
+            self._update_agents_header()  # type: ignore[attr-defined]
+            return
+        self._agents_with_children = projected_agents
         self._agents = list(self._agents_with_children)
         self._agents_refresh_active_source = source  # type: ignore[attr-defined]
         try:
@@ -142,6 +210,7 @@ class AgentFleetProjectionMixin:
             )
         finally:
             self._agents_refresh_active_source = "unknown"  # type: ignore[attr-defined]
+        self._agents_fleet_applied_projection_signature = projection_signature
         self._update_agents_header()  # type: ignore[attr-defined]
 
     def _fleet_mode_available(self) -> bool:

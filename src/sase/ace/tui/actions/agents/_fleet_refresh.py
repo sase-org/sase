@@ -86,7 +86,6 @@ class AgentFleetRefreshMixin:
             self._update_agents_header()  # type: ignore[attr-defined]
 
     async def _run_agents_fleet_refresh(self, *, generation: int, source: str) -> None:
-        del source
         deferred_apply = False
         try:
             load_config = fleet_public_override(
@@ -180,6 +179,7 @@ class AgentFleetRefreshMixin:
                 projection,
                 config=config,
                 generation=generation,
+                source=source,
             ):
                 deferred_apply = True
             else:
@@ -187,6 +187,7 @@ class AgentFleetRefreshMixin:
                     projection,
                     config=config,
                     generation=generation,
+                    source=source,
                 )
         except (FederationConfigError, FollowStoreError) as exc:
             log.debug("fleet refresh failed", exc_info=True)
@@ -205,6 +206,7 @@ class AgentFleetRefreshMixin:
         *,
         config: FederationConfig,
         generation: int,
+        source: str,
     ) -> bool:
         nav_gate = getattr(self, "_nav_gate", None)
         if nav_gate is None or not nav_gate.is_navigating():
@@ -216,6 +218,7 @@ class AgentFleetRefreshMixin:
                 projection,
                 config=config,
                 generation=generation,
+                source=source,
             ),
         )
         return True
@@ -226,6 +229,7 @@ class AgentFleetRefreshMixin:
         *,
         config: FederationConfig,
         generation: int,
+        source: str,
     ) -> None:
         if generation != getattr(self, "_agents_fleet_refresh_generation", 0):
             return
@@ -233,12 +237,14 @@ class AgentFleetRefreshMixin:
             projection,
             config=config,
             generation=generation,
+            source=source,
         ):
             return
         self._apply_fleet_projection(
             projection,
             config=config,
             generation=generation,
+            source=source,
         )
         if generation == getattr(self, "_agents_fleet_refresh_generation", 0):
             self._agents_fleet_loading = False
@@ -368,6 +374,7 @@ class AgentFleetRefreshMixin:
         *,
         config: FederationConfig,
         generation: int,
+        source: str = "fleet_refresh",
     ) -> None:
         if generation != getattr(self, "_agents_fleet_refresh_generation", 0):
             return
@@ -379,7 +386,10 @@ class AgentFleetRefreshMixin:
         )
         self._agents_fleet_last_error = None
         self.current_agents_subtab = "focus"
-        self._reproject_agents_from_current_mode(source="fleet_refresh")  # type: ignore[attr-defined]
+        self._reproject_agents_from_current_mode(  # type: ignore[attr-defined]
+            source="fleet_refresh",
+            force=source in {"remote_attention", "remote_mutation"},
+        )
         self._announce_remote_attention(projection)  # type: ignore[attr-defined]
 
     def _apply_fleet_error(self, message: str, *, generation: int) -> None:

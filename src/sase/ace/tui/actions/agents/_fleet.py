@@ -73,6 +73,7 @@ class AgentFleetMixin(
     _agents_dispatch_provisional_rows: dict[str, Agent]
     _dispatch_launch_prompt_to_operation: dict[str, str]
     _agents_fleet_projection: FleetRowsProjection
+    _agents_fleet_applied_projection_signature: object | None
     _agents_fleet_async_tasks: set[asyncio.Task[object]]
     _agents_fleet_refresh_generation: int
     _agents_fleet_loading: bool

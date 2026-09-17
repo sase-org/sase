@@ -41,6 +41,7 @@ class _FleetRefreshHarness(AgentFleetMixin):
         self._agents_local_visible: list[Agent] = []
         self._agents_fleet_rows: list[Agent] = []
         self._agents_fleet_focus_rows: list[Agent] = []
+        self._agents_fleet_applied_projection_signature = None
         self._agents_fleet_projection = FleetRowsProjection()
         self._agents_fleet_async_tasks: set[Any] = set()
         self._agents_fleet_refresh_generation = 1
@@ -61,22 +62,55 @@ class _FleetRefreshHarness(AgentFleetMixin):
         self,
         *,
         source: str,
+        force: bool = False,
         selected_identity: object | None = None,
     ) -> None:
-        del selected_identity
-        self.reproject_sources.append(source)
-        local_base = list(self._agents_local_with_children)
-        self._agents_with_children = self._agents_source_for_current_mode(local_base)
+        super()._reproject_agents_from_current_mode(
+            source=source,
+            force=force,
+            selected_identity=selected_identity,  # type: ignore[arg-type]
+        )
+
+    def _finalize_agent_list(self, *_args: object, **_kwargs: object) -> None:
+        self.reproject_sources.append(self._agents_refresh_active_source)
         self._agents = list(self._agents_with_children)
 
-    def _announce_remote_attention(self, projection: FleetRowsProjection) -> None:
-        self.attention_announcements.append(projection)
+    def _fleet_rows_with_dispatch_provisionals(
+        self,
+        rows: list[Agent],
+    ) -> list[Agent]:
+        return super()._fleet_rows_with_dispatch_provisionals(rows)
 
     def notify(self, *_args: object, **_kwargs: object) -> None:
         pass
 
+    def _announce_remote_attention(self, projection: FleetRowsProjection) -> None:
+        self.attention_announcements.append(projection)
+
     def set_timer(self, delay: float, callback: Callable[[], None]) -> None:
         self.timers.append((delay, callback))
+
+
+def _remote_row(
+    name: str = "sase-main",
+    *,
+    status: str = "RUNNING",
+    revision: int = 1,
+) -> Agent:
+    return Agent(
+        AgentType.RUNNING,
+        name,
+        "/fleet/apollo/project.yml",
+        status,
+        None,
+        agent_name=name,
+        raw_suffix=f"apollo:{name}",
+        fleet_origin_alias="apollo",
+        fleet_origin_installation_id="install-apollo",
+        fleet_logical_key=f"apollo:{name}",
+        fleet_exact_key=f"apollo:{name}:exact",
+        fleet_revision=revision,
+    )
 
 
 def test_unified_agents_status_text_labels_scope_and_staleness(
@@ -155,6 +189,92 @@ async def test_agents_refresh_hydrates_catalog_in_focus_mode(
         summary["logical_key"]
     ]
     assert app._agents_fleet_focus_rows == []
+
+
+def test_apply_fleet_projection_skips_unchanged_reproject() -> None:
+    app = _FleetRefreshHarness(mode="focus")
+    local = Agent(
+        AgentType.RUNNING,
+        "local-work",
+        "/tmp/local-project.yml",
+        "RUNNING",
+        None,
+        agent_name="local-work",
+    )
+    app._agents_local_with_children = [local]
+    projection = FleetRowsProjection(
+        fleet_rows=(_remote_row(),),
+        configured_host_count=1,
+    )
+
+    app._apply_fleet_projection(
+        projection,
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+    header_updates_after_first = app.header_updates
+
+    app._apply_fleet_projection(
+        projection,
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+
+    assert app.reproject_sources == ["fleet_refresh"]
+    assert [row.cl_name for row in app._agents] == ["local-work", "sase-main"]
+    assert app.header_updates == header_updates_after_first + 1
+
+
+def test_apply_fleet_projection_repaints_changed_row() -> None:
+    app = _FleetRefreshHarness(mode="focus")
+    app._apply_fleet_projection(
+        FleetRowsProjection(fleet_rows=(_remote_row(revision=1),)),
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+
+    app._apply_fleet_projection(
+        FleetRowsProjection(fleet_rows=(_remote_row(revision=2),)),
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+
+    assert app.reproject_sources == ["fleet_refresh", "fleet_refresh"]
+    assert app._agents[0].fleet_revision == 2
+
+
+def test_apply_fleet_projection_forced_remote_sources_repaint() -> None:
+    app = _FleetRefreshHarness(mode="focus")
+    projection = FleetRowsProjection(fleet_rows=(_remote_row(),))
+
+    app._apply_fleet_projection(
+        projection,
+        config=fleet_config(),
+        generation=1,
+        source="apply",
+    )
+    app._apply_fleet_projection(
+        projection,
+        config=fleet_config(),
+        generation=1,
+        source="remote_mutation",
+    )
+    app._apply_fleet_projection(
+        projection,
+        config=fleet_config(),
+        generation=1,
+        source="remote_attention",
+    )
+
+    assert app.reproject_sources == [
+        "fleet_refresh",
+        "fleet_refresh",
+        "fleet_refresh",
+    ]
 
 
 @pytest.mark.asyncio
