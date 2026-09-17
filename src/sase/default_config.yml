@@ -715,10 +715,11 @@ ace:
       # Tribe-driven side panels (agents tab)
       focus_next_agent_panel: "J"
       focus_prev_agent_panel: "K"
-      # Agents grouping picker. Artifacts panes with grouping still cycle with
-      # o/O; the shared o key is resolved by tab availability. The Artifacts
-      # open-externally verb (beads_open_bug, files_open_external) shares E.
-      # Bang-mode !o still owns mark_pr_origin.
+      # Agents grouping picker. Lowercase `o` inside this picker toggles
+      # split/merged panel layout. Artifacts panes with grouping still cycle
+      # with o/O; the shared o key is resolved by tab availability. The
+      # Artifacts open-externally verb (beads_open_bug, files_open_external)
+      # shares E. Bang-mode !o still owns mark_pr_origin.
       choose_agent_grouping: "o"
       cycle_grouping_mode: "o"
       cycle_grouping_mode_reverse: "O"
@@ -888,7 +889,6 @@ ace:
           review_mentors: "C"
           agent_home: "h"
           agent_from_cl: "space"
-          toggle_agent_panel_grouping: "g"
           collapse_fold_by_hint: "H"
           jump_to_next_unread_done_agent: "j"
           jump_to_next_stopped_agent: "J"

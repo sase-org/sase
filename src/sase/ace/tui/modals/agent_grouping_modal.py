@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Final
 
 from rich.text import Text
@@ -13,6 +14,15 @@ from textual.screen import ModalScreen
 from textual.widgets import Static
 
 from sase.ace.tui.models.agent_groups import GroupingMode
+
+
+class AgentGroupingAction(Enum):
+    """Non-mode actions available from the Agents grouping modal."""
+
+    TOGGLE_PANELS = "toggle_panels"
+
+
+AgentGroupingResult = GroupingMode | AgentGroupingAction | None
 
 
 @dataclass(frozen=True)
@@ -53,8 +63,8 @@ AGENT_GROUPING_CHOICES: Final[tuple[_AgentGroupingChoice, ...]] = (
 )
 
 
-class AgentGroupingModal(ModalScreen[GroupingMode | None]):
-    """Pick an Agents grouping mode, returning ``None`` when cancelled."""
+class AgentGroupingModal(ModalScreen[AgentGroupingResult]):
+    """Pick an Agents grouping mode or local panel-layout action."""
 
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
@@ -66,13 +76,21 @@ class AgentGroupingModal(ModalScreen[GroupingMode | None]):
         ("up", "cursor_up", "Previous"),
     ]
 
-    def __init__(self, current_mode: GroupingMode = GroupingMode.STANDARD) -> None:
+    def __init__(
+        self,
+        current_mode: GroupingMode = GroupingMode.STANDARD,
+        *,
+        current_panel_grouped: bool = False,
+    ) -> None:
         super().__init__()
         self._current_mode = current_mode
+        self._current_panel_grouped = current_panel_grouped
         self._selected = self._index_for_mode(current_mode)
         self._key_to_index = {
             choice.key: index for index, choice in enumerate(AGENT_GROUPING_CHOICES)
         }
+        self._layout_index = len(AGENT_GROUPING_CHOICES)
+        self._row_count = self._layout_index + 1
         self._dismissed = False
 
     @property
@@ -84,7 +102,7 @@ class AgentGroupingModal(ModalScreen[GroupingMode | None]):
         with Container(id="agent-grouping-container"):
             yield Static("Group agents by", id="agent-grouping-title")
             yield Static(
-                "Press a letter to switch grouping.",
+                "Press a letter to switch grouping or panel layout.",
                 id="agent-grouping-guidance",
             )
             with VerticalScroll(id="agent-grouping-list"):
@@ -94,6 +112,16 @@ class AgentGroupingModal(ModalScreen[GroupingMode | None]):
                         id=f"agent-grouping-row-{index}",
                         classes=self._row_classes(choice, index),
                     )
+                yield Static(
+                    "Panel layout",
+                    id="agent-panel-layout-heading",
+                    classes="agent-grouping-section-heading",
+                )
+                yield Static(
+                    self._layout_row_text(focused=self._selected == self._layout_index),
+                    id="agent-panel-layout-row",
+                    classes=self._layout_row_classes(),
+                )
             yield Static(
                 "Up/Down or j/k move - Enter select - Esc cancel",
                 id="agent-grouping-footer",
@@ -130,6 +158,12 @@ class AgentGroupingModal(ModalScreen[GroupingMode | None]):
             self.action_cancel()
             return
 
+        if event.character == "o":
+            event.prevent_default()
+            event.stop()
+            self._select_index(self._layout_index)
+            return
+
         character = event.character.lower() if event.character else ""
         if character in self._key_to_index:
             event.prevent_default()
@@ -156,6 +190,11 @@ class AgentGroupingModal(ModalScreen[GroupingMode | None]):
                     event.stop()
                     self._select_index(index)
                 return
+            if widget_id == "agent-panel-layout-row":
+                event.prevent_default()
+                event.stop()
+                self._select_index(self._layout_index)
+                return
             widget = getattr(widget, "parent", None)
 
     def action_cancel(self) -> None:
@@ -173,14 +212,17 @@ class AgentGroupingModal(ModalScreen[GroupingMode | None]):
     def _move(self, delta: int) -> None:
         self._selected = max(
             0,
-            min(self._selected + delta, len(AGENT_GROUPING_CHOICES) - 1),
+            min(self._selected + delta, self._row_count - 1),
         )
         self._refresh()
 
     def _select_index(self, index: int) -> None:
+        if index == self._layout_index:
+            self._dismiss_once(AgentGroupingAction.TOGGLE_PANELS)
+            return
         self._dismiss_once(AGENT_GROUPING_CHOICES[index].mode)
 
-    def _dismiss_once(self, result: GroupingMode | None) -> None:
+    def _dismiss_once(self, result: AgentGroupingResult) -> None:
         if self._dismissed:
             return
         self._dismissed = True
@@ -197,6 +239,12 @@ class AgentGroupingModal(ModalScreen[GroupingMode | None]):
             row.set_class(choice.mode is self._current_mode, "current")
             if focused:
                 row.scroll_visible(animate=False)
+        layout_focused = self._selected == self._layout_index
+        layout_row = self.query_one("#agent-panel-layout-row", Static)
+        layout_row.update(self._layout_row_text(focused=layout_focused))
+        layout_row.set_class(layout_focused, "focused")
+        if layout_focused:
+            layout_row.scroll_visible(animate=False)
 
     def _row_text(self, choice: _AgentGroupingChoice, *, focused: bool) -> Text:
         is_current = choice.mode is self._current_mode
@@ -225,6 +273,34 @@ class AgentGroupingModal(ModalScreen[GroupingMode | None]):
             classes.append("current")
         return " ".join(classes)
 
+    def _layout_row_text(self, *, focused: bool) -> Text:
+        pointer_style = "bold #87D7FF" if focused else "dim"
+        key_style = "bold black on #87D7FF" if focused else "bold #87D7FF"
+        label_style = "bold #F8F8F2" if focused else "bold"
+        state_style = "bold #A6E22E"
+
+        action = (
+            "Split panels by tribe" if self._current_panel_grouped else "Merge panels"
+        )
+        current = "Merged panel" if self._current_panel_grouped else "Split by tribe"
+
+        text = Text()
+        text.append("> " if focused else "  ", style=pointer_style)
+        text.append("[", style="dim")
+        text.append("o", style=key_style)
+        text.append("] ", style="dim")
+        text.append(action, style=label_style)
+        text.append("\n    ")
+        text.append("Current: ", style="dim")
+        text.append(current, style=state_style)
+        return text
+
+    def _layout_row_classes(self) -> str:
+        classes = ["agent-grouping-row", "agent-panel-layout-row"]
+        if self._selected == self._layout_index:
+            classes.append("focused")
+        return " ".join(classes)
+
     @staticmethod
     def _index_for_mode(mode: GroupingMode) -> int:
         for index, choice in enumerate(AGENT_GROUPING_CHOICES):
@@ -235,5 +311,7 @@ class AgentGroupingModal(ModalScreen[GroupingMode | None]):
 
 __all__ = [
     "AGENT_GROUPING_CHOICES",
+    "AgentGroupingAction",
     "AgentGroupingModal",
+    "AgentGroupingResult",
 ]

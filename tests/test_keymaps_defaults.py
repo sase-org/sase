@@ -224,10 +224,11 @@ def test_leader_mode_drops_task_queue_key() -> None:
     assert "task_queue" not in LeaderModeKeymaps().keys
 
 
-def test_leader_mode_includes_agent_panel_grouping_toggle() -> None:
-    """LeaderModeKeymaps default includes the ``,g`` panel grouping toggle."""
+def test_leader_mode_drops_agent_panel_grouping_toggle() -> None:
+    """The old ``,g`` panel grouping leader key is retired."""
     reg = load_keymap_registry({})
-    assert reg.leader_mode.keys["toggle_agent_panel_grouping"] == "g"
+    assert "toggle_agent_panel_grouping" not in reg.leader_mode.keys
+    assert "toggle_agent_panel_grouping" not in LeaderModeKeymaps().keys
 
 
 def test_leader_mode_includes_collapse_fold_by_hint() -> None:

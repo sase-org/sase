@@ -276,19 +276,30 @@ class AgentGroupingMixin:
             return
         from textual.screen import ModalScreen
 
-        from ...modals.agent_grouping_modal import AgentGroupingModal
+        from ...modals.agent_grouping_modal import (
+            AgentGroupingAction,
+            AgentGroupingModal,
+            AgentGroupingResult,
+        )
         from ...models.agent_groups import GroupingMode
 
         if isinstance(getattr(self, "screen", None), ModalScreen):
             return
         mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        current_panel_grouped = bool(getattr(self, "_agent_panels_grouped", False))
 
-        def _on_choice(chosen: GroupingMode | None) -> None:
+        def _on_choice(chosen: AgentGroupingResult) -> None:
             if chosen is None or self.current_tab != "agents":
+                return
+            if chosen is AgentGroupingAction.TOGGLE_PANELS:
+                self.action_toggle_agent_panel_grouping()  # type: ignore[attr-defined]
                 return
             self._set_agents_grouping_mode(chosen)
 
-        self.push_screen(AgentGroupingModal(mode), _on_choice)  # type: ignore[attr-defined]
+        self.push_screen(  # type: ignore[attr-defined]
+            AgentGroupingModal(mode, current_panel_grouped=current_panel_grouped),
+            _on_choice,
+        )
 
     def action_cycle_grouping_mode(self) -> None:
         """Advance the focused tab's grouping mode by one step.

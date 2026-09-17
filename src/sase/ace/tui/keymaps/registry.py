@@ -156,6 +156,11 @@ _RELOCATED_LEADER_KEYS: dict[str, str] = {
         "Ignoring stale leader_mode.keys.edit_query; "
         "Agents query editing is now ace.keymaps.app.edit_query"
     ),
+    "toggle_agent_panel_grouping": (
+        "Ignoring stale leader_mode.keys.toggle_agent_panel_grouping; "
+        "agent panel layout now lives under ace.keymaps.app.choose_agent_grouping, "
+        "then local picker key 'o'"
+    ),
 }
 
 

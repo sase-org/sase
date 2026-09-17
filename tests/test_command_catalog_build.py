@@ -55,15 +55,38 @@ def test_agent_run_log_leader_command_is_cl_only() -> None:
     assert spec.executor.subkey == "A"
 
 
-def test_agent_panel_grouping_leader_command_is_agents_only() -> None:
+def test_agent_panel_layout_command_uses_grouping_picker_sequence() -> None:
     catalog = build_command_catalog(_registry())
-    spec = next(c for c in catalog if c.id == "leader.toggle_agent_panel_grouping")
+    assert not any(c.id == "leader.toggle_agent_panel_grouping" for c in catalog)
+    spec = next(c for c in catalog if c.id == "agents.toggle_panel_grouping")
 
-    assert spec.label == "Toggle agent panel grouping"
-    assert spec.key_display == ",g"
+    assert spec.label == "Toggle agent panel layout"
+    assert spec.key_sequence == ("o", "o")
+    assert spec.key_display == "oo"
     assert spec.tabs == ("agents",)
-    assert spec.executor.kind == "leader_mode_key"
-    assert spec.executor.subkey == "g"
+    assert spec.executor.kind == "app_action"
+    assert spec.executor.action == "toggle_agent_panel_grouping"
+    assert "split" in spec.aliases
+    assert "merge" in spec.aliases
+
+
+def test_agent_panel_layout_command_follows_rebound_and_unbound_picker() -> None:
+    rebound = build_command_catalog(
+        load_keymap_registry({"keymaps": {"app": {"choose_agent_grouping": "f12"}}})
+    )
+    rebound_spec = next(c for c in rebound if c.id == "agents.toggle_panel_grouping")
+
+    assert rebound_spec.key_sequence == ("f12", "o")
+    assert rebound_spec.key_display == "f12 o"
+
+    unbound = build_command_catalog(
+        load_keymap_registry({"keymaps": {"app": {"choose_agent_grouping": "unbound"}}})
+    )
+    unbound_spec = next(c for c in unbound if c.id == "agents.toggle_panel_grouping")
+
+    assert unbound_spec.key_sequence == ()
+    assert unbound_spec.key_display == ""
+    assert unbound_spec.executor.kind == "app_action"
 
 
 def test_collapse_fold_by_hint_leader_command_is_agents_only() -> None:

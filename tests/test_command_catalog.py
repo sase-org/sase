@@ -210,8 +210,9 @@ def test_patch_sync_commands_use_patch_labels() -> None:
 
 
 def test_grouping_mode_commands_cover_agents_picker_and_artifacts_cycles() -> None:
-    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    by_id = {c.id: c for c in build_command_catalog(_registry())}
     chooser = by_id["app.choose_agent_grouping"]
+    panel_layout = by_id["agents.toggle_panel_grouping"]
     forward = by_id["app.cycle_grouping_mode"]
     reverse = by_id["app.cycle_grouping_mode_reverse"]
 
@@ -220,6 +221,13 @@ def test_grouping_mode_commands_cover_agents_picker_and_artifacts_cycles() -> No
     assert chooser.tabs == ("agents",)
     assert chooser.key_sequence == ("o",)
     assert "machine" in chooser.aliases
+    assert "panel layout" in chooser.aliases
+    assert panel_layout.label == "Toggle agent panel layout"
+    assert panel_layout.category == "Grouping"
+    assert panel_layout.tabs == ("agents",)
+    assert panel_layout.key_display == "oo"
+    assert panel_layout.executor.kind == "app_action"
+    assert panel_layout.executor.action == "toggle_agent_panel_grouping"
     assert forward.label == "Cycle grouping mode"
     assert reverse.label == "Cycle grouping mode (reverse)"
     assert forward.category == "Grouping"

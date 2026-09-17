@@ -1207,6 +1207,7 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                       |
 | `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor                                              |
 | `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                     |
+| `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                               |
 | `~`                       | Jump among agent-node-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                              |
 | `g`                       | Scroll to top (file, tools, or metadata panel)                                                                                                              |
 | `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                                                                           |
@@ -2143,9 +2144,12 @@ tree.
 ### Grouping Modes
 
 Press `o` on the Agents tab to open the grouping picker, then choose `p` Project, `d`
-Date, `s` Status, or `m` Machine. The Agents tab shows a brief toast
-(`Grouping: by project` / `by date` / `by status` / `by machine`) when the chosen mode
-changes:
+Date, `s` Status, or `m` Machine. Press lowercase `o` inside that picker (`oo` with
+default keymaps) to toggle between tribe-split panels and one merged panel; the picker
+closes after the toggle. Panel layout and grouping mode are independent: toggling panel
+layout preserves the active grouping mode and does not persist beyond the current
+session. The Agents tab shows a brief toast (`Grouping: by project` / `by date` /
+`by status` / `by machine`) when the chosen mode changes:
 
 | Mode         | L0 buckets                                                                    | Notes                                                                                                                                                                               |
 | ------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -2538,19 +2542,17 @@ string-level canonicalization only; row matching runs through the Rust-backed
 
 ### Leader Mode (`,` prefix)
 
-Leader mode is available on every tab. In the Agents tab it also exposes layout and
-notification shortcuts for the currently loaded agent list; global entries such as `,m`
-and `,U` behave the same from other tabs. Unread-completed actions operate on terminal
-rows that are loaded in the Agents tab; `,j` can reveal a direct member hidden by a
-collapsed clan. Help is not a leader command: press the app-level `?` to open the Help
-modal.
+Leader mode is available on every tab. In the Agents tab it also exposes notification
+shortcuts for the currently loaded agent list; global entries such as `,m` and `,U`
+behave the same from other tabs. Unread-completed actions operate on terminal rows that
+are loaded in the Agents tab; `,j` can reveal a direct member hidden by a collapsed
+clan. Help is not a leader command: press the app-level `?` to open the Help modal.
 
 | Key        | Action                                                                                                                                         |
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `,,`       | Repeat the last leader command                                                                                                                 |
 | `,/`       | Search the selected agent's metadata                                                                                                           |
 | `,h`       | Run agent from home prompt context; bare prompts default to `#git:home`                                                                        |
-| `,g`       | Toggle between tribe-split panels and one merged agent panel                                                                                   |
 | `,H`       | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel |
 | `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read                                              |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state                                                   |

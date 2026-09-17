@@ -154,13 +154,6 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == leader_keys["toggle_agent_panel_grouping"]:
-            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab == "agents":
-                self.action_toggle_agent_panel_grouping()  # type: ignore[attr-defined]
-            self._refresh_current_tab()  # type: ignore[attr-defined]
-            return True
-
         if key == leader_keys["collapse_fold_by_hint"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab != "agents":

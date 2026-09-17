@@ -12,7 +12,6 @@ from pathlib import Path
 from typing import Protocol
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.visual_render import render_svg_to_png
 from tests.ace.tui.visual._png_diff_artifacts import (
     repo_relative,
     snapshot_path,
@@ -31,6 +30,7 @@ from tests.ace.tui.visual._png_diff_tolerance import (
     PNG_MAX_MATERIAL_DIFF_PIXELS_ENV,
     resolve_png_diff_tolerance,
 )
+from tests.ace.tui.visual._visual_render import render_svg_to_png
 
 __all__ = [
     "DEFAULT_MATERIAL_DIFF_THRESHOLD",

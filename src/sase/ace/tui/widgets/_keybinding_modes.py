@@ -393,7 +393,6 @@ class KeybindingModesMixin:
         if current_tab in ("artifacts", "agents"):
             bindings.append((k("agent_from_cl"), "run agent (PR)"))
         if current_tab == "agents":
-            bindings.append((k("toggle_agent_panel_grouping"), "group panels"))
             bindings.append((k("collapse_fold_by_hint"), "collapse by hint"))
             if not refresh_panel_enabled():
                 bindings.append((k("full_history_refresh"), "full history refresh"))

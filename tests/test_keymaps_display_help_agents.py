@@ -160,6 +160,34 @@ def test_agents_help_documents_inline_metadata_search() -> None:
     ]
 
 
+def test_agents_help_lists_grouping_picker_panel_layout_toggle() -> None:
+    default_sections = dict(agents_bindings(load_keymap_registry({})))
+    default_grouping = dict(default_sections["Grouping"])
+
+    assert default_grouping["o"] == "Choose grouping"
+    assert default_grouping["oo"] == "Toggle tribe panels split/merged"
+
+    rebound_sections = dict(
+        agents_bindings(
+            load_keymap_registry({"keymaps": {"app": {"choose_agent_grouping": "f12"}}})
+        )
+    )
+    rebound_grouping = dict(rebound_sections["Grouping"])
+    assert rebound_grouping["f12"] == "Choose grouping"
+    assert rebound_grouping["f12 o"] == "Toggle tribe panels split/merged"
+
+    unbound_sections = dict(
+        agents_bindings(
+            load_keymap_registry(
+                {"keymaps": {"app": {"choose_agent_grouping": "unbound"}}}
+            )
+        )
+    )
+    unbound_grouping = dict(unbound_sections["Grouping"])
+    assert "Choose grouping" not in unbound_grouping.values()
+    assert "Toggle tribe panels split/merged" not in unbound_grouping.values()
+
+
 def test_help_modal_lists_collapse_fold_by_hint_with_configured_prefix() -> None:
     reg = load_keymap_registry(
         {

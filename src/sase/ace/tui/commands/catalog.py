@@ -36,6 +36,7 @@ from sase.ace.tui.commands._formatting import (
     format_key_sequence as _format_key_sequence,
 )
 from sase.ace.tui.commands._mode_commands import iter_mode_commands
+from sase.ace.tui.commands._tabs import AGENTS_ONLY
 from sase.ace.tui.commands._tabs import ALL_TABS
 from sase.ace.tui.commands._tabs import CL_ONLY
 from sase.ace.tui.commands.types import (
@@ -99,6 +100,41 @@ def iter_saved_query_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]
             executor=CommandExecutor(kind="saved_query", digit=d),
             aliases=(f"q{d}", f"query {d}"),
         )
+
+
+def _iter_agents_panel_layout_command(
+    registry: KeymapRegistry,
+) -> Iterator[CommandSpec]:
+    """Yield the direct command for the picker-local panel layout toggle."""
+    opener = registry.app.choose_agent_grouping
+    if is_unbound_key(opener):
+        sequence: tuple[str, ...] = ()
+        display = ""
+    else:
+        sequence = (opener, "o")
+        display = _format_key_sequence(sequence)
+    yield CommandSpec(
+        id="agents.toggle_panel_grouping",
+        label="Toggle agent panel layout",
+        key_sequence=sequence,
+        key_display=display,
+        category="Grouping",
+        tabs=AGENTS_ONLY,
+        executor=CommandExecutor(
+            kind="app_action",
+            action="toggle_agent_panel_grouping",
+        ),
+        aliases=(
+            "panel",
+            "tribe",
+            "split",
+            "merge",
+            "toggle_agent_panel_grouping",
+            "panel layout",
+            "split panels",
+            "merge panels",
+        ),
+    )
 
 
 def iter_digit_commands(
@@ -294,6 +330,7 @@ def build_command_catalog(registry: KeymapRegistry) -> list[CommandSpec]:
     """
     catalog: list[CommandSpec] = []
     catalog.extend(iter_app_commands(registry))
+    catalog.extend(_iter_agents_panel_layout_command(registry))
     catalog.extend(iter_saved_query_commands(registry))
     catalog.extend(_iter_artifacts_subtab_commands())
     catalog.extend(_iter_tasks_command())

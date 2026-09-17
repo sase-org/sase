@@ -40,6 +40,21 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         if unified_query
         else d(a.edit_query)
     )
+    grouping_opener_rows = (
+        [(d(a.choose_agent_grouping), "Choose grouping")]
+        if d(a.choose_agent_grouping)
+        else []
+    )
+    panel_layout_rows = (
+        [
+            (
+                key_sequence_display(a.choose_agent_grouping, "o"),
+                "Toggle tribe panels split/merged",
+            )
+        ]
+        if d(a.choose_agent_grouping)
+        else []
+    )
 
     sections: Sections = [
         (
@@ -309,10 +324,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (f"{d(lm.prefix)}{d(sk(lm.keys, 'runners'))}", "Show runners info"),
                 (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'toggle_agent_panel_grouping'))}",
-                    "Toggle tribe panels grouped/split",
-                ),
-                (
                     key_sequence_display(
                         lm.prefix, sk(lm.keys, "collapse_fold_by_hint")
                     ),
@@ -511,7 +522,8 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         (
             "Grouping",
             [
-                (d(a.choose_agent_grouping), "Choose grouping"),
+                *grouping_opener_rows,
+                *panel_layout_rows,
                 ("p/d/s/m", "Project/date/status/machine"),
                 ("by date", "Sub-grouped by hour, day, or week"),
                 ("by machine", "here + remotes, status subgroups"),

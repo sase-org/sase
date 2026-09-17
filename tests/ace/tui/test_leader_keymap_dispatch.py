@@ -123,24 +123,27 @@ def test_leader_ctrl_space_no_longer_runs_agent_from_current_cl() -> None:
     assert app.refresh_count == 1
 
 
-def test_leader_g_toggles_agent_panel_grouping_on_agents_tab() -> None:
+def test_leader_g_is_retired_on_agents_tab() -> None:
     app = _FakeApp(current_tab="agents")
 
     handled = app._handle_leader_key("g")
 
     assert handled is True
     assert app._leader_mode_active is False
-    assert app.toggle_panel_grouping_count == 1
+    assert app.toggle_panel_grouping_count == 0
+    assert app._last_leader_key is None
     assert app.refresh_count == 1
 
 
-def test_leader_g_noops_on_non_agents_tabs() -> None:
+def test_stale_remembered_leader_g_cannot_toggle_panel_grouping() -> None:
     app = _FakeApp(current_tab="patches")
+    app._last_leader_key = "g"
 
-    handled = app._handle_leader_key("g")
+    handled = app._handle_leader_key("comma")
 
     assert handled is True
     assert app.toggle_panel_grouping_count == 0
+    assert app._last_leader_key == "g"
     assert app.refresh_count == 1
 
 

@@ -4,17 +4,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_BUNDLED_FONTS_DIR = Path(__file__).with_name("fonts")
+import sase.ace.tui as ace_tui
 
 
 def _bundled_fonts_dir() -> Path:
     """Return the directory containing the bundled renderer fonts."""
-    return _BUNDLED_FONTS_DIR
+    module_path = ace_tui.__file__
+    if module_path is None:
+        raise RuntimeError("sase.ace.tui has no filesystem path")
+    return Path(module_path).with_name("fonts")
 
 
 def _bundled_font_files(fonts_dir: Path | None = None) -> list[str]:
     """Return paths to every bundled renderer face."""
-    root = fonts_dir or _BUNDLED_FONTS_DIR
+    root = fonts_dir or _bundled_fonts_dir()
     return sorted(
         str(path)
         for path in root.iterdir()

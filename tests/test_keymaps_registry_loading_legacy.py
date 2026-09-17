@@ -39,6 +39,31 @@ def test_stale_leader_edit_query_override_is_ignored(
     assert "ace.keymaps.app.edit_query" in caplog.text
 
 
+def test_stale_leader_panel_grouping_override_is_ignored(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {
+                "keymaps": {
+                    "modes": {
+                        "leader_mode": {
+                            "keys": {
+                                "toggle_agent_panel_grouping": "g",
+                                "collapse_fold_by_hint": "C",
+                            }
+                        }
+                    },
+                }
+            }
+        )
+
+    assert "toggle_agent_panel_grouping" not in reg.leader_mode.keys
+    assert reg.leader_mode.keys["collapse_fold_by_hint"] == "C"
+    assert "stale leader_mode.keys.toggle_agent_panel_grouping" in caplog.text
+    assert "choose_agent_grouping" in caplog.text
+
+
 def test_app_query_and_help_overrides_are_honored_while_leader_help_is_retired(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

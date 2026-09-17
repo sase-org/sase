@@ -26,16 +26,13 @@ def test_footer_surfaces_agent_run_log_only_on_cls_tab() -> None:
         assert "agent run log" not in _last_labels(captured)
 
 
-def test_footer_surfaces_panel_grouping_only_on_agents_tab() -> None:
+def test_footer_omits_retired_panel_grouping_on_all_tabs() -> None:
     footer = KeybindingFooter()
     captured = _capture_bindings(footer)
 
-    footer.update_leader_bindings(current_tab="agents")
-    assert "g" in _last_keys(captured)
-    assert "group panels" in _last_labels(captured)
-
-    footer.update_leader_bindings(current_tab="patches")
-    assert "group panels" not in _last_labels(captured)
+    for tab in ("patches", "agents", "axe"):
+        footer.update_leader_bindings(current_tab=tab)
+        assert "group panels" not in _last_labels(captured)
 
 
 def test_footer_surfaces_collapse_by_hint_only_on_agents_tab() -> None:

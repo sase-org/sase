@@ -4623,6 +4623,14 @@ AgentGroupingModal .agent-grouping-row {
     padding: 0 1;
 }
 
+AgentGroupingModal .agent-grouping-section-heading {
+    height: 1;
+    color: $text-muted;
+    margin-top: 1;
+    padding: 0 1;
+    text-style: bold;
+}
+
 AgentGroupingModal .agent-grouping-row.focused {
     background: $primary 20%;
     border-left: thick $primary;
