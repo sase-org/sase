@@ -264,3 +264,28 @@ def test_config_schema_rejects_non_boolean_honor_usage_windows() -> None:
         Draft7Validator(schema()).validate(
             {"llm_provider": {"usage_limit": {"honor_usage_windows": "yes"}}}
         )
+
+
+def test_config_schema_accepts_service_procs_and_ace_procs_default_query() -> None:
+    validator = Draft7Validator(schema())
+
+    validator.validate(
+        {
+            "service": {"procs": {"tunnel": {"command": "autossh -M 0 -N box"}}},
+            "ace": {"procs": {"default_query": "-service"}},
+        }
+    )
+
+
+def test_config_schema_rejects_service_proc_oneshot_mode_and_unknown_fields() -> None:
+    validator = Draft7Validator(schema())
+
+    with pytest.raises(ValidationError):
+        validator.validate(
+            {"service": {"procs": {"tunnel": {"command": "x", "mode": "oneshot"}}}}
+        )
+
+    with pytest.raises(ValidationError):
+        validator.validate(
+            {"service": {"procs": {"tunnel": {"command": "x", "bogus": True}}}}
+        )

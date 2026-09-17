@@ -100,6 +100,21 @@ procs:
   runtime_orphan_horizon_seconds: 259200
   runtime_orphan_max_removals: 2000
 
+# Machine-level service procs the `sase service` host starts, restarts, and
+# stops. Project-local sase.yml entries are ignored. Nothing runs until the
+# host (sase-11y.4) exists; this only registers the builtin entries.
+service:
+  procs:
+    scheduler:
+      builtin: scheduler
+      description: "SASE's background automation: routines and their jobs."
+    gateway:
+      builtin: gateway
+      description: "Mobile gateway HTTP API for remote agent dispatch."
+      # A default-on loopback HTTP API on machines that never pair a phone is
+      # wrong; machine overlays enable this where the gateway is wanted.
+      enabled: false
+
 disk:
   pressure:
     # Proportional free-space thresholds layered on top of the absolute doctor
@@ -268,6 +283,10 @@ ace:
       # explicit limit: (including limit:all) is left alone. A user-deleted
       # token stays uncapped.
       default_query: "sidecar:false merges:hide since:24h"
+  procs:
+    # Seeds the Procs filter bar when sase's TUI starts, only when no
+    # committed query is persisted; a user-cleared query stays cleared.
+    default_query: "-service"
   current_project:
     # Show the +<project> chip in the top bar. The current project is derived
     # from the VCS xprompt MRU store; launching an agent is what moves it.

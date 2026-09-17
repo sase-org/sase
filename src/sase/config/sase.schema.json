@@ -1279,6 +1279,93 @@
           "description": "Opaque server-name reference for pinned_server_name mode."
         }
       }
+    },
+    "serviceProc": {
+      "type": "object",
+      "description": "One `service.procs` entry. Every layer that declares a field replaces the prior value whole, including lists; only `env` merges key by key. Plugin-declared and `gateway` entries default to `enabled: false`.",
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable summary shown in the Services tab and `sase service proc show`."
+        },
+        "enabled": {
+          "type": "boolean",
+          "description": "Whether the service host starts this proc. Defaults to true, except plugin-declared entries (including the builtin `gateway` entry), which default to false."
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["daemon"],
+          "default": "daemon",
+          "description": "Only `daemon` is configurable here; `oneshot` service procs are transient-only and created with `sase service proc run`."
+        },
+        "command": {
+          "description": "Launch command: a non-empty string run through `sh -c`, or a non-empty list of non-empty strings run as argv directly. Exactly one of `command` or `builtin` is required.",
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          ]
+        },
+        "builtin": {
+          "type": "string",
+          "enum": ["gateway", "scheduler"],
+          "description": "A reserved builtin launcher; must equal the entry's own name. Exactly one of `command` or `builtin` is required."
+        },
+        "cwd": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Working directory the proc is launched from."
+        },
+        "env": {
+          "type": "object",
+          "description": "Extra environment variables. Values may reference other captured environment variables with `${NAME}`; `$$` is a literal `$`. Expansion happens at launch.",
+          "propertyNames": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": { "type": "string" }
+        },
+        "restart": {
+          "type": "string",
+          "enum": ["always", "on-failure", "never"],
+          "default": "on-failure",
+          "description": "Restart policy, matching systemd's `Restart=` semantics."
+        },
+        "success_exit_codes": {
+          "type": "array",
+          "description": "Additional exit codes treated as a clean exit, like systemd's `SuccessExitStatus=`. Exit code 0 is always clean.",
+          "items": { "type": "integer", "minimum": 0, "maximum": 255 },
+          "default": []
+        },
+        "stop_signal": {
+          "type": "string",
+          "pattern": "^(SIG)?(HUP|INT|QUIT|KILL|USR1|USR2|TERM)$",
+          "default": "SIGTERM",
+          "description": "Signal sent to request a clean stop, with or without the `SIG` prefix."
+        },
+        "stop_timeout": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 3600,
+          "default": 10,
+          "description": "Seconds to wait after `stop_signal` before escalating to SIGKILL."
+        },
+        "after": {
+          "type": "array",
+          "description": "Names of other service procs this one starts after. Ordering only; an unknown name warns and is dropped, and a dependency cycle marks every entry on it unavailable.",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "log_max_bytes": {
+          "type": "integer",
+          "minimum": 4096,
+          "default": 2097152,
+          "description": "Maximum bytes kept in this proc's rotated output log."
+        }
+      }
     }
   },
   "properties": {
@@ -1457,6 +1544,18 @@
                   "default": "sidecar:false merges:hide since:24h"
                 }
               }
+            }
+          }
+        },
+        "procs": {
+          "type": "object",
+          "description": "Settings for sase's TUI Procs pane.",
+          "additionalProperties": false,
+          "properties": {
+            "default_query": {
+              "type": "string",
+              "description": "Query that seeds the Procs filter bar when sase's TUI starts, only when no committed query is persisted; a user-cleared query stays cleared.",
+              "default": "-service"
             }
           }
         },
@@ -4322,6 +4421,18 @@
           "minimum": 1,
           "default": 2000,
           "description": "Maximum historical rowless proc runtime directories removed in one owner pass."
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Machine-level service procs the sase service host starts, restarts, and stops. Project-local sase.yml entries are ignored; the host resolves defaults, plugin, user, and machine-overlay layers only.",
+      "properties": {
+        "procs": {
+          "type": "object",
+          "description": "Named service proc definitions, keyed by service proc name.",
+          "additionalProperties": { "$ref": "#/definitions/serviceProc" }
         }
       }
     },
