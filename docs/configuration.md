@@ -5016,6 +5016,7 @@ detached `sase_ace_agents` session unless `--window` names an existing tmux targ
 | ----------------- | ----------- | ------------------- | ------------------------------------------------------------------------- |
 | `-- TUI_ARGS`     | strings     | -                   | Arguments forwarded to `sase tui` after a `--` separator.                 |
 | `-d, --settle-ms` | int (ms)    | `0`                 | Extra delay before capture.                                               |
+| `-H, --host`      | alias / SSH | local machine       | Run the SVG capture on a remote machine, then rasterize locally.          |
 | `-k, --keep`      | flag        | -                   | Leave a newly launched tmux window running after capture.                 |
 | `-o, --output`    | path        | managed temp path   | PNG output path, or SVG output path when `--svg` is used.                 |
 | `-p, --press`     | tmux key    | -                   | Send one tmux key before capture. Repeat for multiple keys.               |

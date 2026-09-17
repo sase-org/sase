@@ -167,7 +167,11 @@ def capture_local_screenshot(
             last_capture=last_capture,
         )
         output_svg = _copy_svg_if_requested(svg_path, options)
-        png_path = None if options.svg_only else _render_png(svg_path, options.output)
+        png_path = (
+            None
+            if options.svg_only
+            else render_png_from_svg_file(svg_path, options.output)
+        )
         return _ScreenshotResult(
             svg=output_svg,
             png=png_path,
@@ -424,7 +428,8 @@ def _copy_svg_if_requested(svg_path: Path, options: ScreenshotOptions) -> Path:
     return output
 
 
-def _render_png(svg_path: Path, output: Path | None) -> Path:
+def render_png_from_svg_file(svg_path: Path, output: Path | None) -> Path:
+    """Rasterize one SVG file into a PNG output path."""
     from sase.ace.tui.visual_render import render_svg_to_png
 
     png_path = _output_path(output, suffix=".png")
@@ -537,4 +542,5 @@ __all__ = [
     "ScreenshotCaptureError",
     "ScreenshotOptions",
     "capture_local_screenshot",
+    "render_png_from_svg_file",
 ]

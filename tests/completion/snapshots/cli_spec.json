@@ -22995,7 +22995,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "ae58d7777233f2a2",
+        "description_digest": "f4df981fff4d6a6d",
         "hidden": false,
         "mutex_groups": [],
         "name": "screenshot",
@@ -23022,6 +23022,18 @@
               "--contract"
             ],
             "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "host",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-H",
+              "--host"
+            ],
+            "takes_value": true
           },
           {
             "choices": null,

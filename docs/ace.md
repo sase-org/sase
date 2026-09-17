@@ -69,6 +69,7 @@ suite.
 ```bash
 sase screenshot -o /tmp/sase.png
 sase screenshot -p j -p j -w 'Ready' -o /tmp/sase.png
+sase screenshot --host apollo -o /tmp/sase-remote.png
 sase screenshot --keep -- -t axe
 sase screenshot --window sase_ace_agents:sase_tmux_1 -o /tmp/sase-again.png
 ```
@@ -78,6 +79,14 @@ drive it manually with `tmux send-keys`, and recapture it later with `--window`.
 command pins TUI animations off and uses truecolor terminal defaults, but it still shows
 live machine state and timestamps by design. If capture times out, the error includes
 the final `tmux capture-pane` text so you can see what the TUI was showing.
+
+Pass `--host` to run the live TUI and SVG export on an enrolled machine alias or any raw
+SSH destination, then fetch the SVG and rasterize it locally. Enrollment only supplies a
+convenient `ssh_target`; SSH itself is full shell access and uses your normal SSH trust
+boundary, not gateway-scoped credentials. Remote screenshots show that machine's
+installed `sase` and state, not your local working tree; check the printed
+`remote_sase_version=` line when comparing results. A remote host needs `sase`, `tmux`,
+and SSH access, but it does not need the local visual rasterizer dependencies.
 
 ### Clipboard Transports
 

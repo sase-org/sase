@@ -6,8 +6,7 @@ import socket
 from dataclasses import dataclass
 
 from sase.config import core as config_core
-from sase.dispatch.config import load_dispatch_config
-from sase.dispatch.models import validate_ssh_target
+from sase.dispatch.ssh_target import resolve_remote_ssh_target
 from sase.notification_gates.models import GateError
 
 
@@ -35,22 +34,20 @@ def resolve_sudo_target(machine: str | None) -> SudoExecutionTarget:
     """Resolve a request machine value to the SSH host that will authenticate."""
     if machine is None:
         return SudoExecutionTarget(host=_local_sudo_host())
-    config = load_dispatch_config()
-    record = config.machine_by_alias().get(machine)
-    if record is not None:
+    try:
+        target = resolve_remote_ssh_target(machine)
+    except ValueError as exc:
+        raise GateError("invalid_ssh_target", "machine", str(exc)) from exc
+    if target.enrolled:
         return SudoExecutionTarget(
-            host=record.effective_ssh_target,
+            host=target.host,
             requested_machine=machine,
-            enrolled_alias=record.alias,
+            enrolled_alias=target.enrolled_alias,
             enrolled=True,
             remote=True,
         )
-    try:
-        validate_ssh_target(machine)
-    except ValueError as exc:
-        raise GateError("invalid_ssh_target", "machine", str(exc)) from exc
     return SudoExecutionTarget(
-        host=machine,
+        host=target.host,
         requested_machine=machine,
         remote=True,
     )

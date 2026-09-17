@@ -61,6 +61,7 @@ def register_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
             "Examples:\n"
             "  sase screenshot -o /tmp/shot.png\n"
             "  sase screenshot -p j -p j -w Ready -o /tmp/shot.png\n"
+            "  sase screenshot --host apollo -o /tmp/remote.png\n"
             "  sase screenshot --keep -- -t axe\n"
             "  sase screenshot --window sase_ace_agents:sase_tmux_1 -o /tmp/again.png"
         ),
@@ -70,6 +71,12 @@ def register_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
         "--contract",
         action="store_true",
         help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "-H",
+        "--host",
+        metavar="ALIAS_OR_SSH",
+        help="Run the SVG capture on an enrolled machine alias or raw SSH destination",
     )
     parser.add_argument(
         "-k",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from typing import Any
 
 from sase.screenshot.local import (
     SCREENSHOT_CONTRACT_SCHEMA_VERSION,
@@ -12,6 +13,7 @@ from sase.screenshot.local import (
     ScreenshotOptions,
     capture_local_screenshot,
 )
+from sase.screenshot.remote import capture_remote_screenshot
 
 
 def handle_screenshot_command(args: argparse.Namespace) -> None:
@@ -32,12 +34,19 @@ def handle_screenshot_command(args: argparse.Namespace) -> None:
         timeout=args.timeout,
         tui_args=tuple(args.tui_args or ()),
     )
+    result: Any
     try:
-        result = capture_local_screenshot(options)
+        if args.host:
+            result = capture_remote_screenshot(args.host, options)
+        else:
+            result = capture_local_screenshot(options)
     except ScreenshotCaptureError as exc:
         print(f"sase screenshot: {exc}", file=sys.stderr)
         sys.exit(2)
 
+    if args.host:
+        print(f"host={result.host}")
+        print(f"remote_sase_version={result.remote_sase_version}")
     if result.png is not None:
         print(f"png={result.png}")
     print(f"svg={result.svg}")
@@ -46,6 +55,8 @@ def handle_screenshot_command(args: argparse.Namespace) -> None:
     print(f"sase_tmux_target={result.tmux_target}")
     print(f"sase_tmux_pid={result.tmux_pid}")
     print(f"sase_screenshot_dir={result.screenshot_dir}")
+    if args.host and options.keep:
+        print(f"remote_send_keys_hint={result.send_keys_hint}")
 
 
 __all__ = ["handle_screenshot_command"]

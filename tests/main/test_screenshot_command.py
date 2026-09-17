@@ -2,19 +2,24 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+from collections.abc import Sequence
 import subprocess
 import sys
 from typing import Any
-from collections.abc import Sequence
 
 import pytest
 
 from sase.ace.tui.screenshot_export import screenshot_request_dir
+from sase.dispatch.ssh_target import RemoteSshTarget
 from sase.main import ace_tmux
+from sase.main import screenshot_handler
 from sase.main.screenshot_handler import handle_screenshot_command
 from sase.screenshot import local as screenshot_local
+from sase.screenshot import remote as screenshot_remote
 from sase.screenshot.local import ScreenshotOptions, capture_local_screenshot
+from sase.screenshot.remote import capture_remote_screenshot
 from tests.main.parser_cli_helpers import parse_sase_args
 
 
@@ -123,6 +128,91 @@ class _FakeRunner:
         )
 
 
+class _FakeSshRunner:
+    """Fake SSH runner for remote screenshot transport tests."""
+
+    def __init__(
+        self,
+        *,
+        probe_returncode: int = 0,
+        capture_returncode: int = 0,
+        fetch_returncode: int = 0,
+    ) -> None:
+        self.probe_returncode = probe_returncode
+        self.capture_returncode = capture_returncode
+        self.fetch_returncode = fetch_returncode
+        self.calls: list[list[str]] = []
+        self.remote_svg: str | None = None
+        self.cleanup_count = 0
+
+    def run(
+        self,
+        cmd: Sequence[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        del kwargs
+        argv = list(cmd)
+        self.calls.append(argv)
+        assert argv[:4] == ["ssh", "-o", "ConnectTimeout=5", "--"]
+        remote_argv = argv[5:]
+
+        if remote_argv == ["sase", "screenshot", "--contract"]:
+            return _completed(
+                argv,
+                returncode=self.probe_returncode,
+                stdout='{"schema_version": 1}\n',
+                stderr="sase: not found\n" if self.probe_returncode else "",
+            )
+        if remote_argv[:3] == ["sase", "screenshot", "--svg"]:
+            self.remote_svg = remote_argv[remote_argv.index("-o") + 1]
+            return _completed(
+                argv,
+                returncode=self.capture_returncode,
+                stdout=(
+                    f"svg={self.remote_svg}\n"
+                    "sase_tmux_window=sase_tmux_9\n"
+                    "sase_tmux_session=sase_ace_agents\n"
+                    "sase_tmux_target=sase_ace_agents:sase_tmux_9\n"
+                    "sase_tmux_pid=9090\n"
+                    "sase_screenshot_dir=/tmp/sase-requests\n"
+                ),
+                stderr="remote capture failed\n" if self.capture_returncode else "",
+            )
+        if remote_argv == ["cat", self.remote_svg]:
+            return _completed(
+                argv,
+                returncode=self.fetch_returncode,
+                stdout="<svg><text>Remote Ready</text></svg>",
+                stderr="missing svg\n" if self.fetch_returncode else "",
+            )
+        if remote_argv == ["sase", "--version"]:
+            return _completed(argv, stdout="sase 0.17.1\n")
+        if remote_argv[:2] == ["sh", "-c"]:
+            self.cleanup_count += 1
+            return _completed(argv)
+        raise AssertionError(f"unexpected remote command: {remote_argv!r}")
+
+
+@dataclass(frozen=True)
+class _FakeRemoteResult:
+    svg: Path
+    png: Path | None
+    host: str
+    remote_sase_version: str
+    screenshot_dir: str
+    tmux_session: str
+    tmux_window: str
+    tmux_pid: int
+
+    @property
+    def tmux_target(self) -> str:
+        return f"{self.tmux_session}:{self.tmux_window}"
+
+    @property
+    def send_keys_hint(self) -> str:
+        return f"ssh {self.host} tmux send-keys -t {self.tmux_target} '<KEY>'"
+
+
 def _options(
     *,
     output: Path,
@@ -163,6 +253,8 @@ def test_parser_accepts_local_screenshot_surface() -> None:
             "screenshot",
             "-d",
             "25",
+            "-H",
+            "apollo",
             "-k",
             "-o",
             "/tmp/shot.png",
@@ -179,6 +271,7 @@ def test_parser_accepts_local_screenshot_surface() -> None:
     )
 
     assert args.command == "screenshot"
+    assert args.host == "apollo"
     assert args.keep is True
     assert args.output == Path("/tmp/shot.png")
     assert args.press == ["j"]
@@ -308,3 +401,128 @@ def test_existing_window_svg_capture_does_not_kill_or_rasterize(
     assert result.created_window is False
     assert not any(call[:2] == ["tmux", "new-window"] for call in runner.calls)
     assert not any(call[:2] == ["tmux", "kill-window"] for call in runner.calls)
+
+
+def test_remote_capture_runs_svg_leg_over_ssh_and_rasterizes_locally(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _FakeSshRunner()
+    output = tmp_path / "remote.png"
+    monkeypatch.setattr(
+        screenshot_remote,
+        "resolve_remote_ssh_target",
+        lambda host: RemoteSshTarget(
+            host="apollo.tailnet",
+            requested_machine=host,
+            enrolled_alias=host,
+            enrolled=True,
+        ),
+    )
+
+    from sase.ace.tui import visual_render
+
+    monkeypatch.setattr(visual_render, "render_svg_to_png", lambda svg: b"PNG")
+
+    result = capture_remote_screenshot(
+        "apollo",
+        _options(output=output),
+        runner=runner,
+    )
+
+    assert output.read_bytes() == b"PNG"
+    assert result.host == "apollo.tailnet"
+    assert result.remote_sase_version == "sase 0.17.1"
+    assert result.svg.read_text(encoding="utf-8") == (
+        "<svg><text>Remote Ready</text></svg>"
+    )
+    assert result.tmux_target == "sase_ace_agents:sase_tmux_9"
+    assert runner.cleanup_count == 1
+
+    remote_capture = next(
+        call for call in runner.calls if call[5:8] == ["sase", "screenshot", "--svg"]
+    )
+    remote_argv = remote_capture[5:]
+    assert "--host" not in remote_argv
+    assert remote_argv[:4] == ["sase", "screenshot", "--svg", "-o"]
+    assert "-s" in remote_argv
+    assert remote_argv[remote_argv.index("-s") + 1] == "80x24"
+    assert "-d" in remote_argv
+    assert remote_argv[remote_argv.index("-d") + 1] == "1"
+    assert remote_argv.count("-p") == 2
+    assert remote_argv[remote_argv.index("-w") + 1] == "Ready"
+    assert remote_argv[-3:] == ["--", "-t", "axe"]
+
+
+def test_remote_capture_contract_failure_asks_for_upgrade(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _FakeSshRunner(probe_returncode=127)
+    monkeypatch.setattr(
+        screenshot_remote,
+        "resolve_remote_ssh_target",
+        lambda host: RemoteSshTarget(host=host, requested_machine=host),
+    )
+
+    with pytest.raises(screenshot_local.ScreenshotCaptureError) as excinfo:
+        capture_remote_screenshot(
+            "bad-host", _options(output=tmp_path / "shot.png"), runner=runner
+        )
+
+    assert "missing or too old" in str(excinfo.value)
+    assert runner.cleanup_count == 0
+
+
+def test_remote_capture_cleans_remote_temp_file_after_capture_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _FakeSshRunner(capture_returncode=2)
+    monkeypatch.setattr(
+        screenshot_remote,
+        "resolve_remote_ssh_target",
+        lambda host: RemoteSshTarget(host=host, requested_machine=host),
+    )
+
+    with pytest.raises(screenshot_local.ScreenshotCaptureError) as excinfo:
+        capture_remote_screenshot(
+            "bad-host", _options(output=tmp_path / "shot.png"), runner=runner
+        )
+
+    assert "remote screenshot capture" in str(excinfo.value)
+    assert runner.cleanup_count == 1
+
+
+def test_remote_handler_prints_version_and_keep_hint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    result = _FakeRemoteResult(
+        svg=tmp_path / "shot.svg",
+        png=tmp_path / "shot.png",
+        host="apollo.tailnet",
+        remote_sase_version="sase 0.17.1",
+        screenshot_dir="/tmp/sase-requests",
+        tmux_session="sase_ace_agents",
+        tmux_window="sase_tmux_9",
+        tmux_pid=9090,
+    )
+    monkeypatch.setattr(
+        screenshot_handler,
+        "capture_remote_screenshot",
+        lambda host, options: result,
+    )
+    args = parse_sase_args(
+        ["screenshot", "--host", "apollo", "--keep", "-o", str(tmp_path / "shot.png")]
+    )
+
+    handle_screenshot_command(args)
+
+    out = capsys.readouterr().out
+    assert "host=apollo.tailnet\n" in out
+    assert "remote_sase_version=sase 0.17.1\n" in out
+    assert "png=" in out
+    assert "svg=" in out
+    assert "remote_send_keys_hint=ssh apollo.tailnet tmux send-keys" in out
