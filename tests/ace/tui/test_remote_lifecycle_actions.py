@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -391,10 +392,17 @@ async def test_attention_inventory_poll_marks_notifications_dirty_on_change(
     from sase.ace.tui.actions.agents import _remote_attention as remote_attention
 
     harness = _AttentionHarness(_remote_agent())
+    cache_only_values: list[bool | None] = []
+
+    def _fetch_inventory(**kwargs: object) -> dict[str, object]:
+        cache_only = kwargs.get("cache_only")
+        cache_only_values.append(cache_only if isinstance(cache_only, bool) else None)
+        return {"schema_version": 1, "hosts": []}
+
     monkeypatch.setattr(
         remote_attention,
         "fetch_remote_attention_inventory",
-        lambda **_kwargs: {"schema_version": 1, "hosts": []},
+        _fetch_inventory,
     )
     monkeypatch.setattr(
         remote_attention,
@@ -402,8 +410,93 @@ async def test_attention_inventory_poll_marks_notifications_dirty_on_change(
         lambda _response: SimpleNamespace(changed=True),
     )
 
-    changed = await harness._poll_fleet_attention_inventory(source="auto_refresh")
+    result = await harness._poll_fleet_attention_inventory(source="auto_refresh")
 
-    assert changed is True
+    assert result.changed is True
+    assert bool(result) is True
+    assert result.network_polls == 1
+    assert result.cache_polls == 0
+    assert cache_only_values == [False]
     assert harness._dirty_notifications is True
     assert harness.notification_snapshot_refreshes == 1
+
+
+@pytest.mark.asyncio
+async def test_attention_inventory_poll_can_read_cache_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.agents import _remote_attention as remote_attention
+
+    harness = _AttentionHarness(_remote_agent())
+    cache_only_values: list[bool | None] = []
+
+    def _fetch_inventory(**kwargs: object) -> dict[str, object]:
+        cache_only = kwargs.get("cache_only")
+        cache_only_values.append(cache_only if isinstance(cache_only, bool) else None)
+        return {"schema_version": 1, "hosts": []}
+
+    monkeypatch.setattr(
+        remote_attention,
+        "fetch_remote_attention_inventory",
+        _fetch_inventory,
+    )
+    monkeypatch.setattr(
+        remote_attention,
+        "reconcile_remote_attention_inbox",
+        lambda _response: SimpleNamespace(changed=False),
+    )
+
+    result = await harness._poll_fleet_attention_inventory(
+        source="auto_refresh",
+        cache_only=True,
+    )
+
+    assert result.changed is False
+    assert result.cache_polls == 1
+    assert result.network_polls == 0
+    assert cache_only_values == [True]
+
+
+def test_attention_inventory_network_due_respects_cadence() -> None:
+    harness = _AttentionHarness(_remote_agent())
+    harness._fleet_attention_inventory_last_network_mono = 100.0
+    harness._fleet_attention_inventory_network_refresh_seconds = 60.0
+
+    assert harness._fleet_attention_inventory_network_due(now_mono=159.9) is False
+    assert harness._fleet_attention_inventory_network_due(now_mono=160.0) is True
+
+
+@pytest.mark.asyncio
+async def test_attention_inventory_network_schedule_runs_pump_free(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.agents import _remote_attention as remote_attention
+
+    harness = _AttentionHarness(_remote_agent())
+    cache_only_values: list[bool | None] = []
+
+    def _fetch_inventory(**kwargs: object) -> dict[str, object]:
+        cache_only = kwargs.get("cache_only")
+        cache_only_values.append(cache_only if isinstance(cache_only, bool) else None)
+        return {"schema_version": 1, "hosts": []}
+
+    monkeypatch.setattr(
+        remote_attention,
+        "fetch_remote_attention_inventory",
+        _fetch_inventory,
+    )
+    monkeypatch.setattr(
+        remote_attention,
+        "reconcile_remote_attention_inbox",
+        lambda _response: SimpleNamespace(changed=False),
+    )
+
+    assert (
+        harness._schedule_fleet_attention_inventory_network_refresh(
+            source="auto_refresh"
+        )
+        is True
+    )
+    await asyncio.gather(*tuple(harness._agents_fleet_async_tasks))
+
+    assert cache_only_values == [False]

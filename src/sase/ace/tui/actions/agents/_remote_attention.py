@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from sase.dispatch.attention_inbox import (
@@ -26,10 +28,27 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+FLEET_ATTENTION_INVENTORY_NETWORK_REFRESH_SECONDS = 60.0
+
 _ATTENTION_CAPABILITY_BY_KIND = {
     "question": "attention.answer_question",
     "gate": "attention.approve_gate",
 }
+
+
+@dataclass(frozen=True)
+class _FleetAttentionInventoryPollResult:
+    """Trace-friendly summary of one remote attention inventory poll."""
+
+    changed: bool = False
+    polls: int = 0
+    cache_polls: int = 0
+    network_polls: int = 0
+    skipped: bool = False
+    error: bool = False
+
+    def __bool__(self) -> bool:
+        return self.changed
 
 
 def has_pending_remote_attention(agent: Agent | None) -> bool:
@@ -54,7 +73,59 @@ def handle_remote_attention_notification(app: Any, notification: Any) -> bool:
 class RemoteAttentionMixin:
     """Toast dedupe for pending remote attention and the answer/approve action."""
 
-    async def _poll_fleet_attention_inventory(self, *, source: str) -> bool:
+    def _fleet_attention_inventory_network_due(
+        self,
+        *,
+        now_mono: float | None = None,
+    ) -> bool:
+        """Return whether the slower network inventory recompute is due."""
+        now = time.monotonic() if now_mono is None else now_mono
+        interval = getattr(
+            self,
+            "_fleet_attention_inventory_network_refresh_seconds",
+            FLEET_ATTENTION_INVENTORY_NETWORK_REFRESH_SECONDS,
+        )
+        try:
+            interval_seconds = float(interval)
+        except (TypeError, ValueError):
+            interval_seconds = FLEET_ATTENTION_INVENTORY_NETWORK_REFRESH_SECONDS
+        if interval_seconds <= 0:
+            interval_seconds = FLEET_ATTENTION_INVENTORY_NETWORK_REFRESH_SECONDS
+        last = getattr(self, "_fleet_attention_inventory_last_network_mono", 0.0)
+        try:
+            last_mono = float(last)
+        except (TypeError, ValueError):
+            last_mono = 0.0
+        return now - last_mono >= interval_seconds
+
+    def _schedule_fleet_attention_inventory_network_refresh(
+        self,
+        *,
+        source: str,
+    ) -> bool:
+        """Launch a non-cache inventory recompute outside the auto-refresh tick."""
+        if not self._fleet_attention_inventory_network_due():
+            return False
+        if getattr(self, "_fleet_attention_inventory_refresh_running", False):
+            self._fleet_attention_inventory_refresh_pending = True  # type: ignore[attr-defined]
+            return False
+        task = spawn_pump_free_task(
+            self,
+            self._poll_fleet_attention_inventory(
+                source=source,
+                cache_only=False,
+            ),
+            name="sase-agents-fleet-attention-inventory",
+            registry_attr="_agents_fleet_async_tasks",
+        )
+        return task is not None
+
+    async def _poll_fleet_attention_inventory(
+        self,
+        *,
+        source: str,
+        cache_only: bool = False,
+    ) -> _FleetAttentionInventoryPollResult:
         """Reconcile global remote attention into the durable inbox.
 
         This is intentionally independent of the Agents tab's visible row
@@ -65,22 +136,39 @@ class RemoteAttentionMixin:
         del source
         if getattr(self, "_fleet_attention_inventory_refresh_running", False):
             self._fleet_attention_inventory_refresh_pending = True  # type: ignore[attr-defined]
-            return False
+            return _FleetAttentionInventoryPollResult(
+                skipped=True,
+                cache_polls=1 if cache_only else 0,
+                network_polls=0 if cache_only else 1,
+            )
         self._fleet_attention_inventory_refresh_running = True  # type: ignore[attr-defined]
         saw_change = False
+        polls = 0
+        cache_polls = 0
+        network_polls = 0
+        saw_error = False
         try:
             while True:
                 self._fleet_attention_inventory_refresh_pending = False  # type: ignore[attr-defined]
+                polls += 1
+                if cache_only:
+                    cache_polls += 1
+                else:
+                    network_polls += 1
+                    self._fleet_attention_inventory_last_network_mono = (  # type: ignore[attr-defined]
+                        time.monotonic()
+                    )
                 try:
                     response = await asyncio.to_thread(
                         fetch_remote_attention_inventory,
-                        cache_only=False,
+                        cache_only=cache_only,
                     )
                     outcome = await asyncio.to_thread(
                         reconcile_remote_attention_inbox,
                         response,
                     )
                 except Exception as exc:
+                    saw_error = True
                     self._fleet_attention_inventory_last_error = str(exc)  # type: ignore[attr-defined]
                     log.debug("remote attention inventory poll failed", exc_info=True)
                     break
@@ -99,7 +187,13 @@ class RemoteAttentionMixin:
                     break
         finally:
             self._fleet_attention_inventory_refresh_running = False  # type: ignore[attr-defined]
-        return saw_change
+        return _FleetAttentionInventoryPollResult(
+            changed=saw_change,
+            polls=polls,
+            cache_polls=cache_polls,
+            network_polls=network_polls,
+            error=saw_error,
+        )
 
     def _announce_remote_attention(self, projection: FleetRowsProjection) -> None:
         pending = _pending_attention_rows(projection)

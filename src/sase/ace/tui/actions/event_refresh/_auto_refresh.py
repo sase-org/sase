@@ -162,18 +162,36 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         """Refresh dirty surfaces; always called from a pump-free task."""
         reloaded: list[str] = []
         axe_file_opens = 0
+        attention_counters: dict[str, Any] = {
+            "fleet_attention_cache_polls": 0,
+            "fleet_attention_network_polls": 0,
+            "fleet_attention_network_due": 0,
+            "fleet_attention_network_scheduled": 0,
+            "fleet_attention_skipped": 0,
+            "fleet_attention_changed": 0,
+            "fleet_attention_errors": 0,
+        }
         with tui_trace("refresh.auto_tick") as extra:
             try:
-                axe_file_opens = await self._run_auto_refresh_surfaces(reloaded)
+                axe_file_opens = await self._run_auto_refresh_surfaces(
+                    reloaded,
+                    attention_counters=attention_counters,
+                )
             finally:
                 extra["surfaces_reloaded"] = len(reloaded)
                 extra["surfaces"] = ",".join(reloaded)
                 extra["axe_file_opens"] = axe_file_opens
+                extra.update(attention_counters)
                 refreshed_at = time.monotonic()
                 for surface in reloaded:
                     note_surface_refreshed(self, surface, now=refreshed_at)
 
-    async def _run_auto_refresh_surfaces(self, reloaded: list[str]) -> int:
+    async def _run_auto_refresh_surfaces(
+        self,
+        reloaded: list[str],
+        *,
+        attention_counters: dict[str, Any] | None = None,
+    ) -> int:
         """Run one auto-refresh pass, appending reloaded surface names."""
         axe_file_opens = 0
         watcher_active = self._watcher_active()
@@ -189,6 +207,36 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         current_tokens: SurfaceTokenSnapshot | None = None
         if tokens_enabled:
             current_tokens = await asyncio.to_thread(self._probe_surface_tokens)
+
+        attention_network_scheduled = False
+        attention_network_due = getattr(
+            self,
+            "_fleet_attention_inventory_network_due",
+            None,
+        )
+        schedule_attention_network = getattr(
+            self,
+            "_schedule_fleet_attention_inventory_network_refresh",
+            None,
+        )
+        if callable(attention_network_due) and callable(schedule_attention_network):
+            due = bool(attention_network_due())
+            if attention_counters is not None:
+                attention_counters["fleet_attention_network_due"] = int(due)
+            if due:
+                attention_network_scheduled = bool(
+                    schedule_attention_network(source="auto_refresh")
+                )
+                if attention_counters is not None:
+                    attention_counters["fleet_attention_network_scheduled"] = int(
+                        attention_network_scheduled
+                    )
+                    if not attention_network_scheduled and getattr(
+                        self,
+                        "_fleet_attention_inventory_refresh_running",
+                        False,
+                    ):
+                        attention_counters["fleet_attention_skipped"] += 1
 
         def _should_refresh(flag_name: str, surface: str) -> bool:
             if sanity_due:
@@ -295,10 +343,41 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         poll_attention_inventory = getattr(
             self, "_poll_fleet_attention_inventory", None
         )
-        if callable(poll_attention_inventory):
-            remote_attention_changed = bool(
-                await poll_attention_inventory(source="auto_refresh")
-            )
+        if (
+            callable(poll_attention_inventory)
+            and not attention_network_scheduled
+            and not getattr(self, "_fleet_attention_inventory_refresh_running", False)
+        ):
+            attention_kwargs: dict[str, Any] = {"source": "auto_refresh"}
+            cache_poll_requested = False
+            if callable_accepts_kwarg(poll_attention_inventory, "cache_only"):
+                attention_kwargs["cache_only"] = True
+                cache_poll_requested = True
+            result = await poll_attention_inventory(**attention_kwargs)
+            remote_attention_changed = bool(result)
+            if attention_counters is not None:
+                cache_polls = getattr(result, "cache_polls", None)
+                network_polls = getattr(result, "network_polls", None)
+                skipped = getattr(result, "skipped", None)
+                error = getattr(result, "error", None)
+                if isinstance(cache_polls, int) and not isinstance(cache_polls, bool):
+                    attention_counters["fleet_attention_cache_polls"] += cache_polls
+                elif cache_poll_requested:
+                    attention_counters["fleet_attention_cache_polls"] += 1
+                if isinstance(network_polls, int) and not isinstance(
+                    network_polls, bool
+                ):
+                    attention_counters["fleet_attention_network_polls"] += network_polls
+                elif not cache_poll_requested:
+                    attention_counters["fleet_attention_network_polls"] += 1
+                if skipped:
+                    attention_counters["fleet_attention_skipped"] += 1
+                if error:
+                    attention_counters["fleet_attention_errors"] += 1
+                if remote_attention_changed:
+                    attention_counters["fleet_attention_changed"] += 1
+        elif callable(poll_attention_inventory) and attention_counters is not None:
+            attention_counters["fleet_attention_skipped"] += 1
         if remote_attention_changed or _should_refresh(
             "_dirty_notifications", "notifications"
         ):

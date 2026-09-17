@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from textual.timer import Timer
 from textual.worker import Worker
 
+from .agents._remote_attention import FLEET_ATTENTION_INVENTORY_NETWORK_REFRESH_SECONDS
 from ..models.agent_runner_slots import RunnerCapacitySnapshot
 from ..models.fold_state import FoldStateManager, SectionFoldStateManager
 
@@ -57,6 +58,10 @@ def init_agent_state(self: Any) -> None:
     self._fleet_attention_inventory_refresh_running = False
     self._fleet_attention_inventory_refresh_pending = False
     self._fleet_attention_inventory_last_error = None
+    self._fleet_attention_inventory_last_network_mono = 0.0
+    self._fleet_attention_inventory_network_refresh_seconds = (
+        FLEET_ATTENTION_INVENTORY_NETWORK_REFRESH_SECONDS
+    )
     self._agent_runner_capacity = RunnerCapacitySnapshot()
     self._agents_loading = False
     self._agents_refresh_pending = False

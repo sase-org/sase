@@ -202,8 +202,10 @@ async def test_remote_attention_inventory_change_polls_notifications_off_tab() -
     """Global remote decisions update the badge without entering Agents."""
     app = _FakeApp(watcher_active=True)
     app.current_tab = "artifacts"
+    cache_only_values: list[bool] = []
 
-    async def poll_attention_inventory(*, source: str) -> bool:
+    async def poll_attention_inventory(*, source: str, cache_only: bool) -> bool:
+        cache_only_values.append(cache_only)
         app.refresh_calls.append(f"attention:{source}")
         return True
 
@@ -212,6 +214,7 @@ async def test_remote_attention_inventory_change_polls_notifications_off_tab() -
     await app._run_auto_refresh()
 
     assert app.refresh_calls == ["attention:auto_refresh", "notifications"]
+    assert cache_only_values == [True]
     assert app._dirty_notifications is False
 
 
@@ -520,6 +523,9 @@ async def test_auto_refresh_tick_emits_surface_reload_trace(
     assert ticks[0]["surfaces_reloaded"] == 1
     assert ticks[0]["surfaces"] == "axe"
     assert ticks[0]["axe_file_opens"] == 0
+    assert ticks[0]["fleet_attention_cache_polls"] == 0
+    assert ticks[0]["fleet_attention_network_polls"] == 0
+    assert ticks[0]["fleet_attention_changed"] == 0
 
 
 @pytest.mark.asyncio
