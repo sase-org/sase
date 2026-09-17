@@ -12,7 +12,11 @@ from sase.agents_sync.inventory import (
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import ProjectTarget
 from sase.agents_sync.publication_planning import plan_hoods
-from sase.agents_sync.v2_io import apply_payload_atomic
+from sase.agents_sync.v2_io import (
+    MAX_PAYLOAD_BYTES,
+    apply_payload_atomic,
+    apply_payload_batched_atomic,
+)
 from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
@@ -78,6 +82,7 @@ def reconcile_agent_hoods(
     identity: AgentIdentitySnapshot | None = None,
     inventory: ProjectHoodInventory | None = None,
     git_runner: GitRunner = run_git,
+    batch_budget_bytes: int = MAX_PAYLOAD_BYTES,
 ) -> V2PublicationCounts:
     """Publish every locally owned hood with a primary-repository commit."""
 
@@ -92,6 +97,8 @@ def reconcile_agent_hoods(
         project_inventory,
         project_inventory.eligible_hoods(),
         owner,
+        batch_budget_bytes=batch_budget_bytes,
+        bounded_apply=True,
     )
 
 
@@ -101,6 +108,9 @@ def _publish_hoods(
     inventory: ProjectHoodInventory,
     hoods: tuple[str, ...],
     owner: AgentOwnerIdentity,
+    *,
+    batch_budget_bytes: int = MAX_PAYLOAD_BYTES,
+    bounded_apply: bool = False,
 ) -> V2PublicationCounts:
     payload, counts = plan_hoods(
         target,
@@ -109,7 +119,14 @@ def _publish_hoods(
         hoods,
         owner,
     )
-    apply_payload_atomic(repo_root, payload)
+    if bounded_apply:
+        apply_payload_batched_atomic(
+            repo_root,
+            payload,
+            batch_budget_bytes=batch_budget_bytes,
+        )
+    else:
+        apply_payload_atomic(repo_root, payload)
     return counts
 
 

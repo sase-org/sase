@@ -7,7 +7,11 @@ import pytest
 from sase.agents_sync.inventory import InventoryRun, ProjectHoodInventory
 from sase.agents_sync.io import AgentsSyncFormatError
 from sase.agents_sync.models import CommitRecord
-from sase.agents_sync.publication import publish_agent_hood, reconcile_agent_hoods
+from sase.agents_sync.publication import (
+    publish_agent_hood,
+    reconcile_agent_hoods,
+)
+from sase.agents_sync.v2_models import V2PublicationCounts
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from tests.agents_sync.publication_fixtures import _identity, _inventory, _target
 
@@ -31,6 +35,46 @@ def test_full_reconciliation_discovers_only_commit_eligible_hoods(
     assert (machine / "hoods" / "foo" / "snapshot.json").is_file()
     assert (machine / "hoods" / "work" / "snapshot.json").is_file()
     assert not (machine / "hoods" / "zap").exists()
+
+
+def test_full_reconciliation_uses_bounded_apply(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.agents_sync import publication
+
+    target = _target(tmp_path)
+    repo = target.sidecar_path
+    repo.mkdir()
+    calls: list[tuple[Path, int, tuple[str, ...]]] = []
+
+    def fake_apply(
+        repo_root: Path,
+        payload: dict[str, bytes],
+        *,
+        batch_budget_bytes: int,
+    ) -> bool:
+        calls.append((repo_root, batch_budget_bytes, tuple(sorted(payload))))
+        return True
+
+    monkeypatch.setattr(
+        publication,
+        "apply_payload_batched_atomic",
+        fake_apply,
+    )
+
+    counts: V2PublicationCounts = reconcile_agent_hoods(
+        target,
+        repo,
+        identity=_identity(),
+        inventory=_inventory(AgentOwnerIdentity("alice", "athena")),
+        batch_budget_bytes=128,
+    )
+
+    assert counts.hoods_published == 2
+    assert len(calls) == 1
+    assert calls[0][0] == repo
+    assert calls[0][1] == 128
+    assert "schema.json" in calls[0][2]
 
 
 def test_two_owner_manifests_coexist_and_indexes_converge(tmp_path: Path) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 import shutil
@@ -50,6 +51,17 @@ from sase.agents_sync.v2_validation import (
     validate_output_variables as validate_output_variables,
     validate_relative_path as validate_relative_path,
 )
+from sase.core.agent_publication_batches import (
+    AgentPublicationPathRecord,
+    plan_agent_publication_batches,
+)
+
+
+@dataclass(frozen=True)
+class _PayloadWrite:
+    relative: str
+    destination: Path
+    content: bytes
 
 
 def v2_json_bytes(value: object) -> bytes:
@@ -79,50 +91,173 @@ def v2_schema_document() -> dict[str, object]:
 def apply_payload_atomic(repo_root: Path, payload: Mapping[str, bytes]) -> bool:
     """Apply a complete prebuilt payload, restoring prior bytes on failure."""
 
-    root = repo_root.resolve(strict=False)
     ordered = sorted(payload.items())
     if sum(len(value) for _path, value in ordered) > MAX_PAYLOAD_BYTES:
         raise AgentsSyncFormatError("publication payload exceeds the byte limit")
-    resolved: list[tuple[str, Path, bytes]] = []
+    resolved = _resolve_payload(repo_root, ordered)
+    changed = _changed_payload(resolved)
+    if not changed:
+        return False
+    return _apply_changed_payload(
+        repo_root,
+        changed,
+        (tuple(item.relative for item in changed),),
+    )
+
+
+def apply_payload_batched_atomic(
+    repo_root: Path,
+    payload: Mapping[str, bytes],
+    *,
+    batch_budget_bytes: int = MAX_PAYLOAD_BYTES,
+) -> bool:
+    """Apply a full reconciliation payload in byte-bounded write batches."""
+
+    resolved = _resolve_payload(repo_root, sorted(payload.items()))
+    changed = _changed_payload(resolved)
+    if not changed:
+        return False
+    plan = plan_agent_publication_batches(
+        (
+            AgentPublicationPathRecord(item.relative, len(item.content))
+            for item in changed
+        ),
+        budget_bytes=batch_budget_bytes,
+    )
+    batches = tuple(batch.paths for batch in plan.batches)
+    if tuple(path for batch in batches for path in batch) != tuple(
+        item.relative for item in changed
+    ):
+        raise RuntimeError(
+            "sase_core_rs returned an invalid agent publication batch plan"
+        )
+    return _apply_changed_payload(
+        repo_root,
+        changed,
+        batches,
+    )
+
+
+def _resolve_payload(
+    repo_root: Path, ordered: list[tuple[str, bytes]]
+) -> list[_PayloadWrite]:
+    root = repo_root.resolve(strict=False)
+    resolved: list[_PayloadWrite] = []
     for relative, content in ordered:
         validate_relative_path(relative)
         destination = repo_root / relative
         if not destination.resolve(strict=False).is_relative_to(root):
             raise AgentsSyncFormatError(f"publication escapes repository: {relative!r}")
-        resolved.append((relative, destination, bytes(content)))
-    changed = [
-        item
-        for item in resolved
-        if not item[1].is_file() or item[1].read_bytes() != item[2]
-    ]
-    if not changed:
-        return False
+        resolved.append(_PayloadWrite(relative, destination, bytes(content)))
+    return resolved
 
+
+def _changed_payload(resolved: list[_PayloadWrite]) -> list[_PayloadWrite]:
+    changed = [item for item in resolved if _payload_destination_changed(item)]
+    return changed
+
+
+def _payload_destination_changed(item: _PayloadWrite) -> bool:
+    if item.destination.exists() and not item.destination.is_file():
+        raise AgentsSyncFormatError(
+            f"publication destination is not a file: {item.relative!r}"
+        )
+    return (
+        not item.destination.is_file() or item.destination.read_bytes() != item.content
+    )
+
+
+def _apply_changed_payload(
+    repo_root: Path,
+    changed: list[_PayloadWrite],
+    batches: tuple[tuple[str, ...], ...],
+) -> bool:
     stage = Path(tempfile.mkdtemp(prefix=".sase-v2-stage-", dir=repo_root))
-    backups: dict[Path, bytes | None] = {}
+    backup_root = Path(tempfile.mkdtemp(prefix=".sase-v2-backup-", dir=repo_root))
+    changed_by_relative = {item.relative: item for item in changed}
+    backups: dict[str, Path | None] = {}
+    writes_started = False
     try:
-        for relative, _destination, content in changed:
-            staged = stage / relative
-            staged.parent.mkdir(parents=True, exist_ok=True)
-            staged.write_bytes(content)
-        for relative, destination, _content in changed:
-            backups[destination] = (
-                destination.read_bytes() if destination.is_file() else None
-            )
-            atomic_write_bytes(destination, (stage / relative).read_bytes())
-    except Exception:
-        for destination, original in reversed(tuple(backups.items())):
+        _stage_changed_payload(stage, changed)
+        backups = _backup_changed_payload(backup_root, changed)
+        for batch in batches:
+            for relative in batch:
+                item = changed_by_relative[relative]
+                writes_started = True
+                atomic_write_bytes(
+                    item.destination, (stage / item.relative).read_bytes()
+                )
+    except Exception as error:
+        rollback_errors = (
+            _rollback_changed_payload(changed, backups) if writes_started else ()
+        )
+        cleanup_errors = _cleanup_transaction_dirs((stage, backup_root))
+        if rollback_errors or cleanup_errors:
+            details = "; ".join((*rollback_errors, *cleanup_errors))
+            raise RuntimeError(
+                f"publication apply failed and cleanup was incomplete: {details}"
+            ) from error
+        raise
+    cleanup_errors = _cleanup_transaction_dirs((stage, backup_root))
+    if cleanup_errors:
+        raise RuntimeError(
+            "publication apply succeeded but cleanup was incomplete: "
+            + "; ".join(cleanup_errors)
+        )
+    return True
+
+
+def _stage_changed_payload(stage: Path, changed: list[_PayloadWrite]) -> None:
+    for item in changed:
+        staged = stage / item.relative
+        staged.parent.mkdir(parents=True, exist_ok=True)
+        staged.write_bytes(item.content)
+
+
+def _backup_changed_payload(
+    backup_root: Path, changed: list[_PayloadWrite]
+) -> dict[str, Path | None]:
+    backups: dict[str, Path | None] = {}
+    for item in changed:
+        if item.destination.is_file():
+            backup = backup_root / item.relative
+            backup.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(item.destination, backup)
+            backups[item.relative] = backup
+        else:
+            backups[item.relative] = None
+    return backups
+
+
+def _rollback_changed_payload(
+    changed: list[_PayloadWrite], backups: dict[str, Path | None]
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    for item in reversed(changed):
+        try:
+            original = backups.get(item.relative)
             if original is None:
                 try:
-                    destination.unlink()
+                    item.destination.unlink()
                 except FileNotFoundError:
                     pass
             else:
-                atomic_write_bytes(destination, original)
-        raise
-    finally:
-        shutil.rmtree(stage, ignore_errors=True)
-    return True
+                atomic_write_bytes(item.destination, original.read_bytes())
+        except Exception as exc:  # pragma: no cover - defensive diagnostic path
+            errors.append(f"rollback failed for {item.relative!r}: {exc}")
+    return tuple(errors)
+
+
+def _cleanup_transaction_dirs(paths: tuple[Path, ...]) -> tuple[str, ...]:
+    errors: list[str] = []
+    for path in paths:
+        try:
+            shutil.rmtree(path)
+        except FileNotFoundError:
+            pass
+        except Exception as exc:  # pragma: no cover - filesystem-specific
+            errors.append(f"temporary directory {path} could not be removed: {exc}")
+    return tuple(errors)
 
 
 __all__ = [
@@ -137,6 +272,7 @@ __all__ = [
     "MAX_TEXT_BYTES",
     "V2_METADATA_FIELDS",
     "apply_payload_atomic",
+    "apply_payload_batched_atomic",
     "check_manifest_write_size",
     "content_digest",
     "file_reference",
