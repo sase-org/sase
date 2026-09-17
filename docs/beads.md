@@ -1283,7 +1283,9 @@ scoped read, such as `sase bead dep list beads-001.2`, includes every bead statu
 default because closed dependencies are usually what you need to see when explaining
 readiness. A store-wide read defaults to `open`, `claimed`, `ready`, `snoozed`, and
 `in_progress`, matching `sase bead list`. The `-s/--status` filter currently accepts
-only `open`, `claimed`, `in_progress`, and `closed`.
+only `open`, `claimed`, `in_progress`, and `closed`. The current `dep list --help` and
+`dep tree --help` descriptions still omit `ready` and `snoozed` from their stated
+store-wide defaults; the five-status list here reflects the runtime behavior.
 
 `dep tree` walks the dependency graph as a deterministic tree. `--direction out` follows
 what the root waits on, `--direction in` follows what is waiting on the root, and

@@ -3825,18 +3825,23 @@ agent_hold_max_ttl: 12h
 agent_hold_confirm_capture_threshold: 10
 ```
 
-| Field                                  | Type   | Default | Description                                                                                                 |
-| -------------------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------- |
-| `agent_hold_default_ttl`               | string | `2h`    | TTL for a hold armed without an explicit TTL. Bare seconds or a number suffixed with `s`, `m`, or `h`.      |
-| `agent_hold_max_ttl`                   | string | `12h`   | Largest TTL a hold may request. `sase agent hold create` / `run` reject a larger `-T/--ttl`.                |
-| `agent_hold_confirm_capture_threshold` | int    | `10`    | Frozen `pending` capture size above which a launch preview asks for interactive confirmation before arming. |
+| Field                                  | Type   | Default | Description                                                                                              |
+| -------------------------------------- | ------ | ------- | -------------------------------------------------------------------------------------------------------- |
+| `agent_hold_default_ttl`               | string | `2h`    | TTL for a hold armed without an explicit TTL. Bare seconds or a number suffixed with `s`, `m`, or `h`.   |
+| `agent_hold_max_ttl`                   | string | `12h`   | Largest TTL a hold may request. `sase agent hold create` / `run` reject a larger `-T/--ttl`.             |
+| `agent_hold_confirm_capture_threshold` | int    | `10`    | Frozen `pending` capture size above which a launch surface may ask for confirmation of the hold preview. |
 
 The launch preview lists each `%hold` with its scope and a TTL resolved against these
-values, showing both the default and the cap. sase's TUI and `sase run` also ask for
-confirmation before arming a hold that combines `future` with `scope=host`, regardless
-of the threshold; non-interactive launches proceed without asking. The Admin Center
-[Config tab](#config-tab)'s **Holds** child lists and releases active holds, and
-`sase doctor -C agent_holds.stale` reports holds whose armer died or whose TTL passed.
+values, showing both the default and the cap. sase's TUI and an interactive `sase run`
+ask for confirmation when a preview combines `future` with `scope=host`, regardless of
+the threshold. They can also ask when a `pending` capture exceeds the threshold, but the
+capture check needs project context: the TUI supplies it, typed launch plans can resolve
+it, and a plain project-scoped `sase run` prompt currently cannot. During the
+directive's current beta, accepting this confirmation permits the launch but does not
+arm a hold; non-interactive launches proceed without asking and likewise do not arm one.
+The Admin Center [Config tab](#config-tab)'s **Holds** child lists and releases active
+holds created by `sase agent hold`, and `sase doctor -C agent_holds.stale` reports holds
+whose armer died or whose TTL passed.
 
 A missing or unparsable TTL, or a negative or non-integer threshold, falls back to the
 default shown above rather than failing the command.
@@ -5124,20 +5129,20 @@ Dispatches a commit, proposal, or PR via the VCS provider layer. See
 [commit_workflows.md](commit_workflows.md) for the full flow, payload, checkpoint, and
 resume semantics.
 
-| Flag                    | Values                        | Default                 | Description                                                                                 |
-| ----------------------- | ----------------------------- | ----------------------- | ------------------------------------------------------------------------------------------- |
-| `-m, --message`         | string                        | -                       | Commit message (mutually exclusive with `-M`).                                              |
-| `-M, --message-file`    | path                          | -                       | File containing the commit message / PR description (mutually exclusive with `-m`).         |
-| `-x, --exclude`         | path (repeatable)             | -                       | Repo-relative file or directory to leave out of the commit.                                 |
-| `--only-file`           | path (repeatable, hidden)     | stage all               | Internal: restrict the commit to these repo-relative paths. Mutually exclusive with `-x`.   |
-| `-n, --name`            | string                        | -                       | Branch/PR name (required for `create_pull_request`).                                        |
-| `-b, --bug-id`          | int                           | `$SASE_BUG_ID`          | Bug ID to associate with the commit.                                                        |
-| `-B, --bead-action`     | `keep` / `close`              | -                       | Explicit assigned-bead action; required when committing with an assigned bead.              |
-| `-c, --checkout-target` | string                        | `HEAD~1`                | Branch point for PR creation.                                                               |
-| `-p, --parent`          | Patch name                    | auto                    | Parent Patch name (overrides branch-based auto-detection). Unresolvable values are dropped. |
-| `-r, --resume`          | flag                          | -                       | Resume a previously-checkpointed commit after manual conflict resolution.                   |
-| `-s, --status`          | `wip` / `draft` / `ready`     | `$SASE_PR_STATUS`/draft | Patch status override for PRs.                                                              |
-| `-t, --type`            | `commit` / `propose` / `pr` … | `$SASE_COMMIT_METHOD`   | Commit method — full names (`create_commit`, etc.) and short aliases are both accepted.     |
+| Flag                    | Values                        | Default               | Description                                                                                                                    |
+| ----------------------- | ----------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `-m, --message`         | string                        | -                     | Commit message (mutually exclusive with `-M`).                                                                                 |
+| `-M, --message-file`    | path                          | -                     | File containing the commit message / PR description (mutually exclusive with `-m`).                                            |
+| `-x, --exclude`         | path (repeatable)             | -                     | Repo-relative file or directory to leave out of the commit.                                                                    |
+| `--only-file`           | path (repeatable, hidden)     | stage all             | Internal: restrict the commit to these repo-relative paths. Mutually exclusive with `-x`.                                      |
+| `-n, --name`            | string                        | -                     | Branch/PR name (required for `create_pull_request`).                                                                           |
+| `-b, --bug-id`          | int                           | `$SASE_BUG_ID`        | Bug ID to associate with the commit.                                                                                           |
+| `-B, --bead-action`     | `keep` / `close`              | -                     | Explicit assigned-bead action; required when committing with an assigned bead.                                                 |
+| `-c, --checkout-target` | string                        | `HEAD~1`              | Branch point for PR creation.                                                                                                  |
+| `-p, --parent`          | Patch name                    | auto                  | Parent Patch name (overrides branch-based auto-detection). Unresolvable values are dropped.                                    |
+| `-r, --resume`          | flag                          | -                     | Resume a previously-checkpointed commit after manual conflict resolution.                                                      |
+| `-s, --status`          | `wip` / `draft` / `ready`     | ignored               | Accepted by the parser but currently not forwarded to the commit workflow, so it has no effect. Use `$SASE_PR_STATUS` instead. |
+| `-t, --type`            | `commit` / `propose` / `pr` … | `$SASE_COMMIT_METHOD` | Commit method — full names (`create_commit`, etc.) and short aliases are both accepted.                                        |
 
 ### `sase stitch`
 
@@ -5305,6 +5310,11 @@ deterministically.
 | `[name]`     | string | -       | NAME of the reverted Patch to restore. |
 | `-l, --list` | flag   | -       | List all reverted Patches.             |
 
+If restoration reaches commit recreation, the current implementation calls
+`sase stitch create` with an unsupported positional Patch name and fails after applying
+the saved diff. See [VCS restore](vcs.md#sase-restore) for the resulting workspace state
+and manual recovery command.
+
 ### `sase run`
 
 | Flag                 | Values | Default                   | Description                                                                                                   |
@@ -5318,11 +5328,14 @@ When invoked with `.`, opens a prompt history picker. All prompts launch as deta
 background agents, and multi-prompt queries (containing `---` separators) are launched
 as sequential detached background agents.
 
-From an interactive terminal outside an agent or durable proc, a prompt that arms a
-broad [`%hold`](xprompt.md#hold-directive) — `future` combined with `scope=host`, or a
-`pending` capture larger than `agent_hold_confirm_capture_threshold` — prints the hold
-preview and asks `Arm this hold? [y/N]`. Declining prints
-`Hold not armed; launch cancelled.` and exits `1`.
+From an interactive terminal outside an agent or durable proc, a prompt whose
+[`%hold`](xprompt.md#hold-directive) preview combines `future` with `scope=host` prints
+the preview and asks `Arm this hold? [y/N]`. An over-threshold `pending` capture also
+asks when the preview can resolve project context; typed launch plans can do so, while a
+plain project-scoped `sase run` prompt currently cannot and skips this confirmation.
+Declining prints `Hold not armed; launch cancelled.` and exits `1`. Despite that prompt
+text, accepting only permits the launch during the current beta; it does not arm the
+hold.
 
 ### `sase repro`
 
@@ -5829,19 +5842,19 @@ once. Removal is irreversible.
 Bare `sase bead dep` delegates to `sase bead dep list`. Mutations reject dependency
 edges that would cross bead stores before writing.
 
-| Form                   | Flag / argument                | Values                                        | Default                                                | Description                                         |
-| ---------------------- | ------------------------------ | --------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------- |
-| `dep list`             | `id`                           | string                                        | store-wide                                             | Optional issue whose edges to list                  |
-| `dep list`             | `-d, --direction`              | `both`, `in`, `out`                           | `both`                                                 | Edges to show                                       |
-| `dep list`, `dep tree` | `-c, --color` / `-f, --format` | `auto\|always\|never` / `compact\|full\|json` | `auto` / `compact`                                     | Color mode and output format                        |
-| `dep list`, `dep tree` | `-s, --status`                 | `open`, `claimed`, `in_progress`, `closed`    | all when scoped; open, claimed, in progress store-wide | Filter by status (repeatable)                       |
-| `dep list`             | `-n, --limit`                  | non-negative integer                          | -                                                      | Maximum beads to print; `0` means unlimited         |
-| `dep tree`             | `id`                           | string                                        | store-wide                                             | Optional issue to walk from                         |
-| `dep tree`             | `-d, --direction`              | `both`, `in`, `out`                           | `out`                                                  | Walk dependencies (`out`), blockers (`in`), or both |
-| `dep tree`             | `-L, --levels`                 | non-negative integer                          | unlimited                                              | Maximum levels to descend; `0` means unlimited      |
-| `dep add`              | `issue`                        | string                                        | (required)                                             | Issue that depends                                  |
-| `dep add`              | `depends_on`                   | string                                        | (required)                                             | Issue being depended upon                           |
-| `dep rm`               | `issue` `depends_on...`        | strings                                       | (required)                                             | Remove one or more dependencies from an issue       |
+| Form                   | Flag / argument                | Values                                        | Default                                                                | Description                                                                                           |
+| ---------------------- | ------------------------------ | --------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `dep list`             | `id`                           | string                                        | store-wide                                                             | Optional issue whose edges to list                                                                    |
+| `dep list`             | `-d, --direction`              | `both`, `in`, `out`                           | `both`                                                                 | Edges to show                                                                                         |
+| `dep list`, `dep tree` | `-c, --color` / `-f, --format` | `auto\|always\|never` / `compact\|full\|json` | `auto` / `compact`                                                     | Color mode and output format                                                                          |
+| `dep list`, `dep tree` | `-s, --status`                 | `open`, `claimed`, `in_progress`, `closed`    | all when scoped; open, claimed, ready, snoozed, in progress store-wide | Filter by status (repeatable); current `--help` text omits ready and snoozed from the runtime default |
+| `dep list`             | `-n, --limit`                  | non-negative integer                          | -                                                                      | Maximum beads to print; `0` means unlimited                                                           |
+| `dep tree`             | `id`                           | string                                        | store-wide                                                             | Optional issue to walk from                                                                           |
+| `dep tree`             | `-d, --direction`              | `both`, `in`, `out`                           | `out`                                                                  | Walk dependencies (`out`), blockers (`in`), or both                                                   |
+| `dep tree`             | `-L, --levels`                 | non-negative integer                          | unlimited                                                              | Maximum levels to descend; `0` means unlimited                                                        |
+| `dep add`              | `issue`                        | string                                        | (required)                                                             | Issue that depends                                                                                    |
+| `dep add`              | `depends_on`                   | string                                        | (required)                                                             | Issue being depended upon                                                                             |
+| `dep rm`               | `issue` `depends_on...`        | strings                                       | (required)                                                             | Remove one or more dependencies from an issue                                                         |
 
 #### `sase bead sync`
 
@@ -6312,9 +6325,11 @@ limits the run to selected reviewed command ids. Without `--run`, `--approve`, o
 non-interactive caller gets a `tty_required` error. Approval always needs a controlling
 terminal, so the gate stays pending when none is available; denial runs no privileged
 command and works headlessly. For a machine-targeted request, approval runs the target's
-`sase sudo exec` over `ssh -t`. `-r/--resume` continues a partially executed batch after
-its completed command ids, and `-R/--restart` reruns the reviewed branch from the start.
-The hidden `sase sudo exec` subcommand is the target-side runner entrypoint.
+`sase sudo exec` over `ssh -t`. `-r/--resume` and `-R/--restart` are accepted for parity
+with `sase gate answer`, but both currently rerun the full selected command set; neither
+skips commands that already completed. To avoid repeating one, explicitly select only
+the remaining command ids with `-c/--command`. The hidden `sase sudo exec` subcommand is
+the target-side runner entrypoint.
 
 ### `sase lsp`
 

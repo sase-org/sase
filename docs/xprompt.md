@@ -2639,17 +2639,24 @@ but submitting the launch does not arm a hold in the store yet. Arming at launch
 submission is still being implemented. Until it lands, arm the hold explicitly with
 `sase agent hold create` or `sase agent hold run`.
 
-A LaunchApproval preview adds a `## Holds` section listing each held agent or proc unit
-with its canonical directive, its scope, and its TTL next to the configured default and
-cap. A `pending` hold also shows a live count such as
+A LaunchApproval preview adds a `## Holds` section listing each agent or proc launch
+unit that declares a hold, with its canonical directive, scope, and TTL next to the
+configured default and cap. A `pending` hold also shows a live count such as
 `captures 4 waiting + 2 queued; skips 3 running`. A hold is _broad_ when it combines
 `future` with `scope=host`, which would fence every project's later launches, or when
 its `pending` capture would freeze more than `agent_hold_confirm_capture_threshold`
-(default `10`) agents. Before submitting a prompt with a broad hold, sase's TUI asks
-**Arm this hold?**, and `sase run` on an interactive terminal prints the capture and
-asks `Arm this hold? [y/N]`. Declining cancels the launch; `sase run` prints
-`Hold not armed; launch cancelled.` and exits `1`. Narrow holds, non-interactive
-`sase run`, and launches from inside an agent or proc proceed without asking.
+(default `10`) agents.
+
+Before submitting a prompt with a broad hold, sase's TUI asks **Arm this hold?** and
+uses the current project to count a project-scoped `pending` capture. An interactive
+`sase run` also asks for a host-wide `future` hold or an over-threshold host-scoped
+`pending` capture. It can count a project-scoped `pending` capture when a typed launch
+plan resolves the project, but a plain `sase run` prompt currently supplies no project
+context and skips that confirmation. Declining cancels the launch; `sase run` prints
+`Hold not armed; launch cancelled.` and exits `1`. Accepting the confirmation only
+permits the launch during the current beta — despite the **Arm** label, it does not arm
+the hold. Narrow holds, non-interactive `sase run`, and launches from inside an agent or
+proc proceed without asking and likewise do not arm one.
 
 `pending` freezes only agents that already exist; it cannot capture a `%proc` that has
 not been dispatched. Use a name selector or `future` to fence procs.

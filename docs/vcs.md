@@ -389,17 +389,25 @@ Steps 3 and 4 run only when the Patch has a PR.
 
 #### Restore (status change from "Reverted" to "WIP", "Draft", or "Ready")
 
-Restores a previously reverted Patch as a background proc.
+Attempts to restore a previously reverted Patch as a background proc.
 
 1. Rename the Patch back to its base name (dropping the `__<N>` suffix)
 2. Checkout parent or default branch via `checkout()`
 3. Apply the stashed diff via `apply_patch()`
-4. Run `sase stitch create` to re-create the commit
+4. Attempt to run `sase stitch create` to re-create the commit
 
 | Operation   | Git                     | Mercurial                      |
 | ----------- | ----------------------- | ------------------------------ |
 | Checkout    | `git checkout <target>` | `sase_hg_update <target>`      |
 | Apply patch | `git apply <path>`      | `hg import --no-commit <path>` |
+
+**Current limitation:** the final step invokes `sase stitch create <base-name> -B keep`,
+but `sase stitch create` accepts no positional Patch name. It therefore exits with a
+usage error after the Patch rename, hook-status reset, checkout, and diff application
+have already happened. The operation does not roll those steps back. Inspect the renamed
+workspace and applied changes, then finish manually with a valid command such as
+`sase stitch create -m '<conventional commit message>' -B keep`; do not assume that a
+reported restore failure left the workspace untouched.
 
 #### Archive (status change to "Archived")
 
@@ -451,13 +459,15 @@ sase revert my_feature
 
 ### `sase restore`
 
-Standalone command to restore a reverted Patch. `sase restore -l` (`--list`) lists the
-reverted Patches you can name.
+Standalone command that attempts to restore a reverted Patch. `sase restore -l`
+(`--list`) lists the reverted Patches you can name.
 
 1. Rename the Patch back to its base name
 2. Checkout parent (or default branch) via `checkout()`
 3. Apply saved diff via `apply_patch()` from `~/.sase/reverted/` or `~/.sase/archived/`
-4. Run `sase stitch create` to re-create the commit
+4. Attempt to run `sase stitch create` to re-create the commit; the current invocation
+   fails as described in the
+   [restore limitation above](#restore-status-change-from-reverted-to-wip-draft-or-ready)
 
 ```bash
 sase restore --list

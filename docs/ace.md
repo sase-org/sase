@@ -5300,12 +5300,14 @@ places:
   its queue position. If a held agent and the agent that armed the hold end up blocking
   each other, SASE also sends a **Hold deadlock** notification; the hold's TTL still
   guarantees progress, but you can release the hold or kill one side sooner.
-- **Launch confirmation.** Submitting a prompt with a broad `%hold` — one that combines
-  `future` with `scope=host`, or whose `pending` capture would freeze more WAITING and
-  QUEUED agents than `agent_hold_confirm_capture_threshold` (default `10`) — opens an
-  **Arm this hold?** confirmation before anything launches. It lists each broad hold's
-  directive and live `pending` capture, plus a warning for a host-wide `future` hold.
-  Cancelling leaves the prompt in the bar; narrow holds launch without asking.
+- **Launch-preview confirmation.** Submitting a prompt with a broad `%hold` — one that
+  combines `future` with `scope=host`, or whose `pending` capture would freeze more
+  WAITING and QUEUED agents than `agent_hold_confirm_capture_threshold` (default `10`) —
+  opens an **Arm this hold?** confirmation before anything launches. It lists each broad
+  hold's directive and live `pending` capture, plus a warning for a host-wide `future`
+  hold. Cancelling leaves the prompt in the bar; narrow holds launch without asking.
+  During the current beta, pressing **Arm** only confirms the launch preview; it does
+  not write a hold to the store.
 - **Holds pane.** Open SASE Admin Center with `#`, then Config > **03 Holds** (`0` then
   `3`; **02** when `admin_center_flags` is off). Each row shows the armer and its kind,
   the scope (`host` or `project:<name>`), the selectors (`names=`, `hoods=`, `tribes=`,

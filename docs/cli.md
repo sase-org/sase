@@ -90,10 +90,15 @@ can start from prompt text, xprompt or workflow references, the editor, or the
 prompt-history picker, and multi-prompt input expands into sequential background
 launches. sase's TUI uses the same launch machinery when users start agents from the
 TUI. When `sase run` is used from an interactive terminal (not from inside an agent or a
-durable proc) and the prompt arms a broad [`%hold`](xprompt.md#hold-directive) — one
-that combines `future` with `scope=host`, or whose `pending` capture exceeds
-`agent_hold_confirm_capture_threshold` — it prints the hold preview and asks
-`Arm this hold? [y/N]`; declining cancels the launch and exits `1`.
+durable proc) and its [`%hold`](xprompt.md#hold-directive) preview is broad, it prints
+the preview and asks `Arm this hold? [y/N]`; declining cancels the launch and exits `1`.
+A host-scoped hold that includes `future` is always broad. A `pending` hold is broad
+when its live capture exceeds `agent_hold_confirm_capture_threshold`, but that check
+needs project context: typed launch plans can resolve it, while a plain project-scoped
+`sase run` prompt currently cannot and therefore skips this confirmation. During the
+directive's current beta, accepting the prompt permits the launch but does not write a
+hold to the hold store; use `sase agent hold create` or `sase agent hold run` when work
+must actually be held.
 
 The short option `-n` is not one flag across commands: `sase agent kill -n NAME` and
 `sase agent hold create -n NAME` are `--name` (for `kill` it is required; a bare name is
@@ -521,7 +526,7 @@ references are resolved before the prompt or workflow runs.
 | `sase final prepare`             | Seal a single-use declaration and exact verification command for conditional no-model host completion.                                           | [Prepared completion](monitors.md#prepared-host-completion) |
 | `sase stitch create`             | Dispatch a commit, proposal, or PR through the configured VCS provider; a commit with an assigned bead needs `-B/--bead-action keep` or `close`. | [Commit workflows](commit_workflows.md)                     |
 | `sase revert`                    | Revert a Patch by pruning its change and archiving its diff.                                                                                     | [Commit workflows](commit_workflows.md)                     |
-| `sase restore`                   | Restore a reverted Patch by reapplying its archived diff.                                                                                        | [Commit workflows](commit_workflows.md)                     |
+| `sase restore`                   | Attempt to restore a reverted Patch from its archived diff; the current final commit-recreation command is invalid if that step is reached.      | [VCS restore](vcs.md#sase-restore)                          |
 | `sase comments`                  | Preview mentor comments from JSON with syntax-highlighted code context.                                                                          | [Mentors](mentors.md)                                       |
 
 Delivery commands delegate to the VCS and workspace provider layers, so the same command
