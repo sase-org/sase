@@ -30,6 +30,7 @@ from ._admission_snapshot import (
 from ._admission_types import (
     DEFAULT_QUEUE_WEIGHT,
     DEFAULT_WAIT_PRIORITY,
+    HOLD_ARMER_WAIT_PRIORITY,
     RunnerSlotWaiter,
 )
 from ._scan_cache import load_or_refresh_runner_slot_scan
@@ -41,6 +42,7 @@ from ._signal import (
 __all__ = [
     "DEFAULT_QUEUE_WEIGHT",
     "DEFAULT_WAIT_PRIORITY",
+    "HOLD_ARMER_WAIT_PRIORITY",
     "RunnerSlotWaiter",
     "better_priority_agent_pending",
     "deference_satisfied",

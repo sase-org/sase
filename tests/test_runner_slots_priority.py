@@ -6,6 +6,7 @@ from datetime import UTC, datetime, timedelta
 
 from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
+    HOLD_ARMER_WAIT_PRIORITY,
     better_priority_agent_pending,
     deference_satisfied,
     deference_window_seconds,
@@ -20,6 +21,17 @@ def test_normalize_wait_priority_defaults_missing_and_invalid_values() -> None:
     assert normalize_wait_priority(True) == DEFAULT_WAIT_PRIORITY
     assert normalize_wait_priority(-1) == DEFAULT_WAIT_PRIORITY
     assert normalize_wait_priority("3") == DEFAULT_WAIT_PRIORITY
+
+
+def test_hold_armer_wait_priority_never_triggers_deference() -> None:
+    assert HOLD_ARMER_WAIT_PRIORITY == 5
+    assert HOLD_ARMER_WAIT_PRIORITY < DEFAULT_WAIT_PRIORITY
+    assert (
+        deference_window_seconds(
+            HOLD_ARMER_WAIT_PRIORITY, seconds_per_step=3, max_seconds=60
+        )
+        == 0.0
+    )
 
 
 def test_deference_window_scales_only_worse_priorities_and_clamps() -> None:

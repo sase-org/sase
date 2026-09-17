@@ -68,7 +68,7 @@ def _validate_hold_record(hold: Mapping[str, Any]) -> None:
     selectors = mapping_payload(hold.get("selectors"))
     if type(hold.get("schema_version")) is not int:
         raise RuntimeError("agent hold record has no integer schema_version")
-    if armer.get("kind") not in {"agent", "proc", "cli"}:
+    if armer.get("kind") not in {"agent", "proc", "cli", "launch"}:
         raise RuntimeError("agent hold armer kind is invalid")
     for key in ("key", "display", "project"):
         if not isinstance(armer.get(key), str) or not armer.get(key):

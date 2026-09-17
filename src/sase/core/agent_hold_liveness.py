@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-from sase.core.agent_hold_store import mapping_payload
+from sase.core.agent_hold_store import mapping_payload, read_json_mapping
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 from sase.core.paths import sase_projects_dir
 from sase.procs.models import TERMINAL_PROC_STATUSES, Proc
@@ -46,6 +46,8 @@ def liveness_facts_for_holds(
             facts[key] = _agent_liveness_fact(armer, family_indexes)
         elif kind == "cli":
             facts[key] = _cli_liveness_fact(armer)
+        elif kind == "launch":
+            facts[key] = _launch_liveness_fact(armer)
     return {"armers": facts}
 
 
@@ -85,6 +87,45 @@ def _cli_liveness_fact(armer: Mapping[str, Any]) -> dict[str, Any]:
         "pid_alive": _pid_alive(armer),
         "done_marker_present": bool(done_present),
     }
+
+
+def _launch_liveness_fact(armer: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "kind": "launch",
+        "pid_alive": _launch_pid_alive(armer),
+        "done_marker_present": _launch_done_marker_present(armer),
+    }
+
+
+def _launch_pid_alive(armer: Mapping[str, Any]) -> bool:
+    if _pid_alive(armer):
+        return True
+    marker_path = armer.get("done_marker_path")
+    if not isinstance(marker_path, str) or not marker_path:
+        return False
+    # Deferred: see the comment in `_pid_alive` -- `sase.agent` submodules
+    # reach back into agent_hold_facade at package-init time.
+    from sase.agent.launch_admission_store import STARTED_FILENAME
+
+    started = read_json_mapping(Path(marker_path).parent / STARTED_FILENAME)
+    pid = started.get("pid")
+    if type(pid) is not int:
+        return False
+    from sase.ace.hooks.processes import is_process_running
+
+    return is_process_running(pid)
+
+
+def _launch_done_marker_present(armer: Mapping[str, Any]) -> bool:
+    marker_path = armer.get("done_marker_path")
+    if not isinstance(marker_path, str) or not marker_path:
+        return False
+    from sase.agent.launch_admission_store import RECEIPT_FILENAME
+
+    path = Path(marker_path)
+    if path.name == RECEIPT_FILENAME:
+        return read_json_mapping(path).get("complete") is True
+    return path.exists()
 
 
 def _pid_alive(armer: Mapping[str, Any]) -> bool:

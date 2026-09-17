@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +13,8 @@ from sase.core.agent_hold_facade import (
     AgentHoldArmResult,
     list_current_agent_holds,
 )
+
+from tests._runner_slot_fixtures import artifact as make_artifact
 
 
 def _create_args(**overrides: object) -> argparse.Namespace:
@@ -56,6 +59,24 @@ def test_create_rejects_ttl_above_configured_maximum(
     exit_code = cli_hold._handle_create(_create_args(future=True, ttl="999h"))
     assert exit_code == 2
     assert "exceeds the configured maximum" in capsys.readouterr().err
+
+
+def test_create_rejects_a_kin_selector_naming_the_armers_own_identity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    artifacts_dir = make_artifact(tmp_path, "20260910150000", 4242)
+    (artifacts_dir / "agent_meta.json").write_text(
+        json.dumps({"pid": 4242, "name": "worker.a--code"})
+    )
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    exit_code = cli_hold._handle_create(_create_args(names=["worker.a--code"]))
+
+    assert exit_code == 1
+    assert "sase agent hold create:" in capsys.readouterr().err
 
 
 def test_create_arms_a_hold_end_to_end(

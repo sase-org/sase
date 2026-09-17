@@ -11,6 +11,10 @@ from sase.core.agent_scan_wire import AgentArtifactRecordWire
 RecordLiveness = Callable[[AgentArtifactRecordWire], bool]
 DEFAULT_WAIT_PRIORITY = 10
 DEFAULT_QUEUE_WEIGHT = 1.0
+# The implied, non-authored wait priority a hold-carrying launch gets when no
+# `%q(p=...)` is authored. Never write this into agent_meta or waiting.json's
+# `wait_priority_explicit` as if it were authored.
+HOLD_ARMER_WAIT_PRIORITY = 5
 
 
 def finite_positive_float(value: object) -> float | None:

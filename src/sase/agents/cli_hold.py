@@ -16,16 +16,13 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from sase.config.core import (
-    get_agent_hold_default_ttl_seconds,
-    get_agent_hold_max_ttl_seconds,
-)
 from sase.core.agent_hold_facade import (
     AgentHoldArmResult,
     current_armer_wire,
     find_agent_hold,
     list_current_agent_holds,
     release_agent_hold,
+    resolve_hold_ttl_seconds,
 )
 from sase.core.agent_hold_facade import (
     arm_agent_hold as _arm_agent_hold,
@@ -72,24 +69,18 @@ def _has_explicit_selector(selectors: Mapping[str, Any]) -> bool:
 
 
 def _resolve_ttl_seconds(raw: str | None, *, err: Console) -> float | None:
-    max_seconds = get_agent_hold_max_ttl_seconds()
-    if raw is None:
-        seconds = get_agent_hold_default_ttl_seconds()
-    else:
+    requested: float | None = None
+    if raw is not None:
         try:
-            seconds = parse_cli_duration(raw, flag="-T/--ttl")[0]
+            requested = parse_cli_duration(raw, flag="-T/--ttl")[0]
         except ValueError as exc:
             err.print(f"sase agent hold: {exc}", style="red", soft_wrap=True)
             return None
-    if seconds > max_seconds:
-        err.print(
-            f"sase agent hold: --ttl exceeds the configured maximum "
-            f"({_format_seconds(max_seconds)})",
-            style="red",
-            soft_wrap=True,
-        )
+    try:
+        return resolve_hold_ttl_seconds(requested)
+    except ValueError as exc:
+        err.print(f"sase agent hold: {exc}", style="red", soft_wrap=True)
         return None
-    return seconds
 
 
 def _handle_create(args: argparse.Namespace) -> int:
@@ -304,6 +295,9 @@ def _print_hold_detail(hold: Mapping[str, Any]) -> None:
     if armer.get("pid") is not None:
         body.append("Pid: ", style="bold")
         body.append(f"{armer.get('pid')}\n")
+    if armer.get("done_marker_path"):
+        body.append("Done marker: ", style="bold")
+        body.append(f"{armer.get('done_marker_path')}\n")
     body.append("Scope: ", style="bold")
     body.append(f"{_scope_label(hold.get('scope'))}\n")
     body.append("Created: ", style="bold")
@@ -373,9 +367,3 @@ def _format_epoch_local(value: Any) -> str:
     return datetime.fromtimestamp(float(value), tz=get_timezone()).isoformat(
         timespec="seconds"
     )
-
-
-def _format_seconds(value: float) -> str:
-    if value == int(value):
-        return f"{int(value)}s"
-    return f"{value}s"

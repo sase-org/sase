@@ -210,11 +210,19 @@ def current_armer_wire(
     current_env = env if env is not None else os.environ
     artifacts_dir = (current_env.get("SASE_ARTIFACTS_DIR") or "").strip()
     if artifacts_dir:
-        return _agent_armer_wire(artifacts_dir)
+        return agent_armer_wire_for_artifacts(artifacts_dir)
     return _cli_armer_wire(pid_override=pid_override)
 
 
-def _agent_armer_wire(artifacts_dir: str) -> dict[str, Any]:
+def agent_armer_wire_for_artifacts(
+    artifacts_dir: str, *, pid_fallback: int | None = None
+) -> dict[str, Any]:
+    """Build an ``agent``-kind armer wire from one artifacts directory.
+
+    ``pid_fallback`` is used when ``agent_meta.json`` has no integer pid yet,
+    for example when a launch-carried hold rebinds to an agent whose runner
+    has not finished writing its metadata.
+    """
     meta = read_json_mapping(Path(artifacts_dir) / "agent_meta.json")
     name = meta.get("name")
     if not isinstance(name, str) or not name.strip():
@@ -223,6 +231,8 @@ def _agent_armer_wire(artifacts_dir: str) -> dict[str, Any]:
         )
     name = name.strip()
     pid = meta.get("pid")
+    if not isinstance(pid, int):
+        pid = pid_fallback
     family = meta.get("agent_family")
     clan = meta.get("agent_clan")
     return {
@@ -233,7 +243,7 @@ def _agent_armer_wire(artifacts_dir: str) -> dict[str, Any]:
         "agent_name": name,
         "family": family if isinstance(family, str) and family else None,
         "clan": clan if isinstance(clan, str) and clan else None,
-        "pid": pid if isinstance(pid, int) else None,
+        "pid": pid,
         "done_marker_path": str(Path(artifacts_dir) / "done.json"),
     }
 
@@ -330,6 +340,8 @@ def arm_agent_hold(
     scope: str = "project",
     ttl_seconds: float,
     pid_override: int | None = None,
+    armer: Mapping[str, Any] | None = None,
+    selectors: Mapping[str, Any] | None = None,
     now: datetime | float | None = None,
 ) -> AgentHoldArmResult:
     """Arm a durable hold and upsert its "armed" lifecycle notification.
@@ -337,30 +349,45 @@ def arm_agent_hold(
     Errors propagate: this is a direct CLI/directive action, not an
     admission-path read, so Rust validation and lock-timeout failures must
     reach the caller instead of being swallowed.
+
+    ``armer`` defaults to :func:`current_armer_wire`. ``selectors``, when
+    given, is the base selectors payload; ``names``, ``tribes``, ``hoods``,
+    and ``future`` are ignored in that case.
     """
-    armer = current_armer_wire(pid_override=pid_override)
-    scope_wire = _hold_scope_wire(scope, project=armer["project"])
+    armer_wire = (
+        dict(armer)
+        if armer is not None
+        else current_armer_wire(pid_override=pid_override)
+    )
+    scope_wire = _hold_scope_wire(scope, project=armer_wire["project"])
     capture: _PendingCapture | None = None
     artifact_dirs: tuple[str, ...] = ()
     if pending:
         capture = _capture_pending_targets(
-            project=armer["project"] if scope == "project" else None
+            project=armer_wire["project"] if scope == "project" else None
         )
         artifact_dirs = capture.artifact_dirs
-    selectors = _hold_selectors_wire(
-        names=names,
-        tribes=tribes,
-        hoods=hoods,
-        future=future,
-        artifact_dirs=artifact_dirs,
-    )
+    if selectors is not None:
+        selectors_wire = dict(selectors)
+        if pending:
+            merged = {*selectors_wire.get("artifact_dirs", ()), *artifact_dirs}
+            merged.discard(_own_agent_artifacts_dir(armer_wire))
+            selectors_wire["artifact_dirs"] = sorted(merged)
+    else:
+        selectors_wire = _hold_selectors_wire(
+            names=names,
+            tribes=tribes,
+            hoods=hoods,
+            future=future,
+            artifact_dirs=artifact_dirs,
+        )
     arm = require_rust_binding("agent_hold_arm_relative")
     record = dict(
         arm(
             str(sase_home()),
-            armer,
+            armer_wire,
             scope_wire,
-            selectors,
+            selectors_wire,
             float(ttl_seconds),
             {},
             epoch_seconds(now),
@@ -368,6 +395,15 @@ def arm_agent_hold(
     )
     upsert_hold_armed_notification(record, capture, now=now)
     return AgentHoldArmResult(record=record, capture=capture)
+
+
+def _own_agent_artifacts_dir(armer: Mapping[str, Any]) -> str | None:
+    if armer.get("kind") != "agent":
+        return None
+    marker_path = armer.get("done_marker_path")
+    if not isinstance(marker_path, str) or not marker_path:
+        return None
+    return str(Path(marker_path).parent)
 
 
 def release_agent_hold(
@@ -393,6 +429,53 @@ def release_agent_hold(
     return removed
 
 
+def rebind_agent_hold(
+    old_key: str,
+    new_armer: Mapping[str, Any],
+    *,
+    now: datetime | float | None = None,
+) -> dict[str, Any] | None:
+    """Rebind one hold's armer in place, keeping its scope/selectors/timing.
+
+    Returns ``None`` without writing anything when *old_key* has no active
+    hold. Errors propagate like :func:`arm_agent_hold`, and this sends no
+    lifecycle notification.
+    """
+    rebind = require_rust_binding("agent_hold_rebind")
+    record = rebind(
+        str(sase_home()), old_key, dict(new_armer), None, epoch_seconds(now)
+    )
+    return dict(record) if record is not None else None
+
+
+def resolve_hold_ttl_seconds(requested: float | None) -> float:
+    """Return *requested* seconds, or the configured default when ``None``.
+
+    Raises:
+        ValueError: naming the configured maximum, when *requested* exceeds
+            ``get_agent_hold_max_ttl_seconds()``.
+    """
+    from sase.config.core import (
+        get_agent_hold_default_ttl_seconds,
+        get_agent_hold_max_ttl_seconds,
+    )
+
+    if requested is None:
+        return get_agent_hold_default_ttl_seconds()
+    max_seconds = get_agent_hold_max_ttl_seconds()
+    if requested > max_seconds:
+        raise ValueError(
+            f"--ttl exceeds the configured maximum ({_format_ttl_seconds(max_seconds)})"
+        )
+    return requested
+
+
+def _format_ttl_seconds(value: float) -> str:
+    if value == int(value):
+        return f"{int(value)}s"
+    return f"{value}s"
+
+
 def candidate_created_at_from_timestamp(timestamp: str | None) -> float | None:
     """Return a configured-timezone epoch for a 14-digit artifact timestamp."""
     if not timestamp or len(timestamp) != 14 or not timestamp.isdigit():
@@ -409,6 +492,7 @@ def candidate_created_at_from_timestamp(timestamp: str | None) -> float | None:
 __all__ = [
     "AgentHoldArmResult",
     "active_agent_hold_records",
+    "agent_armer_wire_for_artifacts",
     "agent_hold_blocks_candidate",
     "arm_agent_hold",
     "candidate_created_at_from_timestamp",
@@ -418,6 +502,8 @@ __all__ = [
     "list_current_agent_holds",
     "preview_pending_capture",
     "reconcile_agent_holds_for_artifact",
+    "rebind_agent_hold",
     "release_agent_hold",
     "release_proc_agent_holds",
+    "resolve_hold_ttl_seconds",
 ]
