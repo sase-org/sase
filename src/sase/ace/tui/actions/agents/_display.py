@@ -67,6 +67,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
     _agents: list[Agent]
     _fold_counts: dict[str, tuple[int, int]]
     _agent_search_query: str
+    _agent_display_last_search_query: str
     _agent_search_query_seeded: bool
 
     # Debouncer for j/k navigation detail panel updates
@@ -225,12 +226,15 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         defer_detail: bool = False,
     ) -> None:
         """Refresh finalized agent display, using a narrow diff when safe."""
+        current_search_query = getattr(self, "_agent_search_query", "") or ""
         if previous_agents is not None and self._try_refresh_agents_display_incremental(
             previous_agents,
             defer_detail=defer_detail,
         ):
+            self._agent_display_last_search_query = current_search_query
             return
         self._refresh_agents_display(list_changed=True, defer_detail=defer_detail)
+        self._agent_display_last_search_query = current_search_query
 
     def _try_refresh_agents_display_incremental(
         self,
@@ -243,8 +247,14 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             return False
         if not previous_agents and self._agents:
             return False
-        if getattr(self, "_agent_search_query", ""):
-            self._record_display_full_rebuild_fallback("active_search")
+        current_search_query = getattr(self, "_agent_search_query", "") or ""
+        last_search_query = getattr(
+            self,
+            "_agent_display_last_search_query",
+            current_search_query,
+        )
+        if current_search_query != last_search_query:
+            self._record_display_full_rebuild_fallback("search_query_changed")
             return False
         if getattr(self, "_grouping_mode", GroupingMode.STANDARD) not in {
             GroupingMode.STANDARD,

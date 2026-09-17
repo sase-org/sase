@@ -70,6 +70,7 @@ class _DisplayDiffApp(AgentDisplayMixin):
         self._agents = list(agents)
         self._fold_counts: dict[str, tuple[int, int]] = {}
         self._agent_search_query = ""
+        self._agent_display_last_search_query = ""
         self._agent_detail_debouncer = DetailPanelDebouncer(self)  # type: ignore[arg-type]
         self.current_idx = 0
         self.current_attempt_number = None

@@ -148,6 +148,7 @@ def init_agent_state(self: Any) -> None:
     self._has_always_visible = False
     self._hidden_count = 0
     self._agent_search_query = ""
+    self._agent_display_last_search_query = ""
     self._agent_search_query_seeded = False
     self._agent_search_query_seed_attempted = False
     self._agent_search_query_generation = 0

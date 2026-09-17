@@ -36,6 +36,61 @@ def test_same_position_row_change_patches_without_panel_rebuild(
     assert app._agent_detail_debouncer.is_pending
 
 
+def test_unchanged_active_search_uses_incremental_without_panel_rebuild(
+    monkeypatch: Any,
+) -> None:
+    agent = _agent("alpha", tribe="apple", suffix="a1", status="RUNNING")
+    app = _DisplayDiffApp([agent], monkeypatch)
+    widget = app._widgets["#agent-list-panel"]
+    app._agent_search_query = "status:RUNNING"
+    app._agent_display_last_search_query = "status:RUNNING"
+    widget.update_list_calls = 0
+
+    app._agents = [agent]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[agent],
+        defer_detail=True,
+    )
+
+    assert widget.update_list_calls == 0
+    assert app.full_rebuilds == 0
+    assert "display_full_rebuild" not in _display_costs(app)
+    assert [
+        record.fallback_reason
+        for record in app._agents_refresh_trace_records
+        if record.fallback_reason == "active_search"
+    ] == []
+    assert app._agent_display_last_search_query == "status:RUNNING"
+
+
+def test_changed_active_search_query_falls_back_to_full_rebuild(
+    monkeypatch: Any,
+) -> None:
+    agent = _agent("alpha", tribe="apple", suffix="a1", status="RUNNING")
+    app = _DisplayDiffApp([agent], monkeypatch)
+    app._agent_search_query = "status:DONE"
+    app._agent_display_last_search_query = "status:RUNNING"
+
+    app._agents = [agent]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[agent],
+        defer_detail=True,
+    )
+
+    assert app.full_rebuilds == 1
+    assert [
+        record.fallback_reason
+        for record in app._agents_refresh_trace_records
+        if record.fallback_reason == "search_query_changed"
+    ] == ["search_query_changed"]
+    assert [
+        record.fallback_reason
+        for record in app._agents_refresh_trace_records
+        if record.fallback_reason == "active_search"
+    ] == []
+    assert app._agent_display_last_search_query == "status:DONE"
+
+
 def test_row_patch_refreshes_family_lane_panel_title_without_rebuild(
     monkeypatch: Any,
 ) -> None:
