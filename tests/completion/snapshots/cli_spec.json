@@ -22994,6 +22994,161 @@
       },
       {
         "aliases": [],
+        "default_child": null,
+        "description_digest": "ae58d7777233f2a2",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "screenshot",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "contract",
+            "hidden": true,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "--contract"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "keep",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-k",
+              "--keep"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "output",
+            "hidden": false,
+            "kind": "path",
+            "repeatable": false,
+            "strings": [
+              "-o",
+              "--output"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "press",
+            "hidden": false,
+            "kind": null,
+            "repeatable": true,
+            "strings": [
+              "-p",
+              "--press"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "settle_ms",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-d",
+              "--settle-ms"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "size",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-s",
+              "--size"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "svg",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-S",
+              "--svg"
+            ],
+            "takes_value": false
+          },
+          {
+            "choices": null,
+            "dest": "timeout",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-t",
+              "--timeout"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "wait_for",
+            "hidden": false,
+            "kind": null,
+            "repeatable": true,
+            "strings": [
+              "-w",
+              "--wait-for"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "window",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-W",
+              "--window"
+            ],
+            "takes_value": true
+          }
+        ],
+        "path": [
+          "screenshot"
+        ],
+        "positionals": [
+          {
+            "choices": null,
+            "dest": "tui_args",
+            "is_remainder": true,
+            "kind": null,
+            "metavar": "-- TUI_ARGS",
+            "nargs": "..."
+          }
+        ],
+        "subcommands": []
+      },
+      {
+        "aliases": [],
         "default_child": "list",
         "description_digest": "19345301604bc58d",
         "hidden": false,

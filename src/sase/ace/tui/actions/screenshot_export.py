@@ -114,23 +114,55 @@ class ScreenshotExportMixin:
             else self._require_screenshot_export_request_dir()
         )
         paths = await asyncio.to_thread(reserve_export_paths, directory)
+        stage = "prepare"
         try:
-            restore_cursor_blink = self._prepare_screenshot_frame()
             try:
-                refresh = getattr(self, "refresh", None)
-                if callable(refresh):
-                    refresh(layout=True)
-                wait_for_refresh = getattr(self, "wait_for_refresh", None)
-                if callable(wait_for_refresh):
-                    await wait_for_refresh()
+                restore_cursor_blink = self._prepare_screenshot_frame()
+            except (AssertionError, RuntimeError) as exc:
+                if not _is_textual_refresh_context_error(exc):
+                    raise
+                restore_cursor_blink = []
+            try:
+                stage = "request refresh"
+                self._request_screenshot_refresh_if_available()
+                stage = "wait for refresh"
+                await self._wait_for_screenshot_refresh_if_available()
+                stage = "export SVG"
                 svg = self.export_screenshot(title="sase tui", simplify=True)  # type: ignore[attr-defined]
             finally:
                 self._restore_screenshot_cursor_blink(restore_cursor_blink)
+            stage = "complete export"
             await asyncio.to_thread(complete_export, paths, svg)
         except Exception as error:
-            await asyncio.to_thread(fail_export, paths, error)
+            await asyncio.to_thread(
+                fail_export,
+                paths,
+                f"{stage}: {type(error).__name__}: {error}",
+            )
             raise
         return paths
+
+    def _request_screenshot_refresh_if_available(self) -> None:
+        """Request a final Textual refresh when the signal task context permits it."""
+        refresh = getattr(self, "refresh", None)
+        if not callable(refresh):
+            return
+        try:
+            refresh(layout=True)
+        except (AssertionError, RuntimeError) as exc:
+            if not _is_textual_refresh_context_error(exc):
+                raise
+
+    async def _wait_for_screenshot_refresh_if_available(self) -> None:
+        """Wait for Textual's next refresh when the signal task context permits it."""
+        wait_for_refresh = getattr(self, "wait_for_refresh", None)
+        if not callable(wait_for_refresh):
+            return
+        try:
+            await wait_for_refresh()
+        except (AssertionError, RuntimeError) as exc:
+            if not _is_textual_refresh_context_error(exc):
+                raise
 
     def _require_screenshot_export_request_dir(self) -> Path:
         request_dir = getattr(self, "_screenshot_export_request_dir", None)
@@ -177,3 +209,7 @@ class ScreenshotExportMixin:
                 widget.cursor_blink = cursor_blink
             except Exception:
                 pass
+
+
+def _is_textual_refresh_context_error(exc: BaseException) -> bool:
+    return "Node must be running before calling wait_for_refresh" in str(exc)

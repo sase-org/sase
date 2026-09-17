@@ -480,6 +480,13 @@ def main() -> NoReturn:
 
         run_parsed_prompt(args)
 
+    # --- screenshot ---
+    if args.command == "screenshot":
+        from .screenshot_handler import handle_screenshot_command
+
+        handle_screenshot_command(args)
+        sys.exit(0)
+
     # --- skill ---
     if args.command == "skill":
         from .skills_handler import handle_skills_command

@@ -121,6 +121,7 @@ _BUILD_SCRATCH_BUCKETS = (
 _RUN_ARTIFACT_BUCKETS = (
     # Read back by the ACE Agents tab well after the run itself ended.
     "launch-prompts",
+    "screenshots",
     "workflow-artifacts",
 )
 

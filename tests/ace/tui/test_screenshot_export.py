@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sase.ace.testing import AcePage
 from sase.ace.tui.screenshot_export import (
     complete_export,
@@ -50,6 +52,63 @@ async def test_app_export_body_writes_svg_and_done(tmp_path: Path) -> None:
     svg = paths.svg.read_text(encoding="utf-8")
     assert "<svg" in svg
     assert "rich-terminal" in svg
+
+
+async def test_app_export_body_tolerates_signal_task_refresh_wait_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with AcePage() as page:
+
+        async def fail_wait_for_refresh() -> None:
+            raise AssertionError("Node must be running before calling wait_for_refresh")
+
+        monkeypatch.setattr(page.app, "wait_for_refresh", fail_wait_for_refresh)
+        paths = await page.app._run_screenshot_export(tmp_path)
+
+    assert paths.done.exists()
+    assert not paths.error.exists()
+    assert "<svg" in paths.svg.read_text(encoding="utf-8")
+
+
+async def test_app_export_body_tolerates_signal_task_refresh_request_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with AcePage() as page:
+
+        def fail_refresh(
+            *,
+            repaint: bool = True,
+            layout: bool = False,
+            recompose: bool = False,
+        ) -> None:
+            del repaint, layout, recompose
+            raise RuntimeError("Node must be running before calling wait_for_refresh")
+
+        monkeypatch.setattr(page.app, "refresh", fail_refresh)
+        paths = await page.app._run_screenshot_export(tmp_path)
+
+    assert paths.done.exists()
+    assert not paths.error.exists()
+    assert "<svg" in paths.svg.read_text(encoding="utf-8")
+
+
+async def test_app_export_body_tolerates_signal_task_prepare_error(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async with AcePage() as page:
+
+        def fail_prepare() -> list[tuple[object, bool]]:
+            raise RuntimeError("Node must be running before calling wait_for_refresh")
+
+        monkeypatch.setattr(page.app, "_prepare_screenshot_frame", fail_prepare)
+        paths = await page.app._run_screenshot_export(tmp_path)
+
+    assert paths.done.exists()
+    assert not paths.error.exists()
+    assert "<svg" in paths.svg.read_text(encoding="utf-8")
 
 
 async def test_signal_schedule_spawns_export_task(tmp_path: Path) -> None:

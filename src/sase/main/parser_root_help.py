@@ -41,6 +41,10 @@ _COMPACT_ROOT_COMMANDS: tuple[CompactRootCommand, ...] = (
         "Launch or resume a coding-agent run from a prompt, xprompt, workflow, or history.",
     ),
     CompactRootCommand(
+        "screenshot",
+        "Capture canonical PNG evidence from a real live SASE TUI in tmux.",
+    ),
+    CompactRootCommand(
         "prompt",
         "Inspect, search, replay, and curate previously submitted agent prompts.",
     ),
@@ -90,6 +94,7 @@ _COMPACT_ROOT_EXAMPLES: tuple[str, ...] = (
     "sase doctor",
     "sase init -c",
     'sase run "#git:home summarize this repository; do not change files"',
+    "sase screenshot -o /tmp/sase.png",
     "sase tui",
     "sase agent list",
     "sase --full-help",

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import signal
+import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -109,6 +111,57 @@ def test_ace_cli_exports_svg_after_sigusr2_in_real_pty(tmp_path: Path) -> None:
     svg = (request_dir / "screen_1.svg").read_text(encoding="utf-8")
     assert "<svg" in svg
     assert "terminal_screenshot_feature" in svg
+
+
+def test_sase_screenshot_cli_captures_png_with_tmux(tmp_path: Path) -> None:
+    """Run the top-level screenshot command through tmux and rasterization."""
+    if shutil.which("tmux") is None:
+        pytest.skip("tmux is not available")
+    pytest.importorskip("resvg_py")
+
+    feature_name = "terminal_screenshot_cli_feature"
+    _write_project(tmp_path, name=feature_name)
+    output = tmp_path / "shot.png"
+    tmux_tmpdir = tmp_path / "tmux"
+    tmux_tmpdir.mkdir()
+    env = _terminal_env(tmp_path)
+    env.pop("TMUX", None)
+    env["TMUX_TMPDIR"] = str(tmux_tmpdir)
+
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "sase",
+                "screenshot",
+                "-o",
+                str(output),
+                "--",
+                f'"{feature_name}"',
+            ],
+            cwd=str(_REPO_ROOT),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=40,
+            check=False,
+        )
+    finally:
+        subprocess.run(
+            ["tmux", "kill-server"],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+
+    assert result.returncode == 0, result.stderr
+    assert output.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert f"png={output}" in result.stdout
+    assert "svg=" in result.stdout
+    assert "sase_tmux_window=sase_tmux_1" in result.stdout
 
 
 def _terminal_env(home: Path) -> dict[str, str]:

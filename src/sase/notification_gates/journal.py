@@ -98,7 +98,8 @@ class ExecutionFailureFacts:
     """One redacted failure outcome read back from the journal.
 
     Matches the shape recorded by :mod:`sase.notification_gates.failure_outcome`
-    when it reads its own writes back for tests and operator diagnostics.
+    and exposed to the Rust gate lifecycle policy as
+    ``GateDecisionFailureOutcomeWire``.
     """
 
     outcome_id: str

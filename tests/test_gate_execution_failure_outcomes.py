@@ -75,6 +75,7 @@ def test_terminal_prepare_failure_then_resume_retries_only_terminal_prepare(
 
     receipt = read_current_receipt(created.bundle_path)
     assert receipt_acceptance_id(receipt) == failure["acceptance_id"]
+
     with pytest.raises(GateError) as partial:
         execute_gate_selection(created.bundle_path, ["accept"], {"reviewed": True})
     assert partial.value.code == "partial_attempt"

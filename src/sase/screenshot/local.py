@@ -1,0 +1,540 @@
+"""Local ``sase screenshot`` orchestration."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+import re
+import shlex
+import signal
+import subprocess
+import sys
+import time
+from collections.abc import Sequence
+from typing import Any, Protocol, cast
+
+from sase.ace.tui.screenshot_export import screenshot_request_dir
+from sase.core.paths import get_sase_managed_tmpdir
+from sase.core.time import generate_timestamp
+from sase.main import ace_tmux
+
+DEFAULT_COLS = 120
+DEFAULT_ROWS = 40
+DEFAULT_SETTLE_MS = 0
+DEFAULT_TIMEOUT_SECONDS = 30.0
+SCREENSHOT_CONTRACT_SCHEMA_VERSION = 1
+
+_SCREEN_RESULT_RE = re.compile(r"^screen_(\d+)\.(done|error)$")
+_SCREEN_SVG_RE = re.compile(r"^screen_(\d+)\.svg$")
+_TRANSIENT_EXPORT_ERRORS = ("Node must be running before calling wait_for_refresh",)
+_EXPORT_RETRY_DELAY_SECONDS = 0.25
+
+
+class CommandRunner(Protocol):
+    """Command runner seam for tests and future remote transports."""
+
+    def run(
+        self,
+        cmd: Sequence[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        """Run *cmd* and return its completed process."""
+
+
+class _SubprocessRunner:
+    """Production command runner using :func:`subprocess.run`."""
+
+    def run(
+        self,
+        cmd: Sequence[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        return cast(
+            subprocess.CompletedProcess[str], subprocess.run(list(cmd), **kwargs)
+        )
+
+
+@dataclass(frozen=True)
+class ScreenshotOptions:
+    """User-selected local screenshot capture settings."""
+
+    output: Path | None
+    size: tuple[int, int]
+    presses: tuple[str, ...]
+    wait_for: tuple[str, ...]
+    settle_ms: int
+    svg_only: bool
+    keep: bool
+    window: str | None
+    timeout: float
+    tui_args: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class _ScreenshotResult:
+    """Paths and tmux target details for a completed capture."""
+
+    svg: Path
+    png: Path | None
+    screenshot_dir: Path
+    tmux_session: str
+    tmux_window: str
+    tmux_pid: int
+    created_window: bool
+    kept_window: bool
+
+    @property
+    def tmux_target(self) -> str:
+        """Return a tmux target suitable for ``send-keys`` and ``capture-pane``."""
+        return f"{self.tmux_session}:{self.tmux_window}"
+
+
+class ScreenshotCaptureError(RuntimeError):
+    """Raised when the local screenshot pipeline cannot complete."""
+
+
+def capture_local_screenshot(
+    options: ScreenshotOptions,
+    *,
+    runner: CommandRunner | None = None,
+) -> _ScreenshotResult:
+    """Launch or reuse a local tmux TUI and capture a PNG or SVG screenshot."""
+    active_runner = runner or _SubprocessRunner()
+    deadline = _Deadline(options.timeout)
+    created_window = False
+    window_name: str
+    session: str
+    pane_pid: int
+    request_dir: Path
+
+    try:
+        if options.window:
+            session, window_name, pane_pid = _inspect_tmux_window(
+                options.window,
+                runner=active_runner,
+                deadline=deadline,
+            )
+            request_dir = screenshot_request_dir(session, window_name)
+        else:
+            relaunch_cmd = _build_tui_relaunch_cmd(options.tui_args)
+            cols, rows = options.size
+            try:
+                window_name, pane_pid, screenshot_dir = (
+                    ace_tmux.create_agent_tmux_window(
+                        relaunch_cmd,
+                        cols=cols,
+                        rows=rows,
+                        extra_env=_tui_env_pins(),
+                        runner=active_runner.run,
+                    )
+                )
+            except ace_tmux.TmuxLaunchError as exc:
+                raise ScreenshotCaptureError(str(exc)) from exc
+            session = ace_tmux._AGENTS_SESSION
+            request_dir = Path(screenshot_dir)
+            created_window = True
+
+        target = f"{session}:{window_name}"
+        last_capture = _wait_for_startup_frame(
+            target,
+            runner=active_runner,
+            deadline=deadline,
+        )
+        for key in options.presses:
+            _run_tmux(
+                ["tmux", "send-keys", "-t", target, key],
+                runner=active_runner,
+                deadline=deadline,
+                action=f"send key {key!r} to {target}",
+            )
+        for pattern in options.wait_for:
+            last_capture = _wait_for_capture_match(
+                target,
+                pattern,
+                runner=active_runner,
+                deadline=deadline,
+                last_capture=last_capture,
+            )
+        if options.settle_ms > 0:
+            deadline.sleep(options.settle_ms / 1000)
+
+        svg_path = _request_export_with_retries(
+            request_dir,
+            pane_pid=pane_pid,
+            target=target,
+            runner=active_runner,
+            deadline=deadline,
+            last_capture=last_capture,
+        )
+        output_svg = _copy_svg_if_requested(svg_path, options)
+        png_path = None if options.svg_only else _render_png(svg_path, options.output)
+        return _ScreenshotResult(
+            svg=output_svg,
+            png=png_path,
+            screenshot_dir=request_dir,
+            tmux_session=session,
+            tmux_window=window_name,
+            tmux_pid=pane_pid,
+            created_window=created_window,
+            kept_window=bool(options.window) or options.keep,
+        )
+    finally:
+        if created_window and not options.keep:
+            _kill_window_best_effort(
+                f"{session}:{window_name}",
+                runner=active_runner,
+            )
+
+
+def _build_tui_relaunch_cmd(tui_args: Sequence[str]) -> str:
+    forwarded = _normalize_tui_args(tui_args)
+    argv = [
+        sys.executable,
+        "-m",
+        "sase",
+        "tui",
+        "-x",
+        "-r",
+        "0",
+        *forwarded,
+    ]
+    return "exec " + shlex.join(argv)
+
+
+def _normalize_tui_args(tui_args: Sequence[str]) -> list[str]:
+    args = list(tui_args)
+    if args[:1] == ["--"]:
+        return args[1:]
+    return args
+
+
+def _tui_env_pins() -> dict[str, str]:
+    return {
+        "COLORTERM": "truecolor",
+        "TERM": "xterm-256color",
+        "TEXTUAL_ANIMATIONS": "none",
+    }
+
+
+def _inspect_tmux_window(
+    target: str,
+    *,
+    runner: CommandRunner,
+    deadline: _Deadline,
+) -> tuple[str, str, int]:
+    result = _run_tmux(
+        [
+            "tmux",
+            "display-message",
+            "-p",
+            "-t",
+            target,
+            "#{session_name}\t#{window_name}\t#{pane_pid}",
+        ],
+        runner=runner,
+        deadline=deadline,
+        action=f"inspect tmux window {target}",
+    )
+    fields = result.stdout.strip().split("\t")
+    if len(fields) != 3 or not fields[0] or not fields[1]:
+        raise ScreenshotCaptureError(
+            f"tmux did not report session, window, and pane pid for {target!r}"
+        )
+    try:
+        pane_pid = int(fields[2])
+    except ValueError as exc:
+        raise ScreenshotCaptureError(
+            f"tmux returned non-integer pane pid for {target!r}: {fields[2]!r}"
+        ) from exc
+    return fields[0], fields[1], pane_pid
+
+
+def _wait_for_startup_frame(
+    target: str,
+    *,
+    runner: CommandRunner,
+    deadline: _Deadline,
+) -> str:
+    last = ""
+    while True:
+        text = _capture_pane(target, runner=runner, deadline=deadline)
+        if text.strip():
+            deadline.sleep(0.1)
+            return _capture_pane(target, runner=runner, deadline=deadline)
+        last = text
+        if deadline.expired:
+            raise ScreenshotCaptureError(
+                "timed out waiting for the TUI to paint a non-blank frame"
+                + _debug_suffix(last)
+            )
+        deadline.sleep(0.05)
+
+
+def _wait_for_capture_match(
+    target: str,
+    pattern: str,
+    *,
+    runner: CommandRunner,
+    deadline: _Deadline,
+    last_capture: str,
+) -> str:
+    try:
+        regex = re.compile(pattern)
+    except re.error as exc:
+        raise ScreenshotCaptureError(
+            f"invalid --wait-for regex {pattern!r}: {exc}"
+        ) from exc
+
+    capture = last_capture
+    while True:
+        capture = _capture_pane(target, runner=runner, deadline=deadline)
+        if regex.search(capture):
+            return capture
+        if deadline.expired:
+            raise ScreenshotCaptureError(
+                f"timed out waiting for tmux screen to match {pattern!r}"
+                + _debug_suffix(capture)
+            )
+        deadline.sleep(0.05)
+
+
+def _capture_pane(
+    target: str,
+    *,
+    runner: CommandRunner,
+    deadline: _Deadline,
+) -> str:
+    result = _run_tmux(
+        ["tmux", "capture-pane", "-p", "-t", target],
+        runner=runner,
+        deadline=deadline,
+        action=f"capture tmux pane {target}",
+    )
+    return result.stdout
+
+
+def _request_export_with_retries(
+    request_dir: Path,
+    *,
+    pane_pid: int,
+    target: str,
+    runner: CommandRunner,
+    deadline: _Deadline,
+    last_capture: str,
+) -> Path:
+    capture = last_capture
+    while True:
+        before_sequence = _highest_sequence(request_dir)
+        _run_tmux(
+            ["kill", f"-{_signal_name()}", str(pane_pid)],
+            runner=runner,
+            deadline=deadline,
+            action=f"signal TUI process {pane_pid}",
+        )
+        try:
+            return _wait_for_export(
+                request_dir,
+                after_sequence=before_sequence,
+                target=target,
+                runner=runner,
+                deadline=deadline,
+                last_capture=capture,
+            )
+        except _ExportMarkerError as exc:
+            if deadline.expired or not _is_transient_export_error(exc.message):
+                raise ScreenshotCaptureError(str(exc)) from exc
+            capture = exc.capture
+            deadline.sleep(_EXPORT_RETRY_DELAY_SECONDS)
+
+
+def _wait_for_export(
+    request_dir: Path,
+    *,
+    after_sequence: int,
+    target: str,
+    runner: CommandRunner,
+    deadline: _Deadline,
+    last_capture: str,
+) -> Path:
+    capture = last_capture
+    while True:
+        result = _next_export_result(request_dir, after_sequence=after_sequence)
+        if result is not None:
+            sequence, kind, marker = result
+            if kind == "error":
+                message = marker.read_text(encoding="utf-8").strip()
+                capture = _capture_pane(target, runner=runner, deadline=deadline)
+                raise _ExportMarkerError(message or "unknown error", capture)
+            svg = marker.with_suffix(".svg")
+            if not svg.exists():
+                raise ScreenshotCaptureError(
+                    f"TUI screenshot export completed without screen_{sequence}.svg"
+                )
+            return svg
+        if deadline.expired:
+            capture = _capture_pane(target, runner=runner, deadline=deadline)
+            raise ScreenshotCaptureError(
+                "timed out waiting for TUI screenshot export" + _debug_suffix(capture)
+            )
+        deadline.sleep(0.05)
+
+
+def _next_export_result(
+    request_dir: Path,
+    *,
+    after_sequence: int,
+) -> tuple[int, str, Path] | None:
+    if not request_dir.exists():
+        return None
+    matches: list[tuple[int, str, Path]] = []
+    for child in request_dir.iterdir():
+        match = _SCREEN_RESULT_RE.match(child.name)
+        if match is None:
+            continue
+        sequence = int(match.group(1))
+        if sequence > after_sequence:
+            matches.append((sequence, match.group(2), child))
+    if not matches:
+        return None
+    matches.sort(key=lambda item: item[0])
+    return matches[0]
+
+
+def _highest_sequence(request_dir: Path) -> int:
+    if not request_dir.exists():
+        return 0
+    highest = 0
+    for child in request_dir.iterdir():
+        match = _SCREEN_RESULT_RE.match(child.name) or _SCREEN_SVG_RE.match(child.name)
+        if match is not None:
+            highest = max(highest, int(match.group(1)))
+    return highest
+
+
+def _is_transient_export_error(message: str) -> bool:
+    return any(fragment in message for fragment in _TRANSIENT_EXPORT_ERRORS)
+
+
+def _copy_svg_if_requested(svg_path: Path, options: ScreenshotOptions) -> Path:
+    if not options.svg_only:
+        return svg_path
+    output = _output_path(options.output, suffix=".svg")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(svg_path.read_text(encoding="utf-8"), encoding="utf-8")
+    return output
+
+
+def _render_png(svg_path: Path, output: Path | None) -> Path:
+    from sase.ace.tui.visual_render import render_svg_to_png
+
+    png_path = _output_path(output, suffix=".png")
+    svg = svg_path.read_text(encoding="utf-8")
+    try:
+        png = render_svg_to_png(svg)
+    except RuntimeError as exc:
+        raise ScreenshotCaptureError(str(exc)) from exc
+    png_path.parent.mkdir(parents=True, exist_ok=True)
+    png_path.write_bytes(png)
+    return png_path
+
+
+def _output_path(output: Path | None, *, suffix: str) -> Path:
+    if output is not None:
+        return output.expanduser()
+    directory = Path(get_sase_managed_tmpdir("screenshots"))
+    return directory / f"sase_tui_{generate_timestamp()}{suffix}"
+
+
+def _run_tmux(
+    cmd: Sequence[str],
+    *,
+    runner: CommandRunner,
+    deadline: _Deadline,
+    action: str,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        result = runner.run(
+            list(cmd),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=deadline.remaining,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise ScreenshotCaptureError(f"timed out while trying to {action}") from exc
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise ScreenshotCaptureError(
+            f"failed to {action}" + (f": {detail}" if detail else "")
+        )
+    return result
+
+
+def _kill_window_best_effort(target: str, *, runner: CommandRunner) -> None:
+    try:
+        runner.run(
+            ["tmux", "kill-window", "-t", target],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+    except Exception:
+        return
+
+
+def _signal_name() -> str:
+    if not hasattr(signal, "SIGUSR2"):
+        raise ScreenshotCaptureError("SIGUSR2 is not available on this platform")
+    return "USR2"
+
+
+def _debug_suffix(capture: str) -> str:
+    text = capture.rstrip()
+    if not text:
+        return "\n\nLast tmux capture-pane output was blank."
+    return "\n\nLast tmux capture-pane output:\n" + text
+
+
+class _Deadline:
+    """Small monotonic deadline helper shared across tmux polling loops."""
+
+    def __init__(self, seconds: float) -> None:
+        self._deadline = time.monotonic() + seconds
+
+    @property
+    def remaining(self) -> float:
+        return max(0.001, self._deadline - time.monotonic())
+
+    @property
+    def expired(self) -> bool:
+        return time.monotonic() >= self._deadline
+
+    def sleep(self, seconds: float) -> None:
+        if seconds <= 0:
+            return
+        time.sleep(min(seconds, self.remaining))
+
+
+class _ExportMarkerError(ScreenshotCaptureError):
+    """Raised when the TUI wrote ``screen_N.error`` for a screenshot request."""
+
+    def __init__(self, message: str, capture: str) -> None:
+        self.message = message
+        self.capture = capture
+        super().__init__(
+            f"TUI screenshot export failed: {message}" + _debug_suffix(capture)
+        )
+
+
+__all__ = [
+    "DEFAULT_COLS",
+    "DEFAULT_ROWS",
+    "DEFAULT_SETTLE_MS",
+    "DEFAULT_TIMEOUT_SECONDS",
+    "SCREENSHOT_CONTRACT_SCHEMA_VERSION",
+    "CommandRunner",
+    "ScreenshotCaptureError",
+    "ScreenshotOptions",
+    "capture_local_screenshot",
+]

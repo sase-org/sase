@@ -3940,10 +3940,11 @@ with these values.
 Each bucket belongs to one horizon category. Editor, wrapper, per-agent `agent-tmp`, and
 similar command scratch uses the command-scratch horizon; `handoff`, `gh-diffs`, and
 `muse-prompts` use the handoff horizon; `build-targets` and `cargo-targets` use the
-build-scratch horizon; and `launch-prompts` and `workflow-artifacts`, which sase's TUI
-reads back after a run ends, use the run-artifact horizon. Unknown buckets and stray
-top-level entries are aged at the handoff horizon. The bucket mapping is fixed; only the
-durations and pressure thresholds are configurable.
+build-scratch horizon; and `launch-prompts`, `screenshots`, and `workflow-artifacts`,
+which sase's TUI and screenshot tooling read back after a run ends, use the run-artifact
+horizon. Unknown buckets and stray top-level entries are aged at the handoff horizon.
+The bucket mapping is fixed; only the durations and pressure thresholds are
+configurable.
 
 Pressure pruning is a second pass that removes aged, large build scratch early when the
 managed root grows past `pressure.max_bytes` or the filesystem's free space drops below
@@ -5004,6 +5005,25 @@ subcommand. They do not steal `-f`/`-F` or `-p` from commands such as
 | `-T, --tmux`                    | flag                                                   | -                                | Launch sase's TUI in a new tmux window named `sase_tmux_<N>` and print the session/window target for external control.                                                                                                            |
 | `-x, --no-axe`                  | flag                                                   | -                                | Disable auto-starting the axe daemon.                                                                                                                                                                                             |
 | `-v, --vcs-provider`            | `git`, `hg`, `auto`                                    | -                                | Override VCS provider.                                                                                                                                                                                                            |
+
+### `sase screenshot`
+
+Capture a PNG from a real `sase tui` running in tmux. The command launches in the
+detached `sase_ace_agents` session unless `--window` names an existing tmux target. See
+[Agent screenshots](ace.md#agent-screenshots).
+
+| Flag              | Values      | Default             | Description                                                               |
+| ----------------- | ----------- | ------------------- | ------------------------------------------------------------------------- |
+| `-- TUI_ARGS`     | strings     | -                   | Arguments forwarded to `sase tui` after a `--` separator.                 |
+| `-d, --settle-ms` | int (ms)    | `0`                 | Extra delay before capture.                                               |
+| `-k, --keep`      | flag        | -                   | Leave a newly launched tmux window running after capture.                 |
+| `-o, --output`    | path        | managed temp path   | PNG output path, or SVG output path when `--svg` is used.                 |
+| `-p, --press`     | tmux key    | -                   | Send one tmux key before capture. Repeat for multiple keys.               |
+| `-s, --size`      | `COLSxROWS` | `120x40`            | Geometry for a newly launched capture window.                             |
+| `-S, --svg`       | flag        | -                   | Stop after live-app SVG export and skip PNG rasterization.                |
+| `-t, --timeout`   | seconds     | `30`                | Overall capture deadline.                                                 |
+| `-w, --wait-for`  | regex       | -                   | Wait for captured tmux screen text to match a regex. Repeatable.          |
+| `-W, --window`    | tmux target | launch a new window | Capture an existing `sase_tmux_*` window and never kill it after capture. |
 
 ### `sase tmux-agent`
 

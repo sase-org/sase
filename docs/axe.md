@@ -529,18 +529,18 @@ resolves the configured horizons and thresholds and calls that binding. Horizons
 subdirectory: command scratch (`editors/`, `wrappers/`, `viewers/`, `commit-messages/`,
 `agent-tmp/`, …) goes after 12 hours by default, handoff files (`handoff/`, `gh-diffs/`,
 `muse-prompts/` — a provider re-reads the latter mid-run) after 3 days, build targets
-(`cargo-targets/`) after 3 days, and artifacts sase's TUI Agents tab reads back
-(`launch-prompts/`, `workflow-artifacts/`) after 14 days. Launched agents default
-`TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to per-launch
-directories under those managed buckets, so shell scratch and Cargo targets no longer
-fall back to host-global `/tmp`. Launched agents also get `CARGO_INCREMENTAL=0` and
-line-tables-only debug info for the dev and test Cargo profiles, which keeps per-launch
-targets small. A runner also removes its own launch-assigned `agent-tmp/` and
-`cargo-targets/` children at exit when they still match its exported `TMPDIR` and
-`CARGO_TARGET_DIR` and it can prove, through procfs, that no live process still
-references either tree (by environment or working directory). That removal goes through
-the same Rust reaper as the hourly pass. Monitor/gate handoffs and hosts without
-readable procfs leave cleanup to the reaper.
+(`cargo-targets/`) after 3 days, and artifacts sase's TUI and screenshot tooling reads
+back (`launch-prompts/`, `screenshots/`, `workflow-artifacts/`) after 14 days. Launched
+agents default `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to
+per-launch directories under those managed buckets, so shell scratch and Cargo targets
+no longer fall back to host-global `/tmp`. Launched agents also get
+`CARGO_INCREMENTAL=0` and line-tables-only debug info for the dev and test Cargo
+profiles, which keeps per-launch targets small. A runner also removes its own
+launch-assigned `agent-tmp/` and `cargo-targets/` children at exit when they still match
+its exported `TMPDIR` and `CARGO_TARGET_DIR` and it can prove, through procfs, that no
+live process still references either tree (by environment or working directory). That
+removal goes through the same Rust reaper as the hourly pass. Monitor/gate handoffs and
+hosts without readable procfs leave cleanup to the reaper.
 
 Each run removes at most 2,000 entries by default so a long-neglected root converges
 over several passes instead of stalling one. The reaper also runs a pressure pass when

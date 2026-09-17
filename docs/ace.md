@@ -58,6 +58,27 @@ When `--profile` is enabled, sase's TUI prints a shortened profile-output path a
 TUI exits and tries to copy that shortened path to the system clipboard (`pbcopy`,
 `wl-copy`, `xclip`, or `xsel` when available).
 
+### Agent Screenshots
+
+Use `sase screenshot` when you need a PNG of the real TUI state an agent would see. The
+command starts `sase tui` in the detached `sase_ace_agents` tmux session at `120x40`,
+waits for the screen to paint, sends optional tmux keys, asks the live app to export
+SVG, then rasterizes that SVG with the same bundled-font renderer used by the golden PNG
+suite.
+
+```bash
+sase screenshot -o /tmp/sase.png
+sase screenshot -p j -p j -w 'Ready' -o /tmp/sase.png
+sase screenshot --keep -- -t axe
+sase screenshot --window sase_ace_agents:sase_tmux_1 -o /tmp/sase-again.png
+```
+
+By default, the tmux window is killed after capture. Pass `--keep` to leave it running,
+drive it manually with `tmux send-keys`, and recapture it later with `--window`. The
+command pins TUI animations off and uses truecolor terminal defaults, but it still shows
+live machine state and timestamps by design. If capture times out, the error includes
+the final `tmux capture-pane` text so you can see what the TUI was showing.
+
 ### Clipboard Transports
 
 Every copy inside sase's TUI runs in the background and tries both a verifiable system

@@ -8,6 +8,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+from collections.abc import Callable
 
 from sase.ace.tui.screenshot_export import (
     SASE_TUI_SCREENSHOT_DIR_ENV,
@@ -31,6 +32,14 @@ _LEGACY_ACE_COMMAND = "ace"
 
 class _TmuxLaunchError(Exception):
     """Raised when launching the TUI in tmux fails."""
+
+
+TmuxLaunchError = _TmuxLaunchError
+_RunCommand = Callable[..., subprocess.CompletedProcess[str]]
+
+
+def _default_runner(runner: _RunCommand | None) -> _RunCommand:
+    return subprocess.run if runner is None else runner
 
 
 def launch_ace_in_tmux(args: argparse.Namespace) -> None:
@@ -58,9 +67,38 @@ def _require_tmux_binary() -> None:
         raise _TmuxLaunchError("tmux executable not found on PATH")
 
 
-def _resolve_or_create_session() -> str:
+def create_agent_tmux_window(
+    relaunch_cmd: str,
+    *,
+    cols: int | None = None,
+    rows: int | None = None,
+    extra_env: dict[str, str] | None = None,
+    runner: _RunCommand | None = None,
+) -> tuple[str, int, str]:
+    """Create an automation TUI window in the detached agents tmux session."""
+    run = _default_runner(runner)
+    _require_tmux_binary()
+    session = _resolve_or_create_agent_session(runner=run)
+    if cols is not None and rows is not None:
+        _set_session_default_size(session, cols, rows, runner=run)
+    window_name, pane_pid, screenshot_dir = _claim_window(
+        session,
+        relaunch_cmd,
+        extra_env=extra_env,
+        runner=run,
+    )
+    if cols is not None and rows is not None:
+        _resize_and_verify_window(session, window_name, cols, rows, runner=run)
+    return window_name, pane_pid, screenshot_dir
+
+
+def _resolve_or_create_session(
+    *,
+    runner: _RunCommand | None = None,
+) -> str:
+    run = _default_runner(runner)
     if os.environ.get("TMUX"):
-        result = subprocess.run(
+        result = run(
             ["tmux", "display-message", "-p", "#{session_name}"],
             capture_output=True,
             text=True,
@@ -75,15 +113,23 @@ def _resolve_or_create_session() -> str:
             raise _TmuxLaunchError("tmux returned an empty session name")
         return name
 
+    return _resolve_or_create_agent_session(runner=run)
+
+
+def _resolve_or_create_agent_session(
+    *,
+    runner: _RunCommand | None = None,
+) -> str:
+    run = _default_runner(runner)
     # Outside of tmux: ensure the dedicated agents session exists.
-    has_session = subprocess.run(
+    has_session = run(
         ["tmux", "has-session", "-t", _AGENTS_SESSION],
         capture_output=True,
         text=True,
         check=False,
     )
     if has_session.returncode != 0:
-        created = subprocess.run(
+        created = run(
             [
                 "tmux",
                 "new-session",
@@ -151,7 +197,12 @@ def _build_relaunch_cmd() -> str:
     return "exec " + shlex.join([sys.executable, "-m", "sase", *forwarded])
 
 
-def _tmux_env_args(session: str, window_name: str) -> list[str]:
+def _tmux_env_args(
+    session: str,
+    window_name: str,
+    *,
+    extra_env: dict[str, str] | None = None,
+) -> list[str]:
     """Return ``-e KEY=VAL`` args for ``tmux new-window``.
 
     Profiling env vars pass through caller-provided values so
@@ -169,10 +220,18 @@ def _tmux_env_args(session: str, window_name: str) -> list[str]:
             f"{SASE_TUI_SCREENSHOT_DIR_ENV}={screenshot_request_dir(session, window_name)}",
         ]
     )
+    for key, value in (extra_env or {}).items():
+        args.extend(["-e", f"{key}={value}"])
     return args
 
 
-def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int, str]:
+def _claim_window(
+    session: str,
+    relaunch_cmd: str,
+    *,
+    extra_env: dict[str, str] | None = None,
+    runner: _RunCommand | None = None,
+) -> tuple[str, int, str]:
     """Create a uniquely-named ``sase_tmux_<N>`` window in ``session``.
 
     Uses tmux's own refusal to create duplicate window names as the
@@ -181,14 +240,15 @@ def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int, str]:
     Returns ``(window_name, pane_pid, screenshot_dir)`` where ``pane_pid`` is
     the PID of the process tmux launched in the new window's pane.
     """
+    run = _default_runner(runner)
     for n in range(1, _MAX_WINDOW_ATTEMPTS + 1):
         window_name = f"{_WINDOW_PREFIX}{n}"
-        result = subprocess.run(
+        result = run(
             [
                 "tmux",
                 "new-window",
                 "-d",
-                *_tmux_env_args(session, window_name),
+                *_tmux_env_args(session, window_name, extra_env=extra_env),
                 "-n",
                 window_name,
                 "-t",
@@ -219,7 +279,7 @@ def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int, str]:
             screenshot_dir = str(screenshot_request_dir(session, window_name))
             return window_name, pane_pid, screenshot_dir
 
-        if _window_name_in_use(session, window_name):
+        if _window_name_in_use(session, window_name, runner=run):
             continue
 
         raise _TmuxLaunchError(
@@ -231,8 +291,14 @@ def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int, str]:
     )
 
 
-def _window_name_in_use(session: str, window_name: str) -> bool:
-    result = subprocess.run(
+def _window_name_in_use(
+    session: str,
+    window_name: str,
+    *,
+    runner: _RunCommand | None = None,
+) -> bool:
+    run = _default_runner(runner)
+    result = run(
         ["tmux", "list-windows", "-t", session, "-F", "#{window_name}"],
         capture_output=True,
         text=True,
@@ -241,6 +307,81 @@ def _window_name_in_use(session: str, window_name: str) -> bool:
     if result.returncode != 0:
         return False
     return window_name in result.stdout.splitlines()
+
+
+def _set_session_default_size(
+    session: str,
+    cols: int,
+    rows: int,
+    *,
+    runner: _RunCommand | None = None,
+) -> None:
+    run = _default_runner(runner)
+    result = run(
+        ["tmux", "set-option", "-t", session, "default-size", f"{cols}x{rows}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise _TmuxLaunchError(
+            "failed to set tmux default-size "
+            f"to {cols}x{rows}; tmux 2.9 or newer is required"
+            + (f": {detail}" if detail else "")
+        )
+
+
+def _resize_and_verify_window(
+    session: str,
+    window_name: str,
+    cols: int,
+    rows: int,
+    *,
+    runner: _RunCommand | None = None,
+) -> None:
+    run = _default_runner(runner)
+    target = f"{session}:{window_name}"
+    resized = run(
+        ["tmux", "resize-window", "-t", target, "-x", str(cols), "-y", str(rows)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if resized.returncode != 0:
+        detail = resized.stderr.strip() or resized.stdout.strip()
+        raise _TmuxLaunchError(
+            f"failed to resize tmux window {target} to {cols}x{rows}"
+            + (f": {detail}" if detail else "")
+        )
+
+    displayed = run(
+        [
+            "tmux",
+            "display-message",
+            "-p",
+            "-t",
+            target,
+            "#{window_width}x#{window_height}",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if displayed.returncode != 0:
+        detail = displayed.stderr.strip() or displayed.stdout.strip()
+        raise _TmuxLaunchError(
+            f"failed to read tmux window size for {target}"
+            + (f": {detail}" if detail else "")
+        )
+    actual = displayed.stdout.strip()
+    expected = f"{cols}x{rows}"
+    if actual != expected:
+        raise _TmuxLaunchError(
+            f"tmux window geometry mismatch for {target}: expected {expected}, "
+            f"got {actual or 'empty'}; tmux 2.9 or newer is required for "
+            "detached fixed-size captures"
+        )
 
 
 def _print_target(
