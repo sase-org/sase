@@ -949,7 +949,7 @@ commands.
 
 Committed goldens are canonical to the pinned renderer. Rasterization goes through resvg
 (`resvg_py==0.3.3`), a pure-Rust SVG renderer that carries its own font database
-restricted to the bundled fonts in `tests/ace/tui/visual/fonts/` with
+restricted to the bundled fonts in `src/sase/ace/tui/fonts/` with
 `skip_system_fonts=True`. No host font-config or graphics stack participates, so
 rendering is stable and host-font-independent on the canonical Linux x86_64 platform.
 Fira Code is named for every generic family, so it wins every glyph it carries; DejaVu

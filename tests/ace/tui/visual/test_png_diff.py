@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import builtins
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -524,6 +525,28 @@ def test_render_svg_to_png_uses_visual_renderer() -> None:
     assert png.startswith(b"\x89PNG")
 
 
+def test_render_svg_to_png_missing_renderer_has_actionable_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_import = builtins.__import__
+
+    def _missing_resvg(
+        name: str,
+        globals: dict[str, object] | None = None,
+        locals: dict[str, object] | None = None,
+        fromlist: tuple[str, ...] = (),
+        level: int = 0,
+    ) -> object:
+        if name == "resvg_py":
+            raise ImportError(name)
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", _missing_resvg)
+
+    with pytest.raises(RuntimeError, match="visual extra"):
+        render_svg_to_png("<svg xmlns='http://www.w3.org/2000/svg'/>")
+
+
 def test_render_svg_to_png_passes_bundled_font_files(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -546,6 +569,9 @@ def test_render_svg_to_png_passes_bundled_font_files(
     render_svg_to_png("<svg xmlns='http://www.w3.org/2000/svg'/>")
     font_files = captured.get("font_files")
     assert isinstance(font_files, list)
+    assert {Path(path).parent for path in font_files} == {
+        Path("src/sase/ace/tui/fonts").resolve()
+    }
     names = {Path(path).name for path in font_files}
     assert "FiraCode-Regular.ttf" in names
     assert "NotoEmoji-Regular.ttf" in names

@@ -8,7 +8,7 @@ alpha-aware color-intensity overrides are available for bounded non-canonical-pl
 drift. See the Visual Snapshot Workflow in `docs/development.md` for the comparison and
 regeneration contract.
 
-`tests/ace/tui/visual/png_diff.py::render_svg_to_png` maps every generic family
+`sase.ace.tui.visual_render.render_svg_to_png` maps every generic family
 (monospace/sans-serif/serif and the default) to Fira Code, so all text resolves here
 regardless of the font family Textual emits. Fira Code stays the named family for every
 generic, so it always wins a glyph both fonts carry; resvg only consults the rest of

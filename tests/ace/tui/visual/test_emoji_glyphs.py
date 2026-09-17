@@ -63,7 +63,7 @@ def test_emoji_in_use_is_covered_by_a_bundled_font(char: str) -> None:
         f"{unicodedata.name(char, '<unnamed>')}) is used under src/sase but no "
         "bundled font covers it. It would rasterize as a missing-glyph box in "
         "every PNG golden. Add a font that carries it to "
-        "tests/ace/tui/visual/fonts (and to renderer_env.json), or remove the "
+        "src/sase/ace/tui/fonts (and to renderer_env.json), or remove the "
         "glyph."
     )
 

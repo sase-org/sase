@@ -97,7 +97,7 @@ def test_builtin_tab_icon_is_covered_by_a_bundled_font(icon: str) -> None:
         f"Tab icon {icon!r} uses codepoints no bundled font covers: "
         + ", ".join(f"U+{ord(char):04X}" for char in missing)
         + ". It would rasterize as a missing-glyph box in every PNG golden. "
-        "Add a font that carries it to tests/ace/tui/visual/fonts (and to "
+        "Add a font that carries it to src/sase/ace/tui/fonts (and to "
         "renderer_env.json), or choose a covered glyph."
     )
 

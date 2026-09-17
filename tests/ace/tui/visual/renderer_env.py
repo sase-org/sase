@@ -10,8 +10,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.ace.tui.visual_render import _bundled_fonts_dir
+
 _MANIFEST_PATH = Path(__file__).with_name("renderer_env.json")
-_FONTS_DIR = Path(__file__).with_name("fonts")
+_FONTS_DIR = _bundled_fonts_dir()
 _REMEDIATION = (
     "Run `just install-visual`; if this is an intentional renderer upgrade, "
     "update the visual pins and renderer_env.json, then follow the snapshot "

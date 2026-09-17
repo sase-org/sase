@@ -359,6 +359,7 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-11l.5.1.2.1(release_hold_best_effort)" \
         --epic-symbol "sase-11l.5.1.2.1(runner_anchor_armer)" \
         --epic-symbol "sase-11l.5.1.2.1(unit_hold_key)" \
+        --epic-symbol "sase-123.3(render_svg_to_png)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

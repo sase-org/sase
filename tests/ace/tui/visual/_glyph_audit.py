@@ -9,15 +9,15 @@ it rasterize to actual ink through the pinned snapshot renderer, instead of a
 from __future__ import annotations
 
 from functools import lru_cache
-from pathlib import Path
 
 import pytest
 
+from sase.ace.tui.visual_render import _bundled_fonts_dir
 from tests.ace.tui.visual.png_diff import render_svg_to_png
 
 TTFont = pytest.importorskip("fontTools.ttLib").TTFont
 
-FONTS_DIR = Path(__file__).with_name("fonts")
+FONTS_DIR = _bundled_fonts_dir()
 
 GLYPH_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
