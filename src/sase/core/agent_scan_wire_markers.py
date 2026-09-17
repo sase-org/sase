@@ -269,7 +269,7 @@ class WaitingMarkerWire:
     wait_runners: int | None = None
     wait_runners_explicit: bool = False
     wait_priority: int | None = None
-    wait_priority_explicit: bool = False
+    wait_priority_explicit: bool | None = None
     queue_weight: float | None = None
     queue_weight_explicit: bool = False
     queue_weight_invalid: bool = False

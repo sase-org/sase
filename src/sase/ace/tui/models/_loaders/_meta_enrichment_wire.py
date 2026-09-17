@@ -237,9 +237,13 @@ def enrich_agent_from_meta_wire(
             explicit=waiting.queue_capacity_explicit or waiting.wait_runners_explicit,
         )
         agent.wait_priority = waiting.wait_priority
-        agent.wait_priority_explicit = waiting.wait_priority_explicit or (
-            waiting.wait_priority is not None
-            and waiting.wait_priority != DEFAULT_WAIT_PRIORITY
+        agent.wait_priority_explicit = (
+            waiting.wait_priority_explicit
+            if waiting.wait_priority_explicit is not None
+            else (
+                waiting.wait_priority is not None
+                and waiting.wait_priority != DEFAULT_WAIT_PRIORITY
+            )
         )
         if waiting.queue_weight is not None or waiting.queue_weight_invalid:
             agent.queue_weight = waiting.queue_weight

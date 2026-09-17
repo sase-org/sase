@@ -32,6 +32,7 @@ from sase.axe.run_agent_runner_signals import (
     install_workspace_release_sigterm_handler,
 )
 from sase.axe.run_agent_runner_state import RunnerRunState
+from sase.agent.launch_hold import LAUNCH_HOLD_KEY_ENV, arm_bootstrap_hold
 from sase.bead.claims import (
     BeadClaimMarker,
     claim_bead_for_waiting_agent,
@@ -256,6 +257,8 @@ def _claim_bead_before_wait(
 
 def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     """Resolve artifacts, prompt, and directives before any dependency wait."""
+    launch_hold_key = os.environ.pop(LAUNCH_HOLD_KEY_ENV, None)
+
     install_workspace_release_sigterm_handler(
         project_file=state.project_file,
         workspace_num=state.workspace_num,
@@ -326,6 +329,7 @@ def bootstrap_agent_run(state: RunnerRunState) -> RunnerBootstrap:
     state.agent_llm_provider = info.llm_provider
     state.agent_vcs_provider = info.vcs_provider
     state.agent_hidden = info.hidden
+    arm_bootstrap_hold(state, info, retry_handoff, launch_hold_key)
     force_reuse_bead_association = _force_reuse_bead_association_for_run(
         agent_name=state.agent_name,
         bead_id=info.bead_id,

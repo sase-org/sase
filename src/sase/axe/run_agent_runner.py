@@ -61,6 +61,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_output_variables import set_agent_output_variables
+from sase.core.runner_slots import HOLD_ARMER_WAIT_PRIORITY
 from sase.llm_provider.gate_intent_guard import find_gate_intent_lost_error
 from sase.telemetry.metrics import AGENT_KILLS
 
@@ -182,6 +183,7 @@ def _admit_and_launch(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None
         extra_xprompts=bootstrap.info.local_xprompts or None,
     )
 
+    hold = getattr(bootstrap.info, "hold", None)
     state.run_started_at = wait_for_runner_slot(
         state.artifacts_dir,
         state.cl_name,
@@ -189,6 +191,11 @@ def _admit_and_launch(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None
         bootstrap.agent_meta,
         wait_runners=bootstrap.info.wait_runners,
         wait_priority=bootstrap.info.wait_priority,
+        wait_priority_implied=(
+            HOLD_ARMER_WAIT_PRIORITY
+            if hold is not None and bootstrap.info.wait_priority is None
+            else None
+        ),
         queue_weight=bootstrap.info.queue_weight,
         queue_weight_explicit=bootstrap.info.queue_weight_explicit,
         claim=lambda: record_run_started_at(state.artifacts_dir, bootstrap.agent_meta),

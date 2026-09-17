@@ -15,6 +15,7 @@ from unittest.mock import ANY, MagicMock, patch
 import pytest
 
 from sase.agent.family_attach import FAMILY_ATTACH_ENV, FamilyAttachLaunchPlan
+from sase.agent.launch_hold import LAUNCH_HOLD_KEY_ENV
 from sase.axe import run_agent_runner, run_agent_runner_bootstrap
 from sase.axe.run_agent_runner_bootstrap import _capture_commit_finalizer_baseline
 from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
@@ -225,6 +226,44 @@ def test_capture_commit_finalizer_baseline_falls_back_when_parent_baseline_unrea
 
     capture.assert_called_once_with(ANY, str(artifacts_dir))
     assert not (artifacts_dir / BASELINE_FILENAME).exists()
+
+
+def test_bootstrap_pops_launch_hold_key_before_setup(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(LAUNCH_HOLD_KEY_ENV, "launch:req/u1")
+    state = run_agent_runner_bootstrap.RunnerRunState(
+        cl_name="bootstrap-key",
+        project_file="/tmp/projects/sase/sase.sase",
+        prompt_file=str(tmp_path / "prompt.md"),
+        output_path=str(tmp_path / "output.log"),
+        workflow_name="ace(run)-260701_010202",
+        timestamp="260701_010202",
+        update_target="",
+        is_home_mode=False,
+        workspace_dir=str(tmp_path / "workspace"),
+        workspace_num=7,
+        project_name="sase",
+        artifacts_timestamp="20260701_010202",
+        artifacts_dir=str(tmp_path / "artifacts"),
+    )
+
+    with (
+        patch.object(
+            run_agent_runner_bootstrap,
+            "install_workspace_release_sigterm_handler",
+        ),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "setup_artifacts_directory",
+            side_effect=RuntimeError("stop after pop"),
+        ),
+    ):
+        with pytest.raises(RuntimeError, match="stop after pop"):
+            run_agent_runner_bootstrap.bootstrap_agent_run(state)
+
+    assert LAUNCH_HOLD_KEY_ENV not in os.environ
 
 
 def test_bootstrap_captures_baseline_after_entering_the_real_workspace(

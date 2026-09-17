@@ -164,6 +164,7 @@ def _try_claim_runner_slot(
     timestamp: str,
     directive_threshold: int | None,
     directive_priority: int | None = None,
+    directive_priority_implied: int | None = None,
     directive_queue_weight: float = _DEFAULT_QUEUE_WEIGHT,
     directive_queue_weight_explicit: bool = False,
     agent_meta: dict[str, Any] | None = None,
@@ -187,6 +188,7 @@ def _try_claim_runner_slot(
             priority, priority_explicit = marker_priority_state(
                 waiting_data,
                 directive_priority,
+                implied_priority=directive_priority_implied,
             )
             queue_weight, queue_weight_explicit = marker_queue_weight_state(
                 waiting_data,
@@ -444,6 +446,7 @@ def try_claim_runner_slot_without_parking(
     *,
     wait_runners: int | None,
     wait_priority: int | None = None,
+    wait_priority_implied: int | None = None,
     queue_weight: float = _DEFAULT_QUEUE_WEIGHT,
     queue_weight_explicit: bool = False,
     claim: Callable[[], str],
@@ -460,6 +463,7 @@ def try_claim_runner_slot_without_parking(
         timestamp=timestamp,
         directive_threshold=wait_runners,
         directive_priority=wait_priority,
+        directive_priority_implied=wait_priority_implied,
         directive_queue_weight=queue_weight,
         directive_queue_weight_explicit=queue_weight_explicit,
         agent_meta=agent_meta,
@@ -477,6 +481,7 @@ def wait_for_runner_slot(
     *,
     wait_runners: int | None,
     wait_priority: int | None = None,
+    wait_priority_implied: int | None = None,
     queue_weight: float = _DEFAULT_QUEUE_WEIGHT,
     queue_weight_explicit: bool = False,
     claim: Callable[[], str],
@@ -497,6 +502,7 @@ def wait_for_runner_slot(
             timestamp=timestamp,
             directive_threshold=wait_runners,
             directive_priority=wait_priority,
+            directive_priority_implied=wait_priority_implied,
             directive_queue_weight=queue_weight,
             directive_queue_weight_explicit=queue_weight_explicit,
             agent_meta=agent_meta,

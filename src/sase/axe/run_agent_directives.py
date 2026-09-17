@@ -3,7 +3,7 @@
 import json
 import os
 from dataclasses import dataclass, replace
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from sase.axe.run_agent_directive_identity import (
     prepare_agent_name_request,
@@ -17,6 +17,9 @@ from sase.axe.run_agent_directive_metadata import (
 )
 from sase.axe.run_agent_markers import write_agent_meta
 from sase.bead.work import SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV
+
+if TYPE_CHECKING:
+    from sase.xprompt.hold_directive import HoldFields
 
 
 @dataclass(frozen=True)
@@ -54,6 +57,7 @@ class AgentInfo(NamedTuple):
     clan_summary_resolution: ClanSummaryResolutionRequest | None
     meta: dict[str, Any]
     local_xprompts: dict[str, Any]
+    hold: "HoldFields | None" = None
 
 
 @dataclass(frozen=True)
@@ -594,6 +598,8 @@ def extract_directives_and_write_meta(
         except InvalidTribeError as exc:
             raise RuntimeError(f"%id tribe={directives.tribe!r}: {exc}") from exc
 
+    from sase.xprompt.hold_directive import HoldFields
+
     auto_mode = directives.auto_mode
     return AgentInfo(
         name=agent_name,
@@ -618,4 +624,5 @@ def extract_directives_and_write_meta(
         clan_summary_resolution=clan_summary_resolution,
         meta=agent_meta,
         local_xprompts=multi.local_xprompts,
+        hold=HoldFields.from_mapping(directives.hold),
     )

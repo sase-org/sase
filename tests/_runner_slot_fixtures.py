@@ -118,8 +118,10 @@ def record(
                     )
                 ),
                 wait_priority=waiting_data.get("wait_priority"),
-                wait_priority_explicit=bool(
-                    waiting_data.get("wait_priority_explicit", False)
+                wait_priority_explicit=(
+                    waiting_data["wait_priority_explicit"]
+                    if "wait_priority_explicit" in waiting_data
+                    else None
                 ),
                 queue_weight=waiting_data.get("queue_weight"),
                 queue_weight_explicit=bool(

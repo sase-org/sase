@@ -9,6 +9,8 @@ precedent for avoiding a `sase.agent` package-init circular import.
 from __future__ import annotations
 
 import logging
+import os
+import sys
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
@@ -147,10 +149,82 @@ def runner_anchor_armer(
     return anchored
 
 
+def _wrap_hold_error(exc: Exception) -> LaunchHoldError:
+    if isinstance(exc, LaunchHoldError):
+        return exc
+    return LaunchHoldError(f"%hold: {exc}")
+
+
+def arm_bootstrap_hold(
+    state: Any,
+    info: Any,
+    retry_handoff: Any,
+    launch_hold_key: str | None,
+) -> None:
+    """Arm or rebind a launch-carried hold during runner bootstrap."""
+    from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
+    from sase.xprompt.hold_directive import agent_holds_enabled
+
+    if (
+        RUNNER_CODE_REFRESHED_ENV in os.environ
+        or retry_handoff is not None
+        or not agent_holds_enabled()
+    ):
+        return
+
+    hold = getattr(info, "hold", None)
+    if hold is None:
+        if launch_hold_key:
+            release_hold_best_effort(
+                launch_hold_key,
+                reason="launch hold key had no hold directive",
+                display=launch_hold_key,
+            )
+        return
+
+    try:
+        from sase.core.agent_hold_facade import agent_armer_wire_for_artifacts
+
+        armer = agent_armer_wire_for_artifacts(
+            state.artifacts_dir,
+            pid_fallback=os.getpid(),
+        )
+        if launch_hold_key:
+            rebound = rebind_hold(launch_hold_key, armer)
+            if rebound is None:
+                print(
+                    (
+                        "Warning: launch hold already ended before runner "
+                        f"bootstrap could bind it: {launch_hold_key}"
+                    ),
+                    file=sys.stderr,
+                )
+            return
+        arm_hold_for_fields(hold, armer=armer)
+    except LaunchHoldError as exc:
+        if launch_hold_key:
+            release_hold_best_effort(
+                launch_hold_key,
+                reason="launch hold rebind failed",
+                display=launch_hold_key,
+            )
+        raise exc
+    except Exception as exc:  # noqa: BLE001 - surfaced as a directive failure.
+        hold_error = _wrap_hold_error(exc)
+        if launch_hold_key:
+            release_hold_best_effort(
+                launch_hold_key,
+                reason="launch hold rebind failed",
+                display=launch_hold_key,
+            )
+        raise hold_error from exc
+
+
 __all__ = [
     "LAUNCH_HOLD_KEY_ENV",
     "LAUNCH_HOLD_RELEASE_REASON",
     "LaunchHoldError",
+    "arm_bootstrap_hold",
     "arm_hold_for_fields",
     "hold_fields_for",
     "launch_unit_armer",

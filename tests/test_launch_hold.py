@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from sase.agent.launch_hold import (
     LAUNCH_HOLD_RELEASE_REASON,
     LaunchHoldError,
+    arm_bootstrap_hold,
     arm_hold_for_fields,
     hold_fields_for,
     launch_unit_armer,
@@ -205,3 +207,111 @@ def test_runner_anchor_armer_replaces_pid_and_done_marker_path() -> None:
     assert anchored["done_marker_path"] == "/a/artifacts/done.json"
     assert anchored["key"] == armer["key"]
     assert armer["pid"] != 555
+
+
+def test_arm_bootstrap_hold_arms_fresh_agent_hold() -> None:
+    state = SimpleNamespace(artifacts_dir="/tmp/artifacts")
+    info = SimpleNamespace(hold=HoldFields(future=True))
+    armer = {"kind": "agent", "key": "agent:planner"}
+
+    with (
+        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
+        patch(
+            "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts",
+            return_value=armer,
+        ) as armer_for_artifacts,
+        patch("sase.agent.launch_hold.arm_hold_for_fields") as arm,
+        patch("sase.agent.launch_hold.rebind_hold") as rebind,
+    ):
+        arm_bootstrap_hold(state, info, None, None)
+
+    armer_for_artifacts.assert_called_once_with(
+        "/tmp/artifacts",
+        pid_fallback=os.getpid(),
+    )
+    arm.assert_called_once_with(info.hold, armer=armer)
+    rebind.assert_not_called()
+
+
+def test_arm_bootstrap_hold_rebinds_prearmed_key() -> None:
+    state = SimpleNamespace(artifacts_dir="/tmp/artifacts")
+    info = SimpleNamespace(hold=HoldFields(future=True))
+    armer = {"kind": "agent", "key": "agent:planner"}
+
+    with (
+        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
+        patch(
+            "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts",
+            return_value=armer,
+        ),
+        patch(
+            "sase.agent.launch_hold.rebind_hold", return_value={"armer": armer}
+        ) as rebind,
+        patch("sase.agent.launch_hold.arm_hold_for_fields") as arm,
+    ):
+        arm_bootstrap_hold(state, info, None, "launch:req/u1")
+
+    rebind.assert_called_once_with("launch:req/u1", armer)
+    arm.assert_not_called()
+
+
+def test_arm_bootstrap_hold_releases_key_when_no_hold_was_parsed() -> None:
+    state = SimpleNamespace(artifacts_dir="/tmp/artifacts")
+    info = SimpleNamespace(hold=None)
+
+    with (
+        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
+        patch("sase.agent.launch_hold.release_hold_best_effort") as release,
+    ):
+        arm_bootstrap_hold(state, info, None, "launch:req/u1")
+
+    release.assert_called_once_with(
+        "launch:req/u1",
+        reason="launch hold key had no hold directive",
+        display="launch:req/u1",
+    )
+
+
+def test_arm_bootstrap_hold_releases_key_when_rebind_fails() -> None:
+    state = SimpleNamespace(artifacts_dir="/tmp/artifacts")
+    info = SimpleNamespace(hold=HoldFields(future=True))
+    armer = {"kind": "agent", "key": "agent:planner"}
+
+    with (
+        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
+        patch(
+            "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts",
+            return_value=armer,
+        ),
+        patch(
+            "sase.agent.launch_hold.rebind_hold",
+            side_effect=LaunchHoldError("%hold: boom"),
+        ),
+        patch("sase.agent.launch_hold.release_hold_best_effort") as release,
+    ):
+        with pytest.raises(LaunchHoldError, match=r"^%hold: boom"):
+            arm_bootstrap_hold(state, info, None, "launch:req/u1")
+
+    release.assert_called_once_with(
+        "launch:req/u1",
+        reason="launch hold rebind failed",
+        display="launch:req/u1",
+    )
+
+
+def test_arm_bootstrap_hold_skips_refresh_pass(monkeypatch: pytest.MonkeyPatch) -> None:
+    from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
+
+    monkeypatch.setenv(RUNNER_CODE_REFRESHED_ENV, "1")
+    state = SimpleNamespace(artifacts_dir="/tmp/artifacts")
+    info = SimpleNamespace(hold=HoldFields(future=True))
+
+    with (
+        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
+        patch(
+            "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts"
+        ) as armer_for_artifacts,
+    ):
+        arm_bootstrap_hold(state, info, None, "launch:req/u1")
+
+    armer_for_artifacts.assert_not_called()

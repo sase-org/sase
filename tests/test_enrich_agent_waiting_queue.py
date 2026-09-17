@@ -262,6 +262,22 @@ def test_legacy_wait_priority_marker_uses_default_value_heuristic() -> None:
     assert default_agent.wait_priority_explicit is False
 
 
+def test_waiting_marker_wire_explicit_false_overrides_legacy_priority_heuristic() -> (
+    None
+):
+    agent = make_agent(status="STARTING")
+
+    enrich_agent_from_meta_wire(
+        agent,
+        AgentMetaWire(),
+        WaitingMarkerWire(wait_priority=5, wait_priority_explicit=False),
+        None,
+    )
+
+    assert agent.wait_priority == 5
+    assert agent.wait_priority_explicit is False
+
+
 def test_queue_capacity_metadata_marks_waited_in_filesystem_and_wire(
     tmp_path: Path,
 ) -> None:

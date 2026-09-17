@@ -137,6 +137,37 @@ def test_waiting_runner_slot_fields_match_filesystem_marker(tmp_path: Path) -> N
     assert waiting.slot_requested_at == raw["slot_requested_at"]
 
 
+def test_waiting_priority_explicit_wire_preserves_absent_and_false(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "projects"
+    absent_dir = root / "myproj" / "artifacts" / "ace-run" / "20260712192000"
+    false_dir = root / "myproj" / "artifacts" / "ace-run" / "20260712192100"
+    for artifact_dir, waiting in (
+        (absent_dir, {"wait_priority": 5}),
+        (false_dir, {"wait_priority": 5, "wait_priority_explicit": False}),
+    ):
+        artifact_dir.mkdir(parents=True)
+        (artifact_dir / "agent_meta.json").write_text(
+            json.dumps({"name": artifact_dir.name}),
+            encoding="utf-8",
+        )
+        (artifact_dir / "waiting.json").write_text(
+            json.dumps(waiting),
+            encoding="utf-8",
+        )
+
+    records = scan_agent_artifact_dirs(root, [absent_dir, false_dir]).records
+    by_timestamp = {record.timestamp: record.waiting for record in records}
+    absent = by_timestamp[absent_dir.name]
+    explicit_false = by_timestamp[false_dir.name]
+
+    assert absent is not None
+    assert absent.wait_priority_explicit is None
+    assert explicit_false is not None
+    assert explicit_false.wait_priority_explicit is False
+
+
 def test_agent_meta_wait_priority_scan_preserves_explicit_and_legacy_values(
     tmp_path: Path,
 ) -> None:

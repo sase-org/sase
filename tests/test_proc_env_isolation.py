@@ -50,7 +50,7 @@ _SASE_ML_FILE_FAMILIES = (
     "tests/test_prompt_inputs.py::test_launch_query_errors_clearly_on_missing_required_inputs",
     "tests/test_multi_prompt_e2e.py::test_cli_single_prompt_launches_detached",
     "tests/ace/tui/modals/test_snippet_name_modal.py::test_escape_returns_none",
-    "tests/test_config.py::test_deep_merge_list_concatenation",
+    "tests/test_config_merge.py::test_deep_merge_list_concatenation",
     "tests/test_config_cache.py::test_clear_config_cache_forces_reload",
 )
 

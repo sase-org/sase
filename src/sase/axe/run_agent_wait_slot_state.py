@@ -60,6 +60,7 @@ def _legacy_marker_priority_explicit(waiting_data: dict[str, Any]) -> bool:
 def marker_priority_state(
     waiting_data: dict[str, Any] | None,
     directive_priority: int | None,
+    implied_priority: int | None = None,
 ) -> tuple[int, bool]:
     if waiting_data is not None and "slot_requested_at" in waiting_data:
         marker_value = waiting_data.get("wait_priority")
@@ -70,6 +71,8 @@ def marker_priority_state(
             return marker_value, True
     if type(directive_priority) is int and directive_priority >= 0:
         return directive_priority, True
+    if type(implied_priority) is int and implied_priority >= 0:
+        return implied_priority, False
     return DEFAULT_WAIT_PRIORITY, False
 
 

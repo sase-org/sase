@@ -352,7 +352,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol "sase-11l.5.1.2.1(LaunchHoldError)" \
-        --epic-symbol "sase-11l.5.1.2.1(agent_armer_wire_for_artifacts)" \
         --epic-symbol "sase-11l.5.1.2.1(arm_hold_for_fields)" \
         --epic-symbol "sase-11l.5.1.2.1(hold_fields_for)" \
         --epic-symbol "sase-11l.5.1.2.1(launch_unit_armer)" \

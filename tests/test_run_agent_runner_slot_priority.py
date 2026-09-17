@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.axe import run_agent_wait_markers, run_agent_wait_slots
+from sase.core.runner_slots import HOLD_ARMER_WAIT_PRIORITY
 
 from tests._runner_slot_fixtures import artifact, record
 
@@ -365,3 +366,73 @@ def test_marker_priority_resolution_tracks_explicit_legacy_markers() -> None:
         3,
         True,
     )
+
+
+def test_marker_priority_resolution_uses_implied_priority_as_non_explicit() -> None:
+    assert run_agent_wait_slots.marker_priority_state(
+        None,
+        None,
+        implied_priority=HOLD_ARMER_WAIT_PRIORITY,
+    ) == (
+        HOLD_ARMER_WAIT_PRIORITY,
+        False,
+    )
+    assert run_agent_wait_slots.marker_priority_state(
+        {
+            "slot_requested_at": "now",
+            "wait_priority": HOLD_ARMER_WAIT_PRIORITY,
+            "wait_priority_explicit": False,
+        },
+        None,
+        implied_priority=HOLD_ARMER_WAIT_PRIORITY,
+    ) == (
+        HOLD_ARMER_WAIT_PRIORITY,
+        False,
+    )
+    assert run_agent_wait_slots.marker_priority_state(
+        None,
+        3,
+        implied_priority=HOLD_ARMER_WAIT_PRIORITY,
+    ) == (3, True)
+
+
+def test_try_claim_runner_slot_writes_implied_priority_as_non_explicit(
+    tmp_path: Path,
+) -> None:
+    running = [
+        artifact(tmp_path, f"2026071212000{index}", 100 + index) for index in range(2)
+    ]
+    waiter = artifact(tmp_path, "20260712120002", 102)
+
+    with (
+        patch.object(
+            run_agent_wait_slots,
+            "_scan_runner_slot_records",
+            return_value=[
+                *[record(path, started=True) for path in running],
+                record(waiter),
+            ],
+        ),
+        patch.object(run_agent_wait_slots, "is_process_alive", return_value=True),
+        patch.object(run_agent_wait_slots, "get_max_running_agents", return_value=1),
+        patch.object(
+            run_agent_wait_markers,
+            "update_agent_artifact_index_for_marker_mutation",
+        ),
+        patch.dict("os.environ", {"SASE_HOME": str(tmp_path / ".sase")}),
+    ):
+        result, parked = run_agent_wait_slots._try_claim_runner_slot(
+            artifacts_dir=str(waiter),
+            cl_name="cl",
+            timestamp=waiter.name,
+            directive_threshold=None,
+            directive_priority=None,
+            directive_priority_implied=HOLD_ARMER_WAIT_PRIORITY,
+            claim=lambda: "started",
+        )
+
+    assert result is None
+    assert parked is True
+    marker = json.loads((waiter / "waiting.json").read_text())
+    assert marker["wait_priority"] == HOLD_ARMER_WAIT_PRIORITY
+    assert marker["wait_priority_explicit"] is False
